@@ -8,6 +8,15 @@ on:
       - 'sites/gazetta.studio/**'
       - 'packages/gazetta/**'
 
+# Serialize deploys. A half-published R2 is worse than a queued deploy,
+# so never cancel one in progress.
+concurrency:
+  group: deploy-gazetta-studio
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -31,6 +40,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
       - name: Deploy worker
-        run: cd sites/gazetta.studio/worker && npx wrangler deploy
+        working-directory: sites/gazetta.studio/worker
+        run: npx wrangler deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
