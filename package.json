@@ -17,7 +17,7 @@
     "build": "npm run build -w packages/gazetta",
     "dev": "npm run build && npm run dev -w examples/starter",
     "dev:site": "npm run build && npm run dev -w @gazetta/website",
-    "deploy:site": "npm run build && cd sites/gazetta.studio/worker && npm run seed && npm run deploy",
+    "deploy:site": "npm run build && npx tsx packages/gazetta/src/cli/index.ts publish production sites/gazetta.studio && cd sites/gazetta.studio/worker && npm run deploy",
     "dev:admin": "npm run build && npm run dev:api -w @gazetta/admin & npm run dev:ui -w @gazetta/admin",
     "test": "npm run test --workspaces --if-present",
     "smoke": "bash scripts/smoke-publish.sh",
