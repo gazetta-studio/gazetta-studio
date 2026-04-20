@@ -1,6 +1,6 @@
 {
   "name": "gazetta",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Stateless CMS for composable websites",
   "keywords": [
     "cms",
