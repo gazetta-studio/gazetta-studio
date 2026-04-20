@@ -15,7 +15,7 @@
     "@primeuix/themes": "^2.0.3",
     "@vueuse/core": "^14.2.1",
     "gazetta": "*",
-    "hono": "^4.12.0",
+    "hono": "^4.12.14",
     "js-yaml": "^4.1.0",
     "morphdom": "^2.7.8",
     "pinia": "^3.0.0",
@@ -26,7 +26,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@hono/vite-dev-server": "^0.25.1",
+    "@hono/vite-dev-server": "^0.25.2",
     "@types/js-yaml": "^4.0.0",
     "@types/node": "^25.6.0",
     "@vitejs/plugin-vue": "^6.0.6",
@@ -34,8 +34,8 @@
     "jsdom": "^29.0.2",
     "testcontainers": "^11.13.0",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.2",
-    "vite": "^8.0.8",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.9",
     "vitest": "^4.1.0"
   }
 }
