@@ -1,0 +1,68 @@
+/**
+ * HTTP route: `POST /api/assets` — upload an asset.
+ *
+ * Thin adapter. Parses multipart form data, resolves the active target's
+ * storage, delegates to `ingestAsset`, maps typed errors to HTTP responses.
+ * No validation logic, no storage logic, no manifest construction in here —
+ * the asset domain owns all of that (see `src/assets/`).
+ *
+ * Multipart fields:
+ * - `file` — required, the byte payload
+ * - `name` — required, author-chosen asset name (pre-validation)
+ * - `alt`  — optional, alt text (empty string = "decorative"; absent = "not set")
+ */
+import { Hono } from 'hono'
+import { ingestAsset } from '../../assets/ingest.js'
+import { AssetProviderNotCapableError, AssetStorageError, AssetValidationError } from '../../assets/errors.js'
+import type { SourceContextResolver } from '../source-context.js'
+
+/** Where assets live, relative to the target storage root. */
+const ASSETS_ROOT = 'assets'
+
+export function assetRoutes(resolve: SourceContextResolver) {
+  const app = new Hono()
+
+  app.post('/api/assets', async c => {
+    const source = await resolve(c.req.query('target'))
+
+    // Hono's parseBody reads multipart into a { [field]: string | File } map.
+    const body = await c.req.parseBody()
+    const file = body.file
+    const name = body.name
+    const altRaw = body.alt
+
+    if (!(file instanceof File)) {
+      return c.json({ code: 'BAD_REQUEST', message: 'Missing or invalid "file" field' }, 400)
+    }
+    if (typeof name !== 'string' || name.length === 0) {
+      return c.json({ code: 'BAD_REQUEST', message: 'Missing or invalid "name" field' }, 400)
+    }
+    // alt: absent → null, empty string → "" (decorative), string → the value
+    const alt = typeof altRaw === 'string' ? altRaw : null
+
+    try {
+      const result = await ingestAsset({
+        storage: source.storage,
+        assetsRoot: ASSETS_ROOT,
+        bytes: file.stream(),
+        requestedName: name,
+        alt,
+        uploadedBy: '',
+      })
+      return c.json({ manifest: result.manifest, bytesPath: result.bytesPath }, 201)
+    } catch (err) {
+      if (err instanceof AssetValidationError) {
+        return c.json({ code: err.code, message: err.message }, 400)
+      }
+      if (err instanceof AssetProviderNotCapableError) {
+        return c.json({ code: err.code, message: err.message }, 501)
+      }
+      if (err instanceof AssetStorageError) {
+        return c.json({ code: err.code, message: err.message }, 500)
+      }
+      throw err
+    }
+  })
+
+  return app
+}

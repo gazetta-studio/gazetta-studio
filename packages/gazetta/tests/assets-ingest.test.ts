@@ -1,0 +1,218 @@
+import { afterEach, describe, expect, it } from 'vitest'
+import { readFile, readdir, rm } from 'node:fs/promises'
+import { join } from 'node:path'
+import sharp from 'sharp'
+import { AssetProviderNotCapableError, AssetValidationError } from '../src/assets/errors.js'
+import { ingestAsset } from '../src/assets/ingest.js'
+import { createFilesystemProvider } from '../src/providers/filesystem.js'
+import type { StorageProvider } from '../src/types.js'
+import { tempDir } from './_helpers/temp.js'
+
+const testDir = tempDir('ingest-test-' + Date.now())
+
+afterEach(async () => {
+  await rm(testDir, { recursive: true, force: true })
+})
+
+async function jpegBuffer(w = 64, h = 48): Promise<Buffer> {
+  return sharp({
+    create: { width: w, height: h, channels: 3, background: { r: 128, g: 128, b: 128 } },
+  })
+    .jpeg()
+    .toBuffer()
+}
+
+async function pngBuffer(): Promise<Buffer> {
+  return sharp({
+    create: { width: 32, height: 32, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  })
+    .png()
+    .toBuffer()
+}
+
+function streamOf(bytes: Uint8Array): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    start(c) {
+      c.enqueue(bytes)
+      c.close()
+    },
+  })
+}
+
+describe('ingestAsset — happy path', () => {
+  it('persists bytes and writes a manifest for a valid JPEG upload', async () => {
+    const storage = createFilesystemProvider(testDir)
+    const bytes = await jpegBuffer(100, 50)
+
+    const result = await ingestAsset({
+      storage,
+      assetsRoot: 'assets',
+      bytes: streamOf(new Uint8Array(bytes)),
+      requestedName: 'hero',
+      alt: 'Test hero',
+      uploadedBy: '',
+    })
+
+    // Manifest fields
+    expect(result.manifest.name).toBe('hero')
+    expect(result.manifest.kind).toBe('embedded')
+    expect(result.manifest.source).toBe('internal')
+    expect(result.manifest.mime).toBe('image/jpeg')
+    expect(result.manifest.size).toBe(bytes.byteLength)
+    expect(result.manifest.hash).toMatch(/^[0-9a-f]{8}$/)
+    expect(result.manifest.width).toBe(100)
+    expect(result.manifest.height).toBe(50)
+    expect(result.manifest.alt).toBe('Test hero')
+    expect(result.manifest.uploadedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+
+    // Bytes landed at the expected path
+    expect(result.bytesPath).toBe(`assets/hero-${result.manifest.hash}.jpg`)
+    const onDisk = await readFile(join(testDir, result.bytesPath))
+    expect(Buffer.compare(onDisk, bytes)).toBe(0)
+
+    // Manifest written next to bytes
+    const manifestOnDisk = JSON.parse(await readFile(join(testDir, 'assets/hero.asset.json'), 'utf-8'))
+    expect(manifestOnDisk.hash).toBe(result.manifest.hash)
+  })
+
+  it('handles PNG with dimensions', async () => {
+    const storage = createFilesystemProvider(testDir)
+    const bytes = await pngBuffer()
+
+    const result = await ingestAsset({
+      storage,
+      assetsRoot: 'assets',
+      bytes: streamOf(new Uint8Array(bytes)),
+      requestedName: 'icon',
+      alt: null,
+      uploadedBy: '',
+    })
+
+    expect(result.manifest.mime).toBe('image/png')
+    expect(result.manifest.width).toBe(32)
+    expect(result.manifest.height).toBe(32)
+    expect(result.manifest.alt).toBeNull()
+    expect(result.bytesPath.endsWith('.png')).toBe(true)
+  })
+
+  it('strips client-supplied extension from the canonical name', async () => {
+    const storage = createFilesystemProvider(testDir)
+    const bytes = await jpegBuffer()
+
+    const result = await ingestAsset({
+      storage,
+      assetsRoot: 'assets',
+      bytes: streamOf(new Uint8Array(bytes)),
+      requestedName: 'hero.jpg',
+      alt: null,
+      uploadedBy: '',
+    })
+
+    expect(result.manifest.name).toBe('hero')
+    // The byte file gets the MIME-derived extension, not the client-sent one.
+    expect(result.bytesPath).toBe(`assets/hero-${result.manifest.hash}.jpg`)
+  })
+
+  it('writes only the target files — no temp leftovers', async () => {
+    const storage = createFilesystemProvider(testDir)
+    const bytes = await jpegBuffer()
+
+    await ingestAsset({
+      storage,
+      assetsRoot: 'assets',
+      bytes: streamOf(new Uint8Array(bytes)),
+      requestedName: 'clean',
+      alt: null,
+      uploadedBy: '',
+    })
+
+    const entries = await readdir(join(testDir, 'assets'))
+    // exactly two files: the bytes and the manifest
+    expect(entries).toHaveLength(2)
+    expect(entries.some(n => n.startsWith('clean-') && n.endsWith('.jpg'))).toBe(true)
+    expect(entries).toContain('clean.asset.json')
+  })
+})
+
+describe('ingestAsset — rejects invalid input', () => {
+  it('rejects an unsupported MIME (WebP) with ASSET_MIME_MISMATCH', async () => {
+    const storage = createFilesystemProvider(testDir)
+    const webp = await sharp({
+      create: { width: 10, height: 10, channels: 3, background: { r: 0, g: 0, b: 0 } },
+    })
+      .webp()
+      .toBuffer()
+
+    await expect(
+      ingestAsset({
+        storage,
+        assetsRoot: 'assets',
+        bytes: streamOf(new Uint8Array(webp)),
+        requestedName: 'rejected',
+        alt: null,
+        uploadedBy: '',
+      }),
+    ).rejects.toMatchObject({ code: 'ASSET_MIME_MISMATCH' })
+  })
+
+  it('rejects garbage bytes (no magic-byte match)', async () => {
+    const storage = createFilesystemProvider(testDir)
+    const garbage = new TextEncoder().encode('this is plain text, nothing else')
+
+    await expect(
+      ingestAsset({
+        storage,
+        assetsRoot: 'assets',
+        bytes: streamOf(garbage),
+        requestedName: 'garbage',
+        alt: null,
+        uploadedBy: '',
+      }),
+    ).rejects.toBeInstanceOf(AssetValidationError)
+  })
+
+  it('rejects a path-traversal name', async () => {
+    const storage = createFilesystemProvider(testDir)
+    const bytes = await jpegBuffer()
+
+    await expect(
+      ingestAsset({
+        storage,
+        assetsRoot: 'assets',
+        bytes: streamOf(new Uint8Array(bytes)),
+        requestedName: '../etc/passwd',
+        alt: null,
+        uploadedBy: '',
+      }),
+    ).rejects.toMatchObject({ code: 'ASSET_PATH_TRAVERSAL' })
+  })
+
+  it('rejects when the storage provider does not support streaming', async () => {
+    // A text-only StorageProvider — the shape R2/S3/Azure return today.
+    const textOnly: StorageProvider = {
+      async readFile() {
+        return ''
+      },
+      async writeFile() {},
+      async readDir() {
+        return []
+      },
+      async exists() {
+        return false
+      },
+      async mkdir() {},
+      async rm() {},
+    }
+
+    await expect(
+      ingestAsset({
+        storage: textOnly,
+        assetsRoot: 'assets',
+        bytes: streamOf(new Uint8Array(await jpegBuffer())),
+        requestedName: 'nope',
+        alt: null,
+        uploadedBy: '',
+      }),
+    ).rejects.toBeInstanceOf(AssetProviderNotCapableError)
+  })
+})

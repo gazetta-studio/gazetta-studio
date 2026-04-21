@@ -26,6 +26,7 @@ import { publishRoutes } from './routes/publish.js'
 import { compareRoutes } from './routes/compare.js'
 import { fieldRoutes } from './routes/fields.js'
 import { historyRoutes } from './routes/history.js'
+import { assetRoutes } from './routes/assets.js'
 
 export interface AdminAppOptions {
   /**
@@ -181,6 +182,7 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   app.route('/', compareRoutes(resolveSource, opts.targets, opts.targetConfigs, templatesDir, scan))
   app.route('/', fieldRoutes(resolveSource, adminDir))
   app.route('/', historyRoutes(resolveSource, opts.targets, opts.targetConfigs))
+  app.route('/', assetRoutes(resolveSource))
 
   // Exposed for the CLI's template file watcher: clears the memoized scan
   // so the next publish/compare picks up template edits. Not part of the

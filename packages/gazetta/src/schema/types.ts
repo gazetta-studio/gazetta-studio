@@ -53,6 +53,42 @@ export interface FontAssetRef {
   _asset: string
 }
 
+// ---------- Manifest shape (what lives in storage) ----------
+
+/**
+ * Asset manifest — the JSON written to `{name}.asset.json` for each asset.
+ * Storage shape, distinct from reference (content JSON) and resolved (template
+ * render). v1 slice fields only; wider fields (variants, animated, poster,
+ * source, etc.) are added as those capabilities land.
+ *
+ * `version: 1` is the forward-compatibility lever for future changes.
+ */
+export interface AssetManifest {
+  version: 1
+  /** Asset name (matches the library key and the reference `_asset`). */
+  name: string
+  /** Rendering role — determines how templates use this asset. */
+  kind: 'embedded' | 'downloadable' | 'font'
+  /** Whether bytes live on target (`internal`) or elsewhere. v1 slice: internal only. */
+  source: 'internal'
+  /** Canonical MIME type (sniffed from bytes at upload). */
+  mime: string
+  /** Size in bytes of the default representation. */
+  size: number
+  /** 8-char SHA-256 prefix of default bytes. Matches the on-disk filename suffix. */
+  hash: string
+  /** Width in pixels (images) — null when not applicable. */
+  width: number | null
+  /** Height in pixels (images) — null when not applicable. */
+  height: number | null
+  /** Alt text per the three-state model; null means "not set". */
+  alt: string | null
+  /** Upload timestamp (ISO 8601 UTC). */
+  uploadedAt: string
+  /** Author who uploaded; empty string when RBAC isn't configured. */
+  uploadedBy: string
+}
+
 // ---------- Resolved shapes (what templates receive) ----------
 
 /** Embedded asset after the resolver merges manifest + per-ref overrides. */

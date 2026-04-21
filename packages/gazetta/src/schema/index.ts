@@ -29,6 +29,7 @@ export type {
   FontAssetOptions,
 } from './helpers.js'
 export type {
+  AssetManifest,
   Content,
   DownloadableAssetRef,
   EmbeddedAssetRef,
