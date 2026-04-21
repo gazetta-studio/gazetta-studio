@@ -11,6 +11,7 @@ import { useAssetLibraryShortcut } from './composables/useAssetLibraryShortcut.j
 import Toolbar from './components/CmsToolbar.vue'
 import UnsavedDialog from './components/UnsavedDialog.vue'
 import AssetLibrary from './components/AssetLibrary.vue'
+import AssetPicker from './components/AssetPicker.vue'
 
 const site = useSiteStore()
 const theme = useThemeStore()
@@ -83,6 +84,7 @@ onMounted(() => {
 
     <UnsavedDialog />
     <AssetLibrary />
+    <AssetPicker />
 
     <!-- Global toast — visible over everything including fullscreen -->
     <Transition name="toast">

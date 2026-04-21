@@ -1,5 +1,6 @@
 import { watch, onBeforeUnmount, type Ref } from 'vue'
 import type { EditorMount } from 'gazetta/types'
+import { openAssetPicker } from '../api/openAssetPicker.js'
 
 export function useEditorMount(
   containerRef: Ref<HTMLElement | null>,
@@ -29,6 +30,7 @@ export function useEditorMount(
       theme: theme.value,
       onChange,
       fieldsBaseUrl: fieldsBaseUrl?.value,
+      onPickAsset: openAssetPicker,
     })
     current = { mount: m, el }
   }

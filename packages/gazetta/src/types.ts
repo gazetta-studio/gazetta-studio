@@ -26,6 +26,18 @@ export interface EditorMount {
       onChange: (content: Record<string, unknown>) => void
       /** Base URL for loading custom field modules (dev mode: /@fs/ path) */
       fieldsBaseUrl?: string
+      /**
+       * Asset picker callback — used by embedded-asset field widgets to
+       * open a "select one asset" modal. Admin supplies its own
+       * implementation (Vue-rendered in the admin); the editor package
+       * depends only on the abstract Promise-returning shape.
+       *
+       * Returns `{ _asset: name }` on confirm, `null` on cancel.
+       */
+      onPickAsset?: (options: {
+        accept?: string[]
+        currentAssetName?: string | null
+      }) => Promise<{ _asset: string } | null>
     },
   ): void
   unmount(el: HTMLElement): void

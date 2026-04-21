@@ -223,18 +223,14 @@ export interface FragmentDetail extends FragmentSummary {
   locales?: string[]
 }
 
-/** Asset summary returned by GET /api/assets. Matches the server `AssetSummary`. */
-export interface AssetSummary {
-  name: string
-  kind: 'embedded' | 'downloadable' | 'font'
-  mime: string
-  size: number
-  hash: string
-  width: number | null
-  height: number | null
-  alt: string | null
-  uploadedAt: string
-}
+/**
+ * Asset summary returned by GET /api/assets.
+ * Re-exported from `gazetta/schema` — single source of truth for the shape
+ * lives in the gazetta package (schema/types.ts). If the server changes
+ * the shape, the admin is a compile error rather than runtime drift.
+ */
+export type { AssetSummary } from 'gazetta/schema'
+import type { AssetSummary } from 'gazetta/schema'
 
 /** Manifest returned by a successful upload. */
 export interface UploadedAsset {
@@ -317,6 +313,8 @@ export const api = {
     ),
   /** List assets on the active target. Empty array when the target has none. */
   listAssets: () => request<AssetSummary[]>('/assets'),
+  /** Fetch a single asset's summary by name. 404s when the asset doesn't exist. */
+  getAsset: (name: string) => request<AssetSummary>(`/assets/${encodeURIComponent(name)}`),
   /**
    * Upload an asset. On success returns the new asset's manifest + bytes path.
    * On failure throws an Error with `code` (typed AssetError code) and

@@ -13,8 +13,15 @@
  */
 import { Hono } from 'hono'
 import { ingestAsset } from '../../assets/ingest.js'
-import { listAssets } from '../../assets/list.js'
-import { AssetProviderNotCapableError, AssetStorageError, AssetValidationError } from '../../assets/errors.js'
+import { listAssets, toSummary } from '../../assets/list.js'
+import { readManifest } from '../../assets/manifest.js'
+import {
+  AssetManifestCorruptError,
+  AssetManifestNotFoundError,
+  AssetProviderNotCapableError,
+  AssetStorageError,
+  AssetValidationError,
+} from '../../assets/errors.js'
 import type { SourceContextResolver } from '../source-context.js'
 
 /** Where assets live, relative to the target storage root. */
@@ -32,6 +39,26 @@ export function assetRoutes(resolve: SourceContextResolver) {
       })
       return c.json(summaries)
     } catch (err) {
+      if (err instanceof AssetStorageError) {
+        return c.json({ code: err.code, message: err.message }, 500)
+      }
+      throw err
+    }
+  })
+
+  app.get('/api/assets/:name', async c => {
+    const name = c.req.param('name')
+    const source = await resolve(c.req.query('target'))
+    try {
+      const manifest = await readManifest(source.storage, ASSETS_ROOT, name)
+      return c.json(toSummary(manifest))
+    } catch (err) {
+      if (err instanceof AssetManifestNotFoundError) {
+        return c.json({ code: err.code, message: err.message }, 404)
+      }
+      if (err instanceof AssetManifestCorruptError) {
+        return c.json({ code: err.code, message: err.message }, 500)
+      }
       if (err instanceof AssetStorageError) {
         return c.json({ code: err.code, message: err.message }, 500)
       }

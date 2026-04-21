@@ -16,21 +16,25 @@
  * comma — that's a bug-in-authoring, not a bug in the CMS.
  */
 import type { StorageProvider } from '../types.js'
-import type { AssetManifest } from '../schema/types.js'
+import type { AssetManifest, AssetSummary } from '../schema/types.js'
 import { AssetStorageError } from './errors.js'
 import { readManifest } from './manifest.js'
 
-/** Compact per-asset summary for library listings. */
-export interface AssetSummary {
-  name: string
-  kind: AssetManifest['kind']
-  mime: string
-  size: number
-  hash: string
-  width: number | null
-  height: number | null
-  alt: string | null
-  uploadedAt: string
+export type { AssetSummary }
+
+/** Project a full manifest to its library-list summary shape. */
+export function toSummary(manifest: AssetManifest): AssetSummary {
+  return {
+    name: manifest.name,
+    kind: manifest.kind,
+    mime: manifest.mime,
+    size: manifest.size,
+    hash: manifest.hash,
+    width: manifest.width,
+    height: manifest.height,
+    alt: manifest.alt,
+    uploadedAt: manifest.uploadedAt,
+  }
 }
 
 export interface ListAssetsInput {
@@ -74,20 +78,6 @@ export async function listAssets(input: ListAssetsInput): Promise<AssetSummary[]
   // Most-recent first — default sort for the library's "recently uploaded" view.
   summaries.sort((a, b) => (a.uploadedAt > b.uploadedAt ? -1 : 1))
   return summaries
-}
-
-function toSummary(manifest: AssetManifest): AssetSummary {
-  return {
-    name: manifest.name,
-    kind: manifest.kind,
-    mime: manifest.mime,
-    size: manifest.size,
-    hash: manifest.hash,
-    width: manifest.width,
-    height: manifest.height,
-    alt: manifest.alt,
-    uploadedAt: manifest.uploadedAt,
-  }
 }
 
 function isDirectoryMissing(err: unknown): boolean {
