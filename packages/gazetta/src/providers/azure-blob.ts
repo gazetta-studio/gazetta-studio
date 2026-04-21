@@ -1,5 +1,5 @@
 import { BlobServiceClient, type ContainerClient } from '@azure/storage-blob'
-import type { StorageProvider, DirEntry } from '../types.js'
+import type { DirEntry, StorageProvider } from '../types.js'
 
 export interface AzureBlobProviderOptions {
   connectionString: string

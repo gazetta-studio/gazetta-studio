@@ -7,7 +7,7 @@ import {
   DeleteObjectCommand,
   CreateBucketCommand,
 } from '@aws-sdk/client-s3'
-import type { StorageProvider, DirEntry } from '../types.js'
+import type { DirEntry, StorageProvider } from '../types.js'
 
 export interface S3ProviderOptions {
   endpoint: string

@@ -1,8 +1,15 @@
-import { readFile, readdir, writeFile, mkdir, access, rm } from 'node:fs/promises'
+import { createReadStream } from 'node:fs'
+import { access, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { StorageProvider, DirEntry } from '../types.js'
+import type { BinaryStorage, ByteRange, DirEntry, StorageProvider } from '../types.js'
+import { atomicWriteStream, atomicWriteString } from './_atomic-write.js'
+import { nodeReadableToWeb } from './_stream-interop.js'
 
-export function createFilesystemProvider(basePath?: string): StorageProvider {
+/**
+ * Filesystem storage provider. A thin adapter over `node:fs` — all atomicity
+ * and stream-interop concerns are delegated to sibling modules.
+ */
+export function createFilesystemProvider(basePath?: string): StorageProvider & BinaryStorage {
   function resolvePath(path: string): string {
     return basePath ? join(basePath, path) : path
   }
@@ -43,7 +50,7 @@ export function createFilesystemProvider(basePath?: string): StorageProvider {
     async writeFile(path: string, content: string): Promise<void> {
       const fullPath = resolvePath(path)
       try {
-        await writeFile(fullPath, content, 'utf-8')
+        await atomicWriteString(fullPath, content)
       } catch (err) {
         throw new Error(`Cannot write ${fullPath}: ${(err as Error).message}`)
       }
@@ -64,6 +71,39 @@ export function createFilesystemProvider(basePath?: string): StorageProvider {
         await rm(fullPath, { recursive: true })
       } catch (err) {
         throw new Error(`Cannot delete ${fullPath}: ${(err as Error).message}`)
+      }
+    },
+
+    async readStream(path: string, range?: ByteRange): Promise<ReadableStream<Uint8Array>> {
+      const fullPath = resolvePath(path)
+      let size: number
+      try {
+        size = (await stat(fullPath)).size
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code
+        if (code === 'ENOENT') throw new Error(`File not found: ${fullPath}`)
+        throw new Error(`Cannot stat ${fullPath}: ${(err as Error).message}`)
+      }
+
+      if (range && (range.start < 0 || range.end < range.start || range.start >= size)) {
+        throw new Error(`Invalid range for ${fullPath}: start=${range.start}, end=${range.end}, size=${size}`)
+      }
+
+      // Node's createReadStream honors inclusive start/end — matches our ByteRange
+      // contract and HTTP Range semantics (RFC 9110 §14.1.2).
+      const nodeStream = range
+        ? createReadStream(fullPath, { start: range.start, end: range.end })
+        : createReadStream(fullPath)
+
+      return nodeReadableToWeb(nodeStream)
+    },
+
+    async writeStream(path: string, stream: ReadableStream<Uint8Array>): Promise<void> {
+      const fullPath = resolvePath(path)
+      try {
+        await atomicWriteStream(fullPath, stream)
+      } catch (err) {
+        throw new Error(`Cannot write stream to ${fullPath}: ${(err as Error).message}`)
       }
     },
   }
