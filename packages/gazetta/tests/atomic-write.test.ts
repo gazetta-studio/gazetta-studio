@@ -45,6 +45,15 @@ describe('atomicWriteString', () => {
     expect(await readFile(target, 'utf-8')).toBe('v2')
     expect(await readdir(testDir)).toEqual(['overwrite.txt'])
   })
+
+  it('creates intermediate directories', async () => {
+    await mkdir(testDir, { recursive: true })
+    const target = join(testDir, 'deep/nested/dirs/out.txt')
+
+    await atomicWriteString(target, 'here')
+
+    expect(await readFile(target, 'utf-8')).toBe('here')
+  })
 })
 
 describe('atomicWriteStream', () => {

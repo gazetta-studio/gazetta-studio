@@ -30,6 +30,9 @@ import writeFileAtomic from 'write-file-atomic'
 import { webReadableToNode, type Writable } from './_stream-interop.js'
 
 export async function atomicWriteString(path: string, content: string): Promise<void> {
+  // Parent directory must exist before write-file-atomic creates its tempfile
+  // next to the target. Same contract as atomicWriteStream.
+  await mkdir(dirname(path), { recursive: true })
   await writeFileAtomic(path, content, 'utf-8')
 }
 
