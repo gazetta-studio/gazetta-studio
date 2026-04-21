@@ -92,3 +92,19 @@ Validated approaches and things to avoid. Each entry: rule, then why.
    Why: SOLID violations compound. A fused module with three concerns becomes three fused modules when its consumers copy the pattern. A stub-that-throws teaches callers to defensively check before every call, poisoning every downstream surface. Getting the structure right once is cheaper than fixing it in every caller later.
 
    Example (media v1 step 1): initial draft fused node-fs adapter, atomicity policy, and stream-interop into one 136-line filesystem provider, and stubbed `readStream`/`writeStream` on R2/S3/Azure with `throw new Error('not implemented')`. Correct structure split into three provider files (`filesystem.ts` as pure adapter, `_atomic-write.ts` for atomicity, `_stream-interop.ts` for web/node bridge) and introduced `BinaryStorage` as a separate capability interface with `isBinaryCapable()` type guard, eliminating the stubs. Amended the commit before merge — structure was wrong, not the features.
+
+19. **Boy Scout rule — leave the code cleaner than you found it.**
+   When you're passing through a file for a real change, fix the small broken things you see along the way: a pre-existing type error, a dead re-export, a stale comment, a missing test, an obvious typo. You don't need permission — that's the rule. Scope stays tight: only fix what's cheap *and* adjacent to the work you're already doing. The test for "adjacent": if the fix and the main change belong in the same logical commit, fix it; if cleaning it up would balloon the diff into unrelated territory, leave it (or file a separate commit).
+
+   What counts as "passing through":
+   - Editing a file for a real change → fair game to also fix anything obviously broken in it
+   - Running `tsc --noEmit` and seeing a pre-existing error → fair game to fix if it's small
+   - Running tests that pass but emit warnings → fair game to silence the warning's root cause
+
+   What does NOT count:
+   - Rewriting unrelated code "because you're in the file anyway" — that's scope creep
+   - Aggressive refactors disguised as cleanup — if it's an architectural change, it deserves its own commit and design consideration
+
+   Why: broken-window theory at the file level. A file with one pre-existing type error attracts more; a file that type-checks and tests cleanly stays that way. Small debt, cheap to fix right now, expensive to fix later when the context has evaporated.
+
+   Example (media v1 step 5): `apps/admin/src/client/stores/editing.ts` was re-exporting `actions.open` which hadn't existed since the `useEditorActions` migration to `navigate()`. Type-checker flagged it; no runtime callers. Dropped the line as a drive-by fix in the same pass as adding the asset library store wiring.

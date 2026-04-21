@@ -7,8 +7,10 @@ import { useActiveTargetStore } from './stores/activeTarget.js'
 import { useSyncStatusStore } from './stores/syncStatus.js'
 import { setActiveTargetProvider } from './api/client.js'
 import { useWorkspaceChrome } from './composables/useWorkspaceChrome.js'
+import { useAssetLibraryShortcut } from './composables/useAssetLibraryShortcut.js'
 import Toolbar from './components/CmsToolbar.vue'
 import UnsavedDialog from './components/UnsavedDialog.vue'
+import AssetLibrary from './components/AssetLibrary.vue'
 
 const site = useSiteStore()
 const theme = useThemeStore()
@@ -20,6 +22,10 @@ const syncStatus = useSyncStatusStore()
 // production target. Kept out of App.vue's inline setup so the rule has
 // a clear home and can evolve without the root component knowing.
 useWorkspaceChrome()
+
+// Register Cmd+L / Ctrl+L to toggle the asset library modal. Lives here
+// because the binding must be active regardless of which route is shown.
+useAssetLibraryShortcut()
 
 // Bridge the active-target store to the api client — from now on, every
 // content-reading request auto-appends ?target=<active>. Done once at boot;
@@ -76,6 +82,7 @@ onMounted(() => {
     <router-view v-else />
 
     <UnsavedDialog />
+    <AssetLibrary />
 
     <!-- Global toast — visible over everything including fullscreen -->
     <Transition name="toast">

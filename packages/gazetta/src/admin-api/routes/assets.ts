@@ -13,6 +13,7 @@
  */
 import { Hono } from 'hono'
 import { ingestAsset } from '../../assets/ingest.js'
+import { listAssets } from '../../assets/list.js'
 import { AssetProviderNotCapableError, AssetStorageError, AssetValidationError } from '../../assets/errors.js'
 import type { SourceContextResolver } from '../source-context.js'
 
@@ -21,6 +22,22 @@ const ASSETS_ROOT = 'assets'
 
 export function assetRoutes(resolve: SourceContextResolver) {
   const app = new Hono()
+
+  app.get('/api/assets', async c => {
+    const source = await resolve(c.req.query('target'))
+    try {
+      const summaries = await listAssets({
+        storage: source.storage,
+        assetsRoot: ASSETS_ROOT,
+      })
+      return c.json(summaries)
+    } catch (err) {
+      if (err instanceof AssetStorageError) {
+        return c.json({ code: err.code, message: err.message }, 500)
+      }
+      throw err
+    }
+  })
 
   app.post('/api/assets', async c => {
     const source = await resolve(c.req.query('target'))

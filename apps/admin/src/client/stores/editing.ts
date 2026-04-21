@@ -40,7 +40,7 @@ export const useEditingStore = defineStore('editing', () => {
     allOverrides: actions.allOverrides,
     hasPendingEdit: actions.hasPendingEdit,
     // Actions from useEditorActions
-    open: actions.open,
+    navigate: actions.navigate,
     openComponent: actions.openComponent,
     openPageRoot: actions.openPageRoot,
     openFragment: actions.openFragment,

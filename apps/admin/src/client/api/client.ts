@@ -49,6 +49,38 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 /**
+ * Upload helper — sends multipart FormData. Distinct from `request()`
+ * because multipart mustn't carry Content-Type: application/json, and
+ * because the server's error shape for the upload route is `{ code,
+ * message }` (typed AssetError) rather than `{ error }`.
+ */
+async function uploadRequest<T>(path: string, form: FormData): Promise<T> {
+  const token = sessionStorage.getItem('gazetta_token')
+  const headers: Record<string, string> = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const res = await fetch(`${BASE}${withActiveTarget(path)}`, {
+    method: 'POST',
+    headers,
+    body: form,
+  })
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({ message: res.statusText }))) as {
+      code?: string
+      message?: string
+    }
+    const err = new Error(body.message ?? `Upload failed: ${res.status}`) as Error & {
+      code?: string
+      status: number
+    }
+    err.code = body.code
+    err.status = res.status
+    throw err
+  }
+  return res.json()
+}
+
+/**
  * POST to /publish/stream and parse SSE events as they arrive. Calls
  * onProgress for every event including the final 'done'. Returns the
  * 'done' event's results once the stream closes. Throws on 'fatal'.
@@ -191,6 +223,25 @@ export interface FragmentDetail extends FragmentSummary {
   locales?: string[]
 }
 
+/** Asset summary returned by GET /api/assets. Matches the server `AssetSummary`. */
+export interface AssetSummary {
+  name: string
+  kind: 'embedded' | 'downloadable' | 'font'
+  mime: string
+  size: number
+  hash: string
+  width: number | null
+  height: number | null
+  alt: string | null
+  uploadedAt: string
+}
+
+/** Manifest returned by a successful upload. */
+export interface UploadedAsset {
+  manifest: AssetSummary & { version: 1; source: 'internal'; uploadedBy: string }
+  bytesPath: string
+}
+
 export const api = {
   getSite: () => request<SiteManifest>('/site'),
   /** List pages. Without `target`, uses the active target (auto-appended).
@@ -264,4 +315,18 @@ export const api = {
       `/history/restore?target=${encodeURIComponent(target)}&id=${encodeURIComponent(revisionId)}`,
       { method: 'POST' },
     ),
+  /** List assets on the active target. Empty array when the target has none. */
+  listAssets: () => request<AssetSummary[]>('/assets'),
+  /**
+   * Upload an asset. On success returns the new asset's manifest + bytes path.
+   * On failure throws an Error with `code` (typed AssetError code) and
+   * `status` (HTTP status) attached so the caller can route to the right UI.
+   */
+  uploadAsset: (file: File, name: string, alt: string | null) => {
+    const form = new FormData()
+    form.set('file', file)
+    form.set('name', name)
+    if (alt !== null) form.set('alt', alt)
+    return uploadRequest<UploadedAsset>('/assets', form)
+  },
 }

@@ -5,5 +5,6 @@ export default defineConfig({
   plugins: [vue()],
   test: {
     environment: 'jsdom',
+    setupFiles: ['./tests/_setup/suppress-webstorage-warning.ts'],
   },
 })
