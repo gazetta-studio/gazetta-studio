@@ -42,6 +42,10 @@
       "types": "./dist/admin-api/schemas/index.d.ts",
       "import": "./dist/admin-api/schemas/index.js"
     },
+    "./schema": {
+      "types": "./dist/schema/index.d.ts",
+      "import": "./dist/schema/index.js"
+    },
     "./workers/cloudflare-r2": {
       "types": "./dist/workers/cloudflare-r2.d.ts",
       "import": "./dist/workers/cloudflare-r2.js"
