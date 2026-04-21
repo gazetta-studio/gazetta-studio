@@ -68,3 +68,12 @@ Validated approaches and things to avoid. Each entry: rule, then why.
    - **Stacked PRs:** rebase each downstream branch on its updated parent, don't cross-merge.
 
    Why: Linear history on main is what lets publish.yml and deploy-site.yml trust push events without re-running CI — every commit on main is a SHA that already passed CI on its PR. Merge commits create new SHAs whose validation didn't happen.
+
+17. **Build and validate, don't spike.** When validating risky technical decisions, build the real thing in a sequence of rollback-able commits — no throwaway/spike code. Each commit must:
+   - Produce real code that stays if the approach works (not demos to be deleted)
+   - Be independently rollback-able (reverting restores the previous state cleanly)
+   - Validate the riskiest assumptions early, as actual features rather than spike branches
+
+   Order implementation steps by design-risk blast radius: low-risk foundational first, highest-risk architectural bets as single revertable commits near the end. If a risky step fails, reverting one commit loses one step of work — not a week of spike-then-reslice.
+
+   Why: spikes get deleted; validated production code is permanent progress. A spike that "proves it works" still requires rewriting the real version afterward; building the real version directly means the proof *is* the progress.
