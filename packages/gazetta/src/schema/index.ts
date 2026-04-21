@@ -30,6 +30,7 @@ export type {
 } from './helpers.js'
 export type {
   AssetManifest,
+  AssetSummary,
   Content,
   DownloadableAssetRef,
   EmbeddedAssetRef,

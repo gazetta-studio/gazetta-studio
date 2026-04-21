@@ -2,6 +2,7 @@ import React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import Form from '@rjsf/core'
 import validator from '@rjsf/validator-ajv8'
+import { AssetEmbeddedWidget } from './AssetEmbeddedWidget.js'
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd'
 import { useEditor, EditorContent } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
@@ -26,6 +27,16 @@ interface GzFormContext {
   fieldsBaseUrl?: string
   /** Current theme — passed to custom field widgets */
   theme?: 'dark' | 'light'
+  /**
+   * Asset picker callback. When a schema declares an `embeddedAsset()`
+   * field and the author clicks "Change", the widget calls this function
+   * and awaits the result. The admin wires its own picker implementation
+   * (Vue-rendered modal, backed by the Pinia store); this keeps the
+   * editor package decoupled from admin internals.
+   *
+   * Returns `{ _asset: name }` on confirm, `null` on cancel.
+   */
+  onPickAsset?: (options: { accept?: string[]; currentAssetName?: string | null }) => Promise<{ _asset: string } | null>
 }
 
 const roots = new WeakMap<HTMLElement, Root>()
@@ -140,6 +151,27 @@ const STYLES = `
 .gz-editor .gz-image-preview-empty {
   padding: 2rem; text-align: center; color: var(--color-muted); font-size: 0.75rem;
 }
+
+/* ---- Asset widget (embeddedAsset schema fields) ---- */
+.gz-editor .gz-asset-widget {
+  display: grid; grid-template-columns: 120px 1fr; gap: 0.75rem; align-items: start;
+  padding: 0.5rem; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-input-bg);
+}
+.gz-editor .gz-asset-widget-preview {
+  aspect-ratio: 1 / 1; border-radius: 4px; overflow: hidden;
+  background: color-mix(in srgb, var(--color-muted) 10%, transparent);
+  display: flex; align-items: center; justify-content: center;
+}
+.gz-editor .gz-asset-widget-preview img { width: 100%; height: 100%; object-fit: cover; }
+.gz-editor .gz-asset-widget-empty { color: var(--color-muted); font-size: 0.6875rem; text-align: center; padding: 0.5rem; }
+.gz-editor .gz-asset-widget-error { color: var(--color-danger-fg, #c04040); font-size: 0.6875rem; text-align: center; padding: 0.5rem; }
+.gz-editor .gz-asset-widget-body { display: flex; flex-direction: column; justify-content: space-between; gap: 0.5rem; min-height: 100%; }
+.gz-editor .gz-asset-widget-name { font-family: ui-monospace, monospace; font-size: 0.8125rem; word-break: break-word; }
+.gz-editor .gz-asset-widget-pick {
+  align-self: flex-start; padding: 0.375rem 0.75rem; font-size: 0.8125rem;
+  background: var(--color-primary); color: white; border: none; border-radius: 4px; cursor: pointer;
+}
+.gz-editor .gz-asset-widget-pick:hover { opacity: 0.9; }
 
 /* ---- Slug ---- */
 .gz-editor .gz-slug-widget input {
@@ -335,8 +367,17 @@ function buildUiSchema(jsonSchema: JsonSchema): Record<string, unknown> {
     const format = prop.format as string | undefined
     const type = prop.type as string | undefined
     const customField = prop.field as string | undefined
+    const assetOptions = prop.assetOptions as Record<string, unknown> | undefined
 
-    // Custom field — highest priority
+    // Asset fields — detected by the `assetOptions` metadata that
+    // `embeddedAsset()` attaches via Zod `.meta()`. Rendered with the
+    // asset widget (invokes the picker via formContext.onPickAsset).
+    if (assetOptions) {
+      ui[name] = { 'ui:widget': 'embedded-asset' }
+      continue
+    }
+
+    // Custom field — highest priority after asset fields
     if (customField) {
       ui[name] = { 'ui:widget': `custom-field:${customField}` }
       continue
@@ -976,6 +1017,7 @@ const builtinWidgets: Record<string, React.FC<WidgetProps>> = {
   slug: SlugWidget,
   code: CodeWidget,
   json: JsonWidget,
+  'embedded-asset': AssetEmbeddedWidget,
 }
 
 /** Build widgets object including any custom field widgets referenced in the schema */
@@ -1014,6 +1056,12 @@ export interface DefaultEditorFormProps {
   /** Current theme — forwarded to custom field widgets */
   theme?: 'dark' | 'light'
   onChange: (content: Record<string, unknown>) => void
+  /**
+   * Asset picker callback — invoked by embedded-asset field widgets.
+   * Supplied by the admin; the editor package only depends on the
+   * abstract Promise-returning shape.
+   */
+  onPickAsset?: (options: { accept?: string[]; currentAssetName?: string | null }) => Promise<{ _asset: string } | null>
 }
 
 /**
@@ -1026,6 +1074,7 @@ export function DefaultEditorForm({
   onChange,
   fieldsBaseUrl,
   theme,
+  onPickAsset,
 }: DefaultEditorFormProps) {
   const uiSchema = React.useMemo(() => buildUiSchema(jsonSchema as JsonSchema), [jsonSchema])
   const widgets = React.useMemo(() => buildWidgets(jsonSchema as JsonSchema), [jsonSchema])
@@ -1101,8 +1150,8 @@ export function DefaultEditorForm({
   )
 
   const formContext: GzFormContext = React.useMemo(
-    () => ({ reorderArray, fieldsBaseUrl, theme }),
-    [reorderArray, fieldsBaseUrl, theme],
+    () => ({ reorderArray, fieldsBaseUrl, theme, onPickAsset }),
+    [reorderArray, fieldsBaseUrl, theme, onPickAsset],
   )
 
   return (
@@ -1134,7 +1183,7 @@ export function DefaultEditorForm({
 
 export function createEditorMount(jsonSchema: object): EditorMount {
   return {
-    mount(el, { content, schema, theme, onChange, fieldsBaseUrl }) {
+    mount(el, { content, schema, theme, onChange, fieldsBaseUrl, onPickAsset }) {
       const existing = roots.get(el)
       if (existing) existing.unmount()
 
@@ -1146,6 +1195,7 @@ export function createEditorMount(jsonSchema: object): EditorMount {
           content={content}
           theme={theme}
           fieldsBaseUrl={fieldsBaseUrl}
+          onPickAsset={onPickAsset}
           onChange={onChange}
         />,
       )

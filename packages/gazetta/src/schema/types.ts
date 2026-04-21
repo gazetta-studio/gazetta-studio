@@ -89,6 +89,25 @@ export interface AssetManifest {
   uploadedBy: string
 }
 
+/**
+ * Library-list summary — the compact projection of `AssetManifest` that
+ * the library UI displays. Deliberately smaller than the full manifest:
+ * `uploadedBy` is excluded (RBAC / audit concern, not UI concern), and
+ * future manifest fields (variants, animated flag, etc.) are only added
+ * here when the UI genuinely needs them.
+ */
+export interface AssetSummary {
+  name: string
+  kind: AssetManifest['kind']
+  mime: string
+  size: number
+  hash: string
+  width: number | null
+  height: number | null
+  alt: string | null
+  uploadedAt: string
+}
+
 // ---------- Resolved shapes (what templates receive) ----------
 
 /** Embedded asset after the resolver merges manifest + per-ref overrides. */

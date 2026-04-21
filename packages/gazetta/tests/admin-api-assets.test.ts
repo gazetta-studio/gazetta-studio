@@ -240,3 +240,36 @@ describe('GET /api/assets', () => {
     expect('uploadedBy' in summary).toBe(false)
   })
 })
+
+describe('GET /api/assets/:name', () => {
+  it('returns a single-asset summary by name', async () => {
+    const { app } = buildApp()
+    const bytes = await jpegBuffer()
+
+    await app.request('/api/assets', {
+      method: 'POST',
+      body: multipartForm({
+        file: { name: 'a.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
+        name: 'single',
+        alt: 'Single asset',
+      }),
+    })
+
+    const res = await app.request('/api/assets/single')
+    expect(res.status).toBe(200)
+    const summary = (await res.json()) as Record<string, unknown>
+    expect(summary.name).toBe('single')
+    expect(summary.mime).toBe('image/jpeg')
+    expect(summary.alt).toBe('Single asset')
+    // Same summary shape as the list endpoint — no private fields.
+    expect('uploadedBy' in summary).toBe(false)
+  })
+
+  it('404s when the asset does not exist', async () => {
+    const { app } = buildApp()
+    const res = await app.request('/api/assets/nope')
+    expect(res.status).toBe(404)
+    const body = await res.json()
+    expect(body.code).toBe('ASSET_MANIFEST_NOT_FOUND')
+  })
+})
