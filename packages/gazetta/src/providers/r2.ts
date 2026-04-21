@@ -1,4 +1,4 @@
-import type { StorageProvider, DirEntry } from '../types.js'
+import type { DirEntry, StorageProvider } from '../types.js'
 
 export interface R2RestProviderOptions {
   accountId: string
