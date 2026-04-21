@@ -1,8 +1,28 @@
 import type { ResolvedComponent, ComponentEntry, InlineComponent } from './types.js'
 import { loadTemplate } from './template-loader.js'
 import { processContent } from './content.js'
+import { resolveAssetRefs, type AssetResolveContext } from './assets/resolve.js'
 import type { Site } from './site-loader.js'
 import { resolveLocaleFallback, resolveSiteLocales, type ResolvedLocales } from './locale.js'
+
+/**
+ * Build the asset-resolve context from the site being rendered. Shared
+ * across all `processContent` + `resolveAssetRefs` pairs in a single
+ * resolution pass.
+ */
+function assetContext(site: Site): AssetResolveContext {
+  return { storage: site.storage, assetsRoot: 'assets' }
+}
+
+/** Process content: sync transforms (markdown) + async asset resolution. */
+async function processAndResolve(
+  content: Record<string, unknown> | undefined,
+  schema: unknown,
+  site: Site,
+): Promise<Record<string, unknown> | undefined> {
+  const processed = processContent(content, schema)
+  return resolveAssetRefs(processed, assetContext(site))
+}
 
 interface ResolveContext {
   site: Site
@@ -74,7 +94,7 @@ async function resolveFragmentRef(fragmentName: string, ctx: ResolveContext): Pr
 
   return {
     template: loaded.render,
-    content: processContent(fragment.content, loaded.schema),
+    content: await processAndResolve(fragment.content, loaded.schema, ctx.site),
     children,
     path: fragment.dir,
     treePath,
@@ -101,7 +121,12 @@ async function resolveInlineComponent(comp: InlineComponent, ctx: ResolveContext
   ctx.path.pop()
   ctx.visited.delete(key)
 
-  return { template: loaded.render, content: processContent(comp.content, loaded.schema), children, treePath }
+  return {
+    template: loaded.render,
+    content: await processAndResolve(comp.content, loaded.schema, ctx.site),
+    children,
+    treePath,
+  }
 }
 
 export async function resolveFragment(fragmentName: string, site: Site, locale?: string): Promise<ResolvedComponent> {
@@ -145,7 +170,7 @@ export async function resolveFragment(fragmentName: string, site: Site, locale?:
 
   return {
     template: loaded.render,
-    content: processContent(fragment.content, loaded.schema),
+    content: await processAndResolve(fragment.content, loaded.schema, site),
     children,
     path: fragment.dir,
     treePath: '',
@@ -180,7 +205,7 @@ export async function resolvePage(pageName: string, site: Site, locale?: string)
 
   return {
     template: loaded.render,
-    content: processContent(page.content, loaded.schema),
+    content: await processAndResolve(page.content, loaded.schema, site),
     children,
     path: page.dir,
     treePath: '',

@@ -1,0 +1,23 @@
+{
+  "template": "page-default",
+  "route": "/asset-demo",
+  "metadata": {
+    "title": "Asset Demo",
+    "description": "Demonstrates the embeddedAsset() schema helper and the resolver."
+  },
+  "components": [
+    "@header",
+    {
+      "name": "hero",
+      "template": "asset-hero",
+      "content": {
+        "image": {
+          "_asset": "test-pattern"
+        },
+        "headline": "Hello from an asset-backed hero",
+        "subheadline": "This image is resolved from an asset manifest at render time."
+      }
+    },
+    "@footer"
+  ]
+}
