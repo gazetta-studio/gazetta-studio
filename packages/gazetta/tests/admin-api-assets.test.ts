@@ -1,7 +1,8 @@
 /**
- * HTTP-level tests for `POST /api/assets`. These verify the route adapter
- * correctly wires multipart → ingest → HTTP response. Ingest correctness
- * itself is covered by assets-ingest.test.ts.
+ * HTTP-level tests for the `/api/assets` route. POST verifies the route
+ * adapter correctly wires multipart → ingest → HTTP response; GET verifies
+ * list → response. Ingest and list correctness themselves are covered by
+ * assets-ingest.test.ts and assets-list.test.ts.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkdir, readFile, rm } from 'node:fs/promises'
@@ -172,5 +173,70 @@ describe('POST /api/assets', () => {
     expect(res.status).toBe(400)
     const body = await res.json()
     expect(body.code).toBe('ASSET_PATH_TRAVERSAL')
+  })
+})
+
+describe('GET /api/assets', () => {
+  it('returns an empty array when the target has no assets', async () => {
+    const { app } = buildApp()
+    const res = await app.request('/api/assets')
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual([])
+  })
+
+  it('lists uploaded assets', async () => {
+    const { app } = buildApp()
+    const bytes = await jpegBuffer()
+
+    // Upload two assets
+    await app.request('/api/assets', {
+      method: 'POST',
+      body: multipartForm({
+        file: { name: 'a.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
+        name: 'asset-one',
+        alt: 'First asset',
+      }),
+    })
+    await app.request('/api/assets', {
+      method: 'POST',
+      body: multipartForm({
+        file: { name: 'b.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
+        name: 'asset-two',
+      }),
+    })
+
+    const res = await app.request('/api/assets')
+    expect(res.status).toBe(200)
+    const summaries = (await res.json()) as Array<{ name: string; alt: string | null }>
+    expect(summaries).toHaveLength(2)
+    expect(summaries.map(s => s.name).sort()).toEqual(['asset-one', 'asset-two'])
+    const assetOne = summaries.find(s => s.name === 'asset-one')
+    expect(assetOne?.alt).toBe('First asset')
+  })
+
+  it('returns summaries with expected shape', async () => {
+    const { app } = buildApp()
+    const bytes = await jpegBuffer()
+
+    await app.request('/api/assets', {
+      method: 'POST',
+      body: multipartForm({
+        file: { name: 'a.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
+        name: 'shape-test',
+        alt: 'Shape',
+      }),
+    })
+
+    const res = await app.request('/api/assets')
+    const [summary] = (await res.json()) as Array<Record<string, unknown>>
+    // Summary fields present
+    expect(summary.name).toBe('shape-test')
+    expect(summary.kind).toBe('embedded')
+    expect(summary.mime).toBe('image/jpeg')
+    expect(typeof summary.size).toBe('number')
+    expect(typeof summary.hash).toBe('string')
+    expect(summary.alt).toBe('Shape')
+    // Private fields NOT in summary
+    expect('uploadedBy' in summary).toBe(false)
   })
 })
