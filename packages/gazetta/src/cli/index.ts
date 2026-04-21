@@ -1505,6 +1505,16 @@ async function runDev(siteDir: string, port: number) {
     return next()
   })
 
+  // ---- Asset serve route ----
+  // Serves /assets/* from the active source target's storage. Matches the
+  // URL pattern emitted by the asset resolver, so templates rendering
+  // <img src="/assets/hero-a3b2c1d4.jpg"> load from here in dev.
+  const { assetServeRoutes } = await import('../assets/serve-route.js')
+  app.route(
+    '/',
+    assetServeRoutes(async () => source.storage),
+  )
+
   // ---- Site page routes (default + locale variants) ----
   const { allPageEntries } = await import('../site-loader.js')
   for (const { name: pageName, page, locale: pageLocale } of allPageEntries(site)) {
