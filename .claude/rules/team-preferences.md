@@ -77,3 +77,18 @@ Validated approaches and things to avoid. Each entry: rule, then why.
    Order implementation steps by design-risk blast radius: low-risk foundational first, highest-risk architectural bets as single revertable commits near the end. If a risky step fails, reverting one commit loses one step of work — not a week of spike-then-reslice.
 
    Why: spikes get deleted; validated production code is permanent progress. A spike that "proves it works" still requires rewriting the real version afterward; building the real version directly means the proof *is* the progress.
+
+18. **Build structurally right from the start — don't patch SOLID in.**
+   Apply SOLID at module creation, not as an after-the-fact audit. Before writing code, identify the concerns being addressed and give each its own module; before introducing an interface, decide whether it's a single contract or a capability that not every implementation supports.
+
+   Concretely:
+   - **Before creating a file**, ask: what single reason does this have to change? If there are two, create two files.
+   - **Before adding a method to an existing interface**, ask: will every implementation honor it? If not, it's a capability — create a separate interface and a type guard.
+   - **Never ship stubs that throw `not implemented`** to satisfy an interface. That's LSP violation dressed as progress.
+   - **Extract shared code when you first see the split concern**, not after a third caller — waiting until the 3-caller threshold (rule #15) applies to "shared utility functions," not to separating concerns that are already distinct at creation.
+
+   When a review identifies SOLID violations, the fix is structural correction (new files, split interfaces, extracted policies), not patching. If the amendment is large enough to change the shape, amend the commit before it lands; if it already merged, land the restructure as its own commit with a clear "structural correction" message.
+
+   Why: SOLID violations compound. A fused module with three concerns becomes three fused modules when its consumers copy the pattern. A stub-that-throws teaches callers to defensively check before every call, poisoning every downstream surface. Getting the structure right once is cheaper than fixing it in every caller later.
+
+   Example (media v1 step 1): initial draft fused node-fs adapter, atomicity policy, and stream-interop into one 136-line filesystem provider, and stubbed `readStream`/`writeStream` on R2/S3/Azure with `throw new Error('not implemented')`. Correct structure split into three provider files (`filesystem.ts` as pure adapter, `_atomic-write.ts` for atomicity, `_stream-interop.ts` for web/node bridge) and introduced `BinaryStorage` as a separate capability interface with `isBinaryCapable()` type guard, eliminating the stubs. Amended the commit before merge — structure was wrong, not the features.
