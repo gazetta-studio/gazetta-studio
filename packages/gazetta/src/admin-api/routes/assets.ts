@@ -12,10 +12,12 @@
  * - `alt`  — optional, alt text (empty string = "decorative"; absent = "not set")
  */
 import { Hono } from 'hono'
+import { deleteAsset } from '../../assets/delete.js'
 import { ingestAsset } from '../../assets/ingest.js'
 import { listAssets, toSummary } from '../../assets/list.js'
 import { readManifest } from '../../assets/manifest.js'
 import {
+  AssetInUseError,
   AssetManifestCorruptError,
   AssetManifestNotFoundError,
   AssetProviderNotCapableError,
@@ -58,6 +60,45 @@ export function assetRoutes(resolve: SourceContextResolver) {
       }
       if (err instanceof AssetManifestCorruptError) {
         return c.json({ code: err.code, message: err.message }, 500)
+      }
+      if (err instanceof AssetStorageError) {
+        return c.json({ code: err.code, message: err.message }, 500)
+      }
+      throw err
+    }
+  })
+
+  app.delete('/api/assets/:name', async c => {
+    const name = c.req.param('name')
+    const source = await resolve(c.req.query('target'))
+
+    try {
+      await deleteAsset({
+        storage: source.storage,
+        assetsRoot: ASSETS_ROOT,
+        siteDir: source.siteDir,
+        assetName: name,
+        manifest: source.manifest,
+      })
+      // 204 No Content — standard REST for successful delete with no body.
+      return c.body(null, 204)
+    } catch (err) {
+      if (err instanceof AssetManifestNotFoundError) {
+        return c.json({ code: err.code, message: err.message }, 404)
+      }
+      if (err instanceof AssetInUseError) {
+        // 409 Conflict — request cannot complete because of the server's
+        // current state (refs still exist). Body includes the usage list so
+        // the admin can render the refuse dialog without a second fetch.
+        return c.json(
+          {
+            code: err.code,
+            message: err.message,
+            assetName: err.assetName,
+            refs: err.refs,
+          },
+          409,
+        )
       }
       if (err instanceof AssetStorageError) {
         return c.json({ code: err.code, message: err.message }, 500)
