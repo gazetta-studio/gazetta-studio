@@ -24,6 +24,7 @@ export type { AssetRef } from '../../assets/refs.js'
 // throws the same class. One identity across the wire.
 export {
   AssetInUseError,
+  AssetKindMismatchError,
   AssetManifestCorruptError,
   AssetManifestNotFoundError,
   AssetMimeMismatchError,

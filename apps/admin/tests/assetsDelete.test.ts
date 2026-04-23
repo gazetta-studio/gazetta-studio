@@ -1,26 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAssetsDeleteStore } from '../src/client/stores/assetsDelete.js'
-import { AssetInUseError } from '../src/client/api/assets.js'
+import { AssetInUseError, AssetKindMismatchError } from '../src/client/api/assets.js'
 
-// Mock the assets API module the store calls. Keep the real
-// `AssetInUseError` export (the store branches on it via `instanceof`) —
-// only `deleteAsset` is replaced with a spy the tests can configure.
+// Mock the assets API module the store calls. Keep the real error
+// classes exported (the store branches on them via `instanceof`) —
+// only the API functions are replaced with spies the tests configure.
 vi.mock('../src/client/api/assets.js', async orig => {
   const actual = await orig<typeof import('../src/client/api/assets.js')>()
   return {
     ...actual,
     deleteAsset: vi.fn(),
+    replaceAsset: vi.fn(),
   }
 })
 
-// Re-import after the mock is set up so we can tweak the spy per test.
-const { deleteAsset } = await import('../src/client/api/assets.js')
+// Re-import after the mock is set up so we can tweak the spies per test.
+const { deleteAsset, replaceAsset } = await import('../src/client/api/assets.js')
 const deleteAssetMock = deleteAsset as unknown as ReturnType<typeof vi.fn>
+const replaceAssetMock = replaceAsset as unknown as ReturnType<typeof vi.fn>
 
 beforeEach(() => {
   setActivePinia(createPinia())
   deleteAssetMock.mockReset()
+  replaceAssetMock.mockReset()
 })
 
 describe('useAssetsDeleteStore', () => {
@@ -115,6 +118,107 @@ describe('useAssetsDeleteStore', () => {
     resolveRequest()
     await done
 
+    expect(store.status).toBe('idle')
+  })
+
+  // --- replace() flow ---
+
+  async function stageInUse(store: ReturnType<typeof useAssetsDeleteStore>) {
+    // Prime the store into the 'in-use' state the same way the UI does:
+    // try a delete that fails with AssetInUseError.
+    deleteAssetMock.mockRejectedValue(
+      new AssetInUseError('hero', [{ source: 'page', path: 'pages/home/page.json', componentPath: 'hero' }]),
+    )
+    store.ask('hero')
+    await store.confirmDelete()
+    expect(store.status).toBe('in-use')
+  }
+
+  it('replace() on success closes and resolves true', async () => {
+    replaceAssetMock.mockResolvedValue(undefined)
+    const store = useAssetsDeleteStore()
+    await stageInUse(store)
+
+    const result = await store.replace('banner')
+
+    expect(replaceAssetMock).toHaveBeenCalledWith('hero', 'banner')
+    expect(result).toBe(true)
+    expect(store.status).toBe('idle')
+  })
+
+  it('replace() on kind mismatch transitions to kind-mismatch variant with structured detail', async () => {
+    replaceAssetMock.mockRejectedValue(new AssetKindMismatchError('embedded', 'image', 'downloadable', 'application'))
+    const store = useAssetsDeleteStore()
+    await stageInUse(store)
+
+    const result = await store.replace('banner')
+
+    expect(result).toBe(false)
+    expect(store.status).toBe('kind-mismatch')
+    expect(store.kindMismatch).toEqual({
+      oldKind: 'embedded',
+      oldMimeCategory: 'image',
+      newKind: 'downloadable',
+      newMimeCategory: 'application',
+    })
+    // Asset name persists so the dialog can re-render context.
+    expect(store.assetName).toBe('hero')
+  })
+
+  it('dismissKindMismatch() returns the user to the in-use view', async () => {
+    replaceAssetMock.mockRejectedValue(new AssetKindMismatchError('embedded', 'image', 'embedded', 'video'))
+    const store = useAssetsDeleteStore()
+    await stageInUse(store)
+
+    await store.replace('clip')
+    expect(store.status).toBe('kind-mismatch')
+
+    store.dismissKindMismatch()
+    expect(store.status).toBe('in-use')
+    expect(store.kindMismatch).toBeNull()
+    // Refs list is retained so the author has context for the next pick.
+    expect(store.refs).toHaveLength(1)
+  })
+
+  it('replace() on generic error transitions to error with the message', async () => {
+    replaceAssetMock.mockRejectedValue(new Error('boom'))
+    const store = useAssetsDeleteStore()
+    await stageInUse(store)
+
+    const result = await store.replace('banner')
+
+    expect(result).toBe(false)
+    expect(store.status).toBe('error')
+    expect(store.errorMessage).toBe('boom')
+  })
+
+  it('replace() no-ops when the store is not in in-use state', async () => {
+    const store = useAssetsDeleteStore()
+    // Not staged — still 'idle'.
+    const result = await store.replace('banner')
+
+    expect(result).toBe(false)
+    expect(replaceAssetMock).not.toHaveBeenCalled()
+  })
+
+  it('dialogVariant stays "in-use" while a replace is in flight', async () => {
+    let resolveRequest!: () => void
+    replaceAssetMock.mockReturnValue(
+      new Promise<void>(resolve => {
+        resolveRequest = resolve
+      }),
+    )
+    const store = useAssetsDeleteStore()
+    await stageInUse(store)
+
+    const done = store.replace('banner')
+    expect(store.status).toBe('replacing')
+    // During the rewrite, the ref list remains visible so the author
+    // can see what's being rewritten.
+    expect(store.dialogVariant).toBe('in-use')
+
+    resolveRequest()
+    await done
     expect(store.status).toBe('idle')
   })
 })

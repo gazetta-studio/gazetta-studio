@@ -7,14 +7,18 @@
  * logic in the view — the store exposes one discriminator, we switch.
  *
  * Status-driven composition (store.dialogVariant):
- *   - `'hidden'`  → dialog not shown
- *   - `'confirm'` → `AssetDeleteConfirmBody` + Cancel/Delete footer
- *   - `'in-use'`  → `AssetDeleteInUseBody`   + Close footer
- *   - `'error'`   → `AssetDeleteErrorBody`   + Close footer
+ *   - `'hidden'`        → dialog not shown
+ *   - `'confirm'`       → AssetDeleteConfirmBody + Cancel/Delete footer
+ *   - `'in-use'`        → AssetDeleteInUseBody + Replace/Close footer
+ *                          (footer also handles the 'replacing' status —
+ *                           dialogVariant stays 'in-use' so the ref list
+ *                           remains visible while the rewrite is in flight)
+ *   - `'kind-mismatch'` → AssetDeleteKindMismatchBody + Pick again/Close footer
+ *   - `'error'`         → AssetDeleteErrorBody + Close footer
  *
- * Side effects on successful delete (clear selection, refresh list) live
- * here because they're cross-cutting UI reactions, not state — the store
- * stays pure and testable on its own.
+ * Side effects on successful delete / replace (clear selection, refresh
+ * list) live here because they're cross-cutting UI reactions, not state —
+ * the store stays pure and testable on its own.
  */
 import { computed } from 'vue'
 import Dialog from 'primevue/dialog'
@@ -22,8 +26,10 @@ import Button from 'primevue/button'
 import { useAssetsDeleteStore } from '../stores/assetsDelete.js'
 import { useAssetsListStore } from '../stores/assetsList.js'
 import { useAssetsSelectionStore } from '../stores/assetsSelection.js'
+import { openAssetPicker } from '../api/openAssetPicker.js'
 import AssetDeleteConfirmBody from './AssetDeleteConfirmBody.vue'
 import AssetDeleteInUseBody from './AssetDeleteInUseBody.vue'
+import AssetDeleteKindMismatchBody from './AssetDeleteKindMismatchBody.vue'
 import AssetDeleteErrorBody from './AssetDeleteErrorBody.vue'
 
 const del = useAssetsDeleteStore()
@@ -38,11 +44,15 @@ const visible = computed({
 })
 
 const isDeleting = computed(() => del.status === 'deleting')
+const isReplacing = computed(() => del.status === 'replacing')
+const busy = computed(() => isDeleting.value || isReplacing.value)
 
 const header = computed(() => {
   switch (del.dialogVariant) {
     case 'in-use':
       return 'Cannot delete asset'
+    case 'kind-mismatch':
+      return 'Replacement not compatible'
     case 'error':
       return 'Delete failed'
     default:
@@ -58,6 +68,26 @@ async function onConfirm(): Promise<void> {
   }
 }
 
+/**
+ * Open the picker to choose a replacement, then hand the pick to the
+ * store. The picker itself enforces no kind filter — the server is the
+ * authority on compatibility. A mismatch returns us to the
+ * 'kind-mismatch' variant where the user can try again.
+ */
+async function onReplace(): Promise<void> {
+  const pick = await openAssetPicker({ currentAssetName: del.assetName })
+  if (!pick) return // user cancelled
+  const ok = await del.replace(pick._asset)
+  if (ok) {
+    selection.clear()
+    await list.refresh()
+  }
+}
+
+function onPickAgain(): void {
+  del.dismissKindMismatch()
+}
+
 function onClose(): void {
   del.close()
 }
@@ -67,7 +97,7 @@ function onClose(): void {
   <Dialog
     v-model:visible="visible"
     modal
-    :closable="!isDeleting"
+    :closable="!busy"
     :style="{ width: '28rem' }"
     :header="header"
     data-testid="asset-delete-confirm">
@@ -77,6 +107,10 @@ function onClose(): void {
         v-else-if="del.dialogVariant === 'in-use'"
         :asset-name="del.assetName ?? ''"
         :refs="del.refs" />
+      <AssetDeleteKindMismatchBody
+        v-else-if="del.dialogVariant === 'kind-mismatch' && del.kindMismatch"
+        :asset-name="del.assetName ?? ''"
+        :detail="del.kindMismatch" />
       <AssetDeleteErrorBody v-else-if="del.dialogVariant === 'error'" :message="del.errorMessage" />
     </div>
 
@@ -91,6 +125,19 @@ function onClose(): void {
             :disabled="isDeleting"
             data-testid="asset-delete-confirm-button"
             @click="onConfirm" />
+        </template>
+        <template v-else-if="del.dialogVariant === 'in-use'">
+          <Button label="Close" text :disabled="isReplacing" data-testid="asset-delete-close" @click="onClose" />
+          <Button
+            :label="isReplacing ? 'Replacing…' : 'Replace with…'"
+            :loading="isReplacing"
+            :disabled="isReplacing"
+            data-testid="asset-delete-replace"
+            @click="onReplace" />
+        </template>
+        <template v-else-if="del.dialogVariant === 'kind-mismatch'">
+          <Button label="Close" text data-testid="asset-delete-close" @click="onClose" />
+          <Button label="Pick another" data-testid="asset-delete-pick-again" @click="onPickAgain" />
         </template>
         <template v-else>
           <Button label="Close" data-testid="asset-delete-close" @click="onClose" />
