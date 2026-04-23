@@ -148,16 +148,27 @@ export class AssetSizeExceededError extends AssetValidationError {
   }
 }
 
-/** Sniffed MIME is absent or not in the allowlist. */
+/**
+ * Sniffed MIME is absent or not in the allowlist. The class owns its own
+ * message construction — no caller passes a pre-baked string. Two distinct
+ * failure reasons share the same `code` because they're the same error
+ * semantically ("the MIME isn't usable"): distinguishable by inspecting
+ * `sniffedMime === null` vs set.
+ */
 export class AssetMimeMismatchError extends AssetValidationError {
   readonly code = 'ASSET_MIME_MISMATCH' as const
   constructor(
     public readonly sniffedMime: string | null,
     public readonly allowedMimes: readonly string[],
-    message: string,
   ) {
-    super(message)
+    super(buildMimeMismatchMessage(sniffedMime, allowedMimes))
   }
+}
+
+function buildMimeMismatchMessage(sniffedMime: string | null, allowedMimes: readonly string[]): string {
+  const allowed = allowedMimes.length > 0 ? ` (allowed: ${allowedMimes.join(', ')})` : ''
+  if (sniffedMime === null) return `Could not detect MIME type from bytes${allowed}`
+  return `MIME "${sniffedMime}" not allowed${allowed}`
 }
 
 /**
@@ -222,9 +233,10 @@ export class AssetInUseError extends AssetError {
   }
 
   override toResponseBody(): AssetErrorResponseBody {
+    // Spread the base `{ code, message }` so future base-class fields
+    // (e.g. a request id) flow through automatically.
     return {
-      code: this.code,
-      message: this.message,
+      ...super.toResponseBody(),
       assetName: this.assetName,
       refs: this.refs,
     }
