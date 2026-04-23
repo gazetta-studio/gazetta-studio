@@ -203,4 +203,19 @@ describe('findAssetRefs', () => {
     const refs = await findAssetRefs({ storage, siteDir: '', assetName: 'hero' })
     expect(refs).toEqual([])
   })
+
+  it('emits componentPath = null when a ref lives at the manifest root', async () => {
+    // A manifest whose `content` *is* the asset ref (no wrapper key) —
+    // the match lands at path === '', which the scanner normalizes to
+    // null (no sentinel string for consumers to compare against).
+    await storage.writeFile(
+      'pages/home/page.json',
+      pageJson('page-default', {
+        content: { _asset: 'hero' },
+      }),
+    )
+    const refs = await findAssetRefs({ storage, siteDir: '', assetName: 'hero' })
+    expect(refs).toHaveLength(1)
+    expect(refs[0].componentPath).toBeNull()
+  })
 })

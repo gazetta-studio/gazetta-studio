@@ -1,28 +1,59 @@
 /**
- * Asset deletion — state for the "confirm then delete" flow.
+ * Asset deletion — state machine for the "confirm then delete" flow.
  *
- * Three states the UI needs to render:
- * - Closed (default): no dialog shown.
- * - Confirming: dialog asking "Delete <name>?" with Cancel / Delete buttons.
- *   No refs list yet — the server hasn't been asked.
- * - In-use: the DELETE request returned 409 with a usage list. Dialog switches
- *   to the refuse-with-usage view; "Delete" is replaced by "Close".
+ * State diagram:
+ *     idle ──ask()──▶ confirming ──confirmDelete()──▶ deleting ──success──▶ idle
+ *                                                          │
+ *                                                          ├──409──▶ in-use
+ *                                                          └──other──▶ error
  *
- * Single responsibility: modal state for the confirm dialog. Doesn't own the
- * list-refresh side effect (that's triggered on successful delete by the
- * component, which calls `list.refresh()` directly — same pattern as upload).
+ * Derived view-variant:
+ *   The view needs exactly one of three render modes (plus "hidden"). That
+ *   decision is part of the state machine, not the view. `dialogVariant`
+ *   exposes it as a single discriminator so the shell `v-if`s on one
+ *   value rather than juggling three status booleans.
+ *
+ * Single responsibility: state + derived view-variant. Side effects
+ * triggered by successful delete (list refresh, selection clear) live in
+ * the shell — they're cross-cutting UI reactions, not state.
  */
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { AssetInUseError, type AssetRef, deleteAsset } from '../api/assets.js'
 
-type Status = 'idle' | 'confirming' | 'deleting' | 'in-use' | 'error'
+export type DeleteStatus = 'idle' | 'confirming' | 'deleting' | 'in-use' | 'error'
+
+/**
+ * Which dialog body should render. One value, exhaustive. Keeps the view
+ * off of multi-boolean branching (`!isInUse && !isError`), which is
+ * state-machine logic the store owns.
+ */
+export type DeleteDialogVariant = 'hidden' | 'confirm' | 'in-use' | 'error'
 
 export const useAssetsDeleteStore = defineStore('assetsDelete', () => {
-  const status = ref<Status>('idle')
+  const status = ref<DeleteStatus>('idle')
   const assetName = ref<string | null>(null)
   const refs = ref<readonly AssetRef[]>([])
   const errorMessage = ref<string | null>(null)
+
+  /**
+   * The dialog body the view should render, derived from `status`. One
+   * discriminator for the shell to switch on — `'hidden'` means the
+   * modal is closed; the other three each map to one body component.
+   */
+  const dialogVariant = computed<DeleteDialogVariant>(() => {
+    switch (status.value) {
+      case 'idle':
+        return 'hidden'
+      case 'in-use':
+        return 'in-use'
+      case 'error':
+        return 'error'
+      case 'confirming':
+      case 'deleting':
+        return 'confirm'
+    }
+  })
 
   /** Open the confirm dialog for a given asset. Resets any previous state. */
   function ask(name: string): void {
@@ -41,9 +72,9 @@ export const useAssetsDeleteStore = defineStore('assetsDelete', () => {
   }
 
   /**
-   * Fire the DELETE request. Resolves when the server returns 204 (asset
-   * removed); transitions to `in-use` on 409, `error` on other failures.
-   * Returns `true` when the asset was successfully deleted, `false` otherwise.
+   * Fire the DELETE request. Resolves true when the server returns 204
+   * (asset removed) and the store has returned to idle. Transitions to
+   * `in-use` on 409, `error` on other failures — both resolve false.
    */
   async function confirmDelete(): Promise<boolean> {
     if (!assetName.value) return false
@@ -64,5 +95,5 @@ export const useAssetsDeleteStore = defineStore('assetsDelete', () => {
     }
   }
 
-  return { status, assetName, refs, errorMessage, ask, close, confirmDelete }
+  return { status, assetName, refs, errorMessage, dialogVariant, ask, close, confirmDelete }
 })

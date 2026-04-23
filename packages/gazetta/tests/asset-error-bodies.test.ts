@@ -14,8 +14,13 @@ import {
   AssetInUseError,
   AssetManifestCorruptError,
   AssetManifestNotFoundError,
+  AssetMimeMismatchError,
   AssetMimeUnsupportedError,
+  AssetNameInvalidError,
+  AssetNameReservedError,
+  AssetPathTraversalError,
   AssetProviderNotCapableError,
+  AssetSizeExceededError,
   AssetStorageError,
   AssetValidationError,
 } from '../src/assets/errors.js'
@@ -56,13 +61,44 @@ describe('AssetError.toResponseBody()', () => {
     expect(err.httpStatus).toBe(500)
   })
 
-  it('AssetValidationError body is { code, message } with 400 status', () => {
-    const err = new AssetValidationError('ASSET_NAME_INVALID', 'Name is not valid')
-    expect(err.toResponseBody()).toEqual({
-      code: 'ASSET_NAME_INVALID',
-      message: 'Name is not valid',
-    })
+  it('AssetNameInvalidError body is { code, message } with 400 status', () => {
+    const err = new AssetNameInvalidError('My Name', 'Name is not valid')
+    expect(err.toResponseBody()).toEqual({ code: 'ASSET_NAME_INVALID', message: 'Name is not valid' })
     expect(err.httpStatus).toBe(400)
+    // Every validation subclass inherits the umbrella identity.
+    expect(err).toBeInstanceOf(AssetValidationError)
+  })
+
+  it('AssetPathTraversalError body is { code, message } with 400 status', () => {
+    const err = new AssetPathTraversalError('../etc/passwd')
+    expect(err.toResponseBody().code).toBe('ASSET_PATH_TRAVERSAL')
+    expect(err.httpStatus).toBe(400)
+    expect(err).toBeInstanceOf(AssetValidationError)
+  })
+
+  it('AssetNameReservedError records the reserved token + position', () => {
+    const err = new AssetNameReservedError('hero.asset.json', '.asset.json', 'suffix')
+    expect(err.reservedToken).toBe('.asset.json')
+    expect(err.position).toBe('suffix')
+    expect(err.toResponseBody().code).toBe('ASSET_NAME_RESERVED')
+    expect(err).toBeInstanceOf(AssetValidationError)
+  })
+
+  it('AssetSizeExceededError carries claimedSize + maxBytes', () => {
+    const err = new AssetSizeExceededError(100_000_000, 50_000_000)
+    expect(err.claimedSize).toBe(100_000_000)
+    expect(err.maxBytes).toBe(50_000_000)
+    expect(err.toResponseBody().code).toBe('ASSET_SIZE_EXCEEDED')
+    expect(err.httpStatus).toBe(400)
+    expect(err).toBeInstanceOf(AssetValidationError)
+  })
+
+  it('AssetMimeMismatchError carries the sniffed MIME + allowlist', () => {
+    const err = new AssetMimeMismatchError('image/webp', ['image/jpeg', 'image/png'], 'Not allowed')
+    expect(err.sniffedMime).toBe('image/webp')
+    expect(err.allowedMimes).toEqual(['image/jpeg', 'image/png'])
+    expect(err.toResponseBody().code).toBe('ASSET_MIME_MISMATCH')
+    expect(err).toBeInstanceOf(AssetValidationError)
   })
 
   it('AssetStorageError body is { code, message } with 500 status', () => {

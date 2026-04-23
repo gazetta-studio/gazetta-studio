@@ -79,23 +79,84 @@ export abstract class AssetError extends Error {
   }
 }
 
-/** Input bytes failed upload-time validation — wrong MIME, bad name, too large, etc. */
-export class AssetValidationError extends AssetError {
-  readonly code: AssetErrorCode
+/**
+ * Upload-validation failure hierarchy.
+ *
+ * Each concrete reason a candidate can be rejected is its own class. No
+ * god-class taking a polymorphic `code` argument — the class itself is
+ * the reason. Benefits (SOLID):
+ *
+ *   - SRP: each class has one reason to change.
+ *   - OCP: adding a new validation reason = new class, no edits to
+ *     existing ones; the httpStatus (400) is inherited.
+ *   - LSP: every subclass fully honors `AssetValidationError` — an
+ *     `instanceof AssetValidationError` check still groups them.
+ *   - ISP: callers that only care about "was this input-invalid?" match
+ *     the base class; callers that branch on specific reasons use the
+ *     concrete subclass.
+ *
+ * The `AssetValidationError` base stays as the umbrella for callers that
+ * treat all input-validation failures uniformly (HTTP always maps to 400).
+ */
+export abstract class AssetValidationError extends AssetError {
   readonly httpStatus = 400 as const
+}
+
+/** Asset name failed character / length rules. */
+export class AssetNameInvalidError extends AssetValidationError {
+  readonly code = 'ASSET_NAME_INVALID' as const
   constructor(
-    code: Exclude<
-      AssetErrorCode,
-      | 'ASSET_PROVIDER_NOT_CAPABLE'
-      | 'ASSET_STORAGE_FAILURE'
-      | 'ASSET_MANIFEST_CORRUPT'
-      | 'ASSET_MANIFEST_NOT_FOUND'
-      | 'ASSET_IN_USE'
-    >,
+    public readonly name: string,
     message: string,
   ) {
     super(message)
-    this.code = code
+  }
+}
+
+/** Asset name attempted path traversal (`..`, leading `/`, backslash). */
+export class AssetPathTraversalError extends AssetValidationError {
+  readonly code = 'ASSET_PATH_TRAVERSAL' as const
+  constructor(public readonly name: string) {
+    super(`Asset name contains path traversal: ${name}`)
+  }
+}
+
+/** Asset name collides with a reserved prefix or suffix. */
+export class AssetNameReservedError extends AssetValidationError {
+  readonly code = 'ASSET_NAME_RESERVED' as const
+  constructor(
+    public readonly name: string,
+    public readonly reservedToken: string,
+    public readonly position: 'prefix' | 'suffix',
+  ) {
+    super(`Asset name reserved (${position} "${reservedToken}"): ${name}`)
+  }
+}
+
+/** Asset bytes exceed the configured size limit, or claimed size is zero. */
+export class AssetSizeExceededError extends AssetValidationError {
+  readonly code = 'ASSET_SIZE_EXCEEDED' as const
+  constructor(
+    public readonly claimedSize: number,
+    public readonly maxBytes: number,
+  ) {
+    super(
+      claimedSize <= 0
+        ? 'Asset size must be greater than 0'
+        : `Asset exceeds size limit (${claimedSize} bytes > ${maxBytes} bytes)`,
+    )
+  }
+}
+
+/** Sniffed MIME is absent or not in the allowlist. */
+export class AssetMimeMismatchError extends AssetValidationError {
+  readonly code = 'ASSET_MIME_MISMATCH' as const
+  constructor(
+    public readonly sniffedMime: string | null,
+    public readonly allowedMimes: readonly string[],
+    message: string,
+  ) {
+    super(message)
   }
 }
 

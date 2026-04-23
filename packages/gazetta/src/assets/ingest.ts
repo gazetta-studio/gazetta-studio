@@ -19,7 +19,7 @@
  */
 import type { AssetManifest } from '../schema/types.js'
 import { isBinaryCapable, type StorageProvider } from '../types.js'
-import { AssetProviderNotCapableError, AssetStorageError, AssetValidationError } from './errors.js'
+import { AssetMimeMismatchError, AssetProviderNotCapableError, AssetStorageError } from './errors.js'
 import { ASSET_HASH_LENGTH, hashBytes } from './hash.js'
 import { extractImageDimensions } from './image-metadata.js'
 import { assetBytesPath, writeManifest } from './manifest.js'
@@ -83,7 +83,7 @@ export async function ingestAsset(input: IngestInput): Promise<IngestResult> {
   // extension in the requested name — the validator already stripped it).
   const bytesExt = ext ?? EXT_BY_MIME[mime ?? ''] ?? ''
   if (!bytesExt) {
-    throw new AssetValidationError('ASSET_MIME_MISMATCH', `No extension known for MIME ${mime ?? 'unknown'}`)
+    throw new AssetMimeMismatchError(mime, [], `No extension known for MIME ${mime ?? 'unknown'}`)
   }
 
   const hash = hashBytes(buffer)
