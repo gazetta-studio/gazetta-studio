@@ -29,6 +29,17 @@ export function assetBytesPath(assetName: string, hash: string, ext: string): st
 }
 
 /**
+ * Where a variant's bytes live, given name + hash + ext + target width.
+ * Pattern: `{name}-{hash}-{width}w.{ext}` (per design-media.md). Owned
+ * here so the write side (ingest) and the read side (asset-paths, URL
+ * construction) can't drift — change the scheme in one place.
+ */
+export function assetVariantBytesPath(assetName: string, hash: string, ext: string, width: number): string {
+  const extPart = ext.startsWith('.') ? ext : `.${ext}`
+  return `${assetName}-${hash}-${width}w${extPart}`
+}
+
+/**
  * Read an asset manifest from storage. Throws:
  * - `AssetManifestNotFoundError` when the manifest file doesn't exist
  * - `AssetManifestCorruptError` when it exists but isn't valid JSON / shape
