@@ -1,30 +1,21 @@
 /**
- * HTTP route: `POST /api/assets` — upload an asset.
+ * HTTP routes for `/api/assets*`.
  *
- * Thin adapter. Parses multipart form data, resolves the active target's
- * storage, delegates to `ingestAsset`, maps typed errors to HTTP responses.
- * No validation logic, no storage logic, no manifest construction in here —
- * the asset domain owns all of that (see `src/assets/`).
+ * Thin adapters. Each handler:
+ *   1. resolves the active target's source context,
+ *   2. delegates to the appropriate asset-domain operation,
+ *   3. maps success to the HTTP response,
+ *   4. delegates error-to-response translation to `respondWithAssetError`.
  *
- * Multipart fields:
- * - `file` — required, the byte payload
- * - `name` — required, author-chosen asset name (pre-validation)
- * - `alt`  — optional, alt text (empty string = "decorative"; absent = "not set")
+ * No validation, storage, or orchestration logic in here — the asset
+ * domain owns all of that (see `src/assets/`).
  */
 import { Hono } from 'hono'
 import { deleteAsset } from '../../assets/delete.js'
 import { ingestAsset } from '../../assets/ingest.js'
 import { listAssets, toSummary } from '../../assets/list.js'
 import { readManifest } from '../../assets/manifest.js'
-import {
-  AssetInUseError,
-  AssetManifestCorruptError,
-  AssetManifestNotFoundError,
-  AssetProviderNotCapableError,
-  AssetStorageError,
-  AssetValidationError,
-} from '../../assets/errors.js'
-import { type AssetInUseResponse, AssetInUseResponseSchema } from '../schemas/assets.js'
+import { respondWithAssetError } from '../error-response.js'
 import type { SourceContextResolver } from '../source-context.js'
 
 /** Where assets live, relative to the target storage root. */
@@ -42,9 +33,8 @@ export function assetRoutes(resolve: SourceContextResolver) {
       })
       return c.json(summaries)
     } catch (err) {
-      if (err instanceof AssetStorageError) {
-        return c.json({ code: err.code, message: err.message }, 500)
-      }
+      const res = respondWithAssetError(c, err)
+      if (res) return res
       throw err
     }
   })
@@ -56,15 +46,8 @@ export function assetRoutes(resolve: SourceContextResolver) {
       const manifest = await readManifest(source.storage, ASSETS_ROOT, name)
       return c.json(toSummary(manifest))
     } catch (err) {
-      if (err instanceof AssetManifestNotFoundError) {
-        return c.json({ code: err.code, message: err.message }, 404)
-      }
-      if (err instanceof AssetManifestCorruptError) {
-        return c.json({ code: err.code, message: err.message }, 500)
-      }
-      if (err instanceof AssetStorageError) {
-        return c.json({ code: err.code, message: err.message }, 500)
-      }
+      const res = respondWithAssetError(c, err)
+      if (res) return res
       throw err
     }
   })
@@ -72,7 +55,6 @@ export function assetRoutes(resolve: SourceContextResolver) {
   app.delete('/api/assets/:name', async c => {
     const name = c.req.param('name')
     const source = await resolve(c.req.query('target'))
-
     try {
       await deleteAsset({
         storage: source.storage,
@@ -84,27 +66,8 @@ export function assetRoutes(resolve: SourceContextResolver) {
       // 204 No Content — standard REST for successful delete with no body.
       return c.body(null, 204)
     } catch (err) {
-      if (err instanceof AssetManifestNotFoundError) {
-        return c.json({ code: err.code, message: err.message }, 404)
-      }
-      if (err instanceof AssetInUseError) {
-        // 409 Conflict — request cannot complete because of the server's
-        // current state (refs still exist). Body includes the usage list
-        // so the admin can render the refuse dialog without a second
-        // fetch. Validated through the shared schema — any drift between
-        // this serialization and the client's derived type is caught at
-        // test time.
-        const body: AssetInUseResponse = AssetInUseResponseSchema.parse({
-          code: err.code,
-          message: err.message,
-          assetName: err.assetName,
-          refs: err.refs,
-        })
-        return c.json(body, 409)
-      }
-      if (err instanceof AssetStorageError) {
-        return c.json({ code: err.code, message: err.message }, 500)
-      }
+      const res = respondWithAssetError(c, err)
+      if (res) return res
       throw err
     }
   })
@@ -138,15 +101,8 @@ export function assetRoutes(resolve: SourceContextResolver) {
       })
       return c.json({ manifest: result.manifest, bytesPath: result.bytesPath }, 201)
     } catch (err) {
-      if (err instanceof AssetValidationError) {
-        return c.json({ code: err.code, message: err.message }, 400)
-      }
-      if (err instanceof AssetProviderNotCapableError) {
-        return c.json({ code: err.code, message: err.message }, 501)
-      }
-      if (err instanceof AssetStorageError) {
-        return c.json({ code: err.code, message: err.message }, 500)
-      }
+      const res = respondWithAssetError(c, err)
+      if (res) return res
       throw err
     }
   })
