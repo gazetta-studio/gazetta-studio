@@ -24,6 +24,7 @@ export type AssetErrorCode =
   | 'ASSET_MANIFEST_NOT_FOUND'
   | 'ASSET_IN_USE'
   | 'ASSET_MIME_UNSUPPORTED'
+  | 'ASSET_KIND_MISMATCH'
 
 /**
  * `AssetRef` is owned by `./refs.ts` (single source of truth, Zod
@@ -262,5 +263,40 @@ export class AssetMimeUnsupportedError extends AssetError {
     public readonly assetName: string,
   ) {
     super(`MIME "${mime}" has no extension mapping (asset "${assetName}")`)
+  }
+}
+
+/**
+ * Replace was attempted between two assets whose kinds (or within
+ * `embedded`, MIME categories) don't match. Per design-media.md →
+ * Delete semantics: "same kind (embedded ↔ embedded, downloadable ↔
+ * downloadable). Within embedded, cross-subtype is blocked
+ * (image ≠ video)."
+ *
+ * Carries structured fields so the UI can render a specific message
+ * ("image → video not allowed") without parsing the human message.
+ */
+export class AssetKindMismatchError extends AssetError {
+  readonly code = 'ASSET_KIND_MISMATCH' as const
+  readonly httpStatus = 409 as const
+  constructor(
+    public readonly oldKind: string,
+    public readonly oldMimeCategory: string,
+    public readonly newKind: string,
+    public readonly newMimeCategory: string,
+  ) {
+    super(
+      `Replacement asset kind/category mismatch: old=${oldKind}/${oldMimeCategory}, new=${newKind}/${newMimeCategory}`,
+    )
+  }
+
+  override toResponseBody(): AssetErrorResponseBody {
+    return {
+      ...super.toResponseBody(),
+      oldKind: this.oldKind,
+      oldMimeCategory: this.oldMimeCategory,
+      newKind: this.newKind,
+      newMimeCategory: this.newMimeCategory,
+    }
   }
 }

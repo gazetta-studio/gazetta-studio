@@ -351,3 +351,90 @@ describe('DELETE /api/assets/:name', () => {
     expect(body.code).toBe('ASSET_MANIFEST_NOT_FOUND')
   })
 })
+
+describe('POST /api/assets/:name/replace-with/:newName', () => {
+  async function uploadAsset(app: Hono, name: string) {
+    const bytes = await jpegBuffer()
+    await app.request('/api/assets', {
+      method: 'POST',
+      body: multipartForm({
+        file: { name: `${name}.jpg`, bytes: new Uint8Array(bytes), type: 'image/jpeg' },
+        name,
+      }),
+    })
+  }
+
+  it('204s on successful replace + rewrites refs', async () => {
+    const { app } = buildApp()
+    await uploadAsset(app, 'hero')
+    await uploadAsset(app, 'banner')
+
+    // Seed a page that references `hero`.
+    const fs = await import('node:fs/promises')
+    await fs.mkdir(join(testDir, 'pages/home'), { recursive: true })
+    await fs.writeFile(
+      join(testDir, 'pages/home/page.json'),
+      JSON.stringify({
+        template: 'page-default',
+        route: '/',
+        content: { hero: { _asset: 'hero' } },
+      }),
+    )
+
+    const res = await app.request('/api/assets/hero/replace-with/banner', { method: 'POST' })
+    expect(res.status).toBe(204)
+
+    // Old asset gone.
+    const list = (await (await app.request('/api/assets')).json()) as Array<{ name: string }>
+    expect(list.map(a => a.name).sort()).toEqual(['banner'])
+
+    // Page now references `banner`.
+    const pageJson = JSON.parse(await fs.readFile(join(testDir, 'pages/home/page.json'), 'utf-8'))
+    expect(pageJson.content.hero._asset).toBe('banner')
+  })
+
+  it('404s when the old asset is missing', async () => {
+    const { app } = buildApp()
+    await uploadAsset(app, 'banner')
+
+    const res = await app.request('/api/assets/ghost/replace-with/banner', { method: 'POST' })
+    expect(res.status).toBe(404)
+  })
+
+  it('404s when the new asset is missing', async () => {
+    const { app } = buildApp()
+    await uploadAsset(app, 'hero')
+
+    const res = await app.request('/api/assets/hero/replace-with/ghost', { method: 'POST' })
+    expect(res.status).toBe(404)
+  })
+
+  it('409s with structured body on kind mismatch', async () => {
+    const { app } = buildApp()
+    await uploadAsset(app, 'hero')
+    await uploadAsset(app, 'banner')
+
+    // Tamper with banner's manifest to fake a kind mismatch.
+    const fs = await import('node:fs/promises')
+    const manifestPath = join(testDir, 'assets/banner.asset.json')
+    const m = JSON.parse(await fs.readFile(manifestPath, 'utf-8'))
+    m.kind = 'downloadable'
+    m.mime = 'application/pdf'
+    await fs.writeFile(manifestPath, JSON.stringify(m, null, 2))
+
+    const res = await app.request('/api/assets/hero/replace-with/banner', { method: 'POST' })
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as {
+      code: string
+      oldKind: string
+      oldMimeCategory: string
+      newKind: string
+      newMimeCategory: string
+    }
+    expect(body.code).toBe('ASSET_KIND_MISMATCH')
+    expect(body.oldKind).toBe('embedded')
+    expect(body.newKind).toBe('downloadable')
+    expect(body.oldMimeCategory).toBe('image')
+    expect(body.newMimeCategory).toBe('application')
+  })
+})

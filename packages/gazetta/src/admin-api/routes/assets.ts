@@ -15,6 +15,7 @@ import { deleteAsset } from '../../assets/delete.js'
 import { ingestAsset } from '../../assets/ingest.js'
 import { listAssets, toSummary } from '../../assets/list.js'
 import { readManifest } from '../../assets/manifest.js'
+import { replaceAsset } from '../../assets/replace.js'
 import { respondWithAssetError } from '../error-response.js'
 import type { SourceContextResolver } from '../source-context.js'
 
@@ -64,6 +65,41 @@ export function assetRoutes(resolve: SourceContextResolver) {
         manifest: source.manifest,
       })
       // 204 No Content — standard REST for successful delete with no body.
+      return c.body(null, 204)
+    } catch (err) {
+      const res = respondWithAssetError(c, err)
+      if (res) return res
+      throw err
+    }
+  })
+
+  /**
+   * POST /api/assets/:name/replace-with/:newName — atomic replace.
+   *
+   * Rewrites every reference to `:name` across pages + fragments to
+   * point at `:newName`, then deletes the old asset. One history
+   * revision covers the whole operation.
+   *
+   * Responses:
+   *   204 No Content        — success
+   *   404 Not Found         — either asset missing
+   *   409 Kind Mismatch     — kinds/MIME-categories differ
+   *   500 Storage Failure   — underlying write/rm failed mid-operation
+   */
+  app.post('/api/assets/:name/replace-with/:newName', async c => {
+    const oldName = c.req.param('name')
+    const newName = c.req.param('newName')
+    const source = await resolve(c.req.query('target'))
+    try {
+      await replaceAsset({
+        storage: source.storage,
+        assetsRoot: ASSETS_ROOT,
+        siteDir: source.siteDir,
+        oldName,
+        newName,
+        manifest: source.manifest,
+        history: source.history,
+      })
       return c.body(null, 204)
     } catch (err) {
       const res = respondWithAssetError(c, err)

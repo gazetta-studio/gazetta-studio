@@ -122,7 +122,7 @@ describe('AssetDeleteConfirm', () => {
     expect(del.status).toBe('idle')
   })
 
-  it('renders the in-use body with refs when the store is in "in-use" state', async () => {
+  it('renders the in-use body with refs + Replace footer when store is in "in-use" state', async () => {
     const del = useAssetsDeleteStore()
     render()
     // Drive directly through the store's public API (the route the UI
@@ -138,9 +138,36 @@ describe('AssetDeleteConfirm', () => {
     const refList = document.querySelector('[data-testid="asset-delete-refs"]')
     expect(refList).not.toBeNull()
     expect(refList!.textContent).toContain('pages/home/page.json')
-    // Delete/Cancel replaced by Close.
+    // Delete/Cancel replaced by Close + Replace.
     expect(document.querySelector('[data-testid="asset-delete-close"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="asset-delete-replace"]')).not.toBeNull()
     expect(document.querySelector('[data-testid="asset-delete-confirm-button"]')).toBeNull()
+  })
+
+  it('renders the kind-mismatch body when the store is in "kind-mismatch" state', async () => {
+    const del = useAssetsDeleteStore()
+    render()
+    del.ask('hero')
+    del.$patch(s => {
+      s.status = 'kind-mismatch'
+      s.refs = [{ source: 'page', path: 'pages/home/page.json', componentPath: 'hero' }]
+      s.kindMismatch = {
+        oldKind: 'embedded',
+        oldMimeCategory: 'image',
+        newKind: 'embedded',
+        newMimeCategory: 'video',
+      }
+    })
+    await flushPromises()
+
+    const detail = document.querySelector('[data-testid="asset-delete-kind-detail"]')
+    expect(detail).not.toBeNull()
+    expect(detail!.textContent).toContain('embedded')
+    expect(detail!.textContent).toContain('image')
+    expect(detail!.textContent).toContain('video')
+    // Footer has Close + Pick another.
+    expect(document.querySelector('[data-testid="asset-delete-close"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="asset-delete-pick-again"]')).not.toBeNull()
   })
 
   it('shows generic error body when the store is in "error" state', async () => {

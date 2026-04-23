@@ -14,11 +14,16 @@
  * works identically whether the thrower is this file (after parsing a
  * 409 body) or the server (in tests that reach directly into handlers).
  */
-import { AssetInUseError, type AssetInUseResponse, type AssetRef } from 'gazetta/admin-api/schemas'
+import {
+  AssetInUseError,
+  type AssetInUseResponse,
+  AssetKindMismatchError,
+  type AssetRef,
+} from 'gazetta/admin-api/schemas'
 import type { AssetSummary } from 'gazetta/schema'
 import { apiUrl, authHeaders } from './_request.js'
 
-export { AssetInUseError }
+export { AssetInUseError, AssetKindMismatchError }
 export type { AssetRef }
 
 /** Response payload from a successful asset upload. */
@@ -80,10 +85,54 @@ export async function deleteAsset(name: string): Promise<void> {
   throw await parseAssetError(res, 'Delete failed')
 }
 
+/**
+ * Replace every reference to `oldName` with `newName` across the site,
+ * then delete `oldName`. One history revision covers the whole op.
+ *
+ * On 409 distinguishes between two server-side AssetError subclasses:
+ *   - `AssetKindMismatchError` — replacement kind/MIME incompatible
+ *   - (no AssetInUseError here — replacement implies refs exist; we
+ *      fix them, we don't refuse)
+ */
+export async function replaceAsset(oldName: string, newName: string): Promise<void> {
+  const res = await fetch(
+    apiUrl(`/assets/${encodeURIComponent(oldName)}/replace-with/${encodeURIComponent(newName)}`),
+    { method: 'POST', headers: authHeaders() },
+  )
+  if (res.status === 204) return
+  if (res.status === 409) throw await parseKindMismatchResponse(res, oldName, newName)
+  throw await parseAssetError(res, 'Replace failed')
+}
+
 /** Read a 409 response body and return a typed `AssetInUseError`. */
 async function parseInUseResponse(res: Response, fallbackName: string): Promise<AssetInUseError> {
   const body = (await res.json().catch(() => ({}))) as Partial<AssetInUseResponse>
   return new AssetInUseError(body.assetName ?? fallbackName, body.refs ?? [])
+}
+
+/**
+ * Read a 409 response body for the replace endpoint and return a typed
+ * `AssetKindMismatchError`. The body includes the same structured
+ * fields the server attached via `toResponseBody()` (oldKind,
+ * oldMimeCategory, newKind, newMimeCategory).
+ */
+async function parseKindMismatchResponse(
+  res: Response,
+  _oldName: string,
+  _newName: string,
+): Promise<AssetKindMismatchError> {
+  const body = (await res.json().catch(() => ({}))) as {
+    oldKind?: string
+    oldMimeCategory?: string
+    newKind?: string
+    newMimeCategory?: string
+  }
+  return new AssetKindMismatchError(
+    body.oldKind ?? 'unknown',
+    body.oldMimeCategory ?? 'unknown',
+    body.newKind ?? 'unknown',
+    body.newMimeCategory ?? 'unknown',
+  )
 }
 
 /** Read a non-success, non-409 response body and return a typed `AssetApiError`. */
