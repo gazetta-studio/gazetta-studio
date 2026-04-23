@@ -21,10 +21,10 @@ defineProps<{
     {{ refs.length }} item{{ refs.length === 1 ? '' : 's' }}. Remove the references before deleting.
   </p>
   <ul class="asset-delete-refs" data-testid="asset-delete-refs">
-    <li v-for="ref in refs" :key="`${ref.path}::${ref.componentPath}`">
+    <li v-for="ref in refs" :key="`${ref.path}::${ref.componentPath ?? ''}`">
       <span class="asset-delete-ref-source">{{ ref.source }}</span>
       <span class="asset-delete-ref-path">{{ ref.path }}</span>
-      <span v-if="ref.componentPath !== '<root>'" class="asset-delete-ref-component">@ {{ ref.componentPath }}</span>
+      <span v-if="ref.componentPath" class="asset-delete-ref-component">@ {{ ref.componentPath }}</span>
     </li>
   </ul>
 </template>

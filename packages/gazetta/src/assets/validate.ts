@@ -1,19 +1,26 @@
 /**
  * Asset-upload validation policy. Pure — takes a candidate (name, claimed
- * size, claimed MIME, sniffed MIME) and returns either ok or a typed
- * validation error. No I/O, no storage, no network.
+ * size, claimed MIME, sniffed MIME) and throws a typed validation error on
+ * the first failure. No I/O, no storage, no network.
  *
  * Keeping this pure means:
- * - Tests are trivial: pass candidate data in, assert the result
+ * - Tests are trivial: pass candidate data in, assert the thrown class
  * - The same policy applies whether the caller is the HTTP route, a CLI
  *   import command, or the future paste-URL handler
  * - Policy evolves in one place
  *
- * The specific rules encoded here are the v1 slice minimum (see
- * design-media.md → Storage → Name rules and Security → Upload-time
- * validation). They will expand in later steps; this is the shape.
+ * Each validation failure throws a distinct `AssetValidationError`
+ * subclass (`AssetNameInvalidError`, `AssetPathTraversalError`, etc.).
+ * Callers that want to group all input-validation failures uniformly can
+ * still pattern-match on the base `AssetValidationError`.
  */
-import { AssetValidationError } from './errors.js'
+import {
+  AssetMimeMismatchError,
+  AssetNameInvalidError,
+  AssetNameReservedError,
+  AssetPathTraversalError,
+  AssetSizeExceededError,
+} from './errors.js'
 
 /** v1 size limit — 50 MB. Tunable per site in a later step. */
 export const ASSET_MAX_BYTES = 50 * 1024 * 1024
@@ -40,9 +47,10 @@ export interface UploadCandidate {
 }
 
 /**
- * Validate an upload candidate against the v1 policy. Throws
- * `AssetValidationError` on the first failure — policy enforces fail-fast
- * so the HTTP route returns a single, specific reason to the client.
+ * Validate an upload candidate against the v1 policy. Throws the
+ * specific `AssetValidationError` subclass for the first failure
+ * encountered — policy enforces fail-fast so the HTTP route returns a
+ * single, specific reason to the client.
  */
 export function validateUpload(candidate: UploadCandidate): void {
   assertName(candidate.name)
@@ -52,61 +60,55 @@ export function validateUpload(candidate: UploadCandidate): void {
 
 function assertName(name: string): void {
   if (name.length === 0 || name.length > MAX_NAME_LENGTH) {
-    throw new AssetValidationError(
-      'ASSET_NAME_INVALID',
-      `Asset name must be 1–${MAX_NAME_LENGTH} characters (got ${name.length})`,
-    )
+    throw new AssetNameInvalidError(name, `Asset name must be 1–${MAX_NAME_LENGTH} characters (got ${name.length})`)
   }
 
   // Path-traversal: `..`, leading `/`, or backslash anywhere
   if (name.includes('..') || name.startsWith('/') || name.includes('\\')) {
-    throw new AssetValidationError('ASSET_PATH_TRAVERSAL', `Asset name contains path traversal: ${name}`)
+    throw new AssetPathTraversalError(name)
   }
 
   // Reserved prefixes and suffixes
   for (const prefix of RESERVED_PREFIXES) {
     if (name.startsWith(prefix)) {
-      throw new AssetValidationError('ASSET_NAME_RESERVED', `Asset name reserved (starts with "${prefix}"): ${name}`)
+      throw new AssetNameReservedError(name, prefix, 'prefix')
     }
   }
   for (const suffix of RESERVED_SUFFIXES) {
     if (name.endsWith(suffix)) {
-      throw new AssetValidationError('ASSET_NAME_RESERVED', `Asset name reserved (ends with "${suffix}"): ${name}`)
+      throw new AssetNameReservedError(name, suffix, 'suffix')
     }
   }
 
   // Character rules (lowercase ASCII, digits, hyphens, underscores, optional extension)
   if (!VALID_NAME.test(name)) {
-    throw new AssetValidationError(
-      'ASSET_NAME_INVALID',
+    throw new AssetNameInvalidError(
+      name,
       `Asset name must be lowercase ASCII letters/digits/hyphens/underscores with optional extension: ${name}`,
     )
   }
 }
 
 function assertSize(claimedSize: number): void {
-  if (claimedSize <= 0) {
-    throw new AssetValidationError('ASSET_SIZE_EXCEEDED', 'Asset size must be greater than 0')
-  }
-  if (claimedSize > ASSET_MAX_BYTES) {
-    throw new AssetValidationError(
-      'ASSET_SIZE_EXCEEDED',
-      `Asset exceeds size limit (${claimedSize} bytes > ${ASSET_MAX_BYTES} bytes)`,
-    )
+  if (claimedSize <= 0 || claimedSize > ASSET_MAX_BYTES) {
+    throw new AssetSizeExceededError(claimedSize, ASSET_MAX_BYTES)
   }
 }
 
 function assertMime(sniffedMime: string | null, name: string): void {
+  const allowed = [...ALLOWED_MIMES]
   if (!sniffedMime) {
-    throw new AssetValidationError(
-      'ASSET_MIME_MISMATCH',
+    throw new AssetMimeMismatchError(
+      null,
+      allowed,
       `Could not detect MIME type from bytes for "${name}"; v1 slice accepts images only (JPEG, PNG)`,
     )
   }
   if (!ALLOWED_MIMES.has(sniffedMime)) {
-    throw new AssetValidationError(
-      'ASSET_MIME_MISMATCH',
-      `MIME ${sniffedMime} not allowed in v1 slice (allowed: ${[...ALLOWED_MIMES].join(', ')})`,
+    throw new AssetMimeMismatchError(
+      sniffedMime,
+      allowed,
+      `MIME ${sniffedMime} not allowed in v1 slice (allowed: ${allowed.join(', ')})`,
     )
   }
 }

@@ -93,7 +93,9 @@ function scanValue(value: unknown, path: string, input: ScanManifestInput, out: 
     out.push({
       source: input.source,
       path: input.manifestPath,
-      componentPath: path || '<root>',
+      // `null` means "the ref is at the manifest's top-level content" —
+      // no sentinel string (like "<root>") for UI code to compare against.
+      componentPath: path === '' ? null : path,
     })
     // Don't early-return — the asset ref object might itself contain
     // nested refs (a future template that composes embedded refs inside

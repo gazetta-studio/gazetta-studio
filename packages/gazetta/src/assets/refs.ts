@@ -18,16 +18,18 @@ import { z } from 'zod'
 /**
  * Where a ref was found. Stable across pages and fragments so any
  * consumer (usage panel, delete dialog, CLI report) renders uniformly.
- * `componentPath` is a dotted breadcrumb (`hero`, `banner.image`,
- * `gallery[0].photo`) — "<root>" when the ref sits at the manifest's
- * top-level content.
+ *
+ * - `path` is the content-root-relative manifest path
+ *   (e.g. `"pages/home/page.json"`).
+ * - `componentPath` is a dotted breadcrumb into the manifest's content
+ *   tree (`"hero"`, `"banner.image"`, `"gallery[0].photo"`), or `null`
+ *   when the ref sits at the manifest's top-level content. `null` means
+ *   "the manifest root" — no sentinel string to compare against.
  */
 export const AssetRefSchema = z.object({
   source: z.enum(['page', 'fragment']),
-  /** Content-root-relative manifest path, e.g. "pages/home/page.json". */
   path: z.string(),
-  /** Dotted breadcrumb into the manifest's component/content tree. */
-  componentPath: z.string(),
+  componentPath: z.string().nullable(),
 })
 
 export type AssetRef = z.infer<typeof AssetRefSchema>
