@@ -15,6 +15,7 @@
  *   - POST /api/publish + /api/publish/stream (result + SSE progress union)
  *   - GET  /api/history + POST /api/history/{undo,restore} (revisions + restore)
  *   - POST /api/fetch (cross-target copy)
+ *   - DELETE /api/assets/:name (AssetRef + 409 AssetInUseResponse)
  *
  * Add new endpoint modules here as they move to schema-validated contracts.
  */
@@ -29,3 +30,4 @@ export * from './compare.js'
 export * from './publish.js'
 export * from './history.js'
 export * from './fetch.js'
+export * from './assets.js'

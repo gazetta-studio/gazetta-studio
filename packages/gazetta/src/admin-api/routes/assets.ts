@@ -24,6 +24,7 @@ import {
   AssetStorageError,
   AssetValidationError,
 } from '../../assets/errors.js'
+import { type AssetInUseResponse, AssetInUseResponseSchema } from '../schemas/assets.js'
 import type { SourceContextResolver } from '../source-context.js'
 
 /** Where assets live, relative to the target storage root. */
@@ -88,17 +89,18 @@ export function assetRoutes(resolve: SourceContextResolver) {
       }
       if (err instanceof AssetInUseError) {
         // 409 Conflict — request cannot complete because of the server's
-        // current state (refs still exist). Body includes the usage list so
-        // the admin can render the refuse dialog without a second fetch.
-        return c.json(
-          {
-            code: err.code,
-            message: err.message,
-            assetName: err.assetName,
-            refs: err.refs,
-          },
-          409,
-        )
+        // current state (refs still exist). Body includes the usage list
+        // so the admin can render the refuse dialog without a second
+        // fetch. Validated through the shared schema — any drift between
+        // this serialization and the client's derived type is caught at
+        // test time.
+        const body: AssetInUseResponse = AssetInUseResponseSchema.parse({
+          code: err.code,
+          message: err.message,
+          assetName: err.assetName,
+          refs: err.refs,
+        })
+        return c.json(body, 409)
       }
       if (err instanceof AssetStorageError) {
         return c.json({ code: err.code, message: err.message }, 500)
