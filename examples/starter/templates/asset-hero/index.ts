@@ -34,9 +34,12 @@ const template: TemplateFunction<Resolved> = ({ content }) => {
     html: `<section class="asset-hero">
   <img
     src="${image.url}"
+    ${image.srcset ? `srcset="${image.srcset}" sizes="(max-width: 72rem) 100vw, 72rem"` : ''}
     alt="${image.alt}"
     ${image.width ? `width="${image.width}"` : ''}
     ${image.height ? `height="${image.height}"` : ''}
+    loading="lazy"
+    decoding="async"
   />
   <div class="asset-hero-text">
     <h1>${headline}</h1>

@@ -36,6 +36,7 @@ export {
   AssetSizeExceededError,
   AssetStorageError,
   AssetValidationError,
+  AssetVariantGenerationError,
   type AssetErrorCode,
 } from '../../assets/errors.js'
 

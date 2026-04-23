@@ -24,6 +24,7 @@ function sampleManifest(overrides: Partial<AssetManifest>): AssetManifest {
     hash: 'aaaaaaaa',
     width: 100,
     height: 100,
+    variants: [],
     alt: null,
     uploadedAt: '2026-04-21T00:00:00.000Z',
     uploadedBy: '',

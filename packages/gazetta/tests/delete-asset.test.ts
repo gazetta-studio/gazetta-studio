@@ -16,17 +16,17 @@ import { tempDir } from './_helpers/temp.js'
 
 const testDir = tempDir('delete-asset-test-' + Date.now())
 
-async function jpeg(): Promise<Buffer> {
+async function jpeg(width = 16, height = 16): Promise<Buffer> {
   return sharp({
-    create: { width: 16, height: 16, channels: 3, background: { r: 0, g: 0, b: 0 } },
+    create: { width, height, channels: 3, background: { r: 0, g: 0, b: 0 } },
   })
     .jpeg()
     .toBuffer()
 }
 
-async function seedAsset(assetName: string) {
+async function seedAsset(assetName: string, width = 16, height = 16) {
   const storage = createFilesystemProvider(testDir)
-  const bytes = await jpeg()
+  const bytes = await jpeg(width, height)
   // Wrap the Buffer in a web ReadableStream so ingestAsset can consume it.
   const stream = new ReadableStream<Uint8Array>({
     start(ctrl) {
@@ -182,6 +182,30 @@ describe('deleteAsset', () => {
       assetName: 'hero',
     })
 
+    expect(existsSync(join(testDir, 'assets/hero.asset.json'))).toBe(false)
+  })
+
+  it('removes variant bytes along with primary bytes and manifest', async () => {
+    // 1000×500 produces 400w and 800w variants.
+    const { storage, result } = await seedAsset('hero', 1000, 500)
+    expect(result.manifest.variants.length).toBeGreaterThan(0)
+
+    // Sanity: every variant is on disk.
+    for (const v of result.manifest.variants) {
+      expect(existsSync(join(testDir, 'assets', v.path))).toBe(true)
+    }
+
+    await deleteAsset({
+      storage,
+      assetsRoot: 'assets',
+      siteDir: '',
+      assetName: 'hero',
+    })
+
+    // Every variant is gone.
+    for (const v of result.manifest.variants) {
+      expect(existsSync(join(testDir, 'assets', v.path))).toBe(false)
+    }
     expect(existsSync(join(testDir, 'assets/hero.asset.json'))).toBe(false)
   })
 })

@@ -24,6 +24,7 @@ function sampleManifest(overrides: Partial<AssetManifest> = {}): AssetManifest {
     hash: 'a3b2c1d4',
     width: 1920,
     height: 1080,
+    variants: [],
     alt: 'Mountain sunset',
     uploadedAt: '2026-04-21T12:00:00.000Z',
     uploadedBy: '',
@@ -108,6 +109,52 @@ describe('resolveEmbeddedRef', () => {
   it('throws AssetManifestNotFoundError when the asset does not exist', async () => {
     const ctx = await makeCtx()
     await expect(resolveEmbeddedRef({ _asset: 'missing' }, ctx)).rejects.toBeInstanceOf(AssetManifestNotFoundError)
+  })
+
+  it('builds a srcset string from manifest variants', async () => {
+    const ctx = await makeCtx()
+    await seedManifest(
+      ctx,
+      sampleManifest({
+        variants: [
+          { width: 400, path: 'hero-a3b2c1d4-400w.jpg', size: 10_000 },
+          { width: 800, path: 'hero-a3b2c1d4-800w.jpg', size: 40_000 },
+          { width: 1200, path: 'hero-a3b2c1d4-1200w.jpg', size: 90_000 },
+        ],
+      }),
+    )
+
+    const resolved = await resolveEmbeddedRef({ _asset: 'hero' }, ctx)
+
+    expect(resolved.srcset).toBe(
+      '/assets/hero-a3b2c1d4-400w.jpg 400w, ' +
+        '/assets/hero-a3b2c1d4-800w.jpg 800w, ' +
+        '/assets/hero-a3b2c1d4-1200w.jpg 1200w',
+    )
+  })
+
+  it('srcset uses siteUrl when provided', async () => {
+    const ctx: AssetResolveContext = {
+      ...(await makeCtx()),
+      siteUrl: 'https://cdn.example.com',
+    }
+    await seedManifest(
+      ctx,
+      sampleManifest({
+        variants: [{ width: 400, path: 'hero-a3b2c1d4-400w.jpg', size: 10_000 }],
+      }),
+    )
+
+    const resolved = await resolveEmbeddedRef({ _asset: 'hero' }, ctx)
+    expect(resolved.srcset).toBe('https://cdn.example.com/assets/hero-a3b2c1d4-400w.jpg 400w')
+  })
+
+  it('srcset is null when variants is empty', async () => {
+    const ctx = await makeCtx()
+    await seedManifest(ctx, sampleManifest({ variants: [] }))
+
+    const resolved = await resolveEmbeddedRef({ _asset: 'hero' }, ctx)
+    expect(resolved.srcset).toBeNull()
   })
 })
 

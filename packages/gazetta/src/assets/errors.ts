@@ -25,6 +25,7 @@ export type AssetErrorCode =
   | 'ASSET_IN_USE'
   | 'ASSET_MIME_UNSUPPORTED'
   | 'ASSET_KIND_MISMATCH'
+  | 'ASSET_VARIANT_GENERATION_FAILED'
 
 /**
  * `AssetRef` is owned by `./refs.ts` (single source of truth, Zod
@@ -263,6 +264,29 @@ export class AssetMimeUnsupportedError extends AssetError {
     public readonly assetName: string,
   ) {
     super(`MIME "${mime}" has no extension mapping (asset "${assetName}")`)
+  }
+}
+
+/**
+ * Responsive-variant generation failed during upload ingest. The original
+ * bytes passed MIME sniffing and dimension extraction but sharp could not
+ * resize them — usually means truncation, corruption, or a decompression-
+ * bomb that sharp declined to decode. The ingest pipeline rolls back the
+ * main-bytes write on this error so the upload fails atomically. HTTP
+ * 400 (client-correctable: re-upload a non-broken image).
+ *
+ * Distinct from `AssetMimeMismatchError` (MIME-sniff rejection) because
+ * the file may be a legitimate JPEG/PNG on paper — we only discovered
+ * the problem once sharp tried to do real work with the pixels.
+ */
+export class AssetVariantGenerationError extends AssetError {
+  readonly code = 'ASSET_VARIANT_GENERATION_FAILED' as const
+  readonly httpStatus = 400 as const
+  constructor(
+    public readonly assetName: string,
+    cause: unknown,
+  ) {
+    super(`Could not generate responsive variants for "${assetName}": ${(cause as Error)?.message ?? cause}`)
   }
 }
 

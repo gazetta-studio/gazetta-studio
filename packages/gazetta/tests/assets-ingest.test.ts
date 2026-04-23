@@ -127,10 +127,74 @@ describe('ingestAsset — happy path', () => {
     })
 
     const entries = await readdir(join(testDir, 'assets'))
-    // exactly two files: the bytes and the manifest
+    // exactly two files: the bytes and the manifest (source is 64×48 — below
+    // the 400px variant floor, so no variants are generated)
     expect(entries).toHaveLength(2)
     expect(entries.some(n => n.startsWith('clean-') && n.endsWith('.jpg'))).toBe(true)
     expect(entries).toContain('clean.asset.json')
+  })
+})
+
+describe('ingestAsset — variant generation', () => {
+  it('generates responsive variants for a large-enough source JPEG', async () => {
+    const storage = createFilesystemProvider(testDir)
+    // 1000×500 — above 400w and 800w, below 1200w and 1600w.
+    const bytes = await jpegBuffer(1000, 500)
+
+    const result = await ingestAsset({
+      storage,
+      assetsRoot: 'assets',
+      bytes: streamOf(new Uint8Array(bytes)),
+      requestedName: 'hero',
+      alt: null,
+      uploadedBy: '',
+    })
+
+    // Manifest records the variants, ordered ascending by width.
+    expect(result.manifest.variants.map(v => v.width)).toEqual([400, 800])
+    for (const v of result.manifest.variants) {
+      expect(v.path).toMatch(new RegExp(`^hero-${result.manifest.hash}-\\d+w\\.jpg$`))
+      expect(v.size).toBeGreaterThan(0)
+      // Each variant is on disk.
+      const onDisk = await readFile(join(testDir, 'assets', v.path))
+      expect(onDisk.byteLength).toBe(v.size)
+    }
+  })
+
+  it('generates no variants when the source is smaller than the smallest target', async () => {
+    const storage = createFilesystemProvider(testDir)
+    // 100×100 source — below every variant width.
+    const bytes = await jpegBuffer(100, 100)
+
+    const result = await ingestAsset({
+      storage,
+      assetsRoot: 'assets',
+      bytes: streamOf(new Uint8Array(bytes)),
+      requestedName: 'tiny',
+      alt: null,
+      uploadedBy: '',
+    })
+
+    expect(result.manifest.variants).toEqual([])
+  })
+
+  it('variant paths use width suffix matching the design-doc scheme', async () => {
+    const storage = createFilesystemProvider(testDir)
+    const bytes = await jpegBuffer(1000, 500)
+
+    const result = await ingestAsset({
+      storage,
+      assetsRoot: 'assets',
+      bytes: streamOf(new Uint8Array(bytes)),
+      requestedName: 'banner',
+      alt: null,
+      uploadedBy: '',
+    })
+
+    // Shape: `{name}-{hash}-{width}w.{ext}` per design-media.md
+    const paths = result.manifest.variants.map(v => v.path)
+    expect(paths).toContain(`banner-${result.manifest.hash}-400w.jpg`)
+    expect(paths).toContain(`banner-${result.manifest.hash}-800w.jpg`)
   })
 })
 
