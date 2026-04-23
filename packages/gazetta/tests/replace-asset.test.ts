@@ -293,4 +293,30 @@ describe('replaceAsset', () => {
     expect(updated.content.hero._asset).toBe('banner')
     expect(updated.content.other._asset).toBe('unrelated-asset')
   })
+
+  it('removes old asset variants alongside primary bytes + manifest', async () => {
+    const storage = createFilesystemProvider(testDir)
+    // 1000px source → produces 400w + 800w variants.
+    const { result: oldAsset } = { result: await seedAsset('hero', () => jpeg(1000)) }
+    await seedAsset('banner', () => jpeg(600))
+    await seedPage('home', { hero: { _asset: 'hero' } })
+
+    expect(oldAsset.manifest.variants.length).toBeGreaterThan(0)
+
+    await replaceAsset({
+      storage,
+      assetsRoot: 'assets',
+      siteDir: '',
+      oldName: 'hero',
+      newName: 'banner',
+    })
+
+    // Every old-asset variant is gone.
+    for (const v of oldAsset.manifest.variants) {
+      expect(existsSync(join(testDir, 'assets', v.path))).toBe(false)
+    }
+    // Old primary + manifest gone.
+    expect(existsSync(join(testDir, oldAsset.bytesPath))).toBe(false)
+    expect(existsSync(join(testDir, 'assets/hero.asset.json'))).toBe(false)
+  })
 })

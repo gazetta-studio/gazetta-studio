@@ -50,6 +50,20 @@ export function buildAssetUrl(input: BuildAssetUrlInput): string {
 }
 
 /**
+ * Construct the public URL for a variant whose filename is already
+ * known (from the manifest's `variants[].path`). The filename is
+ * already hash-encoded and width-suffixed at ingest time, so this
+ * helper is just a prefix composer — keeps siteUrl normalization in
+ * one place.
+ */
+export function buildVariantUrl(variantPath: string, siteUrl?: string): string {
+  const path = `${ASSETS_URL_PREFIX}/${variantPath}`
+  if (!siteUrl) return path
+  const base = siteUrl.endsWith('/') ? siteUrl.slice(0, -1) : siteUrl
+  return `${base}${path}`
+}
+
+/**
  * Derive a file extension from a MIME type for the v1 allowlist.
  * Returns `null` for unknown MIMEs — callers should already have validated
  * MIME before reaching URL construction, so this is a defensive fallback.

@@ -100,8 +100,16 @@ function isAssetManifest(candidate: unknown): candidate is AssetManifest {
     typeof m.hash === 'string' &&
     (m.width === null || typeof m.width === 'number') &&
     (m.height === null || typeof m.height === 'number') &&
+    Array.isArray(m.variants) &&
+    m.variants.every(isAssetVariant) &&
     (m.alt === null || typeof m.alt === 'string') &&
     typeof m.uploadedAt === 'string' &&
     typeof m.uploadedBy === 'string'
   )
+}
+
+function isAssetVariant(candidate: unknown): boolean {
+  if (!candidate || typeof candidate !== 'object') return false
+  const v = candidate as Record<string, unknown>
+  return typeof v.width === 'number' && typeof v.path === 'string' && typeof v.size === 'number'
 }

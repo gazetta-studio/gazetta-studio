@@ -24,6 +24,7 @@ function sampleManifest(overrides: Partial<AssetManifest> = {}): AssetManifest {
     hash: 'a3b2c1d4',
     width: 1920,
     height: 1080,
+    variants: [],
     alt: 'Mountain sunset',
     uploadedAt: '2026-04-21T12:00:00.000Z',
     uploadedBy: '',

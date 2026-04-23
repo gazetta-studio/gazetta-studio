@@ -56,12 +56,34 @@ export interface FontAssetRef {
 // ---------- Manifest shape (what lives in storage) ----------
 
 /**
+ * A single responsive variant of an image asset. Pre-generated at
+ * upload time; the resolver composes these into a `srcset` string.
+ */
+export interface AssetVariant {
+  /** Target width in pixels. */
+  width: number
+  /** Path relative to the assets root, e.g. `hero-a3b2c1d4-800w.jpg`. */
+  path: string
+  /** On-disk size of the variant in bytes. */
+  size: number
+}
+
+/**
  * Asset manifest — the JSON written to `{name}.asset.json` for each asset.
  * Storage shape, distinct from reference (content JSON) and resolved (template
- * render). v1 slice fields only; wider fields (variants, animated, poster,
- * source, etc.) are added as those capabilities land.
+ * render). v1 slice fields; wider fields (animated, poster, font-specific,
+ * etc.) are added as those capabilities land.
  *
  * `version: 1` is the forward-compatibility lever for future changes.
+ *
+ * Deviation from design-media.md:
+ *   The design specifies a `variantsStatus: 'generating' | 'complete' | 'failed'`
+ *   tri-state alongside `variants`. We don't carry it in v1 because ingest
+ *   is synchronous + rolls back on variant-generation failure — when a
+ *   manifest exists, variants are always complete by invariant, so the
+ *   status field would be dead weight. If we ever move to async generation
+ *   (a separate step), the tri-state comes back and callers distinguish
+ *   "variants still generating" from "variants failed" the design-doc way.
  */
 export interface AssetManifest {
   version: 1
@@ -81,6 +103,12 @@ export interface AssetManifest {
   width: number | null
   /** Height in pixels (images) — null when not applicable. */
   height: number | null
+  /**
+   * Responsive-image variants, pre-generated at upload time. Empty for
+   * non-image assets (downloadable, font) or images smaller than the
+   * smallest target width (no point upscaling). Ordered ascending by width.
+   */
+  variants: readonly AssetVariant[]
   /** Alt text per the three-state model; null means "not set". */
   alt: string | null
   /** Upload timestamp (ISO 8601 UTC). */

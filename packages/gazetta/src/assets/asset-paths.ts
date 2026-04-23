@@ -49,6 +49,12 @@ export interface AssetStoragePaths {
  * `AssetMimeUnsupportedError` when the manifest's MIME has no extension
  * mapping — that's a misconfiguration, not a runtime condition to
  * tolerate.
+ *
+ * Variant paths come straight from the manifest's `variants` list —
+ * each variant already knows its own on-disk filename (populated by
+ * the ingest pipeline; see `assets/ingest.ts`). No recomputation here,
+ * so a future variant-naming scheme change needs zero updates to this
+ * module.
  */
 export function assetStoragePaths(assetsRoot: string, manifest: AssetManifest): AssetStoragePaths {
   const ext = extFromMime(manifest.mime)
@@ -58,7 +64,7 @@ export function assetStoragePaths(assetsRoot: string, manifest: AssetManifest): 
   return {
     manifest: `${assetsRoot}/${manifestPath(manifest.name)}`,
     bytes: `${assetsRoot}/${assetBytesPath(manifest.name, manifest.hash, ext)}`,
-    variants: [],
+    variants: manifest.variants.map(v => `${assetsRoot}/${v.path}`),
   }
 }
 

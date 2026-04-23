@@ -17,14 +17,21 @@
  * `BinaryStorage`. The pipeline throws `AssetProviderNotCapableError` when
  * it doesn't — the HTTP route turns that into a 501.
  */
-import type { AssetManifest } from '../schema/types.js'
+import type { AssetManifest, AssetVariant } from '../schema/types.js'
 import { isBinaryCapable, type StorageProvider } from '../types.js'
-import { AssetMimeMismatchError, AssetProviderNotCapableError, AssetStorageError } from './errors.js'
+import { rmIgnoreMissing } from '../providers/_rm-ignore-missing.js'
+import {
+  AssetMimeMismatchError,
+  AssetProviderNotCapableError,
+  AssetStorageError,
+  AssetVariantGenerationError,
+} from './errors.js'
 import { ASSET_HASH_LENGTH, hashBytes } from './hash.js'
 import { extractImageDimensions } from './image-metadata.js'
 import { assetBytesPath, writeManifest } from './manifest.js'
 import { sniffMimeFromStream } from './mime-sniff.js'
 import { validateUpload } from './validate.js'
+import { generateVariants } from './variants.js'
 
 /** Ext-from-MIME for the v1 allowlist (JPEG, PNG). */
 const EXT_BY_MIME: Record<string, string> = {
@@ -96,18 +103,53 @@ export async function ingestAsset(input: IngestInput): Promise<IngestResult> {
   // helper returns null safely if it can't — we propagate that.
   const dims = (mime ?? '').startsWith('image/') ? await extractImageDimensions(buffer) : null
 
-  // Persist bytes.
-  const bytesPath = `${input.assetsRoot}/${assetBytesPath(baseName(input.requestedName), hash, bytesExt)}`
+  const canonicalName = baseName(input.requestedName)
+
+  // Persist primary bytes.
+  const bytesPath = `${input.assetsRoot}/${assetBytesPath(canonicalName, hash, bytesExt)}`
   try {
     await input.storage.writeStream(bytesPath, byteStreamFrom(buffer))
   } catch (err) {
     throw new AssetStorageError('write', bytesPath, err)
   }
 
+  // Generate + persist responsive variants. Failures here roll back
+  // everything we've written so the upload fails atomically — the
+  // manifest is the one visible "this asset exists" record and we
+  // only write it when primary bytes + variants are all on disk.
+  //
+  // v1: images only (JPEG + PNG, per the allowlist above). Non-images
+  // yield no variants; the generator returns [] and we move on.
+  const writtenVariants: AssetVariant[] = []
+  if ((mime ?? '').startsWith('image/')) {
+    try {
+      const generated = await generateVariants(buffer)
+      for (const v of generated) {
+        const relPath = `${canonicalName}-${hash}-${v.width}w.${bytesExt}`
+        const absPath = `${input.assetsRoot}/${relPath}`
+        try {
+          await input.storage.writeStream(absPath, byteStreamFrom(v.bytes))
+        } catch (err) {
+          await rollback(input.storage, bytesPath, writtenVariants, input.assetsRoot)
+          throw new AssetStorageError('write', absPath, err)
+        }
+        writtenVariants.push({ width: v.width, path: relPath, size: v.bytes.byteLength })
+      }
+    } catch (err) {
+      // Variant generation itself failed (sharp rejected the input).
+      // Roll back primary bytes so no orphan survives. AssetStorageError
+      // from the inner loop has already rolled back and we re-throw;
+      // any other error here is from generateVariants.
+      if (err instanceof AssetStorageError) throw err
+      await rollback(input.storage, bytesPath, writtenVariants, input.assetsRoot)
+      throw new AssetVariantGenerationError(canonicalName, err)
+    }
+  }
+
   // Build + write manifest.
   const manifest: AssetManifest = {
     version: 1,
-    name: baseName(input.requestedName),
+    name: canonicalName,
     kind: 'embedded',
     source: 'internal',
     mime: mime ?? 'application/octet-stream',
@@ -115,6 +157,7 @@ export async function ingestAsset(input: IngestInput): Promise<IngestResult> {
     hash,
     width: dims?.width ?? null,
     height: dims?.height ?? null,
+    variants: writtenVariants,
     alt: input.alt,
     uploadedAt: new Date().toISOString(),
     uploadedBy: input.uploadedBy,
@@ -122,6 +165,34 @@ export async function ingestAsset(input: IngestInput): Promise<IngestResult> {
   await writeManifest(input.storage, input.assetsRoot, manifest)
 
   return { manifest, bytesPath }
+}
+
+/**
+ * Roll back a partially-committed upload: remove primary bytes and any
+ * variants that had landed before the failure. Best-effort; each `rm`
+ * is idempotent (`rmIgnoreMissing`) so a subsequent retry won't be
+ * confused by leftovers. We swallow rollback errors — the caller's
+ * original error is what matters; a rollback failure becomes an
+ * orphan byte file that GC will reclaim later.
+ */
+async function rollback(
+  storage: StorageProvider,
+  primaryBytesPath: string,
+  variants: readonly AssetVariant[],
+  assetsRoot: string,
+): Promise<void> {
+  try {
+    await rmIgnoreMissing(storage, primaryBytesPath)
+  } catch {
+    /* best-effort */
+  }
+  for (const v of variants) {
+    try {
+      await rmIgnoreMissing(storage, `${assetsRoot}/${v.path}`)
+    } catch {
+      /* best-effort */
+    }
+  }
 }
 
 /**
