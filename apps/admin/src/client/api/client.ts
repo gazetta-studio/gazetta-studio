@@ -1,81 +1,18 @@
-// API is relative to the CMS base path: /admin/api, /cms/api, or /api
-const BASE = (import.meta.env.BASE_URL || '/').replace(/\/$/, '') + '/api'
+// Wire-level plumbing (base URL, active-target injection, auth headers)
+// lives in `_request.ts` and is shared with other API modules (e.g.
+// `api/assets.ts`). Everything in this file is JSON-CRUD specific.
+import { API_BASE as BASE, apiUrl, authHeaders, getActiveTarget } from './_request.js'
 
-/**
- * Active-target provider — injected at app boot. When set, content-reading
- * api calls auto-append `?target=<active>` so the server reads from the
- * target the author is focused on.
- *
- * Kept as an injected function rather than an import to preserve DIP: the
- * api client doesn't depend on the active-target store (the store wires
- * itself in via main.ts).
- */
-type ActiveTargetProvider = () => string | null
-let activeTargetProvider: ActiveTargetProvider | null = null
-
-/** Wire the api client to read the active target from the provided source. */
-export function setActiveTargetProvider(provider: ActiveTargetProvider | null): void {
-  activeTargetProvider = provider
-}
-
-/**
- * Append `?target=<active>` to a URL path when the active-target provider
- * is set and the path doesn't already specify a target. Query string is
- * added before any existing `#fragment` (none expected in api URLs).
- */
-function withActiveTarget(path: string): string {
-  const name = activeTargetProvider?.()
-  if (!name) return path
-  // Skip if caller already set ?target= explicitly (e.g., compare destination)
-  if (/[?&]target=/.test(path)) return path
-  const sep = path.includes('?') ? '&' : '?'
-  return `${path}${sep}target=${encodeURIComponent(name)}`
-}
+export { setActiveTargetProvider } from './_request.js'
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = sessionStorage.getItem('gazetta_token')
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (token) headers['Authorization'] = `Bearer ${token}`
-
-  const res = await fetch(`${BASE}${withActiveTarget(path)}`, {
+  const res = await fetch(apiUrl(path), {
     ...options,
-    headers: { ...headers, ...options?.headers },
+    headers: authHeaders({ 'Content-Type': 'application/json', ...(options?.headers as Record<string, string>) }),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }))
     throw new Error(body.error ?? `Request failed: ${res.status}`)
-  }
-  return res.json()
-}
-
-/**
- * Upload helper — sends multipart FormData. Distinct from `request()`
- * because multipart mustn't carry Content-Type: application/json, and
- * because the server's error shape for the upload route is `{ code,
- * message }` (typed AssetError) rather than `{ error }`.
- */
-async function uploadRequest<T>(path: string, form: FormData): Promise<T> {
-  const token = sessionStorage.getItem('gazetta_token')
-  const headers: Record<string, string> = {}
-  if (token) headers['Authorization'] = `Bearer ${token}`
-
-  const res = await fetch(`${BASE}${withActiveTarget(path)}`, {
-    method: 'POST',
-    headers,
-    body: form,
-  })
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({ message: res.statusText }))) as {
-      code?: string
-      message?: string
-    }
-    const err = new Error(body.message ?? `Upload failed: ${res.status}`) as Error & {
-      code?: string
-      status: number
-    }
-    err.code = body.code
-    err.status = res.status
-    throw err
   }
   return res.json()
 }
@@ -94,15 +31,11 @@ async function publishStream(
   onProgress: (ev: PublishProgress) => void,
   options?: { source?: string; signal?: AbortSignal },
 ): Promise<PublishResult[]> {
-  const token = sessionStorage.getItem('gazetta_token')
-  const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'text/event-stream' }
-  if (token) headers['Authorization'] = `Bearer ${token}`
-
   const body: Record<string, unknown> = { items, targets }
   if (options?.source) body.source = options.source
   const res = await fetch(`${BASE}/publish/stream`, {
     method: 'POST',
-    headers,
+    headers: authHeaders({ 'Content-Type': 'application/json', Accept: 'text/event-stream' }),
     body: JSON.stringify(body),
     signal: options?.signal,
   })
@@ -224,19 +157,15 @@ export interface FragmentDetail extends FragmentSummary {
 }
 
 /**
- * Asset summary returned by GET /api/assets.
- * Re-exported from `gazetta/schema` — single source of truth for the shape
- * lives in the gazetta package (schema/types.ts). If the server changes
- * the shape, the admin is a compile error rather than runtime drift.
+ * Asset-specific types (`AssetSummary`, `UploadedAsset`, etc.) and
+ * endpoints (`uploadAsset`, `deleteAsset`) live in `./assets.ts`.
+ * Re-exported here so callers can still import from `client.js` without
+ * knowing which submodule owns each piece.
  */
 export type { AssetSummary } from 'gazetta/schema'
+export { AssetApiError, AssetInUseError, type AssetRef, type UploadedAsset } from './assets.js'
 import type { AssetSummary } from 'gazetta/schema'
-
-/** Manifest returned by a successful upload. */
-export interface UploadedAsset {
-  manifest: AssetSummary & { version: 1; source: 'internal'; uploadedBy: string }
-  bytesPath: string
-}
+import { deleteAsset as deleteAssetCall, uploadAsset as uploadAssetCall } from './assets.js'
 
 export const api = {
   getSite: () => request<SiteManifest>('/site'),
@@ -283,7 +212,7 @@ export const api = {
   compare: (target: string, options?: RequestInit & { source?: string }) => {
     // `source` explicit wins. Otherwise fall back to the active-target
     // provider (server resolves its own default if neither is set).
-    const src = options?.source ?? activeTargetProvider?.()
+    const src = options?.source ?? getActiveTarget()
     const qs = src
       ? `?target=${encodeURIComponent(target)}&source=${encodeURIComponent(src)}`
       : `?target=${encodeURIComponent(target)}`
@@ -315,75 +244,6 @@ export const api = {
   listAssets: () => request<AssetSummary[]>('/assets'),
   /** Fetch a single asset's summary by name. 404s when the asset doesn't exist. */
   getAsset: (name: string) => request<AssetSummary>(`/assets/${encodeURIComponent(name)}`),
-  /**
-   * Upload an asset. On success returns the new asset's manifest + bytes path.
-   * On failure throws an Error with `code` (typed AssetError code) and
-   * `status` (HTTP status) attached so the caller can route to the right UI.
-   */
-  uploadAsset: (file: File, name: string, alt: string | null) => {
-    const form = new FormData()
-    form.set('file', file)
-    form.set('name', name)
-    if (alt !== null) form.set('alt', alt)
-    return uploadRequest<UploadedAsset>('/assets', form)
-  },
-  /**
-   * Delete an asset. Resolves on 204 (no content). On 409 throws an
-   * `AssetInUseError` carrying the usage list so the caller can render
-   * the "replace or cancel" dialog. On 404 or 500 throws a generic Error
-   * with the server's error code.
-   */
-  deleteAsset: async (name: string): Promise<void> => {
-    await deleteAssetRequest(name)
-  },
-}
-
-/** Matches the AssetRef shape returned by the server on 409 responses. */
-export interface AssetRefShape {
-  source: 'page' | 'fragment'
-  path: string
-  componentPath: string
-}
-
-/** Thrown client-side when the server returns 409 on asset delete. */
-export class AssetInUseError extends Error {
-  readonly code = 'ASSET_IN_USE' as const
-  constructor(
-    public readonly assetName: string,
-    public readonly refs: readonly AssetRefShape[],
-  ) {
-    super(`Asset "${assetName}" is still referenced by ${refs.length} item(s)`)
-    this.name = 'AssetInUseError'
-  }
-}
-
-async function deleteAssetRequest(name: string): Promise<void> {
-  const token = sessionStorage.getItem('gazetta_token')
-  const headers: Record<string, string> = {}
-  if (token) headers['Authorization'] = `Bearer ${token}`
-
-  const res = await fetch(`${BASE}${withActiveTarget(`/assets/${encodeURIComponent(name)}`)}`, {
-    method: 'DELETE',
-    headers,
-  })
-  if (res.status === 204) return
-  // 409 — refs still exist. Body is { code, message, assetName, refs }.
-  if (res.status === 409) {
-    const body = (await res.json().catch(() => ({}))) as {
-      assetName?: string
-      refs?: AssetRefShape[]
-    }
-    throw new AssetInUseError(body.assetName ?? name, body.refs ?? [])
-  }
-  const body = (await res.json().catch(() => ({ message: res.statusText }))) as {
-    code?: string
-    message?: string
-  }
-  const err = new Error(body.message ?? `Delete failed: ${res.status}`) as Error & {
-    code?: string
-    status: number
-  }
-  err.code = body.code
-  err.status = res.status
-  throw err
+  uploadAsset: uploadAssetCall,
+  deleteAsset: deleteAssetCall,
 }

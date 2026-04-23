@@ -25,19 +25,13 @@ export type AssetErrorCode =
   | 'ASSET_IN_USE'
 
 /**
- * A single reference discovered during a content scan. Stable across
- * kinds — pages and fragments share the shape so the usage panel renders
- * uniformly. `componentPath` is a dotted breadcrumb into the manifest's
- * component/content tree (e.g. "hero", "hero.background", "components[2].image").
+ * `AssetRef` is owned by `./refs.ts` (single source of truth, Zod
+ * schema + inferred type). Re-exported here for the error class that
+ * carries refs as structured data. Other consumers import from `./refs`
+ * directly.
  */
-export interface AssetRef {
-  /** Whether the referencing manifest lives in `pages/` or `fragments/`. */
-  readonly source: 'page' | 'fragment'
-  /** Content-root-relative manifest path (e.g. "pages/home/page.json"). */
-  readonly path: string
-  /** Dotted breadcrumb within the manifest where the ref was found. */
-  readonly componentPath: string
-}
+export type { AssetRef } from './refs.js'
+import type { AssetRef } from './refs.js'
 
 abstract class AssetError extends Error {
   abstract readonly code: AssetErrorCode

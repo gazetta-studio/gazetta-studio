@@ -14,14 +14,14 @@
  */
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { api, AssetInUseError, type AssetRefShape } from '../api/client.js'
+import { api, AssetInUseError, type AssetRef } from '../api/client.js'
 
 type Status = 'idle' | 'confirming' | 'deleting' | 'in-use' | 'error'
 
 export const useAssetsDeleteStore = defineStore('assetsDelete', () => {
   const status = ref<Status>('idle')
   const assetName = ref<string | null>(null)
-  const refs = ref<readonly AssetRefShape[]>([])
+  const refs = ref<readonly AssetRef[]>([])
   const errorMessage = ref<string | null>(null)
 
   /** Open the confirm dialog for a given asset. Resets any previous state. */

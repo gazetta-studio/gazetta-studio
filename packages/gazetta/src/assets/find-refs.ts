@@ -25,7 +25,7 @@
  *   real asset refs.
  */
 import type { ComponentEntry, ComponentManifest, StorageProvider } from '../types.js'
-import type { AssetRef } from './errors.js'
+import type { AssetRef } from './refs.js'
 import { loadSite, allPageEntries, allFragmentEntries } from '../site-loader.js'
 import { createContentRoot } from '../content-root.js'
 
