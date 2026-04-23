@@ -8,21 +8,18 @@
  *   - a 409 response that carries structured usage data the caller must
  *     pattern-match on, not a generic "request failed"
  *
- * Keeping these in a dedicated module means `client.ts` stays a thin
- * JSON-CRUD surface, and asset-specific types (errors, responses) live
- * next to the code that speaks the asset protocol.
- *
- * Uploaded manifest / list-summary types still live in `gazetta/schema`
- * (authoritative shapes owned by the gazetta package). Error types
- * for delete live here because they're transport-specific — the server
- * has its own `AssetInUseError` with the same semantics but a richer
- * `Error` hierarchy that doesn't cross the package boundary.
+ * Typed errors and the `AssetRef` shape come from
+ * `gazetta/admin-api/schemas` — the same classes the server throws. No
+ * parallel client-only copies: an `instanceof AssetInUseError` check
+ * works identically whether the thrower is this file (after parsing a
+ * 409 body) or the server (in tests that reach directly into handlers).
  */
-import type { AssetInUseResponse, AssetRef } from 'gazetta/admin-api/schemas'
+import { AssetInUseError, type AssetInUseResponse, type AssetRef } from 'gazetta/admin-api/schemas'
 import type { AssetSummary } from 'gazetta/schema'
 import { apiUrl, authHeaders } from './_request.js'
 
-export type { AssetRef } from 'gazetta/admin-api/schemas'
+export { AssetInUseError }
+export type { AssetRef }
 
 /** Response payload from a successful asset upload. */
 export interface UploadedAsset {
@@ -31,26 +28,12 @@ export interface UploadedAsset {
 }
 
 /**
- * Thrown when the server rejects a delete because refs still exist.
- * Carries the usage list so the dialog can render it without a second
- * fetch. Other delete failures use the generic `AssetApiError`.
- */
-export class AssetInUseError extends Error {
-  readonly code = 'ASSET_IN_USE' as const
-  constructor(
-    public readonly assetName: string,
-    public readonly refs: readonly AssetRef[],
-  ) {
-    super(`Asset "${assetName}" is still referenced by ${refs.length} item(s)`)
-    this.name = 'AssetInUseError'
-  }
-}
-
-/**
- * Thrown on any non-success asset response other than 409. `code` is
- * the server's typed error code (`ASSET_MANIFEST_NOT_FOUND`, etc.)
- * when present; `status` is the HTTP status for callers that need to
- * branch on "missing vs storage failure."
+ * Thrown on any non-success asset response other than the structured
+ * 409 (handled via `AssetInUseError`). `code` is the server's typed
+ * error code (`ASSET_MANIFEST_NOT_FOUND`, etc.) when present; `status`
+ * is the HTTP status for callers that need to branch on "missing vs
+ * storage failure." This is client-transport-specific — the server
+ * never throws this; it throws a specific `AssetError` subclass.
  */
 export class AssetApiError extends Error {
   constructor(

@@ -7,10 +7,10 @@
  * 3. If any refs exist, throw `AssetInUseError` with the usage list.
  *    The admin surfaces the list so the author can rewrite refs or pick
  *    a replacement.
- * 4. If no refs, remove every path enumerated for this asset (bytes +
- *    variants), then the manifest. Bytes first so a reader racing between
- *    the two can never see a manifest pointing at missing bytes —
- *    graceful degradation in the resolver already handles "manifest gone."
+ * 4. If no refs, remove every enumerated byte path (bytes + variants),
+ *    then the manifest. Bytes first so the last thing removed is the
+ *    manifest — if a crash interrupts us, the manifest points at missing
+ *    bytes, which the resolver already degrades gracefully (placeholder).
  *
  * Single responsibility: policy — "either delete cleanly or refuse with a
  * reason." This module owns:
@@ -22,12 +22,14 @@
  *   - scan logic (`find-refs.ts` does)
  *   - which paths exist for an asset (`asset-paths.ts` does)
  *   - MIME/extension mapping (`url.ts` does, via `asset-paths.ts`)
+ *   - "rm if exists" idempotency (`providers/_rm-ignore-missing.ts` does)
  *
  * Adding a new manifest dimension (variants, locale bytes, posters) means
  * extending `asset-paths.ts`. This module stays unchanged — the path set
  * grows, the enumeration loop here picks it up automatically.
  */
 import type { StorageProvider, SiteManifest } from '../types.js'
+import { rmIgnoreMissing } from '../providers/_rm-ignore-missing.js'
 import { allAssetPaths, assetStoragePaths } from './asset-paths.js'
 import { AssetInUseError, AssetStorageError } from './errors.js'
 import { findAssetRefs } from './find-refs.js'
@@ -52,11 +54,11 @@ export interface DeleteAssetInput {
 /**
  * Delete an asset after verifying no references exist. Returns on success;
  * throws `AssetInUseError` (with the usage list attached) or
- * `AssetManifestNotFoundError` / `AssetStorageError` otherwise.
+ * `AssetManifestNotFoundError` / `AssetStorageError` /
+ * `AssetMimeUnsupportedError` otherwise.
  */
 export async function deleteAsset(input: DeleteAssetInput): Promise<void> {
-  // Step 1 — read manifest. Throws AssetManifestNotFoundError when missing,
-  // which bubbles out to a clean 404 at the HTTP layer.
+  // Step 1 — read manifest. Throws AssetManifestNotFoundError when missing.
   const manifest = await readManifest(input.storage, input.assetsRoot, input.assetName)
 
   // Step 2 — scan for refs.
@@ -72,13 +74,20 @@ export async function deleteAsset(input: DeleteAssetInput): Promise<void> {
     throw new AssetInUseError(input.assetName, refs)
   }
 
-  // Step 4 — remove every byte path associated with this asset, then the
-  // manifest. Bytes first so the last thing removed is the manifest —
-  // if a crash interrupts us, the manifest points at missing bytes, which
-  // the resolver already degrades gracefully (returns placeholder).
+  // Step 4 — remove every byte path, then the manifest. `assetStoragePaths`
+  // throws `AssetMimeUnsupportedError` when the manifest's MIME has no
+  // extension mapping — that's a misconfiguration caller surfaces as-is.
   const paths = assetStoragePaths(input.assetsRoot, manifest)
   for (const path of allAssetPaths(paths)) {
-    await removeIgnoringMissing(input.storage, path)
+    // Tolerate "already gone" for byte paths: a prior partial delete or
+    // manual cleanup is a realistic state that shouldn't block the
+    // manifest removal. The storage-layer idempotency lives in
+    // `rmIgnoreMissing` — here we just use it.
+    try {
+      await rmIgnoreMissing(input.storage, path)
+    } catch (err) {
+      throw new AssetStorageError('delete', path, err)
+    }
   }
 
   // The manifest itself. Unlike bytes, an already-missing manifest here
@@ -91,22 +100,4 @@ export async function deleteAsset(input: DeleteAssetInput): Promise<void> {
   } catch (err) {
     throw new AssetStorageError('delete', manifestFullPath, err)
   }
-}
-
-/**
- * rm wrapper that treats "file already gone" as success but propagates
- * any other storage failure. Used for byte paths where a prior partial
- * delete or manual cleanup is a realistic scenario.
- */
-async function removeIgnoringMissing(storage: StorageProvider, path: string): Promise<void> {
-  try {
-    await storage.rm(path)
-  } catch (err) {
-    if (!isFileMissing(err)) throw new AssetStorageError('delete', path, err)
-  }
-}
-
-function isFileMissing(err: unknown): boolean {
-  const msg = (err as Error)?.message ?? ''
-  return msg.includes('ENOENT') || msg.includes('not found') || msg.includes('NoSuchKey')
 }
