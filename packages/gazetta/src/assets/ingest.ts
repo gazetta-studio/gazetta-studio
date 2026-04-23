@@ -28,7 +28,7 @@ import {
 } from './errors.js'
 import { ASSET_HASH_LENGTH, hashBytes } from './hash.js'
 import { extractImageDimensions } from './image-metadata.js'
-import { assetBytesPath, writeManifest } from './manifest.js'
+import { assetBytesPath, assetVariantBytesPath, writeManifest } from './manifest.js'
 import { sniffMimeFromStream } from './mime-sniff.js'
 import { validateUpload } from './validate.js'
 import { generateVariants } from './variants.js'
@@ -125,12 +125,12 @@ export async function ingestAsset(input: IngestInput): Promise<IngestResult> {
     try {
       const generated = await generateVariants(buffer)
       for (const v of generated) {
-        const relPath = `${canonicalName}-${hash}-${v.width}w.${bytesExt}`
+        const relPath = assetVariantBytesPath(canonicalName, hash, bytesExt, v.width)
         const absPath = `${input.assetsRoot}/${relPath}`
         try {
           await input.storage.writeStream(absPath, byteStreamFrom(v.bytes))
         } catch (err) {
-          await rollback(input.storage, bytesPath, writtenVariants, input.assetsRoot)
+          await rollback(input.storage, writtenPathsSoFar(bytesPath, writtenVariants, input.assetsRoot))
           throw new AssetStorageError('write', absPath, err)
         }
         writtenVariants.push({ width: v.width, path: relPath, size: v.bytes.byteLength })
@@ -141,7 +141,7 @@ export async function ingestAsset(input: IngestInput): Promise<IngestResult> {
       // from the inner loop has already rolled back and we re-throw;
       // any other error here is from generateVariants.
       if (err instanceof AssetStorageError) throw err
-      await rollback(input.storage, bytesPath, writtenVariants, input.assetsRoot)
+      await rollback(input.storage, writtenPathsSoFar(bytesPath, writtenVariants, input.assetsRoot))
       throw new AssetVariantGenerationError(canonicalName, err)
     }
   }
@@ -168,31 +168,36 @@ export async function ingestAsset(input: IngestInput): Promise<IngestResult> {
 }
 
 /**
- * Roll back a partially-committed upload: remove primary bytes and any
- * variants that had landed before the failure. Best-effort; each `rm`
- * is idempotent (`rmIgnoreMissing`) so a subsequent retry won't be
- * confused by leftovers. We swallow rollback errors — the caller's
- * original error is what matters; a rollback failure becomes an
- * orphan byte file that GC will reclaim later.
+ * Roll back a partially-committed upload by removing every path we
+ * committed before the failure. Best-effort; each `rm` is idempotent
+ * (`rmIgnoreMissing`) so a subsequent retry won't be confused by
+ * leftovers. Rollback errors are swallowed — the caller's original
+ * error is what matters; a rollback failure becomes an orphan byte
+ * file that GC will reclaim later.
+ *
+ * Takes an absolute-path list rather than composing paths itself —
+ * caller (who already has the pieces) knows; this helper stays a
+ * dumb loop of `rmIgnoreMissing`.
  */
-async function rollback(
-  storage: StorageProvider,
-  primaryBytesPath: string,
-  variants: readonly AssetVariant[],
-  assetsRoot: string,
-): Promise<void> {
-  try {
-    await rmIgnoreMissing(storage, primaryBytesPath)
-  } catch {
-    /* best-effort */
-  }
-  for (const v of variants) {
+async function rollback(storage: StorageProvider, paths: readonly string[]): Promise<void> {
+  for (const path of paths) {
     try {
-      await rmIgnoreMissing(storage, `${assetsRoot}/${v.path}`)
+      await rmIgnoreMissing(storage, path)
     } catch {
       /* best-effort */
     }
   }
+}
+
+/**
+ * Collect every absolute path that's been written so far in the ingest
+ * pipeline — primary bytes + any variants that landed before the
+ * failure. Pulled out to keep the rollback call sites readable and
+ * to centralize the `{assetsRoot}/{variant.path}` path composition
+ * that two call sites would otherwise duplicate.
+ */
+function writtenPathsSoFar(primaryBytesPath: string, variants: readonly AssetVariant[], assetsRoot: string): string[] {
+  return [primaryBytesPath, ...variants.map(v => `${assetsRoot}/${v.path}`)]
 }
 
 /**

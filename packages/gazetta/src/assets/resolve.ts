@@ -28,7 +28,7 @@ import type { ResolvedEmbeddedAsset } from '../schema/types.js'
 import type { StorageProvider } from '../types.js'
 import { AssetManifestCorruptError, AssetManifestNotFoundError } from './errors.js'
 import { readManifest } from './manifest.js'
-import { buildAssetUrl, buildVariantUrl, extFromMime } from './url.js'
+import { buildAssetUrl, buildSrcset, extFromMime } from './url.js'
 
 /** Context needed to resolve a reference — shared across all refs in a render pass. */
 export interface AssetResolveContext {
@@ -81,8 +81,9 @@ export async function resolveEmbeddedRef(
   })
 
   // Build the responsive srcset from the manifest's pre-generated variants.
-  // Empty variants array → null srcset (non-image assets, sub-400px images,
-  // or future kinds that don't have resize ladders).
+  // Empty variants → null srcset (non-image assets, sub-400px images, or
+  // future kinds that don't have resize ladders). srcset construction
+  // itself lives in `url.ts` alongside the other URL builders.
   const srcset = manifest.variants.length > 0 ? buildSrcset(manifest.variants, ctx.siteUrl) : null
 
   // Merge: per-ref override wins; manifest's alt is the fallback.
@@ -101,15 +102,6 @@ export async function resolveEmbeddedRef(
     focalPoint: ref.focalPoint ?? null,
     mime: manifest.mime,
   }
-}
-
-/**
- * Build a `srcset` string from a manifest's variant list. Each variant
- * contributes one `<url> <width>w` descriptor; the browser picks the
- * best match for the viewport. Joined with ", " per the HTML spec.
- */
-function buildSrcset(variants: readonly { width: number; path: string }[], siteUrl: string | undefined): string {
-  return variants.map(v => `${buildVariantUrl(v.path, siteUrl)} ${v.width}w`).join(', ')
 }
 
 /** Placeholder returned when a reference can't be resolved. */

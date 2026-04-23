@@ -64,6 +64,22 @@ export function buildVariantUrl(variantPath: string, siteUrl?: string): string {
 }
 
 /**
+ * Build the responsive `srcset` string from a manifest's variant list.
+ * Each variant contributes one `<url> <width>w` descriptor; the browser
+ * picks the best match for the viewport. Joined with `", "` per the
+ * HTML `srcset` spec.
+ *
+ * Lives here (not in `resolve.ts`) because URL composition — including
+ * this multi-variant flavor — is the `url.ts` module's single
+ * responsibility. Future transform adapters (Cloudflare Images,
+ * imgproxy) that build their own srcset ladders will compose this or
+ * substitute their own from the same module.
+ */
+export function buildSrcset(variants: readonly { width: number; path: string }[], siteUrl?: string): string {
+  return variants.map(v => `${buildVariantUrl(v.path, siteUrl)} ${v.width}w`).join(', ')
+}
+
+/**
  * Derive a file extension from a MIME type for the v1 allowlist.
  * Returns `null` for unknown MIMEs — callers should already have validated
  * MIME before reaching URL construction, so this is a defensive fallback.
