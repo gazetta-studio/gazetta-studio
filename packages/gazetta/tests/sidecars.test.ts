@@ -212,6 +212,143 @@ describe('writeSidecars', () => {
   })
 })
 
+describe('writeSidecars — concurrency', () => {
+  /**
+   * Storage that simulates `write-file-atomic`'s observable temp file.
+   * Each `writeFile(path, content)`:
+   *   1. Creates `{path}.{nonce}` (temp — briefly visible via readDir)
+   *   2. Yields to the microtask queue
+   *   3. Deletes the temp, sets the final path
+   *
+   * Without this behavior, the in-memory storage in the base tests
+   * commits instantly and can't reproduce the race. With it, two
+   * concurrent `writeSidecars` calls can interleave readDir-then-rm
+   * passes across each other's temp files — exactly the production
+   * race this test guards against.
+   */
+  function racingMemoryStorage(): ReturnType<typeof memoryStorage> {
+    const base = memoryStorage()
+    let nonce = 0
+    const originalWriteFile = base.writeFile
+    base.writeFile = async (path, content) => {
+      const tmp = `${path}.${++nonce}`
+      await originalWriteFile.call(base, tmp, content)
+      // Yield to let any concurrent readDir/rm observe the temp file.
+      await new Promise(r => setImmediate(r))
+      const tmpContent = base.dump().get(tmp)
+      if (tmpContent === undefined) {
+        // Someone else rm'd our temp while we were yielding — that's the
+        // race this test exists to reject. Fail fast with the same shape
+        // as production's ENOENT.
+        throw new Error(`ENOENT: rename ${tmp} -> ${path}`)
+      }
+      await base.rm(tmp)
+      await originalWriteFile.call(base, path, content)
+    }
+    return base
+  }
+
+  it('two concurrent writeSidecars on the same dir do not race each other', async () => {
+    const storage = racingMemoryStorage()
+    // Seed a page.json so the dir "exists" in the memory storage.
+    storage.seed({ 'pages/home/page.json': '{}' })
+
+    const stateDefault: SidecarState = {
+      hash: 'aaaaaaaa',
+      uses: ['header'],
+      template: 'page-default',
+      pub: { lastPublished: '2026-04-23T22:00:00Z', noindex: false },
+    }
+    const stateFr: SidecarState = {
+      hash: 'bbbbbbbb',
+      uses: ['header'],
+      template: 'page-default',
+      pub: { lastPublished: '2026-04-23T22:00:00Z', noindex: false },
+    }
+
+    // Both calls target `pages/home/`. Without the per-dir lock, call
+    // B's cleanup would observe call A's in-flight temp files (e.g.
+    // `.tpl-page-default.1`) and delete them — A's final writeFile
+    // would then throw "ENOENT: rename ...". The lock serializes them
+    // so B only ever sees A's committed state.
+    await Promise.all([
+      writeSidecars(storage, 'pages/home', stateDefault),
+      writeSidecars(storage, 'pages/home', stateFr, 'fr'),
+    ])
+
+    const files = [...storage.dump().keys()].filter(p => p.startsWith('pages/home/')).sort()
+    // Both hash sidecars present (one per locale scope).
+    expect(files).toContain('pages/home/.aaaaaaaa.hash')
+    expect(files).toContain('pages/home/.bbbbbbbb.hash.fr')
+    // Structural sidecars (written only for default locale) present.
+    expect(files).toContain('pages/home/.tpl-page-default')
+    expect(files).toContain('pages/home/.uses-header')
+    // No leftover temp files from write-file-atomic simulation.
+    expect(files.some(f => /\.\d+$/.test(f))).toBe(false)
+  })
+
+  it('serialization is per-directory — different dirs run in parallel', async () => {
+    const storage = racingMemoryStorage()
+    storage.seed({
+      'pages/home/page.json': '{}',
+      'pages/about/page.json': '{}',
+    })
+
+    // Different dirs — no serialization between them. Still must commit
+    // cleanly because each dir has its own lock.
+    await Promise.all([
+      writeSidecars(storage, 'pages/home', {
+        hash: 'aaaaaaaa',
+        uses: [],
+        template: 'page-default',
+        pub: null,
+      }),
+      writeSidecars(storage, 'pages/about', {
+        hash: 'bbbbbbbb',
+        uses: [],
+        template: 'page-default',
+        pub: null,
+      }),
+    ])
+
+    const keys = [...storage.dump().keys()]
+    expect(keys).toContain('pages/home/.aaaaaaaa.hash')
+    expect(keys).toContain('pages/about/.bbbbbbbb.hash')
+  })
+
+  it('four locale variants of the same page publish cleanly (reproduces CI failure)', async () => {
+    // Regression test for the CI e2e failure:
+    //   "Cannot write .../dist/staging/pages/home/.tpl-page-default:
+    //    ENOENT ... rename '.tpl-page-default.1849113905' -> '.tpl-page-default'"
+    // With 4 locales racing, the probability of the unlocked code
+    // tripping the race approaches 1.
+    const storage = racingMemoryStorage()
+    storage.seed({ 'pages/home/page.json': '{}' })
+
+    const common = {
+      uses: ['header', 'footer'],
+      template: 'page-default',
+      pub: { lastPublished: '2026-04-23T22:00:00Z', noindex: false },
+    }
+
+    await Promise.all([
+      writeSidecars(storage, 'pages/home', { hash: '11111111', ...common }),
+      writeSidecars(storage, 'pages/home', { hash: '22222222', ...common }, 'fr'),
+      writeSidecars(storage, 'pages/home', { hash: '33333333', ...common }, 'ar'),
+      writeSidecars(storage, 'pages/home', { hash: '44444444', ...common }, 'ja'),
+    ])
+
+    const files = [...storage.dump().keys()].filter(p => p.startsWith('pages/home/')).sort()
+    expect(files).toContain('pages/home/.11111111.hash')
+    expect(files).toContain('pages/home/.22222222.hash.fr')
+    expect(files).toContain('pages/home/.33333333.hash.ar')
+    expect(files).toContain('pages/home/.44444444.hash.ja')
+    expect(files).toContain('pages/home/.tpl-page-default')
+    expect(files).toContain('pages/home/.uses-header')
+    expect(files).toContain('pages/home/.uses-footer')
+  })
+})
+
 describe('listSidecars', () => {
   let storage: ReturnType<typeof memoryStorage>
   beforeEach(() => {
