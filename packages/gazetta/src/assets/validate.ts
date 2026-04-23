@@ -55,7 +55,7 @@ export interface UploadCandidate {
 export function validateUpload(candidate: UploadCandidate): void {
   assertName(candidate.name)
   assertSize(candidate.claimedSize)
-  assertMime(candidate.sniffedMime, candidate.name)
+  assertMime(candidate.sniffedMime)
 }
 
 function assertName(name: string): void {
@@ -95,20 +95,8 @@ function assertSize(claimedSize: number): void {
   }
 }
 
-function assertMime(sniffedMime: string | null, name: string): void {
-  const allowed = [...ALLOWED_MIMES]
-  if (!sniffedMime) {
-    throw new AssetMimeMismatchError(
-      null,
-      allowed,
-      `Could not detect MIME type from bytes for "${name}"; v1 slice accepts images only (JPEG, PNG)`,
-    )
-  }
-  if (!ALLOWED_MIMES.has(sniffedMime)) {
-    throw new AssetMimeMismatchError(
-      sniffedMime,
-      allowed,
-      `MIME ${sniffedMime} not allowed in v1 slice (allowed: ${allowed.join(', ')})`,
-    )
+function assertMime(sniffedMime: string | null): void {
+  if (!sniffedMime || !ALLOWED_MIMES.has(sniffedMime)) {
+    throw new AssetMimeMismatchError(sniffedMime, [...ALLOWED_MIMES])
   }
 }

@@ -35,6 +35,20 @@ export interface ScanManifestInput {
 }
 
 /**
+ * The shape the walker operates on. Any object that might carry content
+ * or nested components — covers both `ComponentManifest` (no `name`) and
+ * inline components (`name` + the same `content`/`components`). One
+ * interface, no union — the walker treats `name` as optional and the
+ * structural-path computation falls back to the array index when it's
+ * absent.
+ */
+interface Walkable {
+  readonly name?: string
+  readonly content?: Record<string, unknown>
+  readonly components?: readonly ComponentEntry[]
+}
+
+/**
  * Walk `input.manifest` and return every reference to `assetName`. One
  * entry per match — a manifest that references the asset twice (in two
  * different inline components, or twice in the same content blob)
@@ -46,13 +60,8 @@ export function scanManifestForAsset(input: ScanManifestInput): AssetRef[] {
   return out
 }
 
-/** Walk a component manifest (page, fragment, or inline child). */
-function walkComponent(
-  comp: ComponentManifest | { content?: Record<string, unknown>; components?: ComponentEntry[]; name?: string },
-  componentPath: string,
-  input: ScanManifestInput,
-  out: AssetRef[],
-): void {
+/** Walk a component (page manifest, fragment manifest, or inline child). */
+function walkComponent(comp: Walkable, componentPath: string, input: ScanManifestInput, out: AssetRef[]): void {
   if (comp.content) {
     scanValue(comp.content, componentPath, input, out)
   }

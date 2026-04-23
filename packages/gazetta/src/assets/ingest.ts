@@ -83,7 +83,7 @@ export async function ingestAsset(input: IngestInput): Promise<IngestResult> {
   // extension in the requested name — the validator already stripped it).
   const bytesExt = ext ?? EXT_BY_MIME[mime ?? ''] ?? ''
   if (!bytesExt) {
-    throw new AssetMimeMismatchError(mime, [], `No extension known for MIME ${mime ?? 'unknown'}`)
+    throw new AssetMimeMismatchError(mime, [])
   }
 
   const hash = hashBytes(buffer)

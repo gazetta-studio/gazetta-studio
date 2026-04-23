@@ -93,12 +93,19 @@ describe('AssetError.toResponseBody()', () => {
     expect(err).toBeInstanceOf(AssetValidationError)
   })
 
-  it('AssetMimeMismatchError carries the sniffed MIME + allowlist', () => {
-    const err = new AssetMimeMismatchError('image/webp', ['image/jpeg', 'image/png'], 'Not allowed')
+  it('AssetMimeMismatchError builds its own message from the sniffed MIME', () => {
+    const err = new AssetMimeMismatchError('image/webp', ['image/jpeg', 'image/png'])
     expect(err.sniffedMime).toBe('image/webp')
     expect(err.allowedMimes).toEqual(['image/jpeg', 'image/png'])
+    expect(err.message).toContain('image/webp')
+    expect(err.message).toContain('image/jpeg')
     expect(err.toResponseBody().code).toBe('ASSET_MIME_MISMATCH')
     expect(err).toBeInstanceOf(AssetValidationError)
+  })
+
+  it('AssetMimeMismatchError message differs when no MIME could be detected', () => {
+    const err = new AssetMimeMismatchError(null, ['image/jpeg'])
+    expect(err.message).toContain('Could not detect MIME type')
   })
 
   it('AssetStorageError body is { code, message } with 500 status', () => {
