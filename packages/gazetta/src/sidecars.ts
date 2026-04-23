@@ -89,8 +89,26 @@ export async function readSidecars(storage: StorageProvider, dir: string): Promi
  * When `locale` is set, only locale-specific sidecars (.hash.fr, .pub.fr)
  * are written/cleaned — default-locale sidecars are untouched. Structural
  * sidecars (.uses-*, .tpl-*) are shared across locales (same components).
+ *
+ * Concurrency:
+ *   Calls targeting the same directory are serialized via `withDirLock`.
+ *   Without serialization, Call A's cleanup phase (readDir → rm stale)
+ *   would see Call B's in-flight `write-file-atomic` temp files
+ *   (`.tpl-page-default.1849113905`) and mistake them for stale sidecars —
+ *   B's rename would then fail with ENOENT. Queueing at dir granularity
+ *   eliminates the race class, matching the same idiom `write-file-atomic`
+ *   itself uses per-file within a process.
  */
 export async function writeSidecars(
+  storage: StorageProvider,
+  dir: string,
+  state: SidecarState,
+  locale?: string,
+): Promise<void> {
+  return withDirLock(dir, () => doWriteSidecars(storage, dir, state, locale))
+}
+
+async function doWriteSidecars(
   storage: StorageProvider,
   dir: string,
   state: SidecarState,
@@ -105,11 +123,12 @@ export async function writeSidecars(
   if (state.pub) want.add(pubSidecarNameFor(new Date(state.pub.lastPublished), state.pub.noindex, locale))
 
   // Remove stale sidecars of the SAME locale scope that aren't in `want`.
+  // Safe because `withDirLock` serializes concurrent callers on this dir —
+  // no other writer's atomic-write temp files can be in flight right now.
   try {
     const entries = await storage.readDir(dir)
     for (const e of entries) {
       if (want.has(e.name)) continue
-      // Only clean sidecars matching this locale scope
       const hashLocale = parseSidecarLocale(e.name)
       const pubLocale = parsePubSidecarLocale(e.name)
       if (parseSidecarName(e.name) && hashLocale === (locale ?? undefined)) {
@@ -139,6 +158,48 @@ export async function writeSidecars(
   }
   await storage.mkdir(dir)
   await Promise.all([...want].map(name => storage.writeFile(`${dir}/${name}`, '')))
+}
+
+/**
+ * Per-directory Promise-queue serialization for `writeSidecars`.
+ *
+ * Single responsibility: ensure at most one `writeSidecars` call is
+ * operating on a given directory at a time within this process. The
+ * race we're closing:
+ *
+ *   Call A: readDir → sees `.hash` → rm `.hash` → writeFile new `.hash`
+ *                                                      ↑ creates temp
+ *   Call B (parallel):  readDir → sees A's temp file
+ *                                 → matches permissive regex → rm temp
+ *                                 → A's rename ENOENTs
+ *
+ * With serialization, B's readDir can only observe finalized state from
+ * A's completed run. No temp files exist when any call does its cleanup.
+ *
+ * Shape: per-key Promise chain. Each caller awaits the prior Promise for
+ * its key before running, and publishes its own Promise as the next
+ * "current holder" for that key. Matches the pattern `write-file-atomic`
+ * uses per-file (node_modules/write-file-atomic/lib/index.js, the
+ * `activeFiles` map), lifted here to per-directory granularity.
+ *
+ * Cross-process safety: not provided — the map is in-process state.
+ * Gazetta's admin is a single writer (one dev server, one publish
+ * process); cross-process coordination would require a sibling `.lock`
+ * file (git's pattern), which we don't need in this regime.
+ */
+const dirLocks = new Map<string, Promise<unknown>>()
+
+async function withDirLock<T>(dir: string, fn: () => Promise<T>): Promise<T> {
+  const prev = dirLocks.get(dir) ?? Promise.resolve()
+  const current = prev.then(fn, fn) // run `fn` whether prev resolved or rejected
+  dirLocks.set(dir, current)
+  try {
+    return await current
+  } finally {
+    // Clean up the map entry only if we're still the tail of the chain.
+    // Otherwise a later caller's Promise is in flight and owns the slot.
+    if (dirLocks.get(dir) === current) dirLocks.delete(dir)
+  }
 }
 
 /**

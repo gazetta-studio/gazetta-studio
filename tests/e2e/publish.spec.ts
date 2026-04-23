@@ -260,8 +260,9 @@ test.describe('Fragment blast radius', () => {
     const badge = row.locator('[data-testid="fragment-blast-radius"]')
     await badge.waitFor({ timeout: 5000 })
     // Compact form — just the count, not the "used on N pages" text.
-    // Starter has 5 pages all referencing @header.
-    await expect(badge).toHaveText('5')
+    // Starter has 6 pages all referencing @header (404, about, asset-demo,
+    // blog/[slug], home, showcase).
+    await expect(badge).toHaveText('6')
     // Hover title lists the dependent pages.
     await expect(badge).toHaveAttribute('title', /Used on:.*home/)
   })
