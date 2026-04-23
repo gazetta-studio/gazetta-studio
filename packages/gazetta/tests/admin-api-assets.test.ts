@@ -5,7 +5,7 @@
  * assets-ingest.test.ts and assets-list.test.ts.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { mkdir, readFile, rm } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Hono } from 'hono'
 import sharp from 'sharp'
@@ -18,6 +18,10 @@ const testDir = tempDir('http-assets-test-' + Date.now())
 
 beforeEach(async () => {
   await mkdir(testDir, { recursive: true })
+  // Minimum site.yaml so delete's ref-scan can call loadSite without
+  // hitting "No site.yaml found". Asset-level tests don't need any real
+  // content beyond this.
+  await writeFile(join(testDir, 'site.yaml'), 'name: test-site\n')
 })
 
 afterEach(async () => {
@@ -26,7 +30,9 @@ afterEach(async () => {
 
 function buildApp() {
   const storage = createFilesystemProvider(testDir)
-  const source = createSourceContext({ storage, siteDir: testDir })
+  // Storage is already rooted at `testDir`, so siteDir within that root
+  // is the empty string — otherwise content paths double the prefix.
+  const source = createSourceContext({ storage, siteDir: '' })
   const resolve = staticSourceResolver(source)
   const app = new Hono()
   app.route('/', assetRoutes(resolve))
@@ -268,6 +274,78 @@ describe('GET /api/assets/:name', () => {
   it('404s when the asset does not exist', async () => {
     const { app } = buildApp()
     const res = await app.request('/api/assets/nope')
+    expect(res.status).toBe(404)
+    const body = await res.json()
+    expect(body.code).toBe('ASSET_MANIFEST_NOT_FOUND')
+  })
+})
+
+describe('DELETE /api/assets/:name', () => {
+  async function uploadHero(app: Hono) {
+    const bytes = await jpegBuffer()
+    await app.request('/api/assets', {
+      method: 'POST',
+      body: multipartForm({
+        file: { name: 'hero.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
+        name: 'hero',
+        alt: 'Hero',
+      }),
+    })
+  }
+
+  it('204s when the asset has no refs', async () => {
+    const { app } = buildApp()
+    await uploadHero(app)
+
+    const res = await app.request('/api/assets/hero', { method: 'DELETE' })
+    expect(res.status).toBe(204)
+
+    // Asset is gone from the list.
+    const listRes = await app.request('/api/assets')
+    expect(await listRes.json()).toEqual([])
+  })
+
+  it('409s with the usage list when a page references the asset', async () => {
+    const { app } = buildApp()
+    await uploadHero(app)
+
+    // Seed a page referencing "hero" under the site root.
+    const fs = await import('node:fs/promises')
+    await fs.mkdir(join(testDir, 'pages/home'), { recursive: true })
+    await fs.writeFile(
+      join(testDir, 'pages/home/page.json'),
+      JSON.stringify({
+        template: 'page-default',
+        route: '/',
+        content: { hero: { _asset: 'hero' } },
+      }),
+    )
+
+    const res = await app.request('/api/assets/hero', { method: 'DELETE' })
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as {
+      code: string
+      assetName: string
+      refs: Array<{ source: string; path: string; componentPath: string }>
+    }
+    expect(body.code).toBe('ASSET_IN_USE')
+    expect(body.assetName).toBe('hero')
+    expect(body.refs).toHaveLength(1)
+    expect(body.refs[0]).toMatchObject({
+      source: 'page',
+      path: 'pages/home/page.json',
+      componentPath: 'hero',
+    })
+
+    // Asset files are untouched.
+    const listRes = await app.request('/api/assets')
+    const list = (await listRes.json()) as Array<{ name: string }>
+    expect(list.some(a => a.name === 'hero')).toBe(true)
+  })
+
+  it('404s when the asset does not exist', async () => {
+    const { app } = buildApp()
+    const res = await app.request('/api/assets/nope', { method: 'DELETE' })
     expect(res.status).toBe(404)
     const body = await res.json()
     expect(body.code).toBe('ASSET_MANIFEST_NOT_FOUND')

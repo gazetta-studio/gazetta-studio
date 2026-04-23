@@ -327,4 +327,63 @@ export const api = {
     if (alt !== null) form.set('alt', alt)
     return uploadRequest<UploadedAsset>('/assets', form)
   },
+  /**
+   * Delete an asset. Resolves on 204 (no content). On 409 throws an
+   * `AssetInUseError` carrying the usage list so the caller can render
+   * the "replace or cancel" dialog. On 404 or 500 throws a generic Error
+   * with the server's error code.
+   */
+  deleteAsset: async (name: string): Promise<void> => {
+    await deleteAssetRequest(name)
+  },
+}
+
+/** Matches the AssetRef shape returned by the server on 409 responses. */
+export interface AssetRefShape {
+  source: 'page' | 'fragment'
+  path: string
+  componentPath: string
+}
+
+/** Thrown client-side when the server returns 409 on asset delete. */
+export class AssetInUseError extends Error {
+  readonly code = 'ASSET_IN_USE' as const
+  constructor(
+    public readonly assetName: string,
+    public readonly refs: readonly AssetRefShape[],
+  ) {
+    super(`Asset "${assetName}" is still referenced by ${refs.length} item(s)`)
+    this.name = 'AssetInUseError'
+  }
+}
+
+async function deleteAssetRequest(name: string): Promise<void> {
+  const token = sessionStorage.getItem('gazetta_token')
+  const headers: Record<string, string> = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const res = await fetch(`${BASE}${withActiveTarget(`/assets/${encodeURIComponent(name)}`)}`, {
+    method: 'DELETE',
+    headers,
+  })
+  if (res.status === 204) return
+  // 409 — refs still exist. Body is { code, message, assetName, refs }.
+  if (res.status === 409) {
+    const body = (await res.json().catch(() => ({}))) as {
+      assetName?: string
+      refs?: AssetRefShape[]
+    }
+    throw new AssetInUseError(body.assetName ?? name, body.refs ?? [])
+  }
+  const body = (await res.json().catch(() => ({ message: res.statusText }))) as {
+    code?: string
+    message?: string
+  }
+  const err = new Error(body.message ?? `Delete failed: ${res.status}`) as Error & {
+    code?: string
+    status: number
+  }
+  err.code = body.code
+  err.status = res.status
+  throw err
 }

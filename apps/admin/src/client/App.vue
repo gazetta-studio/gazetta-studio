@@ -12,6 +12,7 @@ import Toolbar from './components/CmsToolbar.vue'
 import UnsavedDialog from './components/UnsavedDialog.vue'
 import AssetLibrary from './components/AssetLibrary.vue'
 import AssetPicker from './components/AssetPicker.vue'
+import AssetDeleteConfirm from './components/AssetDeleteConfirm.vue'
 
 const site = useSiteStore()
 const theme = useThemeStore()
@@ -85,6 +86,7 @@ onMounted(() => {
     <UnsavedDialog />
     <AssetLibrary />
     <AssetPicker />
+    <AssetDeleteConfirm />
 
     <!-- Global toast — visible over everything including fullscreen -->
     <Transition name="toast">

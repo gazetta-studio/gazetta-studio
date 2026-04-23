@@ -8,12 +8,20 @@
  * an asset not in the list (stale after a refresh), shows an empty state.
  */
 import { computed } from 'vue'
+import Button from 'primevue/button'
 import { useAssetsListStore } from '../stores/assetsList.js'
 import { useAssetsSelectionStore } from '../stores/assetsSelection.js'
+import { useAssetsDeleteStore } from '../stores/assetsDelete.js'
 import { buildAssetUrl, extFromMime } from '../utils/assetUrl.js'
 
 const list = useAssetsListStore()
 const selection = useAssetsSelectionStore()
+const del = useAssetsDeleteStore()
+
+function onDelete(): void {
+  if (!asset.value) return
+  del.ask(asset.value.name)
+}
 
 const asset = computed(() => {
   if (!selection.selectedName) return null
@@ -80,6 +88,15 @@ function formatDate(iso: string): string {
           <dd>{{ formatDate(asset.uploadedAt) }}</dd>
         </div>
       </dl>
+      <div class="asset-detail-actions">
+        <Button
+          label="Delete"
+          severity="danger"
+          text
+          size="small"
+          data-testid="asset-detail-delete"
+          @click="onDelete" />
+      </div>
     </div>
   </div>
 </template>
@@ -149,5 +166,13 @@ function formatDate(iso: string): string {
 
 .asset-detail-muted {
   color: var(--p-text-muted-color);
+}
+
+.asset-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--p-content-border-color);
+  padding-top: 0.75rem;
 }
 </style>

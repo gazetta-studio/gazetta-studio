@@ -22,6 +22,22 @@ export type AssetErrorCode =
   | 'ASSET_STORAGE_FAILURE'
   | 'ASSET_MANIFEST_CORRUPT'
   | 'ASSET_MANIFEST_NOT_FOUND'
+  | 'ASSET_IN_USE'
+
+/**
+ * A single reference discovered during a content scan. Stable across
+ * kinds — pages and fragments share the shape so the usage panel renders
+ * uniformly. `componentPath` is a dotted breadcrumb into the manifest's
+ * component/content tree (e.g. "hero", "hero.background", "components[2].image").
+ */
+export interface AssetRef {
+  /** Whether the referencing manifest lives in `pages/` or `fragments/`. */
+  readonly source: 'page' | 'fragment'
+  /** Content-root-relative manifest path (e.g. "pages/home/page.json"). */
+  readonly path: string
+  /** Dotted breadcrumb within the manifest where the ref was found. */
+  readonly componentPath: string
+}
 
 abstract class AssetError extends Error {
   abstract readonly code: AssetErrorCode
@@ -84,5 +100,21 @@ export class AssetManifestNotFoundError extends AssetError {
   readonly code = 'ASSET_MANIFEST_NOT_FOUND' as const
   constructor(name: string) {
     super(`Asset not found: ${name}`)
+  }
+}
+
+/**
+ * Delete was attempted on an asset that pages or fragments still reference.
+ * The design doc's delete-blocked contract: surface the usage list so the
+ * author can rewrite refs or pick a replacement. `refs` is attached as
+ * structured data — HTTP layer serializes it into the 409 response body.
+ */
+export class AssetInUseError extends AssetError {
+  readonly code = 'ASSET_IN_USE' as const
+  constructor(
+    public readonly assetName: string,
+    public readonly refs: readonly AssetRef[],
+  ) {
+    super(`Asset "${assetName}" is still referenced by ${refs.length} item(s)`)
   }
 }
