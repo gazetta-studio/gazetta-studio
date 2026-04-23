@@ -23,16 +23,21 @@
  */
 import type { AssetManifest } from '../schema/types.js'
 import { AssetMimeUnsupportedError } from './errors.js'
-import { assetBytesPath } from './manifest.js'
+import { assetBytesPath, manifestPath } from './manifest.js'
 import { extFromMime } from './url.js'
 
 /**
- * Every on-storage path associated with an asset. Each field is either a
- * non-empty list or a single non-null path. Callers can iterate
- * confidently; the enumeration is complete or the function threw.
+ * Every on-storage path associated with an asset — manifest, bytes,
+ * variants. Complete enumeration: if this struct is returned, every
+ * field points at a real candidate path. If any field would be
+ * uncomputable (unknown MIME), the function throws instead.
  */
 export interface AssetStoragePaths {
-  /** Primary bytes. Always present when this struct is returned. */
+  /** The `{name}.asset.json` manifest. Always the last path to remove
+   *  (if a crash leaves a manifest pointing at missing bytes, the
+   *  resolver degrades gracefully; the reverse creates an orphan). */
+  readonly manifest: string
+  /** Primary bytes. */
   readonly bytes: string
   /** Responsive-image variants. Empty until variant generation lands. */
   readonly variants: readonly string[]
@@ -50,16 +55,20 @@ export function assetStoragePaths(assetsRoot: string, manifest: AssetManifest): 
   if (!ext) {
     throw new AssetMimeUnsupportedError(manifest.mime, manifest.name)
   }
-  const bytes = `${assetsRoot}/${assetBytesPath(manifest.name, manifest.hash, ext)}`
-  return { bytes, variants: [] }
+  return {
+    manifest: `${assetsRoot}/${manifestPath(manifest.name)}`,
+    bytes: `${assetsRoot}/${assetBytesPath(manifest.name, manifest.hash, ext)}`,
+    variants: [],
+  }
 }
 
 /**
- * Flatten the storage-paths set into the list of every removable path.
- * Used by delete / GC callers that want to iterate "files to unlink"
- * without pattern-matching on the shape. The primary bytes path always
- * comes first; variants follow in their stored order.
+ * Flatten the storage-paths set into a removal-safe order: bytes and
+ * variants first, manifest last. This is the order delete should use —
+ * a crash between steps leaves a manifest pointing at missing bytes
+ * (which the resolver already handles) rather than an orphan byte file
+ * no manifest references.
  */
-export function allAssetPaths(paths: AssetStoragePaths): string[] {
-  return [paths.bytes, ...paths.variants]
+export function assetPathsInRemovalOrder(paths: AssetStoragePaths): string[] {
+  return [paths.bytes, ...paths.variants, paths.manifest]
 }

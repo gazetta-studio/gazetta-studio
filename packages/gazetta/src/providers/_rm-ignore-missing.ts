@@ -1,48 +1,35 @@
 /**
- * Storage adapter utility — idempotent remove.
+ * Storage adapter utility — idempotent remove via probe-then-delete.
  *
- * Treats "file already gone" as a success. Every storage provider's `rm`
- * throws with a different shape — `ENOENT` on filesystem, `NoSuchKey` on
- * S3/R2, "Blob not found" on Azure. This helper folds those into a single
- * "removed (maybe already)" outcome so domain code doesn't have to
- * interpret raw provider errors.
+ * Uses `exists()` to determine whether the path is present, then `rm()`
+ * only when it is. This delegates the "is it missing?" decision to the
+ * provider's own `exists()` implementation — no cross-provider error-
+ * shape matching needed.
  *
- * Why here, not in each domain module:
- * - Delete, replace, rename, and GC all want the same idempotency. The
- *   pattern belongs where the storage interface is, not in each consumer.
- * - The error-shape knowledge (which substrings mean "missing") is a
- *   provider concern. Keeping it next to the providers means a future
- *   provider that reports missing differently ships a single expansion
- *   here, not four callsite edits.
+ * Why probe-then-delete instead of try/catch:
+ * - `exists()` is already part of the StorageProvider contract and every
+ *   provider knows how to answer it correctly for its backend.
+ * - Matching raw error messages (`ENOENT`, `NoSuchKey`, etc.) across four
+ *   providers is fragile and accumulates drift as providers version.
+ * - A TOCTOU race (file deleted between probe and rm) just means `rm()`
+ *   throws, and the caller sees a real error — acceptable because the
+ *   race is vanishingly rare in our single-writer model (the admin is the
+ *   only writer on source content during v1).
  *
- * Storage provider interface keeps `rm(path)` strict — throw on missing.
- * Callers that want idempotent semantics opt in via this helper; callers
- * that want to see the missing-file error for their own logic get it.
+ * When the storage interface grows a typed `StorageNotFoundError`
+ * (separate PR — retrofit across all four providers + all existing `rm`
+ * callers), this helper becomes a one-liner try/catch. Until then, the
+ * probe is the honest abstraction boundary.
  */
 import type { StorageProvider } from '../types.js'
 
 /**
- * `rm(path)` that swallows "already missing" errors but propagates any
- * other failure. Returns `true` if a file was actually removed, `false`
- * if it was already gone — callers that care can distinguish.
+ * `rm(path)` that swallows "already missing" — probes with `exists()`
+ * first. Returns `true` if a file was actually removed, `false` if it
+ * was already gone. Callers that care can distinguish.
  */
 export async function rmIgnoreMissing(storage: StorageProvider, path: string): Promise<boolean> {
-  try {
-    await storage.rm(path)
-    return true
-  } catch (err) {
-    if (isFileMissing(err)) return false
-    throw err
-  }
-}
-
-/** Does this error mean "the path doesn't exist"? Union of known provider shapes. */
-function isFileMissing(err: unknown): boolean {
-  const msg = (err as Error)?.message ?? ''
-  // Keep substring matches rather than code checks — Node's fs errors expose
-  // `.code`, but S3/R2/Azure errors don't share a cross-provider shape.
-  // A future adapter that reports missing differently adds one more branch.
-  return (
-    msg.includes('ENOENT') || msg.includes('not found') || msg.includes('NoSuchKey') || msg.includes('BlobNotFound')
-  )
+  if (!(await storage.exists(path))) return false
+  await storage.rm(path)
+  return true
 }

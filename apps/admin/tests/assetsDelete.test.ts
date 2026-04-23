@@ -1,11 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAssetsDeleteStore } from '../src/client/stores/assetsDelete.js'
-import { api, AssetInUseError } from '../src/client/api/client.js'
+import { AssetInUseError } from '../src/client/api/assets.js'
+
+// Mock the assets API module the store calls. Keep the real
+// `AssetInUseError` export (the store branches on it via `instanceof`) —
+// only `deleteAsset` is replaced with a spy the tests can configure.
+vi.mock('../src/client/api/assets.js', async orig => {
+  const actual = await orig<typeof import('../src/client/api/assets.js')>()
+  return {
+    ...actual,
+    deleteAsset: vi.fn(),
+  }
+})
+
+// Re-import after the mock is set up so we can tweak the spy per test.
+const { deleteAsset } = await import('../src/client/api/assets.js')
+const deleteAssetMock = deleteAsset as unknown as ReturnType<typeof vi.fn>
 
 beforeEach(() => {
   setActivePinia(createPinia())
-  vi.restoreAllMocks()
+  deleteAssetMock.mockReset()
 })
 
 describe('useAssetsDeleteStore', () => {
@@ -32,24 +47,24 @@ describe('useAssetsDeleteStore', () => {
   })
 
   it('confirmDelete() on success closes and resolves true', async () => {
+    deleteAssetMock.mockResolvedValue(undefined)
     const store = useAssetsDeleteStore()
-    const deleteAsset = vi.spyOn(api, 'deleteAsset').mockResolvedValue(undefined)
 
     store.ask('hero')
     const result = await store.confirmDelete()
 
-    expect(deleteAsset).toHaveBeenCalledWith('hero')
+    expect(deleteAssetMock).toHaveBeenCalledWith('hero')
     expect(result).toBe(true)
     expect(store.status).toBe('idle')
   })
 
   it('confirmDelete() on 409 surfaces the refs and resolves false', async () => {
-    const store = useAssetsDeleteStore()
     const refs = [
       { source: 'page' as const, path: 'pages/home/page.json', componentPath: 'hero' },
       { source: 'fragment' as const, path: 'fragments/promo/fragment.json', componentPath: 'image' },
     ]
-    vi.spyOn(api, 'deleteAsset').mockRejectedValue(new AssetInUseError('hero', refs))
+    deleteAssetMock.mockRejectedValue(new AssetInUseError('hero', refs))
+    const store = useAssetsDeleteStore()
 
     store.ask('hero')
     const result = await store.confirmDelete()
@@ -62,8 +77,8 @@ describe('useAssetsDeleteStore', () => {
   })
 
   it('confirmDelete() on generic error transitions to error with the message', async () => {
+    deleteAssetMock.mockRejectedValue(new Error('boom'))
     const store = useAssetsDeleteStore()
-    vi.spyOn(api, 'deleteAsset').mockRejectedValue(new Error('boom'))
 
     store.ask('hero')
     const result = await store.confirmDelete()
@@ -74,22 +89,22 @@ describe('useAssetsDeleteStore', () => {
   })
 
   it('confirmDelete() no-ops when no asset is staged', async () => {
+    deleteAssetMock.mockResolvedValue(undefined)
     const store = useAssetsDeleteStore()
-    const deleteAsset = vi.spyOn(api, 'deleteAsset').mockResolvedValue(undefined)
 
     const result = await store.confirmDelete()
 
     expect(result).toBe(false)
-    expect(deleteAsset).not.toHaveBeenCalled()
+    expect(deleteAssetMock).not.toHaveBeenCalled()
   })
 
   it('sets status to "deleting" while the request is in flight', async () => {
-    const store = useAssetsDeleteStore()
     let resolveRequest!: () => void
     const requestPromise = new Promise<void>(resolve => {
       resolveRequest = resolve
     })
-    vi.spyOn(api, 'deleteAsset').mockReturnValue(requestPromise)
+    deleteAssetMock.mockReturnValue(requestPromise)
+    const store = useAssetsDeleteStore()
 
     store.ask('hero')
     const done = store.confirmDelete()

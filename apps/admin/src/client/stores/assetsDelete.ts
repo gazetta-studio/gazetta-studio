@@ -14,7 +14,7 @@
  */
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { api, AssetInUseError, type AssetRef } from '../api/client.js'
+import { AssetInUseError, type AssetRef, deleteAsset } from '../api/assets.js'
 
 type Status = 'idle' | 'confirming' | 'deleting' | 'in-use' | 'error'
 
@@ -49,7 +49,7 @@ export const useAssetsDeleteStore = defineStore('assetsDelete', () => {
     if (!assetName.value) return false
     status.value = 'deleting'
     try {
-      await api.deleteAsset(assetName.value)
+      await deleteAsset(assetName.value)
       close()
       return true
     } catch (err) {
