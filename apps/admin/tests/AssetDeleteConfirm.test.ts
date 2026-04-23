@@ -6,7 +6,18 @@ import AssetDeleteConfirm from '../src/client/components/AssetDeleteConfirm.vue'
 import { useAssetsDeleteStore } from '../src/client/stores/assetsDelete.js'
 import { useAssetsListStore } from '../src/client/stores/assetsList.js'
 import { useAssetsSelectionStore } from '../src/client/stores/assetsSelection.js'
-import { api, AssetInUseError } from '../src/client/api/client.js'
+import { AssetInUseError } from '../src/client/api/assets.js'
+
+vi.mock('../src/client/api/assets.js', async orig => {
+  const actual = await orig<typeof import('../src/client/api/assets.js')>()
+  return {
+    ...actual,
+    deleteAsset: vi.fn(),
+  }
+})
+
+const { deleteAsset } = await import('../src/client/api/assets.js')
+const deleteAssetMock = deleteAsset as unknown as ReturnType<typeof vi.fn>
 
 beforeAll(() => {
   if (typeof window.matchMedia !== 'function') {
@@ -26,7 +37,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   setActivePinia(createPinia())
-  vi.restoreAllMocks()
+  deleteAssetMock.mockReset()
   // PrimeVue's Dialog teleports into document.body; previous tests leave
   // its markup behind. Wipe so queries against document.body see only
   // *this* test's render.
@@ -64,15 +75,15 @@ describe('AssetDeleteConfirm', () => {
     expect(document.querySelector('[data-testid="asset-delete-cancel"]')).not.toBeNull()
   })
 
-  // Button clicks route through PrimeVue's Button component, whose event
-  // wiring is an integration concern. The click-triggers-store-action path
-  // is covered by the store test directly. Here we assert: once the store
-  // reaches a given status (confirming / in-use / error), the component
-  // renders the corresponding variant. The side-effects (refresh, selection
-  // clear) also live on the component, so we drive them via the store.
+  // Button clicks route through PrimeVue's Button component whose event
+  // wiring is an integration concern. The click-triggers-store-action
+  // path is covered by the store test directly. Here we assert: once the
+  // store reaches a given status, the component renders the corresponding
+  // body. Side effects (refresh, selection clear) also live on the
+  // component, so we drive them via the store.
 
   it('refreshes list and clears selection on successful confirmDelete', async () => {
-    vi.spyOn(api, 'deleteAsset').mockResolvedValue(undefined)
+    deleteAssetMock.mockResolvedValue(undefined)
     const del = useAssetsDeleteStore()
     const list = useAssetsListStore()
     const selection = useAssetsSelectionStore()
@@ -83,26 +94,19 @@ describe('AssetDeleteConfirm', () => {
     del.ask('hero')
     await flushPromises()
 
-    // Invoke the component's onConfirm handler directly via the rendered
-    // confirm button's @click prop — more reliable than synthesizing a
-    // click event across teleported PrimeVue markup.
-    const confirmBtn = wrapper.findComponent({ name: 'Button', ref: undefined })
-    // Find the confirm Button specifically.
     const buttons = wrapper.findAllComponents({ name: 'Button' })
     const confirm = buttons.find(b => b.attributes('data-testid') === 'asset-delete-confirm-button')!
     await confirm.trigger('click')
     await flushPromises()
 
-    expect(api.deleteAsset).toHaveBeenCalledWith('hero')
+    expect(deleteAssetMock).toHaveBeenCalledWith('hero')
     expect(refresh).toHaveBeenCalled()
     expect(selection.selectedName).toBeNull()
     expect(del.status).toBe('idle')
-    // Silence unused-var guard
-    void confirmBtn
   })
 
   it('cancel button closes the dialog without calling the API', async () => {
-    const deleteAsset = vi.spyOn(api, 'deleteAsset').mockResolvedValue(undefined)
+    deleteAssetMock.mockResolvedValue(undefined)
     const del = useAssetsDeleteStore()
 
     const wrapper = render()
@@ -114,16 +118,16 @@ describe('AssetDeleteConfirm', () => {
     await cancel.trigger('click')
     await flushPromises()
 
-    expect(deleteAsset).not.toHaveBeenCalled()
+    expect(deleteAssetMock).not.toHaveBeenCalled()
     expect(del.status).toBe('idle')
   })
 
-  it('renders the in-use panel with refs when the store is in "in-use" state', async () => {
+  it('renders the in-use body with refs when the store is in "in-use" state', async () => {
     const del = useAssetsDeleteStore()
     render()
-    // Drive directly through the store's public API (the route the UI takes
-    // after a failed confirmDelete). The store-level test already covers
-    // the 409 → in-use transition.
+    // Drive directly through the store's public API (the route the UI
+    // takes after a failed confirmDelete). The store-level test already
+    // covers the 409 → in-use transition.
     del.ask('hero')
     del.$patch(s => {
       s.status = 'in-use'
@@ -139,7 +143,7 @@ describe('AssetDeleteConfirm', () => {
     expect(document.querySelector('[data-testid="asset-delete-confirm-button"]')).toBeNull()
   })
 
-  it('shows generic error panel when the store is in "error" state', async () => {
+  it('shows generic error body when the store is in "error" state', async () => {
     const del = useAssetsDeleteStore()
     render()
     del.ask('hero')
@@ -152,9 +156,9 @@ describe('AssetDeleteConfirm', () => {
     expect(document.querySelector('[data-testid="asset-delete-close"]')).not.toBeNull()
   })
 
-  // Silence unused-import warnings — these are used in the store-level test
-  // and kept here for completeness of the AssetInUseError type graph.
-  it('imports AssetInUseError to mirror the server contract', () => {
+  it('AssetInUseError from gazetta is the class the store branches on', () => {
+    // Anchor: the imported class here is the same one the server throws,
+    // re-exported through gazetta/admin-api/schemas and this file.
     expect(new AssetInUseError('x', []).code).toBe('ASSET_IN_USE')
   })
 })

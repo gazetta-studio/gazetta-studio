@@ -15,7 +15,8 @@
  */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { api, type AssetSummary } from '../api/client.js'
+import type { AssetSummary } from 'gazetta/schema'
+import { api } from '../api/client.js'
 
 export type LoadAssetList = () => Promise<AssetSummary[]>
 

@@ -42,13 +42,40 @@ import type { AssetRef } from './refs.js'
  */
 export type AssetErrorHttpStatus = 400 | 404 | 409 | 500 | 501
 
+/**
+ * JSON body shape for `AssetError.toResponseBody()`. Every response body
+ * has at least `{ code, message }`; structured subclasses (AssetInUseError,
+ * AssetValidationError) override `toResponseBody()` to attach extra fields.
+ *
+ * The admin client's Zod schemas (`admin-api/schemas/assets.ts`) parse the
+ * body into typed responses; drift between server serialization and client
+ * parsing is a compile-time error.
+ */
+export interface AssetErrorResponseBody {
+  readonly code: AssetErrorCode
+  readonly message: string
+  // Subclasses may attach extra fields; see AssetInUseError.
+  readonly [extra: string]: unknown
+}
+
 export abstract class AssetError extends Error {
   abstract readonly code: AssetErrorCode
   /** HTTP status this error maps to at the transport boundary. */
   abstract readonly httpStatus: AssetErrorHttpStatus
+
   constructor(message: string) {
     super(message)
     this.name = this.constructor.name
+  }
+
+  /**
+   * Serialize this error to a JSON response body. Default shape is
+   * `{ code, message }`; subclasses override to add structured data.
+   * Transport-boundary polymorphism — no `instanceof` chain needed at
+   * the route mapper.
+   */
+  toResponseBody(): AssetErrorResponseBody {
+    return { code: this.code, message: this.message }
   }
 }
 
@@ -131,6 +158,15 @@ export class AssetInUseError extends AssetError {
     public readonly refs: readonly AssetRef[],
   ) {
     super(`Asset "${assetName}" is still referenced by ${refs.length} item(s)`)
+  }
+
+  override toResponseBody(): AssetErrorResponseBody {
+    return {
+      code: this.code,
+      message: this.message,
+      assetName: this.assetName,
+      refs: this.refs,
+    }
   }
 }
 

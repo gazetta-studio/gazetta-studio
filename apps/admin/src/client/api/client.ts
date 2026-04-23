@@ -157,15 +157,12 @@ export interface FragmentDetail extends FragmentSummary {
 }
 
 /**
- * Asset-specific types (`AssetSummary`, `UploadedAsset`, etc.) and
- * endpoints (`uploadAsset`, `deleteAsset`) live in `./assets.ts`.
- * Re-exported here so callers can still import from `client.js` without
- * knowing which submodule owns each piece.
+ * `AssetSummary` is used by `listAssets` / `getAsset` below; the asset-
+ * specific endpoints (`uploadAsset`, `deleteAsset`) and their typed
+ * errors (`AssetInUseError`, `AssetApiError`) live in `./assets.ts` —
+ * callers import those directly from `./assets.js`.
  */
-export type { AssetSummary } from 'gazetta/schema'
-export { AssetApiError, AssetInUseError, type AssetRef, type UploadedAsset } from './assets.js'
 import type { AssetSummary } from 'gazetta/schema'
-import { deleteAsset as deleteAssetCall, uploadAsset as uploadAssetCall } from './assets.js'
 
 export const api = {
   getSite: () => request<SiteManifest>('/site'),
@@ -244,6 +241,4 @@ export const api = {
   listAssets: () => request<AssetSummary[]>('/assets'),
   /** Fetch a single asset's summary by name. 404s when the asset doesn't exist. */
   getAsset: (name: string) => request<AssetSummary>(`/assets/${encodeURIComponent(name)}`),
-  uploadAsset: uploadAssetCall,
-  deleteAsset: deleteAssetCall,
 }

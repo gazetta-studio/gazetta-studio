@@ -17,7 +17,7 @@
  */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { api, type UploadedAsset } from '../api/client.js'
+import { type UploadedAsset, uploadAsset as uploadAssetApi } from '../api/assets.js'
 
 export type UploadAsset = (file: File, name: string, alt: string | null) => Promise<UploadedAsset>
 
@@ -44,7 +44,7 @@ export interface UploadEntry {
 export const useAssetsUploadStore = defineStore('assetsUpload', () => {
   const uploads = ref<UploadEntry[]>([])
 
-  let uploadAsset: UploadAsset = (file, name, alt) => api.uploadAsset(file, name, alt)
+  let uploadAsset: UploadAsset = (file, name, alt) => uploadAssetApi(file, name, alt)
 
   function configure(options: AssetsUploadStoreOptions): void {
     if (options.uploadAsset) uploadAsset = options.uploadAsset
