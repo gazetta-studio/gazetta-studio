@@ -37,7 +37,8 @@ import { rm } from 'node:fs/promises'
 import { bench, describe } from 'vitest'
 import { DockerComposeEnvironment, type StartedDockerComposeEnvironment } from 'testcontainers'
 import { findAssetRefs } from '../src/assets/find-refs.js'
-import { applyItemRefsDiff, readRefsForAsset, type ItemRef } from '../src/assets/refs-sidecars.js'
+import { applyAssetRefsDiff, readRefsForAsset } from '../src/assets/asset-deps.js'
+import type { ItemRef } from '../src/dep-sidecars.js'
 import { createContentRoot } from '../src/content-root.js'
 import { createAzureBlobProvider } from '../src/providers/azure-blob.js'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
@@ -171,7 +172,7 @@ for (const s of scenarios) {
     )
 
     bench(
-      'applyItemRefsDiff (3 assets added) [sidecar save]',
+      'applyAssetRefsDiff (3 assets added) [sidecar save]',
       async () => {
         // Simulate the save-side cost: a save adds 3 new asset refs to
         // an item (removing 0). Three concurrent zero-byte writes to
@@ -180,7 +181,7 @@ for (const s of scenarios) {
         // can't contain dots — use base36 (digits + lowercase letters).
         const id = Math.random().toString(36).slice(2)
         const item: ItemRef = { source: 'page', name: `bench-${id}` }
-        await applyItemRefsDiff(
+        await applyAssetRefsDiff(
           contentRoot,
           item,
           new Set(),

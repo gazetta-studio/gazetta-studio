@@ -93,34 +93,37 @@ export async function compareTargets(opts: CompareOptions): Promise<CompareResul
       throw err
     }
   }
-  const [sourcePagesSidecars, sourceFragmentsSidecars] = await Promise.all([
-    listSidecars(sourceRoot.storage, sourceRoot.path('pages')),
-    listSidecars(sourceRoot.storage, sourceRoot.path('fragments')),
-  ])
   // Hash fragments first (they don't depend on page hashes). Static-mode
   // page hashes include fragment hashes so a fragment content change
   // invalidates every page that bakes it in.
+  //
+  // Always re-hash from in-memory manifests rather than reading source-
+  // side `.{hash}.hash` sidecars. Reasons:
+  //   - The source-side cache could go stale after a template-source
+  //     edit (the cache holds the pre-edit hash), causing dynamic-mode
+  //     targets to falsely report "unchanged" until the next manifest
+  //     save. (Static-mode already always re-hashed for the same
+  //     reason — fragment hashes change the combined page hash, and
+  //     cached source sidecars don't include fragment hashes.)
+  //   - `loadSite` already loaded every manifest into memory; re-hashing
+  //     is microsecond-scale per manifest. The cache saved nothing
+  //     meaningful and introduced a real correctness hole.
   const fragmentHashes = new Map<string, string>()
   for (const [name, frag] of site.fragments) {
-    const cached = sourceFragmentsSidecars.get(name)?.hash
-    fragmentHashes.set(name, cached ?? hashManifest(frag, { templateHashes }))
+    fragmentHashes.set(name, hashManifest(frag, { templateHashes }))
   }
 
   const local = new Map<string, string>()
   const pageHashOpts = opts.type === 'static' ? { templateHashes, fragmentHashes } : { templateHashes }
   for (const [name, page] of site.pages) {
-    // Source sidecars are written without fragmentHashes (source doesn't
-    // know target's type). For static targets we must re-hash.
-    const cached = opts.type === 'static' ? null : sourcePagesSidecars.get(name)?.hash
-    local.set(`pages/${name}`, cached ?? hashManifest(page, pageHashOpts))
+    local.set(`pages/${name}`, hashManifest(page, pageHashOpts))
 
     // Per-locale items — each locale variant is compared independently
     const localeEntry = site.pageLocales.get(name)
     if (localeEntry) {
       for (const [locale, localePage] of localeEntry.locales) {
         const localeKey = `pages/${name}:${locale}`
-        const cachedLocale = sourcePagesSidecars.get(`${name}:${locale}`)?.hash
-        local.set(localeKey, cachedLocale ?? hashManifest(localePage, pageHashOpts))
+        local.set(localeKey, hashManifest(localePage, pageHashOpts))
       }
     }
   }

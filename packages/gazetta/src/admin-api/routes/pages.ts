@@ -5,7 +5,7 @@ import { recordWrite } from '../../history-recorder.js'
 import type { SourceContextResolver } from '../source-context.js'
 import { CreatePageRequestSchema } from '../schemas/pages.js'
 import { isValidLocale } from '../../locale.js'
-import { rebuildItemRefs, type ItemRef } from '../../assets/refs-sidecars.js'
+import { rebuildAssetRefs, type ItemRef } from '../../assets/asset-deps.js'
 
 export function pageRoutes(resolve: SourceContextResolver) {
   const app = new Hono()
@@ -78,7 +78,7 @@ export function pageRoutes(resolve: SourceContextResolver) {
     // no-op today. Wired anyway so any future template that includes
     // `_asset` refs in its initial content gets indexed.
     const item: ItemRef = { source: 'page', name: body.name }
-    await rebuildItemRefs(source.contentRoot, item, null, manifest)
+    await rebuildAssetRefs(source.contentRoot, item, null, manifest)
     return c.json({ ok: true, name: body.name })
   })
 
@@ -167,7 +167,7 @@ export function pageRoutes(resolve: SourceContextResolver) {
     // sidecar written/removed accordingly. The pre-save manifest is
     // already in memory as `page` (via loadSiteFromSource).
     const item: ItemRef = locale ? { source: 'page', name, locale } : { source: 'page', name }
-    await rebuildItemRefs(source.contentRoot, item, page, manifest)
+    await rebuildAssetRefs(source.contentRoot, item, page, manifest)
     return c.json({ ok: true })
   })
 
@@ -199,9 +199,9 @@ export function pageRoutes(resolve: SourceContextResolver) {
     const localeEntry = site.pageLocales.get(name)
     const variantManifests = localeEntry ? [...localeEntry.locales.entries()] : []
     await Promise.all([
-      rebuildItemRefs(source.contentRoot, { source: 'page', name }, page, null),
+      rebuildAssetRefs(source.contentRoot, { source: 'page', name }, page, null),
       ...variantManifests.map(([loc, variant]) =>
-        rebuildItemRefs(source.contentRoot, { source: 'page', name, locale: loc }, variant, null),
+        rebuildAssetRefs(source.contentRoot, { source: 'page', name, locale: loc }, variant, null),
       ),
     ])
     return c.json({ ok: true })
