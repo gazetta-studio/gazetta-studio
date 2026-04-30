@@ -43,7 +43,6 @@ describe('createSourceContext', () => {
     // Content paths are target-relative
     expect(source.contentRoot.path('pages', 'home')).toBe('pages/home')
   })
-
 })
 
 describe('createSourceContextFromRegistry', () => {

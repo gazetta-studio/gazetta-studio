@@ -542,13 +542,8 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
     siteDir,
   )
 
-  const {
-    publishPageRendered,
-    publishPageStatic,
-    publishFragmentRendered,
-    publishSiteManifest,
-    publishDepIndices,
-  } = await import('../publish-rendered.js')
+  const { publishPageRendered, publishPageStatic, publishFragmentRendered, publishSiteManifest, publishDepIndices } =
+    await import('../publish-rendered.js')
   const { publishPageAllLocales, publishFragmentAllLocales } = await import('../publish-locale.js')
   const { scanTemplates, templateHashesFrom, reportTemplateErrors } = await import('../templates-scan.js')
   const { hashManifest } = await import('../hash.js')
