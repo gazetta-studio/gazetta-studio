@@ -7,7 +7,7 @@ import { renderComponent, renderPage } from './renderer.js'
 import { writeSidecars, collectFragmentRefs } from './sidecars.js'
 import { createContentRoot, type ContentRoot } from './content-root.js'
 import { resolveSeoTags, escapeAttr } from './seo.js'
-import { ASSET_REFS_ROOT, rebuildItemRefs } from './assets/refs-sidecars.js'
+import { ASSET_REFS, rebuildAssetRefs } from './assets/asset-deps.js'
 
 function contentHash(content: string): string {
   return createHash('md5').update(content).digest('hex').slice(0, 8)
@@ -393,18 +393,18 @@ export async function rebuildAssetRefsIndex(
 
   // Wipe existing index — full rebuild semantics. Stale entries from
   // assets that no longer exist in source manifests get cleared.
-  await destStorage.rm(destRoot.path(ASSET_REFS_ROOT)).catch(() => {
+  await destStorage.rm(destRoot.path('.gazetta', ASSET_REFS.rootName)).catch(() => {
     // Missing dir = nothing to wipe; fine.
   })
 
   const writes: Promise<void>[] = []
   for (const { name, page, locale } of allPageEntries(sourceSite)) {
     const item = locale ? { source: 'page' as const, name, locale } : { source: 'page' as const, name }
-    writes.push(rebuildItemRefs(destRoot, item, null, page))
+    writes.push(rebuildAssetRefs(destRoot, item, null, page))
   }
   for (const { name, fragment, locale } of allFragmentEntries(sourceSite)) {
     const item = locale ? { source: 'fragment' as const, name, locale } : { source: 'fragment' as const, name }
-    writes.push(rebuildItemRefs(destRoot, item, null, fragment))
+    writes.push(rebuildAssetRefs(destRoot, item, null, fragment))
   }
   await Promise.all(writes)
 }

@@ -198,11 +198,12 @@ describe('compareTargets', () => {
     expect(r2.modified).toContain('pages/home')
   })
 
-  it('uses source-side sidecar hash when present (skips re-hash)', async () => {
-    // Fabricate a source sidecar with a made-up hash. If compare is using
-    // it (instead of re-hashing the manifest), that hash will be matched
-    // against the target's hash — we can prove it by writing the SAME
-    // fabricated hash to the target and expecting "unchanged".
+  it('ignores fabricated source-side sidecar hashes — always re-hashes from manifests', async () => {
+    // Compare must NOT trust source-side `.{hash}.hash` sidecars (they
+    // could be stale after a template-source edit). It always recomputes
+    // from the in-memory manifest. Proof: fabricate a matching pair on
+    // source + target; the manifest hash differs from "deadbeef" so the
+    // items show as modified, not unchanged.
     const fake = 'deadbeef'
     await writeSidecar(join(siteDir, 'pages/home'), fake)
     await writeSidecar(join(siteDir, 'fragments/header'), fake)
@@ -210,6 +211,11 @@ describe('compareTargets', () => {
     await writeSidecar(join(targetDir, 'fragments/header'), fake)
 
     const r = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root })
-    expect(r.unchanged.sort()).toEqual(['fragments/header', 'pages/home'])
+    // With the cache dropped, the source's recomputed hash differs from
+    // the fabricated target hash → items show as modified, not unchanged.
+    expect(r.modified).toContain('pages/home')
+    expect(r.modified).toContain('fragments/header')
+    expect(r.unchanged).not.toContain('pages/home')
+    expect(r.unchanged).not.toContain('fragments/header')
   })
 })

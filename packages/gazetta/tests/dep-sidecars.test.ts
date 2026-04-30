@@ -1,12 +1,13 @@
 /**
- * Unit tests for asset-refs sidecar primitives.
+ * Unit tests for the generic dep-sidecars primitives.
  *
- * Coverage:
+ * Covers:
  *   - Filename encoding round-trip (incl. locale, subfolder names)
- *   - readRefsForAsset on missing dir returns []
- *   - applyItemRefsDiff write/remove diff
- *   - rebuildItemRefs convenience over the diff
- *   - itemRefToAssetRef reconstruction
+ *   - readDepsFor on missing dir returns []
+ *   - applyDepDiff write/remove diff
+ *   - rebuildItemDeps convenience over the diff
+ *   - The asset-deps binding (via ASSET_REFS relation) so the asset-side
+ *     wrapper isn't separately tested
  *
  * Filesystem-backed because the encoding rules are filename-shape and
  * the diff exercises real readDir + writeFile semantics.
@@ -18,19 +19,19 @@ import { join } from 'node:path'
 import { createContentRoot } from '../src/content-root.js'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
 import {
-  applyItemRefsDiff,
+  applyDepDiff,
+  depSidecarPath,
   filenameToItemRef,
   itemRefToFilename,
-  itemRefToAssetRef,
-  readRefsForAsset,
-  rebuildItemRefs,
-  refSidecarPath,
-  ASSET_REFS_ROOT,
+  readDepsFor,
+  rebuildItemDeps,
+  type DepRelation,
   type ItemRef,
-} from '../src/assets/refs-sidecars.js'
+} from '../src/dep-sidecars.js'
+import { ASSET_REFS, itemRefToAssetRef } from '../src/assets/asset-deps.js'
 import { tempDir } from './_helpers/temp.js'
 
-const testDir = tempDir(`refs-sidecars-${Date.now()}`)
+const testDir = tempDir(`dep-sidecars-${Date.now()}`)
 
 afterEach(async () => {
   await rm(testDir, { recursive: true, force: true })
@@ -61,25 +62,31 @@ describe('itemRefToFilename + filenameToItemRef — round-trip encoding', () => 
   })
 })
 
-describe('readRefsForAsset', () => {
-  it('returns [] when the asset directory does not exist', async () => {
+// All read/write tests parameterize over the asset-refs relation. The
+// generic API doesn't care which relation it operates on, and asset-refs
+// is the one we ship today; future relations get covered by their own
+// callers' integration tests.
+const REL: DepRelation = ASSET_REFS
+
+describe('readDepsFor', () => {
+  it('returns [] when the relation directory does not exist', async () => {
     await mkdir(testDir, { recursive: true })
     const root = createContentRoot(createFilesystemProvider(testDir), '')
-    expect(await readRefsForAsset(root, 'never-indexed')).toEqual([])
+    expect(await readDepsFor(REL, root, 'never-indexed')).toEqual([])
   })
 
   it('returns parsed refs from sidecar files in the dir', async () => {
     await mkdir(testDir, { recursive: true })
     const root = createContentRoot(createFilesystemProvider(testDir), '')
-    // Pre-populate the directory with three sidecar files.
-    const dir = join(testDir, ASSET_REFS_ROOT, 'hero')
+    const relRoot = `.gazetta/${REL.rootName}/hero`
+    const dir = join(testDir, relRoot)
     await mkdir(dir, { recursive: true })
     await Promise.all([
-      root.storage.writeFile(`${ASSET_REFS_ROOT}/hero/pages.home`, ''),
-      root.storage.writeFile(`${ASSET_REFS_ROOT}/hero/pages.about:fr`, ''),
-      root.storage.writeFile(`${ASSET_REFS_ROOT}/hero/fragments.header`, ''),
+      root.storage.writeFile(`${relRoot}/pages.home`, ''),
+      root.storage.writeFile(`${relRoot}/pages.about:fr`, ''),
+      root.storage.writeFile(`${relRoot}/fragments.header`, ''),
     ])
-    const refs = await readRefsForAsset(root, 'hero')
+    const refs = await readDepsFor(REL, root, 'hero')
     expect(refs).toHaveLength(3)
     expect(refs).toContainEqual({ source: 'page', name: 'home' })
     expect(refs).toContainEqual({ source: 'page', name: 'about', locale: 'fr' })
@@ -89,62 +96,63 @@ describe('readRefsForAsset', () => {
   it('skips files whose names do not match the encoding shape', async () => {
     await mkdir(testDir, { recursive: true })
     const root = createContentRoot(createFilesystemProvider(testDir), '')
-    const dir = join(testDir, ASSET_REFS_ROOT, 'hero')
+    const relRoot = `.gazetta/${REL.rootName}/hero`
+    const dir = join(testDir, relRoot)
     await mkdir(dir, { recursive: true })
     await Promise.all([
-      root.storage.writeFile(`${ASSET_REFS_ROOT}/hero/pages.home`, ''),
-      root.storage.writeFile(`${ASSET_REFS_ROOT}/hero/.DS_Store`, ''),
-      root.storage.writeFile(`${ASSET_REFS_ROOT}/hero/random-junk`, ''),
+      root.storage.writeFile(`${relRoot}/pages.home`, ''),
+      root.storage.writeFile(`${relRoot}/.DS_Store`, ''),
+      root.storage.writeFile(`${relRoot}/random-junk`, ''),
     ])
-    const refs = await readRefsForAsset(root, 'hero')
+    const refs = await readDepsFor(REL, root, 'hero')
     expect(refs).toHaveLength(1)
     expect(refs[0]).toEqual({ source: 'page', name: 'home' })
   })
 })
 
-describe('applyItemRefsDiff', () => {
-  it('writes sidecars for added assets, removes for dropped ones', async () => {
+describe('applyDepDiff', () => {
+  it('writes sidecars for added targets, removes for dropped ones', async () => {
     await mkdir(testDir, { recursive: true })
     const root = createContentRoot(createFilesystemProvider(testDir), '')
     const item: ItemRef = { source: 'page', name: 'home' }
 
     // Initial state: refs to hero only.
-    await applyItemRefsDiff(root, item, new Set(), new Set(['hero']))
-    expect(existsSync(join(testDir, refSidecarPath(root, 'hero', item)))).toBe(true)
+    await applyDepDiff(REL, root, item, new Set(), new Set(['hero']))
+    expect(existsSync(join(testDir, depSidecarPath(REL, root, 'hero', item)))).toBe(true)
 
     // Now references hero + banner; removes hero, adds banner.
-    await applyItemRefsDiff(root, item, new Set(['hero']), new Set(['banner']))
-    expect(existsSync(join(testDir, refSidecarPath(root, 'hero', item)))).toBe(false)
-    expect(existsSync(join(testDir, refSidecarPath(root, 'banner', item)))).toBe(true)
+    await applyDepDiff(REL, root, item, new Set(['hero']), new Set(['banner']))
+    expect(existsSync(join(testDir, depSidecarPath(REL, root, 'hero', item)))).toBe(false)
+    expect(existsSync(join(testDir, depSidecarPath(REL, root, 'banner', item)))).toBe(true)
   })
 
   it('is a no-op when old and new sets are equal', async () => {
     await mkdir(testDir, { recursive: true })
     const root = createContentRoot(createFilesystemProvider(testDir), '')
     const item: ItemRef = { source: 'page', name: 'home' }
-    await applyItemRefsDiff(root, item, new Set(['hero']), new Set(['hero']))
+    await applyDepDiff(REL, root, item, new Set(['hero']), new Set(['hero']))
     // Sidecar should NOT exist — neither side flagged it for write.
-    expect(existsSync(join(testDir, refSidecarPath(root, 'hero', item)))).toBe(false)
+    expect(existsSync(join(testDir, depSidecarPath(REL, root, 'hero', item)))).toBe(false)
   })
 
   it('is idempotent under concurrent writes to the same path', async () => {
-    // Two adds to the same (item, asset) pair race. Final state has the
+    // Two adds to the same (item, target) pair race. Final state has the
     // sidecar present once. This is the multi-instance correctness story.
     await mkdir(testDir, { recursive: true })
     const root = createContentRoot(createFilesystemProvider(testDir), '')
     const item: ItemRef = { source: 'page', name: 'home' }
     await Promise.all([
-      applyItemRefsDiff(root, item, new Set(), new Set(['hero'])),
-      applyItemRefsDiff(root, item, new Set(), new Set(['hero'])),
+      applyDepDiff(REL, root, item, new Set(), new Set(['hero'])),
+      applyDepDiff(REL, root, item, new Set(), new Set(['hero'])),
     ])
-    const refs = await readRefsForAsset(root, 'hero')
+    const refs = await readDepsFor(REL, root, 'hero')
     expect(refs).toHaveLength(1)
     expect(refs[0]).toEqual(item)
   })
 })
 
-describe('rebuildItemRefs (manifest-driven diff)', () => {
-  it('extracts asset names from manifests and applies the diff', async () => {
+describe('rebuildItemDeps (manifest-driven diff)', () => {
+  it('extracts target names from manifests via rel.extract and applies the diff', async () => {
     await mkdir(testDir, { recursive: true })
     const root = createContentRoot(createFilesystemProvider(testDir), '')
     const item: ItemRef = { source: 'page', name: 'home' }
@@ -159,33 +167,35 @@ describe('rebuildItemRefs (manifest-driven diff)', () => {
       content: { banner: { _asset: 'banner' } },
       components: [],
     }
-    await rebuildItemRefs(root, item, oldManifest, newManifest)
+    await rebuildItemDeps(REL, root, item, oldManifest, newManifest)
 
-    expect(existsSync(join(testDir, refSidecarPath(root, 'hero', item)))).toBe(false)
-    expect(existsSync(join(testDir, refSidecarPath(root, 'banner', item)))).toBe(true)
+    expect(existsSync(join(testDir, depSidecarPath(REL, root, 'hero', item)))).toBe(false)
+    expect(existsSync(join(testDir, depSidecarPath(REL, root, 'banner', item)))).toBe(true)
   })
 
-  it('treats null oldManifest as empty (initial save) and writes new refs', async () => {
+  it('treats null oldManifest as empty (initial save) and writes new deps', async () => {
     await mkdir(testDir, { recursive: true })
     const root = createContentRoot(createFilesystemProvider(testDir), '')
     const item: ItemRef = { source: 'page', name: 'home' }
-    await rebuildItemRefs(root, item, null, { content: { hero: { _asset: 'hero' } } })
-    expect(existsSync(join(testDir, refSidecarPath(root, 'hero', item)))).toBe(true)
+    const manifest = { template: 'p', content: { hero: { _asset: 'hero' } }, components: [] }
+    await rebuildItemDeps(REL, root, item, null, manifest)
+    expect(existsSync(join(testDir, depSidecarPath(REL, root, 'hero', item)))).toBe(true)
   })
 
-  it('treats null newManifest as deletion and removes refs', async () => {
+  it('treats null newManifest as deletion and removes deps', async () => {
     await mkdir(testDir, { recursive: true })
     const root = createContentRoot(createFilesystemProvider(testDir), '')
     const item: ItemRef = { source: 'page', name: 'home' }
-    // Pre-state: ref exists.
-    await rebuildItemRefs(root, item, null, { content: { hero: { _asset: 'hero' } } })
+    const manifest = { template: 'p', content: { hero: { _asset: 'hero' } }, components: [] }
+    // Pre-state: dep exists.
+    await rebuildItemDeps(REL, root, item, null, manifest)
     // Now the page is deleted: pass null new.
-    await rebuildItemRefs(root, item, { content: { hero: { _asset: 'hero' } } }, null)
-    expect(existsSync(join(testDir, refSidecarPath(root, 'hero', item)))).toBe(false)
+    await rebuildItemDeps(REL, root, item, manifest, null)
+    expect(existsSync(join(testDir, depSidecarPath(REL, root, 'hero', item)))).toBe(false)
   })
 })
 
-describe('itemRefToAssetRef', () => {
+describe('asset-deps binding: itemRefToAssetRef', () => {
   it('reconstructs an AssetRef from a default-locale page item', () => {
     expect(itemRefToAssetRef({ source: 'page', name: 'home' })).toEqual({
       source: 'page',
@@ -212,22 +222,22 @@ describe('itemRefToAssetRef', () => {
 })
 
 describe('encoding edge cases', () => {
-  it('encodes subfolder asset names in the directory path', async () => {
+  it('encodes subfolder target names in the directory path', async () => {
     await mkdir(testDir, { recursive: true })
     const root = createContentRoot(createFilesystemProvider(testDir), '')
     const item: ItemRef = { source: 'page', name: 'home' }
-    await applyItemRefsDiff(root, item, new Set(), new Set(['products/shot']))
-    // products/shot encodes to products.shot — directory is at .../asset-refs/products.shot/
-    const dir = join(testDir, ASSET_REFS_ROOT, 'products.shot')
+    await applyDepDiff(REL, root, item, new Set(), new Set(['products/shot']))
+    // products/shot encodes to products.shot — directory at .../{rel}/products.shot/
+    const dir = join(testDir, '.gazetta', REL.rootName, 'products.shot')
     expect(existsSync(dir)).toBe(true)
     const entries = await readdir(dir)
     expect(entries).toContain('pages.home')
   })
 
-  it('rejects asset names containing dots', async () => {
+  it('rejects target names containing dots', async () => {
     await mkdir(testDir, { recursive: true })
     const root = createContentRoot(createFilesystemProvider(testDir), '')
     const item: ItemRef = { source: 'page', name: 'home' }
-    await expect(applyItemRefsDiff(root, item, new Set(), new Set(['bad.name']))).rejects.toThrow(/dot is reserved/)
+    await expect(applyDepDiff(REL, root, item, new Set(), new Set(['bad.name']))).rejects.toThrow(/dot is reserved/)
   })
 })

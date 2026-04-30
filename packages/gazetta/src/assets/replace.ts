@@ -45,7 +45,7 @@ import { rmIgnoreMissing } from '../providers/_rm-ignore-missing.js'
 import { manifestPath, readManifest } from './manifest.js'
 // `manifestPath` is used when composing the deleted-manifest history item.
 import { rewriteManifestAssetRef } from './rewrite-manifest-asset-ref.js'
-import { rebuildItemRefs, type ItemRef } from './refs-sidecars.js'
+import { rebuildAssetRefs, type ItemRef } from './asset-deps.js'
 
 export interface ReplaceAssetInput {
   /** Storage holding both the asset and the content tree. */
@@ -199,7 +199,7 @@ export async function replaceAsset(input: ReplaceAssetInput): Promise<ReplaceAss
   // truth; sidecar drift is recoverable via reindex CLI.
   await Promise.all(
     rewrites.map(r =>
-      rebuildItemRefs(contentRoot, r.item, r.oldManifest, r.newManifest).catch(err => {
+      rebuildAssetRefs(contentRoot, r.item, r.oldManifest, r.newManifest).catch(err => {
         // eslint-disable-next-line no-console
         console.warn(`asset-refs sidecar update failed for ${r.path}: ${(err as Error).message}`)
       }),

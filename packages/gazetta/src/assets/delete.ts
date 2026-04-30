@@ -30,7 +30,7 @@ import { assetPathsInRemovalOrder, assetStoragePaths } from './asset-paths.js'
 import { AssetInUseError, AssetStorageError } from './errors.js'
 import { findAssetRefs } from './find-refs.js'
 import { readManifest } from './manifest.js'
-import { itemRefToAssetRef, readRefsForAsset } from './refs-sidecars.js'
+import { itemRefToAssetRef, readRefsForAsset } from './asset-deps.js'
 
 export interface DeleteAssetInput {
   /** Storage holding both the asset and the content tree. */
