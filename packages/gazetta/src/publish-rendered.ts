@@ -475,4 +475,3 @@ export async function lookupCloudflareZoneId(siteUrl: string, apiToken: string):
   const data = (await res.json()) as { result: Array<{ id: string }> }
   return data.result?.[0]?.id ?? null
 }
-

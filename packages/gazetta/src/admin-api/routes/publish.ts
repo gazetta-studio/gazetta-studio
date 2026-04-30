@@ -89,9 +89,7 @@ export function publishRoutes(
   // empty index. Rebuild once per (source-target) and memoize the
   // in-flight Promise so concurrent tree badges share one walk.
   const fragmentDepsBackfill = new Map<string, Promise<void>>()
-  async function ensureFragmentDepsIndex(
-    source: import('../source-context.js').SourceContext,
-  ): Promise<void> {
+  async function ensureFragmentDepsIndex(source: import('../source-context.js').SourceContext): Promise<void> {
     const key = source.targetName ?? '__source__'
     let p = fragmentDepsBackfill.get(key)
     if (p) return p
