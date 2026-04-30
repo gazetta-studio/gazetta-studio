@@ -14,18 +14,16 @@
  * happen — useful for ordering writes (assets before pages) and for
  * surfacing per-asset progress.
  */
-import { join } from 'node:path'
-import { isBinaryCapable, type StorageProvider } from '../types.js'
+import type { ContentRoot } from '../content-root.js'
+import { isBinaryCapable } from '../types.js'
 import { manifestPath } from './manifest.js'
 import { collectAssetRefs } from './scan-manifest-for-asset.js'
 
 export interface PlanInput {
-  readonly sourceStorage: StorageProvider
-  readonly targetStorage: StorageProvider
-  /** Path prefix for source content (where pages/, fragments/ live). */
-  readonly sourceSiteDir: string
-  /** Where assets live, relative to storage root (typically `"assets"`). */
-  readonly assetsRoot: string
+  /** Source content root (where pages/, fragments/, and assets/ live on the source side). */
+  readonly sourceRoot: ContentRoot
+  /** Target content root (where pages/, fragments/, and assets/ will land on the target side). */
+  readonly targetRoot: ContentRoot
   /** Items being published — e.g., `['pages/home', 'fragments/header']`. */
   readonly itemNames: readonly string[]
 }
@@ -59,7 +57,7 @@ export async function planAssetCopy(input: PlanInput): Promise<Plan> {
 
   if (refs.size === 0) return { ok: true, assets: [], itemsWithRefs: [] }
 
-  if (!isBinaryCapable(input.sourceStorage) || !isBinaryCapable(input.targetStorage)) {
+  if (!isBinaryCapable(input.sourceRoot.storage) || !isBinaryCapable(input.targetRoot.storage)) {
     return {
       ok: false,
       reason: 'target-incapable',
@@ -70,7 +68,7 @@ export async function planAssetCopy(input: PlanInput): Promise<Plan> {
 
   const missing: string[] = []
   for (const name of refs) {
-    const exists = await input.sourceStorage.exists(`${input.assetsRoot}/${manifestPath(name)}`)
+    const exists = await input.sourceRoot.storage.exists(input.sourceRoot.path('assets', manifestPath(name)))
     if (!exists) missing.push(name)
   }
   if (missing.length > 0) {
@@ -89,8 +87,8 @@ async function collectRefsAcrossItems(input: PlanInput): Promise<CollectedRefs> 
   const refs = new Set<string>()
   const itemsWithRefs: string[] = []
   for (const item of input.itemNames) {
-    const path = join(input.sourceSiteDir, item, manifestFilenameFor(item))
-    const raw = await input.sourceStorage.readFile(path).catch(() => null)
+    const path = input.sourceRoot.path(item, manifestFilenameFor(item))
+    const raw = await input.sourceRoot.storage.readFile(path).catch(() => null)
     if (raw === null) continue
     // Page/fragment manifests have the same `Walkable` shape that
     // `collectAssetRefs` accepts; cast here rather than parse-and-validate

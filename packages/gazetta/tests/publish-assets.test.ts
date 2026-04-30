@@ -20,6 +20,7 @@ import { join } from 'node:path'
 import sharp from 'sharp'
 import { ingestAsset } from '../src/assets/ingest.js'
 import { publishAssets } from '../src/assets/publish.js'
+import { createContentRoot } from '../src/content-root.js'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
 import type { StorageProvider } from '../src/types.js'
 import { tempDir } from './_helpers/temp.js'
@@ -96,10 +97,8 @@ describe('publishAssets', () => {
     await seedSourcePage('home', { hero: { _asset: 'hero' } })
 
     const result = await publishAssets({
-      sourceStorage,
-      targetStorage,
-      sourceSiteDir: '',
-      assetsRoot: 'assets',
+      sourceRoot: createContentRoot(sourceStorage),
+      targetRoot: createContentRoot(targetStorage),
       itemNames: ['pages/home'],
     })
 
@@ -131,10 +130,8 @@ describe('publishAssets', () => {
     await seedSourcePage('home', { hero: { _asset: 'hero' } })
 
     const result = await publishAssets({
-      sourceStorage,
-      targetStorage: incapableTarget,
-      sourceSiteDir: '',
-      assetsRoot: 'assets',
+      sourceRoot: createContentRoot(sourceStorage),
+      targetRoot: createContentRoot(incapableTarget),
       itemNames: ['pages/home'],
     })
 
@@ -155,10 +152,8 @@ describe('publishAssets', () => {
     await seedSourcePage('home', { title: 'no images here' })
 
     const result = await publishAssets({
-      sourceStorage,
-      targetStorage: incapableTarget,
-      sourceSiteDir: '',
-      assetsRoot: 'assets',
+      sourceRoot: createContentRoot(sourceStorage),
+      targetRoot: createContentRoot(incapableTarget),
       itemNames: ['pages/home'],
     })
 
@@ -175,10 +170,8 @@ describe('publishAssets', () => {
 
     // First publish — copies everything.
     const first = await publishAssets({
-      sourceStorage,
-      targetStorage,
-      sourceSiteDir: '',
-      assetsRoot: 'assets',
+      sourceRoot: createContentRoot(sourceStorage),
+      targetRoot: createContentRoot(targetStorage),
       itemNames: ['pages/home'],
     })
     expect(first.ok).toBe(true)
@@ -189,10 +182,8 @@ describe('publishAssets', () => {
     // Second publish — the asset is already present on target. Should
     // skip the byte copies (idempotent re-publish).
     const second = await publishAssets({
-      sourceStorage,
-      targetStorage,
-      sourceSiteDir: '',
-      assetsRoot: 'assets',
+      sourceRoot: createContentRoot(sourceStorage),
+      targetRoot: createContentRoot(targetStorage),
       itemNames: ['pages/home'],
     })
     expect(second.ok).toBe(true)
@@ -211,10 +202,8 @@ describe('publishAssets', () => {
     await seedSourcePage('home', { hero: { _asset: 'hero' } })
 
     const result = await publishAssets({
-      sourceStorage,
-      targetStorage,
-      sourceSiteDir: '',
-      assetsRoot: 'assets',
+      sourceRoot: createContentRoot(sourceStorage),
+      targetRoot: createContentRoot(targetStorage),
       itemNames: ['pages/home'],
     })
 

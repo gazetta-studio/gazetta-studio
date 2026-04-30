@@ -23,6 +23,7 @@ import { hashManifest } from '../../hash.js'
 import { createContentRoot } from '../../content-root.js'
 import { createHistoryProvider } from '../../history-provider.js'
 import { recordWrite, type WrittenItem } from '../../history-recorder.js'
+import { publishAssets } from '../../assets/publish.js'
 
 /**
  * Progress events streamed by runPublish. Consumed both by the SSE route
@@ -286,6 +287,21 @@ export function publishRoutes(
         totalFiles += copiedFiles
         current++
         yield { kind: 'progress', target: targetName, current, total, label: 'source files' }
+
+        // 1b. Asset publish — copy bytes for every `_asset` ref before
+        // rendering, so static-mode page HTML never bakes in URLs that
+        // resolve to missing bytes on this target. Validation runs first;
+        // a structured failure throws and is caught by the per-target
+        // try/catch (yielding `target-result success: false`).
+        const assetResult = await publishAssets({
+          sourceRoot: source.contentRoot,
+          targetRoot,
+          itemNames: targetItems,
+        })
+        if (!assetResult.ok) {
+          throw new Error(formatAssetPublishFailure(assetResult))
+        }
+        totalFiles += assetResult.copiedFiles
 
         // 2. Render items in bounded parallel. Progress events are yielded
         // in completion order — the UI shows X/N + whatever finished last,
@@ -592,4 +608,18 @@ async function collectPublishedItemsForHistory(
     }
   }
   return out
+}
+
+/**
+ * Render an asset-publish failure as a single-line message for the
+ * `target-result` error field. Surfaces the structured reason
+ * (`missing-on-source` / `target-incapable`) plus the affected names
+ * so the author knows what to fix without digging through logs.
+ */
+function formatAssetPublishFailure(failure: Exclude<Awaited<ReturnType<typeof publishAssets>>, { ok: true }>): string {
+  if (failure.reason === 'missing-on-source') {
+    return `Asset publish failed: source is missing ${failure.missing.length} asset(s) — ${failure.missing.join(', ')}`
+  }
+  // target-incapable
+  return `Asset publish failed: target lacks binary streaming. Cannot copy ${failure.assets.length} asset(s) [${failure.assets.join(', ')}] referenced by ${failure.affectedItems.join(', ')}`
 }

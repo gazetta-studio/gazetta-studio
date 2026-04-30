@@ -597,6 +597,34 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
     let skipped = 0
     const sourceRoot = source.contentRoot
 
+    // Asset publish — before any page render, so static-mode page HTML
+    // doesn't bake in URLs to bytes that aren't on the target yet. Skips
+    // assets that are already on target (content-addressed dedupe).
+    {
+      const { publishAssets } = await import('../assets/publish.js')
+      const { createContentRoot } = await import('../content-root.js')
+      const targetRoot = createContentRoot(targetStorage)
+      const itemNames = [
+        ...[...site.pages.keys()].map(n => `pages/${n}`),
+        ...[...site.fragments.keys()].map(n => `fragments/${n}`),
+      ]
+      const assetResult = await publishAssets({ sourceRoot, targetRoot, itemNames })
+      if (!assetResult.ok) {
+        if (assetResult.reason === 'missing-on-source') {
+          console.error(`    ${c.red('✗')} Asset publish failed: source is missing — ${assetResult.missing.join(', ')}`)
+        } else {
+          console.error(
+            `    ${c.red('✗')} Asset publish failed: target lacks binary streaming. Cannot copy ${assetResult.assets.join(', ')} referenced by ${assetResult.affectedItems.join(', ')}`,
+          )
+        }
+        process.exit(1)
+      }
+      if (assetResult.copiedAssets > 0) {
+        console.log(`    ${c.green('✓')} ${assetResult.copiedAssets} asset(s), ${assetResult.copiedFiles} file(s)`)
+      }
+      totalFiles += assetResult.copiedFiles
+    }
+
     // SEO context for this target — built once, shared across all page renders.
     const seo = {
       siteName: site.manifest.name,
