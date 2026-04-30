@@ -151,18 +151,17 @@ cd my-project && npm install    # everything — admin + templates workspaces
 | Provider | Type in site.yaml | Auth (local) | Auth (CI) | Init |
 |----------|-------------------|-------------|-----------|------|
 | **Filesystem** | `filesystem` | None (file access) | None | Auto-creates dirs |
-| **Cloudflare R2** | `r2` | `wrangler login` (REST API) or `accessKeyId`+`secretAccessKey` (S3 API) | `accessKeyId`+`secretAccessKey` via env vars | Creates bucket if needed |
+| **Cloudflare R2** | `r2` | `accessKeyId`+`secretAccessKey` (R2 API token) | Same, via env vars | Creates bucket if needed |
 | **AWS S3 / MinIO** | `s3` | `accessKeyId`+`secretAccessKey` | Same, via env vars | Creates bucket if needed |
 | **Azure Blob** | `azure-blob` | `connectionString` (supports Azurite `UseDevelopmentStorage=true`) | `connectionString` via env var | Creates container if needed |
 
-All providers implement `StorageProvider` interface: `readFile`, `readDir`, `exists`, `writeFile`, `mkdir`, `rm`.
+All providers implement `StorageProvider` interface: `readFile`, `readDir`, `exists`, `writeFile`, `mkdir`, `rm`, `readStream`, `writeStream`.
 
 Credentials use `${ENV_VAR}` syntax in site.yaml, resolved at runtime. CLI loads `.env` from
 site dir (skipped when `CI=true`).
 
-R2 has two auth modes:
-- **REST API** (default): uses wrangler auth token, sequential uploads. Good for local dev.
-- **S3 API** (when `accessKeyId` + `secretAccessKey` set): parallel uploads. Required for CI.
+R2 uses the S3-compatible API. Create an R2 API token at the Cloudflare dashboard
+(R2 → Manage R2 API Tokens) — same credentials work locally and in CI.
 
 ## Target Configurations
 

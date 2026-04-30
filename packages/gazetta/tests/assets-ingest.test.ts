@@ -2,10 +2,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { readFile, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import sharp from 'sharp'
-import { AssetProviderNotCapableError, AssetValidationError } from '../src/assets/errors.js'
+import { AssetValidationError } from '../src/assets/errors.js'
 import { ingestAsset } from '../src/assets/ingest.js'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
-import type { StorageProvider } from '../src/types.js'
 import { tempDir } from './_helpers/temp.js'
 
 const testDir = tempDir('ingest-test-' + Date.now())
@@ -249,34 +248,5 @@ describe('ingestAsset — rejects invalid input', () => {
         uploadedBy: '',
       }),
     ).rejects.toMatchObject({ code: 'ASSET_PATH_TRAVERSAL' })
-  })
-
-  it('rejects when the storage provider does not support streaming', async () => {
-    // A text-only StorageProvider — the shape R2/S3/Azure return today.
-    const textOnly: StorageProvider = {
-      async readFile() {
-        return ''
-      },
-      async writeFile() {},
-      async readDir() {
-        return []
-      },
-      async exists() {
-        return false
-      },
-      async mkdir() {},
-      async rm() {},
-    }
-
-    await expect(
-      ingestAsset({
-        storage: textOnly,
-        assetsRoot: 'assets',
-        bytes: streamOf(new Uint8Array(await jpegBuffer())),
-        requestedName: 'nope',
-        alt: null,
-        uploadedBy: '',
-      }),
-    ).rejects.toBeInstanceOf(AssetProviderNotCapableError)
   })
 })

@@ -93,25 +93,4 @@ describe('assetServeRoutes', () => {
     // Hono normalizes // sequences, but `..` still fails our guard
     expect([400, 404]).toContain(res.status)
   })
-
-  it('returns 501 when storage does not support streaming', async () => {
-    const textOnly: StorageProvider = {
-      async readFile() {
-        return ''
-      },
-      async writeFile() {},
-      async readDir() {
-        return []
-      },
-      async exists() {
-        return true
-      },
-      async mkdir() {},
-      async rm() {},
-    }
-    const app = buildApp(textOnly)
-
-    const res = await app.request('/assets/anything.jpg')
-    expect(res.status).toBe(501)
-  })
 })

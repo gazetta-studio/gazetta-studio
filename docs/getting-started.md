@@ -470,9 +470,14 @@ overrides handle the common cases.
 
 ### Authentication
 
-**Local dev:** Run `npx wrangler login` once. The CLI uses your wrangler session to access R2 — no API keys needed.
+R2 uses S3-compatible API tokens. Create one at [dash.cloudflare.com](https://dash.cloudflare.com)
+→ R2 → Manage R2 API Tokens → Create API Token. Pick "Object Read & Write" scoped to
+your bucket. The dashboard shows the access key ID and secret access key once — copy
+both.
 
-**CI (GitHub Actions):** Create a Cloudflare API token in the dashboard with these permissions:
+**Workers deploy:** Also create a Cloudflare API token at
+[dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
+with these permissions:
 
 | Permission | Access |
 |-----------|--------|
@@ -484,12 +489,12 @@ overrides handle the common cases.
 | Zone / Cache Purge | Purge |
 | Zone / Zone | Read |
 
-Add it as a `CLOUDFLARE_API_TOKEN` secret in your repo settings.
-
-**Environment variables:** Create a `.env` file in your site directory (gitignored) for local secrets:
+**Environment variables:** Create a `.env` file in your site directory (gitignored) for secrets:
 
 ```
-CLOUDFLARE_API_TOKEN=your-token-here
+R2_ACCESS_KEY_ID=your-r2-access-key
+R2_SECRET_ACCESS_KEY=your-r2-secret-key
+CLOUDFLARE_API_TOKEN=your-api-token
 ```
 
 The CLI loads `.env` automatically. In CI, env vars are set directly — `.env` is skipped when `CI=true`.

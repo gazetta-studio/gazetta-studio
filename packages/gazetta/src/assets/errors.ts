@@ -18,7 +18,6 @@ export type AssetErrorCode =
   | 'ASSET_NAME_INVALID'
   | 'ASSET_NAME_RESERVED'
   | 'ASSET_PATH_TRAVERSAL'
-  | 'ASSET_PROVIDER_NOT_CAPABLE'
   | 'ASSET_STORAGE_FAILURE'
   | 'ASSET_MANIFEST_CORRUPT'
   | 'ASSET_MANIFEST_NOT_FOUND'
@@ -42,7 +41,7 @@ import type { AssetRef } from './refs.js'
  * requires no route-handler changes (OCP). Kept as a type union rather
  * than `number` so that a typo at the class level fails to compile.
  */
-export type AssetErrorHttpStatus = 400 | 404 | 409 | 500 | 501
+export type AssetErrorHttpStatus = 400 | 404 | 409 | 500
 
 /**
  * JSON body shape for `AssetError.toResponseBody()`. Every response body
@@ -171,20 +170,6 @@ function buildMimeMismatchMessage(sniffedMime: string | null, allowedMimes: read
   const allowed = allowedMimes.length > 0 ? ` (allowed: ${allowedMimes.join(', ')})` : ''
   if (sniffedMime === null) return `Could not detect MIME type from bytes${allowed}`
   return `MIME "${sniffedMime}" not allowed${allowed}`
-}
-
-/**
- * The target's storage provider doesn't support binary streaming. Distinct from
- * validation (nothing's wrong with the bytes) and storage failure (the storage
- * didn't fail — it simply can't stream). Maps to 501 at the HTTP layer or a
- * clear CLI error.
- */
-export class AssetProviderNotCapableError extends AssetError {
-  readonly code = 'ASSET_PROVIDER_NOT_CAPABLE' as const
-  readonly httpStatus = 501 as const
-  constructor(detail: string) {
-    super(`Storage provider does not support binary streaming: ${detail}`)
-  }
 }
 
 /** Wraps an underlying storage-layer failure during an asset operation. */

@@ -14,8 +14,9 @@
  * the same `exists()` call we'd make at copy time, so checking once at
  * the copy site is cheaper.
  */
+import { mapLimit } from '../concurrency.js'
 import type { ContentRoot } from '../content-root.js'
-import { isBinaryCapable } from '../types.js'
+import type { StorageProvider } from '../types.js'
 import { assetPathsInRemovalOrder, assetStoragePaths } from './asset-paths.js'
 import { readManifest, writeManifest } from './manifest.js'
 import { planAssetCopy } from './publish-plan.js'
@@ -32,57 +33,75 @@ export interface PublishAssetsInput {
 export type PublishAssetsResult =
   | { readonly ok: true; readonly copiedAssets: number; readonly copiedFiles: number }
   | { readonly ok: false; readonly reason: 'missing-on-source'; readonly missing: readonly string[] }
-  | {
-      readonly ok: false
-      readonly reason: 'target-incapable'
-      readonly assets: readonly string[]
-      readonly affectedItems: readonly string[]
-    }
 
 /**
  * Copy every asset referenced by `itemNames` from source to target.
  *
- * Returns a discriminated-union result. On any failure variant, no
+ * Returns a discriminated-union result. On the failure variant, no
  * writes have happened — validation is complete before any copy starts.
+ *
+ * Asset copies run in bounded parallel — assets are independent (no
+ * cross-asset shared state) and each one's stream-bridge spends most of
+ * its time waiting on cloud I/O. Sequential copy serializes those waits;
+ * parallel copy lets them overlap. Concurrency is bounded by `mapLimit`'s
+ * default to avoid running out of file handles or saturating the SDK's
+ * connection pool.
  */
 export async function publishAssets(input: PublishAssetsInput): Promise<PublishAssetsResult> {
   const plan = await planAssetCopy(input)
   if (!plan.ok) return plan
   if (plan.assets.length === 0) return { ok: true, copiedAssets: 0, copiedFiles: 0 }
 
-  // Planner returns ok only when both providers are binary-capable.
-  // Re-assert for the type checker so `readStream`/`writeStream` are visible.
-  if (!isBinaryCapable(input.sourceRoot.storage) || !isBinaryCapable(input.targetRoot.storage)) {
-    throw new Error('publishAssets: planner returned ok with non-binary providers')
+  const ctx: CopyContext = {
+    source: input.sourceRoot.storage,
+    target: input.targetRoot.storage,
+    sourceAssets: input.sourceRoot.path('assets'),
+    targetAssets: input.targetRoot.path('assets'),
   }
-  const source = input.sourceRoot.storage
-  const target = input.targetRoot.storage
-  const sourceAssets = input.sourceRoot.path('assets')
-  const targetAssets = input.targetRoot.path('assets')
 
+  const perAsset = await mapLimit(plan.assets, name => copyOneAsset(ctx, name))
   let copiedAssets = 0
   let copiedFiles = 0
-  for (const name of plan.assets) {
-    const sourceManifest = await readManifest(source, sourceAssets, name)
-    const sourcePaths = assetStoragePaths(sourceAssets, sourceManifest)
-    const targetPaths = assetStoragePaths(targetAssets, sourceManifest)
-
-    // Content-addressed dedupe: the hash is in the bytes path, so its
-    // presence on the target proves byte-equivalence. Skip the whole
-    // asset (manifest + bytes + variants).
-    if (await target.exists(targetPaths.bytes)) continue
-
-    await writeManifest(target, targetAssets, sourceManifest)
-    copiedFiles++
-
-    const sourceBytePaths = assetPathsInRemovalOrder(sourcePaths).filter(p => p !== sourcePaths.manifest)
-    const targetBytePaths = assetPathsInRemovalOrder(targetPaths).filter(p => p !== targetPaths.manifest)
-    for (let i = 0; i < sourceBytePaths.length; i++) {
-      const stream = await source.readStream(sourceBytePaths[i]!)
-      await target.writeStream(targetBytePaths[i]!, stream)
-      copiedFiles++
-    }
-    copiedAssets++
+  for (const r of perAsset) {
+    if (r.copied) copiedAssets++
+    copiedFiles += r.files
   }
   return { ok: true, copiedAssets, copiedFiles }
+}
+
+interface CopyContext {
+  readonly source: StorageProvider
+  readonly target: StorageProvider
+  readonly sourceAssets: string
+  readonly targetAssets: string
+}
+
+interface CopyResult {
+  /** True when the asset's bytes were written. False on dedupe-skip. */
+  readonly copied: boolean
+  /** Files written for this asset (manifest + primary + variants). 0 on skip. */
+  readonly files: number
+}
+
+async function copyOneAsset(ctx: CopyContext, name: string): Promise<CopyResult> {
+  const sourceManifest = await readManifest(ctx.source, ctx.sourceAssets, name)
+  const sourcePaths = assetStoragePaths(ctx.sourceAssets, sourceManifest)
+  const targetPaths = assetStoragePaths(ctx.targetAssets, sourceManifest)
+
+  // Content-addressed dedupe: the hash is in the bytes path, so its
+  // presence on the target proves byte-equivalence. Skip the whole
+  // asset (manifest + bytes + variants).
+  if (await ctx.target.exists(targetPaths.bytes)) return { copied: false, files: 0 }
+
+  await writeManifest(ctx.target, ctx.targetAssets, sourceManifest)
+  let files = 1
+
+  const sourceBytePaths = assetPathsInRemovalOrder(sourcePaths).filter(p => p !== sourcePaths.manifest)
+  const targetBytePaths = assetPathsInRemovalOrder(targetPaths).filter(p => p !== targetPaths.manifest)
+  for (let i = 0; i < sourceBytePaths.length; i++) {
+    const stream = await ctx.source.readStream(sourceBytePaths[i]!)
+    await ctx.target.writeStream(targetBytePaths[i]!, stream)
+    files++
+  }
+  return { copied: true, files }
 }

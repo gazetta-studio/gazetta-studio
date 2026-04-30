@@ -74,7 +74,7 @@ API layer (Hono):
 
 | Provider | Package | Use case |
 |----------|---------|----------|
-| R2 | `packages/gazetta/` | Cloudflare R2 (S3 API with keys, or REST API via wrangler login) |
+| R2 | `packages/gazetta/` | Cloudflare R2 (S3-compatible API) |
 | Filesystem | `packages/gazetta/` | Local dev, filesystem targets |
 | Azure Blob | `packages/gazetta/` | Azure storage targets |
 | S3 | `packages/gazetta/` | AWS S3, MinIO |

@@ -1,5 +1,6 @@
 import { BlobServiceClient, type ContainerClient } from '@azure/storage-blob'
-import type { DirEntry, StorageProvider } from '../types.js'
+import type { ByteRange, DirEntry, StorageProvider } from '../types.js'
+import { nodeReadableToWeb, webReadableToNode } from './_stream-interop.js'
 
 export interface AzureBlobProviderOptions {
   connectionString: string
@@ -95,6 +96,41 @@ export function createAzureBlobProvider(
       const prefix = normalized + '/'
       for await (const blob of containerClient.listBlobsFlat({ prefix })) {
         await containerClient.getBlockBlobClient(blob.name).delete()
+      }
+    },
+
+    async readStream(path: string, range?: ByteRange): Promise<ReadableStream<Uint8Array>> {
+      const blobClient = containerClient.getBlockBlobClient(normalizePath(path))
+      try {
+        // Azure's `download(offset, count)` is offset+length, not start+end.
+        // Convert from our inclusive ByteRange to Azure's offset+count.
+        // Azure with no args returns the full blob.
+        const response = range
+          ? await blobClient.download(range.start, range.end - range.start + 1)
+          : await blobClient.download()
+        if (!response.readableStreamBody) throw new Error(`Empty body for ${path}`)
+        // The Azure SDK only ships Node-side streams; the typed return is
+        // `NodeJS.ReadableStream` (no web stream variant). Bridge to web.
+        return nodeReadableToWeb(response.readableStreamBody as import('node:stream').Readable)
+      } catch (err: unknown) {
+        const statusCode = (err as { statusCode?: number }).statusCode
+        if (statusCode === 404) throw new Error(`File not found: ${path}`)
+        throw new Error(`Cannot read stream from ${path}: ${(err as Error).message}`)
+      }
+    },
+
+    async writeStream(path: string, stream: ReadableStream<Uint8Array>): Promise<void> {
+      const blobClient = containerClient.getBlockBlobClient(normalizePath(path))
+      try {
+        // `uploadStream` reads from the Node Readable in 4 MiB blocks (default
+        // `bufferSize`), with up to 5 concurrent block uploads. Atomic from
+        // a reader's perspective — Azure commits the block list only after
+        // the last block is staged, so partial state is never visible.
+        // Memory bound is `bufferSize × maxConcurrency` ≈ 20 MiB regardless
+        // of total bytes.
+        await blobClient.uploadStream(webReadableToNode(stream))
+      } catch (err) {
+        throw new Error(`Cannot write stream to ${path}: ${(err as Error).message}`)
       }
     },
   }

@@ -12,20 +12,11 @@
  * large-video path would need true streaming; calling sites that need that
  * can compose the lower-level primitives (sniffMimeFromStream, hashStream,
  * atomicWriteStream) directly.
- *
- * Gate on capability: the target storage provider must implement
- * `BinaryStorage`. The pipeline throws `AssetProviderNotCapableError` when
- * it doesn't — the HTTP route turns that into a 501.
  */
 import type { AssetManifest, AssetVariant } from '../schema/types.js'
-import { isBinaryCapable, type StorageProvider } from '../types.js'
+import type { StorageProvider } from '../types.js'
 import { rmIgnoreMissing } from '../providers/_rm-ignore-missing.js'
-import {
-  AssetMimeMismatchError,
-  AssetProviderNotCapableError,
-  AssetStorageError,
-  AssetVariantGenerationError,
-} from './errors.js'
+import { AssetMimeMismatchError, AssetStorageError, AssetVariantGenerationError } from './errors.js'
 import { ASSET_HASH_LENGTH, hashBytes } from './hash.js'
 import { extractImageDimensions } from './image-metadata.js'
 import { assetBytesPath, assetVariantBytesPath, writeManifest } from './manifest.js'
@@ -40,7 +31,7 @@ const EXT_BY_MIME: Record<string, string> = {
 }
 
 export interface IngestInput {
-  /** The target's storage provider. Must implement `BinaryStorage`. */
+  /** The target's storage provider. */
   storage: StorageProvider
   /** The assets directory prefix (e.g., `"assets"`) relative to storage root. */
   assetsRoot: string
@@ -65,15 +56,10 @@ export interface IngestResult {
  * `{assetsRoot}/{name}.asset.json`.
  *
  * Throws:
- * - `AssetProviderNotCapableError` — storage doesn't support binary streaming
  * - `AssetValidationError` — name, size, or MIME failed policy
  * - `AssetStorageError` — storage write failed
  */
 export async function ingestAsset(input: IngestInput): Promise<IngestResult> {
-  if (!isBinaryCapable(input.storage)) {
-    throw new AssetProviderNotCapableError('target does not support writing binary assets')
-  }
-
   // Collect bytes once so we can sniff, hash, measure, and persist from the
   // same buffer without re-consuming the source stream.
   const buffer = await collectBytes(input.bytes)

@@ -19,7 +19,6 @@ import {
   AssetNameInvalidError,
   AssetNameReservedError,
   AssetPathTraversalError,
-  AssetProviderNotCapableError,
   AssetSizeExceededError,
   AssetStorageError,
   AssetValidationError,
@@ -114,10 +113,6 @@ describe('AssetError.toResponseBody()', () => {
     expect(body.code).toBe('ASSET_STORAGE_FAILURE')
     expect(body.message).toContain('assets/hero.jpg')
     expect(err.httpStatus).toBe(500)
-  })
-
-  it('AssetProviderNotCapableError carries httpStatus 501', () => {
-    expect(new AssetProviderNotCapableError('reason').httpStatus).toBe(501)
   })
 
   it('AssetMimeUnsupportedError body is { code, message } with 500 status', () => {

@@ -92,6 +92,7 @@
   },
   "peerDependencies": {
     "@aws-sdk/client-s3": ">=3",
+    "@aws-sdk/lib-storage": ">=3",
     "@azure/storage-blob": ">=12",
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0"
@@ -100,12 +101,16 @@
     "@aws-sdk/client-s3": {
       "optional": true
     },
+    "@aws-sdk/lib-storage": {
+      "optional": true
+    },
     "@azure/storage-blob": {
       "optional": true
     }
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.1030.0",
+    "@aws-sdk/lib-storage": "^3.1039.0",
     "@azure/storage-blob": "^12.31.0",
     "@cloudflare/workers-types": "^4.20260413.1",
     "@stryker-mutator/core": "^9.6.1",

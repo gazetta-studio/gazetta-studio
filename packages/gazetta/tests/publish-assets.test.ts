@@ -22,25 +22,7 @@ import { ingestAsset } from '../src/assets/ingest.js'
 import { publishAssets } from '../src/assets/publish.js'
 import { createContentRoot } from '../src/content-root.js'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
-import type { StorageProvider } from '../src/types.js'
 import { tempDir } from './_helpers/temp.js'
-
-/**
- * Strip BinaryStorage methods from a provider — simulates today's R2/S3/
- * Azure providers (text-only). The text-side methods still work, so the
- * publish flow can exercise the capability check without needing a real
- * non-streaming backend.
- */
-function withoutBinaryStreaming(p: StorageProvider): StorageProvider {
-  return {
-    readFile: p.readFile.bind(p),
-    writeFile: p.writeFile.bind(p),
-    readDir: p.readDir.bind(p),
-    exists: p.exists.bind(p),
-    mkdir: p.mkdir.bind(p),
-    rm: p.rm.bind(p),
-  }
-}
 
 const testDir = tempDir('publish-assets-test-' + Date.now())
 const sourceDir = join(testDir, 'source')
@@ -123,37 +105,15 @@ describe('publishAssets', () => {
     expect(targetManifest.variants).toHaveLength(manifest.variants.length)
   })
 
-  it('refuses when target lacks BinaryStorage and pages reference assets — lists pages', async () => {
+  it('passes with no work when itemNames have no asset refs', async () => {
     const sourceStorage = createFilesystemProvider(sourceDir)
-    const incapableTarget = withoutBinaryStreaming(createFilesystemProvider(targetDir))
-    await seedSourceAsset('hero', await jpeg(800, 400))
-    await seedSourcePage('home', { hero: { _asset: 'hero' } })
-
-    const result = await publishAssets({
-      sourceRoot: createContentRoot(sourceStorage),
-      targetRoot: createContentRoot(incapableTarget),
-      itemNames: ['pages/home'],
-    })
-
-    expect(result.ok).toBe(false)
-    if (result.ok) return
-    expect(result.reason).toBe('target-incapable')
-    expect(result.affectedItems).toEqual(['pages/home'])
-    expect(result.assets).toContain('hero')
-
-    // No bytes landed on the (incapable) target.
-    expect(existsSync(join(targetDir, 'assets'))).toBe(false)
-  })
-
-  it('passes when target lacks BinaryStorage but no asset refs exist', async () => {
-    const sourceStorage = createFilesystemProvider(sourceDir)
-    const incapableTarget = withoutBinaryStreaming(createFilesystemProvider(targetDir))
+    const targetStorage = createFilesystemProvider(targetDir)
     // Page with no asset refs.
     await seedSourcePage('home', { title: 'no images here' })
 
     const result = await publishAssets({
       sourceRoot: createContentRoot(sourceStorage),
-      targetRoot: createContentRoot(incapableTarget),
+      targetRoot: createContentRoot(targetStorage),
       itemNames: ['pages/home'],
     })
 
