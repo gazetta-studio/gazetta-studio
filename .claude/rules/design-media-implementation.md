@@ -63,6 +63,136 @@ Proxy and pin are v1.5 — ship as an additive feature after v1 stabilizes.
 - Font subsetting, variable-axis exposure per reference, `@font-face` preload hint generation (v2 typography polish)
 - Transcripts / captions (VTT/SRT) as companion files to audio/video assets
 
+## Asset refs — per-edge sidecar index (v1)
+
+design-media.md specifies a `.refs/{name}.json` aggregate index written
+incrementally on every page/fragment save. The shape was reconsidered after a
+measurement run and a multi-instance correctness review; the v1 implementation
+uses **per-edge zero-byte sidecars** instead of an aggregate JSON file.
+
+### Why we measured first
+
+Walk-on-demand (`findAssetRefs`, today) reads every page + fragment manifest on
+every delete check. Bench shape and cost:
+
+Test: [packages/gazetta/tests/perf-refs.bench.ts](../../packages/gazetta/tests/perf-refs.bench.ts) —
+runs against docker-compose (MinIO + Azurite via testcontainers). Reproduce with
+`cd packages/gazetta && npx vitest bench tests/perf-refs.bench.ts --run`.
+
+Mean ms per operation, walk-on-demand:
+
+| Backend         |     N=100 |     N=500 |    N=1000 |
+|-----------------|----------:|----------:|----------:|
+| filesystem      |       3.8 |      18.2 |      39.8 |
+| s3 (MinIO)      |     117.9 |     533.6 |     929.5 |
+| azure (Azurite) |     342.0 |    1341.0 |    2607.3 |
+
+The emulator timings undercount real cloud — every walk does ~N round-trips,
+each adding 30-50ms RTT. Real S3 / Azure at N=1000 projects to 30-60s.
+
+**The 5-second SLA bar:** admin response should be <5s for any user-facing
+operation. Walk-on-demand crosses 5s at ~150 pages on real cloud. v1 typical
+sites are 50-200 pages and growing — walks WILL break the SLA in production.
+Build the index now, not v1.5.
+
+### Why per-edge sidecars over aggregate JSON
+
+Three competing shapes considered:
+
+| Shape | Read cost | Write cost (per save) | Multi-instance |
+|---|---|---|---|
+| Walk manifests (today) | ~30s real cloud at N=1000 | 0 | Correct |
+| Aggregate `.refs/{name}.json` | 1 read 50ms | read+modify+write 150ms | **Drifts**; needs If-Match |
+| Per-edge `.gazetta/asset-refs/{name}/{item}` | 1 readDir 50ms | 0-N file writes 0-250ms | **Correct** (granularity solves it) |
+
+Per-edge sidecar wins on multi-instance correctness. Admin can run as a
+horizontally-scaled container (Cloud Run, Fly, Kubernetes). Two instances saving
+different items that both reference the same asset write to **different paths**
+(`hero/pages.home` vs `hero/pages.about`). No race, no If-Match, no retry —
+**granularity solves the concurrency problem**. The aggregate JSON would need
+optimistic concurrency primitives (etag-based writes), which doesn't fit the
+current StorageProvider contract.
+
+Per-edge sidecars also match the existing pattern for `.uses-{frag}` and
+`.tpl-{template}` sidecars — same shape, different domain.
+
+### Storage shape — same on source and target
+
+Targets carry full state (per design-publishing.md "self-sufficient targets"
+principle). Asset-refs sidecars live on both source AND target so any target
+promoted to source is immediately usable, no backfill required.
+
+```
+{root}/
+├── pages/
+│   └── home/
+│       ├── page.json
+│       ├── .uses-header                  # existing
+│       ├── .uses-footer
+│       ├── .tpl-page-default
+│       └── .{8hex}.hash
+├── assets/
+│   ├── hero.asset.json
+│   └── hero-{hash}.jpg
+└── .gazetta/
+    ├── history/                          # existing per-target undo
+    └── asset-refs/                       # NEW
+        └── hero/
+            ├── pages.home                # zero-byte file
+            └── pages.home:fr             # locale variant
+```
+
+Filename encoding: `pages.home` (slashes → dots, same `encodeRefName` as
+existing sidecars). Locale variants get a `:locale` suffix.
+
+### Update path
+
+| Operation | Effect |
+|---|---|
+| Save page/fragment manifest | Diff old vs new asset refs; write/delete sidecars under `.gazetta/asset-refs/{asset}/{item}` |
+| Publish | Publish flow writes asset-refs sidecars to target alongside other sidecars (same loop as `.uses-*`/`.tpl-*`) |
+| Delete asset (with replace) | Replace flow rewrites refs in manifests; per-manifest save updates sidecars naturally |
+| History restore (undo) | Re-derive sidecars for the restored manifest's asset refs |
+| External `rm` of a manifest | Drift; reindex CLI recovers |
+
+### Read path
+
+`delete.ts` switches from `findAssetRefs` (walk all manifests) to `readDir`
+of the asset's sidecar directory. Same return shape (`AssetRef[]`), but
+without `componentPath` detail (sidecar filename encodes only `path`).
+For breadcrumb display in the in-use error, re-read the named manifests
+on demand to recover `componentPath`. Most callers don't need it.
+
+### Drift recovery
+
+The index is derived state. Reindex CLI (`gazetta assets reindex`) walks all
+manifests and rewrites sidecars from scratch. Trigger: external manifest
+mutations (text-editor edits, git pulls), or any user-suspected drift.
+
+### Gitignore
+
+Source-side editable target's `.gazetta/asset-refs/` is gitignored — derived
+state, not authoritative. Existing rules under `**/targets/**/` extend with:
+
+```
+**/targets/**/.gazetta/asset-refs/
+```
+
+Filesystem-target dist dirs (`dist/staging`, etc.) are already covered by the
+existing `dist/` gitignore.
+
+### Not in scope
+
+- In-memory-only design (breaks under multi-instance — every container would
+  build its own Map and they'd diverge).
+- Single aggregate file (`.refs.json`) — write contention serializes all saves
+  AND fails multi-instance correctness without optimistic concurrency.
+- SQLite — incompatible with the StorageProvider abstraction's "everything is
+  bytes at a path" contract.
+- Converting `index/fragments.json` (cache-purge index) to sidecars — different
+  problem (single-writer publish-time aggregate, not multi-writer save-time
+  incremental). Aggregate JSON is correct for that use case; leave it as-is.
+
 ## Adjacent capabilities reserved for v1.5 / v2
 
 From competitor research (Sanity, Payload, Strapi, Storyblok, Directus, Contentful), the following features ship in most mainstream CMSes. Not in v1, but acknowledged so we don't miss them at v2 planning time.

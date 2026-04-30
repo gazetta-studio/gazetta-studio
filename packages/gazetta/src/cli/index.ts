@@ -147,6 +147,8 @@ function printHelp() {
     gazetta undo [target] [site]    Restore the previous revision (soft undo)
     gazetta rollback <rev> [target] [site]
                                     Restore an arbitrary revision by id
+    gazetta assets reindex [target] [site]
+                                    Rebuild the asset-refs sidecar index from manifests
     gazetta help                    Show this help message
 
   Options:
@@ -540,8 +542,14 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
     siteDir,
   )
 
-  const { publishPageRendered, publishPageStatic, publishFragmentRendered, publishSiteManifest, publishFragmentIndex } =
-    await import('../publish-rendered.js')
+  const {
+    publishPageRendered,
+    publishPageStatic,
+    publishFragmentRendered,
+    publishSiteManifest,
+    publishFragmentIndex,
+    publishAssetRefsIndex,
+  } = await import('../publish-rendered.js')
   const { publishPageAllLocales, publishFragmentAllLocales } = await import('../publish-locale.js')
   const { scanTemplates, templateHashesFrom, reportTemplateErrors } = await import('../templates-scan.js')
   const { hashManifest } = await import('../hash.js')
@@ -724,9 +732,10 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
     }
     if (skipped > 0) console.log(`    ${c.dim(`· ${skipped} unchanged (skipped)`)}`)
 
-    // Site manifest + fragment index
+    // Site manifest + fragment index + asset-refs index
     await publishSiteManifest(sourceRoot, targetStorage, site)
     await publishFragmentIndex(sourceRoot, targetStorage, site)
+    await publishAssetRefsIndex(sourceRoot, targetStorage, site)
     totalFiles += 2
 
     // Sitemap + robots.txt — generated from target sidecars
@@ -2060,6 +2069,11 @@ async function main() {
     // Find the target arg — skip the item (pages/... or fragments/...) and --to/locale flags
     const translatePositionals = parsed.positional.filter(p => !p.startsWith('pages/') && !p.startsWith('fragments/'))
     if (translatePositionals.length > 0) targetName = translatePositionals[0]
+  } else if (command === 'assets') {
+    // gazetta assets <subcommand> [target] [site]
+    // subcommand is parsed.positional[0]; subsequent positionals are target/site.
+    siteDir = await resolveSiteDir(parsed.positional[2])
+    targetName = parsed.positional[1] ? await resolveTarget(parsed.positional[1], siteDir) : undefined
   } else {
     console.error(`  Unknown command: ${command}\n`)
     printHelp()
@@ -2170,7 +2184,60 @@ async function main() {
       else await runHistoryRollback(ctx, rollbackRevisionId!, { yes: parsed.yes })
       break
     }
+    case 'assets': {
+      const subcommand = args[1]
+      if (subcommand === 'reindex') {
+        await runAssetsReindex(siteDir, targetName)
+      } else {
+        console.error(`  Usage: gazetta assets <reindex>`)
+        console.error(`  reindex — rebuild the asset-refs sidecar index from manifests`)
+        process.exit(1)
+      }
+      break
+    }
   }
+}
+
+/**
+ * Rebuild `.gazetta/asset-refs/` sidecars from current manifests.
+ *
+ * Use this to recover from drift caused by external manifest mutations
+ * (text-editor edits, git pulls). Walks all pages + fragments, wipes the
+ * existing index, writes fresh sidecars per `_asset` reference.
+ *
+ * Targets the editable source (matching where save handlers normally
+ * write the index). For target-side reindex, run `gazetta publish` —
+ * the publish flow rebuilds the target's index as part of its run.
+ *
+ * Warning: do not run while a dev server is actively saving — concurrent
+ * writes to source manifests during the rebuild walk could leave the
+ * index out of sync with the manifest mid-walk. Stop dev first.
+ */
+async function runAssetsReindex(siteDir: string, targetName?: string): Promise<void> {
+  console.log()
+  console.log(`  ${c.bgGreen(c.bold(' gazetta '))} ${c.green('assets reindex')}`)
+  console.log()
+  console.log(`  ${c.dim('Note:')} stop any running dev server before reindexing to avoid drift.`)
+  console.log()
+
+  // Bootstrap loads site.yaml from `siteDir` and yields a source context
+  // for the editable target. The manifest is passed through to loadSite
+  // so we don't try to re-read site.yaml from the target's content tree
+  // (it lives at the site root, not the target root).
+  const { buildSourceContext } = await import('./bootstrap.js')
+  const { source, manifest } = await buildSourceContext({ projectSiteDir: siteDir, targetName })
+
+  const { loadSite } = await import('../site-loader.js')
+  const { rebuildAssetRefsIndex } = await import('../publish-rendered.js')
+
+  const site = await loadSite({ contentRoot: source.contentRoot, manifest })
+  const t0 = Date.now()
+  await rebuildAssetRefsIndex(site, source.contentRoot.storage, source.contentRoot.rootPath)
+  const elapsed = Date.now() - t0
+
+  console.log(
+    `  ${c.green('✓')} Rebuilt asset-refs index for ${site.pages.size} page(s) + ${site.fragments.size} fragment(s) in ${elapsed}ms`,
+  )
 }
 
 /**

@@ -5,6 +5,7 @@ import { recordWrite } from '../../history-recorder.js'
 import type { SourceContextResolver } from '../source-context.js'
 import { CreateFragmentRequestSchema } from '../schemas/fragments.js'
 import { isValidLocale } from '../../locale.js'
+import { rebuildItemRefs, type ItemRef } from '../../assets/refs-sidecars.js'
 
 export function fragmentRoutes(resolve: SourceContextResolver) {
   const app = new Hono()
@@ -58,6 +59,10 @@ export function fragmentRoutes(resolve: SourceContextResolver) {
     const manifest = { template: body.template, components: [] }
     await storage.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
     await sidecarWriter?.writeFor('fragment', body.name)
+    // Asset-refs sidecars: empty initial fragment, no-op today; wired
+    // for symmetry with the fragment-update path.
+    const item: ItemRef = { source: 'fragment', name: body.name }
+    await rebuildItemRefs(source.contentRoot, item, null, manifest)
     return c.json({ ok: true, name: body.name })
   })
 
@@ -128,6 +133,9 @@ export function fragmentRoutes(resolve: SourceContextResolver) {
     }
     await storage.writeFile(manifestPath, serialized)
     await sidecarWriter?.writeFor('fragment', name)
+    // Asset-refs sidecars: diff old (in-memory `fragment`) vs new manifest.
+    const item: ItemRef = locale ? { source: 'fragment', name, locale } : { source: 'fragment', name }
+    await rebuildItemRefs(source.contentRoot, item, fragment, manifest)
     return c.json({ ok: true })
   })
 
@@ -149,6 +157,15 @@ export function fragmentRoutes(resolve: SourceContextResolver) {
       })
     }
     await storage.rm(fragment.dir)
+    // Asset-refs sidecars: tear down default + every locale variant.
+    const localeEntry = site.fragmentLocales.get(name)
+    const variantManifests = localeEntry ? [...localeEntry.locales.entries()] : []
+    await Promise.all([
+      rebuildItemRefs(source.contentRoot, { source: 'fragment', name }, fragment, null),
+      ...variantManifests.map(([loc, variant]) =>
+        rebuildItemRefs(source.contentRoot, { source: 'fragment', name, locale: loc }, variant, null),
+      ),
+    ])
     return c.json({ ok: true })
   })
 

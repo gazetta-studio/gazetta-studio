@@ -45,6 +45,7 @@ import { rmIgnoreMissing } from '../providers/_rm-ignore-missing.js'
 import { manifestPath, readManifest } from './manifest.js'
 // `manifestPath` is used when composing the deleted-manifest history item.
 import { rewriteManifestAssetRef } from './rewrite-manifest-asset-ref.js'
+import { rebuildItemRefs, type ItemRef } from './refs-sidecars.js'
 
 export interface ReplaceAssetInput {
   /** Storage holding both the asset and the content tree. */
@@ -101,7 +102,16 @@ export async function replaceAsset(input: ReplaceAssetInput): Promise<ReplaceAss
   const contentRoot = createContentRoot(input.storage, input.siteDir)
   const site = await loadSite({ contentRoot, manifest: input.manifest })
 
-  type Rewrite = { path: string; serialized: string }
+  type Rewrite = {
+    path: string
+    serialized: string
+    /** The pre-rewrite manifest — needed for asset-refs sidecar diff. */
+    oldManifest: ComponentManifest
+    /** The rewritten manifest. */
+    newManifest: ComponentManifest
+    /** Identity of this rewritten item — needed for sidecar update. */
+    item: ItemRef
+  }
   const rewrites: Rewrite[] = []
   let refsRewritten = 0
 
@@ -117,6 +127,9 @@ export async function replaceAsset(input: ReplaceAssetInput): Promise<ReplaceAss
       path: localeManifestPath('pages', name, 'page', locale),
       // Same formatting as admin-api save paths: two-space JSON + trailing newline.
       serialized: `${JSON.stringify(stripRuntimeFields(manifest), null, 2)}\n`,
+      oldManifest: page,
+      newManifest: manifest,
+      item: locale ? { source: 'page', name, locale } : { source: 'page', name },
     })
   }
 
@@ -131,6 +144,9 @@ export async function replaceAsset(input: ReplaceAssetInput): Promise<ReplaceAss
     rewrites.push({
       path: localeManifestPath('fragments', name, 'fragment', locale),
       serialized: `${JSON.stringify(stripRuntimeFields(manifest), null, 2)}\n`,
+      oldManifest: fragment,
+      newManifest: manifest,
+      item: locale ? { source: 'fragment', name, locale } : { source: 'fragment', name },
     })
   }
 
@@ -173,6 +189,22 @@ export async function replaceAsset(input: ReplaceAssetInput): Promise<ReplaceAss
       throw new AssetStorageError('write', abs, err)
     }
   }
+
+  // Step 5b — update asset-refs sidecars for each rewritten manifest.
+  // Each rewrite is "oldName ref dropped, newName ref added" for this
+  // item. `rebuildItemRefs` reads the old/new manifests' asset-ref
+  // sets and applies the diff: removes sidecar at .gazetta/asset-refs/
+  // {oldName}/{item}, adds at .gazetta/asset-refs/{newName}/{item}.
+  // Errors here are non-fatal — the manifest writes are the source of
+  // truth; sidecar drift is recoverable via reindex CLI.
+  await Promise.all(
+    rewrites.map(r =>
+      rebuildItemRefs(contentRoot, r.item, r.oldManifest, r.newManifest).catch(err => {
+        // eslint-disable-next-line no-console
+        console.warn(`asset-refs sidecar update failed for ${r.path}: ${(err as Error).message}`)
+      }),
+    ),
+  )
 
   // Step 6 — delete the old asset's bytes + variants + manifest in
   // removal-safe order. Reuses the same enumeration as `deleteAsset`;
