@@ -14,18 +14,17 @@
  * the same `exists()` call we'd make at copy time, so checking once at
  * the copy site is cheaper.
  */
-import { isBinaryCapable, type StorageProvider } from '../types.js'
+import type { ContentRoot } from '../content-root.js'
+import { isBinaryCapable } from '../types.js'
 import { assetPathsInRemovalOrder, assetStoragePaths } from './asset-paths.js'
 import { readManifest, writeManifest } from './manifest.js'
 import { planAssetCopy } from './publish-plan.js'
 
 export interface PublishAssetsInput {
-  readonly sourceStorage: StorageProvider
-  readonly targetStorage: StorageProvider
-  /** Path prefix for source content (where pages/, fragments/ live). */
-  readonly sourceSiteDir: string
-  /** Where assets live, relative to storage root (typically `"assets"`). */
-  readonly assetsRoot: string
+  /** Source content root (assets live at `sourceRoot.path('assets')`). */
+  readonly sourceRoot: ContentRoot
+  /** Target content root (assets land at `targetRoot.path('assets')`). */
+  readonly targetRoot: ContentRoot
   /** Items being published — e.g., `['pages/home', 'fragments/header']`. */
   readonly itemNames: readonly string[]
 }
@@ -53,30 +52,34 @@ export async function publishAssets(input: PublishAssetsInput): Promise<PublishA
 
   // Planner returns ok only when both providers are binary-capable.
   // Re-assert for the type checker so `readStream`/`writeStream` are visible.
-  if (!isBinaryCapable(input.sourceStorage) || !isBinaryCapable(input.targetStorage)) {
+  if (!isBinaryCapable(input.sourceRoot.storage) || !isBinaryCapable(input.targetRoot.storage)) {
     throw new Error('publishAssets: planner returned ok with non-binary providers')
   }
-  const source = input.sourceStorage
-  const target = input.targetStorage
+  const source = input.sourceRoot.storage
+  const target = input.targetRoot.storage
+  const sourceAssets = input.sourceRoot.path('assets')
+  const targetAssets = input.targetRoot.path('assets')
 
   let copiedAssets = 0
   let copiedFiles = 0
   for (const name of plan.assets) {
-    const sourceManifest = await readManifest(source, input.assetsRoot, name)
-    const paths = assetStoragePaths(input.assetsRoot, sourceManifest)
+    const sourceManifest = await readManifest(source, sourceAssets, name)
+    const sourcePaths = assetStoragePaths(sourceAssets, sourceManifest)
+    const targetPaths = assetStoragePaths(targetAssets, sourceManifest)
 
     // Content-addressed dedupe: the hash is in the bytes path, so its
     // presence on the target proves byte-equivalence. Skip the whole
     // asset (manifest + bytes + variants).
-    if (await target.exists(paths.bytes)) continue
+    if (await target.exists(targetPaths.bytes)) continue
 
-    await writeManifest(target, input.assetsRoot, sourceManifest)
+    await writeManifest(target, targetAssets, sourceManifest)
     copiedFiles++
 
-    const bytePaths = assetPathsInRemovalOrder(paths).filter(p => p !== paths.manifest)
-    for (const path of bytePaths) {
-      const stream = await source.readStream(path)
-      await target.writeStream(path, stream)
+    const sourceBytePaths = assetPathsInRemovalOrder(sourcePaths).filter(p => p !== sourcePaths.manifest)
+    const targetBytePaths = assetPathsInRemovalOrder(targetPaths).filter(p => p !== targetPaths.manifest)
+    for (let i = 0; i < sourceBytePaths.length; i++) {
+      const stream = await source.readStream(sourceBytePaths[i]!)
+      await target.writeStream(targetBytePaths[i]!, stream)
       copiedFiles++
     }
     copiedAssets++
