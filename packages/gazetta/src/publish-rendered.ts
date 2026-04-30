@@ -7,7 +7,10 @@ import { renderComponent, renderPage } from './renderer.js'
 import { writeSidecars, collectFragmentRefs } from './sidecars.js'
 import { createContentRoot, type ContentRoot } from './content-root.js'
 import { resolveSeoTags, escapeAttr } from './seo.js'
-import { ASSET_REFS, rebuildAssetRefs } from './assets/asset-deps.js'
+import type { DepRelation } from './dep-sidecars.js'
+import { rebuildItemDeps } from './dep-sidecars.js'
+import { ASSET_REFS } from './assets/asset-deps.js'
+import { FRAGMENT_DEPS } from './fragment-deps.js'
 
 function contentHash(content: string): string {
   return createHash('md5').update(content).digest('hex').slice(0, 8)
@@ -365,26 +368,24 @@ export async function publishSiteManifest(
 }
 
 /**
- * Rebuild the asset-refs sidecar index on the target.
+ * Rebuild a dep-sidecar index on the destination for one relation.
  *
  * Walks every page + fragment manifest (including locale variants) from
  * the source site and writes per-edge sidecars at
- * `{target}/.gazetta/asset-refs/{asset}/{item}`. Wipes the existing
- * index dir first to avoid stale entries from previous publishes.
+ * `{dest}/.gazetta/{rel.rootName}/{target}/{item}`. Wipes the existing
+ * index dir first to avoid stale entries from previous runs.
  *
  * Used by:
- *   - publish flow (CLI + admin route) at end of publish
+ *   - publish flow (CLI + admin route) at end of publish, once per relation
  *   - reindex CLI for source-side recovery
  *   - history-restorer after rollback
  *
- * The cost is N readDirs + N small writes; mirrors the rest of the
- * publish loop's per-item work.
- *
  * Why rebuild rather than incremental: a full rebuild is one walk +
- * N zero-byte writes — simpler than tracking diffs against the target's
+ * N zero-byte writes — simpler than tracking diffs against the dest's
  * prior state and equally fast for typical sites.
  */
-export async function rebuildAssetRefsIndex(
+export async function rebuildDepIndex(
+  rel: DepRelation,
   sourceSite: Site,
   destStorage: StorageProvider,
   destRootPath = '',
@@ -392,27 +393,59 @@ export async function rebuildAssetRefsIndex(
   const destRoot = createContentRoot(destStorage, destRootPath)
 
   // Wipe existing index — full rebuild semantics. Stale entries from
-  // assets that no longer exist in source manifests get cleared.
-  await destStorage.rm(destRoot.path('.gazetta', ASSET_REFS.rootName)).catch(() => {
+  // targets that no longer exist in source manifests get cleared.
+  await destStorage.rm(destRoot.path('.gazetta', rel.rootName)).catch(() => {
     // Missing dir = nothing to wipe; fine.
   })
 
   const writes: Promise<void>[] = []
   for (const { name, page, locale } of allPageEntries(sourceSite)) {
     const item = locale ? { source: 'page' as const, name, locale } : { source: 'page' as const, name }
-    writes.push(rebuildAssetRefs(destRoot, item, null, page))
+    writes.push(rebuildItemDeps(rel, destRoot, item, null, page))
   }
   for (const { name, fragment, locale } of allFragmentEntries(sourceSite)) {
     const item = locale ? { source: 'fragment' as const, name, locale } : { source: 'fragment' as const, name }
-    writes.push(rebuildAssetRefs(destRoot, item, null, fragment))
+    writes.push(rebuildItemDeps(rel, destRoot, item, null, fragment))
   }
   await Promise.all(writes)
 }
 
 /**
- * Publish-flow wrapper that loads the site if needed and rebuilds the
- * asset-refs index on the target. Same call shape as
- * `publishFragmentIndex` so callers can wire them in series.
+ * Backwards-compatible alias for the single-relation asset-refs rebuild.
+ * Kept until callers (history-restorer, reindex CLI) migrate to the
+ * generic `rebuildDepIndex(rel, …)` shape.
+ */
+export function rebuildAssetRefsIndex(
+  sourceSite: Site,
+  destStorage: StorageProvider,
+  destRootPath = '',
+): Promise<void> {
+  return rebuildDepIndex(ASSET_REFS, sourceSite, destStorage, destRootPath)
+}
+
+/**
+ * Publish-flow wrapper: load the site if needed and rebuild every
+ * dep-sidecar index on the target. Run once per publish (alongside
+ * `publishFragmentIndex` and `publishSiteManifest`). Indices rebuilt:
+ *   - asset-refs (queried by delete-block check, library usage panel)
+ *   - fragment-deps (queried by `findFragmentDependents` for the
+ *     publish-UI blast radius and fragment cache-purge URL lookup)
+ */
+export async function publishDepIndices(
+  sourceRoot: ContentRoot,
+  targetStorage: StorageProvider,
+  preloadedSite?: Site,
+): Promise<void> {
+  const site = preloadedSite ?? (await loadSite({ contentRoot: sourceRoot }))
+  await Promise.all([
+    rebuildDepIndex(ASSET_REFS, site, targetStorage, ''),
+    rebuildDepIndex(FRAGMENT_DEPS, site, targetStorage, ''),
+  ])
+}
+
+/**
+ * Backwards-compatible single-relation wrapper. New callers should use
+ * `publishDepIndices` to get both indices rebuilt in one walk.
  */
 export async function publishAssetRefsIndex(
   sourceRoot: ContentRoot,
@@ -420,7 +453,7 @@ export async function publishAssetRefsIndex(
   preloadedSite?: Site,
 ): Promise<void> {
   const site = preloadedSite ?? (await loadSite({ contentRoot: sourceRoot }))
-  await rebuildAssetRefsIndex(site, targetStorage, '')
+  await rebuildDepIndex(ASSET_REFS, site, targetStorage, '')
 }
 
 /**

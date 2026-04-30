@@ -6,6 +6,7 @@ import type { SourceContextResolver } from '../source-context.js'
 import { CreatePageRequestSchema } from '../schemas/pages.js'
 import { isValidLocale } from '../../locale.js'
 import { rebuildAssetRefs, type ItemRef } from '../../assets/asset-deps.js'
+import { rebuildFragmentDeps } from '../../fragment-deps.js'
 
 export function pageRoutes(resolve: SourceContextResolver) {
   const app = new Hono()
@@ -73,12 +74,15 @@ export function pageRoutes(resolve: SourceContextResolver) {
     }
     await storage.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
     await sidecarWriter?.writeFor('page', body.name)
-    // Asset-refs sidecars: a freshly-created page starts with no asset
-    // refs (the body is { template, content: { title } }), so this is a
-    // no-op today. Wired anyway so any future template that includes
-    // `_asset` refs in its initial content gets indexed.
+    // Dep sidecars: index this page's asset and fragment references.
+    // Freshly-created pages have empty manifests so this is mostly a
+    // no-op today, but wires the dep tracking the moment templates
+    // ship initial content with `_asset` or `@fragment` refs.
     const item: ItemRef = { source: 'page', name: body.name }
-    await rebuildAssetRefs(source.contentRoot, item, null, manifest)
+    await Promise.all([
+      rebuildAssetRefs(source.contentRoot, item, null, manifest),
+      rebuildFragmentDeps(source.contentRoot, item, null, manifest),
+    ])
     return c.json({ ok: true, name: body.name })
   })
 
@@ -162,12 +166,15 @@ export function pageRoutes(resolve: SourceContextResolver) {
     }
     await storage.writeFile(manifestPath, serialized)
     await sidecarWriter?.writeFor('page', name)
-    // Asset-refs sidecars: diff the asset refs the manifest had before
-    // this save against what it has now. Each affected asset gets its
-    // sidecar written/removed accordingly. The pre-save manifest is
-    // already in memory as `page` (via loadSiteFromSource).
+    // Dep sidecars: diff old vs new manifest for both asset and fragment
+    // references. Each affected target gets its sidecar written/removed
+    // accordingly. The pre-save manifest is already in memory as `page`
+    // (via loadSiteFromSource).
     const item: ItemRef = locale ? { source: 'page', name, locale } : { source: 'page', name }
-    await rebuildAssetRefs(source.contentRoot, item, page, manifest)
+    await Promise.all([
+      rebuildAssetRefs(source.contentRoot, item, page, manifest),
+      rebuildFragmentDeps(source.contentRoot, item, page, manifest),
+    ])
     return c.json({ ok: true })
   })
 
@@ -190,20 +197,24 @@ export function pageRoutes(resolve: SourceContextResolver) {
       })
     }
     await storage.rm(page.dir)
-    // Asset-refs sidecars: deleting the page removes all its refs.
-    // Pass the pre-delete manifest as `old`, null as `new` — module
-    // tears down the relevant sidecars. Per-locale variants share the
-    // page directory so they all go in the rm above; we tear down the
-    // default-locale's index here, plus any locale variants the site
-    // loader exposed via pageLocales.
+    // Dep sidecars: deleting the page removes all its refs (both asset
+    // and fragment). Pass pre-delete manifest as `old`, null as `new`.
+    // Per-locale variants share the page directory so they all go in
+    // the rm above; tear down the index entries for default + each
+    // locale variant the site loader exposed.
     const localeEntry = site.pageLocales.get(name)
     const variantManifests = localeEntry ? [...localeEntry.locales.entries()] : []
-    await Promise.all([
+    const teardowns: Promise<void>[] = [
       rebuildAssetRefs(source.contentRoot, { source: 'page', name }, page, null),
-      ...variantManifests.map(([loc, variant]) =>
+      rebuildFragmentDeps(source.contentRoot, { source: 'page', name }, page, null),
+    ]
+    for (const [loc, variant] of variantManifests) {
+      teardowns.push(
         rebuildAssetRefs(source.contentRoot, { source: 'page', name, locale: loc }, variant, null),
-      ),
-    ])
+        rebuildFragmentDeps(source.contentRoot, { source: 'page', name, locale: loc }, variant, null),
+      )
+    }
+    await Promise.all(teardowns)
     return c.json({ ok: true })
   })
 
