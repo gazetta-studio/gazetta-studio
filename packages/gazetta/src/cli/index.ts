@@ -610,13 +610,7 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
       ]
       const assetResult = await publishAssets({ sourceRoot, targetRoot, itemNames })
       if (!assetResult.ok) {
-        if (assetResult.reason === 'missing-on-source') {
-          console.error(`    ${c.red('✗')} Asset publish failed: source is missing — ${assetResult.missing.join(', ')}`)
-        } else {
-          console.error(
-            `    ${c.red('✗')} Asset publish failed: target lacks binary streaming. Cannot copy ${assetResult.assets.join(', ')} referenced by ${assetResult.affectedItems.join(', ')}`,
-          )
-        }
+        console.error(`    ${c.red('✗')} Asset publish failed: source is missing — ${assetResult.missing.join(', ')}`)
         process.exit(1)
       }
       if (assetResult.copiedAssets > 0) {

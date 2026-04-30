@@ -7,7 +7,10 @@ import {
   DeleteObjectCommand,
   CreateBucketCommand,
 } from '@aws-sdk/client-s3'
-import type { DirEntry, StorageProvider } from '../types.js'
+import { Upload } from '@aws-sdk/lib-storage'
+import type { Readable } from 'node:stream'
+import type { ByteRange, DirEntry, StorageProvider } from '../types.js'
+import { nodeReadableToWeb, webReadableToNode } from './_stream-interop.js'
 
 export interface S3ProviderOptions {
   endpoint: string
@@ -128,6 +131,53 @@ export function createS3Provider(options: S3ProviderOptions): StorageProvider & 
       const response = await client.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix }))
       for (const obj of response.Contents ?? []) {
         await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: obj.Key! }))
+      }
+    },
+
+    async readStream(path: string, range?: ByteRange): Promise<ReadableStream<Uint8Array>> {
+      const Key = normalizePath(path)
+      try {
+        const response = await client.send(
+          new GetObjectCommand({
+            Bucket: bucket,
+            Key,
+            // RFC 9110 §14.1.2 — inclusive bytes range. Same semantics as `ByteRange`.
+            Range: range ? `bytes=${range.start}-${range.end}` : undefined,
+          }),
+        )
+        if (!response.Body) throw new Error(`Empty body for ${path}`)
+        // In Node runtime the SDK returns Body as a Node Readable. The
+        // browser/edge build returns a web ReadableStream. We only run
+        // server-side (publish, dev-server, gazetta serve) — Node Readable
+        // is the deterministic path. Bridge to the lib-dom global so
+        // callers see one type regardless of provider.
+        return nodeReadableToWeb(response.Body as Readable)
+      } catch (err: unknown) {
+        const code = (err as { name?: string }).name
+        if (code === 'NoSuchKey') throw new Error(`File not found: ${path}`)
+        throw new Error(`Cannot read stream from ${path}: ${(err as Error).message}`)
+      }
+    },
+
+    async writeStream(path: string, stream: ReadableStream<Uint8Array>): Promise<void> {
+      const Key = normalizePath(path)
+      try {
+        // `Upload` is a hybrid — single-PUT below `partSize` (default 5 MiB),
+        // multipart above. Memory bound is `partSize × queueSize` (default
+        // 5 MiB × 4 = 20 MiB) regardless of total bytes, so a 4 GB video
+        // upload doesn't OOM. `abortOnFailure: true` (default) calls
+        // AbortMultipartUpload on error so we don't leak orphan parts.
+        const upload = new Upload({
+          client,
+          params: {
+            Bucket: bucket,
+            Key,
+            Body: webReadableToNode(stream),
+          },
+        })
+        await upload.done()
+      } catch (err) {
+        throw new Error(`Cannot write stream to ${path}: ${(err as Error).message}`)
       }
     },
   }

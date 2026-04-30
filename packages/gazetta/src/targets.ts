@@ -1,5 +1,4 @@
 import { resolve, join } from 'node:path'
-import { execSync } from 'node:child_process'
 import type { StorageProvider, TargetConfig, StorageConfig } from './types.js'
 import { isEditable } from './types.js'
 import { createFilesystemProvider } from './providers/filesystem.js'
@@ -130,7 +129,10 @@ export async function createStorageProvider(
           region: config.region,
         })
       } catch {
-        throw new Error('S3 storage requires @aws-sdk/client-s3. Install it: npm install @aws-sdk/client-s3')
+        throw new Error(
+          'S3 storage requires @aws-sdk/client-s3 and @aws-sdk/lib-storage. ' +
+            'Install them: npm install @aws-sdk/client-s3 @aws-sdk/lib-storage',
+        )
       }
     }
     case 'r2': {
@@ -138,49 +140,28 @@ export async function createStorageProvider(
       if (!config.bucket) throw new Error('R2 storage requires "bucket"')
       const accessKeyId = resolveEnvVars(config.accessKeyId)
       const secretAccessKey = resolveEnvVars(config.secretAccessKey)
-      // When S3 credentials are available, use S3 provider (fast, parallel — good for CI)
-      if (accessKeyId && secretAccessKey) {
-        try {
-          const { createS3Provider } = await import('./providers/s3.js')
-          return createS3Provider({
-            endpoint: `https://${config.accountId}.r2.cloudflarestorage.com`,
-            bucket: config.bucket,
-            accessKeyId,
-            secretAccessKey,
-            region: config.region,
-          })
-        } catch {
-          throw new Error(
-            'R2 with S3 credentials requires @aws-sdk/client-s3. Install it: npm install @aws-sdk/client-s3',
-          )
-        }
-      }
-      // Fall back to Cloudflare REST API using wrangler auth
-      let apiToken: string
-      try {
-        const output = execSync('npx wrangler auth token', {
-          encoding: 'utf-8',
-          timeout: 10000,
-          stdio: ['pipe', 'pipe', 'pipe'],
-        })
-        // wrangler prints a banner before the token — extract the last non-empty line
-        apiToken =
-          output
-            .split('\n')
-            .map(l => l.trim())
-            .filter(l => l && !l.includes('wrangler') && !l.includes('───'))
-            .pop() ?? ''
-      } catch {
+      if (!accessKeyId || !secretAccessKey) {
         throw new Error(
-          'R2 storage: no credentials found.\n' +
-            '  Either set R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY environment variables,\n' +
-            '  or run "npx wrangler login" to authenticate with Cloudflare.',
+          'R2 storage requires accessKeyId and secretAccessKey.\n' +
+            '  Set R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY environment variables, or\n' +
+            '  create an R2 API token at https://dash.cloudflare.com/<account>/r2/api-tokens',
         )
       }
-      if (!apiToken)
-        throw new Error('R2 storage: wrangler returned empty token. Run "npx wrangler login" to authenticate.')
-      const { createR2RestProvider } = await import('./providers/r2.js')
-      return createR2RestProvider({ accountId: config.accountId, bucket: config.bucket, apiToken })
+      try {
+        const { createS3Provider } = await import('./providers/s3.js')
+        return createS3Provider({
+          endpoint: `https://${config.accountId}.r2.cloudflarestorage.com`,
+          bucket: config.bucket,
+          accessKeyId,
+          secretAccessKey,
+          region: config.region,
+        })
+      } catch {
+        throw new Error(
+          'R2 storage requires @aws-sdk/client-s3 and @aws-sdk/lib-storage. ' +
+            'Install them: npm install @aws-sdk/client-s3 @aws-sdk/lib-storage',
+        )
+      }
     }
     default:
       throw new Error(`Unknown storage type: ${(config as StorageConfig).type}`)

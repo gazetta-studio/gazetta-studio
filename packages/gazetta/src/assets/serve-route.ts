@@ -1,9 +1,9 @@
 /**
  * HTTP route: `GET /assets/*` — serve asset bytes from a storage provider.
  *
- * Thin adapter. Narrows the provider to `BinaryStorage`, opens a `readStream`,
- * pipes it to the response with Content-Type + cache headers. Range request
- * support lets `<video>` seek and `<audio>` resume.
+ * Thin adapter. Opens a `readStream` and pipes it to the response with
+ * Content-Type + cache headers. Range request support lets `<video>`
+ * seek and `<audio>` resume.
  *
  * Mount this at the top level of the serving app (dev server,
  * `gazetta serve`), NOT under `/admin` — the resolver emits root-relative
@@ -22,7 +22,7 @@
  */
 import { Hono } from 'hono'
 import { stream } from 'hono/streaming'
-import { isBinaryCapable, type StorageProvider } from '../types.js'
+import type { StorageProvider } from '../types.js'
 
 /** Where assets live, relative to the target storage root. */
 const ASSETS_ROOT = 'assets'
@@ -53,10 +53,6 @@ export function assetServeRoutes(resolveStorage: AssetStorageResolver) {
     }
 
     const storage = await resolveStorage(c.req.query('target'))
-    if (!isBinaryCapable(storage)) {
-      return c.text('Target storage does not support streaming assets', 501)
-    }
-
     const storagePath = `${ASSETS_ROOT}/${path}`
     if (!(await storage.exists(storagePath))) {
       return c.text('Not found', 404)

@@ -16,6 +16,7 @@ export type {
   CacheConfig,
   DirEntry,
   StorageProvider,
+  ByteRange,
   PurgeStrategy,
 } from './types.js'
 export { getType, isEditable } from './types.js'
@@ -96,8 +97,6 @@ export { createAzureBlobProvider } from './providers/azure-blob.js'
 export type { AzureBlobProviderOptions } from './providers/azure-blob.js'
 export { createS3Provider } from './providers/s3.js'
 export type { S3ProviderOptions } from './providers/s3.js'
-export { createR2RestProvider } from './providers/r2.js'
-export type { R2RestProviderOptions } from './providers/r2.js'
 
 // Targets
 export { createStorageProvider, createTargetRegistry } from './targets.js'

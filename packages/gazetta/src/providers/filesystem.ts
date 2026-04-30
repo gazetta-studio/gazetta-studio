@@ -1,7 +1,7 @@
 import { createReadStream } from 'node:fs'
 import { access, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { BinaryStorage, ByteRange, DirEntry, StorageProvider } from '../types.js'
+import type { ByteRange, DirEntry, StorageProvider } from '../types.js'
 import { atomicWriteStream, atomicWriteString } from './_atomic-write.js'
 import { nodeReadableToWeb } from './_stream-interop.js'
 
@@ -9,7 +9,7 @@ import { nodeReadableToWeb } from './_stream-interop.js'
  * Filesystem storage provider. A thin adapter over `node:fs` — all atomicity
  * and stream-interop concerns are delegated to sibling modules.
  */
-export function createFilesystemProvider(basePath?: string): StorageProvider & BinaryStorage {
+export function createFilesystemProvider(basePath?: string): StorageProvider {
   function resolvePath(path: string): string {
     return basePath ? join(basePath, path) : path
   }

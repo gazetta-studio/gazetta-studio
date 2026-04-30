@@ -613,13 +613,9 @@ async function collectPublishedItemsForHistory(
 /**
  * Render an asset-publish failure as a single-line message for the
  * `target-result` error field. Surfaces the structured reason
- * (`missing-on-source` / `target-incapable`) plus the affected names
- * so the author knows what to fix without digging through logs.
+ * (`missing-on-source`) plus the affected names so the author knows
+ * what to fix without digging through logs.
  */
 function formatAssetPublishFailure(failure: Exclude<Awaited<ReturnType<typeof publishAssets>>, { ok: true }>): string {
-  if (failure.reason === 'missing-on-source') {
-    return `Asset publish failed: source is missing ${failure.missing.length} asset(s) — ${failure.missing.join(', ')}`
-  }
-  // target-incapable
-  return `Asset publish failed: target lacks binary streaming. Cannot copy ${failure.assets.length} asset(s) [${failure.assets.join(', ')}] referenced by ${failure.affectedItems.join(', ')}`
+  return `Asset publish failed: source is missing ${failure.missing.length} asset(s) — ${failure.missing.join(', ')}`
 }

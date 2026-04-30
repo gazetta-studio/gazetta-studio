@@ -62,17 +62,27 @@ npx gazetta publish production
 
 ## Authentication
 
-### Local development
+R2 uses S3-compatible API tokens — same path for local dev and CI.
 
-```bash
-npx wrangler login
+### R2 API token (storage credentials)
+
+Create the R2 API token at [dash.cloudflare.com](https://dash.cloudflare.com) → R2 →
+Manage R2 API Tokens → Create API Token. Pick "Object Read & Write" and scope it to
+your bucket. The dashboard shows the access key ID and secret access key once — copy
+both into your `.env`:
+
+```
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
 ```
 
-That's it. The CLI uses your wrangler session to upload to R2 via the Cloudflare REST API. No API keys needed.
+These are read by `site.yaml` at runtime. Same credentials work locally and in CI.
 
-### CI / GitHub Actions
+### Worker deploy token (for `gazetta deploy`)
 
-Create an API token at [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens) with these permissions:
+Worker deploy needs a separate Cloudflare API token at
+[dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
+with these permissions:
 
 | Permission | Access |
 |-----------|--------|
@@ -113,6 +123,8 @@ jobs:
       - name: Publish to R2
         run: npx gazetta publish sites/my-site
         env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
       - name: Deploy worker
@@ -126,14 +138,14 @@ jobs:
 Create a `.env` file in your site directory (gitignored automatically):
 
 ```
-CLOUDFLARE_API_TOKEN=your-token-here
+R2_ACCESS_KEY_ID=your-r2-access-key
+R2_SECRET_ACCESS_KEY=your-r2-secret-key
+CLOUDFLARE_API_TOKEN=your-cloudflare-api-token
 ```
 
 The CLI loads it automatically. Skipped when `CI=true`.
 
-### Fast uploads with R2 API tokens
-
-For faster parallel uploads (useful for large sites), create R2 API tokens in the dashboard under **R2 > Manage R2 API Tokens** and add them to your config:
+### Storage config
 
 ```yaml
 storage:
@@ -143,8 +155,6 @@ storage:
   accessKeyId: "${R2_ACCESS_KEY_ID}"
   secretAccessKey: "${R2_SECRET_ACCESS_KEY}"
 ```
-
-When both `accessKeyId` and `secretAccessKey` are set, the CLI uses the S3-compatible API for parallel uploads. When missing, it falls back to the Cloudflare REST API (sequential, but no extra credentials needed).
 
 ## Cache
 

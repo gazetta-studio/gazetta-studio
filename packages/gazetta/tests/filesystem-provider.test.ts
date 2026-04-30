@@ -2,7 +2,6 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { readFile, writeFile as nodeWriteFile, mkdir, readdir, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
-import { isBinaryCapable, type StorageProvider } from '../src/types.js'
 import { tempDir } from './_helpers/temp.js'
 
 const testDir = tempDir('fs-test-' + Date.now())
@@ -284,54 +283,6 @@ describe('writeStream and readStream', () => {
     const absolute = join(testDir, 'scoped.bin')
     const content = await readFile(absolute, 'utf-8')
     expect(content).toBe('scoped to basePath')
-  })
-})
-
-describe('isBinaryCapable type guard', () => {
-  it('returns true for the filesystem provider', () => {
-    const fs = createFilesystemProvider()
-    expect(isBinaryCapable(fs)).toBe(true)
-  })
-
-  it('returns false for a StorageProvider without streaming methods', () => {
-    // A minimal StorageProvider-shaped object — the shape R2/S3/Azure return.
-    // No readStream / writeStream, so the guard must reject it. This is the
-    // whole point of splitting BinaryStorage out of StorageProvider.
-    const textOnly: StorageProvider = {
-      async readFile() {
-        return ''
-      },
-      async writeFile() {},
-      async readDir() {
-        return []
-      },
-      async exists() {
-        return false
-      },
-      async mkdir() {},
-      async rm() {},
-    }
-    expect(isBinaryCapable(textOnly)).toBe(false)
-  })
-
-  it('narrows the type so readStream / writeStream are callable on the narrowed value', async () => {
-    await mkdir(testDir, { recursive: true })
-    const provider: StorageProvider = createFilesystemProvider(testDir)
-
-    // Without narrowing, readStream is not on StorageProvider.
-    // With the guard, TypeScript narrows and the call type-checks.
-    if (!isBinaryCapable(provider)) throw new Error('filesystem provider should be binary-capable')
-
-    await provider.writeStream(
-      'guarded.bin',
-      new ReadableStream({
-        start(c) {
-          c.enqueue(new TextEncoder().encode('narrowed'))
-          c.close()
-        },
-      }),
-    )
-    expect(await provider.exists('guarded.bin')).toBe(true)
   })
 })
 

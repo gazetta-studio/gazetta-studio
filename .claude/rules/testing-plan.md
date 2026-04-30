@@ -106,9 +106,8 @@ runs the battery against both S3 (MinIO) and Azure (Azurite), closing the
 **Azure had no direct CRUD tests** gap. Providers opt in by calling
 `runProviderConformance({ name, make(namespace) })` from their describe block.
 
-R2 via S3 API stays covered transitively through the MinIO factory (same
-`createS3Provider` code path). R2 via REST API (wrangler auth) remains a gap
-— deferred: needs Cloudflare API mock or a test account.
+R2 stays covered transitively through the MinIO factory (same
+`createS3Provider` code path).
 
 **Cleanup:** still open — `@testcontainers/azurite` in
 [apps/admin/package.json](../../apps/admin/package.json) is unused (Azurite is

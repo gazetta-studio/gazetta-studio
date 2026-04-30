@@ -108,5 +108,83 @@ export function runProviderConformance(factory: ProviderFactory): void {
       await provider.mkdir('mkdir-safe/a/b/c')
       await provider.mkdir('mkdir-safe/a/b/c') // second call, same path
     })
+
+    // ---- Binary streaming (part of the StorageProvider contract) ----
+
+    it('writeStream + readStream round-trip identical bytes', async () => {
+      const path = 'binary/roundtrip.bin'
+      const expected = makeBytes(2048)
+      await provider.writeStream(path, oneShotStream(expected))
+      const actual = await drainStream(await provider.readStream(path))
+      expect(actual.length).toBe(expected.length)
+      expect(actual).toEqual(expected)
+    })
+
+    it('readStream honors a byte range (HTTP Range semantics, inclusive)', async () => {
+      const path = 'binary/range.bin'
+      // 256 unique bytes — easy to assert per-byte after slicing.
+      const full = new Uint8Array(256)
+      for (let i = 0; i < 256; i++) full[i] = i
+      await provider.writeStream(path, oneShotStream(full))
+
+      // Inclusive range — bytes[10..19] is 10 bytes.
+      const slice = await drainStream(await provider.readStream(path, { start: 10, end: 19 }))
+      expect(slice.length).toBe(10)
+      expect(Array.from(slice)).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18, 19])
+    })
+
+    it('readStream throws on a missing path', async () => {
+      await expect(provider.readStream('binary/nope.bin')).rejects.toThrow()
+    })
+
+    it('writeStream overwrites an existing object atomically', async () => {
+      const path = 'binary/overwrite.bin'
+      await provider.writeStream(path, oneShotStream(makeBytes(512)))
+      const replacement = makeBytes(2048, 0xff)
+      await provider.writeStream(path, oneShotStream(replacement))
+      const actual = await drainStream(await provider.readStream(path))
+      expect(actual).toEqual(replacement)
+    })
   })
+}
+
+/** Produce a single-chunk ReadableStream from a Uint8Array. */
+function oneShotStream(bytes: Uint8Array): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({
+    start(ctrl) {
+      ctrl.enqueue(bytes)
+      ctrl.close()
+    },
+  })
+}
+
+/** Drain a ReadableStream into a single Uint8Array. */
+async function drainStream(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
+  const chunks: Uint8Array[] = []
+  const reader = stream.getReader()
+  try {
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) break
+      if (value) chunks.push(value)
+    }
+  } finally {
+    reader.releaseLock()
+  }
+  let total = 0
+  for (const c of chunks) total += c.length
+  const out = new Uint8Array(total)
+  let off = 0
+  for (const c of chunks) {
+    out.set(c, off)
+    off += c.length
+  }
+  return out
+}
+
+/** Make N deterministic bytes — repeating pattern based on index, optional seed. */
+function makeBytes(n: number, seed = 0): Uint8Array {
+  const out = new Uint8Array(n)
+  for (let i = 0; i < n; i++) out[i] = (i + seed) & 0xff
+  return out
 }

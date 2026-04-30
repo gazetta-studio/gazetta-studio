@@ -304,7 +304,20 @@ export interface ByteRange {
   end: number
 }
 
-/** Storage abstraction — filesystem, S3, Azure Blob, etc. */
+/**
+ * Storage abstraction — filesystem, S3, R2, Azure Blob.
+ *
+ * Implementations must provide atomic writes from a reader's perspective
+ * (filesystem uses write-then-rename; cloud PUT is naturally atomic per
+ * object; multipart uploads commit atomically). `readStream` must honor
+ * the optional `range` argument for video/audio seek.
+ *
+ * Binary streaming is part of the base contract, not a separate
+ * capability — every provider Gazetta ships supports it, and custom
+ * providers must too. Authors writing a non-streaming custom provider
+ * get a compile-time error (missing `readStream`/`writeStream`) rather
+ * than a runtime capability check that surfaces at publish time.
+ */
 export interface StorageProvider {
   readFile(path: string): Promise<string>
   readDir(path: string): Promise<DirEntry[]>
@@ -312,36 +325,8 @@ export interface StorageProvider {
   writeFile(path: string, content: string): Promise<void>
   mkdir(path: string): Promise<void>
   rm(path: string): Promise<void>
-}
-
-/**
- * Binary streaming capability — a separate interface because not every storage
- * provider supports it (v1 media slice: filesystem only; R2/S3/Azure gain this
- * in the wide rollout). Keeping it distinct from `StorageProvider` preserves LSP —
- * callers that don't need streaming never see methods that would throw at runtime.
- *
- * Implementations must provide atomic writes from a reader's perspective
- * (filesystem uses write-then-rename; cloud PUT is naturally atomic per object).
- * `readStream` must honor the optional `range` argument for video/audio seek.
- *
- * Use `isBinaryCapable(provider)` to narrow a `StorageProvider` to one that
- * supports binary streaming.
- */
-export interface BinaryStorage {
   readStream(path: string, range?: ByteRange): Promise<ReadableStream<Uint8Array>>
   writeStream(path: string, stream: ReadableStream<Uint8Array>): Promise<void>
-}
-
-/**
- * Runtime type guard: does this provider support binary streaming? Call sites
- * that upload/serve media use this to reject non-capable providers with a clear
- * error, rather than dispatching to a method that throws.
- */
-export function isBinaryCapable(provider: StorageProvider): provider is StorageProvider & BinaryStorage {
-  return (
-    typeof (provider as Partial<BinaryStorage>).readStream === 'function' &&
-    typeof (provider as Partial<BinaryStorage>).writeStream === 'function'
-  )
 }
 
 /** Resolved component ready for rendering */
