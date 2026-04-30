@@ -1,12 +1,13 @@
 import { createHash } from 'node:crypto'
 import type { StorageProvider, PurgeStrategy, CacheConfig } from './types.js'
 import type { Site } from './site-loader.js'
-import { loadSite } from './site-loader.js'
+import { allFragmentEntries, allPageEntries, loadSite } from './site-loader.js'
 import { resolvePage, resolveComponent, resolveFragment } from './resolver.js'
 import { renderComponent, renderPage } from './renderer.js'
 import { writeSidecars, collectFragmentRefs } from './sidecars.js'
 import { createContentRoot, type ContentRoot } from './content-root.js'
 import { resolveSeoTags, escapeAttr } from './seo.js'
+import { ASSET_REFS_ROOT, rebuildItemRefs } from './assets/refs-sidecars.js'
 
 function contentHash(content: string): string {
   return createHash('md5').update(content).digest('hex').slice(0, 8)
@@ -361,6 +362,65 @@ export async function publishSiteManifest(
   const site = preloadedSite ?? (await loadSite({ contentRoot: sourceRoot }))
   const manifest = { name: site.manifest.name, version: site.manifest.version }
   await targetStorage.writeFile('site.json', JSON.stringify(manifest))
+}
+
+/**
+ * Rebuild the asset-refs sidecar index on the target.
+ *
+ * Walks every page + fragment manifest (including locale variants) from
+ * the source site and writes per-edge sidecars at
+ * `{target}/.gazetta/asset-refs/{asset}/{item}`. Wipes the existing
+ * index dir first to avoid stale entries from previous publishes.
+ *
+ * Used by:
+ *   - publish flow (CLI + admin route) at end of publish
+ *   - reindex CLI for source-side recovery
+ *   - history-restorer after rollback
+ *
+ * The cost is N readDirs + N small writes; mirrors the rest of the
+ * publish loop's per-item work.
+ *
+ * Why rebuild rather than incremental: a full rebuild is one walk +
+ * N zero-byte writes — simpler than tracking diffs against the target's
+ * prior state and equally fast for typical sites.
+ */
+export async function rebuildAssetRefsIndex(
+  sourceSite: Site,
+  destStorage: StorageProvider,
+  destRootPath = '',
+): Promise<void> {
+  const destRoot = createContentRoot(destStorage, destRootPath)
+
+  // Wipe existing index — full rebuild semantics. Stale entries from
+  // assets that no longer exist in source manifests get cleared.
+  await destStorage.rm(destRoot.path(ASSET_REFS_ROOT)).catch(() => {
+    // Missing dir = nothing to wipe; fine.
+  })
+
+  const writes: Promise<void>[] = []
+  for (const { name, page, locale } of allPageEntries(sourceSite)) {
+    const item = locale ? { source: 'page' as const, name, locale } : { source: 'page' as const, name }
+    writes.push(rebuildItemRefs(destRoot, item, null, page))
+  }
+  for (const { name, fragment, locale } of allFragmentEntries(sourceSite)) {
+    const item = locale ? { source: 'fragment' as const, name, locale } : { source: 'fragment' as const, name }
+    writes.push(rebuildItemRefs(destRoot, item, null, fragment))
+  }
+  await Promise.all(writes)
+}
+
+/**
+ * Publish-flow wrapper that loads the site if needed and rebuilds the
+ * asset-refs index on the target. Same call shape as
+ * `publishFragmentIndex` so callers can wire them in series.
+ */
+export async function publishAssetRefsIndex(
+  sourceRoot: ContentRoot,
+  targetStorage: StorageProvider,
+  preloadedSite?: Site,
+): Promise<void> {
+  const site = preloadedSite ?? (await loadSite({ contentRoot: sourceRoot }))
+  await rebuildAssetRefsIndex(site, targetStorage, '')
 }
 
 /**

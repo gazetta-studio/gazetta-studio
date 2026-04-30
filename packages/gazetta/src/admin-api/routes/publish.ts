@@ -12,6 +12,7 @@ import {
   publishFragmentRendered,
   publishSiteManifest,
   publishFragmentIndex,
+  publishAssetRefsIndex,
   createCloudflarePurge,
   lookupCloudflareZoneId,
 } from '../../publish-rendered.js'
@@ -383,9 +384,10 @@ export function publishRoutes(
           yield { kind: 'progress', target: targetName, current, total, label: item }
         }
 
-        // 3. Site manifest + fragment index
+        // 3. Site manifest + fragment index + asset-refs index
         await publishSiteManifest(source.contentRoot, targetStorage, site)
         await publishFragmentIndex(source.contentRoot, targetStorage, site)
+        await publishAssetRefsIndex(source.contentRoot, targetStorage, site)
         totalFiles += 2
         current++
         yield { kind: 'progress', target: targetName, current, total, label: 'site manifest' }

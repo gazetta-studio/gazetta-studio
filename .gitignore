@@ -22,3 +22,9 @@ reports/
 **/targets/**/.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].hash
 **/targets/**/.uses-*
 **/targets/**/.tpl-*
+
+# Asset-refs reverse-dep index — derived from page/fragment manifests,
+# rebuilt on save / publish / reindex CLI. Lives at .gazetta/asset-refs/
+# (alongside history). Targets carry their own copy, but we don't commit
+# the source-side editable target's copy.
+**/targets/**/.gazetta/asset-refs/

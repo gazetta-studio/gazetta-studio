@@ -5,6 +5,7 @@ import { recordWrite } from '../../history-recorder.js'
 import type { SourceContextResolver } from '../source-context.js'
 import { CreatePageRequestSchema } from '../schemas/pages.js'
 import { isValidLocale } from '../../locale.js'
+import { rebuildItemRefs, type ItemRef } from '../../assets/refs-sidecars.js'
 
 export function pageRoutes(resolve: SourceContextResolver) {
   const app = new Hono()
@@ -72,6 +73,12 @@ export function pageRoutes(resolve: SourceContextResolver) {
     }
     await storage.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
     await sidecarWriter?.writeFor('page', body.name)
+    // Asset-refs sidecars: a freshly-created page starts with no asset
+    // refs (the body is { template, content: { title } }), so this is a
+    // no-op today. Wired anyway so any future template that includes
+    // `_asset` refs in its initial content gets indexed.
+    const item: ItemRef = { source: 'page', name: body.name }
+    await rebuildItemRefs(source.contentRoot, item, null, manifest)
     return c.json({ ok: true, name: body.name })
   })
 
@@ -155,6 +162,12 @@ export function pageRoutes(resolve: SourceContextResolver) {
     }
     await storage.writeFile(manifestPath, serialized)
     await sidecarWriter?.writeFor('page', name)
+    // Asset-refs sidecars: diff the asset refs the manifest had before
+    // this save against what it has now. Each affected asset gets its
+    // sidecar written/removed accordingly. The pre-save manifest is
+    // already in memory as `page` (via loadSiteFromSource).
+    const item: ItemRef = locale ? { source: 'page', name, locale } : { source: 'page', name }
+    await rebuildItemRefs(source.contentRoot, item, page, manifest)
     return c.json({ ok: true })
   })
 
@@ -177,6 +190,20 @@ export function pageRoutes(resolve: SourceContextResolver) {
       })
     }
     await storage.rm(page.dir)
+    // Asset-refs sidecars: deleting the page removes all its refs.
+    // Pass the pre-delete manifest as `old`, null as `new` — module
+    // tears down the relevant sidecars. Per-locale variants share the
+    // page directory so they all go in the rm above; we tear down the
+    // default-locale's index here, plus any locale variants the site
+    // loader exposed via pageLocales.
+    const localeEntry = site.pageLocales.get(name)
+    const variantManifests = localeEntry ? [...localeEntry.locales.entries()] : []
+    await Promise.all([
+      rebuildItemRefs(source.contentRoot, { source: 'page', name }, page, null),
+      ...variantManifests.map(([loc, variant]) =>
+        rebuildItemRefs(source.contentRoot, { source: 'page', name, locale: loc }, variant, null),
+      ),
+    ])
     return c.json({ ok: true })
   })
 

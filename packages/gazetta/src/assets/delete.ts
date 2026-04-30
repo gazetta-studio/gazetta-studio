@@ -24,11 +24,13 @@
  * enumeration loop picks up the new paths automatically.
  */
 import type { StorageProvider, SiteManifest } from '../types.js'
+import { createContentRoot } from '../content-root.js'
 import { rmIgnoreMissing } from '../providers/_rm-ignore-missing.js'
 import { assetPathsInRemovalOrder, assetStoragePaths } from './asset-paths.js'
 import { AssetInUseError, AssetStorageError } from './errors.js'
 import { findAssetRefs } from './find-refs.js'
 import { readManifest } from './manifest.js'
+import { itemRefToAssetRef, readRefsForAsset } from './refs-sidecars.js'
 
 export interface DeleteAssetInput {
   /** Storage holding both the asset and the content tree. */
@@ -57,12 +59,32 @@ export async function deleteAsset(input: DeleteAssetInput): Promise<void> {
   const manifest = await readManifest(input.storage, input.assetsRoot, input.assetName)
 
   // Step 2 — scan for refs.
-  const refs = await findAssetRefs({
-    storage: input.storage,
-    siteDir: input.siteDir,
-    assetName: input.assetName,
-    manifest: input.manifest,
-  })
+  //
+  // Fast path: read the per-edge asset-refs sidecars. O(1) directory
+  // listing under the asset's `.gazetta/asset-refs/{name}/` dir.
+  // Sidecars are populated by save handlers + publish + reindex CLI.
+  //
+  // Fallback: if the sidecar dir is empty AND we suspect drift (e.g.,
+  // freshly-cloned source where backfill hasn't run), fall through to
+  // the manifest walk for safety. The walk catches refs that the
+  // sidecar index would have missed for any reason — high-stakes
+  // operation (delete loses data), worth the extra ~30s on cloud at
+  // N=1000.
+  const contentRoot = createContentRoot(input.storage, input.siteDir)
+  const sidecarRefs = await readRefsForAsset(contentRoot, input.assetName)
+  let refs
+  if (sidecarRefs.length > 0) {
+    refs = sidecarRefs.map(itemRefToAssetRef)
+  } else {
+    // Sidecar dir empty or missing — could mean truly zero refs OR
+    // index drift / not-yet-backfilled. Walk to confirm; safe-on-doubt.
+    refs = await findAssetRefs({
+      storage: input.storage,
+      siteDir: input.siteDir,
+      assetName: input.assetName,
+      manifest: input.manifest,
+    })
+  }
 
   // Step 3 — refuse if in use.
   if (refs.length > 0) {
