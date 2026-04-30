@@ -2,8 +2,6 @@ import { createHash } from 'node:crypto'
 import type { ComponentEntry, FragmentManifest, PageManifest } from './types.js'
 
 const SIDECAR_RE = /^\.([0-9a-f]{8})\.hash(?:\.([a-z]{2}(?:-[a-z]+)?))?$/
-const USES_SIDECAR_RE = /^\.uses-(.+)$/
-const TPL_SIDECAR_RE = /^\.tpl-(.+)$/
 const PUB_SIDECAR_RE = /^\.pub-(\d{8}T\d{6}Z)(-noindex)?(?:\.([a-z]{2}(?:-[a-z]+)?))?$/
 
 /** Build a hash sidecar filename, optionally locale-suffixed. */
@@ -53,24 +51,6 @@ export function encodeRefName(name: string): string {
 }
 export function decodeRefName(name: string): string {
   return name.replace(/\./g, '/')
-}
-
-/** `.uses-header` for a page/fragment that references @header. */
-export function usesSidecarNameFor(fragmentName: string): string {
-  return `.uses-${encodeRefName(fragmentName)}`
-}
-export function parseUsesSidecarName(entryName: string): string | null {
-  const m = USES_SIDECAR_RE.exec(entryName)
-  return m ? decodeRefName(m[1]) : null
-}
-
-/** `.tpl-page-default` for a page/fragment rendered with that template. */
-export function templateSidecarNameFor(templateName: string): string {
-  return `.tpl-${encodeRefName(templateName)}`
-}
-export function parseTemplateSidecarName(entryName: string): string | null {
-  const m = TPL_SIDECAR_RE.exec(entryName)
-  return m ? decodeRefName(m[1]) : null
 }
 
 /** Compact ISO timestamp for `.pub-` sidecar filenames: `20260417T220000Z`. */

@@ -1,7 +1,6 @@
 import { join } from 'node:path'
 import type { StorageProvider } from './types.js'
 import type { ContentRoot } from './content-root.js'
-import { listSidecars } from './sidecars.js'
 import { mapLimit } from './concurrency.js'
 
 export interface PublishRequest {
@@ -273,37 +272,11 @@ async function findFragmentDependentsImpl(
  * Handles transitive fragment→fragment dependencies via BFS: if
  * @inner is referenced by @outer which is referenced by pages/home,
  * querying "@inner" returns home and @outer.
- *
- * The `{ template }` branch is dead code (no caller). Kept until step
- * 13c which will drop it along with forward `.tpl-*` sidecar writes.
  */
 export async function findDependentsFromSidecars(
   sourceRoot: ContentRoot,
-  query: { fragment: string } | { template: string },
+  query: { fragment: string },
 ): Promise<{ pages: string[]; fragments: string[] }> {
-  // Template branch — legacy forward-walk path. Unreachable in
-  // production today; removed in step 13c when forward `.tpl-*`
-  // sidecar writes go away.
-  if ('template' in query) {
-    const { storage } = sourceRoot
-    const pagesRoot = sourceRoot.path('pages')
-    const fragmentsRoot = sourceRoot.path('fragments')
-    const [pagesList, fragmentsList] = await Promise.all([
-      listSidecars(storage, pagesRoot),
-      listSidecars(storage, fragmentsRoot),
-    ])
-    const pages = new Set<string>()
-    const fragments = new Set<string>()
-    for (const [name, state] of pagesList) {
-      if (state.template === query.template) pages.add(name)
-    }
-    for (const [name, state] of fragmentsList) {
-      if (state.template === query.template) fragments.add(name)
-    }
-    return { pages: [...pages].sort(), fragments: [...fragments].sort() }
-  }
-
-  // Fragment query — read reverse-sidecar index with BFS for transitivity.
   const { readDepsForFragment } = await import('./fragment-deps.js')
   const pages = new Set<string>()
   const fragments = new Set<string>()

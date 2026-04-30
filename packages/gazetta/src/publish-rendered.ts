@@ -4,7 +4,7 @@ import type { Site } from './site-loader.js'
 import { allFragmentEntries, allPageEntries, loadSite } from './site-loader.js'
 import { resolvePage, resolveComponent, resolveFragment } from './resolver.js'
 import { renderComponent, renderPage } from './renderer.js'
-import { writeSidecars, collectFragmentRefs } from './sidecars.js'
+import { writeSidecars } from './sidecars.js'
 import { createContentRoot, type ContentRoot } from './content-root.js'
 import { resolveSeoTags, escapeAttr } from './seo.js'
 import type { DepRelation } from './dep-sidecars.js'
@@ -185,17 +185,14 @@ ${bodyContent}
   await targetStorage.writeFile(`${pageDir}/${indexFile}`, html)
   fileCount++
 
-  // Write content-hash sidecar + reverse-dep sidecars for compare/dependents.
-  // Locale variants get locale-suffixed sidecars (.hash.fr, .pub.fr);
-  // structural sidecars (.uses-*, .tpl-*) are shared (written only for default).
+  // Write content-hash + publish sidecars for compare. Locale variants
+  // get locale-suffixed sidecars (.hash.fr, .pub.fr).
   if (manifestHash) {
     await writeSidecars(
       targetStorage,
       pageDir,
       {
         hash: manifestHash,
-        uses: collectFragmentRefs(page.components),
-        template: page.template,
         pub: {
           lastPublished: new Date().toISOString(),
           noindex: !!page.metadata?.robots?.includes('noindex'),
@@ -255,8 +252,6 @@ export async function publishPageStatic(
   if (manifestHash) {
     await writeSidecars(targetStorage, `pages/${pageName}`, {
       hash: manifestHash,
-      uses: collectFragmentRefs(page.components),
-      template: page.template,
       pub: {
         lastPublished: new Date().toISOString(),
         noindex: !!page.metadata?.robots?.includes('noindex'),
@@ -331,17 +326,14 @@ export async function publishFragmentRendered(
   await targetStorage.writeFile(`${fragDir}/${indexFile}`, fragmentHtml)
   fileCount++
 
-  // Write content-hash sidecar + reverse-dep sidecars for compare/dependents.
-  // Locale variants get locale-suffixed sidecars (.hash.fr);
-  // structural sidecars (.uses-*, .tpl-*) are shared (written only for default).
+  // Write content-hash sidecar for compare. Locale variants get
+  // locale-suffixed sidecars (.hash.fr).
   if (manifestHash) {
     await writeSidecars(
       targetStorage,
       fragDir,
       {
         hash: manifestHash,
-        uses: collectFragmentRefs(fragment.components),
-        template: fragment.template,
         pub: null,
       },
       locale,
@@ -426,7 +418,7 @@ export function rebuildAssetRefsIndex(
 /**
  * Publish-flow wrapper: load the site if needed and rebuild every
  * dep-sidecar index on the target. Run once per publish (alongside
- * `publishFragmentIndex` and `publishSiteManifest`). Indices rebuilt:
+ * `publishSiteManifest`). Indices rebuilt:
  *   - asset-refs (queried by delete-block check, library usage panel)
  *   - fragment-deps (queried by `findFragmentDependents` for the
  *     publish-UI blast radius and fragment cache-purge URL lookup)
@@ -454,33 +446,6 @@ export async function publishAssetRefsIndex(
 ): Promise<void> {
   const site = preloadedSite ?? (await loadSite({ contentRoot: sourceRoot }))
   await rebuildDepIndex(ASSET_REFS, site, targetStorage, '')
-}
-
-/**
- * Build and store reverse fragment index.
- * Maps each fragment to the list of page routes that use it.
- */
-export async function publishFragmentIndex(
-  sourceRoot: ContentRoot,
-  targetStorage: StorageProvider,
-  preloadedSite?: Site,
-): Promise<Record<string, string[]>> {
-  const site = preloadedSite ?? (await loadSite({ contentRoot: sourceRoot }))
-  const index: Record<string, string[]> = {}
-
-  for (const [_pageName, page] of site.pages) {
-    if (!page.components) continue
-    for (const entry of page.components) {
-      if (typeof entry === 'string' && entry.startsWith('@')) {
-        if (!index[entry]) index[entry] = []
-        index[entry].push(page.route)
-      }
-    }
-  }
-
-  await targetStorage.mkdir('index')
-  await targetStorage.writeFile('index/fragments.json', JSON.stringify(index))
-  return index
 }
 
 /** Purge via Cloudflare zone cache API */
@@ -511,56 +476,3 @@ export async function lookupCloudflareZoneId(siteUrl: string, apiToken: string):
   return data.result?.[0]?.id ?? null
 }
 
-/**
- * Publish a fragment and purge affected pages.
- */
-export async function publishFragmentWithPurge(
-  fragmentName: string,
-  sourceStorage: StorageProvider,
-  sourceDir: string,
-  targetStorage: StorageProvider,
-  purge: PurgeStrategy,
-  purgeMode: 'all' | 'url' = 'all',
-): Promise<{ files: number; purgedUrls: string[] }> {
-  const result = await publishFragmentRendered(fragmentName, createContentRoot(sourceStorage, sourceDir), targetStorage)
-
-  if (purgeMode === 'all') {
-    await purge.purgeAll()
-    return { ...result, purgedUrls: ['*'] }
-  }
-
-  let index: Record<string, string[]> = {}
-  try {
-    index = JSON.parse(await targetStorage.readFile('index/fragments.json'))
-  } catch {
-    /* no index yet */
-  }
-
-  const urls = index[`@${fragmentName}`] ?? []
-  if (urls.length > 0) {
-    await purge.purgeUrls(urls)
-  }
-  return { ...result, purgedUrls: urls }
-}
-
-/**
- * Publish a page and purge its URL.
- */
-export async function publishPageWithPurge(
-  pageName: string,
-  sourceStorage: StorageProvider,
-  sourceDir: string,
-  targetStorage: StorageProvider,
-  purge: PurgeStrategy,
-): Promise<{ files: number; purgedUrls: string[] }> {
-  const sourceRoot = createContentRoot(sourceStorage, sourceDir)
-  const result = await publishPageRendered(pageName, sourceRoot, targetStorage)
-
-  const site = await loadSite({ contentRoot: sourceRoot })
-  const page = site.pages.get(pageName)
-  if (page) await purge.purgeUrls([page.route])
-
-  await publishFragmentIndex(sourceRoot, targetStorage)
-
-  return { ...result, purgedUrls: page ? [page.route] : [] }
-}

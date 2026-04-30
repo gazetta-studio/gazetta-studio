@@ -4,8 +4,6 @@ import { logger } from 'hono/logger'
 import type { StorageProvider, TargetConfig } from '../types.js'
 import { scanTemplates } from '../templates-scan.js'
 import { memoizeAsync } from '../concurrency.js'
-import { createSourceSidecarWriter, type SourceSidecarWriter } from '../source-sidecars.js'
-import { createContentRoot } from '../content-root.js'
 import { createTargetRegistryView } from '../targets.js'
 import { createHistoryProvider } from '../history-provider.js'
 import { isHistoryEnabled, getHistoryRetention } from '../types.js'
@@ -52,8 +50,6 @@ export interface AdminAppOptions {
 
 type AdminApp = Hono & {
   invalidateTemplatesCache(): void
-  invalidateSourceSidecars(): void
-  writeSourceSidecar(kind: 'page' | 'fragment', name: string): Promise<void>
 }
 
 /**
@@ -90,40 +86,23 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   // Prefer an externally-provided SourceContext. Fall back to constructing
   // one from opts.storage + opts.siteDir, which is the legacy shape.
   let source: SourceContext
-  let sidecarWriter: SourceSidecarWriter
   if (opts.source) {
     source = opts.source
-    sidecarWriter =
-      opts.source.sidecarWriter ??
-      createSourceSidecarWriter({
-        contentRoot: opts.source.contentRoot,
-        scanTemplates: () => cachedScan.get(),
-        templatesDir,
-        manifest: opts.source.manifest,
-      })
     // Backfill history on the source if the caller didn't supply one —
     // dev bootstrap builds a bare SourceContext and relies on admin-api
     // to wire history per the target's config. Skip when the target's
     // site.yaml has `history.enabled: false`, or when there's no
     // matching targetConfig (legacy single-storage path).
-    const sourceHistory = opts.source.history ?? buildHistoryForSource(opts, source)
-    if (!opts.source.sidecarWriter || !opts.source.history) {
-      source = { ...opts.source, sidecarWriter, history: sourceHistory }
+    if (!opts.source.history) {
+      source = { ...opts.source, history: buildHistoryForSource(opts, opts.source) }
     }
   } else {
     if (!opts.storage) {
       throw new Error('createAdminApp: either `source` or `storage` must be provided')
     }
-    const bootstrapRoot = createContentRoot(opts.storage, opts.siteDir)
-    sidecarWriter = createSourceSidecarWriter({
-      contentRoot: bootstrapRoot,
-      scanTemplates: () => cachedScan.get(),
-      templatesDir,
-    })
     source = createSourceContext({
       storage: opts.storage,
       siteDir: opts.siteDir,
-      sidecarWriter,
       history: buildHistoryForLegacySource(opts),
     })
   }
@@ -146,7 +125,6 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
     resolveSource = registrySourceResolver({
       registry,
       projectSiteDir: source.projectSiteDir,
-      sidecarWriter,
       manifest: source.manifest,
       // The registry's filesystem targets are already content-rooted
       // (path=./targets/<key>); siteDir on the resolved context is empty.
@@ -189,8 +167,6 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   // Hono Request interface — the CLI casts the return.
   const appWithInvalidate = app as AdminApp
   appWithInvalidate.invalidateTemplatesCache = () => cachedScan.invalidate()
-  appWithInvalidate.invalidateSourceSidecars = () => sidecarWriter.invalidate()
-  appWithInvalidate.writeSourceSidecar = (kind, name) => sidecarWriter.writeFor(kind, name)
   return appWithInvalidate
 }
 

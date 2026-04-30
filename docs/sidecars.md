@@ -1,36 +1,67 @@
 # Sidecar Files
 
-Incremental publish and reverse-dependency queries rely on zero-byte files
-whose **names** encode metadata. No content reads — a single directory listing
-returns the full dependency state of a page or fragment. Scales to 10k+ items.
+Incremental publish and reverse-dependency queries rely on zero-byte files whose
+**names** (and locations, for reverse-dep indices) encode metadata. No content
+reads — directory listings return the state. Scales to 10k+ items.
 
 ## Kinds
 
-Three sidecar kinds live next to each page or fragment's manifest:
+Two roles, two storage shapes.
+
+### Per-item sidecars (next to each page/fragment manifest)
 
 | Name | Meaning | Example |
 |---|---|---|
-| `.{8hex}.hash` | Content hash of the manifest | `.cf120e4b.hash` |
-| `.uses-{fragment}` | This item references `@{fragment}` | `.uses-header` |
-| `.tpl-{template}` | This item is rendered with `{template}` | `.tpl-page-default` |
+| `.{8hex}.hash` | Content hash of the manifest, optionally locale-suffixed | `.cf120e4b.hash`, `.cf120e4b.hash.fr` |
+| `.pub-{ts}[-noindex][.{loc}]` | Last publish timestamp + noindex flag | `.pub-20260417T220000Z`, `.pub-20260417T220000Z-noindex.fr` |
 
-`writeSidecars` always writes all three kinds together. Partial state doesn't
-occur in real operation — any reader can assume `.hash` presence implies the
-`.uses-*` / `.tpl-*` set is complete.
+Used by:
+- `compareTargets` — listing target `.{hash}.hash` files to detect which items
+  are out of sync without reading manifests.
+- `gazetta publish` — published-state stamp + noindex propagation to sitemap
+  generation.
 
-Fragment/template names containing `/` (e.g. `buttons/primary`) are encoded
-with `__` in sidecar filenames: `.uses-buttons__primary`.
+### Reverse-dependency indices (`.gazetta/{relation}/{target}/{source}`)
+
+One zero-byte file per dependency edge. The directory tree itself is the index:
+`readDir` on `.gazetta/fragment-deps/header/` returns every page and fragment
+that references `@header`.
+
+| Path | Meaning | Example |
+|---|---|---|
+| `.gazetta/fragment-deps/{frag}/{source}` | `{source}` references `@{frag}` | `.gazetta/fragment-deps/header/pages.home` |
+| `.gazetta/asset-refs/{asset}/{source}` | `{source}` references `{asset}` (media library entry) | `.gazetta/asset-refs/hero/pages.home` |
+
+Source-item filenames encode `pages/<name>` as `pages.<name>` (slashes → dots
+via `encodeRefName` in [hash.ts](../packages/gazetta/src/hash.ts) — dots are
+reserved in ref names so the encoding is collision-free).
+
+The generic primitives live in [dep-sidecars.ts](../packages/gazetta/src/dep-sidecars.ts);
+[fragment-deps.ts](../packages/gazetta/src/fragment-deps.ts) and
+[asset-refs.ts](../packages/gazetta/src/assets/asset-deps.ts) bind it to the two
+relations.
+
+Used by:
+- `findDependentsFromSidecars` — "publishing `@header` affects pages.home,
+  pages.about, fragments.layout" via BFS on `.gazetta/fragment-deps/`.
+- Asset library delete-block check — refuses to delete an asset while any
+  `.gazetta/asset-refs/{asset}/*` entry exists.
+
+Why per-edge rather than aggregated `index/fragments.json`: per-edge files give
+multi-instance write correctness (concurrent admins on different items don't
+serialize through one shared file) and turn each query into an O(N) `readDir`
+rather than a parse-and-walk pass over a JSON map.
 
 ## Where sidecars live
 
-| Location | Written by | Used by |
-|---|---|---|
-| **Source** — `sites/{name}/pages/{page}/` | Admin API on save (`PUT /api/pages/...`), file watcher on external edits | `compareTargets` to skip rehashing unchanged items |
-| **Target** — `pages/{page}/` in target storage | `publishPageRendered` / `publishPageStatic` / `publishFragmentRendered` | `compareTargets` (is target up to date?), `findDependentsFromSidecars` (what pages use `@header`?) |
+Same filename format on both sides — [sidecars.ts](../packages/gazetta/src/sidecars.ts)
+(per-item) and [dep-sidecars.ts](../packages/gazetta/src/dep-sidecars.ts) (reverse)
+work for either source or target storage:
 
-Source and target use the **same filename format** — `writeSidecars` /
-`listSidecars` / `readSidecars` in [sidecars.ts](../packages/gazetta/src/sidecars.ts)
-work for either side.
+| Location | Per-item sidecars written by | Reverse indices written by |
+|---|---|---|
+| **Source** — `sites/{name}/pages/{page}/` | _(not written today; `gazetta validate` may add this in a future pass)_ | Admin API save handlers (per-edge incremental); `gazetta reindex` CLI; admin's first-time `/api/dependents` rebuild (memoized) |
+| **Target** — `pages/{page}/` in target storage | `publishPageRendered` / `publishPageStatic` / `publishFragmentRendered` | `publishDepIndices` after each publish (full rebuild from in-memory site) |
 
 ## Hash input
 
@@ -48,38 +79,39 @@ separately, and the edge runtime composes per request.
 ## Incremental publish flow
 
 1. `gazetta publish` runs `compareTargets` first.
-2. Compare builds local hashes (preferring source sidecars over rehashing) and
-   target hashes (by listing target sidecars).
+2. Compare always re-hashes from in-memory manifests (no source-side hash
+   cache) and lists target `.{hash}.hash` files.
 3. Items with matching hashes go in `unchanged`.
 4. Unless `--force`, the render loop skips items in `unchanged` and logs
    `N unchanged (skipped)`.
 
 Trust-the-sidecar model: we don't verify the rendered output file exists.
-If someone manually deletes `pages/home/index.html` on the target, the sidecar
-is lying and `--force` is the escape hatch.
+If someone manually deletes `pages/home/index.html` on the target, the
+sidecar is lying and `--force` is the escape hatch.
 
 ## Reverse-dependency queries
 
-`findDependentsFromSidecars(targetStorage, { fragment: "header" })` lists all
-pages and fragments whose sidecars include `.uses-header`, then walks
-transitive fragment → fragment references. Used by the admin UI to warn
-"publishing @header affects: home, about, blog."
+`findDependentsFromSidecars(contentRoot, { fragment: "header" })` reads
+`.gazetta/fragment-deps/header/` and BFS-walks transitive fragment → fragment
+references. Used by the admin UI to warn "publishing @header affects: home,
+about, blog."
 
 For static targets the admin extends the publish set with these dependents —
 republishing `@header` means republishing every page that bakes it in.
 
 ## Staleness windows
 
-Source sidecars can go stale when:
-
-- **Template changes.** The CLI template watcher calls `invalidateSourceSidecars()`
-  so the next save/edit rescans. Items whose sidecars predate the template change
-  get rehashed on next compare.
-- **External manifest edits.** The file watcher rewrites sidecars when `page.json`
-  or `fragment.json` changes outside the admin (git pull, direct edit).
-- **Publishing without running `gazetta dev`.** If sidecars never existed
-  because the admin wasn't used, compare falls back to `hashManifest` — correct
-  but slower.
+- **Save through admin** keeps both kinds incrementally consistent: the save
+  handlers write the per-item `.{hash}.hash` and update the affected
+  `.gazetta/{relation}/.../*` edges as part of the save.
+- **External manifest edits** (git pull, direct file edit) bypass the save
+  handlers. Per-item `.{hash}.hash` becomes stale until the next compare
+  rebuilds it; the reverse-dep index for the touched item also drifts until
+  the next publish runs `publishDepIndices`. The dev server's first
+  `/api/dependents` query against a fresh source rebuilds the fragment-deps
+  index from scratch (memoized per process).
+- **Publishing without running `gazetta dev`** is fine — compare always
+  rehashes; publish always rebuilds the dep indices on the destination.
 
 Target sidecars become stale only if someone mutates target storage outside
 of Gazetta (manual upload, bucket sync). `--force` handles that case.

@@ -566,23 +566,6 @@ describe('findDependentsFromSidecars', () => {
     expect(r.fragments).toEqual(['header'])
   })
 
-  it('returns items that use a given template', async () => {
-    const { findDependentsFromSidecars } = await import('../src/publish.js')
-    const target = createFilesystemProvider(targetDir)
-    // Real published state always has .hash alongside .uses-* / .tpl-*
-    await writeTestFile(targetDir, 'pages/home/.11111111.hash', '')
-    await writeTestFile(targetDir, 'pages/home/.uses-header', '')
-    await writeTestFile(targetDir, 'pages/home/.tpl-page-default', '')
-    await writeTestFile(targetDir, 'pages/blog/.22222222.hash', '')
-    await writeTestFile(targetDir, 'pages/blog/.tpl-page-blog', '')
-    await writeTestFile(targetDir, 'fragments/header/.33333333.hash', '')
-    await writeTestFile(targetDir, 'fragments/header/.tpl-header-layout', '')
-
-    const r = await findDependentsFromSidecars(createContentRoot(target), { template: 'page-default' })
-    expect(r.pages).toEqual(['home'])
-    expect(r.fragments).toEqual([])
-  })
-
   it('returns empty sets when target has no sidecars', async () => {
     const { findDependentsFromSidecars } = await import('../src/publish.js')
     const target = createFilesystemProvider(targetDir)

@@ -34,7 +34,7 @@ export function fragmentRoutes(resolve: SourceContextResolver) {
 
   app.post('/api/fragments', async c => {
     const source = await resolve(c.req.query('target'))
-    const { storage, sidecarWriter } = source
+    const { storage } = source
     // Schema-validate the body — same rationale as pages.ts.
     const raw = await c.req.json()
     const parsed = CreateFragmentRequestSchema.safeParse(raw)
@@ -59,7 +59,6 @@ export function fragmentRoutes(resolve: SourceContextResolver) {
     await storage.mkdir(fragDir)
     const manifest = { template: body.template, components: [] }
     await storage.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
-    await sidecarWriter?.writeFor('fragment', body.name)
     // Dep sidecars: empty initial fragment, no-op today; wired for
     // symmetry with the fragment-update path.
     const item: ItemRef = { source: 'fragment', name: body.name }
@@ -106,7 +105,7 @@ export function fragmentRoutes(resolve: SourceContextResolver) {
     if (rawLocale && !locale) return c.json({ error: `Invalid locale code: "${rawLocale}"` }, 400)
 
     const source = await resolve(c.req.query('target'))
-    const { storage, sidecarWriter } = source
+    const { storage } = source
     const site = await loadSiteFromSource(source)
 
     const defaultFragment = site.fragments.get(name)
@@ -136,7 +135,6 @@ export function fragmentRoutes(resolve: SourceContextResolver) {
       })
     }
     await storage.writeFile(manifestPath, serialized)
-    await sidecarWriter?.writeFor('fragment', name)
     // Dep sidecars: diff old (in-memory `fragment`) vs new manifest for
     // both asset and fragment dep relations.
     const item: ItemRef = locale ? { source: 'fragment', name, locale } : { source: 'fragment', name }

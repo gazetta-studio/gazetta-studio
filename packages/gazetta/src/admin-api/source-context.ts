@@ -12,7 +12,6 @@
 import type { StorageProvider, SiteManifest } from '../types.js'
 import { createContentRoot, type ContentRoot } from '../content-root.js'
 import { loadSite, type Site, type LoadSiteOptions } from '../site-loader.js'
-import type { SourceSidecarWriter } from '../source-sidecars.js'
 import type { TargetRegistry } from '../targets.js'
 import type { HistoryProvider } from '../history.js'
 
@@ -36,8 +35,6 @@ export interface SourceContext {
   readonly projectSiteDir: string
   /** Content root (storage + rooting prefix paired for path construction). */
   readonly contentRoot: ContentRoot
-  /** Optional sidecar writer for write-through hash/dependency tracking. */
-  readonly sidecarWriter?: SourceSidecarWriter
   /**
    * Name of the target this source resolves to, when known. Set by the
    * registry resolver; undefined for the legacy static resolver (which has
@@ -76,7 +73,6 @@ export interface CreateSourceContextOptions {
   siteDir: string
   /** Absolute project site directory. Defaults to `siteDir` for backward compat. */
   projectSiteDir?: string
-  sidecarWriter?: SourceSidecarWriter
   history?: HistoryProvider
   /** Project-level site manifest — passed to loadSite so targets don't need site.yaml. */
   manifest?: SiteManifest
@@ -88,7 +84,6 @@ export function createSourceContext(opts: CreateSourceContextOptions): SourceCon
     siteDir: opts.siteDir,
     projectSiteDir: opts.projectSiteDir ?? opts.siteDir,
     contentRoot: createContentRoot(opts.storage, opts.siteDir),
-    sidecarWriter: opts.sidecarWriter,
     history: opts.history,
     manifest: opts.manifest,
   }
@@ -118,7 +113,6 @@ export interface SourceContextFromRegistryOptions {
    * This is independent of the target's storage rooting.
    */
   projectSiteDir: string
-  sidecarWriter?: SourceSidecarWriter
   /** See BuildHistory — callable decides per-target history provider. */
   buildHistory?: BuildHistory
   /** Project-level site manifest. */
@@ -138,7 +132,6 @@ export function createSourceContextFromRegistry(opts: SourceContextFromRegistryO
       storage,
       siteDir: opts.siteDir ?? '',
       projectSiteDir: opts.projectSiteDir,
-      sidecarWriter: opts.sidecarWriter,
       history: opts.buildHistory?.(name, storage),
       manifest: opts.manifest,
     }),
@@ -172,8 +165,6 @@ export interface RegistrySourceResolverOptions {
   registry: TargetRegistry
   /** Required — absolute project site directory for the returned context. */
   projectSiteDir: string
-  /** Optional sidecar writer attached to every resolved context. */
-  sidecarWriter?: SourceSidecarWriter
   /**
    * Siteprefix to apply to the target's storage. Typically `''` since
    * registry-sourced storage is already target-rooted.
@@ -226,7 +217,6 @@ export function registrySourceResolver(opts: RegistrySourceResolverOptions): Sou
       projectSiteDir: opts.projectSiteDir,
       buildHistory: opts.buildHistory,
       siteDir: opts.siteDir,
-      sidecarWriter: opts.sidecarWriter,
       manifest: opts.manifest,
     })
     cache.set(name, ctx)

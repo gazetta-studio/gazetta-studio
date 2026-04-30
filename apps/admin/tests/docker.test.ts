@@ -14,7 +14,7 @@ import {
   type Site,
 } from 'gazetta'
 import { publishItems, resolveDependencies } from 'gazetta'
-import { publishPageRendered, publishFragmentRendered, publishSiteManifest, publishFragmentIndex } from 'gazetta'
+import { publishPageRendered, publishFragmentRendered, publishSiteManifest } from 'gazetta'
 import { runProviderConformance } from './_helpers/provider-conformance.js'
 
 const projectRoot = resolve(import.meta.dirname, '../../../examples/starter')
@@ -200,12 +200,15 @@ describe('Rendered publish (MinIO)', () => {
     expect(html).toContain('Welcome to Gazetta') // local component baked in
   })
 
-  it('builds reverse fragment index', async () => {
-    const index = await publishFragmentIndex(createContentRoot(source, starterDir), target, site)
-    expect(index['@header']).toContain('/')
-    expect(index['@footer']).toContain('/')
-    const stored = JSON.parse(await target.readFile('index/fragments.json'))
-    expect(stored).toEqual(index)
+  it('writes reverse fragment-deps sidecars on publish', async () => {
+    const { publishDepIndices } = await import('gazetta')
+    await publishDepIndices(createContentRoot(source, starterDir), target, site)
+    // Per-edge zero-byte files: `.gazetta/fragment-deps/{frag}/{source}`.
+    // Starter site references @header and @footer from the home page.
+    const headerDir = await target.readDir('.gazetta/fragment-deps/header')
+    expect(headerDir.map(e => e.name)).toContain('pages.home')
+    const footerDir = await target.readDir('.gazetta/fragment-deps/footer')
+    expect(footerDir.map(e => e.name)).toContain('pages.home')
   })
 })
 

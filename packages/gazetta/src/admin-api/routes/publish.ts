@@ -11,7 +11,6 @@ import {
   publishPageStatic,
   publishFragmentRendered,
   publishSiteManifest,
-  publishFragmentIndex,
   publishDepIndices,
   createCloudflarePurge,
   lookupCloudflareZoneId,
@@ -83,6 +82,39 @@ export function publishRoutes(
     return targetConfigs?.[name]
   }
 
+  // First-time dependents lookup against a source target needs the
+  // `.gazetta/fragment-deps/` index to be present. Save handlers write
+  // it incrementally on every save, but a fresh dev server pointed at
+  // a content tree that's never been saved through admin will have an
+  // empty index. Rebuild once per (source-target) and memoize the
+  // in-flight Promise so concurrent tree badges share one walk.
+  const fragmentDepsBackfill = new Map<string, Promise<void>>()
+  async function ensureFragmentDepsIndex(
+    source: import('../source-context.js').SourceContext,
+  ): Promise<void> {
+    const key = source.targetName ?? '__source__'
+    let p = fragmentDepsBackfill.get(key)
+    if (p) return p
+    p = (async () => {
+      const indexRoot = source.contentRoot.path('.gazetta', 'fragment-deps')
+      // Cheap existence probe — if any entry is present, the index has
+      // been written at least once and incremental save handlers keep
+      // it consistent thereafter.
+      const exists = await source.storage.exists(indexRoot)
+      if (exists) return
+      const { rebuildDepIndex } = await import('../../publish-rendered.js')
+      const { FRAGMENT_DEPS } = await import('../../fragment-deps.js')
+      const site = await loadSiteFromSource(source)
+      await rebuildDepIndex(FRAGMENT_DEPS, site, source.storage, source.contentRoot.rootPath)
+    })().catch(err => {
+      // Clear on failure so the next caller retries.
+      fragmentDepsBackfill.delete(key)
+      throw err
+    })
+    fragmentDepsBackfill.set(key, p)
+    return p
+  }
+
   app.get('/api/targets', async c => {
     const t = await getTargets()
     return c.json(
@@ -103,15 +135,12 @@ export function publishRoutes(
    * GET /api/dependents?item=fragments/header[&target=staging]
    *   → { pages: string[], fragments: string[] }
    *
-   * Without `target`: scans local source manifests (authoritative for the
-   * current draft state — what's about to be published). Slow-ish on very
-   * large sites since it reads every manifest.
-   *
-   * With `target`: uses published .uses-* / .tpl-* sidecars on that target.
-   * Listings only, no content reads — scales to 10k+ items at the cost of
-   * reflecting only what's been published (not unsaved local changes).
-   * Useful for answering "what pages would need republish if this fragment
-   * changed" on large sites.
+   * Reads `.gazetta/fragment-deps/` per-edge sidecars on the requested
+   * target (or the source when `target` is omitted or names the source).
+   * Save handlers maintain the index incrementally; a fresh dev server
+   * with no prior saves triggers a one-time rebuild via
+   * `ensureFragmentDepsIndex`. Listings only, no content reads —
+   * scales to 10k+ items.
    */
   app.get('/api/dependents', async c => {
     const item = c.req.query('item')
@@ -119,21 +148,10 @@ export function publishRoutes(
       return c.json({ error: 'Missing or invalid "item" query (must be fragments/<name>)' }, 400)
     }
     const fragmentName = item.slice('fragments/'.length)
-    // `target`  — specific published target's sidecars (read-only listing).
-    //              Useful for "what would need republish on staging?" queries
-    //              where sidecars reflect the last publish, not the draft.
-    // `source`  — the editable source target (authoritative for the draft).
-    //              When target === source (common case: client sends the
-    //              active editable target), route through source so the
-    //              sidecar writer can backfill missing entries.
     const targetName = c.req.query('target')
     const sourceName = c.req.query('source')
     try {
       const source = await resolve(sourceName)
-      // Treat `target=local` (the active editable target) the same as no
-      // target — the source path is the authoritative one for the draft,
-      // and it's the only path that knows how to backfill sidecars on a
-      // fresh dev server.
       const isTargetTheSource = !targetName || targetName === source.targetName
       if (!isTargetTheSource) {
         const t = await getTargets()
@@ -142,17 +160,8 @@ export function publishRoutes(
         const result = await findDependentsFromSidecars(createContentRoot(targetStorage), { fragment: fragmentName })
         return c.json(result)
       }
-      // Source-side path: ensure every item has a sidecar before reading.
-      // The writer memoizes the backfill — concurrent tree badges on a
-      // fresh dev server share one pass instead of racing to an empty index.
-      const sidecarWriter = source.sidecarWriter
-      if (sidecarWriter) {
-        await sidecarWriter.ensureBackfilled()
-        const result = await findDependentsFromSidecars(source.contentRoot, { fragment: fragmentName })
-        return c.json(result)
-      }
-      // No writer injected (legacy setup) — fall back to the manifest walker.
-      const result = await findFragmentDependents(source.contentRoot, fragmentName)
+      await ensureFragmentDepsIndex(source)
+      const result = await findDependentsFromSidecars(source.contentRoot, { fragment: fragmentName })
       return c.json(result)
     } catch (err) {
       return c.json({ error: (err as Error).message }, 500)
@@ -384,11 +393,10 @@ export function publishRoutes(
           yield { kind: 'progress', target: targetName, current, total, label: item }
         }
 
-        // 3. Site manifest + fragment index + dep-sidecar indices
+        // 3. Site manifest + dep-sidecar indices
         await publishSiteManifest(source.contentRoot, targetStorage, site)
-        await publishFragmentIndex(source.contentRoot, targetStorage, site)
         await publishDepIndices(source.contentRoot, targetStorage, site)
-        totalFiles += 2
+        totalFiles += 1
         current++
         yield { kind: 'progress', target: targetName, current, total, label: 'site manifest' }
 

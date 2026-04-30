@@ -547,7 +547,6 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
     publishPageStatic,
     publishFragmentRendered,
     publishSiteManifest,
-    publishFragmentIndex,
     publishDepIndices,
   } = await import('../publish-rendered.js')
   const { publishPageAllLocales, publishFragmentAllLocales } = await import('../publish-locale.js')
@@ -732,11 +731,10 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
     }
     if (skipped > 0) console.log(`    ${c.dim(`· ${skipped} unchanged (skipped)`)}`)
 
-    // Site manifest + fragment index + dep-sidecar indices
+    // Site manifest + dep-sidecar indices
     await publishSiteManifest(sourceRoot, targetStorage, site)
-    await publishFragmentIndex(sourceRoot, targetStorage, site)
     await publishDepIndices(sourceRoot, targetStorage, site)
-    totalFiles += 2
+    totalFiles += 1
 
     // Sitemap + robots.txt — generated from target sidecars
     const siteUrl = targetConfig?.siteUrl
@@ -755,8 +753,6 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
         if (!targetPageSidecars.has(pageName)) {
           targetPageSidecars.set(pageName, {
             hash: '',
-            uses: [],
-            template: page.template,
             pub: { lastPublished: now, noindex: !!page.metadata?.robots?.includes('noindex') },
           })
         }
@@ -767,8 +763,6 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
           if (!targetPageSidecars.has(key)) {
             targetPageSidecars.set(key, {
               hash: '',
-              uses: [],
-              template: localePage.template,
               pub: { lastPublished: now, noindex: !!localePage.metadata?.robots?.includes('noindex') },
             })
           }
@@ -1620,8 +1614,6 @@ async function runDev(siteDir: string, port: number) {
   let cmsApp:
     | (Hono & {
         invalidateTemplatesCache(): void
-        invalidateSourceSidecars(): void
-        writeSourceSidecar(kind: 'page' | 'fragment', name: string): Promise<void>
       })
     | null = null
   if (isDevMode) {
@@ -1865,13 +1857,6 @@ async function runDev(siteDir: string, port: number) {
     if (filename.endsWith('.json') || filename.endsWith('.yaml')) {
       console.log(`  Manifest changed: ${filename}`)
       invalidateAllTemplates()
-      // Refresh source sidecars for external edits (git pull, direct file
-      // edit). PUT routes already handle their own writes — this catches
-      // everything outside the admin UI.
-      const pageMatch = /^pages\/(.+)\/page\.json$/.exec(norm)
-      const fragMatch = /^fragments\/(.+)\/fragment\.json$/.exec(norm)
-      if (pageMatch) cmsApp?.writeSourceSidecar('page', pageMatch[1]).catch(() => {})
-      else if (fragMatch) cmsApp?.writeSourceSidecar('fragment', fragMatch[1]).catch(() => {})
       notifyReload()
     }
   })
@@ -1889,7 +1874,6 @@ async function runDev(siteDir: string, port: number) {
           // Drop the admin-api's cached scan so next compare/publish
           // rehashes. Cheap (the scan is what's slow, not invalidation).
           cmsApp?.invalidateTemplatesCache()
-          cmsApp?.invalidateSourceSidecars()
           notifyReload()
         }
       }
@@ -1930,8 +1914,6 @@ async function setupCmsApi(
 ): Promise<
   Hono & {
     invalidateTemplatesCache(): void
-    invalidateSourceSidecars(): void
-    writeSourceSidecar(kind: 'page' | 'fragment', name: string): Promise<void>
   }
 > {
   const cmsApp = createAdminApp({ source, siteDir, templatesDir, adminDir, targetConfigs })
