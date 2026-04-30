@@ -9,10 +9,13 @@
  *
  * Properties covered:
  *   1. encodeRefName / decodeRefName round-trip for arbitrary strings
- *   2. usesSidecarName round-trip (name → filename → name)
- *   3. templateSidecarName round-trip (name → filename → name)
- *   4. The three sidecar regexes don't collide — a filename the
- *      encoder produces for one kind isn't mistakenly parsed as another
+ *   2. hash sidecar regex never collides with pub sidecar regex
+ *   3. compactTimestamp / pubSidecar round-trip
+ *
+ * Reverse-dep relationships now live in `.gazetta/{relation}/{target}/{source}`
+ * per-edge sidecars (see dep-sidecars.ts) — there's no longer a per-item
+ * filename codec for `.uses-*` or `.tpl-*`. Those tests have been removed
+ * along with the encoders.
  *
  * Not covered here: hashManifest key-order invariance is example-tested
  * in hash.test.ts already.
@@ -25,10 +28,6 @@ import {
   decodeRefName,
   sidecarNameFor,
   parseSidecarName,
-  usesSidecarNameFor,
-  parseUsesSidecarName,
-  templateSidecarNameFor,
-  parseTemplateSidecarName,
   pubSidecarNameFor,
   parsePubSidecarName,
   compactTimestamp,
@@ -42,12 +41,6 @@ import {
  * The encoder's `/` ↔ `.` scheme is invertible only when the input
  * has no `.` — encodeRefName validates that, and this arbitrary stays
  * within the valid domain.
- *
- * Excluded:
- *   - Empty string (not meaningful as a ref)
- *   - Control characters (not valid in filenames on most providers)
- *   - `.` (validator throws; tested separately. `.` is already
- *     documented as off-limits in operations.md.)
  */
 const refNameArb = fc
   .string({ minLength: 1, maxLength: 40 })
@@ -65,7 +58,6 @@ describe('encodeRefName / decodeRefName', () => {
 
   it('replaces every forward slash with a dot', () => {
     expect(encodeRefName('a/b/c')).toBe('a.b.c')
-    // The fully-specced form: no slash survives encoding.
     fc.assert(
       fc.property(refNameArb, name => {
         expect(encodeRefName(name)).not.toMatch(/\//)
@@ -74,111 +66,24 @@ describe('encodeRefName / decodeRefName', () => {
   })
 
   it('preserves underscores — they are valid in ref names', () => {
-    // Underscore is a common spacing character in names. The codec
-    // uses `.` as the path separator specifically to keep `_` legal
-    // (earlier `/` ↔ `__` was ambiguous for inputs containing `_`).
     expect(encodeRefName('my_fragment')).toBe('my_fragment')
     expect(decodeRefName(encodeRefName('a_b/c_d'))).toBe('a_b/c_d')
   })
 
   it('throws on names containing a dot (reserved for path encoding)', () => {
-    // Dot is the path separator in encoded form. An author who sneaks
-    // a `.` into a ref would otherwise get silent misrouting on
-    // sidecar reads. Per operations.md, `.` is already documented as
-    // avoided in ref names — this makes the contract loud.
     expect(() => encodeRefName('foo.bar')).toThrow(/dot/i)
     expect(() => encodeRefName('.')).toThrow()
     expect(() => encodeRefName('a/b.c')).toThrow()
   })
 })
 
-describe('usesSidecarName round-trip', () => {
-  it('name → filename → name for arbitrary fragment names', () => {
-    fc.assert(
-      fc.property(refNameArb, name => {
-        expect(parseUsesSidecarName(usesSidecarNameFor(name))).toBe(name)
-      }),
-    )
-  })
-
-  it('produces filenames starting with `.uses-`', () => {
-    fc.assert(
-      fc.property(refNameArb, name => {
-        expect(usesSidecarNameFor(name).startsWith('.uses-')).toBe(true)
-      }),
-    )
-  })
-
-  it('rejects non-uses names (returns null)', () => {
-    expect(parseUsesSidecarName('index.html')).toBeNull()
-    expect(parseUsesSidecarName('.tpl-something')).toBeNull()
-    expect(parseUsesSidecarName('')).toBeNull()
-  })
-})
-
-describe('templateSidecarName round-trip', () => {
-  it('name → filename → name for arbitrary template names', () => {
-    fc.assert(
-      fc.property(refNameArb, name => {
-        expect(parseTemplateSidecarName(templateSidecarNameFor(name))).toBe(name)
-      }),
-    )
-  })
-
-  it('produces filenames starting with `.tpl-`', () => {
-    fc.assert(
-      fc.property(refNameArb, name => {
-        expect(templateSidecarNameFor(name).startsWith('.tpl-')).toBe(true)
-      }),
-    )
-  })
-
-  it('rejects non-tpl names (returns null)', () => {
-    expect(parseTemplateSidecarName('index.html')).toBeNull()
-    expect(parseTemplateSidecarName('.uses-something')).toBeNull()
-    expect(parseTemplateSidecarName('')).toBeNull()
-  })
-})
-
-describe('sidecar kind disambiguation', () => {
-  // The three sidecar parsers walk the same directory listing (see
-  // sidecars.ts readSidecars). If a filename produced by the uses
-  // encoder happened to also match the hash regex, readSidecars would
-  // misclassify it and callers would see the wrong data. This runs
-  // both encoders against arbitrary names and asserts each filename
-  // parses to exactly one kind.
-
-  it('usesSidecar filenames never parse as hash or tpl', () => {
-    fc.assert(
-      fc.property(refNameArb, name => {
-        const fname = usesSidecarNameFor(name)
-        expect(parseSidecarName(fname)).toBeNull()
-        expect(parseTemplateSidecarName(fname)).toBeNull()
-        // And the expected positive result for completeness.
-        expect(parseUsesSidecarName(fname)).toBe(name)
-      }),
-    )
-  })
-
-  it('templateSidecar filenames never parse as hash or uses', () => {
-    fc.assert(
-      fc.property(refNameArb, name => {
-        const fname = templateSidecarNameFor(name)
-        expect(parseSidecarName(fname)).toBeNull()
-        expect(parseUsesSidecarName(fname)).toBeNull()
-        expect(parseTemplateSidecarName(fname)).toBe(name)
-      }),
-    )
-  })
-
-  it('hash sidecar filenames never parse as uses or tpl', () => {
-    // Hashes are 8-hex — generate arbitrary 8-char lowercase hex.
+describe('hash sidecar', () => {
+  it('hash sidecar filenames never parse as pub', () => {
     const hexArb = fc.stringMatching(/^[0-9a-f]{8}$/, { minLength: 8, maxLength: 8 })
     fc.assert(
       fc.property(hexArb, hex => {
         const fname = sidecarNameFor(hex)
-        expect(parseUsesSidecarName(fname)).toBeNull()
-        expect(parseTemplateSidecarName(fname)).toBeNull()
+        expect(parsePubSidecarName(fname)).toBeNull()
         expect(parseSidecarName(fname)).toBe(hex)
       }),
     )
@@ -213,16 +118,12 @@ describe('pub sidecar', () => {
 
   it('parsePubSidecarName rejects non-pub sidecars', () => {
     expect(parsePubSidecarName('.abcd1234.hash')).toBeNull()
-    expect(parsePubSidecarName('.uses-header')).toBeNull()
-    expect(parsePubSidecarName('.tpl-page-default')).toBeNull()
     expect(parsePubSidecarName('random.txt')).toBeNull()
   })
 
-  it('pub sidecar does not collide with other sidecar kinds', () => {
+  it('pub sidecar does not collide with hash sidecar', () => {
     const pubName = pubSidecarNameFor(new Date('2026-04-17T22:00:00Z'))
     expect(parseSidecarName(pubName)).toBeNull()
-    expect(parseUsesSidecarName(pubName)).toBeNull()
-    expect(parseTemplateSidecarName(pubName)).toBeNull()
     expect(parsePubSidecarName(pubName)).not.toBeNull()
   })
 })

@@ -116,9 +116,7 @@ export {
   publishPageStatic,
   publishFragmentRendered,
   publishSiteManifest,
-  publishFragmentIndex,
-  publishFragmentWithPurge,
-  publishPageWithPurge,
+  publishDepIndices,
 } from './publish-rendered.js'
 
 // Format helpers

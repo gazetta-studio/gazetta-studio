@@ -41,7 +41,7 @@ export function pageRoutes(resolve: SourceContextResolver) {
 
   app.post('/api/pages', async c => {
     const source = await resolve(c.req.query('target'))
-    const { storage, sidecarWriter } = source
+    const { storage } = source
     // Schema-validate the body so drift between client and server
     // can't silently accept malformed requests. The Zod schema is the
     // single source of truth, shared with the client via
@@ -73,7 +73,6 @@ export function pageRoutes(resolve: SourceContextResolver) {
       components: [],
     }
     await storage.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
-    await sidecarWriter?.writeFor('page', body.name)
     // Dep sidecars: index this page's asset and fragment references.
     // Freshly-created pages have empty manifests so this is mostly a
     // no-op today, but wires the dep tracking the moment templates
@@ -125,7 +124,7 @@ export function pageRoutes(resolve: SourceContextResolver) {
     if (rawLocale && !locale) return c.json({ error: `Invalid locale code: "${rawLocale}"` }, 400)
 
     const source = await resolve(c.req.query('target'))
-    const { storage, sidecarWriter } = source
+    const { storage } = source
     const site = await loadSiteFromSource(source)
 
     // Resolve the page to update — locale variant or default
@@ -165,7 +164,6 @@ export function pageRoutes(resolve: SourceContextResolver) {
       })
     }
     await storage.writeFile(manifestPath, serialized)
-    await sidecarWriter?.writeFor('page', name)
     // Dep sidecars: diff old vs new manifest for both asset and fragment
     // references. Each affected target gets its sidecar written/removed
     // accordingly. The pre-save manifest is already in memory as `page`

@@ -14,7 +14,6 @@ import { createTargetRegistry, createTargetRegistryView } from '../targets.js'
 import type { SiteManifest, TargetConfig, StorageProvider } from '../types.js'
 import { createSourceContextFromRegistry, type SourceContext } from '../admin-api/source-context.js'
 import type { TargetRegistry } from '../targets.js'
-import type { SourceSidecarWriter } from '../source-sidecars.js'
 
 export interface BootstrapResult {
   /** Parsed site.yaml content. */
@@ -52,7 +51,6 @@ export interface BuildSourceContextOptions {
   manifest?: SiteManifest
   /** Explicit target name. Defaults to the registry's defaultEditable(). */
   targetName?: string
-  sidecarWriter?: SourceSidecarWriter
 }
 
 /**
@@ -117,7 +115,6 @@ export async function buildSourceContext(opts: BuildSourceContextOptions): Promi
     registry,
     targetName,
     projectSiteDir: opts.projectSiteDir,
-    sidecarWriter: opts.sidecarWriter,
     manifest,
   })
 

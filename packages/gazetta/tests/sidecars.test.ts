@@ -88,24 +88,19 @@ describe('readSidecars', () => {
     })
     expect(await readSidecars(storage, 'pages/home')).toEqual({
       hash: 'abcd1234',
-      uses: [],
-      template: null,
       pub: null,
     })
   })
 
-  it('returns full state when hash + uses + tpl sidecars are all present', async () => {
+  it('returns hash + pub state when both are present', async () => {
     storage.seed({
       'pages/home/page.json': '{}',
       'pages/home/.abcd1234.hash': '',
-      'pages/home/.uses-header': '',
-      'pages/home/.uses-footer': '',
-      'pages/home/.tpl-page-default': '',
+      'pages/home/.pub-20260417T220000Z': '',
     })
     const state = await readSidecars(storage, 'pages/home')
     expect(state?.hash).toBe('abcd1234')
-    expect(state?.uses.sort()).toEqual(['footer', 'header'])
-    expect(state?.template).toBe('page-default')
+    expect(state?.pub).toEqual({ lastPublished: '2026-04-17T22:00:00Z', noindex: false })
   })
 
   it('ignores unrelated files in the directory', async () => {
@@ -117,20 +112,8 @@ describe('readSidecars', () => {
     })
     expect(await readSidecars(storage, 'pages/home')).toEqual({
       hash: 'abcd1234',
-      uses: [],
-      template: null,
       pub: null,
     })
-  })
-
-  it('decodes subfolder-qualified uses-* names (buttons.primary → buttons/primary)', async () => {
-    storage.seed({
-      'pages/home/page.json': '{}',
-      'pages/home/.abcd1234.hash': '',
-      'pages/home/.uses-buttons.primary': '',
-    })
-    const state = await readSidecars(storage, 'pages/home')
-    expect(state?.uses).toEqual(['buttons/primary'])
   })
 })
 
@@ -140,30 +123,28 @@ describe('writeSidecars', () => {
     storage = memoryStorage()
   })
 
-  it('writes all three sidecar kinds for a full state', async () => {
+  it('writes the .hash sidecar for a hash-only state', async () => {
+    const state: SidecarState = { hash: 'deadbeef', pub: null }
+    await writeSidecars(storage, 'pages/home', state)
+    const files = [...storage.dump().keys()].filter(p => p.startsWith('pages/home/'))
+    expect(files).toContain('pages/home/.deadbeef.hash')
+    expect(files.some(f => f.includes('.uses-'))).toBe(false)
+    expect(files.some(f => f.includes('.tpl-'))).toBe(false)
+  })
+
+  it('writes hash + pub sidecars when both are present in state', async () => {
     const state: SidecarState = {
       hash: 'deadbeef',
-      uses: ['header', 'footer'],
-      template: 'page-default',
-      pub: null,
+      pub: { lastPublished: '2026-04-17T22:00:00Z', noindex: true },
     }
     await writeSidecars(storage, 'pages/home', state)
     const files = [...storage.dump().keys()].filter(p => p.startsWith('pages/home/'))
     expect(files).toContain('pages/home/.deadbeef.hash')
-    expect(files).toContain('pages/home/.uses-header')
-    expect(files).toContain('pages/home/.uses-footer')
-    expect(files).toContain('pages/home/.tpl-page-default')
-  })
-
-  it('skips tpl-* when template is null', async () => {
-    await writeSidecars(storage, 'pages/home', { hash: 'deadbeef', uses: [], template: null, pub: null })
-    const files = [...storage.dump().keys()].filter(p => p.startsWith('pages/home/'))
-    expect(files).toContain('pages/home/.deadbeef.hash')
-    expect(files.some(f => f.includes('.tpl-'))).toBe(false)
+    expect(files).toContain('pages/home/.pub-20260417T220000Z-noindex')
   })
 
   it('is idempotent — writing the same state twice leaves the same files', async () => {
-    const state: SidecarState = { hash: 'aa11bb22', uses: ['nav'], template: 'layout', pub: null }
+    const state: SidecarState = { hash: 'aa11bb22', pub: null }
     await writeSidecars(storage, 'pages/home', state)
     const snap1 = new Set([...storage.dump().keys()])
     await writeSidecars(storage, 'pages/home', state)
@@ -171,29 +152,12 @@ describe('writeSidecars', () => {
     expect(snap2).toEqual(snap1)
   })
 
-  it('removes stale sidecars that are no longer in the new state', async () => {
-    // Initial state: header + footer
-    await writeSidecars(storage, 'pages/home', {
-      hash: '11111111',
-      uses: ['header', 'footer'],
-      template: 'old-layout',
-      pub: null,
-    })
-    // New state: only header, different template, different hash
-    await writeSidecars(storage, 'pages/home', {
-      hash: '22222222',
-      uses: ['header'],
-      template: 'new-layout',
-      pub: null,
-    })
+  it('removes stale hash sidecar when hash changes', async () => {
+    await writeSidecars(storage, 'pages/home', { hash: '11111111', pub: null })
+    await writeSidecars(storage, 'pages/home', { hash: '22222222', pub: null })
     const files = [...storage.dump().keys()].filter(p => p.startsWith('pages/home/'))
     expect(files).toContain('pages/home/.22222222.hash')
-    expect(files).toContain('pages/home/.uses-header')
-    expect(files).toContain('pages/home/.tpl-new-layout')
-    // Old sidecars are gone
     expect(files).not.toContain('pages/home/.11111111.hash')
-    expect(files).not.toContain('pages/home/.uses-footer')
-    expect(files).not.toContain('pages/home/.tpl-old-layout')
   })
 
   it('leaves non-sidecar files alone (index.html, page.json, …)', async () => {
@@ -202,7 +166,7 @@ describe('writeSidecars', () => {
       'pages/home/index.html': '<html>',
       'pages/home/.01234567.hash': '', // an old sidecar — this SHOULD be removed
     })
-    await writeSidecars(storage, 'pages/home', { hash: 'abcdef01', uses: [], template: null, pub: null })
+    await writeSidecars(storage, 'pages/home', { hash: 'abcdef01', pub: null })
     const files = [...storage.dump().keys()].filter(p => p.startsWith('pages/home/'))
     expect(files).toContain('pages/home/page.json')
     expect(files).toContain('pages/home/index.html')
@@ -250,40 +214,29 @@ describe('writeSidecars — concurrency', () => {
 
   it('two concurrent writeSidecars on the same dir do not race each other', async () => {
     const storage = racingMemoryStorage()
-    // Seed a page.json so the dir "exists" in the memory storage.
     storage.seed({ 'pages/home/page.json': '{}' })
 
     const stateDefault: SidecarState = {
       hash: 'aaaaaaaa',
-      uses: ['header'],
-      template: 'page-default',
       pub: { lastPublished: '2026-04-23T22:00:00Z', noindex: false },
     }
     const stateFr: SidecarState = {
       hash: 'bbbbbbbb',
-      uses: ['header'],
-      template: 'page-default',
       pub: { lastPublished: '2026-04-23T22:00:00Z', noindex: false },
     }
 
-    // Both calls target `pages/home/`. Without the per-dir lock, call
-    // B's cleanup would observe call A's in-flight temp files (e.g.
-    // `.tpl-page-default.1`) and delete them — A's final writeFile
-    // would then throw "ENOENT: rename ...". The lock serializes them
-    // so B only ever sees A's committed state.
+    // Without the per-dir lock, call B's cleanup would observe call A's
+    // in-flight temp files and delete them — A's final writeFile would
+    // then throw "ENOENT: rename ...". The lock serializes them so B
+    // only ever sees A's committed state.
     await Promise.all([
       writeSidecars(storage, 'pages/home', stateDefault),
       writeSidecars(storage, 'pages/home', stateFr, 'fr'),
     ])
 
     const files = [...storage.dump().keys()].filter(p => p.startsWith('pages/home/')).sort()
-    // Both hash sidecars present (one per locale scope).
     expect(files).toContain('pages/home/.aaaaaaaa.hash')
     expect(files).toContain('pages/home/.bbbbbbbb.hash.fr')
-    // Structural sidecars (written only for default locale) present.
-    expect(files).toContain('pages/home/.tpl-page-default')
-    expect(files).toContain('pages/home/.uses-header')
-    // No leftover temp files from write-file-atomic simulation.
     expect(files.some(f => /\.\d+$/.test(f))).toBe(false)
   })
 
@@ -294,21 +247,9 @@ describe('writeSidecars — concurrency', () => {
       'pages/about/page.json': '{}',
     })
 
-    // Different dirs — no serialization between them. Still must commit
-    // cleanly because each dir has its own lock.
     await Promise.all([
-      writeSidecars(storage, 'pages/home', {
-        hash: 'aaaaaaaa',
-        uses: [],
-        template: 'page-default',
-        pub: null,
-      }),
-      writeSidecars(storage, 'pages/about', {
-        hash: 'bbbbbbbb',
-        uses: [],
-        template: 'page-default',
-        pub: null,
-      }),
+      writeSidecars(storage, 'pages/home', { hash: 'aaaaaaaa', pub: null }),
+      writeSidecars(storage, 'pages/about', { hash: 'bbbbbbbb', pub: null }),
     ])
 
     const keys = [...storage.dump().keys()]
@@ -318,24 +259,20 @@ describe('writeSidecars — concurrency', () => {
 
   it('four locale variants of the same page publish cleanly (reproduces CI failure)', async () => {
     // Regression test for the CI e2e failure:
-    //   "Cannot write .../dist/staging/pages/home/.tpl-page-default:
-    //    ENOENT ... rename '.tpl-page-default.1849113905' -> '.tpl-page-default'"
+    //   "Cannot write .../dist/staging/pages/home/.<hash>.hash:
+    //    ENOENT ... rename '<tmp>' -> '<final>'"
     // With 4 locales racing, the probability of the unlocked code
     // tripping the race approaches 1.
     const storage = racingMemoryStorage()
     storage.seed({ 'pages/home/page.json': '{}' })
 
-    const common = {
-      uses: ['header', 'footer'],
-      template: 'page-default',
-      pub: { lastPublished: '2026-04-23T22:00:00Z', noindex: false },
-    }
+    const pub = { lastPublished: '2026-04-23T22:00:00Z', noindex: false }
 
     await Promise.all([
-      writeSidecars(storage, 'pages/home', { hash: '11111111', ...common }),
-      writeSidecars(storage, 'pages/home', { hash: '22222222', ...common }, 'fr'),
-      writeSidecars(storage, 'pages/home', { hash: '33333333', ...common }, 'ar'),
-      writeSidecars(storage, 'pages/home', { hash: '44444444', ...common }, 'ja'),
+      writeSidecars(storage, 'pages/home', { hash: '11111111', pub }),
+      writeSidecars(storage, 'pages/home', { hash: '22222222', pub }, 'fr'),
+      writeSidecars(storage, 'pages/home', { hash: '33333333', pub }, 'ar'),
+      writeSidecars(storage, 'pages/home', { hash: '44444444', pub }, 'ja'),
     ])
 
     const files = [...storage.dump().keys()].filter(p => p.startsWith('pages/home/')).sort()
@@ -343,9 +280,6 @@ describe('writeSidecars — concurrency', () => {
     expect(files).toContain('pages/home/.22222222.hash.fr')
     expect(files).toContain('pages/home/.33333333.hash.ar')
     expect(files).toContain('pages/home/.44444444.hash.ja')
-    expect(files).toContain('pages/home/.tpl-page-default')
-    expect(files).toContain('pages/home/.uses-header')
-    expect(files).toContain('pages/home/.uses-footer')
   })
 })
 
@@ -365,13 +299,11 @@ describe('listSidecars', () => {
       'pages/home/.aaaaaaaa.hash': '',
       'pages/about/page.json': '{}',
       'pages/about/.bbbbbbbb.hash': '',
-      'pages/about/.uses-header': '',
     })
     const out = await listSidecars(storage, 'pages')
     expect(out.size).toBe(2)
     expect(out.get('home')?.hash).toBe('aaaaaaaa')
     expect(out.get('about')?.hash).toBe('bbbbbbbb')
-    expect(out.get('about')?.uses).toEqual(['header'])
   })
 
   it('skips sub-directories without a .hash sidecar', async () => {

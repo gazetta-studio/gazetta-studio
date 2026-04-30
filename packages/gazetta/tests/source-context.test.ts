@@ -44,12 +44,6 @@ describe('createSourceContext', () => {
     expect(source.contentRoot.path('pages', 'home')).toBe('pages/home')
   })
 
-  it('forwards the sidecar writer when provided', () => {
-    const storage = mockProvider()
-    const writer = { writeFor: async () => {}, invalidate: () => {} } as never
-    const source = createSourceContext({ storage, siteDir: '', sidecarWriter: writer })
-    expect(source.sidecarWriter).toBe(writer)
-  })
 })
 
 describe('createSourceContextFromRegistry', () => {
