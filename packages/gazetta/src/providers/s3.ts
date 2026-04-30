@@ -105,11 +105,17 @@ export function createS3Provider(options: S3ProviderOptions): StorageProvider & 
     },
 
     async writeFile(path: string, content: string): Promise<void> {
+      // Encode to Buffer so the SDK sees a known length and skips the
+      // "Stream of unknown length" warning. Same wire bytes either way —
+      // strings get UTF-8-encoded by the SDK on the way out, we're just
+      // doing it ourselves to make the length explicit.
+      const body = Buffer.from(content, 'utf-8')
       await client.send(
         new PutObjectCommand({
           Bucket: bucket,
           Key: normalizePath(path),
-          Body: content,
+          Body: body,
+          ContentLength: body.length,
           ContentType: 'text/plain; charset=utf-8',
         }),
       )
