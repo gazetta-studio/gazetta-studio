@@ -84,20 +84,25 @@ export async function restoreRevision(opts: RestoreRevisionOptions): Promise<Rev
 
   // After restoring manifests, rebuild the asset-refs sidecar index.
   // Manifests are the source of truth; a restore can change which
-  // assets each item references, which would leave the per-edge sidecars
-  // stale. Easier to rebuild than diff per-item — we have the full set
-  // of post-restore manifests on disk.
+  // assets and fragments each item references, which would leave the
+  // per-edge dep sidecars stale. Easier to rebuild than diff per-item —
+  // we have the full set of post-restore manifests on disk.
   if (toWrite.length > 0 || toDelete.length > 0) {
     try {
       const { loadSite } = await import('./site-loader.js')
-      const { rebuildAssetRefsIndex } = await import('./publish-rendered.js')
+      const { rebuildDepIndex } = await import('./publish-rendered.js')
+      const { ASSET_REFS } = await import('./assets/asset-deps.js')
+      const { FRAGMENT_DEPS } = await import('./fragment-deps.js')
       const site = await loadSite({ contentRoot })
-      await rebuildAssetRefsIndex(site, contentRoot.storage, contentRoot.rootPath)
+      await Promise.all([
+        rebuildDepIndex(ASSET_REFS, site, contentRoot.storage, contentRoot.rootPath),
+        rebuildDepIndex(FRAGMENT_DEPS, site, contentRoot.storage, contentRoot.rootPath),
+      ])
     } catch (err) {
-      // Non-fatal: if site.yaml is missing or load fails, the asset-refs
-      // index might drift. Reindex CLI recovers.
+      // Non-fatal: if site.yaml is missing or load fails, dep indices
+      // might drift. Reindex CLI recovers.
       // eslint-disable-next-line no-console
-      console.warn(`asset-refs rebuild after restore failed: ${(err as Error).message}`)
+      console.warn(`dep-sidecar rebuild after restore failed: ${(err as Error).message}`)
     }
   }
 

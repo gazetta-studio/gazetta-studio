@@ -257,64 +257,68 @@ async function findFragmentDependentsImpl(
 }
 
 /**
- * Fast path for finding dependents against a *published* target.
+ * Fast path for finding dependents against a *published* target — or
+ * any source/target carrying the fragment-deps reverse-sidecar index.
  *
- * Uses `.uses-{fragment}` and `.tpl-{template}` sidecar filenames (written by
- * writeSidecar in publish-rendered.ts). Needs listings only — no content
- * reads, no JSON parsing. Scales to 10k pages at the cost of one LIST call
- * per item directory.
+ * Uses `.gazetta/fragment-deps/{fragment}/{item}` per-edge sidecars
+ * (written by save handlers and the publish flow). One readDir per
+ * fragment in the BFS — for "fragment used by 5 pages", that's 1
+ * readDir; for transitive "X → Y → Z", BFS of 3 readDirs total.
  *
- * Handles transitive fragment→fragment dependencies: if @inner is referenced
- * by @outer which is referenced by pages/home, querying "@inner" returns
- * home and @outer.
+ * Compares to the legacy walk, which did one listSidecars per item
+ * directory across the whole site (~N readDirs). Bench shows
+ * 100×–200× speedup on cloud at N=1000. See the `perf-refs.bench.ts`
+ * bench data and design-media-implementation.md for the rationale.
  *
- * Works against target storage (rooted at target base) or source storage
- * (pass `baseDir: siteDir` so the walker descends into `siteDir/pages`).
+ * Handles transitive fragment→fragment dependencies via BFS: if
+ * @inner is referenced by @outer which is referenced by pages/home,
+ * querying "@inner" returns home and @outer.
+ *
+ * The `{ template }` branch is dead code (no caller). Kept until step
+ * 13c which will drop it along with forward `.tpl-*` sidecar writes.
  */
 export async function findDependentsFromSidecars(
   sourceRoot: ContentRoot,
   query: { fragment: string } | { template: string },
 ): Promise<{ pages: string[]; fragments: string[] }> {
-  const { storage } = sourceRoot
-  const pagesRoot = sourceRoot.path('pages')
-  const fragmentsRoot = sourceRoot.path('fragments')
-  // Single listing pass per root, then all reasoning is in-memory.
-  const [pagesList, fragmentsList] = await Promise.all([
-    listSidecars(storage, pagesRoot),
-    listSidecars(storage, fragmentsRoot),
-  ])
-  const pagesIndex = new Map<string, { uses: Set<string>; template: string | null }>()
-  for (const [name, state] of pagesList) {
-    pagesIndex.set(name, { uses: new Set(state.uses), template: state.template })
-  }
-  const fragmentsIndex = new Map<string, { uses: Set<string>; template: string | null }>()
-  for (const [name, state] of fragmentsList) {
-    fragmentsIndex.set(name, { uses: new Set(state.uses), template: state.template })
-  }
-
-  // Now walk the indexes in-memory. No more storage calls from this point.
-  const pages = new Set<string>()
-  const fragments = new Set<string>()
-
+  // Template branch — legacy forward-walk path. Unreachable in
+  // production today; removed in step 13c when forward `.tpl-*`
+  // sidecar writes go away.
   if ('template' in query) {
-    for (const [name, info] of pagesIndex) if (info.template === query.template) pages.add(name)
-    for (const [name, info] of fragmentsIndex) if (info.template === query.template) fragments.add(name)
+    const { storage } = sourceRoot
+    const pagesRoot = sourceRoot.path('pages')
+    const fragmentsRoot = sourceRoot.path('fragments')
+    const [pagesList, fragmentsList] = await Promise.all([
+      listSidecars(storage, pagesRoot),
+      listSidecars(storage, fragmentsRoot),
+    ])
+    const pages = new Set<string>()
+    const fragments = new Set<string>()
+    for (const [name, state] of pagesList) {
+      if (state.template === query.template) pages.add(name)
+    }
+    for (const [name, state] of fragmentsList) {
+      if (state.template === query.template) fragments.add(name)
+    }
     return { pages: [...pages].sort(), fragments: [...fragments].sort() }
   }
 
-  // Fragment query with transitive walk
+  // Fragment query — read reverse-sidecar index with BFS for transitivity.
+  const { readDepsForFragment } = await import('./fragment-deps.js')
+  const pages = new Set<string>()
+  const fragments = new Set<string>()
   const queue = [query.fragment]
   const seen = new Set<string>([query.fragment])
   while (queue.length) {
     const current = queue.shift()!
-    for (const [name, info] of pagesIndex) {
-      if (info.uses.has(current)) pages.add(name)
-    }
-    for (const [name, info] of fragmentsIndex) {
-      if (info.uses.has(current) && !seen.has(name)) {
-        seen.add(name)
-        fragments.add(name)
-        queue.push(name)
+    const deps = await readDepsForFragment(sourceRoot, current)
+    for (const dep of deps) {
+      if (dep.source === 'page') {
+        pages.add(dep.name)
+      } else if (!seen.has(dep.name)) {
+        seen.add(dep.name)
+        fragments.add(dep.name)
+        queue.push(dep.name)
       }
     }
   }

@@ -6,6 +6,7 @@ import type { SourceContextResolver } from '../source-context.js'
 import { CreateFragmentRequestSchema } from '../schemas/fragments.js'
 import { isValidLocale } from '../../locale.js'
 import { rebuildAssetRefs, type ItemRef } from '../../assets/asset-deps.js'
+import { rebuildFragmentDeps } from '../../fragment-deps.js'
 
 export function fragmentRoutes(resolve: SourceContextResolver) {
   const app = new Hono()
@@ -59,10 +60,13 @@ export function fragmentRoutes(resolve: SourceContextResolver) {
     const manifest = { template: body.template, components: [] }
     await storage.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
     await sidecarWriter?.writeFor('fragment', body.name)
-    // Asset-refs sidecars: empty initial fragment, no-op today; wired
-    // for symmetry with the fragment-update path.
+    // Dep sidecars: empty initial fragment, no-op today; wired for
+    // symmetry with the fragment-update path.
     const item: ItemRef = { source: 'fragment', name: body.name }
-    await rebuildAssetRefs(source.contentRoot, item, null, manifest)
+    await Promise.all([
+      rebuildAssetRefs(source.contentRoot, item, null, manifest),
+      rebuildFragmentDeps(source.contentRoot, item, null, manifest),
+    ])
     return c.json({ ok: true, name: body.name })
   })
 
@@ -133,9 +137,13 @@ export function fragmentRoutes(resolve: SourceContextResolver) {
     }
     await storage.writeFile(manifestPath, serialized)
     await sidecarWriter?.writeFor('fragment', name)
-    // Asset-refs sidecars: diff old (in-memory `fragment`) vs new manifest.
+    // Dep sidecars: diff old (in-memory `fragment`) vs new manifest for
+    // both asset and fragment dep relations.
     const item: ItemRef = locale ? { source: 'fragment', name, locale } : { source: 'fragment', name }
-    await rebuildAssetRefs(source.contentRoot, item, fragment, manifest)
+    await Promise.all([
+      rebuildAssetRefs(source.contentRoot, item, fragment, manifest),
+      rebuildFragmentDeps(source.contentRoot, item, fragment, manifest),
+    ])
     return c.json({ ok: true })
   })
 
@@ -157,15 +165,21 @@ export function fragmentRoutes(resolve: SourceContextResolver) {
       })
     }
     await storage.rm(fragment.dir)
-    // Asset-refs sidecars: tear down default + every locale variant.
+    // Dep sidecars: tear down default + every locale variant for both
+    // asset and fragment dep relations.
     const localeEntry = site.fragmentLocales.get(name)
     const variantManifests = localeEntry ? [...localeEntry.locales.entries()] : []
-    await Promise.all([
+    const teardowns: Promise<void>[] = [
       rebuildAssetRefs(source.contentRoot, { source: 'fragment', name }, fragment, null),
-      ...variantManifests.map(([loc, variant]) =>
+      rebuildFragmentDeps(source.contentRoot, { source: 'fragment', name }, fragment, null),
+    ]
+    for (const [loc, variant] of variantManifests) {
+      teardowns.push(
         rebuildAssetRefs(source.contentRoot, { source: 'fragment', name, locale: loc }, variant, null),
-      ),
-    ])
+        rebuildFragmentDeps(source.contentRoot, { source: 'fragment', name, locale: loc }, variant, null),
+      )
+    }
+    await Promise.all(teardowns)
     return c.json({ ok: true })
   })
 

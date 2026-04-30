@@ -548,7 +548,7 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
     publishFragmentRendered,
     publishSiteManifest,
     publishFragmentIndex,
-    publishAssetRefsIndex,
+    publishDepIndices,
   } = await import('../publish-rendered.js')
   const { publishPageAllLocales, publishFragmentAllLocales } = await import('../publish-locale.js')
   const { scanTemplates, templateHashesFrom, reportTemplateErrors } = await import('../templates-scan.js')
@@ -732,10 +732,10 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
     }
     if (skipped > 0) console.log(`    ${c.dim(`· ${skipped} unchanged (skipped)`)}`)
 
-    // Site manifest + fragment index + asset-refs index
+    // Site manifest + fragment index + dep-sidecar indices
     await publishSiteManifest(sourceRoot, targetStorage, site)
     await publishFragmentIndex(sourceRoot, targetStorage, site)
-    await publishAssetRefsIndex(sourceRoot, targetStorage, site)
+    await publishDepIndices(sourceRoot, targetStorage, site)
     totalFiles += 2
 
     // Sitemap + robots.txt — generated from target sidecars
@@ -2228,15 +2228,20 @@ async function runAssetsReindex(siteDir: string, targetName?: string): Promise<v
   const { source, manifest } = await buildSourceContext({ projectSiteDir: siteDir, targetName })
 
   const { loadSite } = await import('../site-loader.js')
-  const { rebuildAssetRefsIndex } = await import('../publish-rendered.js')
+  const { rebuildDepIndex } = await import('../publish-rendered.js')
+  const { ASSET_REFS } = await import('../assets/asset-deps.js')
+  const { FRAGMENT_DEPS } = await import('../fragment-deps.js')
 
   const site = await loadSite({ contentRoot: source.contentRoot, manifest })
   const t0 = Date.now()
-  await rebuildAssetRefsIndex(site, source.contentRoot.storage, source.contentRoot.rootPath)
+  await Promise.all([
+    rebuildDepIndex(ASSET_REFS, site, source.contentRoot.storage, source.contentRoot.rootPath),
+    rebuildDepIndex(FRAGMENT_DEPS, site, source.contentRoot.storage, source.contentRoot.rootPath),
+  ])
   const elapsed = Date.now() - t0
 
   console.log(
-    `  ${c.green('✓')} Rebuilt asset-refs index for ${site.pages.size} page(s) + ${site.fragments.size} fragment(s) in ${elapsed}ms`,
+    `  ${c.green('✓')} Rebuilt dep indices for ${site.pages.size} page(s) + ${site.fragments.size} fragment(s) in ${elapsed}ms`,
   )
 }
 

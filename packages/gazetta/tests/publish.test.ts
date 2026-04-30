@@ -538,19 +538,15 @@ describe('getType', () => {
 })
 
 describe('findDependentsFromSidecars', () => {
-  it('returns pages that reference a fragment via .uses-* sidecars', async () => {
+  it('returns pages that reference a fragment via reverse fragment-deps sidecars', async () => {
     const { findDependentsFromSidecars } = await import('../src/publish.js')
     const target = createFilesystemProvider(targetDir)
-    await writeTestFile(targetDir, 'pages/home/.cf120e4b.hash', '')
-    await writeTestFile(targetDir, 'pages/home/.uses-header', '')
-    await writeTestFile(targetDir, 'pages/home/.uses-footer', '')
-    await writeTestFile(targetDir, 'pages/home/.tpl-page-default', '')
-    await writeTestFile(targetDir, 'pages/about/.abc12345.hash', '')
-    await writeTestFile(targetDir, 'pages/about/.uses-header', '')
-    await writeTestFile(targetDir, 'pages/about/.tpl-page-default', '')
-    await writeTestFile(targetDir, 'pages/blog/[slug]/.def67890.hash', '')
-    await writeTestFile(targetDir, 'pages/blog/[slug]/.uses-header', '')
-    await writeTestFile(targetDir, 'pages/blog/[slug]/.tpl-page-blog', '')
+    // Reverse-sidecar shape: .gazetta/fragment-deps/{frag}/{encoded-item}
+    // (per step 13b — replaces the legacy .uses-* forward sidecars).
+    await writeTestFile(targetDir, '.gazetta/fragment-deps/header/pages.home', '')
+    await writeTestFile(targetDir, '.gazetta/fragment-deps/footer/pages.home', '')
+    await writeTestFile(targetDir, '.gazetta/fragment-deps/header/pages.about', '')
+    await writeTestFile(targetDir, '.gazetta/fragment-deps/header/pages.blog.[slug]', '')
 
     const r = await findDependentsFromSidecars(createContentRoot(target), { fragment: 'header' })
     expect(r.pages.sort()).toEqual(['about', 'blog/[slug]', 'home'])
@@ -560,10 +556,10 @@ describe('findDependentsFromSidecars', () => {
   it('walks transitive fragment→fragment references', async () => {
     const { findDependentsFromSidecars } = await import('../src/publish.js')
     const target = createFilesystemProvider(targetDir)
-    await writeTestFile(targetDir, 'fragments/header/.12345678.hash', '')
-    await writeTestFile(targetDir, 'fragments/header/.uses-inner-logo', '')
-    await writeTestFile(targetDir, 'pages/home/.87654321.hash', '')
-    await writeTestFile(targetDir, 'pages/home/.uses-header', '')
+    // header references inner-logo; home references header. Querying
+    // inner-logo must BFS through header to find home.
+    await writeTestFile(targetDir, '.gazetta/fragment-deps/inner-logo/fragments.header', '')
+    await writeTestFile(targetDir, '.gazetta/fragment-deps/header/pages.home', '')
 
     const r = await findDependentsFromSidecars(createContentRoot(target), { fragment: 'inner-logo' })
     expect(r.pages).toEqual(['home'])
@@ -598,8 +594,7 @@ describe('findDependentsFromSidecars', () => {
   it('accepts baseDir for source-storage queries (unrooted provider)', async () => {
     const { findDependentsFromSidecars } = await import('../src/publish.js')
     const sourceDir = join(targetDir, '../source-root/sites/main')
-    await writeTestFile(sourceDir, 'pages/home/.11111111.hash', '')
-    await writeTestFile(sourceDir, 'pages/home/.uses-header', '')
+    await writeTestFile(sourceDir, '.gazetta/fragment-deps/header/pages.home', '')
     const source = createFilesystemProvider()
 
     const r = await findDependentsFromSidecars(createContentRoot(source, sourceDir), { fragment: 'header' })
