@@ -116,3 +116,39 @@ function scanValue(value: unknown, path: string, input: ScanManifestInput, out: 
     scanValue(child, path ? `${path}.${key}` : key, input, out)
   }
 }
+
+/**
+ * Collect every asset name referenced by `manifest`. Companion to
+ * `scanManifestForAsset` but returns the *set* of names rather than
+ * located refs — for callers that need the dependency list, not the
+ * usage breadcrumb. Used by publish to know which assets to copy.
+ */
+export function collectAssetRefs(manifest: Walkable): Set<string> {
+  const names = new Set<string>()
+  collectFromComponent(manifest, names)
+  return names
+}
+
+function collectFromComponent(comp: Walkable, out: Set<string>): void {
+  if (comp.content) collectFromValue(comp.content, out)
+  if (comp.components) {
+    for (const child of comp.components) {
+      if (typeof child === 'string') continue
+      collectFromComponent(child, out)
+    }
+  }
+}
+
+function collectFromValue(value: unknown, out: Set<string>): void {
+  if (value === null || typeof value !== 'object') return
+  if (Array.isArray(value)) {
+    for (const item of value) collectFromValue(item, out)
+    return
+  }
+  const obj = value as Record<string, unknown>
+  if (typeof obj._asset === 'string') out.add(obj._asset)
+  for (const [key, child] of Object.entries(obj)) {
+    if (key === '_asset') continue
+    collectFromValue(child, out)
+  }
+}
