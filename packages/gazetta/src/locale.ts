@@ -161,6 +161,42 @@ export function localeRoutePrefix(locale: string, resolved: ResolvedLocales): st
   return `/${norm}`
 }
 
+/**
+ * Build the locale fallback chain for a given active locale, EXCLUDING the
+ * default locale (which is always read separately as the base manifest).
+ *
+ * Distinct from `resolveLocaleFallback` (which is "first-found-wins" page
+ * resolution). This helper supports **per-field cascade** in asset metadata:
+ * the asset walker reads each variant in chain order and merges most-specific-
+ * wins, so a French page can pick up `pt-BR` alt overrides through the
+ * configured `pt-BR → pt` fallback while still using default for everything
+ * else.
+ *
+ * Examples (with site default `en`, fallbacks `{ 'pt-BR': 'pt' }`):
+ *   localeFallbackChain('pt-BR', resolved) → ['pt-br', 'pt']
+ *   localeFallbackChain('fr', resolved)    → ['fr']
+ *   localeFallbackChain('en', resolved)    → []  (active === default; no chain)
+ *
+ * The default locale never appears in the chain — callers always read the
+ * default manifest first as the base, then apply the chain on top.
+ */
+export function localeFallbackChain(locale: string, resolved: ResolvedLocales): readonly string[] {
+  const norm = normalizeLocale(locale)
+  if (norm === resolved.default) return []
+  const chain: string[] = [norm]
+  const visited = new Set<string>([norm])
+  let current = norm
+  while (resolved.fallbacks[current]) {
+    const next = resolved.fallbacks[current]
+    if (next === resolved.default) break
+    if (visited.has(next)) break // cycle: stop, never re-visit
+    visited.add(next)
+    chain.push(next)
+    current = next
+  }
+  return chain
+}
+
 /** Normalize fallback keys and values to lowercase. */
 function normalizeFallbacks(fallbacks?: Record<string, string>): Record<string, string> {
   if (!fallbacks) return {}

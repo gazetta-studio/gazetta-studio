@@ -275,6 +275,22 @@ export interface LocalesConfig {
   detection?: boolean
 }
 
+/**
+ * Theme configuration. Opt-in: absent = single-theme site (no theme overrides
+ * on assets). Themes are a peer override dimension to locales — assets can
+ * declare locale-specific bytes, theme-specific bytes, or both.
+ *
+ * v1 enables themes on **assets only**. Page/fragment theme variants are
+ * deferred; templates emit theme-aware CSS via PrimeVue tokens / class-based
+ * cascade. See design-media.md and css-theming.md.
+ */
+export interface ThemesConfig {
+  /** Supported theme names (lowercase ASCII, no dots). Conventionally `['light', 'dark']`. */
+  supported: string[]
+  /** Default theme name. Falls back to first in `supported`. */
+  default?: string
+}
+
 /** Site manifest (site.yaml) */
 export interface SiteManifest {
   name: string
@@ -283,6 +299,12 @@ export interface SiteManifest {
   locale?: string
   /** i18n configuration. Absent = single-locale site. */
   locales?: LocalesConfig
+  /**
+   * Theme configuration for asset overrides. Absent = no theme dimension
+   * (assets are theme-agnostic). When set, assets can carry per-theme
+   * byte overrides, and the resolver picks variants per render context.
+   */
+  themes?: ThemesConfig
   /** Default Open Graph image for pages that don't specify their own. */
   defaultOgImage?: string
   systemPages?: string[]

@@ -7,6 +7,7 @@ import {
   localeFromFilename,
   localeFilename,
   resolveLocaleFallback,
+  localeFallbackChain,
   localeRoutePrefix,
 } from '../src/locale.js'
 import { resolveSeoTags, type SeoContext } from '../src/seo.js'
@@ -334,5 +335,49 @@ describe('hreflang in resolveSeoTags', () => {
     }
     const result = resolveSeoTags({ seo, route: '/about' })
     expect(result).toContain('hreflang="en-gb"')
+  })
+})
+
+describe('localeFallbackChain', () => {
+  const resolved = {
+    supported: ['en', 'fr', 'pt-br', 'pt'],
+    default: 'en',
+    defaultPrefix: false,
+    detection: false,
+    fallbacks: { 'pt-br': 'pt' },
+  }
+
+  it('returns empty when active equals default', () => {
+    expect(localeFallbackChain('en', resolved)).toEqual([])
+  })
+
+  it('returns [active] when no fallback is configured', () => {
+    expect(localeFallbackChain('fr', resolved)).toEqual(['fr'])
+  })
+
+  it('walks the fallback chain, excluding default', () => {
+    expect(localeFallbackChain('pt-br', resolved)).toEqual(['pt-br', 'pt'])
+  })
+
+  it('stops at default — default is the floor, never in chain', () => {
+    const r = {
+      ...resolved,
+      // Build a chain that explicitly leads to default; chain must not include 'en'.
+      fallbacks: { fr: 'en' },
+    }
+    expect(localeFallbackChain('fr', r)).toEqual(['fr'])
+  })
+
+  it('handles cycles defensively (never re-adds a locale)', () => {
+    const r = {
+      ...resolved,
+      fallbacks: { 'pt-br': 'pt', pt: 'pt-br' }, // cyclic
+    }
+    // Should walk pt-br → pt and stop (pt-br already seen, also chain length bound).
+    expect(localeFallbackChain('pt-br', r)).toEqual(['pt-br', 'pt'])
+  })
+
+  it('normalizes input to lowercase', () => {
+    expect(localeFallbackChain('PT-BR', resolved)).toEqual(['pt-br', 'pt'])
   })
 })
