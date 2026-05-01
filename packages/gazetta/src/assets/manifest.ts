@@ -16,7 +16,8 @@
 import type { StorageProvider } from '../types.js'
 import type { AssetManifest } from '../schema/types.js'
 import { type Selector, selectorSuffix } from '../schema/dimensions.js'
-import { AssetManifestCorruptError, AssetManifestNotFoundError, AssetStorageError } from './errors.js'
+import { AssetStorageError } from './errors.js'
+import { readDefaultManifest } from './manifest-default.js'
 
 /**
  * Where asset manifests live, relative to an `assets/` root.
@@ -74,43 +75,12 @@ export function assetVariantBytesPath(
 }
 
 /**
- * Read an asset manifest from storage. Throws:
- * - `AssetManifestNotFoundError` when the manifest file doesn't exist
- * - `AssetManifestCorruptError` when it exists but isn't valid JSON / shape
- * - `AssetStorageError` on any other storage failure
+ * Read an asset's default manifest. Thin alias for `readDefaultManifest`
+ * — kept for callers that haven't migrated yet. New code should prefer
+ * `readDefaultManifest` from `manifest-default.ts` directly so the
+ * default-vs-locale distinction is explicit at the call site.
  */
-export async function readManifest(
-  storage: StorageProvider,
-  assetsRoot: string,
-  assetName: string,
-): Promise<AssetManifest> {
-  const path = `${assetsRoot}/${manifestPath(assetName)}`
-
-  const exists = await storage.exists(path).catch(err => {
-    throw new AssetStorageError('stat', path, err)
-  })
-  if (!exists) throw new AssetManifestNotFoundError(assetName)
-
-  let raw: string
-  try {
-    raw = await storage.readFile(path)
-  } catch (err) {
-    throw new AssetStorageError('read', path, err)
-  }
-
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(raw)
-  } catch (err) {
-    throw new AssetManifestCorruptError(path, err)
-  }
-
-  if (!isAssetManifest(parsed)) {
-    throw new AssetManifestCorruptError(path, new Error('manifest shape mismatch'))
-  }
-
-  return parsed
-}
+export const readManifest = readDefaultManifest
 
 /**
  * Write an asset manifest to storage. The storage provider's `writeFile` is
@@ -129,32 +99,4 @@ export async function writeManifest(
   } catch (err) {
     throw new AssetStorageError('write', path, err)
   }
-}
-
-/** Narrow a parsed-JSON value to `AssetManifest`. Shape-only; doesn't re-validate. */
-function isAssetManifest(candidate: unknown): candidate is AssetManifest {
-  if (!candidate || typeof candidate !== 'object') return false
-  const m = candidate as Record<string, unknown>
-  return (
-    m.version === 1 &&
-    typeof m.name === 'string' &&
-    (m.kind === 'embedded' || m.kind === 'downloadable' || m.kind === 'font') &&
-    m.source === 'internal' &&
-    typeof m.mime === 'string' &&
-    typeof m.size === 'number' &&
-    typeof m.hash === 'string' &&
-    (m.width === null || typeof m.width === 'number') &&
-    (m.height === null || typeof m.height === 'number') &&
-    Array.isArray(m.variants) &&
-    m.variants.every(isAssetVariant) &&
-    (m.alt === null || typeof m.alt === 'string') &&
-    typeof m.uploadedAt === 'string' &&
-    typeof m.uploadedBy === 'string'
-  )
-}
-
-function isAssetVariant(candidate: unknown): boolean {
-  if (!candidate || typeof candidate !== 'object') return false
-  const v = candidate as Record<string, unknown>
-  return typeof v.width === 'number' && typeof v.path === 'string' && typeof v.size === 'number'
 }
