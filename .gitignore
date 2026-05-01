@@ -27,3 +27,15 @@ reports/
 # source-side editable target's copy either.
 **/targets/**/.gazetta/asset-refs/
 **/targets/**/.gazetta/fragment-deps/
+
+# Rendered output from `gazetta publish` to filesystem targets. The
+# editable source of truth (page.json, fragment.json, site.yaml) stays
+# tracked; everything below is regenerated on every publish.
+#   - {route}/index.html and the route directories created for each page
+#     (e.g. blog/, docs/) when the page route is non-root
+#   - the site-root index.html (rendered home page)
+#   - site.json (publish-time site manifest summary)
+#   - index/fragments.json and any other aggregate indices
+**/targets/**/index.html
+**/targets/**/site.json
+**/targets/**/index/
