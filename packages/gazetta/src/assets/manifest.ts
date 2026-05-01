@@ -15,28 +15,62 @@
  */
 import type { StorageProvider } from '../types.js'
 import type { AssetManifest } from '../schema/types.js'
+import { type Selector, selectorSuffix } from '../schema/dimensions.js'
 import { AssetManifestCorruptError, AssetManifestNotFoundError, AssetStorageError } from './errors.js'
 
-/** Where asset manifests live, relative to an `assets/` root. */
-export function manifestPath(assetName: string): string {
-  return `${assetName}.asset.json`
-}
-
-/** Where internal asset bytes live, given a name + 8-char hash + extension. */
-export function assetBytesPath(assetName: string, hash: string, ext: string): string {
-  const extPart = ext.startsWith('.') ? ext : `.${ext}`
-  return `${assetName}-${hash}${extPart}`
+/**
+ * Where asset manifests live, relative to an `assets/` root.
+ *
+ * Default manifest:    `{name}.asset.json`
+ * Locale variant:       `{name}.asset.{locale}.json`
+ * Theme variant:        `{name}.asset.{theme}.json`
+ * Locale + theme:       `{name}.asset.{locale}.{theme}.json`
+ *
+ * Selector ordering follows `DIMENSION_ORDER` from `schema/dimensions.ts`.
+ * Pass `null` (or omit) for the default manifest.
+ */
+export function manifestPath(assetName: string, selector?: Selector | null): string {
+  return `${assetName}.asset${selectorSuffix(selector ?? null)}.json`
 }
 
 /**
- * Where a variant's bytes live, given name + hash + ext + target width.
- * Pattern: `{name}-{hash}-{width}w.{ext}` (per design-media.md). Owned
- * here so the write side (ingest) and the read side (asset-paths, URL
- * construction) can't drift — change the scheme in one place.
+ * Where internal asset bytes live, given a name + 8-char hash + extension.
+ *
+ * Default bytes:        `{name}-{hash}.{ext}`
+ * Locale bytes:          `{name}-{hash}.{locale}.{ext}`
+ * Locale + theme bytes:  `{name}-{hash}.{locale}.{theme}.{ext}`
+ *
+ * The hash always describes the bytes at THIS path — locale-bytes overrides
+ * have their own hash, distinct from the default's hash.
  */
-export function assetVariantBytesPath(assetName: string, hash: string, ext: string, width: number): string {
+export function assetBytesPath(assetName: string, hash: string, ext: string, selector?: Selector | null): string {
   const extPart = ext.startsWith('.') ? ext : `.${ext}`
-  return `${assetName}-${hash}-${width}w${extPart}`
+  return `${assetName}-${hash}${selectorSuffix(selector ?? null)}${extPart}`
+}
+
+/**
+ * Where a variant's bytes live, given name + hash + ext + target width
+ * (and optional selector for locale/theme variants).
+ *
+ * Default variant:        `{name}-{hash}-{width}w.{ext}`
+ * Locale variant:          `{name}-{hash}.{locale}-{width}w.{ext}`
+ * Locale + theme variant:  `{name}-{hash}.{locale}.{theme}-{width}w.{ext}`
+ *
+ * Width suffix comes AFTER the selector suffix — the selector segments are
+ * part of the file's identity (which override is this), the width is part
+ * of the variant ladder for THAT identity. Owned here so the write side
+ * (ingest) and read side (asset-paths, URL construction) can't drift —
+ * change the scheme in one place.
+ */
+export function assetVariantBytesPath(
+  assetName: string,
+  hash: string,
+  ext: string,
+  width: number,
+  selector?: Selector | null,
+): string {
+  const extPart = ext.startsWith('.') ? ext : `.${ext}`
+  return `${assetName}-${hash}${selectorSuffix(selector ?? null)}-${width}w${extPart}`
 }
 
 /**
