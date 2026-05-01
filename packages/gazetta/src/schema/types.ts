@@ -56,6 +56,17 @@ export interface FontAssetRef {
 // ---------- Manifest shape (what lives in storage) ----------
 
 /**
+ * Asset rendering role — determines how templates use the asset.
+ *   - `embedded` — rendered inline (`<img>`, `<video>`, `<audio>`)
+ *   - `downloadable` — linked for download (`<a href download>`)
+ *   - `font` — loaded via `@font-face`, used by CSS name
+ *
+ * Set at upload time; identity attribute. Never overridable on locale
+ * variants.
+ */
+export type AssetKind = 'embedded' | 'downloadable' | 'font'
+
+/**
  * A single responsive variant of an image asset. Pre-generated at
  * upload time; the resolver composes these into a `srcset` string.
  */
@@ -90,7 +101,7 @@ export interface AssetManifest {
   /** Asset name (matches the library key and the reference `_asset`). */
   name: string
   /** Rendering role — determines how templates use this asset. */
-  kind: 'embedded' | 'downloadable' | 'font'
+  kind: AssetKind
   /** Whether bytes live on target (`internal`) or elsewhere. v1 slice: internal only. */
   source: 'internal'
   /** Canonical MIME type (sniffed from bytes at upload). */
@@ -241,7 +252,7 @@ export interface FontLocaleAdditiveManifest {
  */
 export interface AssetSummary {
   name: string
-  kind: AssetManifest['kind']
+  kind: AssetKind
   mime: string
   size: number
   hash: string
