@@ -118,6 +118,121 @@ export interface AssetManifest {
 }
 
 /**
+ * Per-kind manifest aliases. Today they all point at `AssetManifest` because
+ * no kind-specific fields exist yet — fonts, downloadables, and embedded
+ * images share the same shape. When kind-specific fields land (font's
+ * `cssName`/`format`/`weight`, downloadable's `title`/`description`), these
+ * aliases become genuinely distinct types and the union below ties them
+ * together. Authors writing schema helpers can already type-import the
+ * alias they need without churn at that point.
+ */
+export type EmbeddedAssetManifest = AssetManifest
+export type DownloadableAssetManifest = AssetManifest
+export type FontAssetManifest = AssetManifest
+
+/**
+ * Locale-override manifest for embedded/downloadable assets — every field
+ * except identity (`version`, `name`) is optional. Authors create these via
+ * locale-bytes upload (per design-media.md → locale-specific bytes) or by
+ * editing alt/focal/etc. metadata for one locale.
+ *
+ * Two byte-presence states, enforced by the discriminated union:
+ *
+ *   1. Metadata-only override — no `hash`. Locale uses default bytes;
+ *      only metadata fields (alt, focalPoint) override.
+ *   2. Bytes override — `hash` set. Locale has its own bytes; `size`,
+ *      `mime`, `width`/`height`, `variants` MUST be present.
+ *
+ * `kind` and `source` are never overridable on a locale variant — those
+ * are identity attributes of the asset.
+ *
+ * Font locale variants have a different shape (always have bytes, never
+ * "override" — they ADD to a variant union). See `FontLocaleAdditiveManifest`.
+ */
+export type LocaleOverrideManifest = LocaleMetadataOverrideManifest | LocaleBytesOverrideManifest
+
+/** Locale metadata-only override — no `hash`, no byte-describing fields. */
+export interface LocaleMetadataOverrideManifest {
+  version: 1
+  name: string
+  /** Discriminator: bytes are absent. */
+  hash?: undefined
+  size?: undefined
+  variants?: undefined
+  width?: undefined
+  height?: undefined
+  mime?: undefined
+  /** Optional alt override. Falls back to default's alt. */
+  alt?: string | null
+  /**
+   * Optional focal-point override at the manifest level (per-asset default
+   * for this locale). Per-reference focal-point overrides live on the
+   * embedded ref, not here — see design-media.md.
+   */
+  focalPoint?: { x: number; y: number }
+  /** Optional title override (downloadable kind). */
+  title?: string
+  /** Optional description override (downloadable kind). */
+  description?: string
+}
+
+/** Locale bytes override — `hash` set; byte-describing fields all required. */
+export interface LocaleBytesOverrideManifest {
+  version: 1
+  name: string
+  /** 8-char SHA-256 prefix of THIS locale's bytes. */
+  hash: string
+  /** Size in bytes of THIS locale's primary bytes. */
+  size: number
+  /** MIME of THIS locale's bytes (may differ from default — e.g. webp override of jpeg default). */
+  mime: string
+  /** Width in pixels of THIS locale's bytes. Null when not applicable. */
+  width: number | null
+  /** Height in pixels of THIS locale's bytes. Null when not applicable. */
+  height: number | null
+  /** Variant ladder for THIS locale's bytes. Empty when below smallest target width. */
+  variants: readonly AssetVariant[]
+  /** Optional metadata overrides — same as the metadata-only variant. */
+  alt?: string | null
+  focalPoint?: { x: number; y: number }
+  title?: string
+  description?: string
+}
+
+/**
+ * Font locale-additive manifest — contributes a variant to the resolved
+ * font's `@font-face` union. Distinct shape from `LocaleOverrideManifest`
+ * because font locale variants:
+ *   - ALWAYS have bytes (a font with no bytes is meaningless)
+ *   - NEVER override default metadata; they add a variant alongside the default
+ *   - carry font-specific fields (format, weight, style, optional unicodeRange)
+ *
+ * Browser picks the right variant per character via `unicode-range`.
+ */
+export interface FontLocaleAdditiveManifest {
+  version: 1
+  name: string
+  /** 8-char SHA-256 prefix of THIS variant's bytes. */
+  hash: string
+  /** Size in bytes of THIS variant's bytes. */
+  size: number
+  /** MIME of THIS variant's bytes. */
+  mime: string
+  /** Font format the bytes are encoded in. */
+  format: 'woff2' | 'woff' | 'ttf' | 'otf'
+  /** Font weight — number or 'variable' for variable-axis fonts. */
+  weight: number | 'variable'
+  /** Font style. */
+  style: 'normal' | 'italic'
+  /**
+   * Unicode range covered by this variant. Browser uses it to pick the
+   * right variant per character. Null = no range restriction (variant
+   * applies to all characters).
+   */
+  unicodeRange: string | null
+}
+
+/**
  * Library-list summary — the compact projection of `AssetManifest` that
  * the library UI displays. Deliberately smaller than the full manifest:
  * `uploadedBy` is excluded (RBAC / audit concern, not UI concern), and

@@ -17,7 +17,7 @@
 import { mapLimit } from '../concurrency.js'
 import type { ContentRoot } from '../content-root.js'
 import type { StorageProvider } from '../types.js'
-import { assetPathsInRemovalOrder, assetStoragePaths } from './asset-paths.js'
+import { assetBytePaths, assetStoragePaths } from './asset-paths.js'
 import { readManifest, writeManifest } from './manifest.js'
 import { planAssetCopy } from './publish-plan.js'
 
@@ -91,13 +91,18 @@ async function copyOneAsset(ctx: CopyContext, name: string): Promise<CopyResult>
   // Content-addressed dedupe: the hash is in the bytes path, so its
   // presence on the target proves byte-equivalence. Skip the whole
   // asset (manifest + bytes + variants).
-  if (await ctx.target.exists(targetPaths.bytes)) return { copied: false, files: 0 }
+  if (await ctx.target.exists(targetPaths.defaultBytes)) return { copied: false, files: 0 }
 
   await writeManifest(ctx.target, ctx.targetAssets, sourceManifest)
   let files = 1
 
-  const sourceBytePaths = assetPathsInRemovalOrder(sourcePaths).filter(p => p !== sourcePaths.manifest)
-  const targetBytePaths = assetPathsInRemovalOrder(targetPaths).filter(p => p !== targetPaths.manifest)
+  // Copy every byte path (default + per-override) preserving structure.
+  // `assetBytePaths` returns default bytes/variants first, then each
+  // override's bytes/variants — both source and target produce the same
+  // ordered list because they're built from the same manifest, so we
+  // can iterate in lockstep.
+  const sourceBytePaths = assetBytePaths(sourcePaths)
+  const targetBytePaths = assetBytePaths(targetPaths)
   for (let i = 0; i < sourceBytePaths.length; i++) {
     const stream = await ctx.source.readStream(sourceBytePaths[i]!)
     await ctx.target.writeStream(targetBytePaths[i]!, stream)
