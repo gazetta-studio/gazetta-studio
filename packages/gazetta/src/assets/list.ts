@@ -47,6 +47,10 @@ export function toSummary(
     // Project focalPoint when set; library cards use it for thumbnail
     // positioning, detail pane uses it as the editor's initial value.
     ...(manifest.focalPoint !== undefined ? { focalPoint: manifest.focalPoint } : {}),
+    // Animated indicator + poster — surfaces the multi-frame state to
+    // the admin without forcing a separate detail-pane fetch.
+    ...(manifest.animated !== undefined ? { animated: manifest.animated } : {}),
+    ...(manifest.poster !== undefined ? { poster: manifest.poster } : {}),
     uploadedAt: manifest.uploadedAt,
     overrideLocales: [...overrideLocales].sort(),
     overrideThemes: [...overrideThemes].sort(),

@@ -133,6 +133,28 @@ export interface AssetManifest {
    * that don't override.
    */
   focalPoint?: { x: number; y: number }
+  /**
+   * Multi-frame indicator for animated images (GIF, APNG, animated WebP,
+   * animated AVIF). True when the source has > 1 frame; false / absent
+   * for static images. Resolver passes through to `ResolvedEmbeddedAsset.animated`.
+   */
+  animated?: boolean
+  /** Frame count for animated content. Absent for static. */
+  frames?: number
+  /**
+   * Duration in milliseconds for time-based content (animated images,
+   * future video, future audio). Null when the format technically
+   * supports it but the duration couldn't be derived; absent for
+   * static images.
+   */
+  duration?: number | null
+  /**
+   * First-frame poster path (relative to assetsRoot) for animated
+   * content. Templates can render this for reduced-motion fallbacks
+   * or as a lazy-load placeholder. Absent for static; null when
+   * extraction failed despite the source being animated.
+   */
+  poster?: string | null
   /** Upload timestamp (ISO 8601 UTC). */
   uploadedAt: string
   /** Author who uploaded; empty string when RBAC isn't configured. */
@@ -272,6 +294,10 @@ export interface AssetSummary {
   alt: string | null
   /** Focal point in normalized coordinates (0–1). Absent = no preference. */
   focalPoint?: { x: number; y: number }
+  /** Multi-frame indicator. Absent for static images. */
+  animated?: boolean
+  /** First-frame poster path for animated content. Absent for static. */
+  poster?: string | null
   uploadedAt: string
   /**
    * Locales for which this asset has a manifest override (with or
