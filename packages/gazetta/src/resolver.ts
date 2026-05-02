@@ -4,14 +4,30 @@ import { processContent } from './content.js'
 import { resolveAssetRefs, type AssetResolveContext } from './assets/resolve.js'
 import type { Site } from './site-loader.js'
 import { resolveLocaleFallback, resolveSiteLocales, type ResolvedLocales } from './locale.js'
+import { resolveSiteThemes, type ResolvedThemes } from './themes.js'
 
 /**
  * Build the asset-resolve context from the site being rendered. Shared
  * across all `processContent` + `resolveAssetRefs` pairs in a single
- * resolution pass.
+ * resolution pass. Locale + theme flow in from the render-time
+ * `ResolveContext`; locales/themes config is derived from `site.manifest`
+ * once and reused.
  */
-function assetContext(site: Site): AssetResolveContext {
-  return { storage: site.storage, assetsRoot: 'assets' }
+function assetContext(
+  site: Site,
+  locale: string | undefined,
+  theme: string | undefined,
+  resolvedLocales: ResolvedLocales | null,
+  resolvedThemes: ResolvedThemes | null,
+): AssetResolveContext {
+  return {
+    storage: site.storage,
+    assetsRoot: 'assets',
+    locale,
+    theme,
+    locales: resolvedLocales,
+    themes: resolvedThemes,
+  }
 }
 
 /** Process content: sync transforms (markdown) + async asset resolution. */
@@ -19,9 +35,13 @@ async function processAndResolve(
   content: Record<string, unknown> | undefined,
   schema: unknown,
   site: Site,
+  ctx: { locale?: string; theme?: string; resolvedLocales?: ResolvedLocales; resolvedThemes?: ResolvedThemes | null },
 ): Promise<Record<string, unknown> | undefined> {
   const processed = processContent(content, schema)
-  return resolveAssetRefs(processed, assetContext(site))
+  return resolveAssetRefs(
+    processed,
+    assetContext(site, ctx.locale, ctx.theme, ctx.resolvedLocales ?? null, ctx.resolvedThemes ?? null),
+  )
 }
 
 interface ResolveContext {
@@ -31,8 +51,17 @@ interface ResolveContext {
   path: string[]
   /** When set, fragment references resolve the locale-specific variant first. */
   locale?: string
+  /**
+   * Active theme for asset resolution. v1 doesn't yet route a theme value
+   * from runtime callers (page/fragment templates emit theme-aware CSS via
+   * tokens, not via SSR theme branching); the field is wired so step 18+
+   * runtime work can pass it without resolver changes.
+   */
+  theme?: string
   /** Resolved site locales — cached for fallback resolution. */
   resolvedLocales?: ResolvedLocales
+  /** Resolved site themes — needed for font variant enumeration. */
+  resolvedThemes?: ResolvedThemes | null
 }
 
 export async function resolveComponent(entry: ComponentEntry, ctx: ResolveContext): Promise<ResolvedComponent> {
@@ -94,7 +123,7 @@ async function resolveFragmentRef(fragmentName: string, ctx: ResolveContext): Pr
 
   return {
     template: loaded.render,
-    content: await processAndResolve(fragment.content, loaded.schema, ctx.site),
+    content: await processAndResolve(fragment.content, loaded.schema, ctx.site, ctx),
     children,
     path: fragment.dir,
     treePath,
@@ -123,16 +152,25 @@ async function resolveInlineComponent(comp: InlineComponent, ctx: ResolveContext
 
   return {
     template: loaded.render,
-    content: await processAndResolve(comp.content, loaded.schema, ctx.site),
+    content: await processAndResolve(comp.content, loaded.schema, ctx.site, ctx),
     children,
     treePath,
   }
 }
 
-export async function resolveFragment(fragmentName: string, site: Site, locale?: string): Promise<ResolvedComponent> {
+export async function resolveFragment(
+  fragmentName: string,
+  site: Site,
+  locale?: string,
+  theme?: string,
+): Promise<ResolvedComponent> {
   // Resolve locale-specific fragment variant
   let fragment = site.fragments.get(fragmentName) ?? null
-  const resolvedLocales = locale ? (resolveSiteLocales(site.manifest) ?? undefined) : undefined
+  // Always resolve site-level config — even when no active locale/theme
+  // is set, the asset resolver may need it (font enumeration walks the
+  // configured theme universe).
+  const resolvedLocales = resolveSiteLocales(site.manifest) ?? undefined
+  const resolvedThemes = resolveSiteThemes(site.manifest)
   if (locale && resolvedLocales) {
     const localeEntry = site.fragmentLocales.get(fragmentName)
     if (localeEntry) {
@@ -157,7 +195,9 @@ export async function resolveFragment(fragmentName: string, site: Site, locale?:
     visited: new Set(),
     path: ['', `@${fragmentName}`],
     locale,
+    theme,
     resolvedLocales,
+    resolvedThemes,
   }
 
   const loaded = await loadTemplate(site.storage, templatesDir, fragment.template)
@@ -170,14 +210,19 @@ export async function resolveFragment(fragmentName: string, site: Site, locale?:
 
   return {
     template: loaded.render,
-    content: await processAndResolve(fragment.content, loaded.schema, site),
+    content: await processAndResolve(fragment.content, loaded.schema, site, ctx),
     children,
     path: fragment.dir,
     treePath: '',
   }
 }
 
-export async function resolvePage(pageName: string, site: Site, locale?: string): Promise<ResolvedComponent> {
+export async function resolvePage(
+  pageName: string,
+  site: Site,
+  locale?: string,
+  theme?: string,
+): Promise<ResolvedComponent> {
   const defaultPage = site.pages.get(pageName)
   if (!defaultPage) {
     const available = [...site.pages.keys()]
@@ -192,8 +237,18 @@ export async function resolvePage(pageName: string, site: Site, locale?: string)
   const page = localeEntry?.locales.get(locale!) ?? defaultPage
 
   const templatesDir = site.templatesDir
-  const resolvedLocales = locale ? (resolveSiteLocales(site.manifest) ?? undefined) : undefined
-  const ctx: ResolveContext = { site, templatesDir, visited: new Set(), path: [pageName], locale, resolvedLocales }
+  const resolvedLocales = resolveSiteLocales(site.manifest) ?? undefined
+  const resolvedThemes = resolveSiteThemes(site.manifest)
+  const ctx: ResolveContext = {
+    site,
+    templatesDir,
+    visited: new Set(),
+    path: [pageName],
+    locale,
+    theme,
+    resolvedLocales,
+    resolvedThemes,
+  }
 
   const loaded = await loadTemplate(site.storage, templatesDir, page.template)
   const children: ResolvedComponent[] = []
@@ -205,7 +260,7 @@ export async function resolvePage(pageName: string, site: Site, locale?: string)
 
   return {
     template: loaded.render,
-    content: await processAndResolve(page.content, loaded.schema, site),
+    content: await processAndResolve(page.content, loaded.schema, site, ctx),
     children,
     path: page.dir,
     treePath: '',

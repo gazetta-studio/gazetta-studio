@@ -17,10 +17,16 @@
 /** Path prefix (relative to storage root) where internal asset bytes live. */
 export const ASSETS_URL_PREFIX = '/assets'
 
+import { type Selector, selectorSuffix } from '../schema/dimensions.js'
+
 export interface BuildAssetUrlInput {
   /** Asset name (the canonical identifier). */
   name: string
-  /** 8-char SHA-256 prefix of the bytes (matches the manifest `hash`). */
+  /**
+   * 8-char SHA-256 prefix of the bytes (matches the manifest `hash`).
+   * For locale-bytes overrides this is the OVERRIDE's hash, distinct
+   * from the default's hash.
+   */
   hash: string
   /** File extension without the dot (e.g., `"jpg"`). */
   ext: string
@@ -30,18 +36,25 @@ export interface BuildAssetUrlInput {
    * is root-relative.
    */
   siteUrl?: string
+  /**
+   * Optional selector — when set, builds the URL for a locale/theme override.
+   * Path becomes `/assets/{name}-{hash}.{locale}[.{theme}].{ext}`. Null/omitted
+   * = default-bytes URL.
+   */
+  selector?: Selector | null
 }
 
 /**
  * Construct the public URL for an internal asset. Path pattern is
- * `{ASSETS_URL_PREFIX}/{name}-{hash}.{ext}`, optionally prefixed with
- * `siteUrl`.
+ * `{ASSETS_URL_PREFIX}/{name}-{hash}[.{locale}][.{theme}].{ext}`, optionally
+ * prefixed with `siteUrl`.
  *
  * Normalizes trailing slashes — `siteUrl: "https://cdn.example.com/"` and
  * `siteUrl: "https://cdn.example.com"` both produce the same URL.
  */
 export function buildAssetUrl(input: BuildAssetUrlInput): string {
-  const path = `${ASSETS_URL_PREFIX}/${input.name}-${input.hash}.${input.ext}`
+  const suffix = selectorSuffix(input.selector ?? null)
+  const path = `${ASSETS_URL_PREFIX}/${input.name}-${input.hash}${suffix}.${input.ext}`
   if (!input.siteUrl) return path
 
   // Strip trailing slash from siteUrl before appending the root-relative path.
