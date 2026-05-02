@@ -9,6 +9,7 @@
  */
 import { computed } from 'vue'
 import Button from 'primevue/button'
+import { formatBytes } from 'gazetta/format'
 import { updateAssetMetadata } from '../api/assets.js'
 import { useAssetsListStore } from '../stores/assetsList.js'
 import { useAssetsSelectionStore } from '../stores/assetsSelection.js'
@@ -72,12 +73,6 @@ const previewUrl = computed(() => {
   if (!ext) return null
   return buildAssetUrl({ name: asset.value.name, hash: asset.value.hash, ext })
 })
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`
-}
 
 function formatDate(iso: string): string {
   try {

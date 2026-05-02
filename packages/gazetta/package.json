@@ -30,6 +30,10 @@
       "types": "./dist/types.d.ts",
       "import": "./dist/types.js"
     },
+    "./format": {
+      "types": "./dist/format.d.ts",
+      "import": "./dist/format.js"
+    },
     "./editor": {
       "types": "./dist/editor/mount.d.ts",
       "import": "./dist/editor/mount.js"
