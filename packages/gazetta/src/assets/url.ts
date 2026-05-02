@@ -99,12 +99,33 @@ export function buildSrcset(variants: readonly { width: number; path: string }[]
  */
 export function extFromMime(mime: string): string | null {
   switch (mime) {
+    // Images
     case 'image/jpeg':
       return 'jpg'
     case 'image/png':
       return 'png'
     case 'image/svg+xml':
       return 'svg'
+    case 'image/gif':
+      return 'gif'
+    // Audio
+    case 'audio/mpeg':
+      return 'mp3'
+    case 'audio/wav':
+    case 'audio/x-wav':
+      return 'wav'
+    case 'audio/flac':
+    case 'audio/x-flac':
+      return 'flac'
+    case 'audio/ogg':
+      return 'ogg'
+    case 'audio/opus':
+      return 'opus'
+    case 'audio/aac':
+      return 'aac'
+    case 'audio/mp4':
+    case 'audio/x-m4a':
+      return 'm4a'
     default:
       return null
   }

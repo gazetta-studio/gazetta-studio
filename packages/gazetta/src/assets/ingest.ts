@@ -40,12 +40,28 @@ import { type UploadPolicy, validateUpload } from './validate.js'
 import { runPreprocessors, type UploadPreprocessor } from './preprocess.js'
 import { generateVariants, type GeneratedVariant } from './variants.js'
 
-/** Ext-from-MIME for the v1 allowlist (JPEG, PNG, SVG, GIF). */
+/**
+ * Ext-from-MIME for the v1 allowlist. Image: JPEG, PNG, SVG, GIF.
+ * Audio: MP3, WAV, FLAC, Opus, AAC, M4A, OGG. Wide rollout extends
+ * this map and the parallel `extFromMime` in `url.ts`.
+ */
 const EXT_BY_MIME: Record<string, string> = {
+  // Images
   'image/jpeg': 'jpg',
   'image/png': 'png',
   'image/svg+xml': 'svg',
   'image/gif': 'gif',
+  // Audio
+  'audio/mpeg': 'mp3',
+  'audio/wav': 'wav',
+  'audio/x-wav': 'wav',
+  'audio/flac': 'flac',
+  'audio/x-flac': 'flac',
+  'audio/ogg': 'ogg',
+  'audio/opus': 'opus',
+  'audio/aac': 'aac',
+  'audio/mp4': 'm4a',
+  'audio/x-m4a': 'm4a',
 }
 
 export interface IngestInput {
