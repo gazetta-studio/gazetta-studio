@@ -126,6 +126,13 @@ export function assetRoutes(resolve: SourceContextResolver) {
     // alt: absent → null, empty string → "" (decorative), string → the value
     const alt = typeof altRaw === 'string' ? altRaw : null
 
+    // Pull per-target upload policy from site.yaml. When the source
+    // didn't resolve a named target (legacy static-resolver path) or
+    // the site manifest isn't wired, ingest falls back to the default
+    // size cap.
+    const targetConfig = source.targetName ? source.manifest?.targets?.[source.targetName] : undefined
+    const policy = targetConfig?.assets
+
     try {
       const result = await ingestAsset({
         storage: source.storage,
@@ -134,6 +141,7 @@ export function assetRoutes(resolve: SourceContextResolver) {
         requestedName: name,
         alt,
         uploadedBy: '',
+        policy,
       })
       return c.json({ manifest: result.manifest, bytesPath: result.bytesPath }, 201)
     } catch (err) {

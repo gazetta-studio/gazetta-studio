@@ -217,6 +217,30 @@ export interface TargetConfig {
    * route URLs through a CDN's transform pipeline.
    */
   transforms?: TransformConfig
+  /**
+   * Per-target asset upload policy. Today carries the size cap; future
+   * fields (MIME allowlist subset, name policy overrides) extend this
+   * block additively. Default cap when unset: 50 MB
+   * (DEFAULT_ASSET_MAX_BYTES in assets/validate.ts).
+   *
+   * Example use cases:
+   *   - Cloudflare Workers Free tier: cap below 100 MB worker body limit
+   *   - Self-hosted with nginx + S3: raise to 500 MB for raw-photo
+   *     workflows
+   *   - Locked-down prod target: cap at the smallest sensible value
+   *     for the site's content
+   */
+  assets?: AssetUploadConfig
+}
+
+/** Per-target asset upload policy. */
+export interface AssetUploadConfig {
+  /**
+   * Per-asset upload size cap in bytes. Validates against the bytes
+   * actually received (sniffed at ingest time, not the client's
+   * Content-Length claim). Default: 50 MB.
+   */
+  maxBytes?: number
 }
 
 /** Per-target transform-adapter configuration. */

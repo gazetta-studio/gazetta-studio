@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { AssetValidationError } from '../src/assets/errors.js'
-import { ALLOWED_MIMES, ASSET_MAX_BYTES, validateUpload } from '../src/assets/validate.js'
+import { ALLOWED_MIMES, ASSET_MAX_BYTES, DEFAULT_ASSET_MAX_BYTES, validateUpload } from '../src/assets/validate.js'
 
 function ok(c: { name: string; claimedSize: number; sniffedMime: string | null }) {
   expect(() => validateUpload(c)).not.toThrow()
@@ -94,5 +94,55 @@ describe('validateUpload — MIME', () => {
 
   it('rejects when MIME could not be sniffed (null)', () => {
     throws({ name: 'hero', claimedSize: 1000, sniffedMime: null }, 'ASSET_MIME_MISMATCH')
+  })
+})
+
+describe('validateUpload — per-target policy', () => {
+  it('uses DEFAULT_ASSET_MAX_BYTES when no policy is provided', () => {
+    expect(() =>
+      validateUpload({ name: 'hero', claimedSize: DEFAULT_ASSET_MAX_BYTES, sniffedMime: 'image/jpeg' }),
+    ).not.toThrow()
+    expect(() =>
+      validateUpload({ name: 'hero', claimedSize: DEFAULT_ASSET_MAX_BYTES + 1, sniffedMime: 'image/jpeg' }),
+    ).toThrow(AssetValidationError)
+  })
+
+  it('uses DEFAULT when policy is empty object', () => {
+    expect(() =>
+      validateUpload({ name: 'hero', claimedSize: DEFAULT_ASSET_MAX_BYTES, sniffedMime: 'image/jpeg' }, {}),
+    ).not.toThrow()
+  })
+
+  it('honors a smaller per-target cap', () => {
+    const policy = { maxBytes: 1024 * 1024 } // 1 MB
+    expect(() =>
+      validateUpload({ name: 'hero', claimedSize: 1024 * 1024, sniffedMime: 'image/jpeg' }, policy),
+    ).not.toThrow()
+    expect(() =>
+      validateUpload({ name: 'hero', claimedSize: 1024 * 1024 + 1, sniffedMime: 'image/jpeg' }, policy),
+    ).toThrow(AssetValidationError)
+  })
+
+  it('honors a larger per-target cap (raised limit for self-hosted)', () => {
+    const policy = { maxBytes: 500 * 1024 * 1024 } // 500 MB
+    expect(() =>
+      validateUpload({ name: 'hero', claimedSize: 200 * 1024 * 1024, sniffedMime: 'image/jpeg' }, policy),
+    ).not.toThrow()
+  })
+
+  it('error reports the policy limit, not the default', () => {
+    const policy = { maxBytes: 1024 }
+    try {
+      validateUpload({ name: 'hero', claimedSize: 2048, sniffedMime: 'image/jpeg' }, policy)
+      throw new Error('expected throw')
+    } catch (err) {
+      expect(err).toBeInstanceOf(AssetValidationError)
+      const msg = (err as AssetValidationError).message
+      expect(msg).toContain('1024')
+    }
+  })
+
+  it('ASSET_MAX_BYTES export still works (deprecated alias)', () => {
+    expect(ASSET_MAX_BYTES).toBe(DEFAULT_ASSET_MAX_BYTES)
   })
 })

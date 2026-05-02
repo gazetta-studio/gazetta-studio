@@ -21,7 +21,7 @@ import { ASSET_HASH_LENGTH, hashBytes } from './hash.js'
 import { extractImageDimensions } from './image-metadata.js'
 import { assetBytesPath, assetVariantBytesPath, writeManifest } from './manifest.js'
 import { sniffMimeFromStream } from './mime-sniff.js'
-import { validateUpload } from './validate.js'
+import { type UploadPolicy, validateUpload } from './validate.js'
 import { generateVariants } from './variants.js'
 
 /** Ext-from-MIME for the v1 allowlist (JPEG, PNG). */
@@ -43,6 +43,13 @@ export interface IngestInput {
   alt: string | null
   /** Author identifier, if available. Empty string when RBAC isn't configured. */
   uploadedBy: string
+  /**
+   * Per-target upload policy. When omitted, the default size cap
+   * (`DEFAULT_ASSET_MAX_BYTES` from validate.ts) applies. The HTTP
+   * route should pass `target.assets` through here so per-target
+   * limits are honored.
+   */
+  policy?: UploadPolicy
 }
 
 export interface IngestResult {
@@ -68,9 +75,9 @@ export async function ingestAsset(input: IngestInput): Promise<IngestResult> {
   // Sniff MIME. file-type needs a web stream; build one from the buffer.
   const { mime, ext } = await sniffMimeFromStream(byteStreamFrom(buffer))
 
-  // Validate name + size + MIME. Throws AssetValidationError on the first
-  // policy violation.
-  validateUpload({ name: input.requestedName, claimedSize: size, sniffedMime: mime })
+  // Validate name + size + MIME against the per-target policy. Throws
+  // AssetValidationError on the first policy violation.
+  validateUpload({ name: input.requestedName, claimedSize: size, sniffedMime: mime }, input.policy)
 
   // Extension is derived from the sniffed MIME (we ignore the client-sent
   // extension in the requested name — the validator already stripped it).
