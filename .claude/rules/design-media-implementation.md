@@ -6,30 +6,76 @@ See [design-media.md](design-media.md) for the design itself and [design-media-r
 
 ## v1 scope (~10–12 weeks single-dev wall-clock; less with parallelism)
 
-| Piece | Estimate |
-|---|---|
-| StorageProvider streaming extensions (4 providers) | 1 week |
-| Asset entity model, schema helpers, Content type utility | 3 days |
-| Upload / list / delete / replace / rename API | 1 week |
-| Ref index (incremental write + rebuild) | 1 week |
-| Resolver + template contract (locale-aware) | 3 days |
-| Library UI (grid/table, search, filter, bulk, locale-aware metadata editing) | 1 week |
-| Asset picker (3-panel modal with resolution-chain UX) | 1 week |
-| Focal point editor | 2 days |
-| Upload dialog with alt prompt (always targets default locale) | 2 days |
-| i18n manifest resolution + fallback chain + asset locale variants | 2 days |
-| Locale-specific bytes (upload "default vs override" flow, per-locale variant generation, detail-pane locale bytes section, remove-override action) | 1 week |
-| Font asset kind (schema helper, resolver's union-with-unicode-range semantic, upload dialog for font metadata, locale-adds-variant behavior, library font preview) | 3–4 days |
-| Animated-image handling (detection via sharp `pages > 1`, first-frame poster extraction, `animated`/`duration` manifest fields) | 2 days |
-| Audio metadata (duration via `music-metadata`, strip-by-default metadata with opt-in preserve) | 1 day |
-| SVG sanitization specifics (DOMPurify SVG profile config, embedded base64 size limits, external-href stripping) | 1 day |
-| RTL validation + CSS logical-properties audit for custom components | 1 day |
-| History integration | 1–2 days (recorder already generic; asset manifests flow through unchanged; confirm blob-vs-live-path duplication is acceptable) |
-| Publish integration (transitive, dedupe) | 3 days |
-| TransformAdapter interface + Cloudflare adapter (~20 LOC URL builder) | 1 day |
-| CLI (list, info, reindex) | 3 days |
-| Starter example template + asset | 1 day |
-| Docs (template-assets, content-assets, migration, transform-adapters) | 3 days |
+**Status legend**: ✓ shipped · ◐ in progress · ☐ pending. Step refs cite the
+foundation grilling sequence (see commit log on the `media-v1-slice`
+branch for diffs).
+
+| Piece | Estimate | Status |
+|---|---|---|
+| StorageProvider streaming extensions (4 providers) | 1 week | ✓ steps 1, 11 |
+| Asset entity model, schema helpers, Content type utility | 3 days | ✓ step 2 |
+| Upload / list / delete / replace API | 1 week | ✓ steps 3, 5, 7, 8 |
+| Rename API | 2-3 days | ☐ step 22 |
+| Ref index (incremental write + rebuild) | 1 week | ✓ steps 12, 13 |
+| Resolver + template contract (locale-aware) | 3 days | ✓ step 17 |
+| **Foundation: dimensional schema (locale + theme)** | 0.5 day | ✓ step 14 |
+| **Foundation: manifest types + filename composition + AssetStoragePaths** | 1 day | ✓ step 15 |
+| **Foundation: manifest validators (per-kind locale variants)** | 1.5 days | ✓ step 16 |
+| **Foundation: TransformAdapter + sharp + cloudflare adapters** | 1 day | ✓ step 18 |
+| **Foundation: per-target upload size config** | 0.5 day | ✓ step 19 |
+| **Foundation: binary-capable HistoryProvider** | 1.5 days | ☐ step 20 |
+| **Foundation: asset routes wire history (upload + delete)** | 0.5 day | ☐ step 21 |
+| Library UI (grid/table, search, filter, bulk, locale-aware metadata editing) | 1 week | ✓ step 5 (default-only); locale-aware UI in step 24 |
+| Asset picker (3-panel modal with resolution-chain UX) | 1 week | ✓ step 6 (default-only); resolution-chain UX in step 24 |
+| Focal point editor | 2 days | ☐ |
+| Upload dialog with alt prompt (always targets default locale) | 2 days | ⚠ verify in step 23 audit |
+| i18n manifest resolution + fallback chain + asset locale variants | 2 days | ✓ step 17 (resolver); UI surfaces in step 24 |
+| Locale-specific bytes (upload "default vs override" flow, per-locale variant generation, detail-pane locale bytes section, remove-override action) | 1 week | ☐ step 24 (largest single chunk) |
+| Font asset kind (schema helper, resolver's union-with-unicode-range semantic, upload dialog for font metadata, locale-adds-variant behavior, library font preview) | 3–4 days | ✓ step 17 (resolver dispatch + variant union); upload UI + library preview deferred |
+| Animated-image handling (detection via sharp `pages > 1`, first-frame poster extraction, `animated`/`duration` manifest fields) | 2 days | ☐ |
+| Audio metadata (duration via `music-metadata`, strip-by-default metadata with opt-in preserve) | 1 day | ☐ |
+| SVG sanitization specifics (DOMPurify SVG profile config, embedded base64 size limits, external-href stripping) | 1 day | ☐ |
+| RTL validation + CSS logical-properties audit for custom components | 1 day | ☐ |
+| History integration | 1–2 days | ◐ steps 20–21 (provider widening + route wiring) |
+| Publish integration (transitive, dedupe) | 3 days | ✓ step 10 |
+| Picker kind-compat enforcement at selection time | 0.5 day | ☐ step 23 |
+| CLI (list, info, reindex) | 3 days | ✓ reindex; list/info ☐ |
+| Starter example template + asset | 1 day | ✓ step 4 |
+| Docs (template-assets, content-assets, migration, transform-adapters) | 3 days | ☐ — partial: design-media.md aligned with foundation locks |
+
+### Foundation grilling notes
+
+Steps 14–19 (committed `b5befb0`, `453653c`, `6f8a69a`, `e099ecb`,
+`df04929`, `13099fd`) ship the **contracts** that v1 builds on:
+
+- **Dimensions** are closed — `locale` + `theme` only. Adding a third
+  dimension extends `DIMENSION_ORDER` and the `Selector` union; no
+  filename migration is required because existing files have no value
+  for the new dimension.
+- **Locale-priority cross-dim fallback** is locked, non-configurable:
+  `(fr, dark) → (fr, light) → (default-locale, dark)`. Locale matters
+  more than visual presentation when content has to fall back.
+- **Filename scheme** is locked: `{name}.asset[.{loc}][.{theme}].json`
+  and `{name}-{hash}[.{loc}][.{theme}][-{w}w].{ext}`. Width comes
+  AFTER the selector — the selector identifies which override; width
+  is the rung in THAT override's ladder.
+- **Per-kind validator dispatch** (manifest-default + LocaleManifestVariant
+  with three impls + dispatch map) means a future kind = one new
+  variant impl + one map entry, no edits to existing kinds.
+- **TransformAdapter** owns URL composition + srcset + cache policy
+  + optional server-side route. Adapter is required in resolver
+  context (defaults to `sharpAdapter`); resolver code paths don't
+  branch on "does an adapter exist". Future adapters slot in via
+  one factory case.
+- **Per-target upload cap** is data on `TargetConfig.assets`, not a
+  constant. Default 50 MB; sites raise/lower per worker tier or
+  workflow.
+- **`source: 'internal'`** stays hardcoded in v1. External-direct
+  is fully punted; widening later is a future-additive change with
+  no data migration cost (existing manifests already write
+  `source: 'internal'` explicitly).
+- **`uploadedAt` / `uploadedBy`** only on the default manifest. Locale
+  variants are derivative; audit info lives on the default.
 
 ## Phased alternative
 

@@ -12,19 +12,21 @@ How the CMS handles media — images, videos, audio, documents, and fonts — as
 
 **In v1:**
 - Internal assets (bytes on target) — images, video, audio, documents
-- External-direct assets (URL stored, partner serves bytes)
 - Flat library with tag-based organization (no folders)
 - Hash-in-path URLs for cache invalidation
 - Variant (srcset) generation for images at upload time (sharp)
-- TransformAdapter interface with `none` (default, sharp+srcset) and `cloudflare` (on-demand URL transforms) adapters
+- TransformAdapter interface with `sharp` (default, origin bytes + pre-generated ladder) and `cloudflare` (`/cdn-cgi/image/` URLs with on-the-fly transforms) adapters
+- Per-target upload size cap via `assets.maxBytes` config (default 50 MB)
 - Replace-and-delete as a flow; delete blocked when refs > 0
 - Rename rewrites all references (across all locale variants)
 - Usage panel (reverse-dep lookup; shows locale coverage per referencing page)
 - Publish carries transitive asset dependencies
 - i18n — locale-suffix asset manifests (`hero.asset.fr.json`) with fallback chain, active-locale editing in library, resolution-chain UX in picker, and optional per-locale byte overrides (`hero-{hash}.fr.jpg`) for text-in-image or region-specific assets
+- Theme dimension (`light` / `dark` / etc.) as a peer override axis to locale — assets carry per-theme byte overrides; resolver picks per render context. v1 ships theme on **assets only**; page/fragment theme variants and runtime SSR theme branching are deferred (templates emit theme-aware CSS via PrimeVue tokens / class-based cascade — see css-theming.md). Cross-dimension fallback is **locale-priority**: `(fr, dark) → (fr, light) → (default-locale, dark) → (default-locale, light)`. Documented as a non-configurable contract — language matters more than visual presentation when content has to fall back.
 - **Three asset kinds: embedded, downloadable, font.** Fonts are first-class because typography is locale-dimensioned (Arabic needs different glyphs than Latin, CJK needs different fonts entirely) and the `@font-face` with `unicode-range` pattern needs first-class resolver support for multi-script rendering
 
 **Reserved in v1 (model supports, UI does not expose):**
+- External-direct (URL stored, partner serves bytes) — manifest schema currently hardcodes `source: 'internal'`; widening to `'internal' | 'external-direct'` is a future-additive change. Punted because no UI surface ships it and no concrete user demand has surfaced.
 - External-proxy (Worker proxies + caches partner bytes on our domain)
 
 **Out of v1 (explicit):**
@@ -128,6 +130,43 @@ Templates always receive the full shape, with `null` for missing values. No miss
 | `alt: null` | Missing / not set | Admin warns; resolver falls back to `''` |
 
 The upload dialog prompts for alt on images. Author types text, ticks "decorative," or skips (producing `null` with warning).
+
+### Override dimensions: locale and theme
+
+Assets can vary along two peer dimensions: **locale** (content-level — language-specific bytes or metadata) and **theme** (presentation-level — typically light/dark). Both are first-class. An asset can opt into either, both, or neither.
+
+```yaml
+# site.yaml — opt into theme dimension
+themes:
+  supported: [light, dark]
+  default: light
+```
+
+When `themes` is absent, the theme dimension is unused — assets are theme-agnostic. When present, assets can carry per-theme byte overrides keyed under the same selector model as locale.
+
+| Selector | Filename | Resolved at |
+|---|---|---|
+| _(none)_ | `hero.asset.json` + `hero-{hash}.jpg` | always read; the floor |
+| `{ locale: 'fr' }` | `hero.asset.fr.json` + `hero-{hash}.fr.jpg` | active locale = fr |
+| `{ theme: 'dark' }` | `hero.asset.dark.json` + `hero-{hash}.dark.jpg` | active theme = dark |
+| `{ locale: 'fr', theme: 'dark' }` | `hero.asset.fr.dark.json` + `hero-{hash}.fr.dark.jpg` | both active |
+
+**Filename composition order is locked**: locale before theme. Adding a future dimension extends `DIMENSION_ORDER` (`schema/dimensions.ts`); existing filenames stay valid because they have no value for the new dimension.
+
+**Theme name validation**: theme names must be lowercase ASCII, must NOT collide with valid BCP 47 locale codes (so `hero.asset.en.json` is unambiguously a locale variant, never a theme variant). The site config validator enforces.
+
+**Cross-dimension fallback chain — locale-priority**: when active is `(fr, dark)` and the site default is `(en, light)`, the resolver tries:
+
+1. `(fr, dark)` — most specific
+2. `(fr, light)` — locale match, default theme
+3. `(default-locale, dark)` — theme only
+4. `(default-locale, default-theme)` — the base manifest, always read separately
+
+Locale wins over theme because language matters more than visual presentation when content has to fall back. Locked as a non-configurable contract.
+
+**v1 scope of theme**: assets only. Pages/fragments don't yet have theme variants — templates emit theme-aware CSS via PrimeVue tokens / class-based cascade (see `css-theming.md`); the runtime doesn't yet route a theme value into render context. The asset resolver accepts `theme` in its context so step 18+ runtime work (cookie / `prefers-color-scheme`) can pass it without resolver changes.
+
+**Why a closed dimension set (not user-defined)**: 90% of value is locale + theme. Arbitrary dimensions complicate the picker UI ("which dimensions for this asset?"), the fallback chain semantics, and the storage scheme. Deferred until concrete demand.
 
 ## Storage
 
@@ -288,78 +327,85 @@ Resolver constructs URLs: `{siteUrl}assets/{name}-{hash}.{ext}`. Default (no `si
 
 **Note:** `siteUrl` already exists on `TargetConfig` (used for SEO canonical URLs). The resolver reuses it rather than introducing a second URL-base field.
 
-### Transform adapters (optional, opt-in per target)
+### Transform adapters (per-target delivery strategy)
 
-By default, the resolver returns URLs to pre-generated sharp variants (400/800/1200/1600 widths + srcset). For users who want arbitrary on-demand transforms (`?w=473`, smart crop, watermarks), a target can opt into a transform adapter:
+Every target has a transform adapter — `sharp` by default, swappable via `target.transforms.adapter`. The adapter owns three coupled concerns: URL composition, srcset semantics, and cache policy. Co-locating them on one interface (rather than scattering URL construction in the resolver and cache headers in the serve-route) means future adapters with non-trivial delivery (signed URLs, format negotiation, server-side proxying) plug in without leaking knowledge across modules.
 
 ```yaml
+# Default — no transforms config means sharp adapter
+targets:
+  local:
+    storage: { type: filesystem }
+    # transforms unset → sharp adapter, immutable cache, origin URLs
+
+# Cloudflare CDN
 targets:
   production:
     storage: { type: r2, bucket: site-prod }
     siteUrl: https://cdn.example.com
     transforms:
-      adapter: cloudflare       # | imgproxy | cloudinary | imgix | none (default)
-      zone: cdn.example.com     # cloudflare: where /cdn-cgi/image/ is served
+      adapter: cloudflare
+      zone: cdn.example.com   # where /cdn-cgi/image/ is served
 ```
 
-Per-adapter config:
-
-```yaml
-# imgproxy (self-hosted)
-transforms:
-  adapter: imgproxy
-  endpoint: https://proxy.example.com
-  key: env:IMGPROXY_KEY
-  salt: env:IMGPROXY_SALT
-
-# Cloudinary (fetch mode)
-transforms:
-  adapter: cloudinary
-  cloud: my-cloud-name
-
-# imgix
-transforms:
-  adapter: imgix
-  source: my-source-handle
-```
-
-**Adapter contract** — pure URL builders, no state, no publish-time side effect:
+**Adapter contract** — URL builder + cache policy + optional server-side route:
 
 ```ts
 interface TransformAdapter {
+  readonly name: string
+  /** URL for the asset's bytes-of-record. */
+  primaryUrl(input: AssetUrlInput): string
+  /** Responsive srcset, or null when not supported (non-image, no ladder). */
+  srcset(input: AssetUrlInput): string | null
+  /** Cache-Control + optional Vary for bytes this adapter produced. */
+  cachePolicy(input: AssetUrlInput): CachePolicy
+  /** Optional — adapters that mediate delivery server-side mount their own routes. */
+  mountRoutes?(app: Hono): void
+}
+
+interface AssetUrlInput {
   name: string
-  urlFor(asset: { originUrl: string; path: string }, opts: {
-    width?: number
-    height?: number
-    format?: 'auto' | 'webp' | 'avif' | 'jpeg'
-    quality?: number | 'auto'
-    fit?: 'cover' | 'contain' | 'scale-down' | 'crop'
-    dpr?: number
-    blur?: number
-    extra?: Record<string, string>  // provider-specific params
-  }): string
+  hash: string
+  ext: string
+  selector: Selector | null      // locale + theme override identifier
+  siteUrl?: string
+  variants: readonly AssetVariant[]
+  width: number | null
+  height: number | null
+}
+
+interface CachePolicy {
+  cacheControl: string
+  vary?: string
 }
 ```
 
-When a target has `transforms.adapter` set, the resolver calls `adapter.urlFor()` instead of returning paths to pre-generated sharp variants. When adapter is `none` (default) or absent, falls back to sharp variants. No code path changes between modes other than the URL construction.
+The adapter is **required** in the resolver context (defaulting to `sharpAdapter` at the call site). Resolver code paths don't branch on "does an adapter exist" — every URL goes through one. Eliminates conditional URL construction.
 
-**URL shapes per adapter:**
+**Shipped adapters (v1):**
 
-| Adapter | URL |
-|---|---|
-| imgproxy | `https://proxy.example.com/{sig}/rs:fill:800:0/plain/https://cdn.example.com/assets/hero-a3b2c1d4.jpg@webp` |
-| Cloudflare | `https://cdn.example.com/cdn-cgi/image/width=800,format=auto/https://cdn.example.com/assets/hero-a3b2c1d4.jpg` |
-| Cloudinary | `https://res.cloudinary.com/{cloud}/image/fetch/w_800,f_auto/https://cdn.example.com/assets/hero-a3b2c1d4.jpg` |
-| imgix | `https://{source}.imgix.net/assets/hero-a3b2c1d4.jpg?w=800&auto=format` |
+| Adapter | Primary URL | srcset | Cache policy | Notes |
+|---|---|---|---|---|
+| `sharp` (default) | `/assets/hero-{hash}.jpg` (origin) | from manifest's pre-generated variants | `public, max-age=31536000, immutable` | Hash-in-path is content-addressed; new bytes = new URL. |
+| `cloudflare` | `https://{zone}/cdn-cgi/image/format=auto/{originUrl}` | width-ladder via `/cdn-cgi/image/format=auto,width={w}/...` | same + `Vary: Accept` | `format=auto` returns AVIF/WebP/JPEG per browser; caches must vary on Accept. Skips ladder widths above source width. |
 
-**Shipping order:**
-- **v1:** `none` (default; sharp+srcset) and `cloudflare` (simplest to implement — URL concatenation only)
-- **v1.5:** `imgproxy` (self-hosted path; validates HMAC signing in the contract)
-- **Community-contributed:** `cloudinary`, `imgix` — credit-based SaaS are a poor match for the config model, but users with those accounts can ship adapters in ~50 LOC
+**Future adapters** plug into the same factory (`buildTransformAdapter` in `transforms/index.ts`):
+
+| Adapter | Status | URL shape |
+|---|---|---|
+| `imgproxy` | v1.5 — validates HMAC-signed URL contract via `mountRoutes` | `https://proxy.example.com/{sig}/rs:fill:800:0/plain/{originUrl}@webp` |
+| `cloudinary` | community-contributed | `https://res.cloudinary.com/{cloud}/image/fetch/w_800,f_auto/{originUrl}` |
+| `imgix` | community-contributed | `https://{source}.imgix.net/assets/{path}?w=800&auto=format` |
+
+**Cache policy ownership:**
+
+The asset-serve route reads cache headers from `adapter.cachePolicy(input)` instead of hardcoding. That's the load-bearing reason cache lives on the adapter — without it, future adapters with different cache semantics (signed URLs with short TTLs, format-negotiation URLs needing `Vary: Accept`) would leak knowledge into `serve-route.ts`.
 
 ### Cache invalidation
 
-Hash-in-path means URL changes whenever bytes change. Serve internal assets with `Cache-Control: public, max-age=31536000, immutable`. No cache purging, no query strings. Replace bytes → new hash → new URL → automatic cache bust. Old bytes remain servable until GC.
+Hash-in-path means URL changes whenever bytes change. The serve-route reads `Cache-Control` from `adapter.cachePolicy(input)` rather than hardcoding — see "Transform adapters" above for adapter-owned cache rationale. Both shipped adapters return `public, max-age=31536000, immutable` because hash-in-path is content-addressed; the cloudflare adapter additionally sets `Vary: Accept` because `format=auto` returns different bytes per browser.
+
+No cache purging, no query strings. Replace bytes → new hash → new URL → automatic cache bust. Old bytes remain servable until GC.
 
 Browser support for `immutable` is partial: Firefox 49+ and Safari 11+ implement it; Chrome does not (caniuse/BCD shows Chrome `version_added: false`). It's fine: all browsers honor the long `max-age`, and since the URL itself changes when bytes change, revalidation of a stale copy is just a cheap 304. The `immutable` directive is belt-and-suspenders for Firefox/Safari that avoids even the 304 round-trip.
 
@@ -441,10 +487,26 @@ Content-addressed storage paths dedupe automatically: if `hero-a3b2c1d4.jpg` alr
 `packages/gazetta/src/renderer/resolve-asset.ts`:
 
 ```ts
-function resolveAsset(
-  ref: EmbeddedAssetRef | DownloadableAssetRef | FontAssetRef | null,
-  context: { target: TargetConfig; storage: StorageProvider; locale: string }
-): Promise<ResolvedEmbeddedAsset | ResolvedDownloadableAsset | ResolvedFontAsset | null>
+// Resolver is invoked through the walker (`resolveAssetRefs`) — there is no
+// public single-ref entry point. The walker reads a content object, finds
+// every value carrying `_asset`, dispatches by `manifest.kind`, and returns
+// a content tree where references are swapped for resolved shapes.
+
+resolveAssetRefs(
+  content: Record<string, unknown> | undefined,
+  ctx: AssetResolveContext,
+): Promise<Record<string, unknown> | undefined>
+
+interface AssetResolveContext {
+  storage: StorageProvider
+  assetsRoot: string                       // typically 'assets'
+  siteUrl?: string
+  locale?: string
+  theme?: string
+  locales?: ResolvedLocales | null         // from resolveSiteLocales(site.manifest)
+  themes?: ResolvedThemes | null           // from resolveSiteThemes(site.manifest)
+  transformAdapter?: TransformAdapter      // defaults to sharpAdapter
+}
 ```
 
 Called during:
@@ -452,12 +514,22 @@ Called during:
 - Request (dynamic targets) — at render time
 - Preview (admin) — via the admin-API
 
-Resolver reads the manifest for the referenced asset, merges per-reference overrides (alt, focalPoint, title, description), constructs URL using target's `siteUrl`, returns the resolved shape.
+Walker reads the default manifest first (to discover `kind`), then dispatches:
 
-**Resolver semantic differs between kinds:**
+- **Embedded / downloadable**: builds the cross-dimension fallback chain via `crossDimensionFallbackChain(ctx)` (locale-priority order), reads each chain entry's locale variant, folds them most-specific-LAST into one effective `Partial<AssetManifest>`, calls the kind resolver. Locale-bytes overrides redirect URL to the locale-suffixed bytes path; metadata-only overrides keep default bytes.
+- **Font**: enumerates every (locale, theme) cell in the supported universe, reads each variant that exists, returns the full set as a `FontVariantEntry[]`. Resolver emits one `@font-face` declaration per variant. Fonts ADD variants (unicode-range-keyed), they don't override.
 
-- **Embedded and downloadable:** locale manifest *overrides* default (active locale's bytes/metadata win; missing fields fall back to default). One URL in the resolved shape.
-- **Font:** locale manifest *adds a variant* to the union rather than overriding. Resolver returns **all** locale variants in the `variants` array, each with its own unicode-range. Template emits multiple `@font-face` declarations with the same `cssName`, and the browser picks the right file per character based on `unicode-range`. This matches the Google Fonts pattern (a family like Noto Sans JP is served as many `@font-face` chunks, each with a narrow `unicode-range`) and is the industry standard for multi-script typography. Authors should set the HTML `lang` attribute on page roots (Gazetta does this automatically via the renderer) so browsers can disambiguate glyphs where Unicode codepoints overlap across scripts (Han unification for Japanese vs Chinese).
+URL composition happens via the resolver context's `transformAdapter` (defaults to `sharpAdapter`). Adapter is required, never branched on within the resolver.
+
+**Per-kind resolver signatures (called from the walker):**
+
+```ts
+resolveEmbeddedRef(ref, defaultManifest, effectiveOverride, selector, ctx) → ResolvedEmbeddedAsset
+resolveDownloadableRef(ref, defaultManifest, effectiveOverride, selector, ctx) → ResolvedDownloadableAsset
+resolveFontRef(ref, defaultManifest, variants: FontVariantEntry[], ctx) → ResolvedFontAsset
+```
+
+Embedded/downloadable take the pre-folded effective override (one merged `Partial<AssetManifest>` from the chain). Font takes the full variant list because it needs all of them in the resolved union — it doesn't pick one. Per Q3 lock, fonts compose differently, and the dispatch shape reflects that honestly (different signature for the kind that has different semantics, rather than forcing uniformity).
 
 ### Resolver caching
 
@@ -525,7 +597,7 @@ fontAsset({
 ### Upload-time validation
 
 - **MIME sniff** from bytes (via `file-type`) — client-supplied Content-Type is advisory. Reject mismatched extension vs sniffed MIME. **SVG is not detected by `file-type`** (it's text-based, not binary; excluded by design per the package README). Handle SVG via a separate path: recognize by `.svg` extension or `image/svg+xml` Content-Type, then validate by parsing as XML + checking for `<svg>` root element. Or use the `@file-type/xml` plugin.
-- **Size > 0** required
+- **Size > 0** required, and `≤ target.assets.maxBytes` (default 50 MB). Per-target config — sites with raw-photo workflows on self-hosted storage can raise to 500 MB; sites on Cloudflare Workers Free tier should cap below 100 MB to fit the worker body limit. Enforced after the bytes are received, against the actual sniffed size, not the client-supplied `Content-Length`.
 - **Name validation** (see Storage → Name rules)
 - **SVG sanitization** — strip `<script>`, event handlers (`onclick`, `onload`, etc.), `<foreignObject>`, and **all** external `xlink:href`/`href` references (tracking pixels are a privacy leak even when sanitized). Via DOMPurify SVG profile (`USE_PROFILES: { svg: true }`). Run on upload; store sanitized bytes. Hash is computed on sanitized output. Warn at upload when embedded base64 images exceed **100 KB**; reject over **1 MB** (bloat heuristic; tunable via site config).
 - **SVG origin isolation (strongly recommended for production)** — serve user-uploaded content from a different subdomain than the admin origin. GitHub serves all user-uploaded content from `*.githubusercontent.com` (separate from github.com) — defense in depth even if sanitization has a gap. Configure via `TargetConfig.assetsUrl` / `siteUrl` to point at a subdomain distinct from the admin. Sanitization + origin isolation together give belt-and-suspenders SVG security.
@@ -544,7 +616,7 @@ fontAsset({
 - `X-Content-Type-Options: nosniff` — prevents browser MIME second-guessing
 - `Content-Disposition: attachment` for `kind: downloadable`, inline for `kind: embedded`
 - `ETag: "{hash}"` — conditional requests return 304 Not Modified
-- `Cache-Control: public, max-age=31536000, immutable` — safe because hash-in-path
+- `Cache-Control` + optional `Vary` from `adapter.cachePolicy(input)` — adapter owns the policy; sharp returns `public, max-age=31536000, immutable`, cloudflare additionally returns `Vary: Accept`
 - `Access-Control-Allow-Origin: *` (v1 — private assets are out of scope)
 - Range request support for video
 
