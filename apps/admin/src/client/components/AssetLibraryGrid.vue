@@ -10,15 +10,29 @@
  * step; the grid reads the same URL either way.
  */
 import { computed } from 'vue'
+import { matchesAccept, type AcceptFilter } from 'gazetta/schema'
 import { useAssetsListStore } from '../stores/assetsList.js'
+import { useAssetsPickerStore } from '../stores/assetsPicker.js'
 import { useAssetsSelectionStore } from '../stores/assetsSelection.js'
 import { ASSETS_URL_PREFIX, buildAssetUrl, extFromMime } from '../utils/assetUrl.js'
 
 const list = useAssetsListStore()
+const picker = useAssetsPickerStore()
 const selection = useAssetsSelectionStore()
 
+// When the picker is open and carries an accept filter, narrow the grid
+// to assets that match. Browsing-library mode (picker closed, or open
+// with empty accept) shows everything. The same library content powers
+// both surfaces; the filter is what distinguishes "select compatible"
+// from "browse all."
+const filtered = computed(() => {
+  if (!picker.isOpen || picker.accept.length === 0) return list.assets
+  const accept = picker.accept as AcceptFilter[]
+  return list.assets.filter(a => matchesAccept(a, accept))
+})
+
 const cards = computed(() =>
-  list.assets.map(a => ({
+  filtered.value.map(a => ({
     ...a,
     thumbUrl: thumbnailUrl(a.name, a.hash, a.mime),
   })),
@@ -44,7 +58,10 @@ function onCardClick(name: string): void {
       {{ list.error }}
     </div>
     <div v-else-if="cards.length === 0" class="asset-grid-state" data-testid="asset-grid-empty">
-      No assets yet. Drop files into the upload zone above to get started.
+      <span v-if="picker.isOpen && picker.accept.length > 0 && list.assets.length > 0">
+        No assets match the requested type. Upload a compatible file or cancel.
+      </span>
+      <span v-else>No assets yet. Drop files into the upload zone above to get started.</span>
     </div>
     <div v-else class="asset-grid">
       <button

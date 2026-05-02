@@ -123,3 +123,64 @@ export function fontAsset(options: FontAssetOptions = {}) {
 
   return base.meta({ assetOptions: options })
 }
+
+// ---------- accept-filter matching ----------
+
+/**
+ * Map a MIME's top-level type to its picker `AcceptFilter` kind name.
+ * `image/jpeg` → `image`, `application/pdf` → `document`, etc.
+ *
+ * The asset-kind taxonomy (`image | video | audio | document | font |
+ * other`) is defined by design-media.md; this maps the IANA top-level
+ * type into that vocabulary. Anything not in the table maps to `'other'`
+ * — the picker can still accept these via MIME prefix or exact MIME.
+ *
+ * `kind` is the asset's manifest kind (`embedded | downloadable | font`),
+ * which discriminates rendering contract — separate axis from this
+ * MIME-derived category. Both inform `matchesAccept`.
+ */
+export function mimeToAcceptKind(mime: string): AcceptFilter {
+  const slash = mime.indexOf('/')
+  const top = slash === -1 ? mime : mime.slice(0, slash)
+  switch (top) {
+    case 'image':
+      return 'image'
+    case 'video':
+      return 'video'
+    case 'audio':
+      return 'audio'
+    case 'application':
+    case 'text':
+      return 'document'
+    case 'font':
+      return 'font'
+    default:
+      return 'other'
+  }
+}
+
+/**
+ * Does this asset satisfy any one of the picker's `accept` filters?
+ *
+ * Empty `accept` matches everything — that's "no filter configured."
+ * Otherwise the asset matches if at least one filter entry holds:
+ *   - kind name (`'image'`, `'video'`, ...) matches `mimeToAcceptKind`
+ *   - MIME prefix (ends with `/`) is a prefix of the asset's MIME
+ *   - exact MIME equals the asset's MIME
+ *
+ * Pure, side-effect-free — picker UIs use it to filter the grid; the
+ * resolver could use it to validate refs at render time.
+ */
+export function matchesAccept(asset: { mime: string }, accept: readonly AcceptFilter[]): boolean {
+  if (accept.length === 0) return true
+  const assetKind = mimeToAcceptKind(asset.mime)
+  for (const filter of accept) {
+    if (filter === assetKind) return true
+    if (filter.endsWith('/')) {
+      if (asset.mime.startsWith(filter)) return true
+    } else if (filter.includes('/')) {
+      if (asset.mime === filter) return true
+    }
+  }
+  return false
+}
