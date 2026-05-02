@@ -52,6 +52,7 @@ import { ASSET_HASH_LENGTH, hashBytes } from './hash.js'
 import { extractImageDimensions } from './image-metadata.js'
 import { mimeCategory } from './kind-compat.js'
 import { assetBytesPath, assetVariantBytesPath, readManifest, writeLocaleManifest } from './manifest.js'
+import { runAnalyzers } from './analyze.js'
 import { runPreprocessors, type UploadPreprocessor } from './preprocess.js'
 import { sniffMimeFromStream } from './mime-sniff.js'
 import { type UploadPolicy, validateUpload } from './validate.js'
@@ -149,14 +150,37 @@ export async function ingestLocaleBytes(input: IngestLocaleBytesInput): Promise<
   // Step 6 — image dimensions (per-locale: override may differ from default).
   const dims = overrideMime.startsWith('image/') ? await extractImageDimensions(buffer) : null
 
-  // Step 7 — generate variants in memory. SVG is vector — no ladder.
+  // Step 7 — generate variants in memory. Skip for vector formats
+  // (SVG) and animated images (multi-frame can't ladder-resize
+  // correctly). Animated detection uses the analyzer for parity
+  // with the default-ingest path; locale manifests don't carry
+  // animated fields today, but the variant skip still matters.
   const generatedVariants: GeneratedVariant[] = []
   if (overrideMime.startsWith('image/') && overrideMime !== 'image/svg+xml') {
+    let isAnimated = false
     try {
-      const generated = await generateVariants(buffer)
-      generatedVariants.push(...generated)
-    } catch (err) {
-      throw new AssetVariantGenerationError(input.assetName, err)
+      const analysis = await runAnalyzers({
+        bytes: buffer,
+        assetName: input.assetName,
+        hash,
+        ext: bytesExt,
+        mime: overrideMime,
+      })
+      isAnimated = analysis.manifestPatch?.animated === true
+    } catch {
+      // Analyzer failure is non-fatal at this layer — fall back to
+      // assuming static + variants. Static analyzer would be the one
+      // failing; variant generation will surface its own error if
+      // sharp can't process the image.
+    }
+
+    if (!isAnimated) {
+      try {
+        const generated = await generateVariants(buffer)
+        generatedVariants.push(...generated)
+      } catch (err) {
+        throw new AssetVariantGenerationError(input.assetName, err)
+      }
     }
   }
 

@@ -55,14 +55,17 @@ export const DEFAULT_ASSET_MAX_BYTES = 50 * 1024 * 1024
 export const ASSET_MAX_BYTES = DEFAULT_ASSET_MAX_BYTES
 
 /**
- * v1 MIME allowlist — images today: JPEG, PNG, SVG. SVG is sanitized
- * before persistence (see `svg-sanitize.ts`) — admitting it here only
- * means the format passes upload-time MIME validation; the ingest
- * pipeline still runs DOMPurify before hashing or writing bytes.
+ * v1 MIME allowlist — images today: JPEG, PNG, SVG, GIF. SVG is
+ * sanitized before persistence (see `svg-sanitize.ts`); GIF is
+ * checked for animation by the `animatedImageAnalyzer` and gets a
+ * poster extracted when multi-frame.
  *
- * Wide rollout expands to video / audio / documents.
+ * Animated WebP / AVIF aren't in the allowlist yet (the analyzer
+ * handles them when they arrive); they widen via this set when the
+ * codec landscape stabilises in v1.1+. Wide rollout adds video /
+ * audio / documents.
  */
-export const ALLOWED_MIMES = new Set<string>(['image/jpeg', 'image/png', 'image/svg+xml'])
+export const ALLOWED_MIMES = new Set<string>(['image/jpeg', 'image/png', 'image/svg+xml', 'image/gif'])
 
 /** Asset-name validation: lowercase ASCII-safe characters. */
 const VALID_NAME = /^[a-z0-9][a-z0-9\-_]*(?:\.[a-z0-9]+)?$/

@@ -414,3 +414,94 @@ describe('ingestAsset — SVG sanitization (end-to-end)', () => {
     ).rejects.toMatchObject({ code: 'ASSET_PREPROCESS_FAILED' })
   })
 })
+
+describe('ingestAsset — animated image (end-to-end)', () => {
+  // Hand-crafted 2-frame animated GIF, 1×1 pixels each, 100ms per frame.
+  // Avoids depending on a binary fixture or sharp's GIF-output animation
+  // API (which produces a single-frame output from `pageHeight` slicing
+  // on the current sharp version — see asset-analyze.test.ts).
+  const ANIMATED_GIF_BYTES = Buffer.from(
+    'GIF89a' +
+      '\x01\x00\x01\x00' +
+      '\x80\x00\x00' +
+      '\x00\x00\x00\xff\x00\x00' +
+      '\x21\xff\x0bNETSCAPE2.0\x03\x01\x00\x00\x00' +
+      '\x21\xf9\x04\x00\x0a\x00\x00\x00' +
+      '\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00' +
+      '\x02\x02\x44\x01\x00' +
+      '\x21\xf9\x04\x00\x0a\x00\x00\x00' +
+      '\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00' +
+      '\x02\x02\x4c\x01\x00' +
+      '\x3b',
+    'binary',
+  )
+
+  it('detects animation, sets manifest fields, and writes a poster', async () => {
+    const storage = createFilesystemProvider(testDir)
+
+    const result = await ingestAsset({
+      storage,
+      assetsRoot: 'assets',
+      bytes: streamOf(new Uint8Array(ANIMATED_GIF_BYTES)),
+      requestedName: 'spinner',
+      alt: 'Loading',
+      uploadedBy: '',
+    })
+
+    expect(result.manifest.mime).toBe('image/gif')
+    expect(result.manifest.animated).toBe(true)
+    expect(result.manifest.frames).toBe(2)
+    expect(result.manifest.duration).toBe(200)
+    expect(result.manifest.poster).toBe(`spinner-${result.manifest.hash}-poster.png`)
+    // No variant ladder for animated content.
+    expect(result.manifest.variants).toEqual([])
+
+    // Poster file exists on disk.
+    const posterPath = `assets/${result.manifest.poster}`
+    const posterBytes = await readFile(join(testDir, posterPath))
+    // PNG header check.
+    expect(posterBytes[0]).toBe(0x89)
+    expect(posterBytes[1]).toBe(0x50)
+    expect(posterBytes[2]).toBe(0x4e)
+    expect(posterBytes[3]).toBe(0x47)
+  })
+
+  it('does not generate variants for animated images', async () => {
+    const storage = createFilesystemProvider(testDir)
+    await ingestAsset({
+      storage,
+      assetsRoot: 'assets',
+      bytes: streamOf(new Uint8Array(ANIMATED_GIF_BYTES)),
+      requestedName: 'no-variants',
+      alt: null,
+      uploadedBy: '',
+    })
+
+    // Asset bytes + manifest + poster = 3 files on disk; no variant ladder.
+    const entries = await readdir(join(testDir, 'assets'))
+    const variantFiles = entries.filter(n => /-\d+w\./.test(n))
+    expect(variantFiles).toEqual([])
+  })
+
+  it('records the poster file in the history revision', async () => {
+    const storage = createFilesystemProvider(testDir)
+    const history = createHistoryProvider({ storage })
+    const contentRoot = createContentRoot(storage)
+
+    await ingestAsset({
+      storage,
+      assetsRoot: 'assets',
+      bytes: streamOf(new Uint8Array(ANIMATED_GIF_BYTES)),
+      requestedName: 'with-history',
+      alt: null,
+      uploadedBy: '',
+      history,
+      contentRoot,
+    })
+
+    const list = await history.listRevisions()
+    const upload = await history.readRevision(list[0]!.id)
+    const posterEntry = Object.keys(upload.snapshot).find(k => k.endsWith('-poster.png'))
+    expect(posterEntry).toBeDefined()
+  })
+})

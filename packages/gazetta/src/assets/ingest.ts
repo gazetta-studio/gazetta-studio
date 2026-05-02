@@ -30,6 +30,7 @@ import { recordWrite, type WrittenItem } from '../history-recorder.js'
 import type { AssetManifest, AssetVariant } from '../schema/types.js'
 import type { StorageProvider } from '../types.js'
 import { rmIgnoreMissing } from '../providers/_rm-ignore-missing.js'
+import { runAnalyzers, type UploadAnalyzer } from './analyze.js'
 import { AssetMimeMismatchError, AssetStorageError, AssetVariantGenerationError } from './errors.js'
 import { ASSET_HASH_LENGTH, hashBytes } from './hash.js'
 import { extractImageDimensions } from './image-metadata.js'
@@ -39,11 +40,12 @@ import { type UploadPolicy, validateUpload } from './validate.js'
 import { runPreprocessors, type UploadPreprocessor } from './preprocess.js'
 import { generateVariants, type GeneratedVariant } from './variants.js'
 
-/** Ext-from-MIME for the v1 allowlist (JPEG, PNG, SVG). */
+/** Ext-from-MIME for the v1 allowlist (JPEG, PNG, SVG, GIF). */
 const EXT_BY_MIME: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
   'image/svg+xml': 'svg',
+  'image/gif': 'gif',
 }
 
 export interface IngestInput {
@@ -85,6 +87,14 @@ export interface IngestInput {
    * etc.) without editing this module.
    */
   preprocessors?: readonly UploadPreprocessor[]
+  /**
+   * Format-specific analyzers to run on the post-preprocess bytes.
+   * Defaults to `defaultAnalyzers` (today: width/height + animated
+   * detection + poster extraction for images). Empty array bypasses
+   * analysis; custom registries plug in audio metadata, EXIF,
+   * PDF page count, etc. without editing this module.
+   */
+  analyzers?: readonly UploadAnalyzer[]
 }
 
 export interface IngestResult {
@@ -138,18 +148,39 @@ export async function ingestAsset(input: IngestInput): Promise<IngestResult> {
     throw new AssetStorageError('write', input.requestedName, new Error('unexpected hash length'))
   }
 
-  // Image dimensions: null when the MIME isn't an image sharp can parse.
-  // SVG is parseable by sharp via libvips (returns viewBox/width/height).
-  const dims = (mime ?? '').startsWith('image/') ? await extractImageDimensions(buffer) : null
-
   const canonicalName = baseName(input.requestedName)
 
+  // Format-specific analysis — width/height for static images, plus
+  // animated detection + first-frame poster extraction for animated.
+  // Analyzers contribute manifest fields (`width`, `height`,
+  // `animated`, `frames`, `duration`, `poster`) and optional
+  // supplementary byte files (animated images add a `-poster.png`).
+  // Pluggable via `input.analyzers`; defaults handle JPEG / PNG /
+  // GIF / animated WebP / animated AVIF.
+  const analysis =
+    (mime ?? '').startsWith('image/') && mime !== 'image/svg+xml'
+      ? await runAnalyzers(
+          { bytes: buffer, assetName: canonicalName, hash, ext: bytesExt, mime: mime ?? '' },
+          input.analyzers,
+        )
+      : {
+          manifestPatch: undefined,
+          supplementaryFiles: undefined as readonly { path: string; bytes: Uint8Array }[] | undefined,
+        }
+
+  // SVG dims still come from the legacy inline path — sharp handles
+  // SVG via libvips but the post-sanitize bytes need their own pass
+  // and analyzers skip SVG by design (`staticImageAnalyzer.matches`
+  // excludes it). One day SVG dims could move into a dedicated SVG
+  // analyzer; not today.
+  const svgDims = mime === 'image/svg+xml' ? await extractImageDimensions(buffer) : null
+
   // Generate variants in memory before we touch storage. Vector
-  // formats (SVG) skip variants — they scale on the browser. We
-  // detect by MIME prefix + format-specific opt-out (SVG is the only
-  // image MIME today that doesn't get variants).
+  // formats (SVG) and animated images skip variants — they don't
+  // ladder-resize correctly. The rule lives in `shouldGenerateVariants`
+  // for testability + extension.
   const generatedVariants: GeneratedVariant[] = []
-  if (shouldGenerateVariants(mime)) {
+  if (shouldGenerateVariants(mime, analysis.manifestPatch?.animated)) {
     try {
       const generated = await generateVariants(buffer)
       generatedVariants.push(...generated)
@@ -177,20 +208,38 @@ export async function ingestAsset(input: IngestInput): Promise<IngestResult> {
     mime: mime ?? 'application/octet-stream',
     size,
     hash,
-    width: dims?.width ?? null,
-    height: dims?.height ?? null,
+    // Width/height come from analyzer for non-SVG, from the legacy
+    // inline path for SVG. Analyzer takes precedence when present.
+    width: analysis.manifestPatch?.width ?? svgDims?.width ?? null,
+    height: analysis.manifestPatch?.height ?? svgDims?.height ?? null,
     variants: manifestVariants,
     alt: input.alt,
+    // Spread analyzer-contributed enrichment fields (animated, frames,
+    // duration, poster). Only present when the analyzer set them, so
+    // the manifest doesn't carry undefined values for static assets.
+    ...(analysis.manifestPatch?.animated !== undefined ? { animated: analysis.manifestPatch.animated } : {}),
+    ...(analysis.manifestPatch?.frames !== undefined ? { frames: analysis.manifestPatch.frames } : {}),
+    ...(analysis.manifestPatch?.duration !== undefined ? { duration: analysis.manifestPatch.duration } : {}),
+    ...(analysis.manifestPatch?.poster !== undefined ? { poster: analysis.manifestPatch.poster } : {}),
     uploadedAt: new Date().toISOString(),
     uploadedBy: input.uploadedBy,
   }
   const manifestRelPath = manifestPath(canonicalName)
   const manifestSerialized = `${JSON.stringify(manifest, null, 2)}\n`
 
+  // Resolve absolute paths for the supplementary files contributed by
+  // the analyzer (animated poster today). Used in both the history
+  // items list and the write loop.
+  const supplementaryFiles = (analysis.supplementaryFiles ?? []).map(f => ({
+    abs: `${input.assetsRoot}/${f.path}`,
+    bytes: f.bytes,
+  }))
+
   // Record history BEFORE any writes. Mirrors the replace.ts pattern:
   // recorder's first-time baseline scan must see pre-op state. Items
-  // include the manifest (text), primary bytes (binary), and every
-  // variant (binary) — the snapshot covers the full asset.
+  // include the manifest (text), primary bytes (binary), every variant
+  // (binary), and any analyzer-contributed supplementary files (e.g.
+  // animated-image posters) — the snapshot covers the full asset.
   if (input.history) {
     if (!input.contentRoot) {
       throw new Error('ingestAsset: history requires contentRoot')
@@ -202,6 +251,7 @@ export async function ingestAsset(input: IngestInput): Promise<IngestResult> {
         path: `${input.assetsRoot}/${assetVariantBytesPath(canonicalName, hash, bytesExt, v.width)}`,
         content: v.bytes,
       })),
+      ...supplementaryFiles.map(f => ({ path: f.abs, content: f.bytes })),
     ]
     await recordWrite({
       history: input.history,
@@ -222,26 +272,36 @@ export async function ingestAsset(input: IngestInput): Promise<IngestResult> {
 
   // Persist variants. Failures roll back primary bytes + previously
   // written variants so partial uploads don't leak orphans on disk.
-  // The manifest is the only "this asset exists" record; we only write
-  // it after every byte file has landed.
-  const writtenVariantPaths: string[] = []
+  const writtenPaths: string[] = [bytesPath]
   for (const v of generatedVariants) {
     const relPath = assetVariantBytesPath(canonicalName, hash, bytesExt, v.width)
     const absPath = `${input.assetsRoot}/${relPath}`
     try {
       await input.storage.writeStream(absPath, byteStreamFrom(v.bytes))
     } catch (err) {
-      await rollback(input.storage, [bytesPath, ...writtenVariantPaths])
+      await rollback(input.storage, writtenPaths)
       throw new AssetStorageError('write', absPath, err)
     }
-    writtenVariantPaths.push(absPath)
+    writtenPaths.push(absPath)
+  }
+
+  // Persist supplementary files (e.g. animated poster). Same rollback
+  // discipline — failures unwind every byte file written so far.
+  for (const f of supplementaryFiles) {
+    try {
+      await input.storage.writeStream(f.abs, byteStreamFrom(f.bytes))
+    } catch (err) {
+      await rollback(input.storage, writtenPaths)
+      throw new AssetStorageError('write', f.abs, err)
+    }
+    writtenPaths.push(f.abs)
   }
 
   // Write manifest last — it's the visible "asset exists" record.
   try {
     await writeManifest(input.storage, input.assetsRoot, manifest)
   } catch (err) {
-    await rollback(input.storage, [bytesPath, ...writtenVariantPaths])
+    await rollback(input.storage, writtenPaths)
     throw err
   }
 
@@ -271,18 +331,21 @@ async function rollback(storage: StorageProvider, paths: readonly string[]): Pro
 }
 
 /**
- * Whether to generate responsive variants for this MIME. Raster images
- * get variants (4 widths via sharp); vector images don't (they scale on
- * the browser). Future-extensible: when video lands, add MIME-prefix
- * checks here rather than at the call site.
+ * Whether to generate responsive variants for this asset. Three rules:
  *
- * Kept as a tiny pure function rather than inlined so the rule is named
- * and testable. SOLID — extracts a knowledge axis from the orchestrator.
+ *   1. Non-image MIMEs don't get variants (no ladder concept)
+ *   2. SVG is vector — scales on the browser
+ *   3. Animated images can't be ladder-resized correctly without
+ *      full transcoding (sharp's resize on a multi-frame source
+ *      flattens to the first frame)
+ *
+ * Pure function — the rules live in one place for testability +
+ * single-source-of-truth as new format-specific opt-outs land.
  */
-function shouldGenerateVariants(mime: string | null | undefined): boolean {
+function shouldGenerateVariants(mime: string | null | undefined, animated: boolean | undefined): boolean {
   if (!mime || !mime.startsWith('image/')) return false
-  // SVG is vector; no ladder.
   if (mime === 'image/svg+xml') return false
+  if (animated === true) return false
   return true
 }
 
