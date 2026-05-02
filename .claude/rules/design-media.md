@@ -457,6 +457,13 @@ URLs are always valid during rename — old bytes stay until refs are rewritten.
 
 Rename rewrites all references. No CMS in our research does this automatically; it's distinctive and deliberate. Authors coming from Sanity/Contentful will expect rename to be free metadata — document as deliberate choice.
 
+**v1 limitation — rename refuses on assets with locale/theme overrides.**
+The default-only happy path is in v1; full override-aware rename
+(copy each override slice to the new name, rewrite locale manifests,
+delete old slices, all atomically in one history revision) is a
+follow-up. v1 surfaces a typed error pointing the author at "remove
+overrides first." Tracked in design-media-implementation.md → "out of v1."
+
 ### Multi-write contract
 
 Storage providers offer no cross-object transactions. Multi-write operations (replace, rename) are **best-effort with compensating rollback**:
@@ -1094,6 +1101,78 @@ Asset bytes accumulate as history keeps old revisions. Two sources of unreachabl
 `gazetta gc [--target X] --dry-run` walks all revision manifests, builds the set of reachable blobs, identifies unreferenced byte files. Deletes on confirmation.
 
 Not v1 critical — deferred to its own issue. Document as a known future operation.
+
+## Admin API
+
+Routes under `/api/assets*`. Path-encoded resource identity, query-encoded
+selector — same convention pages and fragments already use for locale
+addressing (`/api/pages/:name?locale=fr`).
+
+### Resource identity vs selector — why query, not path
+
+Locale and theme are first-class peer dimensions in the data model
+(see "Override dimensions" above). On the wire they are **not** path
+segments. Two reasons:
+
+1. **Consistency across the admin API.** Pages and fragments already
+   address locale via `?locale=fr` query (`i18n-plan.md` "Admin UI"
+   section). Splitting between path-style for assets and query-style
+   for pages would make admin clients carry two patterns.
+2. **Selector ≠ identity.** The asset's identity is `:name`. The
+   selector picks a *version* of that identity. Path-encoding the
+   selector reads as "different resource"; query-encoding reads as
+   "this resource, this version" — which matches the model.
+
+Theme follows the same shape: future `?theme=dark` slots in without
+inventing a new URL grammar. The compound case is `?locale=fr&theme=dark`.
+
+### Routes (v1)
+
+| Verb | Path | Query | Body | Purpose |
+|---|---|---|---|---|
+| `GET` | `/api/assets` | `?target=` | — | List assets on the target |
+| `GET` | `/api/assets/:name` | `?target=` | — | Read default manifest summary |
+| `POST` | `/api/assets` | `?target=` | multipart `{file, name, alt?}` | Upload a new default asset |
+| `DELETE` | `/api/assets/:name` | `?target=` | — | Delete an asset (blocks if refs > 0) |
+| `POST` | `/api/assets/:name/replace-with/:newName` | `?target=` | — | Atomic replace-and-delete |
+| `POST` | `/api/assets/:name/rename-to/:newName` | `?target=` | — | Atomic rename across all refs |
+| `POST` | `/api/assets/:name/locale-bytes` | `?target=&locale=fr[&theme=dark]` | multipart `{file}` | Upload bytes override for selector |
+| `DELETE` | `/api/assets/:name/locale-bytes` | `?target=&locale=fr[&theme=dark]` | — | Remove bytes override for selector |
+
+The `locale-bytes` segment names the **operation** (this is bytes-override
+ingest, not a metadata edit). The query identifies the **selector** — the
+specific (locale, theme) variant being written or removed.
+
+### Response shapes
+
+All success bodies match the typed schemas in
+`packages/gazetta/src/admin-api/schemas/assets.ts`. Errors map by
+class via `respondWithAssetError`:
+
+| Error class | HTTP | Body shape |
+|---|---|---|
+| `AssetValidationError` (subclasses) | 400 | `{ code, message }` |
+| `AssetManifestNotFoundError` | 404 | `{ code, message }` |
+| `AssetInUseError` | 409 | `{ code, message, assetName, refs[] }` |
+| `AssetKindMismatchError` | 409 | `{ code, message, oldKind, newKind, ... }` |
+| `AssetNameCollisionError` | 409 | `{ code, message, newName }` |
+| `AssetStorageError` | 500 | `{ code, message }` |
+
+Adding a new asset error subclass propagates the right HTTP status
+automatically — `httpStatus` is declared on the class, not in the
+route handler.
+
+### Selector parsing
+
+Query params `locale` and `theme` are validated server-side:
+
+- `locale` — BCP 47 lowercase, via `isValidLocale`
+- `theme` — lowercase ASCII non-locale token, via `isValidTheme`
+
+Either dimension absent means "use the default for this dimension."
+Both absent on a `locale-bytes` route is a 400 — the route exists to
+write a non-default selector. The default asset's bytes are written
+via `POST /api/assets` (the `alt`-prompting upload path).
 
 ## Distinctive choices (for reviewers coming from other CMSes)
 

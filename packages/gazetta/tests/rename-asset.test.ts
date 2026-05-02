@@ -17,7 +17,9 @@ import { join } from 'node:path'
 import sharp from 'sharp'
 import { renameAsset } from '../src/assets/rename.js'
 import { ingestAsset } from '../src/assets/ingest.js'
-import { AssetManifestNotFoundError, AssetNameCollisionError } from '../src/assets/errors.js'
+import { ingestLocaleBytes } from '../src/assets/ingest-locale.js'
+import { AssetManifestNotFoundError, AssetNameCollisionError, AssetStorageError } from '../src/assets/errors.js'
+import { buildSelector } from '../src/schema/dimensions.js'
 import { createContentRoot } from '../src/content-root.js'
 import { createHistoryProvider } from '../src/history-provider.js'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
@@ -262,5 +264,38 @@ describe('renameAsset', () => {
     const pageBlob = await history.readBlob(pageHash)
     const page = JSON.parse(new TextDecoder().decode(pageBlob))
     expect(page.content.hero._asset).toBe('banner')
+  })
+
+  it('refuses (v1 limitation) when the asset has locale-bytes overrides', async () => {
+    // v1 rename only handles default bytes. Override-aware rename is
+    // tracked as out-of-v1 (design-media-implementation.md). The
+    // refusal is a typed AssetStorageError pointing at the default
+    // manifest path.
+    const storage = createFilesystemProvider(testDir)
+    await seedAsset('hero')
+
+    const overrideBytes = await jpeg()
+    await ingestLocaleBytes({
+      storage,
+      assetsRoot: 'assets',
+      assetName: 'hero',
+      selector: buildSelector({ locale: 'fr' })!,
+      bytes: new ReadableStream<Uint8Array>({
+        start(c) {
+          c.enqueue(new Uint8Array(overrideBytes))
+          c.close()
+        },
+      }),
+    })
+
+    await expect(
+      renameAsset({
+        storage,
+        assetsRoot: 'assets',
+        siteDir: '',
+        oldName: 'hero',
+        newName: 'banner',
+      }),
+    ).rejects.toBeInstanceOf(AssetStorageError)
   })
 })

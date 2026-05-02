@@ -15,7 +15,7 @@ branch for diffs).
 | StorageProvider streaming extensions (4 providers) | 1 week | ✓ steps 1, 11 |
 | Asset entity model, schema helpers, Content type utility | 3 days | ✓ step 2 |
 | Upload / list / delete / replace API | 1 week | ✓ steps 3, 5, 7, 8 |
-| Rename API | 2-3 days | ☐ step 22 |
+| Rename API | 2-3 days | ✓ step 22 |
 | Ref index (incremental write + rebuild) | 1 week | ✓ steps 12, 13 |
 | Resolver + template contract (locale-aware) | 3 days | ✓ step 17 |
 | **Foundation: dimensional schema (locale + theme)** | 0.5 day | ✓ step 14 |
@@ -23,14 +23,15 @@ branch for diffs).
 | **Foundation: manifest validators (per-kind locale variants)** | 1.5 days | ✓ step 16 |
 | **Foundation: TransformAdapter + sharp + cloudflare adapters** | 1 day | ✓ step 18 |
 | **Foundation: per-target upload size config** | 0.5 day | ✓ step 19 |
-| **Foundation: binary-capable HistoryProvider** | 1.5 days | ☐ step 20 |
-| **Foundation: asset routes wire history (upload + delete)** | 0.5 day | ☐ step 21 |
+| **Foundation: binary-capable HistoryProvider** | 1.5 days | ✓ step 20 |
+| **Foundation: asset routes wire history (upload + delete)** | 0.5 day | ✓ step 21 |
 | Library UI (grid/table, search, filter, bulk, locale-aware metadata editing) | 1 week | ✓ step 5 (default-only); locale-aware UI in step 24 |
 | Asset picker (3-panel modal with resolution-chain UX) | 1 week | ✓ step 6 (default-only); resolution-chain UX in step 24 |
 | Focal point editor | 2 days | ☐ |
 | Upload dialog with alt prompt (always targets default locale) | 2 days | ⚠ verify in step 23 audit |
 | i18n manifest resolution + fallback chain + asset locale variants | 2 days | ✓ step 17 (resolver); UI surfaces in step 24 |
-| Locale-specific bytes (upload "default vs override" flow, per-locale variant generation, detail-pane locale bytes section, remove-override action) | 1 week | ☐ step 24 (largest single chunk) |
+| Locale-specific bytes (upload "default vs override" flow, per-locale variant generation, detail-pane locale bytes section, remove-override action) | 1 week | ◐ step 24 — backend (24a–24c: enumerate + ingest + remove-override + routes) ✓; UX (24d) ☐ |
+| Picker accept-filter kind-compat enforcement | 1 day | ✓ step 23 |
 | Font asset kind (schema helper, resolver's union-with-unicode-range semantic, upload dialog for font metadata, locale-adds-variant behavior, library font preview) | 3–4 days | ✓ step 17 (resolver dispatch + variant union); upload UI + library preview deferred |
 | Animated-image handling (detection via sharp `pages > 1`, first-frame poster extraction, `animated`/`duration` manifest fields) | 2 days | ☐ |
 | Audio metadata (duration via `music-metadata`, strip-by-default metadata with opt-in preserve) | 1 day | ☐ |
@@ -108,6 +109,7 @@ Proxy and pin are v1.5 — ship as an additive feature after v1 stabilizes.
 - Video first-frame extraction, PDF first-page rendering, audio waveform thumbnails — all require extra deps (ffmpeg, `pdfjs-dist`)
 - Font subsetting, variable-axis exposure per reference, `@font-face` preload hint generation (v2 typography polish)
 - Transcripts / captions (VTT/SRT) as companion files to audio/video assets
+- Override-aware rename — v1 rename refuses on assets with locale/theme overrides (clear typed error). Full version copies each override slice to the new name, rewrites locale manifests, deletes old slices, all in one history revision. Mechanical to add once an asset commonly carries overrides.
 
 ## Asset refs — per-edge sidecar index (v1)
 

@@ -28,10 +28,13 @@
  * Delete, rename, GC iterate `overrides` from day one — adding the data
  * later doesn't require touching consumers.
  */
-import type { AssetManifest } from '../schema/types.js'
-import type { Selector } from '../schema/dimensions.js'
+import type { AssetManifest, LocaleOverrideManifest } from '../schema/types.js'
+import { selectorsEqual, type Selector } from '../schema/dimensions.js'
+import type { StorageProvider } from '../types.js'
 import { AssetMimeUnsupportedError } from './errors.js'
 import { assetBytesPath, manifestPath } from './manifest.js'
+import { localeManifestVariantFor } from './manifest-locale.js'
+import { parseManifestFilename } from './manifest-filename.js'
 import { extFromMime } from './url.js'
 
 /**
@@ -95,14 +98,16 @@ export interface AssetStoragePaths {
  * so a future variant-naming scheme change needs zero updates to this
  * module.
  *
- * `overrides` is empty in v1's pre-locale-bytes state. When step 24
- * lands locale-bytes ingest, this function will accept (or be paired
- * with a sibling function that accepts) the locale variants and
- * populate `overrides`. Today's callers iterate the empty array as a
- * no-op; tomorrow's callers iterate populated overrides without code
- * change.
+ * Pure — no I/O. Override slices come from the caller (typically built
+ * via `enumerateOverrideSlices` after a disk scan, or supplied by an
+ * in-memory write planner). Defaults to an empty `overrides` so callers
+ * that don't deal with locale/theme variants don't pay the I/O cost.
  */
-export function assetStoragePaths(assetsRoot: string, manifest: AssetManifest): AssetStoragePaths {
+export function assetStoragePaths(
+  assetsRoot: string,
+  manifest: AssetManifest,
+  overrides: readonly OverrideSlice[] = [],
+): AssetStoragePaths {
   const ext = extFromMime(manifest.mime)
   if (!ext) {
     throw new AssetMimeUnsupportedError(manifest.mime, manifest.name)
@@ -111,8 +116,134 @@ export function assetStoragePaths(assetsRoot: string, manifest: AssetManifest): 
     defaultManifest: `${assetsRoot}/${manifestPath(manifest.name)}`,
     defaultBytes: `${assetsRoot}/${assetBytesPath(manifest.name, manifest.hash, ext)}`,
     defaultVariants: manifest.variants.map(v => `${assetsRoot}/${v.path}`),
-    overrides: [],
+    overrides: [...overrides].sort(compareOverrideSlices),
   }
+}
+
+/**
+ * Async wrapper around `assetStoragePaths` that scans `assetsRoot/` for
+ * existing locale/theme override manifests and reads them so the result
+ * is fully populated with `OverrideSlice[]`.
+ *
+ * Used by callers that need every-path-for-this-asset (delete, rename,
+ * future GC). Pure consumers (compose paths from a known override set)
+ * keep using `assetStoragePaths` directly with overrides they already
+ * have.
+ *
+ * Path-style names (`products/shot`): scan happens under the asset's
+ * parent directory (`assetsRoot/products/`) and matches
+ * `shot.asset.*.json` siblings.
+ *
+ * Embedded + downloadable kinds use `LocaleOverrideManifest`. Font is
+ * out-of-scope here for v1 — fonts are additive, not override, so
+ * delete/rename for fonts already pick up additive variants by listing
+ * all sibling manifest files. Today the same scanner reads them as
+ * locale-override-shaped slices for path enumeration — the bytes path
+ * comes from the manifest's `hash` either way.
+ */
+export async function enumerateAssetStoragePaths(
+  storage: StorageProvider,
+  assetsRoot: string,
+  manifest: AssetManifest,
+): Promise<AssetStoragePaths> {
+  const overrides = await enumerateOverrideSlices(storage, assetsRoot, manifest)
+  return assetStoragePaths(assetsRoot, manifest, overrides)
+}
+
+/**
+ * Scan disk for locale/theme override manifests of `manifest`'s asset
+ * and return the parsed slices. Pure I/O; pairs with the pure
+ * `assetStoragePaths` to compose the full path set.
+ */
+export async function enumerateOverrideSlices(
+  storage: StorageProvider,
+  assetsRoot: string,
+  manifest: AssetManifest,
+): Promise<OverrideSlice[]> {
+  // Asset name can be path-style (`products/shot`). Scan happens in the
+  // immediate parent directory; sibling matching uses the leaf name.
+  const slashIdx = manifest.name.lastIndexOf('/')
+  const parentDir = slashIdx >= 0 ? `${assetsRoot}/${manifest.name.slice(0, slashIdx)}` : assetsRoot
+  const leafName = slashIdx >= 0 ? manifest.name.slice(slashIdx + 1) : manifest.name
+
+  let entries: { name: string; isDirectory: boolean }[]
+  try {
+    entries = await storage.readDir(parentDir)
+  } catch {
+    return []
+  }
+
+  const variant = localeManifestVariantFor(manifest.kind)
+  const slices: OverrideSlice[] = []
+
+  for (const entry of entries) {
+    if (entry.isDirectory) continue
+    const parsed = parseManifestFilename(entry.name)
+    // Skip non-manifests, default manifest, and manifests for OTHER
+    // assets (path-style siblings can sit in the same directory).
+    if (!parsed) continue
+    if (parsed.assetName !== leafName) continue
+    if (parsed.selector === null) continue
+
+    const localeManifest = await variant.read(storage, assetsRoot, manifest.name, parsed.selector)
+    if (localeManifest === null) continue
+
+    slices.push(buildOverrideSlice(assetsRoot, manifest, parsed.selector, localeManifest))
+  }
+
+  return slices
+}
+
+function buildOverrideSlice(
+  assetsRoot: string,
+  defaultManifest: AssetManifest,
+  selector: Selector,
+  localeManifest: LocaleOverrideManifest | { hash?: string; mime?: string; variants?: readonly { path: string }[] },
+): OverrideSlice {
+  const manifestRel = manifestPath(defaultManifest.name, selector)
+  const manifestAbs = `${assetsRoot}/${manifestRel}`
+
+  // Bytes-override slice has its own hash + mime (mime can differ per
+  // locale: jpeg default, webp override). Metadata-only slice has no
+  // bytes; the resolver falls back to default bytes at render time.
+  const localeHash = localeManifest.hash
+  if (localeHash === undefined) {
+    return { selector, manifest: manifestAbs, bytes: null, variants: [] }
+  }
+
+  const localeMime = localeManifest.mime ?? defaultManifest.mime
+  const localeExt = extFromMime(localeMime)
+  if (!localeExt) {
+    // Should never reach here — the locale manifest validator already
+    // requires a known MIME when `hash` is set. Defensive path: surface
+    // as no-bytes slice rather than throwing, since path enumeration
+    // should be lossy-tolerant (the manifest itself reports the
+    // problem on read).
+    return { selector, manifest: manifestAbs, bytes: null, variants: [] }
+  }
+
+  const bytesAbs = `${assetsRoot}/${assetBytesPath(defaultManifest.name, localeHash, localeExt, selector)}`
+  // Variant paths come from the locale manifest's own `variants` list
+  // (per-locale ladder, generated when the override bytes were
+  // ingested). No recomputation — single source of truth on the disk.
+  const variantAbs = (localeManifest.variants ?? []).map(v => `${assetsRoot}/${v.path}`)
+  return { selector, manifest: manifestAbs, bytes: bytesAbs, variants: variantAbs }
+}
+
+/**
+ * Total order on override slices for deterministic iteration. Sorts by
+ * the dimension values in `DIMENSION_ORDER` order. Two selectors with
+ * the same values are considered equal (selector identity is set-like).
+ */
+function compareOverrideSlices(a: OverrideSlice, b: OverrideSlice): number {
+  if (selectorsEqual(a.selector, b.selector)) return 0
+  // Compare locale first, then theme, missing dimensions sort before set ones.
+  const aLoc = a.selector.get('locale') ?? ''
+  const bLoc = b.selector.get('locale') ?? ''
+  if (aLoc !== bLoc) return aLoc < bLoc ? -1 : 1
+  const aTheme = a.selector.get('theme') ?? ''
+  const bTheme = b.selector.get('theme') ?? ''
+  return aTheme < bTheme ? -1 : aTheme > bTheme ? 1 : 0
 }
 
 /**

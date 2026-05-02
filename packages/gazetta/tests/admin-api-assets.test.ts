@@ -496,3 +496,110 @@ describe('POST /api/assets/:name/rename-to/:newName', () => {
     expect(body.newName).toBe('banner')
   })
 })
+
+describe('POST /api/assets/:name/locale-bytes', () => {
+  async function uploadAsset(app: Hono, name: string) {
+    const bytes = await jpegBuffer()
+    await app.request('/api/assets', {
+      method: 'POST',
+      body: multipartForm({
+        file: { name: `${name}.jpg`, bytes: new Uint8Array(bytes), type: 'image/jpeg' },
+        name,
+      }),
+    })
+  }
+
+  it('201s on successful locale-bytes upload', async () => {
+    const { app } = buildApp()
+    await uploadAsset(app, 'hero')
+
+    const overrideBytes = await jpegBuffer()
+    const res = await app.request('/api/assets/hero/locale-bytes?locale=fr', {
+      method: 'POST',
+      body: multipartForm({ file: { name: 'hero.jpg', bytes: new Uint8Array(overrideBytes), type: 'image/jpeg' } }),
+    })
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as { manifest: { name: string; hash: string }; bytesPath: string }
+    expect(body.manifest.name).toBe('hero')
+    expect(body.bytesPath.endsWith('.fr.jpg')).toBe(true)
+  })
+
+  it('400s when no selector is provided', async () => {
+    const { app } = buildApp()
+    await uploadAsset(app, 'hero')
+
+    const res = await app.request('/api/assets/hero/locale-bytes', {
+      method: 'POST',
+      body: multipartForm({
+        file: { name: 'hero.jpg', bytes: new Uint8Array(await jpegBuffer()), type: 'image/jpeg' },
+      }),
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('400s on invalid locale code', async () => {
+    const { app } = buildApp()
+    await uploadAsset(app, 'hero')
+    const res = await app.request('/api/assets/hero/locale-bytes?locale=NOT-A-LOCALE-FORMAT', {
+      method: 'POST',
+      body: multipartForm({
+        file: { name: 'hero.jpg', bytes: new Uint8Array(await jpegBuffer()), type: 'image/jpeg' },
+      }),
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('404s when the asset does not exist', async () => {
+    const { app } = buildApp()
+    const res = await app.request('/api/assets/ghost/locale-bytes?locale=fr', {
+      method: 'POST',
+      body: multipartForm({
+        file: { name: 'hero.jpg', bytes: new Uint8Array(await jpegBuffer()), type: 'image/jpeg' },
+      }),
+    })
+    expect(res.status).toBe(404)
+  })
+})
+
+describe('DELETE /api/assets/:name/locale-bytes', () => {
+  async function uploadAsset(app: Hono, name: string) {
+    const bytes = await jpegBuffer()
+    await app.request('/api/assets', {
+      method: 'POST',
+      body: multipartForm({
+        file: { name: `${name}.jpg`, bytes: new Uint8Array(bytes), type: 'image/jpeg' },
+        name,
+      }),
+    })
+  }
+
+  async function uploadOverride(app: Hono, name: string, locale: string) {
+    const bytes = await jpegBuffer()
+    return app.request(`/api/assets/${name}/locale-bytes?locale=${locale}`, {
+      method: 'POST',
+      body: multipartForm({ file: { name: `${name}.jpg`, bytes: new Uint8Array(bytes), type: 'image/jpeg' } }),
+    })
+  }
+
+  it('204s on successful override removal', async () => {
+    const { app } = buildApp()
+    await uploadAsset(app, 'hero')
+    await uploadOverride(app, 'hero', 'fr')
+
+    const res = await app.request('/api/assets/hero/locale-bytes?locale=fr', { method: 'DELETE' })
+    expect(res.status).toBe(204)
+  })
+
+  it('400s when no selector is provided', async () => {
+    const { app } = buildApp()
+    const res = await app.request('/api/assets/hero/locale-bytes', { method: 'DELETE' })
+    expect(res.status).toBe(400)
+  })
+
+  it('404s when the override does not exist', async () => {
+    const { app } = buildApp()
+    await uploadAsset(app, 'hero')
+    const res = await app.request('/api/assets/hero/locale-bytes?locale=fr', { method: 'DELETE' })
+    expect(res.status).toBe(404)
+  })
+})

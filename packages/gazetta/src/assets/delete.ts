@@ -38,7 +38,7 @@ import { recordWrite, type WrittenItem } from '../history-recorder.js'
 import type { StorageProvider, SiteManifest } from '../types.js'
 import { createContentRoot } from '../content-root.js'
 import { rmIgnoreMissing } from '../providers/_rm-ignore-missing.js'
-import { assetPathsInRemovalOrder, assetStoragePaths } from './asset-paths.js'
+import { assetPathsInRemovalOrder, enumerateAssetStoragePaths } from './asset-paths.js'
 import { AssetInUseError, AssetStorageError } from './errors.js'
 import { findAssetRefs } from './find-refs.js'
 import { readManifest } from './manifest.js'
@@ -118,11 +118,12 @@ export async function deleteAsset(input: DeleteAssetInput): Promise<void> {
     throw new AssetInUseError(input.assetName, refs)
   }
 
-  // Step 4 — enumerate paths. `assetStoragePaths` throws
+  // Step 4 — enumerate paths, including any locale/theme overrides
+  // discovered on disk. `enumerateAssetStoragePaths` throws
   // `AssetMimeUnsupportedError` when the manifest's MIME has no
   // extension mapping (misconfiguration — surface as-is rather than
   // silently skipping bytes).
-  const paths = assetStoragePaths(input.assetsRoot, manifest)
+  const paths = await enumerateAssetStoragePaths(input.storage, input.assetsRoot, manifest)
   const orderedPaths = assetPathsInRemovalOrder(paths)
 
   // Step 5 — record history BEFORE any rm. Same pattern as
