@@ -40,11 +40,13 @@ import { type Selector, buildSelector, selectorsEqual } from '../schema/dimensio
 import type { ResolvedLocales } from '../locale.js'
 import type { ResolvedThemes } from '../themes.js'
 import { crossDimensionFallbackChain } from '../selector-chain.js'
+import { sharpAdapter } from '../transforms/sharp.js'
+import type { TransformAdapter } from '../transforms/adapter.js'
 import { AssetManifestCorruptError, AssetManifestNotFoundError } from './errors.js'
 import { foldLocaleChain } from './manifest-merge.js'
 import { readDefaultManifest } from './manifest-default.js'
 import { localeManifestVariantFor } from './manifest-locale.js'
-import { buildAssetUrl, buildSrcset, extFromMime } from './url.js'
+import { extFromMime } from './url.js'
 
 /** Context needed to resolve a reference — shared across all refs in a render pass. */
 export interface AssetResolveContext {
@@ -71,6 +73,13 @@ export interface AssetResolveContext {
    * resolution (fonts enumerate the supported theme set).
    */
   themes?: ResolvedThemes | null
+  /**
+   * Transform adapter — required, but defaults to `sharpAdapter` when the
+   * caller doesn't supply one. The adapter owns URL composition, srcset
+   * generation, and cache policy. Per-target factory at boot picks the
+   * right adapter per `target.transforms` config.
+   */
+  transformAdapter?: TransformAdapter
 }
 
 /** Shape of an embedded-asset reference as stored in content JSON. */
@@ -134,20 +143,20 @@ export async function resolveEmbeddedRef(
     )
   }
 
-  const url = buildAssetUrl({
+  const adapter = ctx.transformAdapter ?? sharpAdapter
+  const adapterInput = {
     name: defaultManifest.name,
     hash: bytesSource.hash!,
     ext,
-    siteUrl: ctx.siteUrl,
     selector: bytesSelector,
-  })
+    siteUrl: ctx.siteUrl,
+    variants: (bytesSource.variants ?? []) as readonly import('../schema/types.js').AssetVariant[],
+    width: merged.width,
+    height: merged.height,
+  }
 
-  // Build srcset from the bytes-source's variants. Override variants
-  // describe THIS locale's bytes ladder; default's describe the
-  // default's. We never mix them because the variant filenames embed
-  // the bytes hash + selector.
-  const variants = (bytesSource.variants ?? []) as readonly { width: number; path: string }[]
-  const srcset = variants.length > 0 ? buildSrcset(variants, ctx.siteUrl) : null
+  const url = adapter.primaryUrl(adapterInput)
+  const srcset = adapter.srcset(adapterInput)
 
   // Per-ref override > merged manifest's alt > '' (decorative).
   const alt = ref.alt ?? merged.alt ?? ''
@@ -195,12 +204,16 @@ export async function resolveDownloadableRef(
     )
   }
 
-  const url = buildAssetUrl({
+  const adapter = ctx.transformAdapter ?? sharpAdapter
+  const url = adapter.primaryUrl({
     name: defaultManifest.name,
     hash: bytesSource.hash!,
     ext,
-    siteUrl: ctx.siteUrl,
     selector: bytesSelector,
+    siteUrl: ctx.siteUrl,
+    variants: [], // downloadable assets don't have a srcset ladder
+    width: null,
+    height: null,
   })
 
   // Title fallback chain: per-ref → merged manifest title → asset name.
@@ -256,15 +269,21 @@ export async function resolveFontRef(
   // derive from the asset name.
   const cssName = defaultManifest.name
 
+  const adapter = ctx.transformAdapter ?? sharpAdapter
+
   // Default variant is always present in the union — every font has
   // its default file.
   const resolved: ResolvedFontAsset['variants'] = [
     {
-      url: buildAssetUrl({
+      url: adapter.primaryUrl({
         name: defaultManifest.name,
         hash: defaultManifest.hash,
         ext,
+        selector: null,
         siteUrl: ctx.siteUrl,
+        variants: [],
+        width: null,
+        height: null,
       }),
       format: deriveFontFormat(ext),
       weight: 400,
@@ -279,12 +298,15 @@ export async function resolveFontRef(
   for (const { selector, manifest: variant } of variants) {
     const variantExt = extFromMime(variant.mime) ?? ext
     resolved.push({
-      url: buildAssetUrl({
+      url: adapter.primaryUrl({
         name: defaultManifest.name,
         hash: variant.hash,
         ext: variantExt,
-        siteUrl: ctx.siteUrl,
         selector,
+        siteUrl: ctx.siteUrl,
+        variants: [],
+        width: null,
+        height: null,
       }),
       format: variant.format,
       weight: variant.weight,
