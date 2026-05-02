@@ -169,15 +169,22 @@ export async function getAsset(name: string): Promise<AssetSummary> {
 }
 
 /**
- * Patch shape for `updateAssetMetadata`. The three-state alt model
- * means we need to distinguish "didn't send" from "explicit null":
- *   - omit `alt`         → no change
- *   - `alt: "string"`    → meaningful description
- *   - `alt: ""`          → decorative
- *   - `alt: null`        → explicitly clear
+ * Patch shape for `updateAssetMetadata`. Each field is optional;
+ * "absent in patch = unchanged" preserves three-state semantics.
+ *
+ * - omit `alt`              → no change
+ * - `alt: "string"`         → meaningful description
+ * - `alt: ""`               → decorative
+ * - `alt: null`             → explicitly clear
+ *
+ * - omit `focalPoint`       → no change
+ * - `focalPoint: { x, y }`  → set (0–1 normalized)
+ * - `focalPoint: null`      → clear (manifest field becomes absent;
+ *                              resolver falls back to center 0.5/0.5)
  */
 export interface AssetMetadataPatch {
   alt?: string | null
+  focalPoint?: { x: number; y: number } | null
 }
 
 /**

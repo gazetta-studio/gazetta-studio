@@ -32,7 +32,15 @@ import { AssetStorageError } from './errors.js'
 export interface AssetMetadataPatch {
   /** Three-state alt (string | "" | null). Absent in patch = unchanged. */
   alt?: string | null
-  // Future: tags, focalPoint, title, description, uploadedBy
+  /**
+   * Focal point in normalized coordinates (0–1). Two-state:
+   *   - `{ x, y }` → set it
+   *   - `null`     → clear (manifest field becomes absent, falls back
+   *                  to center at render time)
+   *   - omitted    → unchanged
+   */
+  focalPoint?: { x: number; y: number } | null
+  // Future: tags, title, description, uploadedBy
 }
 
 export interface UpdateAssetMetadataInput {
@@ -57,11 +65,26 @@ export async function updateAssetMetadata(input: UpdateAssetMetadataInput): Prom
   const current = await readManifest(input.storage, input.assetsRoot, input.assetName)
 
   // Apply patch: only fields explicitly present in the patch object
-  // overwrite the manifest. `alt` is the v1 surface; future fields slot in
-  // here as one extra `'field' in input.patch` clause each.
+  // overwrite the manifest. Each new metadata field adds one
+  // `'field' in input.patch` clause here.
   const next: AssetManifest = { ...current }
   if ('alt' in input.patch) {
     next.alt = input.patch.alt ?? null
+  }
+  if ('focalPoint' in input.patch) {
+    const fp = input.patch.focalPoint
+    if (fp === null) {
+      // Clear → remove the field so the manifest serializes without it.
+      delete next.focalPoint
+    } else if (fp !== undefined) {
+      // Range-check (0–1 inclusive). Invalid input is a programmer
+      // error at this layer — the route validator should reject before
+      // calling. Defensive throw rather than silent clamp.
+      if (fp.x < 0 || fp.x > 1 || fp.y < 0 || fp.y > 1) {
+        throw new Error(`Focal point out of range: x=${fp.x}, y=${fp.y} (must be 0–1)`)
+      }
+      next.focalPoint = { x: fp.x, y: fp.y }
+    }
   }
 
   // Short-circuit no-op patches: identical manifest = identical history
@@ -100,5 +123,12 @@ export async function updateAssetMetadata(input: UpdateAssetMetadataInput): Prom
 function sameManifest(a: AssetManifest, b: AssetManifest): boolean {
   // Cheap deep-equal for the fields a metadata patch can change. Avoids
   // a full JSON.stringify compare for the hot no-op path.
-  return a.alt === b.alt
+  if (a.alt !== b.alt) return false
+  return sameFocalPoint(a.focalPoint, b.focalPoint)
+}
+
+function sameFocalPoint(a: { x: number; y: number } | undefined, b: { x: number; y: number } | undefined): boolean {
+  if (a === undefined && b === undefined) return true
+  if (a === undefined || b === undefined) return false
+  return a.x === b.x && a.y === b.y
 }

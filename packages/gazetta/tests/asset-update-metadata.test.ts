@@ -184,4 +184,106 @@ describe('updateAssetMetadata', () => {
       }),
     ).rejects.toThrow(/contentRoot/)
   })
+
+  describe('focalPoint patches', () => {
+    it('sets focalPoint to a normalized coordinate', async () => {
+      const storage = createFilesystemProvider(testDir)
+      await seedAsset('hero')
+
+      const updated = await updateAssetMetadata({
+        storage,
+        assetsRoot: 'assets',
+        assetName: 'hero',
+        patch: { focalPoint: { x: 0.3, y: 0.7 } },
+      })
+      expect(updated.focalPoint).toEqual({ x: 0.3, y: 0.7 })
+
+      const reread = await readManifest(storage, 'assets', 'hero')
+      expect(reread.focalPoint).toEqual({ x: 0.3, y: 0.7 })
+    })
+
+    it('clears focalPoint on explicit null', async () => {
+      const storage = createFilesystemProvider(testDir)
+      await seedAsset('hero')
+
+      // First set it.
+      await updateAssetMetadata({
+        storage,
+        assetsRoot: 'assets',
+        assetName: 'hero',
+        patch: { focalPoint: { x: 0.5, y: 0.5 } },
+      })
+
+      // Then clear.
+      const cleared = await updateAssetMetadata({
+        storage,
+        assetsRoot: 'assets',
+        assetName: 'hero',
+        patch: { focalPoint: null },
+      })
+      expect(cleared.focalPoint).toBeUndefined()
+    })
+
+    it('rejects out-of-range focalPoint', async () => {
+      const storage = createFilesystemProvider(testDir)
+      await seedAsset('hero')
+
+      await expect(
+        updateAssetMetadata({
+          storage,
+          assetsRoot: 'assets',
+          assetName: 'hero',
+          patch: { focalPoint: { x: 1.5, y: 0.5 } },
+        }),
+      ).rejects.toThrow(/out of range/)
+    })
+
+    it('leaves focalPoint unchanged when omitted from patch', async () => {
+      const storage = createFilesystemProvider(testDir)
+      await seedAsset('hero')
+
+      // Set initial value.
+      await updateAssetMetadata({
+        storage,
+        assetsRoot: 'assets',
+        assetName: 'hero',
+        patch: { focalPoint: { x: 0.25, y: 0.75 } },
+      })
+
+      // Patch alt only — focalPoint should survive.
+      const updated = await updateAssetMetadata({
+        storage,
+        assetsRoot: 'assets',
+        assetName: 'hero',
+        patch: { alt: 'New alt' },
+      })
+      expect(updated.focalPoint).toEqual({ x: 0.25, y: 0.75 })
+      expect(updated.alt).toBe('New alt')
+    })
+
+    it('treats setting the same focalPoint as a no-op', async () => {
+      const storage = createFilesystemProvider(testDir)
+      await seedAsset('hero')
+      await updateAssetMetadata({
+        storage,
+        assetsRoot: 'assets',
+        assetName: 'hero',
+        patch: { focalPoint: { x: 0.5, y: 0.5 } },
+      })
+      const history = createHistoryProvider({ storage })
+      const contentRoot = createContentRoot(storage)
+
+      await updateAssetMetadata({
+        storage,
+        assetsRoot: 'assets',
+        assetName: 'hero',
+        patch: { focalPoint: { x: 0.5, y: 0.5 } },
+        history,
+        contentRoot,
+      })
+
+      // No history was recorded — same value, no change.
+      expect(await history.listRevisions()).toHaveLength(0)
+    })
+  })
 })

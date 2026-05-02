@@ -44,6 +44,9 @@ export function toSummary(
     width: manifest.width,
     height: manifest.height,
     alt: manifest.alt,
+    // Project focalPoint when set; library cards use it for thumbnail
+    // positioning, detail pane uses it as the editor's initial value.
+    ...(manifest.focalPoint !== undefined ? { focalPoint: manifest.focalPoint } : {}),
     uploadedAt: manifest.uploadedAt,
     overrideLocales: [...overrideLocales].sort(),
     overrideThemes: [...overrideThemes].sort(),

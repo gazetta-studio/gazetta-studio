@@ -146,6 +146,25 @@ export function assetRoutes(resolve: SourceContextResolver) {
       }
       patch.alt = v
     }
+    if ('focalPoint' in raw) {
+      const v = raw.focalPoint
+      if (v === null) {
+        patch.focalPoint = null
+      } else if (
+        v !== null &&
+        typeof v === 'object' &&
+        typeof (v as Record<string, unknown>).x === 'number' &&
+        typeof (v as Record<string, unknown>).y === 'number'
+      ) {
+        const fp = v as { x: number; y: number }
+        if (fp.x < 0 || fp.x > 1 || fp.y < 0 || fp.y > 1) {
+          return c.json({ code: 'BAD_REQUEST', message: 'focalPoint x and y must be in [0, 1]' }, 400)
+        }
+        patch.focalPoint = fp
+      } else {
+        return c.json({ code: 'BAD_REQUEST', message: 'focalPoint must be { x: number, y: number } or null' }, 400)
+      }
+    }
 
     try {
       const updated = await updateAssetMetadata({

@@ -16,6 +16,7 @@ import { useAssetsDeleteStore } from '../stores/assetsDelete.js'
 import { buildAssetUrl, extFromMime } from '../utils/assetUrl.js'
 import AssetAltEditor from './AssetAltEditor.vue'
 import AssetDetailLocaleSection from './AssetDetailLocaleSection.vue'
+import AssetFocalPointEditor from './AssetFocalPointEditor.vue'
 
 const list = useAssetsListStore()
 const selection = useAssetsSelectionStore()
@@ -39,6 +40,22 @@ async function onAltUpdate(value: string | null): Promise<void> {
   } catch (err) {
     // eslint-disable-next-line no-console
     console.warn(`Failed to update alt for ${name}:`, err)
+  }
+}
+
+/**
+ * Commit a focal point change (or reset to null). Same non-blocking
+ * pattern as alt — failures log to console; toast surface is a follow-up.
+ */
+async function onFocalPointUpdate(value: { x: number; y: number } | null): Promise<void> {
+  if (!asset.value) return
+  const name = asset.value.name
+  try {
+    await updateAssetMetadata(name, { focalPoint: value })
+    await list.refresh()
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(`Failed to update focal point for ${name}:`, err)
   }
 }
 
@@ -102,6 +119,16 @@ function formatDate(iso: string): string {
           <dt>Alt</dt>
           <dd>
             <AssetAltEditor :model-value="asset.alt" @update:model-value="onAltUpdate" />
+          </dd>
+        </div>
+        <div v-if="isImage && previewUrl" class="asset-detail-focal">
+          <dt>Focal point</dt>
+          <dd>
+            <AssetFocalPointEditor
+              :model-value="asset.focalPoint ?? null"
+              :image-url="previewUrl"
+              :alt="asset.alt"
+              @update:model-value="onFocalPointUpdate" />
           </dd>
         </div>
         <div v-else>
@@ -196,16 +223,18 @@ function formatDate(iso: string): string {
   color: var(--p-text-muted-color);
 }
 
-.asset-detail-alt {
-  /* Override the default row layout — alt editor needs to stack
-     dt above dd because the editor itself is a column of input +
-     checkbox + state hint, none of which fit on a single inline row. */
+.asset-detail-alt,
+.asset-detail-focal {
+  /* Override the default row layout — alt + focal editors each need to
+     stack dt above dd because the editor itself is a column of inputs,
+     not a single inline value. */
   flex-direction: column !important;
   align-items: stretch;
   gap: 0.25rem !important;
 }
 
-.asset-detail-alt dd {
+.asset-detail-alt dd,
+.asset-detail-focal dd {
   text-align: start;
 }
 
