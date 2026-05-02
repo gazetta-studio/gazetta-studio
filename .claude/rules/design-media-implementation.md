@@ -41,7 +41,7 @@ branch for diffs).
 | Publish integration (transitive, dedupe) | 3 days | ✓ step 10 |
 | CLI (list, info, reindex) | 3 days | ✓ reindex; list/info ☐ |
 | Starter example template + asset | 1 day | ✓ step 4 |
-| Docs (template-assets, content-assets, migration, transform-adapters) | 3 days | ☐ — partial: design-media.md aligned with foundation locks; design-media.md gained Admin API section in step 24 |
+| Docs (template-assets, content-assets, migration, transform-adapters) | 3 days | ✓ step 29 — four task-oriented docs in `docs/` (template-assets, content-assets, migration, transform-adapters), each pointing back to design-media.md for theory |
 
 ### Foundation grilling notes
 
