@@ -27,7 +27,7 @@ branch for diffs).
 | **Foundation: asset routes wire history (upload + delete)** | 0.5 day | ✓ step 21 |
 | Library UI (grid/table, search, filter, bulk, locale-aware metadata editing) | 1 week | ✓ step 5 (default-only) + ✓ step 24 (locale-aware coverage badges + detail-pane locale section) |
 | Asset picker (3-panel modal with resolution-chain UX) | 1 week | ✓ step 6 (default-only) + ✓ step 24 (locale-aware preview chip surfaces) |
-| Focal point editor | 2 days | ☐ |
+| Focal point editor | 2 days | ✓ step 27 — click + drag + hover preview + four aspect-ratio thumbnails (1:1, 16:9, 4:5, 9:16). Hotspot rectangle (Sanity's region model) remains out of v1 |
 | Alt UX (inline upload-list input + library-card no-alt badge + detail-pane editor + `altRequired` save-time enforcement) | 3 days | ✓ step 26 — multi-layer alt UX shipped (upload-list inline, library badge, detail-pane AssetAltEditor, PATCH endpoint). `altRequired` save-time enforcement deferred to v1.5 — schema introspection at save not yet wired |
 | i18n manifest resolution + fallback chain + asset locale variants | 2 days | ✓ step 17 (resolver) + ✓ step 24 (UI surfaces) |
 | Locale-specific bytes (upload "default vs override" flow, per-locale variant generation, detail-pane locale bytes section, remove-override action) | 1 week | ✓ step 24 — backend (24 backend) + UX (24 UX) |
