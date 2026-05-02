@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import AssetLibraryGrid from '../src/client/components/AssetLibraryGrid.vue'
 import { useAssetsListStore } from '../src/client/stores/assetsList.js'
+import { useAssetsPickerStore } from '../src/client/stores/assetsPicker.js'
 import { useAssetsSelectionStore } from '../src/client/stores/assetsSelection.js'
 import type { AssetSummary } from '../src/client/api/client.js'
 
@@ -99,5 +100,70 @@ describe('AssetLibraryGrid', () => {
 
     expect(hero.classes()).not.toContain('selected')
     expect(banner.classes()).toContain('selected')
+  })
+
+  describe('picker accept-filter', () => {
+    it('shows every asset when picker is closed (browsing mode)', () => {
+      const list = useAssetsListStore()
+      list.loaded = true
+      list.assets = [sample({ name: 'photo', mime: 'image/jpeg' }), sample({ name: 'doc', mime: 'application/pdf' })]
+      // Picker not opened — accept is empty default.
+      const wrapper = mount(AssetLibraryGrid)
+      expect(wrapper.findAll('[data-testid^="asset-card-"]')).toHaveLength(2)
+    })
+
+    it('shows every asset when picker is open with empty accept', () => {
+      const list = useAssetsListStore()
+      const picker = useAssetsPickerStore()
+      list.loaded = true
+      list.assets = [sample({ name: 'photo', mime: 'image/jpeg' }), sample({ name: 'doc', mime: 'application/pdf' })]
+      picker.open({}, () => {})
+
+      const wrapper = mount(AssetLibraryGrid)
+      expect(wrapper.findAll('[data-testid^="asset-card-"]')).toHaveLength(2)
+    })
+
+    it('filters out assets whose kind does not match accept', () => {
+      const list = useAssetsListStore()
+      const picker = useAssetsPickerStore()
+      list.loaded = true
+      list.assets = [
+        sample({ name: 'photo', mime: 'image/jpeg' }),
+        sample({ name: 'doc', kind: 'downloadable', mime: 'application/pdf' }),
+      ]
+      picker.open({ accept: ['image'] }, () => {})
+
+      const wrapper = mount(AssetLibraryGrid)
+      const cards = wrapper.findAll('[data-testid^="asset-card-"]')
+      expect(cards).toHaveLength(1)
+      expect(wrapper.find('[data-testid="asset-card-photo"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="asset-card-doc"]').exists()).toBe(false)
+    })
+
+    it('respects MIME prefix filters', () => {
+      const list = useAssetsListStore()
+      const picker = useAssetsPickerStore()
+      list.loaded = true
+      list.assets = [sample({ name: 'photo', mime: 'image/jpeg' }), sample({ name: 'video', mime: 'video/mp4' })]
+      picker.open({ accept: ['image/'] }, () => {})
+
+      const wrapper = mount(AssetLibraryGrid)
+      const cards = wrapper.findAll('[data-testid^="asset-card-"]')
+      expect(cards).toHaveLength(1)
+      expect(wrapper.find('[data-testid="asset-card-photo"]').exists()).toBe(true)
+    })
+
+    it('shows a filter-aware empty state when accept hides everything', () => {
+      const list = useAssetsListStore()
+      const picker = useAssetsPickerStore()
+      list.loaded = true
+      list.assets = [sample({ name: 'doc', kind: 'downloadable', mime: 'application/pdf' })]
+      picker.open({ accept: ['image'] }, () => {})
+
+      const wrapper = mount(AssetLibraryGrid)
+      const empty = wrapper.find('[data-testid="asset-grid-empty"]')
+      expect(empty.exists()).toBe(true)
+      expect(empty.text()).toContain('No assets match the requested type')
+    })
   })
 })

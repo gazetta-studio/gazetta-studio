@@ -25,6 +25,10 @@ beforeAll(() => {
 
 beforeEach(() => {
   setActivePinia(createPinia())
+  // PrimeVue's Dialog teleports to document.body. With attachTo:
+  // document.body, prior tests' DOM lingers — clear it between runs
+  // so document.querySelector picks up only the current test's content.
+  document.body.innerHTML = ''
 })
 
 function render() {
@@ -131,5 +135,72 @@ describe('AssetPicker', () => {
     picker.cancel()
     await flushPromises()
     expect(selection.selectedName).toBeNull()
+  })
+
+  describe('accept-filter safeguard', () => {
+    function sampleAsset(
+      overrides: Partial<{ name: string; kind: 'embedded' | 'downloadable' | 'font'; mime: string }> = {},
+    ) {
+      return {
+        name: 'hero',
+        kind: 'embedded' as const,
+        mime: 'image/jpeg',
+        size: 1000,
+        hash: 'aaaaaaaa',
+        width: 100,
+        height: 100,
+        alt: null,
+        uploadedAt: '2026-04-22T00:00:00.000Z',
+        ...overrides,
+      }
+    }
+
+    it('keeps the confirm button disabled for accept-incompatible selection', async () => {
+      const picker = useAssetsPickerStore()
+      const list = useAssetsListStore()
+      const selection = useAssetsSelectionStore()
+
+      list.loaded = true
+      list.assets = [sampleAsset({ name: 'doc', kind: 'downloadable', mime: 'application/pdf' })]
+
+      render()
+      picker.open({ accept: ['image'] }, () => {})
+      await flushPromises()
+      selection.select('doc')
+      await flushPromises()
+
+      // Confirm button is in PrimeVue's Dialog footer (teleported to body).
+      const confirmBtn = document.querySelector('[data-testid="asset-picker-confirm"]') as HTMLButtonElement | null
+      expect(confirmBtn).not.toBeNull()
+      // PrimeVue marks `disabled` either via the attribute or aria-disabled.
+      const isDisabled =
+        confirmBtn!.hasAttribute('disabled') ||
+        confirmBtn!.getAttribute('aria-disabled') === 'true' ||
+        confirmBtn!.classList.contains('p-disabled')
+      expect(isDisabled).toBe(true)
+    })
+
+    it('enables confirm when selection matches accept', async () => {
+      const picker = useAssetsPickerStore()
+      const list = useAssetsListStore()
+      const selection = useAssetsSelectionStore()
+
+      list.loaded = true
+      list.assets = [sampleAsset({ name: 'photo', mime: 'image/jpeg' })]
+
+      render()
+      picker.open({ accept: ['image'] }, () => {})
+      await flushPromises()
+      selection.select('photo')
+      await flushPromises()
+
+      const confirmBtn = document.querySelector('[data-testid="asset-picker-confirm"]') as HTMLButtonElement | null
+      expect(confirmBtn).not.toBeNull()
+      const isDisabled =
+        confirmBtn!.hasAttribute('disabled') ||
+        confirmBtn!.getAttribute('aria-disabled') === 'true' ||
+        confirmBtn!.classList.contains('p-disabled')
+      expect(isDisabled).toBe(false)
+    })
   })
 })

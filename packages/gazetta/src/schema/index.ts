@@ -21,7 +21,7 @@
  * })
  * ```
  */
-export { downloadable, embeddedAsset, fontAsset } from './helpers.js'
+export { downloadable, embeddedAsset, fontAsset, matchesAccept, mimeToAcceptKind } from './helpers.js'
 export type {
   AcceptFilter,
   DownloadableOptions,

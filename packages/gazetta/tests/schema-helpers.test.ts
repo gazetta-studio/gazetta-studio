@@ -5,7 +5,7 @@
  * - attach its options as metadata readable via Zod's `.meta()`
  */
 import { describe, expect, it } from 'vitest'
-import { downloadable, embeddedAsset, fontAsset } from '../src/schema/helpers.js'
+import { downloadable, embeddedAsset, fontAsset, matchesAccept, mimeToAcceptKind } from '../src/schema/helpers.js'
 
 describe('embeddedAsset', () => {
   it('accepts a minimal reference', () => {
@@ -124,5 +124,71 @@ describe('integration — using helpers inside a larger Zod schema', () => {
     })
 
     expect(() => schema.parse({ hero: { alt: 'missing _asset' } })).toThrow()
+  })
+})
+
+describe('mimeToAcceptKind', () => {
+  it('maps image MIMEs to image', () => {
+    expect(mimeToAcceptKind('image/jpeg')).toBe('image')
+    expect(mimeToAcceptKind('image/svg+xml')).toBe('image')
+  })
+
+  it('maps video MIMEs to video', () => {
+    expect(mimeToAcceptKind('video/mp4')).toBe('video')
+  })
+
+  it('maps audio MIMEs to audio', () => {
+    expect(mimeToAcceptKind('audio/mpeg')).toBe('audio')
+  })
+
+  it('maps application/* and text/* to document', () => {
+    expect(mimeToAcceptKind('application/pdf')).toBe('document')
+    expect(mimeToAcceptKind('application/zip')).toBe('document')
+    expect(mimeToAcceptKind('text/plain')).toBe('document')
+  })
+
+  it('maps font/* to font', () => {
+    expect(mimeToAcceptKind('font/woff2')).toBe('font')
+  })
+
+  it('falls back to other for unknown top types', () => {
+    expect(mimeToAcceptKind('multipart/mixed')).toBe('other')
+    expect(mimeToAcceptKind('weird-mime-no-slash')).toBe('other')
+  })
+})
+
+describe('matchesAccept', () => {
+  it('empty accept matches everything', () => {
+    expect(matchesAccept({ mime: 'image/jpeg' }, [])).toBe(true)
+    expect(matchesAccept({ mime: 'application/pdf' }, [])).toBe(true)
+  })
+
+  it('matches by kind name', () => {
+    expect(matchesAccept({ mime: 'image/jpeg' }, ['image'])).toBe(true)
+    expect(matchesAccept({ mime: 'image/png' }, ['image'])).toBe(true)
+    expect(matchesAccept({ mime: 'video/mp4' }, ['image'])).toBe(false)
+  })
+
+  it('matches by MIME prefix (trailing slash)', () => {
+    expect(matchesAccept({ mime: 'image/jpeg' }, ['image/'])).toBe(true)
+    expect(matchesAccept({ mime: 'image/svg+xml' }, ['image/'])).toBe(true)
+    expect(matchesAccept({ mime: 'video/mp4' }, ['image/'])).toBe(false)
+  })
+
+  it('matches by exact MIME', () => {
+    expect(matchesAccept({ mime: 'image/svg+xml' }, ['image/svg+xml'])).toBe(true)
+    expect(matchesAccept({ mime: 'image/jpeg' }, ['image/svg+xml'])).toBe(false)
+  })
+
+  it('matches if any one filter entry matches', () => {
+    expect(matchesAccept({ mime: 'image/jpeg' }, ['video', 'image'])).toBe(true)
+    expect(matchesAccept({ mime: 'video/mp4' }, ['video', 'image'])).toBe(true)
+    expect(matchesAccept({ mime: 'audio/mp3' }, ['video', 'image'])).toBe(false)
+  })
+
+  it('exact-MIME does not match prefix without trailing slash', () => {
+    // `'image/svg+xml'` is treated as exact (no trailing slash); it
+    // should NOT also match `'image/svg+something-else'`.
+    expect(matchesAccept({ mime: 'image/svg+different' }, ['image/svg+xml'])).toBe(false)
   })
 })

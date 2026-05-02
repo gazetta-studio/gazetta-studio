@@ -17,6 +17,7 @@
 import { computed, watch, onBeforeUnmount } from 'vue'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
+import { matchesAccept, type AcceptFilter } from 'gazetta/schema'
 import { useAssetsPickerStore } from '../stores/assetsPicker.js'
 import { useAssetsListStore } from '../stores/assetsList.js'
 import { useAssetsSelectionStore } from '../stores/assetsSelection.js'
@@ -25,6 +26,25 @@ import AssetLibraryContent from './AssetLibraryContent.vue'
 const picker = useAssetsPickerStore()
 const list = useAssetsListStore()
 const selection = useAssetsSelectionStore()
+
+/**
+ * The currently-selected asset's manifest, or `null` when nothing is
+ * selected. Used to verify accept-compatibility at confirm time —
+ * defence in depth: the grid filters incompatible cards, but if a
+ * filter ever drifts (e.g., race with a list refresh), the confirm
+ * button is the last line that prevents an incompatible ref from
+ * landing in the page manifest.
+ */
+const selectedAsset = computed(() => {
+  if (!selection.selectedName) return null
+  return list.assets.find(a => a.name === selection.selectedName) ?? null
+})
+
+const selectionMatchesAccept = computed(() => {
+  if (picker.accept.length === 0) return true
+  if (!selectedAsset.value) return false
+  return matchesAccept(selectedAsset.value, picker.accept as AcceptFilter[])
+})
 
 const visible = computed({
   get: () => picker.isOpen,
@@ -51,6 +71,11 @@ watch(
 
 function onConfirm(): void {
   if (!selection.selectedName) return
+  // Defence in depth: refuse to confirm an incompatible selection even
+  // though the grid filters them out. Future bypass (a non-grid
+  // selection path, a stale-list race) shouldn't land an incompatible
+  // ref in the page manifest.
+  if (!selectionMatchesAccept.value) return
   picker.confirm(selection.selectedName)
 }
 
@@ -83,7 +108,7 @@ onBeforeUnmount(() => {
           @click="onCancel" />
         <Button
           label="Select"
-          :disabled="!selection.selectedName"
+          :disabled="!selection.selectedName || !selectionMatchesAccept"
           data-testid="asset-picker-confirm"
           @click="onConfirm" />
       </div>
