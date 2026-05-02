@@ -20,6 +20,7 @@ import { readManifest } from '../../assets/manifest.js'
 import { removeOverride } from '../../assets/remove-override.js'
 import { renameAsset } from '../../assets/rename.js'
 import { replaceAsset } from '../../assets/replace.js'
+import { updateAssetMetadata, type AssetMetadataPatch } from '../../assets/update-metadata.js'
 import { buildSelector, type Selector } from '../../schema/dimensions.js'
 import { isValidLocale } from '../../locale.js'
 import { isValidTheme } from '../../themes.js'
@@ -97,6 +98,76 @@ export function assetRoutes(resolve: SourceContextResolver) {
         if (theme !== undefined && !themes.includes(theme)) themes.push(theme)
       }
       return c.json(toSummary(manifest, locales, themes))
+    } catch (err) {
+      const res = respondWithAssetError(c, err)
+      if (res) return res
+      throw err
+    }
+  })
+
+  /**
+   * PATCH /api/assets/:name — update asset metadata.
+   *
+   * Today's surface: alt only (per design-media.md three-state model).
+   * Future: tags, title, description, focalPoint at the asset level.
+   *
+   * Wire shape preserves three-state alt:
+   *   `{}`              — no change to alt
+   *   `{"alt": "text"}` — meaningful description
+   *   `{"alt": ""}`     — decorative
+   *   `{"alt": null}`   — explicitly cleared (resolver falls back to '')
+   *
+   * Responses:
+   *   200 OK            — { manifest }  (updated summary)
+   *   400 Bad Request   — alt isn't string|null
+   *   404 Not Found     — asset missing
+   *   500 Storage       — underlying write failed
+   */
+  app.patch('/api/assets/:name', async c => {
+    const name = c.req.param('name')
+    const source = await resolve(c.req.query('target'))
+
+    let body: unknown
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ code: 'BAD_REQUEST', message: 'Invalid JSON body' }, 400)
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return c.json({ code: 'BAD_REQUEST', message: 'Body must be an object' }, 400)
+    }
+
+    const patch: AssetMetadataPatch = {}
+    const raw = body as Record<string, unknown>
+    if ('alt' in raw) {
+      const v = raw.alt
+      if (v !== null && typeof v !== 'string') {
+        return c.json({ code: 'BAD_REQUEST', message: 'alt must be string or null' }, 400)
+      }
+      patch.alt = v
+    }
+
+    try {
+      const updated = await updateAssetMetadata({
+        storage: source.storage,
+        assetsRoot: ASSETS_ROOT,
+        assetName: name,
+        patch,
+        history: source.history,
+        contentRoot: source.contentRoot,
+      })
+      // Re-summarize with override locales so the client refresh shape
+      // matches GET. Single-asset case uses the same enumerator.
+      const slices = await enumerateOverrideSlices(source.storage, ASSETS_ROOT, updated)
+      const locales: string[] = []
+      const themes: string[] = []
+      for (const slice of slices) {
+        const locale = slice.selector.get('locale')
+        const theme = slice.selector.get('theme')
+        if (locale !== undefined && !locales.includes(locale)) locales.push(locale)
+        if (theme !== undefined && !themes.includes(theme)) themes.push(theme)
+      }
+      return c.json({ manifest: toSummary(updated, locales, themes) })
     } catch (err) {
       const res = respondWithAssetError(c, err)
       if (res) return res

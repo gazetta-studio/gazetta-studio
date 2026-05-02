@@ -168,6 +168,37 @@ export async function getAsset(name: string): Promise<AssetSummary> {
   throw await parseAssetError(res, 'Asset fetch failed')
 }
 
+/**
+ * Patch shape for `updateAssetMetadata`. The three-state alt model
+ * means we need to distinguish "didn't send" from "explicit null":
+ *   - omit `alt`         → no change
+ *   - `alt: "string"`    → meaningful description
+ *   - `alt: ""`          → decorative
+ *   - `alt: null`        → explicitly clear
+ */
+export interface AssetMetadataPatch {
+  alt?: string | null
+}
+
+/**
+ * Update an asset's metadata (alt today; tags, focalPoint, title,
+ * description as those land). Returns the updated summary.
+ *
+ * 200 → resolves with the new summary. 400/404/500 throw `AssetApiError`.
+ */
+export async function updateAssetMetadata(name: string, patch: AssetMetadataPatch): Promise<AssetSummary> {
+  const res = await fetch(apiUrl(`/assets/${encodeURIComponent(name)}`), {
+    method: 'PATCH',
+    headers: { ...authHeaders(), 'content-type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  if (res.ok) {
+    const body = (await res.json()) as { manifest: AssetSummary }
+    return body.manifest
+  }
+  throw await parseAssetError(res, 'Asset metadata update failed')
+}
+
 /** Read a 409 response body and return a typed `AssetInUseError`. */
 async function parseInUseResponse(res: Response, fallbackName: string): Promise<AssetInUseError> {
   const body = (await res.json().catch(() => ({}))) as Partial<AssetInUseResponse>

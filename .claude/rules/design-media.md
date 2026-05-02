@@ -146,7 +146,7 @@ layers, each optimized for what it can know:
 | **Library card badge** | Shows a "no alt" pill on cards where `alt === null` AND the asset is an image | Retroactive nag — catches existing assets that lack alt; persistent across sessions |
 | **Asset detail pane** | Inline editable alt field with three-state radio (text / decorative / not set) | Author can resolve at their pace; the badge points here |
 | **Picker reference-options step** | Alt override field with the resolution chain shown ("Falls back to: …") | Use-time decision; alt-for-this-context vs. alt-for-the-asset are explicit |
-| **Save-time enforcement (`altRequired: true`)** | Page/fragment save returns 409 when a referenced asset's resolved alt is `null` AND the schema field is declared `altRequired` | The template author knows whether alt is needed; the editor enforces |
+| **Save-time enforcement (`altRequired: true`)** | *(v1.5 — schema producer side ready, consumer deferred)* Page/fragment save would return 409 when a referenced asset's resolved alt is `null` AND the schema field is declared `altRequired` | The template author knows whether alt is needed; the editor enforces. Deferred because cross-cutting schema introspection at save time isn't yet wired through the page-save pipeline |
 
 **No upload-time modal.** Earlier drafts of this doc specified a modal-per-file
 prompt. That was wrong: modal-per-file is hostile to bulk uploads (5 files,

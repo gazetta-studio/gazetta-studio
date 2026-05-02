@@ -75,6 +75,19 @@ function coverageStatus(
   if (localeCode === defaultLocale.value) return 'default'
   return card.overrideLocales.includes(localeCode) ? 'override' : 'fallback'
 }
+
+/**
+ * Whether to render the "alt missing" badge on this card.
+ *
+ * Only images can have alt — downloadables (PDF, ZIP) and fonts don't.
+ * Decorative ('') and meaningful (string) both pass; null is the
+ * "didn't engage" state we surface.
+ */
+function needsAltBadge(card: { mime: string; kind: string; alt: string | null }): boolean {
+  if (card.kind !== 'embedded') return false
+  if (!card.mime.startsWith('image/')) return false
+  return card.alt === null
+}
 </script>
 
 <template>
@@ -101,12 +114,25 @@ function coverageStatus(
         <div class="asset-card-thumb">
           <img v-if="card.thumbUrl" :src="card.thumbUrl" :alt="card.alt ?? ''" />
           <i v-else class="pi pi-file" />
+          <!--
+            "Alt missing" badge — visible only on images whose alt is
+            null. Decorative ('') and string alt both pass; null is the
+            "didn't engage" state (per design-media.md three-state
+            model) that the badge surfaces for retroactive remediation.
+          -->
+          <span
+            v-if="needsAltBadge(card)"
+            class="asset-card-alt-badge"
+            :title="'Alt text not set — accessibility'"
+            :data-testid="`alt-missing-${card.name}`">
+            ALT
+          </span>
         </div>
         <div class="asset-card-name">{{ card.name }}</div>
         <div
           v-if="siteLocales.length > 1"
           class="asset-card-coverage"
-          :data-testid="`asset-card-coverage-${card.name}`">
+          :data-testid="`coverage-${card.name}`">
           <span
             v-for="localeCode in siteLocales"
             :key="localeCode"
@@ -176,6 +202,21 @@ function coverageStatus(
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  position: relative;
+}
+
+.asset-card-alt-badge {
+  position: absolute;
+  top: 0.25rem;
+  inset-inline-start: 0.25rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.0625rem 0.375rem;
+  border-radius: 999px;
+  background: var(--p-amber-500, #f59e0b);
+  color: #fff;
+  pointer-events: none;
 }
 
 .asset-card-thumb img {
