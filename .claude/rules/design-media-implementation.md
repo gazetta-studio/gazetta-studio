@@ -33,7 +33,7 @@ branch for diffs).
 | Locale-specific bytes (upload "default vs override" flow, per-locale variant generation, detail-pane locale bytes section, remove-override action) | 1 week | ✓ step 24 — backend (24 backend) + UX (24 UX) |
 | Picker accept-filter kind-compat enforcement | 1 day | ✓ step 23 |
 | Font asset kind (schema helper, resolver's union-with-unicode-range semantic, upload dialog for font metadata, locale-adds-variant behavior, library font preview) | 3–4 days | ✓ step 17 (resolver dispatch + variant union); upload UI + library preview deferred |
-| Animated-image handling (detection via sharp `pages > 1`, first-frame poster extraction, `animated`/`duration` manifest fields) | 2 days | ☐ |
+| Animated-image handling (detection via sharp `pages > 1`, first-frame poster extraction, `animated`/`duration` manifest fields) | 2 days | ✓ step 31 — sharp `pages > 1` detection + first-frame PNG poster + `animated`/`frames`/`duration`/`poster` manifest fields. New `UploadAnalyzer` abstraction (peer to `UploadPreprocessor`) provides the open extension seam for audio metadata, PDF page counts, EXIF orientation, etc. |
 | Audio metadata (duration via `music-metadata`, strip-by-default metadata with opt-in preserve) | 1 day | ☐ |
 | SVG sanitization specifics (DOMPurify SVG profile config, embedded base64 size limits, external-href stripping) | 1 day | ✓ step 28 — DOMPurify-based sanitizer + new `UploadPreprocessor` abstraction (open extension seam for future HEIC/EXIF/animated-GIF preprocessors). MIME sniff promotes XML→SVG when root is `<svg>` |
 | RTL validation + CSS logical-properties audit for custom components | 1 day | ✓ step 25 — static CSS audit + runtime smoke for asset workflow surfaces (8 SFCs); broader admin RTL is a parallel concern |
