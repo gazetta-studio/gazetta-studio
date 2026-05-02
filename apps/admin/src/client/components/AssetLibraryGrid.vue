@@ -157,7 +157,7 @@ function coverageStatus(
   overflow: hidden;
   font: inherit;
   color: inherit;
-  text-align: left;
+  text-align: start;
 }
 
 .asset-card:hover {
