@@ -79,6 +79,28 @@ export function createAzureBlobProvider(
       })
     },
 
+    async readBytes(path: string): Promise<Uint8Array> {
+      const blobClient = containerClient.getBlockBlobClient(normalizePath(path))
+      try {
+        // `downloadToBuffer` is the SDK's bytes-in-hand accessor —
+        // single round-trip, no manual stream collection. Returns a
+        // Buffer (which extends Uint8Array).
+        return await blobClient.downloadToBuffer()
+      } catch (err: unknown) {
+        const statusCode = (err as { statusCode?: number }).statusCode
+        if (statusCode === 404) throw new Error(`File not found: ${path}`)
+        throw new Error(`Cannot read bytes from ${path}: ${(err as Error).message}`)
+      }
+    },
+
+    async writeBytes(path: string, content: Uint8Array): Promise<void> {
+      const blobClient = containerClient.getBlockBlobClient(normalizePath(path))
+      // `upload` is the bounded, single-PUT path — atomic per object.
+      // Wrap in Buffer for stable Uint8Array handling across Node versions.
+      const buf = Buffer.from(content.buffer, content.byteOffset, content.byteLength)
+      await blobClient.upload(buf, buf.byteLength)
+    },
+
     async mkdir(_path: string): Promise<void> {
       // Azure Blob has no directories — they're implicit from blob name prefixes.
       // Nothing to do.

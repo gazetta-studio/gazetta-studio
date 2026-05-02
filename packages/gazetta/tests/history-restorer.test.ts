@@ -6,62 +6,11 @@
  *   - Soft undo invariant: every restore appends, nothing is destroyed
  */
 import { describe, it, expect, beforeEach } from 'vitest'
-import type { StorageProvider } from '../src/types.js'
 import { createContentRoot } from '../src/content-root.js'
 import { createHistoryProvider } from '../src/history-provider.js'
 import { recordWrite } from '../src/history-recorder.js'
 import { restoreRevision } from '../src/history-restorer.js'
-
-function memoryStorage(): StorageProvider & {
-  dump(): Map<string, string>
-  seed(entries: Record<string, string>): void
-} {
-  const files = new Map<string, string>()
-  return {
-    async readFile(path) {
-      const v = files.get(path)
-      if (v === undefined) throw new Error(`ENOENT: ${path}`)
-      return v
-    },
-    async writeFile(path, content) {
-      files.set(path, content)
-    },
-    async exists(path) {
-      return files.has(path)
-    },
-    async readDir(path) {
-      const prefix = path.endsWith('/') ? path : path + '/'
-      const dirs = new Set<string>()
-      const f = new Set<string>()
-      for (const p of files.keys()) {
-        if (!p.startsWith(prefix)) continue
-        const rest = p.slice(prefix.length)
-        const seg = rest.split('/')[0]
-        if (!seg) continue
-        if (rest.includes('/')) dirs.add(seg)
-        else f.add(seg)
-      }
-      return [
-        ...[...dirs].map(name => ({ name, isDirectory: true, isFile: false })),
-        ...[...f].filter(n => !dirs.has(n)).map(name => ({ name, isDirectory: false, isFile: true })),
-      ]
-    },
-    async mkdir() {},
-    async rm(path) {
-      files.delete(path)
-      const prefix = path.endsWith('/') ? path : path + '/'
-      for (const p of [...files.keys()]) {
-        if (p.startsWith(prefix)) files.delete(p)
-      }
-    },
-    dump() {
-      return files
-    },
-    seed(entries) {
-      for (const [k, v] of Object.entries(entries)) files.set(k, v)
-    },
-  }
-}
+import { memoryStorage } from './_helpers/memory-storage.js'
 
 describe('restoreRevision', () => {
   let storage: ReturnType<typeof memoryStorage>
@@ -217,15 +166,22 @@ describe('restoreRevision', () => {
       items: [{ path: 'pages/home/page.json', content: 'home-v2' }],
     })
 
-    // Instrument writeFile to count invocations during restore.
-    const origWrite = storage.writeFile
+    // Instrument writeFile + writeBytes to count content-tree writes
+    // during restore. The restorer writes content via `writeBytes`
+    // (uniform binary path); the new forward revision's blobs also
+    // go through writeBytes; index + revision-manifest still use
+    // writeFile. Filter out `.gazetta/` paths to count just the
+    // content-tree writes the test cares about.
+    const origWriteFile = storage.writeFile
+    const origWriteBytes = storage.writeBytes
     let writeCount = 0
     storage.writeFile = async (p, c) => {
-      // Ignore history-internal writes (blobs + manifest + index) —
-      // they're part of the forward revision, not the content tree
-      // restore we're checking.
       if (!p.startsWith('.gazetta/')) writeCount += 1
-      return origWrite.call(storage, p, c)
+      return origWriteFile.call(storage, p, c)
+    }
+    storage.writeBytes = async (p, c) => {
+      if (!p.startsWith('.gazetta/')) writeCount += 1
+      return origWriteBytes.call(storage, p, c)
     }
 
     await restoreRevision({ history, contentRoot, revisionId: firstSave.id })

@@ -23,15 +23,19 @@
 
 import { join } from 'node:path'
 import type { StorageProvider } from './types.js'
-import type { HistoryProvider, RevisionInput, RevisionOperation } from './history.js'
+import type { BlobContent, HistoryProvider, RevisionInput, RevisionOperation } from './history.js'
 import type { ContentRoot } from './content-root.js'
 
 /** A single item that was written in this save/publish. */
 export interface WrittenItem {
   /** Path relative to the content root, e.g. `pages/home/page.json`. */
   path: string
-  /** Current content as stored. `null` marks a deletion. */
-  content: string | null
+  /**
+   * Current content as stored. `string` for text items (manifests,
+   * YAML), `Uint8Array` for binary items (asset bytes, variants).
+   * `null` marks a deletion.
+   */
+  content: BlobContent | null
 }
 
 /**
@@ -127,7 +131,7 @@ export async function recordWrite(opts: RecordWriteOptions) {
   }
 
   const prevItems = await loadPreviousSnapshot(opts.history, opts.contentRoot, scanLocations, scanRootFiles)
-  const nextItems = new Map(prevItems)
+  const nextItems = new Map<string, BlobContent>(prevItems)
   for (const it of opts.items) {
     if (it.content === null) nextItems.delete(it.path)
     else nextItems.set(it.path, it.content)
@@ -155,15 +159,19 @@ async function loadPreviousSnapshot(
   contentRoot: ContentRoot,
   scanLocations: readonly ScanLocation[],
   scanRootFiles: readonly string[],
-): Promise<Map<string, string>> {
+): Promise<Map<string, BlobContent>> {
   const [head] = await history.listRevisions(1)
   if (head) {
     const manifest = await history.readRevision(head.id)
-    const items = new Map<string, string>()
-    // Read blobs in parallel to avoid a big serial chain on large snapshots.
+    const items = new Map<string, BlobContent>()
+    // Read blobs in parallel to avoid a big serial chain on large
+    // snapshots. `readBlob` returns Uint8Array — passing through as-is
+    // means binary blobs round-trip without decode/encode, and text
+    // blobs round-trip as their UTF-8 byte form (still hashes the same
+    // way they would as strings, so dedup holds).
     const entries = Object.entries(manifest.snapshot)
     const contents = await Promise.all(entries.map(([, hash]) => history.readBlob(hash)))
-    entries.forEach(([path], i) => items.set(path, contents[i]))
+    entries.forEach(([path], i) => items.set(path, contents[i]!))
     return items
   }
   return scanContentTree(contentRoot, scanLocations, scanRootFiles)
@@ -182,8 +190,12 @@ async function scanContentTree(
   root: ContentRoot,
   scanLocations: readonly ScanLocation[],
   scanRootFiles: readonly string[],
-): Promise<Map<string, string>> {
-  const items = new Map<string, string>()
+): Promise<Map<string, BlobContent>> {
+  // Snapshot type is `BlobContent` (string | Uint8Array). v1 only scans
+  // text content (manifests, YAML); binary asset paths are populated
+  // by callers via `WrittenItem`s on subsequent saves. The map's type
+  // accommodates both so callers can pass either through.
+  const items = new Map<string, BlobContent>()
   const { storage } = root
 
   for (const rel of scanRootFiles) {
@@ -214,7 +226,7 @@ async function scanManifestsInto(
   absDir: string,
   relPrefix: string,
   manifestName: string,
-  items: Map<string, string>,
+  items: Map<string, BlobContent>,
 ): Promise<void> {
   let entries: Awaited<ReturnType<StorageProvider['readDir']>>
   try {

@@ -61,6 +61,18 @@ export interface HistoryRetention {
   maxRevisions?: number
 }
 
+/**
+ * Content carried in a revision snapshot — either UTF-8 text (for JSON
+ * manifests, YAML, HTML, CSS, JS) or raw bytes (asset bytes, variants,
+ * fonts). The provider hashes either via SHA-256 over the raw bytes
+ * (text encoded as UTF-8 first), so dedup works uniformly: identical
+ * text and identical bytes share a blob.
+ *
+ * Per Q9 lock, one blob store, mixed content. The public `readBlob`
+ * always returns bytes; callers that expect text decode on read.
+ */
+export type BlobContent = string | Uint8Array
+
 /** Input to `recordRevision` — metadata plus the current content tree. */
 export interface RevisionInput {
   operation: RevisionOperation
@@ -73,16 +85,14 @@ export interface RevisionInput {
   /** For rollback/restore: the revision id this one restored from. */
   restoredFrom?: string
   /**
-   * Full content tree snapshot at this revision: `itemPath → content string`.
-   * Content is stored as UTF-8 text — covers every item type Gazetta
-   * tracks today (JSON manifests, YAML, HTML, CSS, JS). Binary assets
-   * (images, fonts) would need a separate mechanism; revisit when those
-   * become first-class.
+   * Full content tree snapshot at this revision: `itemPath → content`.
+   * Content is `string | Uint8Array` — text and binary first-class
+   * (asset bytes, variants, fonts; per Q9 lock).
    *
    * Unchanged items should carry identical content across calls so the
    * provider can dedupe via content-addressing.
    */
-  items: Map<string, string>
+  items: Map<string, BlobContent>
 }
 
 /**
@@ -109,8 +119,17 @@ export interface HistoryProvider {
   /** Read a revision's full manifest (metadata + snapshot). */
   readRevision(id: string): Promise<RevisionManifest>
 
-  /** Read a content blob by hash (e.g. to restore an item's state). */
-  readBlob(hash: string): Promise<string>
+  /**
+   * Read a content blob by hash. Returns raw bytes — callers that
+   * expect text (page/fragment manifests, site.yaml) decode UTF-8 on
+   * receipt. Callers that expect binary (asset bytes, variants) use
+   * the bytes as-is.
+   *
+   * The pre-step-20 signature returned `string`. The widening to
+   * `Uint8Array` is a foundation contract change; existing string
+   * consumers must wrap with `new TextDecoder().decode(bytes)`.
+   */
+  readBlob(hash: string): Promise<Uint8Array>
 
   /**
    * Delete a revision and its manifest. Orphaned blobs are garbage-

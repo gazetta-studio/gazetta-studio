@@ -27,69 +27,8 @@
  * invariants.
  */
 import { describe, it, expect, beforeEach } from 'vitest'
-import type { StorageProvider } from '../src/types.js'
 import { createHistoryProvider } from '../src/history-provider.js'
-
-// ---------------------------------------------------------------------------
-// In-memory storage (shared pattern with history-recorder.test.ts,
-// sidecars.test.ts — just enough to exercise the provider contract).
-// ---------------------------------------------------------------------------
-
-type MemoryStorage = StorageProvider & {
-  dump(): Map<string, string>
-  seed(entries: Record<string, string>): void
-}
-
-function memoryStorage(): MemoryStorage {
-  const files = new Map<string, string>()
-  return {
-    async readFile(path) {
-      const v = files.get(path)
-      if (v === undefined) throw new Error(`ENOENT: ${path}`)
-      return v
-    },
-    async writeFile(path, content) {
-      files.set(path, content)
-    },
-    async exists(path) {
-      return files.has(path)
-    },
-    async readDir(path) {
-      const prefix = path.endsWith('/') ? path : path + '/'
-      let any = false
-      const dirs = new Set<string>()
-      const fls = new Set<string>()
-      for (const p of files.keys()) {
-        if (!p.startsWith(prefix)) continue
-        any = true
-        const rest = p.slice(prefix.length)
-        const seg = rest.split('/')[0]
-        if (!seg) continue
-        if (rest.includes('/')) dirs.add(seg)
-        else fls.add(seg)
-      }
-      if (!any) throw new Error(`ENOENT: ${path}`)
-      return [
-        ...[...dirs].map(name => ({ name, isDirectory: true, isFile: false })),
-        ...[...fls].filter(n => !dirs.has(n)).map(name => ({ name, isDirectory: false, isFile: true })),
-      ]
-    },
-    async mkdir() {},
-    async rm(path) {
-      files.delete(path)
-      const prefix = path.endsWith('/') ? path : path + '/'
-      for (const p of [...files.keys()]) {
-        if (p.startsWith(prefix)) files.delete(p)
-      }
-    },
-    dump() {
-      return files
-    },
-    seed(entries) {
-      for (const [k, v] of Object.entries(entries)) files.set(k, v)
-    },
-  }
-}
+import { type MemoryStorage, memoryStorage } from './_helpers/memory-storage.js'
 
 // ---------------------------------------------------------------------------
 // Chaos decorator: fail the Nth write matching a predicate.
@@ -105,24 +44,36 @@ interface FaultSpec {
 }
 
 /**
- * Wrap a storage so its `writeFile` calls fail the Nth call matching
- * `spec.match`. One-shot: after the fault triggers, subsequent calls
- * pass through normally.
+ * Wrap a storage so its `writeFile` and `writeBytes` calls fail the
+ * Nth call matching `spec.match`. One-shot: after the fault triggers,
+ * subsequent calls pass through normally.
+ *
+ * Intercepts BOTH text (`writeFile`) and bytes (`writeBytes`) writes
+ * because the history provider routes blob writes through `writeBytes`
+ * (after step 20) while index + revision-manifest writes still use
+ * `writeFile`. Match-by-path then catches the right call regardless
+ * of which write API the provider used.
  */
 function withFault(inner: MemoryStorage, spec: FaultSpec): MemoryStorage & { triggered: () => boolean } {
   let seen = 0
   let hasFired = false
+  function maybeFail(path: string): void {
+    if (hasFired || !spec.match(path)) return
+    if (seen === spec.skipUntilFail) {
+      hasFired = true
+      throw new Error(spec.error)
+    }
+    seen += 1
+  }
   return {
     ...inner,
     async writeFile(path, content) {
-      if (!hasFired && spec.match(path)) {
-        if (seen === spec.skipUntilFail) {
-          hasFired = true
-          throw new Error(spec.error)
-        }
-        seen += 1
-      }
+      maybeFail(path)
       return inner.writeFile(path, content)
+    },
+    async writeBytes(path, content) {
+      maybeFail(path)
+      return inner.writeBytes(path, content)
     },
     triggered() {
       return hasFired
@@ -216,7 +167,9 @@ describe('history fault injection — mid-blob-write failure', () => {
     const manifest = await history.readRevision(rev.id)
     const hashForA = manifest.snapshot['a.json']
     expect(hashForA).toBeDefined()
-    expect(await history.readBlob(hashForA!)).toBe('{"a":2}')
+    // readBlob returns Uint8Array — decode UTF-8 to compare against the
+    // original string.
+    expect(new TextDecoder().decode(await history.readBlob(hashForA!))).toBe('{"a":2}')
   })
 })
 

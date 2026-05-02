@@ -8,10 +8,10 @@
  *   - readDefaultManifest: throws on missing/corrupt; reads valid manifest
  */
 import { describe, expect, it } from 'vitest'
-import type { StorageProvider } from '../src/types.js'
 import { isDefaultManifest, readDefaultManifest } from '../src/assets/manifest-default.js'
 import { AssetManifestCorruptError, AssetManifestNotFoundError } from '../src/assets/errors.js'
 import type { AssetManifest } from '../src/schema/types.js'
+import { memoryStorage } from './_helpers/memory-storage.js'
 
 const validEmbedded: AssetManifest = {
   version: 1,
@@ -107,44 +107,35 @@ describe('isDefaultManifest', () => {
   })
 })
 
-// Minimal in-memory storage for I/O tests.
-function memoryStorage(files: Record<string, string>): StorageProvider {
-  return {
-    async readFile(p) {
-      const v = files[p]
-      if (v === undefined) throw new Error(`ENOENT: ${p}`)
-      return v
-    },
-    async writeFile() {},
-    async exists(p) {
-      return p in files
-    },
-    async readDir() {
-      return []
-    },
-    async mkdir() {},
-    async rm() {},
-  }
+/**
+ * Helper: build a memory storage pre-populated from a path → text map.
+ * Centralizes the seed pattern — tests below say "what's stored" rather
+ * than carrying mock-construction noise.
+ */
+function storageWith(files: Record<string, string>) {
+  const s = memoryStorage()
+  s.seed(files)
+  return s
 }
 
 describe('readDefaultManifest', () => {
   it('throws AssetManifestNotFoundError when file is missing', async () => {
-    const storage = memoryStorage({})
+    const storage = storageWith({})
     await expect(readDefaultManifest(storage, 'assets', 'ghost')).rejects.toBeInstanceOf(AssetManifestNotFoundError)
   })
 
   it('throws AssetManifestCorruptError on invalid JSON', async () => {
-    const storage = memoryStorage({ 'assets/hero.asset.json': 'not-json{{{' })
+    const storage = storageWith({ 'assets/hero.asset.json': 'not-json{{{' })
     await expect(readDefaultManifest(storage, 'assets', 'hero')).rejects.toBeInstanceOf(AssetManifestCorruptError)
   })
 
   it('throws AssetManifestCorruptError on shape mismatch', async () => {
-    const storage = memoryStorage({ 'assets/hero.asset.json': JSON.stringify({ version: 1, name: 'hero' }) })
+    const storage = storageWith({ 'assets/hero.asset.json': JSON.stringify({ version: 1, name: 'hero' }) })
     await expect(readDefaultManifest(storage, 'assets', 'hero')).rejects.toBeInstanceOf(AssetManifestCorruptError)
   })
 
   it('reads and returns a valid manifest', async () => {
-    const storage = memoryStorage({ 'assets/hero.asset.json': JSON.stringify(validEmbedded) })
+    const storage = storageWith({ 'assets/hero.asset.json': JSON.stringify(validEmbedded) })
     const m = await readDefaultManifest(storage, 'assets', 'hero')
     expect(m).toEqual(validEmbedded)
   })

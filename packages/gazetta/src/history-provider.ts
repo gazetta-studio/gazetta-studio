@@ -25,7 +25,7 @@
 
 import { createHash } from 'node:crypto'
 import type { StorageProvider } from './types.js'
-import type { HistoryProvider, Revision, RevisionInput, RevisionManifest } from './history.js'
+import type { BlobContent, HistoryProvider, Revision, RevisionInput, RevisionManifest } from './history.js'
 import { DEFAULT_HISTORY_RETENTION } from './types.js'
 
 export interface CreateHistoryProviderOptions {
@@ -110,11 +110,19 @@ export function createHistoryProvider(opts: CreateHistoryProviderOptions): Histo
     return join(root, 'revisions', `${id}.json`)
   }
 
-  /** SHA-256 hex of the content — strong enough that collisions can be
-   *  ignored for practical purposes (blob identity), cheap enough at our
-   *  scale (tens of KB per item, hundreds of items per revision). */
-  function hashContent(content: string): string {
-    return createHash('sha256').update(content).digest('hex')
+  /**
+   * SHA-256 hex of the content. Strong enough that collisions can be
+   * ignored for practical purposes (blob identity), cheap enough at
+   * our scale (tens of KB per item, hundreds of items per revision).
+   *
+   * Accepts both text and bytes per Q9 lock. Text encodes UTF-8 first
+   * — matches the bytes that would be written through `writeFile`,
+   * so a string blob and a `Uint8Array` of its UTF-8 encoding hash
+   * to the same value (and dedupe correctly).
+   */
+  function hashContent(content: BlobContent): string {
+    const bytes = content instanceof Uint8Array ? content : Buffer.from(content, 'utf-8')
+    return createHash('sha256').update(bytes).digest('hex')
   }
 
   /**
@@ -151,13 +159,21 @@ export function createHistoryProvider(opts: CreateHistoryProviderOptions): Histo
    * Write any blob that's not already stored. Returns the hash. Dedup
    * check is a single `exists()` — cheaper than reading the existing
    * blob to confirm equal content (hashes collide vanishingly).
+   *
+   * Always goes through `writeBytes` — text content is encoded UTF-8
+   * first. Uniform bytes-in / bytes-out means binary blobs (asset
+   * bytes, variants, fonts) round-trip without a string detour, and
+   * text blobs round-trip through their UTF-8 encoding (same bytes
+   * `writeFile` would have stored).
    */
-  async function writeBlob(content: string): Promise<string> {
+  async function writeBlob(content: BlobContent): Promise<string> {
     const hash = hashContent(content)
     const path = blobPath(hash)
-    if (!(await storage.exists(path))) {
-      await writeWithParents(path, content)
-    }
+    if (await storage.exists(path)) return hash
+    const parent = path.substring(0, path.lastIndexOf('/'))
+    if (parent) await storage.mkdir(parent)
+    const bytes = content instanceof Uint8Array ? content : Buffer.from(content, 'utf-8')
+    await storage.writeBytes(path, bytes)
     return hash
   }
 
@@ -243,8 +259,12 @@ export function createHistoryProvider(opts: CreateHistoryProviderOptions): Histo
     return readManifest(id)
   }
 
-  async function readBlob(hash: string): Promise<string> {
-    return storage.readFile(blobPath(hash))
+  async function readBlob(hash: string): Promise<Uint8Array> {
+    // Bytes-in / bytes-out — binary blobs (asset bytes, variants,
+    // fonts) round-trip without a string-decode detour; text blobs
+    // (manifests, YAML, etc.) come back as their UTF-8 byte form
+    // and callers that expect text decode at the boundary.
+    return storage.readBytes(blobPath(hash))
   }
 
   async function deleteRevision(id: string): Promise<void> {

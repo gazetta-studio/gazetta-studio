@@ -121,6 +121,35 @@ export function createS3Provider(options: S3ProviderOptions): StorageProvider & 
       )
     },
 
+    async readBytes(path: string): Promise<Uint8Array> {
+      try {
+        const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: normalizePath(path) }))
+        if (!response.Body) throw new Error(`Empty body for ${path}`)
+        // SDK's transformToByteArray is the canonical bytes accessor —
+        // single round-trip, no manual stream collection.
+        return await (response.Body as { transformToByteArray: () => Promise<Uint8Array> }).transformToByteArray()
+      } catch (err: unknown) {
+        const code = (err as { name?: string }).name
+        if (code === 'NoSuchKey') throw new Error(`File not found: ${path}`)
+        throw new Error(`Cannot read bytes from ${path}: ${(err as Error).message}`)
+      }
+    },
+
+    async writeBytes(path: string, content: Uint8Array): Promise<void> {
+      // Single-PUT for bounded bytes. No multipart — that's writeStream's
+      // job for unbounded uploads. ContentLength is set explicitly so the
+      // SDK skips the "unknown length" warning.
+      const body = Buffer.from(content.buffer, content.byteOffset, content.byteLength)
+      await client.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: normalizePath(path),
+          Body: body,
+          ContentLength: body.length,
+        }),
+      )
+    },
+
     async mkdir(_path: string): Promise<void> {
       // S3 has no directories — implicit from key prefixes
     },

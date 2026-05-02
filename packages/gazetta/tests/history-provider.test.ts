@@ -4,56 +4,9 @@
  * sharding) without touching disk.
  */
 import { describe, it, expect, beforeEach } from 'vitest'
-import type { StorageProvider } from '../src/types.js'
 import { createHistoryProvider } from '../src/history-provider.js'
 import type { RevisionInput } from '../src/history.js'
-
-/**
- * Bare-minimum in-memory storage. Mirrors filesystem semantics: reads
- * of missing paths throw; exists returns false; writes to nested paths
- * are fine (no mkdir needed since it's a flat Map keyed by full path).
- */
-function memoryStorage(): StorageProvider & { dump(): Map<string, string> } {
-  const files = new Map<string, string>()
-  return {
-    async readFile(path: string): Promise<string> {
-      const v = files.get(path)
-      if (v === undefined) throw new Error(`ENOENT: ${path}`)
-      return v
-    },
-    async writeFile(path: string, content: string): Promise<void> {
-      files.set(path, content)
-    },
-    async exists(path: string): Promise<boolean> {
-      return files.has(path)
-    },
-    async readDir(path: string) {
-      const prefix = path.endsWith('/') ? path : path + '/'
-      const children = new Set<string>()
-      for (const p of files.keys()) {
-        if (!p.startsWith(prefix)) continue
-        const rest = p.slice(prefix.length)
-        const seg = rest.split('/')[0]
-        if (seg) children.add(seg)
-      }
-      return [...children].map(name => ({ name, isDirectory: false, isFile: true }))
-    },
-    async mkdir(): Promise<void> {
-      /* no-op; memoryStorage is flat */
-    },
-    async rm(path: string): Promise<void> {
-      files.delete(path)
-      // Also handle dir deletes — remove everything under the prefix.
-      const prefix = path.endsWith('/') ? path : path + '/'
-      for (const p of [...files.keys()]) {
-        if (p.startsWith(prefix)) files.delete(p)
-      }
-    },
-    dump() {
-      return files
-    },
-  }
-}
+import { memoryStorage } from './_helpers/memory-storage.js'
 
 function input(items: Record<string, string>, overrides: Partial<RevisionInput> = {}): RevisionInput {
   return {
@@ -170,12 +123,40 @@ describe('createHistoryProvider', () => {
   })
 
   describe('readBlob', () => {
-    it('returns the content for a given hash', async () => {
+    it('returns the content as bytes for a given hash', async () => {
       const h = createHistoryProvider({ storage })
       const r = await h.recordRevision(input({ 'pages/home': 'hello' }))
       const m = await h.readRevision(r.id)
-      const content = await h.readBlob(m.snapshot['pages/home'])
-      expect(content).toBe('hello')
+      const bytes = await h.readBlob(m.snapshot['pages/home']!)
+      // readBlob returns Uint8Array (per Q9 lock — text and binary
+      // both first-class). Decode UTF-8 to compare against the
+      // original string.
+      expect(new TextDecoder().decode(bytes)).toBe('hello')
+    })
+
+    it('round-trips binary content (Uint8Array in → Uint8Array out)', async () => {
+      const h = createHistoryProvider({ storage })
+      const original = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46]) // JPEG SOI marker
+      const r = await h.recordRevision(input({ 'assets/hero-abc12345.jpg': original }))
+      const m = await h.readRevision(r.id)
+      const bytes = await h.readBlob(m.snapshot['assets/hero-abc12345.jpg']!)
+      expect(bytes).toBeInstanceOf(Uint8Array)
+      expect(Array.from(bytes)).toEqual(Array.from(original))
+    })
+
+    it('text and identical-bytes hash to the same blob (dedup holds)', async () => {
+      const h = createHistoryProvider({ storage })
+      const text = 'identical content'
+      const bytes = new TextEncoder().encode(text)
+
+      const r1 = await h.recordRevision(input({ 'item-a': text }))
+      const r2 = await h.recordRevision(input({ 'item-b': bytes }))
+
+      const m1 = await h.readRevision(r1.id)
+      const m2 = await h.readRevision(r2.id)
+      // Same hash because the underlying bytes (UTF-8 of the text)
+      // match the explicit Uint8Array.
+      expect(m1.snapshot['item-a']).toBe(m2.snapshot['item-b'])
     })
   })
 

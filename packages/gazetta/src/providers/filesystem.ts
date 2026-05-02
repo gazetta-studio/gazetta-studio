@@ -2,7 +2,7 @@ import { createReadStream } from 'node:fs'
 import { access, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ByteRange, DirEntry, StorageProvider } from '../types.js'
-import { atomicWriteStream, atomicWriteString } from './_atomic-write.js'
+import { atomicWriteBytes, atomicWriteStream, atomicWriteString } from './_atomic-write.js'
 import { nodeReadableToWeb } from './_stream-interop.js'
 
 /**
@@ -51,6 +51,28 @@ export function createFilesystemProvider(basePath?: string): StorageProvider {
       const fullPath = resolvePath(path)
       try {
         await atomicWriteString(fullPath, content)
+      } catch (err) {
+        throw new Error(`Cannot write ${fullPath}: ${(err as Error).message}`)
+      }
+    },
+
+    async readBytes(path: string): Promise<Uint8Array> {
+      const fullPath = resolvePath(path)
+      try {
+        // node:fs/promises readFile without encoding returns a Buffer (which
+        // extends Uint8Array). Return as-is — callers see a Uint8Array view.
+        return await readFile(fullPath)
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code
+        if (code === 'ENOENT') throw new Error(`File not found: ${fullPath}`)
+        throw new Error(`Cannot read ${fullPath}: ${(err as Error).message}`)
+      }
+    },
+
+    async writeBytes(path: string, content: Uint8Array): Promise<void> {
+      const fullPath = resolvePath(path)
+      try {
+        await atomicWriteBytes(fullPath, content)
       } catch (err) {
         throw new Error(`Cannot write ${fullPath}: ${(err as Error).message}`)
       }
