@@ -14,6 +14,10 @@ Stateless CMS that structures websites as composable fragments. All state lives 
 - `docs/self-hosted.md` — Self-hosted deployment guide (VPS, Docker, Fly.io)
 - `docs/sidecars.md` — Sidecar files (incremental publish, reverse-dep lookups)
 - `docs/feature-gaps.md` — CMS feature gap analysis (media, i18n, drafts, SEO, RBAC, etc.) — read when planning new features or discussing roadmap
+- `docs/template-assets.md` — Template developer guide for asset references (schema helpers, resolved shapes, rendering)
+- `docs/content-assets.md` — Author guide for the asset library (upload, replace, locale overrides, focal point, alt)
+- `docs/migration.md` — Migrating templates from `z.string()` URLs to `embeddedAsset()` references
+- `docs/transform-adapters.md` — Per-target image delivery strategies (sharp default, cloudflare CDN, future adapters)
 
 ## Design docs (auto-loaded by Claude)
 
