@@ -74,9 +74,7 @@ describe('AssetDetail', () => {
     // Use a non-image (downloadable) so the focal editor — which also
     // renders an `×` in the x/y badge — isn't in the DOM. The dimensions
     // row has its own `Dimensions` label we check is absent.
-    list.assets = [
-      sample({ kind: 'downloadable', mime: 'application/pdf', width: null, height: null }),
-    ]
+    list.assets = [sample({ kind: 'downloadable', mime: 'application/pdf', width: null, height: null })]
     selection.select('hero')
 
     const wrapper = mount(AssetDetail)

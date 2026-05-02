@@ -26,6 +26,7 @@ export type AssetErrorCode =
   | 'ASSET_KIND_MISMATCH'
   | 'ASSET_NAME_COLLISION'
   | 'ASSET_VARIANT_GENERATION_FAILED'
+  | 'ASSET_PREPROCESS_FAILED'
 
 /**
  * `AssetRef` is owned by `./refs.ts` (single source of truth, Zod
@@ -273,6 +274,38 @@ export class AssetVariantGenerationError extends AssetError {
     cause: unknown,
   ) {
     super(`Could not generate responsive variants for "${assetName}": ${(cause as Error)?.message ?? cause}`)
+  }
+}
+
+/**
+ * Format-specific preprocessing failed during ingest. Today: SVG
+ * sanitization (DOMPurify rejected the input as malformed XML or it
+ * carried oversized embedded base64). Future: HEIC→JPEG transcode,
+ * EXIF-orientation flatten, animated-GIF frame extraction.
+ *
+ * 400 because the input is the problem (client-correctable). The
+ * specific reason is on `reason` so route handlers / clients can
+ * branch on it. `format` (the MIME) lets clients show the right
+ * remediation copy.
+ */
+export class AssetPreprocessError extends AssetError {
+  readonly code = 'ASSET_PREPROCESS_FAILED' as const
+  readonly httpStatus = 400 as const
+  constructor(
+    public readonly format: string,
+    public readonly reason: string,
+    cause?: unknown,
+  ) {
+    const detail = cause instanceof Error ? `: ${cause.message}` : ''
+    super(`Preprocessing ${format} failed (${reason})${detail}`)
+  }
+
+  override toResponseBody(): AssetErrorResponseBody {
+    return {
+      ...super.toResponseBody(),
+      format: this.format,
+      reason: this.reason,
+    }
   }
 }
 

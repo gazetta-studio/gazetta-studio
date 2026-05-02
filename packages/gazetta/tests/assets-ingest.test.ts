@@ -350,3 +350,67 @@ describe('ingestAsset — history recording', () => {
     ).rejects.toThrow(/contentRoot/)
   })
 })
+
+describe('ingestAsset — SVG sanitization (end-to-end)', () => {
+  function svgBytes(svg: string): Uint8Array {
+    return new TextEncoder().encode(svg)
+  }
+
+  it('persists a clean SVG with no variants', async () => {
+    const storage = createFilesystemProvider(testDir)
+    const input = '<svg xmlns="http://www.w3.org/2000/svg"><rect width="100" height="50"/></svg>'
+
+    const result = await ingestAsset({
+      storage,
+      assetsRoot: 'assets',
+      bytes: streamOf(svgBytes(input)),
+      requestedName: 'logo',
+      alt: 'Brand logo',
+      uploadedBy: '',
+    })
+
+    expect(result.manifest.mime).toBe('image/svg+xml')
+    expect(result.manifest.variants).toEqual([]) // vector — no ladder
+    expect(result.bytesPath).toMatch(/^assets\/logo-[0-9a-f]{8}\.svg$/)
+
+    const onDisk = await readFile(join(testDir, result.bytesPath), 'utf-8')
+    expect(onDisk).toContain('<svg')
+    expect(onDisk).toContain('<rect')
+  })
+
+  it('strips script tags before persistence (hash describes sanitized output)', async () => {
+    const storage = createFilesystemProvider(testDir)
+    const malicious =
+      '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script><rect width="10" height="10"/></svg>'
+
+    const result = await ingestAsset({
+      storage,
+      assetsRoot: 'assets',
+      bytes: streamOf(svgBytes(malicious)),
+      requestedName: 'cleaned',
+      alt: null,
+      uploadedBy: '',
+    })
+
+    const onDisk = await readFile(join(testDir, result.bytesPath), 'utf-8')
+    expect(onDisk).not.toContain('<script')
+    expect(onDisk).not.toContain('alert')
+  })
+
+  it('rejects an SVG with an oversized embedded base64 (1MB+) at upload time', async () => {
+    const storage = createFilesystemProvider(testDir)
+    const blob = 'A'.repeat(1_500_000) // ≈ 1.1 MB decoded
+    const overinflated = `<svg xmlns="http://www.w3.org/2000/svg"><image href="data:image/png;base64,${blob}"/></svg>`
+
+    await expect(
+      ingestAsset({
+        storage,
+        assetsRoot: 'assets',
+        bytes: streamOf(svgBytes(overinflated)),
+        requestedName: 'huge',
+        alt: null,
+        uploadedBy: '',
+      }),
+    ).rejects.toMatchObject({ code: 'ASSET_PREPROCESS_FAILED' })
+  })
+})
