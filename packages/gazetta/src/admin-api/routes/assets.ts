@@ -15,6 +15,7 @@ import { deleteAsset } from '../../assets/delete.js'
 import { ingestAsset } from '../../assets/ingest.js'
 import { listAssets, toSummary } from '../../assets/list.js'
 import { readManifest } from '../../assets/manifest.js'
+import { renameAsset } from '../../assets/rename.js'
 import { replaceAsset } from '../../assets/replace.js'
 import { respondWithAssetError } from '../error-response.js'
 import type { SourceContextResolver } from '../source-context.js'
@@ -88,6 +89,43 @@ export function assetRoutes(resolve: SourceContextResolver) {
    *   409 Kind Mismatch     — kinds/MIME-categories differ
    *   500 Storage Failure   — underlying write/rm failed mid-operation
    */
+  /**
+   * POST /api/assets/:name/rename-to/:newName — atomic rename.
+   *
+   * Copies bytes + variants + manifest to `:newName`, rewrites every
+   * reference across pages + fragments, and deletes the old asset.
+   * One history revision covers the whole operation. URLs to the old
+   * asset stay valid until refs are rewritten — safe-order per design.
+   *
+   * Responses:
+   *   204 No Content        — success
+   *   404 Not Found         — old asset missing
+   *   409 Name Collision    — new name already taken
+   *   500 Storage Failure   — underlying read/write/rm failed mid-operation
+   */
+  app.post('/api/assets/:name/rename-to/:newName', async c => {
+    const oldName = c.req.param('name')
+    const newName = c.req.param('newName')
+    const source = await resolve(c.req.query('target'))
+    try {
+      await renameAsset({
+        storage: source.storage,
+        assetsRoot: ASSETS_ROOT,
+        siteDir: source.siteDir,
+        oldName,
+        newName,
+        manifest: source.manifest,
+        history: source.history,
+        contentRoot: source.contentRoot,
+      })
+      return c.body(null, 204)
+    } catch (err) {
+      const res = respondWithAssetError(c, err)
+      if (res) return res
+      throw err
+    }
+  })
+
   app.post('/api/assets/:name/replace-with/:newName', async c => {
     const oldName = c.req.param('name')
     const newName = c.req.param('newName')
