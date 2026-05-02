@@ -36,7 +36,7 @@ branch for diffs).
 | Animated-image handling (detection via sharp `pages > 1`, first-frame poster extraction, `animated`/`duration` manifest fields) | 2 days | ☐ |
 | Audio metadata (duration via `music-metadata`, strip-by-default metadata with opt-in preserve) | 1 day | ☐ |
 | SVG sanitization specifics (DOMPurify SVG profile config, embedded base64 size limits, external-href stripping) | 1 day | ☐ |
-| RTL validation + CSS logical-properties audit for custom components | 1 day | ☐ |
+| RTL validation + CSS logical-properties audit for custom components | 1 day | ✓ step 25 — static CSS audit + runtime smoke for asset workflow surfaces (8 SFCs); broader admin RTL is a parallel concern |
 | History integration | 1–2 days | ✓ steps 20–21 (provider widening + route wiring across upload, delete, replace, rename, locale-bytes ingest, remove-override) |
 | Publish integration (transitive, dedupe) | 3 days | ✓ step 10 |
 | CLI (list, info, reindex) | 3 days | ✓ reindex; list/info ☐ |
