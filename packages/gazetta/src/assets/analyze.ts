@@ -132,13 +132,16 @@ export interface AnalyzerInput {
  * later in the list win on field conflicts. Today's order:
  *   1. `staticImageAnalyzer` — width/height for all images except SVG
  *   2. `animatedImageAnalyzer` — multi-frame detection + poster
+ *   3. `audioAnalyzer` — duration via music-metadata
  *
- * Both run for animated images: static contributes the canvas
- * dimensions, animated contributes animation flags + poster.
+ * Both image analyzers run for animated images (static contributes
+ * canvas dimensions, animated contributes animation flags + poster).
+ * Audio MIMEs trigger only the audio analyzer.
  */
 import { animatedImageAnalyzer, staticImageAnalyzer } from './analyze-image.js'
+import { audioAnalyzer } from './analyze-audio.js'
 
-export const defaultAnalyzers: readonly UploadAnalyzer[] = [staticImageAnalyzer, animatedImageAnalyzer]
+export const defaultAnalyzers: readonly UploadAnalyzer[] = [staticImageAnalyzer, animatedImageAnalyzer, audioAnalyzer]
 
 /**
  * Run the matching analyzer(s) for the given MIME. Returns the

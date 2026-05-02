@@ -55,17 +55,37 @@ export const DEFAULT_ASSET_MAX_BYTES = 50 * 1024 * 1024
 export const ASSET_MAX_BYTES = DEFAULT_ASSET_MAX_BYTES
 
 /**
- * v1 MIME allowlist — images today: JPEG, PNG, SVG, GIF. SVG is
- * sanitized before persistence (see `svg-sanitize.ts`); GIF is
- * checked for animation by the `animatedImageAnalyzer` and gets a
- * poster extracted when multi-frame.
+ * v1 MIME allowlist. Image side: JPEG, PNG, SVG, GIF. Audio side:
+ * MP3, WAV, FLAC, Opus, AAC, M4A, OGG.
  *
- * Animated WebP / AVIF aren't in the allowlist yet (the analyzer
- * handles them when they arrive); they widen via this set when the
- * codec landscape stabilises in v1.1+. Wide rollout adds video /
- * audio / documents.
+ *   - SVG is sanitized before persistence (`svg-sanitize.ts`)
+ *   - GIF is checked for animation by `animatedImageAnalyzer`
+ *   - Audio MIMEs are analyzed by `audioAnalyzer` for duration
+ *     (`music-metadata`); personal-metadata stripping is a v1.5
+ *     opt-in via a future preprocessor surface
+ *
+ * Animated WebP/AVIF, video, and documents widen via this set in
+ * v1.1+. The analyzer/preprocessor abstractions accommodate each
+ * format-specific need without orchestrator edits.
  */
-export const ALLOWED_MIMES = new Set<string>(['image/jpeg', 'image/png', 'image/svg+xml', 'image/gif'])
+export const ALLOWED_MIMES = new Set<string>([
+  // Images
+  'image/jpeg',
+  'image/png',
+  'image/svg+xml',
+  'image/gif',
+  // Audio
+  'audio/mpeg',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/flac',
+  'audio/x-flac',
+  'audio/ogg',
+  'audio/opus',
+  'audio/aac',
+  'audio/mp4',
+  'audio/x-m4a',
+])
 
 /** Asset-name validation: lowercase ASCII-safe characters. */
 const VALID_NAME = /^[a-z0-9][a-z0-9\-_]*(?:\.[a-z0-9]+)?$/
