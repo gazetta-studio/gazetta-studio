@@ -80,13 +80,26 @@ describe('sniffMimeFromStream', () => {
     expect(Buffer.from(replayed).equals(Buffer.from(bytes))).toBe(true)
   })
 
-  it('returns application/xml for SVG (file-type does not map to image/svg+xml)', async () => {
+  it('promotes file-type XML detection to image/svg+xml when the root is <svg>', async () => {
     const svg = new TextEncoder().encode(
       '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>',
     )
+    const { mime, ext } = await sniffMimeFromStream(streamOf(svg))
+    // file-type returns `application/xml` for any XML; sniffMimeFromStream
+    // peeks the head and promotes to `image/svg+xml` when the root is `<svg>`.
+    expect(mime).toBe('image/svg+xml')
+    expect(ext).toBe('svg')
+  })
+
+  it('returns image/svg+xml even without an XML prolog', async () => {
+    const svg = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>')
     const { mime } = await sniffMimeFromStream(streamOf(svg))
-    // Documented behavior — callers that need `image/svg+xml` semantics
-    // must re-map based on root-tag inspection or extension.
-    expect(mime).toBe('application/xml')
+    expect(mime).toBe('image/svg+xml')
+  })
+
+  it('does not promote arbitrary XML (non-SVG root) to image/svg+xml', async () => {
+    const xml = new TextEncoder().encode('<?xml version="1.0"?><rss><channel/></rss>')
+    const { mime } = await sniffMimeFromStream(streamOf(xml))
+    expect(mime).not.toBe('image/svg+xml')
   })
 })

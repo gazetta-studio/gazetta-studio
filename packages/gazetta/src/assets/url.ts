@@ -103,6 +103,8 @@ export function extFromMime(mime: string): string | null {
       return 'jpg'
     case 'image/png':
       return 'png'
+    case 'image/svg+xml':
+      return 'svg'
     default:
       return null
   }

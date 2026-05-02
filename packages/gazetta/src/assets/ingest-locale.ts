@@ -52,6 +52,7 @@ import { ASSET_HASH_LENGTH, hashBytes } from './hash.js'
 import { extractImageDimensions } from './image-metadata.js'
 import { mimeCategory } from './kind-compat.js'
 import { assetBytesPath, assetVariantBytesPath, readManifest, writeLocaleManifest } from './manifest.js'
+import { runPreprocessors, type UploadPreprocessor } from './preprocess.js'
 import { sniffMimeFromStream } from './mime-sniff.js'
 import { type UploadPolicy, validateUpload } from './validate.js'
 import { generateVariants, type GeneratedVariant } from './variants.js'
@@ -85,6 +86,8 @@ export interface IngestLocaleBytesInput {
   contentRoot?: ContentRoot
   /** Author identifier. */
   author?: string
+  /** Format-specific preprocessors. Defaults to `defaultPreprocessors`. */
+  preprocessors?: readonly UploadPreprocessor[]
 }
 
 export interface IngestLocaleBytesResult {
@@ -110,12 +113,11 @@ export async function ingestLocaleBytes(input: IngestLocaleBytesInput): Promise<
   const defaultManifest = await readManifest(input.storage, input.assetsRoot, input.assetName)
 
   // Step 2 — collect bytes once.
-  const buffer = await collectBytes(input.bytes)
-  const size = buffer.byteLength
+  const initialBuffer = await collectBytes(input.bytes)
 
   // Step 3 — sniff MIME and validate.
-  const { mime, ext } = await sniffMimeFromStream(byteStreamFrom(buffer))
-  validateUpload({ name: input.assetName, claimedSize: size, sniffedMime: mime }, input.policy)
+  const { mime, ext } = await sniffMimeFromStream(byteStreamFrom(initialBuffer))
+  validateUpload({ name: input.assetName, claimedSize: initialBuffer.byteLength, sniffedMime: mime }, input.policy)
 
   const bytesExt = ext ?? EXT_BY_MIME[mime ?? ''] ?? ''
   if (!bytesExt) {
@@ -133,17 +135,23 @@ export async function ingestLocaleBytes(input: IngestLocaleBytesInput): Promise<
     throw new AssetKindMismatchError(defaultManifest.kind, defaultCategory, defaultManifest.kind, overrideCategory)
   }
 
+  // Step 5 — format-specific preprocessing (SVG sanitization, future
+  // EXIF/HEIC/etc.). Same interface as default-asset ingest; failures
+  // throw AssetPreprocessError (HTTP 400).
+  const { bytes: buffer } = await runPreprocessors(initialBuffer, mime, input.preprocessors)
+  const size = buffer.byteLength
+
   const hash = hashBytes(buffer)
   if (hash.length !== ASSET_HASH_LENGTH) {
     throw new AssetStorageError('write', input.assetName, new Error('unexpected hash length'))
   }
 
-  // Step 5 — image dimensions (per-locale: override may differ from default).
+  // Step 6 — image dimensions (per-locale: override may differ from default).
   const dims = overrideMime.startsWith('image/') ? await extractImageDimensions(buffer) : null
 
-  // Step 6 — generate variants in memory.
+  // Step 7 — generate variants in memory. SVG is vector — no ladder.
   const generatedVariants: GeneratedVariant[] = []
-  if (overrideMime.startsWith('image/')) {
+  if (overrideMime.startsWith('image/') && overrideMime !== 'image/svg+xml') {
     try {
       const generated = await generateVariants(buffer)
       generatedVariants.push(...generated)
@@ -152,7 +160,7 @@ export async function ingestLocaleBytes(input: IngestLocaleBytesInput): Promise<
     }
   }
 
-  // Step 7 — compose paths + manifest in memory.
+  // Step 8 — compose paths + manifest in memory.
   const variantManifestEntries: AssetVariant[] = generatedVariants.map(v => ({
     width: v.width,
     path: assetVariantBytesPath(input.assetName, hash, bytesExt, v.width, input.selector),

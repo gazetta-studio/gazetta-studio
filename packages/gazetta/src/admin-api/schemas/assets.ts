@@ -33,6 +33,7 @@ export {
   AssetNameInvalidError,
   AssetNameReservedError,
   AssetPathTraversalError,
+  AssetPreprocessError,
   AssetSizeExceededError,
   AssetStorageError,
   AssetValidationError,

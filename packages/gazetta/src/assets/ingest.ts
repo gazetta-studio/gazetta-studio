@@ -36,12 +36,14 @@ import { extractImageDimensions } from './image-metadata.js'
 import { assetBytesPath, assetVariantBytesPath, manifestPath, writeManifest } from './manifest.js'
 import { sniffMimeFromStream } from './mime-sniff.js'
 import { type UploadPolicy, validateUpload } from './validate.js'
+import { runPreprocessors, type UploadPreprocessor } from './preprocess.js'
 import { generateVariants, type GeneratedVariant } from './variants.js'
 
-/** Ext-from-MIME for the v1 allowlist (JPEG, PNG). */
+/** Ext-from-MIME for the v1 allowlist (JPEG, PNG, SVG). */
 const EXT_BY_MIME: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
+  'image/svg+xml': 'svg',
 }
 
 export interface IngestInput {
@@ -75,6 +77,14 @@ export interface IngestInput {
   contentRoot?: ContentRoot
   /** Author identifier passed through to the history revision. */
   author?: string
+  /**
+   * Format-specific preprocessors to run on the byte buffer before
+   * hashing. Defaults to `defaultPreprocessors` (today: SVG
+   * sanitization). Tests pass an empty array to bypass; future
+   * deployments can register custom preprocessors (HEIC transcode,
+   * etc.) without editing this module.
+   */
+  preprocessors?: readonly UploadPreprocessor[]
 }
 
 export interface IngestResult {
@@ -94,15 +104,27 @@ export interface IngestResult {
 export async function ingestAsset(input: IngestInput): Promise<IngestResult> {
   // Collect bytes once so we can sniff, hash, measure, and persist from the
   // same buffer without re-consuming the source stream.
-  const buffer = await collectBytes(input.bytes)
-  const size = buffer.byteLength
+  const initialBuffer = await collectBytes(input.bytes)
 
   // Sniff MIME. file-type needs a web stream; build one from the buffer.
-  const { mime, ext } = await sniffMimeFromStream(byteStreamFrom(buffer))
+  const { mime, ext } = await sniffMimeFromStream(byteStreamFrom(initialBuffer))
 
-  // Validate name + size + MIME against the per-target policy. Throws
-  // AssetValidationError on the first policy violation.
-  validateUpload({ name: input.requestedName, claimedSize: size, sniffedMime: mime }, input.policy)
+  // Validate name + size + MIME against the per-target policy. Size
+  // is checked pre-preprocess: the cap protects against worker body
+  // limits + storage exhaustion at the request boundary, before any
+  // transformation happens. SVG sanitization can shrink the bytes,
+  // but a 100 MB SVG-of-doom should be rejected at the door, not
+  // after we've parsed it.
+  validateUpload({ name: input.requestedName, claimedSize: initialBuffer.byteLength, sniffedMime: mime }, input.policy)
+
+  // Format-specific preprocessing — SVG sanitization today; HEIC
+  // transcode, EXIF orientation, animated-GIF poster extraction,
+  // etc. plug in via the `UploadPreprocessor` interface. Ingest
+  // doesn't know which preprocessors are registered or what they do
+  // (DIP / OCP — adding a format = new module + register, no edits
+  // here). Failures throw `AssetPreprocessError` (HTTP 400).
+  const { bytes: buffer } = await runPreprocessors(initialBuffer, mime, input.preprocessors)
+  const size = buffer.byteLength
 
   // Extension is derived from the sniffed MIME (we ignore the client-sent
   // extension in the requested name — the validator already stripped it).
@@ -117,19 +139,17 @@ export async function ingestAsset(input: IngestInput): Promise<IngestResult> {
   }
 
   // Image dimensions: null when the MIME isn't an image sharp can parse.
-  // v1 slice is JPEG + PNG only, so sharp can always parse here, but the
-  // helper returns null safely if it can't — we propagate that.
+  // SVG is parseable by sharp via libvips (returns viewBox/width/height).
   const dims = (mime ?? '').startsWith('image/') ? await extractImageDimensions(buffer) : null
 
   const canonicalName = baseName(input.requestedName)
 
-  // Generate variants in memory before we touch storage. We need them
-  // both for the manifest's `variants` field and (when history is set)
-  // for the WrittenItem list passed to the recorder. Variant generation
-  // can fail (sharp rejects malformed input); failing here means nothing
-  // has been persisted yet so there's no rollback to do.
+  // Generate variants in memory before we touch storage. Vector
+  // formats (SVG) skip variants — they scale on the browser. We
+  // detect by MIME prefix + format-specific opt-out (SVG is the only
+  // image MIME today that doesn't get variants).
   const generatedVariants: GeneratedVariant[] = []
-  if ((mime ?? '').startsWith('image/')) {
+  if (shouldGenerateVariants(mime)) {
     try {
       const generated = await generateVariants(buffer)
       generatedVariants.push(...generated)
@@ -248,6 +268,22 @@ async function rollback(storage: StorageProvider, paths: readonly string[]): Pro
       /* best-effort */
     }
   }
+}
+
+/**
+ * Whether to generate responsive variants for this MIME. Raster images
+ * get variants (4 widths via sharp); vector images don't (they scale on
+ * the browser). Future-extensible: when video lands, add MIME-prefix
+ * checks here rather than at the call site.
+ *
+ * Kept as a tiny pure function rather than inlined so the rule is named
+ * and testable. SOLID — extracts a knowledge axis from the orchestrator.
+ */
+function shouldGenerateVariants(mime: string | null | undefined): boolean {
+  if (!mime || !mime.startsWith('image/')) return false
+  // SVG is vector; no ladder.
+  if (mime === 'image/svg+xml') return false
+  return true
 }
 
 /**
