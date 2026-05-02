@@ -25,24 +25,23 @@ branch for diffs).
 | **Foundation: per-target upload size config** | 0.5 day | ✓ step 19 |
 | **Foundation: binary-capable HistoryProvider** | 1.5 days | ✓ step 20 |
 | **Foundation: asset routes wire history (upload + delete)** | 0.5 day | ✓ step 21 |
-| Library UI (grid/table, search, filter, bulk, locale-aware metadata editing) | 1 week | ✓ step 5 (default-only); locale-aware UI in step 24 |
-| Asset picker (3-panel modal with resolution-chain UX) | 1 week | ✓ step 6 (default-only); resolution-chain UX in step 24 |
+| Library UI (grid/table, search, filter, bulk, locale-aware metadata editing) | 1 week | ✓ step 5 (default-only) + ✓ step 24 (locale-aware coverage badges + detail-pane locale section) |
+| Asset picker (3-panel modal with resolution-chain UX) | 1 week | ✓ step 6 (default-only) + ✓ step 24 (locale-aware preview chip surfaces) |
 | Focal point editor | 2 days | ☐ |
-| Upload dialog with alt prompt (always targets default locale) | 2 days | ⚠ verify in step 23 audit |
-| i18n manifest resolution + fallback chain + asset locale variants | 2 days | ✓ step 17 (resolver); UI surfaces in step 24 |
-| Locale-specific bytes (upload "default vs override" flow, per-locale variant generation, detail-pane locale bytes section, remove-override action) | 1 week | ◐ step 24 — backend (24a–24c: enumerate + ingest + remove-override + routes) ✓; UX (24d) ☐ |
+| Upload dialog with alt prompt (always targets default locale) | 2 days | ☐ — alt prompt at upload time still deferred; current upload zone uses post-upload editing in detail pane |
+| i18n manifest resolution + fallback chain + asset locale variants | 2 days | ✓ step 17 (resolver) + ✓ step 24 (UI surfaces) |
+| Locale-specific bytes (upload "default vs override" flow, per-locale variant generation, detail-pane locale bytes section, remove-override action) | 1 week | ✓ step 24 — backend (24 backend) + UX (24 UX) |
 | Picker accept-filter kind-compat enforcement | 1 day | ✓ step 23 |
 | Font asset kind (schema helper, resolver's union-with-unicode-range semantic, upload dialog for font metadata, locale-adds-variant behavior, library font preview) | 3–4 days | ✓ step 17 (resolver dispatch + variant union); upload UI + library preview deferred |
 | Animated-image handling (detection via sharp `pages > 1`, first-frame poster extraction, `animated`/`duration` manifest fields) | 2 days | ☐ |
 | Audio metadata (duration via `music-metadata`, strip-by-default metadata with opt-in preserve) | 1 day | ☐ |
 | SVG sanitization specifics (DOMPurify SVG profile config, embedded base64 size limits, external-href stripping) | 1 day | ☐ |
 | RTL validation + CSS logical-properties audit for custom components | 1 day | ☐ |
-| History integration | 1–2 days | ◐ steps 20–21 (provider widening + route wiring) |
+| History integration | 1–2 days | ✓ steps 20–21 (provider widening + route wiring across upload, delete, replace, rename, locale-bytes ingest, remove-override) |
 | Publish integration (transitive, dedupe) | 3 days | ✓ step 10 |
-| Picker kind-compat enforcement at selection time | 0.5 day | ☐ step 23 |
 | CLI (list, info, reindex) | 3 days | ✓ reindex; list/info ☐ |
 | Starter example template + asset | 1 day | ✓ step 4 |
-| Docs (template-assets, content-assets, migration, transform-adapters) | 3 days | ☐ — partial: design-media.md aligned with foundation locks |
+| Docs (template-assets, content-assets, migration, transform-adapters) | 3 days | ☐ — partial: design-media.md aligned with foundation locks; design-media.md gained Admin API section in step 24 |
 
 ### Foundation grilling notes
 
