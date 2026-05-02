@@ -20,6 +20,7 @@
 import { computed } from 'vue'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
+import { formatBytes } from 'gazetta/format'
 import { useAssetsUploadPromptStore } from '../stores/assetsUploadPrompt.js'
 
 const prompt = useAssetsUploadPromptStore()
@@ -32,15 +33,9 @@ const visible = computed({
 })
 
 const fileName = computed(() => prompt.current?.file.name ?? '')
-const fileSize = computed(() => formatSize(prompt.current?.file.size ?? 0))
+const fileSize = computed(() => formatBytes(prompt.current?.file.size ?? 0))
 const localeLabel = computed(() => prompt.current?.activeLocaleLabel ?? prompt.current?.locale ?? '')
 const defaultLabel = computed(() => prompt.current?.defaultLocaleLabel ?? 'default locale')
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-}
 </script>
 
 <template>

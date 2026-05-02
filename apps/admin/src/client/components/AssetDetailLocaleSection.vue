@@ -22,6 +22,7 @@
  */
 import { computed } from 'vue'
 import Button from 'primevue/button'
+import { formatBytes } from 'gazetta/format'
 import type { AssetSummary } from 'gazetta/schema'
 import { useAssetsUploadStore } from '../stores/assetsUpload.js'
 import { useLocaleStore } from '../stores/locale.js'
@@ -91,12 +92,6 @@ if (uploads) {
   // override row appears. The library's existing watcher in AssetUploadZone
   // already triggers a refresh — this component reads from that refreshed
   // list, no extra wiring needed here.
-}
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`
 }
 </script>
 

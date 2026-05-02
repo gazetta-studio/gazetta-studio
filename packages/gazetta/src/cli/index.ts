@@ -147,6 +147,10 @@ function printHelp() {
     gazetta undo [target] [site]    Restore the previous revision (soft undo)
     gazetta rollback <rev> [target] [site]
                                     Restore an arbitrary revision by id
+    gazetta assets list [target] [site]
+                                    List assets on a target
+    gazetta assets info <name> [target] [site]
+                                    Show full detail (variants, overrides, refs) for one asset
     gazetta assets reindex [target] [site]
                                     Rebuild the asset-refs sidecar index from manifests
     gazetta help                    Show this help message
@@ -2047,10 +2051,25 @@ async function main() {
     const translatePositionals = parsed.positional.filter(p => !p.startsWith('pages/') && !p.startsWith('fragments/'))
     if (translatePositionals.length > 0) targetName = translatePositionals[0]
   } else if (command === 'assets') {
-    // gazetta assets <subcommand> [target] [site]
-    // subcommand is parsed.positional[0]; subsequent positionals are target/site.
-    siteDir = await resolveSiteDir(parsed.positional[2])
-    targetName = parsed.positional[1] ? await resolveTarget(parsed.positional[1], siteDir) : undefined
+    // gazetta assets <subcommand> [args...] [target] [site]
+    //
+    // Subcommand layouts:
+    //   assets list [target] [site]        → subcmd, target, site
+    //   assets info <name> [target] [site] → subcmd, name, target, site
+    //   assets reindex [target] [site]     → subcmd, target, site
+    //
+    // The dispatcher in the assets-cli module reads the asset name
+    // from its `args` slice; here we resolve target/site by checking
+    // the positional layout.
+    const subcmd = parsed.positional[0]
+    if (subcmd === 'info') {
+      // info has an extra positional (the asset name) before target/site.
+      siteDir = await resolveSiteDir(parsed.positional[3])
+      targetName = parsed.positional[2] ? await resolveTarget(parsed.positional[2], siteDir) : undefined
+    } else {
+      siteDir = await resolveSiteDir(parsed.positional[2])
+      targetName = parsed.positional[1] ? await resolveTarget(parsed.positional[1], siteDir) : undefined
+    }
   } else {
     console.error(`  Unknown command: ${command}\n`)
     printHelp()
@@ -2162,64 +2181,11 @@ async function main() {
       break
     }
     case 'assets': {
-      const subcommand = args[1]
-      if (subcommand === 'reindex') {
-        await runAssetsReindex(siteDir, targetName)
-      } else {
-        console.error(`  Usage: gazetta assets <reindex>`)
-        console.error(`  reindex — rebuild the asset-refs sidecar index from manifests`)
-        process.exit(1)
-      }
+      const { runAssetsSubcommand } = await import('./assets-cli.js')
+      await runAssetsSubcommand({ args: args.slice(1), siteDir, targetName })
       break
     }
   }
-}
-
-/**
- * Rebuild `.gazetta/asset-refs/` sidecars from current manifests.
- *
- * Use this to recover from drift caused by external manifest mutations
- * (text-editor edits, git pulls). Walks all pages + fragments, wipes the
- * existing index, writes fresh sidecars per `_asset` reference.
- *
- * Targets the editable source (matching where save handlers normally
- * write the index). For target-side reindex, run `gazetta publish` —
- * the publish flow rebuilds the target's index as part of its run.
- *
- * Warning: do not run while a dev server is actively saving — concurrent
- * writes to source manifests during the rebuild walk could leave the
- * index out of sync with the manifest mid-walk. Stop dev first.
- */
-async function runAssetsReindex(siteDir: string, targetName?: string): Promise<void> {
-  console.log()
-  console.log(`  ${c.bgGreen(c.bold(' gazetta '))} ${c.green('assets reindex')}`)
-  console.log()
-  console.log(`  ${c.dim('Note:')} stop any running dev server before reindexing to avoid drift.`)
-  console.log()
-
-  // Bootstrap loads site.yaml from `siteDir` and yields a source context
-  // for the editable target. The manifest is passed through to loadSite
-  // so we don't try to re-read site.yaml from the target's content tree
-  // (it lives at the site root, not the target root).
-  const { buildSourceContext } = await import('./bootstrap.js')
-  const { source, manifest } = await buildSourceContext({ projectSiteDir: siteDir, targetName })
-
-  const { loadSite } = await import('../site-loader.js')
-  const { rebuildDepIndex } = await import('../publish-rendered.js')
-  const { ASSET_REFS } = await import('../assets/asset-deps.js')
-  const { FRAGMENT_DEPS } = await import('../fragment-deps.js')
-
-  const site = await loadSite({ contentRoot: source.contentRoot, manifest })
-  const t0 = Date.now()
-  await Promise.all([
-    rebuildDepIndex(ASSET_REFS, site, source.contentRoot.storage, source.contentRoot.rootPath),
-    rebuildDepIndex(FRAGMENT_DEPS, site, source.contentRoot.storage, source.contentRoot.rootPath),
-  ])
-  const elapsed = Date.now() - t0
-
-  console.log(
-    `  ${c.green('✓')} Rebuilt dep indices for ${site.pages.size} page(s) + ${site.fragments.size} fragment(s) in ${elapsed}ms`,
-  )
 }
 
 /**

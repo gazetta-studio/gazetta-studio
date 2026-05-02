@@ -39,7 +39,7 @@ branch for diffs).
 | RTL validation + CSS logical-properties audit for custom components | 1 day | ✓ step 25 — static CSS audit + runtime smoke for asset workflow surfaces (8 SFCs); broader admin RTL is a parallel concern |
 | History integration | 1–2 days | ✓ steps 20–21 (provider widening + route wiring across upload, delete, replace, rename, locale-bytes ingest, remove-override) |
 | Publish integration (transitive, dedupe) | 3 days | ✓ step 10 |
-| CLI (list, info, reindex) | 3 days | ✓ reindex; list/info ☐ |
+| CLI (list, info, reindex) | 3 days | ✓ step 30 — list + info shipped with SOLID restructure (separate display projection, runner, output sink interface). Shared `gazetta/format` module deduplicates `formatBytes` across CLI + admin |
 | Starter example template + asset | 1 day | ✓ step 4 |
 | Docs (template-assets, content-assets, migration, transform-adapters) | 3 days | ✓ step 29 — four task-oriented docs in `docs/` (template-assets, content-assets, migration, transform-adapters), each pointing back to design-media.md for theory |
 
