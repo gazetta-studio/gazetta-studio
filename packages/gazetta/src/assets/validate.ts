@@ -22,8 +22,37 @@ import {
   AssetSizeExceededError,
 } from './errors.js'
 
-/** v1 size limit — 50 MB. Tunable per site in a later step. */
-export const ASSET_MAX_BYTES = 50 * 1024 * 1024
+/**
+ * Default per-asset upload size cap — 50 MB. Sites override per target
+ * via `targets.{name}.assets.maxBytes` in `site.yaml`. Targets that
+ * don't override get this value.
+ *
+ * Why a default at all (per Q5):
+ *   - DoS / OOM bound: ingest buffers the full upload in memory today
+ *     (`collectBytes` in ingest.ts). Concurrent uploads × cap = peak
+ *     memory; without a cap, one careless or malicious client can
+ *     exhaust the admin process.
+ *   - Storage-cost protection: a 200 MB raw photo × variant ladder ×
+ *     locale overrides quickly compounds. The cap forces explicit
+ *     opt-in for unusual sizes.
+ *   - Worker-tier ceiling: Cloudflare Workers Free/Pro have a 100 MB
+ *     response body limit — a target on that tier can't serve assets
+ *     above it via the worker. Sites should lower the cap below the
+ *     worker tier they're on.
+ *
+ * 50 MB is conservative for image-only v1. Sites with raw-photo
+ * workflows (24-48 MP camera output) have headroom; sites on free
+ * worker tiers should reduce explicitly.
+ */
+export const DEFAULT_ASSET_MAX_BYTES = 50 * 1024 * 1024
+
+/**
+ * @deprecated Renamed to `DEFAULT_ASSET_MAX_BYTES`. Use the per-target
+ * config (`targets.{name}.assets.maxBytes`) for site-specific limits;
+ * this constant is the fallback default. Kept exported until the next
+ * major version so external callers (tests, integrations) don't break.
+ */
+export const ASSET_MAX_BYTES = DEFAULT_ASSET_MAX_BYTES
 
 /** v1 MIME allowlist — images only for the narrow slice. Wide rollout expands. */
 export const ALLOWED_MIMES = new Set<string>(['image/jpeg', 'image/png'])
@@ -47,14 +76,28 @@ export interface UploadCandidate {
 }
 
 /**
- * Validate an upload candidate against the v1 policy. Throws the
- * specific `AssetValidationError` subclass for the first failure
+ * Per-target validation policy. Today carries the size cap; future
+ * fields (allowed MIMEs subset, name pattern overrides) extend this
+ * interface without changing the validator's signature.
+ */
+export interface UploadPolicy {
+  /** Override the default per-target. When undefined, uses DEFAULT_ASSET_MAX_BYTES. */
+  maxBytes?: number
+}
+
+/**
+ * Validate an upload candidate against the per-target policy. Throws
+ * the specific `AssetValidationError` subclass for the first failure
  * encountered — policy enforces fail-fast so the HTTP route returns a
  * single, specific reason to the client.
+ *
+ * `policy` is optional — callers that haven't migrated to per-target
+ * config get the default size cap. Once asset routes thread the
+ * target config through, `policy` is always present.
  */
-export function validateUpload(candidate: UploadCandidate): void {
+export function validateUpload(candidate: UploadCandidate, policy: UploadPolicy = {}): void {
   assertName(candidate.name)
-  assertSize(candidate.claimedSize)
+  assertSize(candidate.claimedSize, policy.maxBytes ?? DEFAULT_ASSET_MAX_BYTES)
   assertMime(candidate.sniffedMime)
 }
 
@@ -89,9 +132,9 @@ function assertName(name: string): void {
   }
 }
 
-function assertSize(claimedSize: number): void {
-  if (claimedSize <= 0 || claimedSize > ASSET_MAX_BYTES) {
-    throw new AssetSizeExceededError(claimedSize, ASSET_MAX_BYTES)
+function assertSize(claimedSize: number, maxBytes: number): void {
+  if (claimedSize <= 0 || claimedSize > maxBytes) {
+    throw new AssetSizeExceededError(claimedSize, maxBytes)
   }
 }
 
