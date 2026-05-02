@@ -22,7 +22,19 @@
  * Adding a new manifest dimension (variants, locale bytes, posters)
  * means extending `asset-paths.ts`. This module stays unchanged — the
  * enumeration loop picks up the new paths automatically.
+ *
+ * History atomicity:
+ *   When `history` is provided, delete records ONE revision marking
+ *   every removed path as a deletion (`content: null`). Recording
+ *   happens BEFORE any rm so the recorder's first-time baseline scan
+ *   captures pre-op state — same pattern as `replace.ts` and
+ *   `ingest.ts`. If recording succeeds but a subsequent rm fails, the
+ *   revision still records the deletion intent; on undo, the restorer
+ *   re-creates the missing paths from the previous revision's blobs.
  */
+import type { ContentRoot } from '../content-root.js'
+import type { HistoryProvider } from '../history.js'
+import { recordWrite, type WrittenItem } from '../history-recorder.js'
 import type { StorageProvider, SiteManifest } from '../types.js'
 import { createContentRoot } from '../content-root.js'
 import { rmIgnoreMissing } from '../providers/_rm-ignore-missing.js'
@@ -46,6 +58,21 @@ export interface DeleteAssetInput {
   assetName: string
   /** Project-level manifest passed to the ref-scanner's `loadSite`. */
   manifest?: SiteManifest
+  /**
+   * Optional history provider. When set, delete records ONE revision
+   * covering the removed manifest + bytes + variants (each as
+   * `content: null`). Reuses the `siteDir`-rooted contentRoot built
+   * for ref scanning, so callers don't need to pass it separately.
+   */
+  history?: HistoryProvider
+  /** Author identifier passed through to the history revision. */
+  author?: string
+  /**
+   * Optional content root. When omitted, one is built from `storage`
+   * + `siteDir`. Tests pass an explicit one to share a single root
+   * with other operations.
+   */
+  contentRoot?: ContentRoot
 }
 
 /**
@@ -70,7 +97,7 @@ export async function deleteAsset(input: DeleteAssetInput): Promise<void> {
   // sidecar index would have missed for any reason — high-stakes
   // operation (delete loses data), worth the extra ~30s on cloud at
   // N=1000.
-  const contentRoot = createContentRoot(input.storage, input.siteDir)
+  const contentRoot = input.contentRoot ?? createContentRoot(input.storage, input.siteDir)
   const sidecarRefs = await readRefsForAsset(contentRoot, input.assetName)
   let refs
   if (sidecarRefs.length > 0) {
@@ -91,12 +118,31 @@ export async function deleteAsset(input: DeleteAssetInput): Promise<void> {
     throw new AssetInUseError(input.assetName, refs)
   }
 
-  // Step 4 — remove every enumerated path in removal-safe order.
-  // `assetStoragePaths` throws `AssetMimeUnsupportedError` when the
-  // manifest's MIME has no extension mapping (misconfiguration — surface
-  // as-is rather than silently skipping bytes).
+  // Step 4 — enumerate paths. `assetStoragePaths` throws
+  // `AssetMimeUnsupportedError` when the manifest's MIME has no
+  // extension mapping (misconfiguration — surface as-is rather than
+  // silently skipping bytes).
   const paths = assetStoragePaths(input.assetsRoot, manifest)
-  for (const path of assetPathsInRemovalOrder(paths)) {
+  const orderedPaths = assetPathsInRemovalOrder(paths)
+
+  // Step 5 — record history BEFORE any rm. Same pattern as
+  // ingest/replace: the recorder's first-time baseline scan must
+  // capture pre-op state. Each removed path becomes a deletion
+  // (`content: null`) so the next revision's snapshot drops them.
+  if (input.history) {
+    const items: WrittenItem[] = orderedPaths.map(path => ({ path, content: null }))
+    await recordWrite({
+      history: input.history,
+      contentRoot,
+      operation: 'save',
+      author: input.author,
+      items,
+      message: `Delete ${input.assetName}`,
+    })
+  }
+
+  // Step 6 — remove every enumerated path in removal-safe order.
+  for (const path of orderedPaths) {
     try {
       await rmIgnoreMissing(input.storage, path)
     } catch (err) {

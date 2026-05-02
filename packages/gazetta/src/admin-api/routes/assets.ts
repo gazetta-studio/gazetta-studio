@@ -63,6 +63,8 @@ export function assetRoutes(resolve: SourceContextResolver) {
         siteDir: source.siteDir,
         assetName: name,
         manifest: source.manifest,
+        history: source.history,
+        contentRoot: source.contentRoot,
       })
       // 204 No Content — standard REST for successful delete with no body.
       return c.body(null, 204)
@@ -142,6 +144,8 @@ export function assetRoutes(resolve: SourceContextResolver) {
         alt,
         uploadedBy: '',
         policy,
+        history: source.history,
+        contentRoot: source.contentRoot,
       })
       return c.json({ manifest: result.manifest, bytesPath: result.bytesPath }, 201)
     } catch (err) {

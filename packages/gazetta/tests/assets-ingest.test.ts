@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import sharp from 'sharp'
 import { AssetValidationError } from '../src/assets/errors.js'
 import { ingestAsset } from '../src/assets/ingest.js'
+import { createContentRoot } from '../src/content-root.js'
+import { createHistoryProvider } from '../src/history-provider.js'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
 import { tempDir } from './_helpers/temp.js'
 
@@ -248,5 +250,103 @@ describe('ingestAsset — rejects invalid input', () => {
         uploadedBy: '',
       }),
     ).rejects.toMatchObject({ code: 'ASSET_PATH_TRAVERSAL' })
+  })
+})
+
+describe('ingestAsset — history recording', () => {
+  it('records a revision per upload when history is provided', async () => {
+    const storage = createFilesystemProvider(testDir)
+    const history = createHistoryProvider({ storage })
+    const contentRoot = createContentRoot(storage)
+
+    await ingestAsset({
+      storage,
+      assetsRoot: 'assets',
+      bytes: streamOf(new Uint8Array(await jpegBuffer())),
+      requestedName: 'hero',
+      alt: null,
+      uploadedBy: '',
+      history,
+      contentRoot,
+      author: 'alice',
+    })
+
+    // recordWrite emits a baseline on the first call, so:
+    //   listRevisions = [upload, baseline]
+    const list = await history.listRevisions()
+    expect(list).toHaveLength(2)
+    expect(list[0].operation).toBe('save')
+    expect(list[0].author).toBe('alice')
+    expect(list[0].message).toBe('Upload hero')
+  })
+
+  it('captures manifest + primary bytes + variants in one revision', async () => {
+    const storage = createFilesystemProvider(testDir)
+    const history = createHistoryProvider({ storage })
+    const contentRoot = createContentRoot(storage)
+    // 1200×600 — large enough that variants get generated.
+    const bytes = await sharp({ create: { width: 1200, height: 600, channels: 3, background: { r: 0, g: 0, b: 0 } } })
+      .jpeg()
+      .toBuffer()
+
+    const result = await ingestAsset({
+      storage,
+      assetsRoot: 'assets',
+      bytes: streamOf(new Uint8Array(bytes)),
+      requestedName: 'big',
+      alt: null,
+      uploadedBy: '',
+      history,
+      contentRoot,
+    })
+
+    const list = await history.listRevisions()
+    const upload = await history.readRevision(list[0].id)
+    // Snapshot covers manifest + primary bytes + every variant.
+    const expected = new Set<string>([
+      'assets/big.asset.json',
+      result.bytesPath,
+      ...result.manifest.variants.map(v => `assets/${v.path}`),
+    ])
+    for (const path of expected) {
+      expect(Object.keys(upload.snapshot)).toContain(path)
+    }
+    // Variants count should be > 0 to make this test meaningful.
+    expect(result.manifest.variants.length).toBeGreaterThan(0)
+  })
+
+  it('skips history recording when no provider is passed', async () => {
+    const storage = createFilesystemProvider(testDir)
+    const history = createHistoryProvider({ storage })
+
+    await ingestAsset({
+      storage,
+      assetsRoot: 'assets',
+      bytes: streamOf(new Uint8Array(await jpegBuffer())),
+      requestedName: 'hero',
+      alt: null,
+      uploadedBy: '',
+      // history NOT passed
+    })
+
+    expect(await history.listRevisions()).toEqual([])
+  })
+
+  it('throws when history is set but contentRoot is missing', async () => {
+    const storage = createFilesystemProvider(testDir)
+    const history = createHistoryProvider({ storage })
+
+    await expect(
+      ingestAsset({
+        storage,
+        assetsRoot: 'assets',
+        bytes: streamOf(new Uint8Array(await jpegBuffer())),
+        requestedName: 'hero',
+        alt: null,
+        uploadedBy: '',
+        history,
+        // contentRoot intentionally omitted
+      }),
+    ).rejects.toThrow(/contentRoot/)
   })
 })

@@ -11,6 +11,8 @@ import sharp from 'sharp'
 import { deleteAsset } from '../src/assets/delete.js'
 import { ingestAsset } from '../src/assets/ingest.js'
 import { AssetInUseError, AssetManifestNotFoundError } from '../src/assets/errors.js'
+import { createContentRoot } from '../src/content-root.js'
+import { createHistoryProvider } from '../src/history-provider.js'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
 import { tempDir } from './_helpers/temp.js'
 
@@ -207,5 +209,49 @@ describe('deleteAsset', () => {
       expect(existsSync(join(testDir, 'assets', v.path))).toBe(false)
     }
     expect(existsSync(join(testDir, 'assets/hero.asset.json'))).toBe(false)
+  })
+})
+
+describe('deleteAsset — history recording', () => {
+  it('records a revision marking the manifest + bytes as deleted', async () => {
+    const { storage, result } = await seedAsset('hero')
+    const history = createHistoryProvider({ storage })
+    const contentRoot = createContentRoot(storage)
+
+    await deleteAsset({
+      storage,
+      assetsRoot: 'assets',
+      siteDir: '',
+      assetName: 'hero',
+      history,
+      contentRoot,
+      author: 'alice',
+    })
+
+    // First-call baseline + the delete revision = 2.
+    const list = await history.listRevisions()
+    expect(list).toHaveLength(2)
+    expect(list[0].operation).toBe('save')
+    expect(list[0].author).toBe('alice')
+    expect(list[0].message).toBe('Delete hero')
+    // Snapshot drops the deleted paths (baseline had them; delete removes).
+    const head = await history.readRevision(list[0].id)
+    expect(Object.keys(head.snapshot)).not.toContain('assets/hero.asset.json')
+    expect(Object.keys(head.snapshot)).not.toContain(result.bytesPath)
+  })
+
+  it('skips history recording when no provider is passed', async () => {
+    const { storage } = await seedAsset('hero')
+    const history = createHistoryProvider({ storage })
+
+    await deleteAsset({
+      storage,
+      assetsRoot: 'assets',
+      siteDir: '',
+      assetName: 'hero',
+      // history NOT passed
+    })
+
+    expect(await history.listRevisions()).toEqual([])
   })
 })
