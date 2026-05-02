@@ -438,3 +438,61 @@ describe('POST /api/assets/:name/replace-with/:newName', () => {
     expect(body.newMimeCategory).toBe('application')
   })
 })
+
+describe('POST /api/assets/:name/rename-to/:newName', () => {
+  async function uploadAsset(app: Hono, name: string) {
+    const bytes = await jpegBuffer()
+    await app.request('/api/assets', {
+      method: 'POST',
+      body: multipartForm({
+        file: { name: `${name}.jpg`, bytes: new Uint8Array(bytes), type: 'image/jpeg' },
+        name,
+      }),
+    })
+  }
+
+  it('204s on successful rename + rewrites refs', async () => {
+    const { app } = buildApp()
+    await uploadAsset(app, 'hero')
+
+    const fs = await import('node:fs/promises')
+    await fs.mkdir(join(testDir, 'pages/home'), { recursive: true })
+    await fs.writeFile(
+      join(testDir, 'pages/home/page.json'),
+      JSON.stringify({
+        template: 'page-default',
+        route: '/',
+        content: { hero: { _asset: 'hero' } },
+      }),
+    )
+
+    const res = await app.request('/api/assets/hero/rename-to/banner', { method: 'POST' })
+    expect(res.status).toBe(204)
+
+    // Old name gone, new name lives.
+    const list = (await (await app.request('/api/assets')).json()) as Array<{ name: string }>
+    expect(list.map(a => a.name).sort()).toEqual(['banner'])
+
+    // Page now references `banner`.
+    const pageJson = JSON.parse(await fs.readFile(join(testDir, 'pages/home/page.json'), 'utf-8'))
+    expect(pageJson.content.hero._asset).toBe('banner')
+  })
+
+  it('404s when the source asset is missing', async () => {
+    const { app } = buildApp()
+    const res = await app.request('/api/assets/ghost/rename-to/banner', { method: 'POST' })
+    expect(res.status).toBe(404)
+  })
+
+  it('409s with structured body on name collision', async () => {
+    const { app } = buildApp()
+    await uploadAsset(app, 'hero')
+    await uploadAsset(app, 'banner')
+
+    const res = await app.request('/api/assets/hero/rename-to/banner', { method: 'POST' })
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as { code: string; newName: string }
+    expect(body.code).toBe('ASSET_NAME_COLLISION')
+    expect(body.newName).toBe('banner')
+  })
+})

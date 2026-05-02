@@ -29,6 +29,7 @@ export {
   AssetManifestNotFoundError,
   AssetMimeMismatchError,
   AssetMimeUnsupportedError,
+  AssetNameCollisionError,
   AssetNameInvalidError,
   AssetNameReservedError,
   AssetPathTraversalError,
@@ -51,3 +52,15 @@ export const AssetInUseResponseSchema = z.object({
   refs: z.array(AssetRefSchema),
 })
 export type AssetInUseResponse = z.infer<typeof AssetInUseResponseSchema>
+
+/**
+ * Body of a 409 response on POST /api/assets/:name/rename-to/:newName —
+ * emitted when `newName` already maps to an existing asset. The author
+ * either picks a different name or uses replace-and-delete to merge.
+ */
+export const AssetNameCollisionResponseSchema = z.object({
+  code: z.literal('ASSET_NAME_COLLISION'),
+  message: z.string(),
+  newName: z.string(),
+})
+export type AssetNameCollisionResponse = z.infer<typeof AssetNameCollisionResponseSchema>

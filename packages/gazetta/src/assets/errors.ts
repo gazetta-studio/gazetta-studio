@@ -24,6 +24,7 @@ export type AssetErrorCode =
   | 'ASSET_IN_USE'
   | 'ASSET_MIME_UNSUPPORTED'
   | 'ASSET_KIND_MISMATCH'
+  | 'ASSET_NAME_COLLISION'
   | 'ASSET_VARIANT_GENERATION_FAILED'
 
 /**
@@ -272,6 +273,28 @@ export class AssetVariantGenerationError extends AssetError {
     cause: unknown,
   ) {
     super(`Could not generate responsive variants for "${assetName}": ${(cause as Error)?.message ?? cause}`)
+  }
+}
+
+/**
+ * Rename was attempted to a name that's already taken by another asset.
+ * Per design-media.md → Rename: copying onto an existing asset would
+ * silently merge two distinct assets into one — the operation refuses
+ * instead. Authors who genuinely want to merge use replace-and-delete
+ * (different verb, explicit kind-compat check). HTTP 409.
+ */
+export class AssetNameCollisionError extends AssetError {
+  readonly code = 'ASSET_NAME_COLLISION' as const
+  readonly httpStatus = 409 as const
+  constructor(public readonly newName: string) {
+    super(`Asset name already in use: ${newName}`)
+  }
+
+  override toResponseBody(): AssetErrorResponseBody {
+    return {
+      ...super.toResponseBody(),
+      newName: this.newName,
+    }
   }
 }
 
