@@ -210,6 +210,28 @@ export interface TargetConfig {
    * preview targets).
    */
   history?: HistoryConfig
+  /**
+   * Image-transform delivery strategy. When unset, `sharp` adapter is
+   * used — bytes serve from origin with the immutable cache headers
+   * the v1 slice ships. Set to `cloudflare` (or future adapters) to
+   * route URLs through a CDN's transform pipeline.
+   */
+  transforms?: TransformConfig
+}
+
+/** Per-target transform-adapter configuration. */
+export interface TransformConfig {
+  /**
+   * Adapter name. v1 ships:
+   *   - `sharp` (default): origin bytes + pre-generated variant ladder
+   *   - `cloudflare`: `/cdn-cgi/image/...` URL builder against a zone
+   */
+  adapter: 'sharp' | 'cloudflare'
+  /**
+   * Cloudflare adapter only: the zone (hostname) where `/cdn-cgi/image/`
+   * is served. Required when adapter is `cloudflare`.
+   */
+  zone?: string
 }
 
 /** Per-target history configuration. */
