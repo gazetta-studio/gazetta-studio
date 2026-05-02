@@ -1,11 +1,19 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { mkdir, rm } from 'node:fs/promises'
-import { resolveAssetRefs, resolveEmbeddedRef, type AssetResolveContext } from '../src/assets/resolve.js'
-import { AssetManifestNotFoundError } from '../src/assets/errors.js'
+import { resolveAssetRefs, type AssetResolveContext } from '../src/assets/resolve.js'
 import { writeManifest } from '../src/assets/manifest.js'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
 import type { AssetManifest } from '../src/schema/types.js'
 import { tempDir } from './_helpers/temp.js'
+
+/**
+ * Tests exercising `resolveAssetRefs` (the walker) against on-disk manifests.
+ *
+ * Pre-step-17 these tests called `resolveEmbeddedRef(ref, ctx)` directly. After
+ * the locale/theme refactor, `resolveEmbeddedRef` no longer reads manifests
+ * itself — that's the walker's job. The walker is the right unit to exercise
+ * here; it gives the same end-to-end coverage with the post-refactor signature.
+ */
 
 const testDir = tempDir('resolve-test-' + Date.now())
 
@@ -44,12 +52,37 @@ async function makeCtx(): Promise<AssetResolveContext> {
   }
 }
 
-describe('resolveEmbeddedRef', () => {
+/**
+ * Resolve a single ref via the walker. Convenience wrapper that wraps the
+ * ref in a content object, calls `resolveAssetRefs`, and returns the
+ * resolved field. Used by the per-field tests below to keep them
+ * focused on what changed in the resolved shape.
+ */
+async function resolveOne(
+  ref: { _asset: string; alt?: string; focalPoint?: { x: number; y: number } },
+  ctx: AssetResolveContext,
+): Promise<{
+  url: string
+  width: number | null
+  height: number | null
+  alt: string
+  mime: string
+  srcset: string | null
+  focalPoint: { x: number; y: number } | null
+  animated: boolean
+  poster: string | null
+  duration: number | null
+}> {
+  const out = (await resolveAssetRefs({ asset: ref }, ctx)) as Record<string, unknown>
+  return out.asset as ReturnType<typeof resolveOne> extends Promise<infer T> ? T : never
+}
+
+describe('embedded asset resolution (via walker)', () => {
   it('resolves a ref to a ResolvedEmbeddedAsset using manifest fields', async () => {
     const ctx = await makeCtx()
     await seedManifest(ctx, sampleManifest())
 
-    const resolved = await resolveEmbeddedRef({ _asset: 'hero' }, ctx)
+    const resolved = await resolveOne({ _asset: 'hero' }, ctx)
 
     expect(resolved.url).toBe('/assets/hero-a3b2c1d4.jpg')
     expect(resolved.width).toBe(1920)
@@ -70,7 +103,7 @@ describe('resolveEmbeddedRef', () => {
     }
     await seedManifest(ctx, sampleManifest())
 
-    const resolved = await resolveEmbeddedRef({ _asset: 'hero' }, ctx)
+    const resolved = await resolveOne({ _asset: 'hero' }, ctx)
     expect(resolved.url).toBe('https://cdn.example.com/assets/hero-a3b2c1d4.jpg')
   })
 
@@ -78,7 +111,7 @@ describe('resolveEmbeddedRef', () => {
     const ctx = await makeCtx()
     await seedManifest(ctx, sampleManifest({ alt: 'Fallback alt' }))
 
-    const resolved = await resolveEmbeddedRef({ _asset: 'hero', alt: 'Override alt' }, ctx)
+    const resolved = await resolveOne({ _asset: 'hero', alt: 'Override alt' }, ctx)
     expect(resolved.alt).toBe('Override alt')
   })
 
@@ -86,7 +119,7 @@ describe('resolveEmbeddedRef', () => {
     const ctx = await makeCtx()
     await seedManifest(ctx, sampleManifest({ alt: 'Manifest alt' }))
 
-    const resolved = await resolveEmbeddedRef({ _asset: 'hero' }, ctx)
+    const resolved = await resolveOne({ _asset: 'hero' }, ctx)
     expect(resolved.alt).toBe('Manifest alt')
   })
 
@@ -94,7 +127,7 @@ describe('resolveEmbeddedRef', () => {
     const ctx = await makeCtx()
     await seedManifest(ctx, sampleManifest({ alt: null }))
 
-    const resolved = await resolveEmbeddedRef({ _asset: 'hero' }, ctx)
+    const resolved = await resolveOne({ _asset: 'hero' }, ctx)
     expect(resolved.alt).toBe('')
   })
 
@@ -102,13 +135,24 @@ describe('resolveEmbeddedRef', () => {
     const ctx = await makeCtx()
     await seedManifest(ctx, sampleManifest())
 
-    const resolved = await resolveEmbeddedRef({ _asset: 'hero', focalPoint: { x: 0.3, y: 0.7 } }, ctx)
+    const resolved = await resolveOne({ _asset: 'hero', focalPoint: { x: 0.3, y: 0.7 } }, ctx)
     expect(resolved.focalPoint).toEqual({ x: 0.3, y: 0.7 })
   })
 
-  it('throws AssetManifestNotFoundError when the asset does not exist', async () => {
+  it('returns the placeholder when the asset does not exist', async () => {
+    // Walker degrades gracefully on missing manifest — different contract
+    // from the pre-refactor `resolveEmbeddedRef` which threw. The walker's
+    // graceful path is the production behavior; throwing was unit-testing
+    // the inner read that no longer exists.
     const ctx = await makeCtx()
-    await expect(resolveEmbeddedRef({ _asset: 'missing' }, ctx)).rejects.toBeInstanceOf(AssetManifestNotFoundError)
+    const origWarn = console.warn
+    console.warn = () => {}
+    try {
+      const resolved = await resolveOne({ _asset: 'missing' }, ctx)
+      expect(resolved.url).toBe('/assets/__missing__.svg')
+    } finally {
+      console.warn = origWarn
+    }
   })
 
   it('builds a srcset string from manifest variants', async () => {
@@ -124,7 +168,7 @@ describe('resolveEmbeddedRef', () => {
       }),
     )
 
-    const resolved = await resolveEmbeddedRef({ _asset: 'hero' }, ctx)
+    const resolved = await resolveOne({ _asset: 'hero' }, ctx)
 
     expect(resolved.srcset).toBe(
       '/assets/hero-a3b2c1d4-400w.jpg 400w, ' +
@@ -145,7 +189,7 @@ describe('resolveEmbeddedRef', () => {
       }),
     )
 
-    const resolved = await resolveEmbeddedRef({ _asset: 'hero' }, ctx)
+    const resolved = await resolveOne({ _asset: 'hero' }, ctx)
     expect(resolved.srcset).toBe('https://cdn.example.com/assets/hero-a3b2c1d4-400w.jpg 400w')
   })
 
@@ -153,7 +197,7 @@ describe('resolveEmbeddedRef', () => {
     const ctx = await makeCtx()
     await seedManifest(ctx, sampleManifest({ variants: [] }))
 
-    const resolved = await resolveEmbeddedRef({ _asset: 'hero' }, ctx)
+    const resolved = await resolveOne({ _asset: 'hero' }, ctx)
     expect(resolved.srcset).toBeNull()
   })
 })
