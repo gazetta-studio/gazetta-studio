@@ -122,6 +122,17 @@ export interface AssetManifest {
   variants: readonly AssetVariant[]
   /** Alt text per the three-state model; null means "not set". */
   alt: string | null
+  /**
+   * Focal point in normalized coordinates (0–1). Used by templates that
+   * crop the image to non-original aspect ratios — keeps the subject in
+   * frame. Optional: omitted = no preference set, treated as center
+   * (0.5, 0.5) by the resolver; explicit value = author's choice.
+   *
+   * Per-reference focal-point overrides live on the embedded ref in
+   * page/fragment manifests; this is the asset-level default for refs
+   * that don't override.
+   */
+  focalPoint?: { x: number; y: number }
   /** Upload timestamp (ISO 8601 UTC). */
   uploadedAt: string
   /** Author who uploaded; empty string when RBAC isn't configured. */
@@ -259,6 +270,8 @@ export interface AssetSummary {
   width: number | null
   height: number | null
   alt: string | null
+  /** Focal point in normalized coordinates (0–1). Absent = no preference. */
+  focalPoint?: { x: number; y: number }
   uploadedAt: string
   /**
    * Locales for which this asset has a manifest override (with or

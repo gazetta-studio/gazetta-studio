@@ -68,14 +68,19 @@ describe('AssetDetail', () => {
     expect(wrapper.text()).toContain('1920 × 1080')
   })
 
-  it('omits dimensions when width or height is null', () => {
+  it('omits dimensions row when width or height is null', () => {
     const list = useAssetsListStore()
     const selection = useAssetsSelectionStore()
-    list.assets = [sample({ width: null, height: null })]
+    // Use a non-image (downloadable) so the focal editor — which also
+    // renders an `×` in the x/y badge — isn't in the DOM. The dimensions
+    // row has its own `Dimensions` label we check is absent.
+    list.assets = [
+      sample({ kind: 'downloadable', mime: 'application/pdf', width: null, height: null }),
+    ]
     selection.select('hero')
 
     const wrapper = mount(AssetDetail)
-    expect(wrapper.text()).not.toContain('×')
+    expect(wrapper.text()).not.toContain('Dimensions')
   })
 
   it('renders the alt editor for images with the current alt value', () => {
@@ -136,5 +141,48 @@ describe('AssetDetail', () => {
     selection.clear()
     await wrapper.vm.$nextTick()
     expect(wrapper.find('[data-testid="asset-detail-empty"]').exists()).toBe(true)
+  })
+
+  describe('focal point editor', () => {
+    it('renders the focal point editor for images', () => {
+      const list = useAssetsListStore()
+      const selection = useAssetsSelectionStore()
+      list.assets = [sample({ kind: 'embedded', mime: 'image/jpeg' })]
+      selection.select('hero')
+
+      const wrapper = mount(AssetDetail)
+      expect(wrapper.find('[data-testid="focal-editor"]').exists()).toBe(true)
+    })
+
+    it('does not render the focal editor for non-image assets', () => {
+      const list = useAssetsListStore()
+      const selection = useAssetsSelectionStore()
+      list.assets = [sample({ kind: 'downloadable', mime: 'application/pdf' })]
+      selection.select('hero')
+
+      const wrapper = mount(AssetDetail)
+      expect(wrapper.find('[data-testid="focal-editor"]').exists()).toBe(false)
+    })
+
+    it('reflects the asset focalPoint in the editor', () => {
+      const list = useAssetsListStore()
+      const selection = useAssetsSelectionStore()
+      list.assets = [sample({ kind: 'embedded', mime: 'image/jpeg', focalPoint: { x: 0.3, y: 0.6 } })]
+      selection.select('hero')
+
+      const wrapper = mount(AssetDetail)
+      const xy = wrapper.find('[data-testid="focal-xy"]')
+      expect(xy.text()).toBe('30% × 60%')
+    })
+
+    it('shows default-hint when asset has no focalPoint', () => {
+      const list = useAssetsListStore()
+      const selection = useAssetsSelectionStore()
+      list.assets = [sample({ kind: 'embedded', mime: 'image/jpeg' })]
+      selection.select('hero')
+
+      const wrapper = mount(AssetDetail)
+      expect(wrapper.find('[data-testid="focal-default-hint"]').exists()).toBe(true)
+    })
   })
 })

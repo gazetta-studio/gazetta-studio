@@ -718,4 +718,81 @@ describe('PATCH /api/assets/:name', () => {
     const body = (await res.json()) as { manifest: { alt: string | null } }
     expect(body.manifest.alt).toBe('preserved')
   })
+
+  describe('focalPoint patches', () => {
+    it('200s with the updated focalPoint', async () => {
+      const { app } = buildApp()
+      await uploadAsset(app, 'hero')
+
+      const res = await app.request('/api/assets/hero', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ focalPoint: { x: 0.3, y: 0.7 } }),
+      })
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { manifest: { focalPoint?: { x: number; y: number } } }
+      expect(body.manifest.focalPoint).toEqual({ x: 0.3, y: 0.7 })
+    })
+
+    it('200s with focalPoint cleared on null', async () => {
+      const { app } = buildApp()
+      await uploadAsset(app, 'hero')
+      // Set it first.
+      await app.request('/api/assets/hero', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ focalPoint: { x: 0.5, y: 0.5 } }),
+      })
+      // Clear.
+      const res = await app.request('/api/assets/hero', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ focalPoint: null }),
+      })
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { manifest: { focalPoint?: { x: number; y: number } } }
+      expect(body.manifest.focalPoint).toBeUndefined()
+    })
+
+    it('400s when focalPoint is out of [0, 1]', async () => {
+      const { app } = buildApp()
+      await uploadAsset(app, 'hero')
+
+      const res = await app.request('/api/assets/hero', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ focalPoint: { x: 2.5, y: 0.5 } }),
+      })
+      expect(res.status).toBe(400)
+    })
+
+    it('400s when focalPoint is malformed', async () => {
+      const { app } = buildApp()
+      await uploadAsset(app, 'hero')
+
+      const res = await app.request('/api/assets/hero', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ focalPoint: 'not an object' }),
+      })
+      expect(res.status).toBe(400)
+    })
+
+    it('combined alt + focalPoint patch in one request', async () => {
+      const { app } = buildApp()
+      await uploadAsset(app, 'hero')
+
+      const res = await app.request('/api/assets/hero', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ alt: 'Mountains', focalPoint: { x: 0.6, y: 0.4 } }),
+      })
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as {
+        manifest: { alt: string | null; focalPoint?: { x: number; y: number } }
+      }
+      expect(body.manifest.alt).toBe('Mountains')
+      expect(body.manifest.focalPoint).toEqual({ x: 0.6, y: 0.4 })
+    })
+  })
 })

@@ -181,6 +181,14 @@ describe('RTL: static CSS audit', () => {
   it('AssetAltEditor has no hard-coded left/right properties', () => {
     expect(auditComponentCss('AssetAltEditor.vue')).toEqual([])
   })
+
+  it('AssetFocalPointEditor has no hard-coded left/right properties', () => {
+    // Note: `left` / `top` as CSS positional offsets on the marker
+    // (`position: absolute; left: 50%; top: 50%`) are inline styles
+    // computed from JS, not in the static stylesheet. The stylesheet
+    // itself uses no physical left/right margin/padding.
+    expect(auditComponentCss('AssetFocalPointEditor.vue')).toEqual([])
+  })
 })
 
 describe('RTL: runtime smoke', () => {
