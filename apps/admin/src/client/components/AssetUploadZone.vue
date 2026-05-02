@@ -11,6 +11,7 @@
  * "prompt for alt at upload" UX lands with the wide rollout.
  */
 import { ref, watch } from 'vue'
+import { updateAssetMetadata } from '../api/assets.js'
 import { useAssetsUploadStore } from '../stores/assetsUpload.js'
 import { useAssetsUploadPromptStore } from '../stores/assetsUploadPrompt.js'
 import { useAssetsListStore } from '../stores/assetsList.js'
@@ -20,6 +21,25 @@ const uploads = useAssetsUploadStore()
 const list = useAssetsListStore()
 const promptStore = useAssetsUploadPromptStore()
 const locale = useLocaleStore()
+
+/**
+ * Per-upload-entry alt state. Keyed by `entry.id` so multiple successful
+ * uploads can hold independent in-flight alt values. The text input
+ * commits on blur (PATCH the asset); the checkbox commits on change.
+ *
+ * Three-state alt is honored at commit time — empty string + decorative
+ * checked → "" (decorative); empty string + unchecked → null (unset);
+ * non-empty text + unchecked → meaningful description.
+ */
+const altText = ref<Map<string, string>>(new Map())
+const altDecorative = ref<Map<string, boolean>>(new Map())
+
+function altValueFor(id: string): string {
+  return altText.value.get(id) ?? ''
+}
+function altDecorativeFor(id: string): boolean {
+  return altDecorative.value.get(id) ?? false
+}
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const isDragging = ref(false)
@@ -127,6 +147,48 @@ watch(
     }
   },
 )
+
+/**
+ * Persist alt for a successfully-uploaded entry. Called on blur of the
+ * text input. Three-state semantics:
+ *   - decorative checkbox checked → alt: '' (regardless of input value)
+ *   - input non-empty             → alt: value (after trim)
+ *   - input empty + not decorative → alt: null (still unset)
+ *
+ * On error the inline state retains the user's input so they can retry;
+ * we surface the failure via a console warning for now (toast surface
+ * is a follow-up).
+ */
+async function onAltBlur(event: Event, id: string, assetName: string): Promise<void> {
+  const input = event.target as HTMLInputElement
+  const raw = input.value.trim()
+  altText.value.set(id, raw)
+  if (altDecorativeFor(id)) return // decorative wins; the blur is a no-op
+  await commitAlt(assetName, raw === '' ? null : raw)
+}
+
+async function onDecorativeChange(event: Event, id: string, assetName: string): Promise<void> {
+  const checked = (event.target as HTMLInputElement).checked
+  altDecorative.value.set(id, checked)
+  if (checked) {
+    await commitAlt(assetName, '')
+  } else {
+    // Toggling off reverts to whatever the input currently holds. If
+    // empty, alt becomes null (unset); if filled, becomes the text.
+    const text = altValueFor(id)
+    await commitAlt(assetName, text === '' ? null : text)
+  }
+}
+
+async function commitAlt(assetName: string, alt: string | null): Promise<void> {
+  try {
+    await updateAssetMetadata(assetName, { alt })
+    await list.refresh()
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(`Failed to update alt for ${assetName}:`, err)
+  }
+}
 </script>
 
 <template>
@@ -150,15 +212,46 @@ watch(
 
   <div v-if="uploads.uploads.length > 0" class="upload-list" data-testid="asset-upload-list">
     <div v-for="entry in uploads.uploads" :key="entry.id" class="upload-entry" :data-testid="`upload-${entry.id}`">
-      <span class="upload-name">{{ entry.name }}</span>
-      <span class="upload-status" :data-status="entry.status">
-        <template v-if="entry.status === 'queued'">Queued</template>
-        <template v-else-if="entry.status === 'uploading'">Uploading…</template>
-        <template v-else-if="entry.status === 'success'">Done</template>
-        <template v-else>
-          <span class="upload-error">{{ entry.errorMessage ?? 'Failed' }}</span>
-        </template>
-      </span>
+      <div class="upload-entry-head">
+        <span class="upload-name">{{ entry.name }}</span>
+        <span class="upload-status" :data-status="entry.status">
+          <template v-if="entry.status === 'queued'">Queued</template>
+          <template v-else-if="entry.status === 'uploading'">Uploading…</template>
+          <template v-else-if="entry.status === 'success'">Done</template>
+          <template v-else>
+            <span class="upload-error">{{ entry.errorMessage ?? 'Failed' }}</span>
+          </template>
+        </span>
+      </div>
+      <!--
+        Inline alt entry — only for successful image uploads of the
+        default asset (locale-bytes overrides inherit alt from the
+        default; per-locale alt would live on the locale manifest, a
+        future surface). Non-blocking: author can fill alt now or close
+        the library and resolve later via the detail-pane editor.
+      -->
+      <div
+        v-if="
+          entry.status === 'success' && entry.kind === 'default' && (entry.file.type ?? '').startsWith('image/')
+        "
+        class="upload-entry-alt"
+        :data-testid="`upload-${entry.id}-alt`">
+        <input
+          type="text"
+          placeholder="Alt text (describe the image for accessibility)"
+          :value="altValueFor(entry.id)"
+          :disabled="altDecorativeFor(entry.id)"
+          :data-testid="`upload-${entry.id}-alt-input`"
+          @blur="onAltBlur($event, entry.id, entry.name)" />
+        <label class="upload-entry-decorative">
+          <input
+            type="checkbox"
+            :checked="altDecorativeFor(entry.id)"
+            :data-testid="`upload-${entry.id}-alt-decorative`"
+            @change="onDecorativeChange($event, entry.id, entry.name)" />
+          Decorative
+        </label>
+      </div>
     </div>
   </div>
 </template>
@@ -196,10 +289,18 @@ watch(
 
 .upload-entry {
   display: flex;
-  justify-content: space-between;
-  padding: 0.25rem 0.5rem;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.375rem 0.5rem;
   border-radius: 4px;
   background: var(--p-content-hover-background);
+}
+
+.upload-entry-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .upload-status[data-status='error'] {
@@ -208,5 +309,35 @@ watch(
 
 .upload-status[data-status='success'] {
   color: var(--p-green-500);
+}
+
+.upload-entry-alt {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.upload-entry-alt input[type='text'] {
+  flex: 1;
+  font: inherit;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--p-form-field-border-color);
+  border-radius: 4px;
+  background: var(--p-form-field-background);
+  color: var(--p-text-color);
+}
+
+.upload-entry-alt input[type='text']:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.upload-entry-decorative {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--p-text-muted-color);
+  white-space: nowrap;
 }
 </style>

@@ -603,3 +603,119 @@ describe('DELETE /api/assets/:name/locale-bytes', () => {
     expect(res.status).toBe(404)
   })
 })
+
+describe('PATCH /api/assets/:name', () => {
+  async function uploadAsset(app: Hono, name: string, alt: string | null = null) {
+    const bytes = await jpegBuffer()
+    const form = multipartForm({
+      file: { name: `${name}.jpg`, bytes: new Uint8Array(bytes), type: 'image/jpeg' },
+      name,
+    })
+    if (alt !== null) form.set('alt', alt)
+    await app.request('/api/assets', { method: 'POST', body: form })
+  }
+
+  it('200s with the updated summary on alt change', async () => {
+    const { app } = buildApp()
+    await uploadAsset(app, 'hero')
+
+    const res = await app.request('/api/assets/hero', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ alt: 'Mountain sunset' }),
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { manifest: { alt: string } }
+    expect(body.manifest.alt).toBe('Mountain sunset')
+  })
+
+  it('treats explicit null as "clear alt" (three-state model)', async () => {
+    const { app } = buildApp()
+    await uploadAsset(app, 'hero', 'starts with text')
+
+    const res = await app.request('/api/assets/hero', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ alt: null }),
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { manifest: { alt: string | null } }
+    expect(body.manifest.alt).toBeNull()
+  })
+
+  it('treats empty string as "decorative"', async () => {
+    const { app } = buildApp()
+    await uploadAsset(app, 'hero')
+
+    const res = await app.request('/api/assets/hero', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ alt: '' }),
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { manifest: { alt: string | null } }
+    expect(body.manifest.alt).toBe('')
+  })
+
+  it('400s when alt is not string|null', async () => {
+    const { app } = buildApp()
+    await uploadAsset(app, 'hero')
+
+    const res = await app.request('/api/assets/hero', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ alt: 42 }),
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('400s on non-JSON body', async () => {
+    const { app } = buildApp()
+    await uploadAsset(app, 'hero')
+
+    const res = await app.request('/api/assets/hero', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: 'not json',
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('404s when the asset does not exist', async () => {
+    const { app } = buildApp()
+    const res = await app.request('/api/assets/ghost', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ alt: 'x' }),
+    })
+    expect(res.status).toBe(404)
+  })
+
+  it('returns updated overrideLocales/themes alongside the patch', async () => {
+    const { app } = buildApp()
+    await uploadAsset(app, 'hero')
+
+    const res = await app.request('/api/assets/hero', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ alt: 'description' }),
+    })
+    const body = (await res.json()) as { manifest: { overrideLocales: string[]; overrideThemes: string[] } }
+    expect(body.manifest.overrideLocales).toEqual([])
+    expect(body.manifest.overrideThemes).toEqual([])
+  })
+
+  it('empty patch is a no-op (200 with current summary)', async () => {
+    const { app } = buildApp()
+    await uploadAsset(app, 'hero', 'preserved')
+
+    const res = await app.request('/api/assets/hero', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { manifest: { alt: string | null } }
+    expect(body.manifest.alt).toBe('preserved')
+  })
+})

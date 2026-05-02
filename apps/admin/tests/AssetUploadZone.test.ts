@@ -241,4 +241,85 @@ describe('AssetUploadZone', () => {
       expect(enqueueLocale).not.toHaveBeenCalled()
     })
   })
+
+  describe('inline alt entry on successful uploads', () => {
+    it('shows alt input + decorative checkbox for image uploads after success', async () => {
+      const uploads = useAssetsUploadStore()
+      uploads.configure({
+        uploadAsset: vi.fn(async () => ({ manifest: {} as never, bytesPath: 'assets/x' })),
+      })
+
+      const wrapper = mount(AssetUploadZone)
+      const id = uploads.enqueue(fakeFile('hero.jpg'), 'hero', null)
+      await flushPromises()
+
+      // Wait for the queue to drain (mocked upload resolves immediately).
+      const altInput = wrapper.find(`[data-testid="upload-${id}-alt-input"]`)
+      expect(altInput.exists()).toBe(true)
+      const decorativeBox = wrapper.find(`[data-testid="upload-${id}-alt-decorative"]`)
+      expect(decorativeBox.exists()).toBe(true)
+    })
+
+    it('does not show the alt entry block while still uploading', async () => {
+      const uploads = useAssetsUploadStore()
+      let release: (() => void) | null = null
+      const hang = new Promise<void>(r => {
+        release = r
+      })
+      uploads.configure({
+        uploadAsset: async () => {
+          await hang
+          return { manifest: {} as never, bytesPath: 'assets/x' }
+        },
+      })
+
+      const wrapper = mount(AssetUploadZone)
+      const id = uploads.enqueue(fakeFile('hero.jpg'), 'hero', null)
+      await flushPromises()
+
+      // Mid-upload — no alt block yet.
+      const altWrap = wrapper.find(`[data-testid="upload-${id}-alt"]`)
+      expect(altWrap.exists()).toBe(false)
+
+      release!()
+      await flushPromises()
+      // After completion the block appears.
+      const altWrapAfter = wrapper.find(`[data-testid="upload-${id}-alt"]`)
+      expect(altWrapAfter.exists()).toBe(true)
+    })
+
+    it('does not show the alt entry block for non-image uploads', async () => {
+      // Pretend a PDF upload succeeded — even though the upload accept
+      // attribute today restricts to image/jpeg/png, this guards future
+      // wide MIME support.
+      const uploads = useAssetsUploadStore()
+      uploads.configure({
+        uploadAsset: vi.fn(async () => ({ manifest: {} as never, bytesPath: 'assets/x' })),
+      })
+
+      const wrapper = mount(AssetUploadZone)
+      const pdf = new File([new Uint8Array([0x25, 0x50, 0x44, 0x46])], 'doc.pdf', { type: 'application/pdf' })
+      const id = uploads.enqueue(pdf, 'doc', null)
+      await flushPromises()
+
+      const altWrap = wrapper.find(`[data-testid="upload-${id}-alt"]`)
+      expect(altWrap.exists()).toBe(false)
+    })
+
+    it('does not show the alt entry block for locale-bytes uploads', async () => {
+      // Locale-bytes uploads inherit alt from the default; the inline
+      // entry is for default-asset uploads only.
+      const uploads = useAssetsUploadStore()
+      uploads.configure({
+        uploadLocaleBytes: vi.fn(async () => ({ manifest: {} as never, bytesPath: 'assets/x' })),
+      })
+
+      const wrapper = mount(AssetUploadZone)
+      const id = uploads.enqueueLocaleBytes(fakeFile('hero.jpg'), 'hero', { locale: 'fr' })
+      await flushPromises()
+
+      const altWrap = wrapper.find(`[data-testid="upload-${id}-alt"]`)
+      expect(altWrap.exists()).toBe(false)
+    })
+  })
 })

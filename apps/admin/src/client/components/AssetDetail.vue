@@ -9,10 +9,12 @@
  */
 import { computed } from 'vue'
 import Button from 'primevue/button'
+import { updateAssetMetadata } from '../api/assets.js'
 import { useAssetsListStore } from '../stores/assetsList.js'
 import { useAssetsSelectionStore } from '../stores/assetsSelection.js'
 import { useAssetsDeleteStore } from '../stores/assetsDelete.js'
 import { buildAssetUrl, extFromMime } from '../utils/assetUrl.js'
+import AssetAltEditor from './AssetAltEditor.vue'
 import AssetDetailLocaleSection from './AssetDetailLocaleSection.vue'
 
 const list = useAssetsListStore()
@@ -23,6 +25,24 @@ function onDelete(): void {
   if (!asset.value) return
   del.ask(asset.value.name)
 }
+
+/**
+ * Commit alt change from the editor. Non-blocking: failures log to
+ * console and the list refresh skips. Future: surface via toast.
+ */
+async function onAltUpdate(value: string | null): Promise<void> {
+  if (!asset.value) return
+  const name = asset.value.name
+  try {
+    await updateAssetMetadata(name, { alt: value })
+    await list.refresh()
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(`Failed to update alt for ${name}:`, err)
+  }
+}
+
+const isImage = computed(() => asset.value?.mime?.startsWith('image/') ?? false)
 
 const asset = computed(() => {
   if (!selection.selectedName) return null
@@ -78,7 +98,13 @@ function formatDate(iso: string): string {
           <dt>Dimensions</dt>
           <dd>{{ asset.width }} × {{ asset.height }}</dd>
         </div>
-        <div>
+        <div v-if="isImage" class="asset-detail-alt">
+          <dt>Alt</dt>
+          <dd>
+            <AssetAltEditor :model-value="asset.alt" @update:model-value="onAltUpdate" />
+          </dd>
+        </div>
+        <div v-else>
           <dt>Alt</dt>
           <dd v-if="asset.alt !== null && asset.alt !== ''">{{ asset.alt }}</dd>
           <dd v-else-if="asset.alt === ''" class="asset-detail-muted">(decorative)</dd>
@@ -168,6 +194,19 @@ function formatDate(iso: string): string {
 
 .asset-detail-muted {
   color: var(--p-text-muted-color);
+}
+
+.asset-detail-alt {
+  /* Override the default row layout — alt editor needs to stack
+     dt above dd because the editor itself is a column of input +
+     checkbox + state hint, none of which fit on a single inline row. */
+  flex-direction: column !important;
+  align-items: stretch;
+  gap: 0.25rem !important;
+}
+
+.asset-detail-alt dd {
+  text-align: start;
 }
 
 .asset-detail-actions {

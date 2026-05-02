@@ -186,7 +186,7 @@ describe('AssetLibraryGrid', () => {
       list.assets = [sample({ name: 'hero' })]
 
       const wrapper = mount(AssetLibraryGrid)
-      expect(wrapper.find('[data-testid="asset-card-coverage-hero"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="coverage-hero"]').exists()).toBe(false)
     })
 
     it('renders one chip per supported locale, with default first', () => {
@@ -215,6 +215,48 @@ describe('AssetLibraryGrid', () => {
       expect(en.classes()).toContain('coverage-default')
       expect(fr.classes()).toContain('coverage-override')
       expect(ar.classes()).toContain('coverage-fallback')
+    })
+  })
+
+  describe('alt missing badge', () => {
+    it('renders the badge when an image has alt === null', () => {
+      const list = useAssetsListStore()
+      list.loaded = true
+      list.assets = [sample({ name: 'hero', alt: null })]
+
+      const wrapper = mount(AssetLibraryGrid)
+      expect(wrapper.find('[data-testid="alt-missing-hero"]').exists()).toBe(true)
+    })
+
+    it('does NOT render the badge when alt is "" (decorative)', () => {
+      const list = useAssetsListStore()
+      list.loaded = true
+      list.assets = [sample({ name: 'hero', alt: '' })]
+
+      const wrapper = mount(AssetLibraryGrid)
+      expect(wrapper.find('[data-testid="alt-missing-hero"]').exists()).toBe(false)
+    })
+
+    it('does NOT render the badge when alt is a meaningful string', () => {
+      const list = useAssetsListStore()
+      list.loaded = true
+      list.assets = [sample({ name: 'hero', alt: 'A described image' })]
+
+      const wrapper = mount(AssetLibraryGrid)
+      expect(wrapper.find('[data-testid="alt-missing-hero"]').exists()).toBe(false)
+    })
+
+    it('does NOT render the badge for non-image assets', () => {
+      const list = useAssetsListStore()
+      list.loaded = true
+      list.assets = [
+        sample({ name: 'doc', kind: 'downloadable', mime: 'application/pdf', alt: null }),
+        sample({ name: 'font', kind: 'font', mime: 'font/woff2', alt: null }),
+      ]
+
+      const wrapper = mount(AssetLibraryGrid)
+      expect(wrapper.find('[data-testid="alt-missing-doc"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="alt-missing-font"]').exists()).toBe(false)
     })
   })
 })

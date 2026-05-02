@@ -17,6 +17,8 @@ function sample(overrides: Partial<AssetSummary> = {}): AssetSummary {
     height: 100,
     alt: 'Mountain sunset',
     uploadedAt: '2026-04-22T12:00:00.000Z',
+    overrideLocales: [],
+    overrideThemes: [],
     ...overrides,
   }
 }
@@ -76,34 +78,50 @@ describe('AssetDetail', () => {
     expect(wrapper.text()).not.toContain('×')
   })
 
-  it('shows alt text when set', () => {
+  it('renders the alt editor for images with the current alt value', () => {
     const list = useAssetsListStore()
     const selection = useAssetsSelectionStore()
     list.assets = [sample({ alt: 'My great photo' })]
     selection.select('hero')
 
     const wrapper = mount(AssetDetail)
-    expect(wrapper.text()).toContain('My great photo')
+    const altInput = wrapper.find<HTMLInputElement>('[data-testid="alt-editor-input"]')
+    expect(altInput.exists()).toBe(true)
+    expect(altInput.element.value).toBe('My great photo')
   })
 
-  it('shows "(decorative)" hint when alt is empty string', () => {
+  it('renders the alt editor with checked decorative state when alt is empty string', () => {
     const list = useAssetsListStore()
     const selection = useAssetsSelectionStore()
     list.assets = [sample({ alt: '' })]
     selection.select('hero')
 
     const wrapper = mount(AssetDetail)
-    expect(wrapper.text()).toContain('(decorative)')
+    const checkbox = wrapper.find<HTMLInputElement>('[data-testid="alt-editor-decorative"]')
+    expect(checkbox.element.checked).toBe(true)
+    expect(wrapper.find('[data-testid="alt-editor-state"]').text()).toContain('Decorative')
   })
 
-  it('shows "(not set)" hint when alt is null', () => {
+  it('renders the alt editor with not-set state when alt is null', () => {
     const list = useAssetsListStore()
     const selection = useAssetsSelectionStore()
     list.assets = [sample({ alt: null })]
     selection.select('hero')
 
     const wrapper = mount(AssetDetail)
-    expect(wrapper.text()).toContain('(not set)')
+    expect(wrapper.find('[data-testid="alt-editor-state"]').text()).toContain('Not set')
+  })
+
+  it('shows read-only alt text for non-image assets (PDFs, fonts)', () => {
+    const list = useAssetsListStore()
+    const selection = useAssetsSelectionStore()
+    list.assets = [sample({ kind: 'downloadable', mime: 'application/pdf', alt: 'A document' })]
+    selection.select('hero')
+
+    const wrapper = mount(AssetDetail)
+    // No editor — non-images still use the read-only display.
+    expect(wrapper.find('[data-testid="alt-editor"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('A document')
   })
 
   it('reverts to empty state when selection clears', async () => {

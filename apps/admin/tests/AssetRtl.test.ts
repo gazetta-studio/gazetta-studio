@@ -177,6 +177,10 @@ describe('RTL: static CSS audit', () => {
   it('AssetLibrary has no hard-coded left/right properties', () => {
     expect(auditComponentCss('AssetLibrary.vue')).toEqual([])
   })
+
+  it('AssetAltEditor has no hard-coded left/right properties', () => {
+    expect(auditComponentCss('AssetAltEditor.vue')).toEqual([])
+  })
 })
 
 describe('RTL: runtime smoke', () => {
