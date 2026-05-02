@@ -129,7 +129,37 @@ Templates always receive the full shape, with `null` for missing values. No miss
 | `alt: ""` | Intentionally decorative | `alt=""` (skipped by screen readers) |
 | `alt: null` | Missing / not set | Admin warns; resolver falls back to `''` |
 
-The upload dialog prompts for alt on images. Author types text, ticks "decorative," or skips (producing `null` with warning).
+**Alt is contextual to usage, not to the asset.** WCAG treats alt as a property
+of how an image is used, not what it depicts. The same logo needs alt as a
+hero, doesn't need alt in a footer where a sibling text label describes the
+brand. Gazetta's data model honors this by making alt overridable at the
+reference layer (per-ref override on the page) on top of the asset's
+default. Authors see the chain — per-ref → asset → null — explicitly in
+the picker's reference-options step.
+
+**Where alt enforcement lives.** Alt is collected and surfaced at multiple
+layers, each optimized for what it can know:
+
+| Layer | What it does | Why |
+|---|---|---|
+| **Asset upload (inline in upload-list rows)** | Optional alt input + "Decorative" checkbox per image upload, non-blocking | Bulk-friendly; no modal overhead per file |
+| **Library card badge** | Shows a "no alt" pill on cards where `alt === null` AND the asset is an image | Retroactive nag — catches existing assets that lack alt; persistent across sessions |
+| **Asset detail pane** | Inline editable alt field with three-state radio (text / decorative / not set) | Author can resolve at their pace; the badge points here |
+| **Picker reference-options step** | Alt override field with the resolution chain shown ("Falls back to: …") | Use-time decision; alt-for-this-context vs. alt-for-the-asset are explicit |
+| **Save-time enforcement (`altRequired: true`)** | Page/fragment save returns 409 when a referenced asset's resolved alt is `null` AND the schema field is declared `altRequired` | The template author knows whether alt is needed; the editor enforces |
+
+**No upload-time modal.** Earlier drafts of this doc specified a modal-per-file
+prompt. That was wrong: modal-per-file is hostile to bulk uploads (5 files,
+5 modals), stacks badly with the locale-bytes upload prompt, and forces a
+decision the author may not yet have made (alt depends on use, not file).
+Every surveyed CMS (Sanity, Contentful, Strapi, Storyblok, Payload, Directus)
+defers alt to "fill it later" via the asset detail pane. Gazetta does the
+same at the asset layer + adds save-time template-driven enforcement —
+distinctive without the modal-fatigue cost.
+
+The upload-list inline UI exists so authors who *do* know the alt at upload
+time can enter it without leaving the queue surface. Skipping is fine; the
+library card badge surfaces the unset state until the author resolves it.
 
 ### Override dimensions: locale and theme
 
@@ -665,14 +695,21 @@ No layout restructuring, no new drawer system, no new field-registration mechani
 
 Empty state: "Drop files here to upload, or paste a URL for an external asset."
 
-### Upload dialog
+### Upload zone
 
-- File input + drag-drop
-- Inline list of files being uploaded, with per-file progress
-- For each image: alt text input + "Decorative" checkbox (empty = null, warning shown)
-- Videos/audio: no alt prompt (title/description editable in library after upload)
-- Documents: title prompt
-- "Upload all" commits the batch — one history revision
+- Drop zone (full-panel) + file picker
+- Inline upload list shows queued / uploading / done / error per file
+- For image uploads, each row gains an inline alt text input + "Decorative"
+  checkbox once the file lands. Non-blocking — author can fill alt now,
+  later, or never (the library-card badge surfaces null-alt state).
+- Videos/audio/documents: no alt; title/description live in the detail
+  pane (per kind)
+- Each successful upload commits one history revision (per file, not
+  per batch — granular undo)
+- **Locale-bytes upload prompt:** when active locale ≠ default AND the
+  derived name collides with an existing asset, the upload zone opens a
+  modal asking "Replace default bytes / Add {locale} override / Cancel"
+  (see "Locale-specific bytes at upload" below)
 
 **Locale-specific bytes at upload:**
 

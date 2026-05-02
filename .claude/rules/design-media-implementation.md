@@ -28,7 +28,7 @@ branch for diffs).
 | Library UI (grid/table, search, filter, bulk, locale-aware metadata editing) | 1 week | ✓ step 5 (default-only) + ✓ step 24 (locale-aware coverage badges + detail-pane locale section) |
 | Asset picker (3-panel modal with resolution-chain UX) | 1 week | ✓ step 6 (default-only) + ✓ step 24 (locale-aware preview chip surfaces) |
 | Focal point editor | 2 days | ☐ |
-| Upload dialog with alt prompt (always targets default locale) | 2 days | ☐ — alt prompt at upload time still deferred; current upload zone uses post-upload editing in detail pane |
+| Alt UX (inline upload-list input + library-card no-alt badge + detail-pane editor + `altRequired` save-time enforcement) | 3 days | ☐ step 26 — design model rescoped from "modal per file" to multi-layer (upload-time inline, retroactive badge, save-time template-driven enforcement). See design-media.md "Alt text: three-state model" |
 | i18n manifest resolution + fallback chain + asset locale variants | 2 days | ✓ step 17 (resolver) + ✓ step 24 (UI surfaces) |
 | Locale-specific bytes (upload "default vs override" flow, per-locale variant generation, detail-pane locale bytes section, remove-override action) | 1 week | ✓ step 24 — backend (24 backend) + UX (24 UX) |
 | Picker accept-filter kind-compat enforcement | 1 day | ✓ step 23 |
