@@ -12,17 +12,31 @@
  * large-video path would need true streaming; calling sites that need that
  * can compose the lower-level primitives (sniffMimeFromStream, hashStream,
  * atomicWriteStream) directly.
+ *
+ * History atomicity:
+ *   When `history` is provided, ingest records ONE revision covering the
+ *   manifest + primary bytes + every variant. Recording happens BEFORE any
+ *   writes so the recorder's first-time baseline scan captures pre-op
+ *   state — same pattern as `replace.ts`. If recording succeeds but a
+ *   subsequent write fails, the revision references blobs we never
+ *   persisted; that's recoverable (history-restorer degrades gracefully
+ *   on missing blobs) and rare (writes after a successful record fail
+ *   only on transient storage errors), and far better than the inverse
+ *   (writes succeed, recorder captures post-op state, undo is a no-op).
  */
+import type { ContentRoot } from '../content-root.js'
+import type { HistoryProvider } from '../history.js'
+import { recordWrite, type WrittenItem } from '../history-recorder.js'
 import type { AssetManifest, AssetVariant } from '../schema/types.js'
 import type { StorageProvider } from '../types.js'
 import { rmIgnoreMissing } from '../providers/_rm-ignore-missing.js'
 import { AssetMimeMismatchError, AssetStorageError, AssetVariantGenerationError } from './errors.js'
 import { ASSET_HASH_LENGTH, hashBytes } from './hash.js'
 import { extractImageDimensions } from './image-metadata.js'
-import { assetBytesPath, assetVariantBytesPath, writeManifest } from './manifest.js'
+import { assetBytesPath, assetVariantBytesPath, manifestPath, writeManifest } from './manifest.js'
 import { sniffMimeFromStream } from './mime-sniff.js'
 import { type UploadPolicy, validateUpload } from './validate.js'
-import { generateVariants } from './variants.js'
+import { generateVariants, type GeneratedVariant } from './variants.js'
 
 /** Ext-from-MIME for the v1 allowlist (JPEG, PNG). */
 const EXT_BY_MIME: Record<string, string> = {
@@ -50,6 +64,17 @@ export interface IngestInput {
    * limits are honored.
    */
   policy?: UploadPolicy
+  /**
+   * Optional history provider. When set, ingest records ONE revision
+   * covering manifest + primary bytes + variants. Caller must also pass
+   * `contentRoot` so the recorder can scan the pre-op baseline on its
+   * first call.
+   */
+  history?: HistoryProvider
+  /** Required when `history` is set — content root for the baseline scan. */
+  contentRoot?: ContentRoot
+  /** Author identifier passed through to the history revision. */
+  author?: string
 }
 
 export interface IngestResult {
@@ -98,48 +123,32 @@ export async function ingestAsset(input: IngestInput): Promise<IngestResult> {
 
   const canonicalName = baseName(input.requestedName)
 
-  // Persist primary bytes.
-  const bytesPath = `${input.assetsRoot}/${assetBytesPath(canonicalName, hash, bytesExt)}`
-  try {
-    await input.storage.writeStream(bytesPath, byteStreamFrom(buffer))
-  } catch (err) {
-    throw new AssetStorageError('write', bytesPath, err)
-  }
-
-  // Generate + persist responsive variants. Failures here roll back
-  // everything we've written so the upload fails atomically — the
-  // manifest is the one visible "this asset exists" record and we
-  // only write it when primary bytes + variants are all on disk.
-  //
-  // v1: images only (JPEG + PNG, per the allowlist above). Non-images
-  // yield no variants; the generator returns [] and we move on.
-  const writtenVariants: AssetVariant[] = []
+  // Generate variants in memory before we touch storage. We need them
+  // both for the manifest's `variants` field and (when history is set)
+  // for the WrittenItem list passed to the recorder. Variant generation
+  // can fail (sharp rejects malformed input); failing here means nothing
+  // has been persisted yet so there's no rollback to do.
+  const generatedVariants: GeneratedVariant[] = []
   if ((mime ?? '').startsWith('image/')) {
     try {
       const generated = await generateVariants(buffer)
-      for (const v of generated) {
-        const relPath = assetVariantBytesPath(canonicalName, hash, bytesExt, v.width)
-        const absPath = `${input.assetsRoot}/${relPath}`
-        try {
-          await input.storage.writeStream(absPath, byteStreamFrom(v.bytes))
-        } catch (err) {
-          await rollback(input.storage, writtenPathsSoFar(bytesPath, writtenVariants, input.assetsRoot))
-          throw new AssetStorageError('write', absPath, err)
-        }
-        writtenVariants.push({ width: v.width, path: relPath, size: v.bytes.byteLength })
-      }
+      generatedVariants.push(...generated)
     } catch (err) {
-      // Variant generation itself failed (sharp rejected the input).
-      // Roll back primary bytes so no orphan survives. AssetStorageError
-      // from the inner loop has already rolled back and we re-throw;
-      // any other error here is from generateVariants.
-      if (err instanceof AssetStorageError) throw err
-      await rollback(input.storage, writtenPathsSoFar(bytesPath, writtenVariants, input.assetsRoot))
       throw new AssetVariantGenerationError(canonicalName, err)
     }
   }
 
-  // Build + write manifest.
+  // Compose the manifest in memory. Variant paths come from the same
+  // `assetVariantBytesPath` helper used at write time — single source of
+  // truth so the manifest's `variants[i].path` always matches the
+  // on-disk filename.
+  const manifestVariants: AssetVariant[] = generatedVariants.map(v => ({
+    width: v.width,
+    path: assetVariantBytesPath(canonicalName, hash, bytesExt, v.width),
+    size: v.bytes.byteLength,
+  }))
+  const bytesRel = assetBytesPath(canonicalName, hash, bytesExt)
+  const bytesPath = `${input.assetsRoot}/${bytesRel}`
   const manifest: AssetManifest = {
     version: 1,
     name: canonicalName,
@@ -150,12 +159,71 @@ export async function ingestAsset(input: IngestInput): Promise<IngestResult> {
     hash,
     width: dims?.width ?? null,
     height: dims?.height ?? null,
-    variants: writtenVariants,
+    variants: manifestVariants,
     alt: input.alt,
     uploadedAt: new Date().toISOString(),
     uploadedBy: input.uploadedBy,
   }
-  await writeManifest(input.storage, input.assetsRoot, manifest)
+  const manifestRelPath = manifestPath(canonicalName)
+  const manifestSerialized = `${JSON.stringify(manifest, null, 2)}\n`
+
+  // Record history BEFORE any writes. Mirrors the replace.ts pattern:
+  // recorder's first-time baseline scan must see pre-op state. Items
+  // include the manifest (text), primary bytes (binary), and every
+  // variant (binary) — the snapshot covers the full asset.
+  if (input.history) {
+    if (!input.contentRoot) {
+      throw new Error('ingestAsset: history requires contentRoot')
+    }
+    const items: WrittenItem[] = [
+      { path: `${input.assetsRoot}/${manifestRelPath}`, content: manifestSerialized },
+      { path: bytesPath, content: buffer },
+      ...generatedVariants.map(v => ({
+        path: `${input.assetsRoot}/${assetVariantBytesPath(canonicalName, hash, bytesExt, v.width)}`,
+        content: v.bytes,
+      })),
+    ]
+    await recordWrite({
+      history: input.history,
+      contentRoot: input.contentRoot,
+      operation: 'save',
+      author: input.author,
+      items,
+      message: `Upload ${canonicalName}`,
+    })
+  }
+
+  // Persist primary bytes.
+  try {
+    await input.storage.writeStream(bytesPath, byteStreamFrom(buffer))
+  } catch (err) {
+    throw new AssetStorageError('write', bytesPath, err)
+  }
+
+  // Persist variants. Failures roll back primary bytes + previously
+  // written variants so partial uploads don't leak orphans on disk.
+  // The manifest is the only "this asset exists" record; we only write
+  // it after every byte file has landed.
+  const writtenVariantPaths: string[] = []
+  for (const v of generatedVariants) {
+    const relPath = assetVariantBytesPath(canonicalName, hash, bytesExt, v.width)
+    const absPath = `${input.assetsRoot}/${relPath}`
+    try {
+      await input.storage.writeStream(absPath, byteStreamFrom(v.bytes))
+    } catch (err) {
+      await rollback(input.storage, [bytesPath, ...writtenVariantPaths])
+      throw new AssetStorageError('write', absPath, err)
+    }
+    writtenVariantPaths.push(absPath)
+  }
+
+  // Write manifest last — it's the visible "asset exists" record.
+  try {
+    await writeManifest(input.storage, input.assetsRoot, manifest)
+  } catch (err) {
+    await rollback(input.storage, [bytesPath, ...writtenVariantPaths])
+    throw err
+  }
 
   return { manifest, bytesPath }
 }
@@ -180,17 +248,6 @@ async function rollback(storage: StorageProvider, paths: readonly string[]): Pro
       /* best-effort */
     }
   }
-}
-
-/**
- * Collect every absolute path that's been written so far in the ingest
- * pipeline — primary bytes + any variants that landed before the
- * failure. Pulled out to keep the rollback call sites readable and
- * to centralize the `{assetsRoot}/{variant.path}` path composition
- * that two call sites would otherwise duplicate.
- */
-function writtenPathsSoFar(primaryBytesPath: string, variants: readonly AssetVariant[], assetsRoot: string): string[] {
-  return [primaryBytesPath, ...variants.map(v => `${assetsRoot}/${v.path}`)]
 }
 
 /**
