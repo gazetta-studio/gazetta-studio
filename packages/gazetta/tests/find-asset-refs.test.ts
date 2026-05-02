@@ -6,65 +6,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { findAssetRefs } from '../src/assets/find-refs.js'
 import type { StorageProvider } from '../src/types.js'
-
-interface MemFile {
-  content: string
-}
+import { memoryStorage as sharedMemoryStorage } from './_helpers/memory-storage.js'
 
 function createMemoryStorage(initial: Record<string, string> = {}): StorageProvider {
-  const files = new Map<string, MemFile>()
-  for (const [path, content] of Object.entries(initial)) {
-    files.set(path, { content })
-  }
-
-  const provider: StorageProvider = {
-    async readFile(path) {
-      const f = files.get(path)
-      if (!f) throw new Error(`ENOENT: ${path}`)
-      return f.content
-    },
-    async writeFile(path, content) {
-      files.set(path, { content })
-    },
-    async exists(path) {
-      if (files.has(path)) return true
-      // Directory: any file with this prefix exists
-      const prefix = path.endsWith('/') ? path : path + '/'
-      for (const p of files.keys()) {
-        if (p.startsWith(prefix)) return true
-      }
-      return false
-    },
-    async readDir(path) {
-      const prefix = path === '' ? '' : path.endsWith('/') ? path : path + '/'
-      const seen = new Map<string, boolean>()
-      let found = false
-      for (const p of files.keys()) {
-        if (!p.startsWith(prefix)) continue
-        found = true
-        const rest = p.slice(prefix.length)
-        const slashIdx = rest.indexOf('/')
-        if (slashIdx === -1) {
-          seen.set(rest, false)
-        } else {
-          seen.set(rest.slice(0, slashIdx), true)
-        }
-      }
-      if (!found && prefix !== '') throw new Error(`ENOENT: ${path}`)
-      return [...seen.entries()].map(([name, isDirectory]) => ({ name, isDirectory }))
-    },
-    async mkdir() {
-      /* no-op: paths auto-create */
-    },
-    async rm(path) {
-      files.delete(path)
-      const prefix = path.endsWith('/') ? path : path + '/'
-      for (const p of [...files.keys()]) {
-        if (p.startsWith(prefix)) files.delete(p)
-      }
-    },
-  }
-  return provider
+  const s = sharedMemoryStorage()
+  s.seed(initial)
+  return s
 }
 
 function pageJson(template: string, extra: object = {}): string {

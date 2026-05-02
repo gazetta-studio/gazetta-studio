@@ -15,24 +15,15 @@ import { localeManifestVariantFor } from '../src/assets/manifest-locale.js'
 import { AssetManifestCorruptError } from '../src/assets/errors.js'
 import { buildSelector } from '../src/schema/dimensions.js'
 import type { FontLocaleAdditiveManifest, LocaleOverrideManifest } from '../src/schema/types.js'
+import { memoryStorage as sharedMemoryStorage } from './_helpers/memory-storage.js'
 
 function memoryStorage(files: Record<string, string>): StorageProvider {
-  return {
-    async readFile(p) {
-      const v = files[p]
-      if (v === undefined) throw new Error(`ENOENT: ${p}`)
-      return v
-    },
-    async writeFile() {},
-    async exists(p) {
-      return p in files
-    },
-    async readDir() {
-      return []
-    },
-    async mkdir() {},
-    async rm() {},
-  }
+  // Thin wrapper over the shared helper — pre-seeds with text entries so
+  // each test reads "given these manifests on disk, …" without re-explaining
+  // the mock construction.
+  const s = sharedMemoryStorage()
+  s.seed(files)
+  return s
 }
 
 const frSelector = buildSelector({ locale: 'fr' })!

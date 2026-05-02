@@ -380,11 +380,21 @@ export interface ByteRange {
  * object; multipart uploads commit atomically). `readStream` must honor
  * the optional `range` argument for video/audio seek.
  *
- * Binary streaming is part of the base contract, not a separate
- * capability — every provider Gazetta ships supports it, and custom
- * providers must too. Authors writing a non-streaming custom provider
- * get a compile-time error (missing `readStream`/`writeStream`) rather
- * than a runtime capability check that surfaces at publish time.
+ * Three I/O patterns, each with a use case:
+ *   - **Text** (`readFile` / `writeFile`): small string content
+ *     (manifests, YAML, HTML). Encodes/decodes UTF-8 internally.
+ *   - **Bytes** (`readBytes` / `writeBytes`): small binary content
+ *     (asset bytes, history blobs). Buffer-shaped — bytes in, bytes
+ *     out. No string round-trip.
+ *   - **Stream** (`readStream` / `writeStream`): unbounded content
+ *     (large uploads, range-served videos). Used by ingest and the
+ *     asset-serve route.
+ *
+ * All three are part of the base contract, not separate capabilities —
+ * every provider Gazetta ships supports them, and custom providers
+ * must too. Authors writing a non-conforming provider get a compile-
+ * time error rather than a runtime capability check that surfaces
+ * at publish time.
  */
 export interface StorageProvider {
   readFile(path: string): Promise<string>
@@ -393,6 +403,18 @@ export interface StorageProvider {
   writeFile(path: string, content: string): Promise<void>
   mkdir(path: string): Promise<void>
   rm(path: string): Promise<void>
+  /**
+   * Read the full byte content of `path`. Bounded — for unbounded /
+   * range-served reads, use `readStream`. Used by history-blob reads.
+   */
+  readBytes(path: string): Promise<Uint8Array>
+  /**
+   * Write `content` to `path` atomically. Bounded — for unbounded
+   * uploads, use `writeStream`. Used by history-blob writes (and any
+   * future write path that has bytes-in-hand and doesn't need
+   * streaming).
+   */
+  writeBytes(path: string, content: Uint8Array): Promise<void>
   readStream(path: string, range?: ByteRange): Promise<ReadableStream<Uint8Array>>
   writeStream(path: string, stream: ReadableStream<Uint8Array>): Promise<void>
 }

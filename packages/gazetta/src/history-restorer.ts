@@ -75,11 +75,15 @@ export async function restoreRevision(opts: RestoreRevisionOptions): Promise<Rev
   }
 
   for (const [path, hash] of toWrite) {
-    const content = await history.readBlob(hash)
+    const bytes = await history.readBlob(hash)
     const abs = contentRoot.path(path)
     const parent = abs.substring(0, abs.lastIndexOf('/'))
     if (parent) await contentRoot.storage.mkdir(parent)
-    await contentRoot.storage.writeFile(abs, content)
+    // Restore via writeBytes — uniform bytes-in for both text and
+    // binary content. Text blobs are UTF-8-encoded bytes
+    // (indistinguishable from what writeFile would have stored);
+    // binary blobs (asset bytes, variants) round-trip raw.
+    await contentRoot.storage.writeBytes(abs, bytes)
   }
 
   // After restoring manifests, rebuild the asset-refs sidecar index.
@@ -120,13 +124,17 @@ export async function restoreRevision(opts: RestoreRevisionOptions): Promise<Rev
  * Re-record an existing snapshot as a forward revision. Blobs already
  * exist (they're the same content), so the HistoryProvider's exists()
  * check skips the writes — cheap.
+ *
+ * Items map carries `Uint8Array` because that's what `readBlob`
+ * returns. Text and binary blobs round-trip identically — the
+ * provider hashes raw bytes either way, so dedup holds.
  */
 async function recordFromSnapshot(
   history: HistoryProvider,
   target: RevisionManifest,
   meta: { operation: RevisionOperation; restoredFrom?: string; author?: string; message?: string },
 ): Promise<Revision> {
-  const items = new Map<string, string>()
+  const items = new Map<string, Uint8Array>()
   for (const [path, hash] of Object.entries(target.snapshot)) {
     items.set(path, await history.readBlob(hash))
   }

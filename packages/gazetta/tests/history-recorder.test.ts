@@ -4,61 +4,13 @@
  * overlay deltas from the previous snapshot.
  */
 import { describe, it, expect, beforeEach } from 'vitest'
-import type { StorageProvider } from '../src/types.js'
 import { createContentRoot } from '../src/content-root.js'
 import { createHistoryProvider } from '../src/history-provider.js'
 import { recordWrite } from '../src/history-recorder.js'
+import { memoryStorage } from './_helpers/memory-storage.js'
 
-function memoryStorage(): StorageProvider & {
-  dump(): Map<string, string>
-  seed(entries: Record<string, string>): void
-} {
-  const files = new Map<string, string>()
-  return {
-    async readFile(path) {
-      const v = files.get(path)
-      if (v === undefined) throw new Error(`ENOENT: ${path}`)
-      return v
-    },
-    async writeFile(path, content) {
-      files.set(path, content)
-    },
-    async exists(path) {
-      return files.has(path)
-    },
-    async readDir(path) {
-      const prefix = path.endsWith('/') ? path : path + '/'
-      const dirs = new Set<string>()
-      const files_ = new Set<string>()
-      for (const p of files.keys()) {
-        if (!p.startsWith(prefix)) continue
-        const rest = p.slice(prefix.length)
-        const seg = rest.split('/')[0]
-        if (!seg) continue
-        if (rest.includes('/')) dirs.add(seg)
-        else files_.add(seg)
-      }
-      return [
-        ...[...dirs].map(name => ({ name, isDirectory: true, isFile: false })),
-        ...[...files_].filter(n => !dirs.has(n)).map(name => ({ name, isDirectory: false, isFile: true })),
-      ]
-    },
-    async mkdir() {},
-    async rm(path) {
-      files.delete(path)
-      const prefix = path.endsWith('/') ? path : path + '/'
-      for (const p of [...files.keys()]) {
-        if (p.startsWith(prefix)) files.delete(p)
-      }
-    },
-    dump() {
-      return files
-    },
-    seed(entries) {
-      for (const [k, v] of Object.entries(entries)) files.set(k, v)
-    },
-  }
-}
+// memoryStorage now imported from _helpers — all storage mocks share
+// one canonical impl that satisfies the full StorageProvider contract.
 
 describe('recordWrite', () => {
   let storage: ReturnType<typeof memoryStorage>

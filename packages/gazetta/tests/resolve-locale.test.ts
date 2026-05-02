@@ -17,24 +17,14 @@ import type { ResolvedLocales } from '../src/locale.js'
 import type { ResolvedThemes } from '../src/themes.js'
 import { type AssetResolveContext, resolveAssetRefs } from '../src/assets/resolve.js'
 import type { AssetManifest } from '../src/schema/types.js'
+import { memoryStorage as sharedMemoryStorage } from './_helpers/memory-storage.js'
 
 function memoryStorage(files: Record<string, string>): StorageProvider {
-  return {
-    async readFile(p) {
-      const v = files[p]
-      if (v === undefined) throw new Error(`ENOENT: ${p}`)
-      return v
-    },
-    async writeFile() {},
-    async exists(p) {
-      return p in files
-    },
-    async readDir() {
-      return []
-    },
-    async mkdir() {},
-    async rm() {},
-  }
+  // Pre-seed the shared mock with text entries — keeps each test focused
+  // on "given these manifests on disk, what does the resolver produce".
+  const s = sharedMemoryStorage()
+  s.seed(files)
+  return s
 }
 
 const validHero: AssetManifest = {

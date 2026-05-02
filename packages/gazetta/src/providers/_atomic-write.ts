@@ -36,6 +36,19 @@ export async function atomicWriteString(path: string, content: string): Promise<
   await writeFileAtomic(path, content, 'utf-8')
 }
 
+/**
+ * Atomic byte write — bytes-in, no string round-trip. Used by callers
+ * that have a buffer in hand (history blobs, bounded asset writes).
+ * Same write-then-rename guarantees as atomicWriteString.
+ */
+export async function atomicWriteBytes(path: string, bytes: Uint8Array): Promise<void> {
+  await mkdir(dirname(path), { recursive: true })
+  // write-file-atomic accepts Buffer | Uint8Array directly; no encoding
+  // applied when the second arg is bytes. Wrap in Buffer for consistent
+  // typing across Node versions (Buffer extends Uint8Array).
+  await writeFileAtomic(path, Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength))
+}
+
 export async function atomicWriteStream(path: string, stream: ReadableStream<Uint8Array>): Promise<void> {
   // Parent directory must exist before createWriteStream can create the file.
   // (`write-file-atomic` handles this for text; for streams we do it ourselves.)
