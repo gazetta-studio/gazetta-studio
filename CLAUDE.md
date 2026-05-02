@@ -28,6 +28,8 @@ Stateless CMS that structures websites as composable fragments. All state lives 
 - `.claude/rules/design-media.md` — Asset model, storage, refs, resolver, delete-with-replace, admin UX, i18n, distinctive choices
 - `.claude/rules/design-media-reference.md` — Fact-checked tooling specifics, library versions, licensing, codebase-alignment notes
 - `.claude/rules/design-media-implementation.md` — v1 scope + estimates, phased alt, out-of-v1, v1.5/v2 capabilities, frontier opportunities, open questions, migration
+- `.claude/rules/design-ai.md` — AI integration: layered architecture, alt-text task, providers (Anthropic/OpenAI/Ollama), refusal handling, prompt composition
+- `.claude/rules/design-ai-implementation.md` — v1.5 commit sequence, scope, deferred items, open questions, migration
 - `.claude/rules/architecture.md` — System architecture and package layout
 - `.claude/rules/testing-plan.md` — Active testing coverage + e2e restructure plan (auto-loads when editing tests)
 
