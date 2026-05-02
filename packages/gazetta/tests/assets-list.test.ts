@@ -88,6 +88,8 @@ describe('listAssets', () => {
       height: 100,
       alt: 'Mountain',
       uploadedAt: '2026-04-21T00:00:00.000Z',
+      overrideLocales: [],
+      overrideThemes: [],
     })
     // uploadedBy should NOT be in the summary
     expect('uploadedBy' in summary).toBe(false)
@@ -112,5 +114,31 @@ describe('listAssets', () => {
     } finally {
       console.warn = origWarn
     }
+  })
+
+  it('reports override locales/themes from sibling locale-variant manifests', async () => {
+    await mkdir(join(testDir, 'assets'), { recursive: true })
+    const fs = createFilesystemProvider(testDir)
+
+    // Default manifest + two locale variants + a theme variant. The
+    // locale variants each get their own bytes hash; we drop the
+    // sibling JSON files directly to exercise the directory-scan path.
+    await writeManifest(fs, 'assets', sampleManifest({ name: 'hero' }))
+    await writeFile(
+      join(testDir, 'assets/hero.asset.fr.json'),
+      JSON.stringify({ version: 1, name: 'hero', alt: 'fr alt' }),
+    )
+    await writeFile(
+      join(testDir, 'assets/hero.asset.ar.json'),
+      JSON.stringify({ version: 1, name: 'hero', alt: 'ar alt' }),
+    )
+    await writeFile(
+      join(testDir, 'assets/hero.asset.dark.json'),
+      JSON.stringify({ version: 1, name: 'hero', alt: 'dark alt' }),
+    )
+
+    const [summary] = await listAssets({ storage: fs, assetsRoot: 'assets' })
+    expect(summary.overrideLocales).toEqual(['ar', 'fr'])
+    expect(summary.overrideThemes).toEqual(['dark'])
   })
 })

@@ -5,6 +5,7 @@ import AssetLibraryGrid from '../src/client/components/AssetLibraryGrid.vue'
 import { useAssetsListStore } from '../src/client/stores/assetsList.js'
 import { useAssetsPickerStore } from '../src/client/stores/assetsPicker.js'
 import { useAssetsSelectionStore } from '../src/client/stores/assetsSelection.js'
+import { useSiteStore } from '../src/client/stores/site.js'
 import type { AssetSummary } from '../src/client/api/client.js'
 
 function sample(overrides: Partial<AssetSummary> = {}): AssetSummary {
@@ -18,8 +19,19 @@ function sample(overrides: Partial<AssetSummary> = {}): AssetSummary {
     height: 100,
     alt: null,
     uploadedAt: '2026-04-22T00:00:00.000Z',
+    overrideLocales: [],
+    overrideThemes: [],
     ...overrides,
   }
+}
+
+function setSiteLocales(supported: string[], defaultLocale: string) {
+  const site = useSiteStore()
+  site.manifest = {
+    name: 'test',
+    locale: defaultLocale,
+    locales: { supported },
+  } as unknown as typeof site.manifest
 }
 
 beforeEach(() => {
@@ -164,6 +176,45 @@ describe('AssetLibraryGrid', () => {
       const empty = wrapper.find('[data-testid="asset-grid-empty"]')
       expect(empty.exists()).toBe(true)
       expect(empty.text()).toContain('No assets match the requested type')
+    })
+  })
+
+  describe('locale coverage badges', () => {
+    it('does not render the badge strip when i18n is disabled', () => {
+      const list = useAssetsListStore()
+      list.loaded = true
+      list.assets = [sample({ name: 'hero' })]
+
+      const wrapper = mount(AssetLibraryGrid)
+      expect(wrapper.find('[data-testid="asset-card-coverage-hero"]').exists()).toBe(false)
+    })
+
+    it('renders one chip per supported locale, with default first', () => {
+      setSiteLocales(['en', 'fr', 'ar'], 'en')
+      const list = useAssetsListStore()
+      list.loaded = true
+      list.assets = [sample({ name: 'hero', overrideLocales: ['fr'] })]
+
+      const wrapper = mount(AssetLibraryGrid)
+      expect(wrapper.find('[data-testid="coverage-chip-hero-en"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="coverage-chip-hero-fr"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="coverage-chip-hero-ar"]').exists()).toBe(true)
+    })
+
+    it('marks default locale as default, override locale as override, missing as fallback', () => {
+      setSiteLocales(['en', 'fr', 'ar'], 'en')
+      const list = useAssetsListStore()
+      list.loaded = true
+      list.assets = [sample({ name: 'hero', overrideLocales: ['fr'] })]
+
+      const wrapper = mount(AssetLibraryGrid)
+      const en = wrapper.find('[data-testid="coverage-chip-hero-en"]')
+      const fr = wrapper.find('[data-testid="coverage-chip-hero-fr"]')
+      const ar = wrapper.find('[data-testid="coverage-chip-hero-ar"]')
+
+      expect(en.classes()).toContain('coverage-default')
+      expect(fr.classes()).toContain('coverage-override')
+      expect(ar.classes()).toContain('coverage-fallback')
     })
   })
 })

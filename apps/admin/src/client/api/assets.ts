@@ -104,6 +104,70 @@ export async function replaceAsset(oldName: string, newName: string): Promise<vo
   throw await parseAssetError(res, 'Replace failed')
 }
 
+/** Selector identifying which override (locale and/or theme) to write or remove. */
+export interface AssetSelector {
+  locale?: string
+  theme?: string
+}
+
+function selectorQuery(selector: AssetSelector): string {
+  const params = new URLSearchParams()
+  if (selector.locale) params.set('locale', selector.locale)
+  if (selector.theme) params.set('theme', selector.theme)
+  return params.toString()
+}
+
+/**
+ * Upload a per-locale (or per-theme) bytes override for an existing
+ * asset. The default asset must already exist; the override's MIME
+ * must share the same kind category as the default (jpeg→png ok,
+ * image→pdf rejected with 409 AssetKindMismatchError).
+ */
+export async function uploadLocaleBytes(
+  assetName: string,
+  selector: AssetSelector,
+  file: File,
+): Promise<UploadedAsset> {
+  const form = new FormData()
+  form.set('file', file)
+  const qs = selectorQuery(selector)
+  const res = await fetch(apiUrl(`/assets/${encodeURIComponent(assetName)}/locale-bytes?${qs}`), {
+    method: 'POST',
+    headers: authHeaders(),
+    body: form,
+  })
+  if (res.ok) return (await res.json()) as UploadedAsset
+  if (res.status === 409) throw await parseKindMismatchResponse(res, assetName, assetName)
+  throw await parseAssetError(res, 'Locale-bytes upload failed')
+}
+
+/**
+ * Remove a per-locale (or per-theme) bytes override. The default asset
+ * is unaffected; the locale falls back to default bytes.
+ */
+export async function removeLocaleOverride(assetName: string, selector: AssetSelector): Promise<void> {
+  const qs = selectorQuery(selector)
+  const res = await fetch(apiUrl(`/assets/${encodeURIComponent(assetName)}/locale-bytes?${qs}`), {
+    method: 'DELETE',
+    headers: authHeaders(),
+  })
+  if (res.status === 204) return
+  throw await parseAssetError(res, 'Override removal failed')
+}
+
+/**
+ * Fetch a single asset's summary including override-locale/theme lists.
+ * The detail pane uses this to render the locale section accurately
+ * after upload/remove operations.
+ */
+export async function getAsset(name: string): Promise<AssetSummary> {
+  const res = await fetch(apiUrl(`/assets/${encodeURIComponent(name)}`), {
+    headers: authHeaders(),
+  })
+  if (res.ok) return (await res.json()) as AssetSummary
+  throw await parseAssetError(res, 'Asset fetch failed')
+}
+
 /** Read a 409 response body and return a typed `AssetInUseError`. */
 async function parseInUseResponse(res: Response, fallbackName: string): Promise<AssetInUseError> {
   const body = (await res.json().catch(() => ({}))) as Partial<AssetInUseResponse>

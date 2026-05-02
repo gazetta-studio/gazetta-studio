@@ -18,12 +18,23 @@
 import type { StorageProvider } from '../types.js'
 import type { AssetManifest, AssetSummary } from '../schema/types.js'
 import { AssetStorageError } from './errors.js'
+import { parseManifestFilename } from './manifest-filename.js'
 import { readManifest } from './manifest.js'
 
 export type { AssetSummary }
 
-/** Project a full manifest to its library-list summary shape. */
-export function toSummary(manifest: AssetManifest): AssetSummary {
+/**
+ * Project a full manifest to its library-list summary shape. Override
+ * locale/theme lists are passed in by the caller — `toSummary` is pure
+ * and doesn't do I/O. Single-asset GET passes empty arrays + an
+ * optional override-discovery pass; the bulk list passes pre-bucketed
+ * results from the directory scan.
+ */
+export function toSummary(
+  manifest: AssetManifest,
+  overrideLocales: readonly string[] = [],
+  overrideThemes: readonly string[] = [],
+): AssetSummary {
   return {
     name: manifest.name,
     kind: manifest.kind,
@@ -34,6 +45,8 @@ export function toSummary(manifest: AssetManifest): AssetSummary {
     height: manifest.height,
     alt: manifest.alt,
     uploadedAt: manifest.uploadedAt,
+    overrideLocales: [...overrideLocales].sort(),
+    overrideThemes: [...overrideThemes].sort(),
   }
 }
 
@@ -47,6 +60,12 @@ export interface ListAssetsInput {
  * List every asset on the target. Returns an empty array when the `assets/`
  * directory doesn't exist — this is valid for a target that's never received
  * any assets (same "empty is fine" policy as pages/fragments).
+ *
+ * Override-locale/theme detection happens in the same directory scan —
+ * no extra I/O. We bucket every `*.asset.json` file by its asset name;
+ * default manifests get loaded into summaries, and locale/theme variant
+ * filenames contribute to the parent asset's `overrideLocales` /
+ * `overrideThemes` lists.
  */
 export async function listAssets(input: ListAssetsInput): Promise<AssetSummary[]> {
   let entries: Array<{ name: string; isDirectory: boolean }>
@@ -58,16 +77,35 @@ export async function listAssets(input: ListAssetsInput): Promise<AssetSummary[]
     throw new AssetStorageError('read', input.assetsRoot, err)
   }
 
-  const summaries: AssetSummary[] = []
+  // Bucket entries by asset name in one pass: identify the default
+  // manifest filenames and collect each asset's locale/theme variants
+  // alongside. The variants are detected via parseManifestFilename —
+  // same parser used by enumerateAssetStoragePaths, so the two paths
+  // can't drift on what counts as a valid override filename.
+  const defaultNames: string[] = []
+  const overridesByAsset = new Map<string, { locales: string[]; themes: string[] }>()
   for (const entry of entries) {
     if (entry.isDirectory) continue
-    if (!entry.name.endsWith('.asset.json')) continue
+    const parsed = parseManifestFilename(entry.name)
+    if (!parsed) continue
+    if (parsed.selector === null) {
+      defaultNames.push(parsed.assetName)
+      continue
+    }
+    const bucket = overridesByAsset.get(parsed.assetName) ?? { locales: [], themes: [] }
+    const locale = parsed.selector.get('locale')
+    const theme = parsed.selector.get('theme')
+    if (locale !== undefined && !bucket.locales.includes(locale)) bucket.locales.push(locale)
+    if (theme !== undefined && !bucket.themes.includes(theme)) bucket.themes.push(theme)
+    overridesByAsset.set(parsed.assetName, bucket)
+  }
 
-    // Asset name is the filename minus the `.asset.json` suffix.
-    const assetName = entry.name.slice(0, -'.asset.json'.length)
+  const summaries: AssetSummary[] = []
+  for (const assetName of defaultNames) {
     try {
       const manifest = await readManifest(input.storage, input.assetsRoot, assetName)
-      summaries.push(toSummary(manifest))
+      const overrides = overridesByAsset.get(assetName) ?? { locales: [], themes: [] }
+      summaries.push(toSummary(manifest, overrides.locales, overrides.themes))
     } catch (err) {
       // Don't fail the whole listing on one corrupt/missing manifest.
       // eslint-disable-next-line no-console
