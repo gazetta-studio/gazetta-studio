@@ -38,7 +38,7 @@ import type { HistoryProvider } from '../history.js'
 import { createContentRoot } from '../content-root.js'
 import { allFragmentEntries, allPageEntries, loadSite } from '../site-loader.js'
 import { recordWrite, type WrittenItem } from '../history-recorder.js'
-import { assetStoragePaths } from './asset-paths.js'
+import { enumerateAssetStoragePaths } from './asset-paths.js'
 import { AssetManifestNotFoundError, AssetNameCollisionError, AssetStorageError } from './errors.js'
 import { rmIgnoreMissing } from '../providers/_rm-ignore-missing.js'
 import { manifestPath, readManifest, writeManifest, assetBytesPath, assetVariantBytesPath } from './manifest.js'
@@ -108,7 +108,21 @@ export async function renameAsset(input: RenameAssetInput): Promise<RenameAssetR
   // Bytes don't change during rename; only the filename does. The hash
   // stays the same, the byte content is identical — hash-in-path means
   // {oldName}-{hash}.jpg → {newName}-{hash}.jpg with the same bytes.
-  const oldPaths = assetStoragePaths(input.assetsRoot, oldManifest)
+  const oldPaths = await enumerateAssetStoragePaths(input.storage, input.assetsRoot, oldManifest)
+  // v1 limitation: rename of an asset with locale/theme overrides is
+  // out of scope. The default-only happy path is kept simple; full
+  // override-aware rename is tracked as a follow-up (see
+  // design-media-implementation.md → "out of v1"). Surface as a typed
+  // error so callers can tell the author to remove overrides first.
+  if (oldPaths.overrides.length > 0) {
+    throw new AssetStorageError(
+      'write',
+      oldPaths.defaultManifest,
+      new Error(
+        `Cannot rename "${input.oldName}" — asset has ${oldPaths.overrides.length} locale/theme override(s). Remove overrides before renaming.`,
+      ),
+    )
+  }
   const ext = extFromMime(oldManifest.mime)
   if (!ext) {
     // Should not reach here — assetStoragePaths would have thrown

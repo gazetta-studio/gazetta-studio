@@ -38,7 +38,7 @@ import type { HistoryProvider } from '../history.js'
 import { createContentRoot } from '../content-root.js'
 import { allFragmentEntries, allPageEntries, loadSite } from '../site-loader.js'
 import { recordWrite, type WrittenItem } from '../history-recorder.js'
-import { assetPathsInRemovalOrder, assetStoragePaths } from './asset-paths.js'
+import { assetPathsInRemovalOrder, enumerateAssetStoragePaths } from './asset-paths.js'
 import { checkKindCompat } from './kind-compat.js'
 import { AssetKindMismatchError, AssetStorageError } from './errors.js'
 import { rmIgnoreMissing } from '../providers/_rm-ignore-missing.js'
@@ -210,7 +210,9 @@ export async function replaceAsset(input: ReplaceAssetInput): Promise<ReplaceAss
   // removal-safe order. Reuses the same enumeration as `deleteAsset`;
   // we don't invoke deleteAsset directly because it would re-run ref
   // scanning (refs are 0 now, so it'd pass, but the scan is waste).
-  const paths = assetStoragePaths(input.assetsRoot, oldManifest)
+  // Enumerated form picks up any locale/theme overrides on disk so the
+  // replace removes them too — atomic with the rest of the operation.
+  const paths = await enumerateAssetStoragePaths(input.storage, input.assetsRoot, oldManifest)
   for (const path of assetPathsInRemovalOrder(paths)) {
     try {
       await rmIgnoreMissing(input.storage, path)

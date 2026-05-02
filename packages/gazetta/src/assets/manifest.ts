@@ -100,3 +100,30 @@ export async function writeManifest(
     throw new AssetStorageError('write', path, err)
   }
 }
+
+/**
+ * Write a locale-override manifest at `{name}.asset.{...selector}.json`.
+ * Same atomicity contract as `writeManifest` (storage provider handles
+ * write-then-rename atomicity); this function only serializes + dispatches.
+ *
+ * The locale manifest type isn't bound here — callers pass any
+ * JSON-serializable shape that conforms to `LocaleOverrideManifest` or
+ * `FontLocaleAdditiveManifest`. The validators in `manifest-locale.ts`
+ * are responsible for read-side shape enforcement; the writer trusts
+ * its caller.
+ */
+export async function writeLocaleManifest(
+  storage: StorageProvider,
+  assetsRoot: string,
+  assetName: string,
+  selector: Selector,
+  manifest: object,
+): Promise<void> {
+  const path = `${assetsRoot}/${manifestPath(assetName, selector)}`
+  const serialized = `${JSON.stringify(manifest, null, 2)}\n`
+  try {
+    await storage.writeFile(path, serialized)
+  } catch (err) {
+    throw new AssetStorageError('write', path, err)
+  }
+}

@@ -13,12 +13,48 @@
 import { Hono } from 'hono'
 import { deleteAsset } from '../../assets/delete.js'
 import { ingestAsset } from '../../assets/ingest.js'
+import { ingestLocaleBytes } from '../../assets/ingest-locale.js'
 import { listAssets, toSummary } from '../../assets/list.js'
 import { readManifest } from '../../assets/manifest.js'
+import { removeOverride } from '../../assets/remove-override.js'
 import { renameAsset } from '../../assets/rename.js'
 import { replaceAsset } from '../../assets/replace.js'
+import { buildSelector, type Selector } from '../../schema/dimensions.js'
+import { isValidLocale } from '../../locale.js'
+import { isValidTheme } from '../../themes.js'
 import { respondWithAssetError } from '../error-response.js'
 import type { SourceContextResolver } from '../source-context.js'
+
+/**
+ * Pull a Selector out of the request's query params, validating each
+ * dimension's value as it reads. Returns `null` when no dimension is
+ * set; throws a Response with a 400 body when any value is malformed.
+ *
+ * Per design, locale codes are BCP 47 (lowercase) and theme codes are
+ * lowercase ASCII non-locale tokens. Reuses the same validators used
+ * for filename parsing.
+ */
+function selectorFromQuery(c: { req: { query: (k: string) => string | undefined } }): Selector | null | Response {
+  const locale = c.req.query('locale')
+  const theme = c.req.query('theme')
+  if (locale === undefined && theme === undefined) return null
+  if (locale !== undefined && !isValidLocale(locale)) {
+    return new Response(JSON.stringify({ code: 'BAD_REQUEST', message: `Invalid locale code: ${locale}` }), {
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+    })
+  }
+  if (theme !== undefined && !isValidTheme(theme)) {
+    return new Response(JSON.stringify({ code: 'BAD_REQUEST', message: `Invalid theme code: ${theme}` }), {
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+    })
+  }
+  return buildSelector({
+    ...(locale !== undefined ? { locale } : {}),
+    ...(theme !== undefined ? { theme } : {}),
+  })
+}
 
 /** Where assets live, relative to the target storage root. */
 const ASSETS_ROOT = 'assets'
@@ -139,6 +175,100 @@ export function assetRoutes(resolve: SourceContextResolver) {
         newName,
         manifest: source.manifest,
         history: source.history,
+      })
+      return c.body(null, 204)
+    } catch (err) {
+      const res = respondWithAssetError(c, err)
+      if (res) return res
+      throw err
+    }
+  })
+
+  /**
+   * POST /api/assets/:name/locale-bytes — upload a locale (or theme,
+   * or compound) bytes override for an existing asset.
+   *
+   * Selector encoded as query: `?locale=fr` or `?locale=fr&theme=dark`.
+   * Both absent is a 400 — this route exists to write a non-default
+   * selector. Default-bytes upload uses POST /api/assets.
+   *
+   * Responses:
+   *   201 Created           — { manifest, bytesPath }
+   *   400 Bad Request       — invalid selector or empty selector
+   *   404 Not Found         — asset doesn't exist
+   *   409 Kind Mismatch     — override MIME category differs from default
+   *   500 Storage Failure   — underlying write failed
+   */
+  app.post('/api/assets/:name/locale-bytes', async c => {
+    const name = c.req.param('name')
+    const selectorOrErr = selectorFromQuery(c)
+    if (selectorOrErr instanceof Response) return selectorOrErr
+    if (selectorOrErr === null) {
+      return c.json({ code: 'BAD_REQUEST', message: 'Selector required (locale and/or theme)' }, 400)
+    }
+
+    const source = await resolve(c.req.query('target'))
+    const body = await c.req.parseBody()
+    const file = body.file
+    if (!(file instanceof File)) {
+      return c.json({ code: 'BAD_REQUEST', message: 'Missing or invalid "file" field' }, 400)
+    }
+
+    const targetConfig = source.targetName ? source.manifest?.targets?.[source.targetName] : undefined
+    const policy = targetConfig?.assets
+
+    try {
+      const result = await ingestLocaleBytes({
+        storage: source.storage,
+        assetsRoot: ASSETS_ROOT,
+        assetName: name,
+        selector: selectorOrErr,
+        bytes: file.stream(),
+        policy,
+        history: source.history,
+        contentRoot: source.contentRoot,
+      })
+      return c.json({ manifest: result.manifest, bytesPath: result.bytesPath }, 201)
+    } catch (err) {
+      const res = respondWithAssetError(c, err)
+      if (res) return res
+      throw err
+    }
+  })
+
+  /**
+   * DELETE /api/assets/:name/locale-bytes — remove one locale (or
+   * theme, or compound) bytes override. The default asset is unaffected;
+   * the locale falls back to default bytes after removal.
+   *
+   * Selector encoded as query (same shape as POST). Both absent is a
+   * 400 — to delete the default asset, use DELETE /api/assets/:name.
+   *
+   * Responses:
+   *   204 No Content        — success
+   *   400 Bad Request       — invalid or empty selector
+   *   404 Not Found         — asset or override doesn't exist
+   *   500 Storage Failure   — underlying rm failed
+   */
+  app.delete('/api/assets/:name/locale-bytes', async c => {
+    const name = c.req.param('name')
+    const selectorOrErr = selectorFromQuery(c)
+    if (selectorOrErr instanceof Response) return selectorOrErr
+    if (selectorOrErr === null) {
+      return c.json({ code: 'BAD_REQUEST', message: 'Selector required (locale and/or theme)' }, 400)
+    }
+
+    const source = await resolve(c.req.query('target'))
+    try {
+      await removeOverride({
+        storage: source.storage,
+        assetsRoot: ASSETS_ROOT,
+        siteDir: source.siteDir,
+        assetName: name,
+        selector: selectorOrErr,
+        history: source.history,
+        contentRoot: source.contentRoot,
+        author: '',
       })
       return c.body(null, 204)
     } catch (err) {
