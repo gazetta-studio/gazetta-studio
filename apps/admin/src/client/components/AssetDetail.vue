@@ -13,6 +13,7 @@ import { useAssetsListStore } from '../stores/assetsList.js'
 import { useAssetsSelectionStore } from '../stores/assetsSelection.js'
 import { useAssetsDeleteStore } from '../stores/assetsDelete.js'
 import { buildAssetUrl, extFromMime } from '../utils/assetUrl.js'
+import AssetDetailLocaleSection from './AssetDetailLocaleSection.vue'
 
 const list = useAssetsListStore()
 const selection = useAssetsSelectionStore()
@@ -88,6 +89,7 @@ function formatDate(iso: string): string {
           <dd>{{ formatDate(asset.uploadedAt) }}</dd>
         </div>
       </dl>
+      <AssetDetailLocaleSection :asset="asset" />
       <div class="asset-detail-actions">
         <Button
           label="Delete"

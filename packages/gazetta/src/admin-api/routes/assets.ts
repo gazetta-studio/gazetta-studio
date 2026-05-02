@@ -11,6 +11,7 @@
  * domain owns all of that (see `src/assets/`).
  */
 import { Hono } from 'hono'
+import { enumerateOverrideSlices } from '../../assets/asset-paths.js'
 import { deleteAsset } from '../../assets/delete.js'
 import { ingestAsset } from '../../assets/ingest.js'
 import { ingestLocaleBytes } from '../../assets/ingest-locale.js'
@@ -82,7 +83,20 @@ export function assetRoutes(resolve: SourceContextResolver) {
     const source = await resolve(c.req.query('target'))
     try {
       const manifest = await readManifest(source.storage, ASSETS_ROOT, name)
-      return c.json(toSummary(manifest))
+      // Single-asset GET — discover overrides via the targeted scan.
+      // Cheaper than the full list scan (one readDir of the asset's
+      // parent dir) and gives the detail pane its locale chips without
+      // a second round-trip.
+      const slices = await enumerateOverrideSlices(source.storage, ASSETS_ROOT, manifest)
+      const locales: string[] = []
+      const themes: string[] = []
+      for (const slice of slices) {
+        const locale = slice.selector.get('locale')
+        const theme = slice.selector.get('theme')
+        if (locale !== undefined && !locales.includes(locale)) locales.push(locale)
+        if (theme !== undefined && !themes.includes(theme)) themes.push(theme)
+      }
+      return c.json(toSummary(manifest, locales, themes))
     } catch (err) {
       const res = respondWithAssetError(c, err)
       if (res) return res

@@ -176,4 +176,45 @@ describe('assetsUpload store', () => {
     await new Promise(r => setTimeout(r, 0))
     expect(store.hasActive).toBe(false)
   })
+
+  describe('enqueueLocaleBytes', () => {
+    it('routes to uploadLocaleBytes with the selector', async () => {
+      const store = useAssetsUploadStore()
+      const localeUpload = vi.fn(async () => sampleResult())
+      const defaultUpload = vi.fn(async () => sampleResult())
+      store.configure({ uploadAsset: defaultUpload, uploadLocaleBytes: localeUpload })
+
+      store.enqueueLocaleBytes(fakeFile('a.jpg'), 'hero', { locale: 'fr' })
+      await new Promise(r => setTimeout(r, 0))
+
+      expect(localeUpload).toHaveBeenCalledTimes(1)
+      expect(localeUpload).toHaveBeenCalledWith('hero', { locale: 'fr' }, expect.any(File))
+      expect(defaultUpload).not.toHaveBeenCalled()
+    })
+
+    it('marks the entry kind as locale-bytes', () => {
+      const store = useAssetsUploadStore()
+      store.configure({ uploadLocaleBytes: vi.fn(async () => sampleResult()) })
+
+      const id = store.enqueueLocaleBytes(fakeFile('a.jpg'), 'hero', { locale: 'fr' })
+      const entry = store.uploads.find(u => u.id === id)
+
+      expect(entry?.kind).toBe('locale-bytes')
+      expect(entry?.selector).toEqual({ locale: 'fr' })
+    })
+
+    it('default and locale-bytes entries share the queue', async () => {
+      const store = useAssetsUploadStore()
+      const localeUpload = vi.fn(async () => sampleResult())
+      const defaultUpload = vi.fn(async () => sampleResult())
+      store.configure({ uploadAsset: defaultUpload, uploadLocaleBytes: localeUpload })
+
+      store.enqueue(fakeFile('a.jpg'), 'a', null)
+      store.enqueueLocaleBytes(fakeFile('a-fr.jpg'), 'a', { locale: 'fr' })
+      await new Promise(r => setTimeout(r, 0))
+
+      expect(defaultUpload).toHaveBeenCalledTimes(1)
+      expect(localeUpload).toHaveBeenCalledTimes(1)
+    })
+  })
 })

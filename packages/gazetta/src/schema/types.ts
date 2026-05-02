@@ -260,6 +260,22 @@ export interface AssetSummary {
   height: number | null
   alt: string | null
   uploadedAt: string
+  /**
+   * Locales for which this asset has a manifest override (with or
+   * without bytes). Empty array means no locale variants. Detected
+   * from sibling `{name}.asset.{locale}.json` files in the same
+   * directory listing — no extra I/O.
+   *
+   * Drives the library card coverage badge (`[en✓ fr✓ ar—]`) and
+   * informs the upload dialog's default-vs-override prompt.
+   */
+  overrideLocales: readonly string[]
+  /**
+   * Themes for which this asset has a manifest override. Same shape
+   * and source as `overrideLocales`. Empty when the site has no theme
+   * dimension or no theme overrides exist.
+   */
+  overrideThemes: readonly string[]
 }
 
 // ---------- Resolved shapes (what templates receive) ----------

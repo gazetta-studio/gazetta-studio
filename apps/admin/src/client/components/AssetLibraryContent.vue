@@ -10,6 +10,7 @@
  */
 import AssetLibraryGrid from './AssetLibraryGrid.vue'
 import AssetUploadZone from './AssetUploadZone.vue'
+import AssetUploadPrompt from './AssetUploadPrompt.vue'
 import AssetDetail from './AssetDetail.vue'
 </script>
 
@@ -22,6 +23,7 @@ import AssetDetail from './AssetDetail.vue'
     <div class="asset-library-side">
       <AssetDetail />
     </div>
+    <AssetUploadPrompt />
   </div>
 </template>
 

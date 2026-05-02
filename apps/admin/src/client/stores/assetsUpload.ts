@@ -17,15 +17,25 @@
  */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { type UploadedAsset, uploadAsset as uploadAssetApi } from '../api/assets.js'
+import {
+  type AssetSelector,
+  type UploadedAsset,
+  uploadAsset as uploadAssetApi,
+  uploadLocaleBytes as uploadLocaleBytesApi,
+} from '../api/assets.js'
 
 export type UploadAsset = (file: File, name: string, alt: string | null) => Promise<UploadedAsset>
+export type UploadLocaleBytes = (name: string, selector: AssetSelector, file: File) => Promise<UploadedAsset>
 
 export interface AssetsUploadStoreOptions {
   uploadAsset?: UploadAsset
+  uploadLocaleBytes?: UploadLocaleBytes
 }
 
 export type UploadStatus = 'queued' | 'uploading' | 'success' | 'error'
+
+/** What kind of upload this entry represents. */
+export type UploadKind = 'default' | 'locale-bytes'
 
 export interface UploadEntry {
   id: string
@@ -33,6 +43,9 @@ export interface UploadEntry {
   name: string
   alt: string | null
   status: UploadStatus
+  kind: UploadKind
+  /** Selector for locale-bytes uploads; undefined for default uploads. */
+  selector: AssetSelector | null
   /** Typed error code from the server (ASSET_VALIDATION_FAILED, etc.) or null. */
   errorCode: string | null
   /** Human-readable error message, when status === 'error'. */
@@ -45,26 +58,51 @@ export const useAssetsUploadStore = defineStore('assetsUpload', () => {
   const uploads = ref<UploadEntry[]>([])
 
   let uploadAsset: UploadAsset = (file, name, alt) => uploadAssetApi(file, name, alt)
+  let uploadLocaleBytes: UploadLocaleBytes = (name, selector, file) => uploadLocaleBytesApi(name, selector, file)
 
   function configure(options: AssetsUploadStoreOptions): void {
     if (options.uploadAsset) uploadAsset = options.uploadAsset
+    if (options.uploadLocaleBytes) uploadLocaleBytes = options.uploadLocaleBytes
   }
 
   const hasActive = computed(() => uploads.value.some(u => u.status === 'queued' || u.status === 'uploading'))
   const hasErrors = computed(() => uploads.value.some(u => u.status === 'error'))
 
   /**
-   * Enqueue a file for upload and start (if nothing else is active).
-   * Returns the id assigned to the entry — useful for tests and for
-   * tracking a specific upload.
+   * Enqueue a default-asset file. Equivalent to "upload bytes for the
+   * default locale of an asset that doesn't exist yet" or "replace the
+   * default bytes of an existing asset."
    */
   function enqueue(file: File, name: string, alt: string | null): string {
-    const id = `u-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    uploads.value.push({
-      id,
+    return push({
       file,
       name,
       alt,
+      kind: 'default',
+      selector: null,
+    })
+  }
+
+  /**
+   * Enqueue a locale-bytes override upload. The default asset must
+   * already exist on the target — server-side throws 404 if not.
+   * Selector picks which (locale, theme) variant we're writing.
+   */
+  function enqueueLocaleBytes(file: File, name: string, selector: AssetSelector): string {
+    return push({
+      file,
+      name,
+      alt: null,
+      kind: 'locale-bytes',
+      selector,
+    })
+  }
+
+  function push(entry: Omit<UploadEntry, 'id' | 'status' | 'errorCode' | 'errorMessage' | 'bytesPath'>): string {
+    const id = `u-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    uploads.value.push({
+      id,
+      ...entry,
       status: 'queued',
       errorCode: null,
       errorMessage: null,
@@ -94,7 +132,10 @@ export const useAssetsUploadStore = defineStore('assetsUpload', () => {
 
     next.status = 'uploading'
     try {
-      const result = await uploadAsset(next.file, next.name, next.alt)
+      const result =
+        next.kind === 'locale-bytes' && next.selector !== null
+          ? await uploadLocaleBytes(next.name, next.selector, next.file)
+          : await uploadAsset(next.file, next.name, next.alt)
       next.status = 'success'
       next.bytesPath = result.bytesPath
     } catch (err) {
@@ -112,6 +153,7 @@ export const useAssetsUploadStore = defineStore('assetsUpload', () => {
     hasActive,
     hasErrors,
     enqueue,
+    enqueueLocaleBytes,
     clearSuccesses,
     clearErrors,
     configure,

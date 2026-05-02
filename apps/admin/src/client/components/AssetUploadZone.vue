@@ -12,10 +12,14 @@
  */
 import { ref, watch } from 'vue'
 import { useAssetsUploadStore } from '../stores/assetsUpload.js'
+import { useAssetsUploadPromptStore } from '../stores/assetsUploadPrompt.js'
 import { useAssetsListStore } from '../stores/assetsList.js'
+import { useLocaleStore } from '../stores/locale.js'
 
 const uploads = useAssetsUploadStore()
 const list = useAssetsListStore()
+const promptStore = useAssetsUploadPromptStore()
+const locale = useLocaleStore()
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const isDragging = ref(false)
@@ -26,7 +30,7 @@ function openFilePicker(): void {
 
 function onFilesPicked(event: Event): void {
   const input = event.target as HTMLInputElement
-  enqueueFiles(input.files)
+  void enqueueFiles(input.files)
   // Reset the input so the same file can be re-picked
   input.value = ''
 }
@@ -34,7 +38,7 @@ function onFilesPicked(event: Event): void {
 function onDrop(event: DragEvent): void {
   event.preventDefault()
   isDragging.value = false
-  enqueueFiles(event.dataTransfer?.files ?? null)
+  void enqueueFiles(event.dataTransfer?.files ?? null)
 }
 
 function onDragOver(event: DragEvent): void {
@@ -46,12 +50,55 @@ function onDragLeave(): void {
   isDragging.value = false
 }
 
-function enqueueFiles(files: FileList | null): void {
+async function enqueueFiles(files: FileList | null): Promise<void> {
   if (!files) return
   for (const file of Array.from(files)) {
     const name = deriveName(file.name)
-    uploads.enqueue(file, name, null)
+    await routeUpload(file, name)
   }
+}
+
+/**
+ * Decide whether this upload goes to the default asset or to a locale
+ * override. Three cases:
+ *
+ *   1. Active locale = default (or i18n disabled) → default upload (unchanged)
+ *   2. Active locale != default + no name collision → default upload (uploading
+ *      a brand-new asset always creates the default; the design-doc rule is
+ *      "first upload establishes the asset's identity; locale overrides come
+ *      after")
+ *   3. Active locale != default + collision → prompt the user
+ */
+async function routeUpload(file: File, name: string): Promise<void> {
+  const activeLocale = locale.activeLocale
+  const defaultLocale = locale.defaultLocale
+  const overrideLocale = locale.effectiveLocale
+
+  // Case 1 + 2: no override locale OR no collision → default upload.
+  if (overrideLocale === null) {
+    uploads.enqueue(file, name, null)
+    return
+  }
+  const collision = list.assets.some(a => a.name === name)
+  if (!collision) {
+    uploads.enqueue(file, name, null)
+    return
+  }
+
+  // Case 3: ask the user.
+  const choice = await promptStore.prompt({
+    file,
+    name,
+    locale: overrideLocale,
+    defaultLocaleLabel: defaultLocale ?? undefined,
+    activeLocaleLabel: activeLocale ?? overrideLocale,
+  })
+  if (choice === 'cancel') return
+  if (choice === 'replace-default') {
+    uploads.enqueue(file, name, null)
+    return
+  }
+  uploads.enqueueLocaleBytes(file, name, { locale: overrideLocale })
 }
 
 /** Slugify a filename into an asset name (lowercase, dashes). */
