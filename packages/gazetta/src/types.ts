@@ -231,6 +231,82 @@ export interface TargetConfig {
    *     for the site's content
    */
   assets?: AssetUploadConfig
+  /**
+   * Per-target alt-text behavior overrides. Inherits site-level
+   * `altText:` block; only behavior fields can be overridden
+   * (`auto`, `maxImageEdge`, `model`). Provider and credentials are
+   * operationally global and don't appear at the target level.
+   *
+   * Common pattern: `{ auto: false }` on production targets for
+   * review-first publishing workflows.
+   */
+  altText?: AltTextTargetConfig
+}
+
+/**
+ * Cross-task AI configuration block (`ai:` in `site.yaml`). Carries
+ * fields used by ALL AI-powered tasks (alt-text in v1.5; future
+ * translation, tag suggestion, summarization).
+ *
+ * Per-task config blocks (`altText:`, future `translation:`) inherit
+ * `provider` and `defaultModel` from this base unless overridden.
+ *
+ * Vision-task-specific fields (e.g., `maxImageEdge`) DO NOT live here
+ * — they sit on per-task blocks because they don't apply to text-only
+ * tasks. Putting them on the cross-task base would be an ISP violation.
+ *
+ * See `.claude/rules/design-ai.md` for the three-layer architecture.
+ */
+export interface AIConfig {
+  /** Provider account choice. v1.5 ships these three. */
+  provider: 'anthropic' | 'openai' | 'ollama'
+  /**
+   * Per-provider sensible default model. Per-task blocks override
+   * (`altText.model: claude-sonnet-4-5`) when a task wants different
+   * cost/quality tradeoffs.
+   */
+  defaultModel?: string
+}
+
+/**
+ * Site-level alt-text configuration (`altText:` in `site.yaml`).
+ * Defaults inherited from `ai:` block when fields are unset.
+ */
+export interface AltTextSiteConfig {
+  /** Override `ai.provider` for the alt-text task only. Rare; mostly inherited. */
+  provider?: AIConfig['provider']
+  /** Override `ai.defaultModel` for alt-text. Useful when a task needs higher quality than the default. */
+  model?: string
+  /**
+   * Whether upload flows auto-fire suggest after upload completes.
+   * Default: `true`. Set `false` for review-first workflows where every
+   * alt suggestion is reviewed before being applied.
+   */
+  auto?: boolean
+  /**
+   * Long-edge cap for the image bytes sent to the vision provider.
+   * Default 768 (`MAX_EDGE` in `ai/vision-prep.ts`). Sites with
+   * text-heavy asset libraries (screenshots, scanned documents) may
+   * raise to 1024 to preserve text legibility for the model.
+   */
+  maxImageEdge?: number
+}
+
+/**
+ * Target-level alt-text override. Carries behavior overrides only —
+ * never provider/credentials (those are operationally global).
+ *
+ * The fields that make sense at target level are a subset of
+ * `AltTextSiteConfig`. Common pattern: `auto: false` on `production`
+ * for review-first prod, default elsewhere.
+ */
+export interface AltTextTargetConfig {
+  /** Override site-level `auto`. Common: `false` on production. */
+  auto?: boolean
+  /** Override site-level `maxImageEdge` for this target. */
+  maxImageEdge?: number
+  /** Override site-level `model` for this target. */
+  model?: string
 }
 
 /** Per-target asset upload policy. */
@@ -353,6 +429,23 @@ export interface SiteManifest {
   themes?: ThemesConfig
   /** Default Open Graph image for pages that don't specify their own. */
   defaultOgImage?: string
+  /**
+   * Cross-task AI configuration. Carries shared concerns (provider,
+   * default model). Per-task blocks (`altText:`) inherit these fields
+   * unless they override.
+   *
+   * Absent = no AI features configured. The capability check
+   * (`isAltAdapterConfigured`) treats absence as "AI is off."
+   */
+  ai?: AIConfig
+  /**
+   * Site-level alt-text task config. Inherits from `ai:` block; per-target
+   * blocks (`TargetConfig.altText`) override behavior fields only.
+   *
+   * Absent = alt-text feature is off. Block presence + valid `provider`
+   * (either here or inherited from `ai:`) means AI alt is configured.
+   */
+  altText?: AltTextSiteConfig
   systemPages?: string[]
   targets?: Record<string, TargetConfig>
 }

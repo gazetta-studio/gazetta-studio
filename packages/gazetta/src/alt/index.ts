@@ -50,3 +50,5 @@ export {
   OLLAMA_DEFAULT_MODEL,
   createOllamaAltAdapter,
 } from './ollama.js'
+export { type ResolvedAltConfig, resolveAltConfig } from './config.js'
+export { buildAltAdapter, isAltAdapterConfigured } from './factory.js'
