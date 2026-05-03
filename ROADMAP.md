@@ -2,7 +2,7 @@
 
 Strategic forward-looking priorities for Gazetta. Captures what's prioritized, what's deferred, and what's a non-goal.
 
-**Updated**: 2026-05-03
+**Updated**: 2026-05-04
 
 ## How to read this
 
@@ -16,10 +16,10 @@ Priorities derive from [`docs/audits/cms-feature-audit.md`](docs/audits/cms-feat
 
 ## Tier 1 — committed (next 4-8 weeks)
 
-### Hygiene
-- Land dependabot PR #219
-- Fix bug #106 (component reordering immediate-save)
-- Fix #80 (dynamic route params at render)
+### Hygiene (done)
+- ✓ Land dependabot PR #219 — shipped
+- ✓ Land `@hono/node-server` v2 bump (PR #224) — shipped
+- ✓ Fix bug #106 (component reordering immediate-save, PR #225) — shipped
 
 ### Validation Cut 1 (4 days)
 Save-time integrity validation per [`design-validation.md`](.claude/rules/design-validation.md). Establishes the `Validator` interface; ships 5 reference-existence validators; closes part of issue #40.
@@ -108,6 +108,7 @@ Per design-validation-implementation. Closes out the validation system.
 | Per-field translation | Whole-file Locale Variants work | Issue #192 — design pass when team-i18n use case lands |
 | OG image preview + JSON-LD helpers | SERP preview shipped | Issue #193 |
 | Solid.js / Svelte template support | Niche; React/Vue/Svelte already covers most | Template Developer asks |
+| Dynamic route params at request time (#80) | Premature — no request-time SSR consumer yet (pages and fragments are pre-rendered today; ESI mode composes pre-rendered HTML, doesn't run templates per request) | Request-time dynamic SSR design starts; params plumbing lands as a sub-task of that |
 
 ## Non-goals (strategic non-fits)
 
