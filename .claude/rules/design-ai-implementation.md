@@ -14,15 +14,15 @@ Branch: `ai-alt-v1.5` off `main`. Commits ordered low-risk-first per [team-prefe
 
 | # | Commit | Status | Risk | Validates |
 |---|---|---|---|---|
-| 1 | AI infrastructure: refusal + vision-prep + prompt policies | ☐ | Low | Pure functions; no external dependencies |
-| 2 | AltTextAdapter + null adapter + AltSuggester contract | ☐ | Low-medium | The seam everything else hangs off |
-| 3 | Anthropic adapter + msw tests | ☐ | Medium-high | First real provider integration; proves adapter contract |
-| 4 | OpenAI adapter + msw tests | ☐ | Low | Substitution proof; second provider |
-| 5 | Ollama adapter + msw tests | ☐ | Low | Self-hosted parity; third provider |
-| 6 | Site/target config types + `ai:` block schema + resolvers + factory | ☐ | Medium | Config layering correctness |
-| 7 | `POST /api/assets/:name/suggest-alt` route + `/api/targets` capability | ☐ | Medium | Admin API integration |
-| 8 | UI: upload-list auto-fill + detail-pane "✨ Suggest" | ☐ | Medium | The visible feature |
-| 9 | Docs (`docs/content-assets.md` AI alt section + `site.yaml` examples) + plan update | ☐ | Low | User-facing documentation |
+| 1 | AI infrastructure: refusal + vision-prep + prompt policies | ✓ | Low | Pure functions; no external dependencies |
+| 2 | AltTextAdapter + null adapter + AltSuggester contract | ✓ | Low-medium | The seam everything else hangs off |
+| 3 | Anthropic adapter + msw tests | ✓ | Medium-high | First real provider integration; proves adapter contract |
+| 4 | OpenAI adapter + msw tests | ✓ | Low | Substitution proof; second provider |
+| 5 | Ollama adapter + msw tests | ✓ | Low | Self-hosted parity; third provider |
+| 6 | Site/target config types + `ai:` block schema + resolvers + factory | ✓ | Medium | Config layering correctness |
+| 7 | `POST /api/assets/:name/suggest-alt` route + `/api/targets` capability | ✓ | Medium | Admin API integration |
+| 8 | UI: upload-list auto-fill + detail-pane "✨ Suggest" | ✓ | Medium | The visible feature |
+| 9 | Docs (`docs/content-assets.md` AI alt section + `site.yaml` examples) + plan update | ✓ | Low | User-facing documentation |
 
 ### Per-commit scope
 

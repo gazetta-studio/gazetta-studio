@@ -50,6 +50,11 @@ Three behaviors:
 Alt is non-blocking at upload — fill it now, fill it later via the
 detail pane, or override per-use on each page that references the asset.
 
+If AI alt-text is configured for the target (see "AI alt-text"
+below), the input pre-fills with a model-generated description after
+upload. Type into the input to override; the in-flight suggestion
+aborts when you start typing.
+
 ### Locale-bytes upload (when active locale ≠ default)
 
 If the **active locale** is not the site's default locale, and you
@@ -96,6 +101,99 @@ Uploaded     2026-04-22 14:23
 ### Editing alt
 
 Inline three-state input + "Decorative" checkbox. Commits on blur.
+
+When AI alt-text is configured for the active target, a `✨ Suggest`
+button appears below the alt editor. Clicking it asks the configured
+provider to describe the image; the suggestion fills the alt input
+and commits to the manifest. Edit and tab away to override the
+suggestion. See "AI alt-text" below for setup.
+
+### AI alt-text (optional)
+
+When the active target has `altText:` configured (see "Configuring
+AI alt-text" below), the asset library and upload list gain AI
+suggestions:
+
+- **At upload time** (when `auto: true`, the default): every
+  successful image upload triggers a suggestion in the background.
+  The alt input pre-fills with the model's description and the
+  hint `✨ AI suggested — edit or accept` appears. Type into the
+  input to override; the in-flight suggestion aborts.
+- **On demand** (always available when AI is configured): the
+  detail pane's `✨ Suggest` button generates alt for any image
+  asset, regardless of the `auto` setting. Useful for assets
+  uploaded before AI was configured, or when a previous suggestion
+  was rejected.
+
+Multilingual: the model writes alt directly in the active locale.
+Switching to French in the locale picker and clicking `✨ Suggest`
+returns French alt text.
+
+When the model declines (some images trigger provider safety
+filters), the alt stays empty and an inline `✨ AI declined — please
+write alt manually` hint appears. Refusal is rare for typical
+content; uploads always succeed regardless.
+
+#### Configuring AI alt-text
+
+Two layers in `site.yaml`:
+
+```yaml
+# Cross-task AI configuration — provider account choice
+ai:
+  provider: anthropic            # anthropic | openai | ollama
+  defaultModel: claude-haiku-4-5 # optional; per-provider sensible default
+
+# Per-task config — alt-text behavior
+altText:
+  auto: true                     # default; auto-fire on upload
+  maxImageEdge: 768              # default; vision-call image-resize cap
+  # model: claude-sonnet-4-5     # optional override of ai.defaultModel
+```
+
+API credentials live in `.env.local` (gitignored, never in
+`site.yaml`):
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+# OLLAMA_BASE_URL=http://localhost:11434  (optional; default shown)
+```
+
+**Per-target overrides** — typically used to disable auto-fire on
+production for review-first publishing:
+
+```yaml
+targets:
+  production:
+    altText:
+      auto: false                # require explicit click on prod
+```
+
+Provider and credentials are operationally global — they don't
+appear at the target level. Behavior fields (`auto`, `maxImageEdge`,
+`model`) can be overridden per target.
+
+#### Provider choice
+
+| Provider | What it costs | What's it good for |
+|---|---|---|
+| `anthropic` | ~$0.003/image (Haiku); higher for Sonnet/Opus | Default SaaS choice. Strong multilingual quality. |
+| `openai` | Varies — gpt-4o-mini's vision pricing differs from text. Benchmark against your asset library before optimizing | Wide adoption; easy if your team already has an OpenAI account |
+| `ollama` | Zero (self-hosted) | Privacy-first or air-gapped deployments. Bytes never leave the server running Ollama. Slower on CPU; needs `ollama pull llama3.2-vision:11b` first |
+
+#### Privacy considerations
+
+When using Anthropic or OpenAI, asset bytes are sent to the
+provider's servers for description. Each provider has its own data-
+handling and retention policy — review them before configuring AI
+alt-text on a target with sensitive imagery. Use `ollama` for
+fully self-hosted workflows where no asset data leaves your
+infrastructure.
+
+The model's response (alt text) is stored in the asset's manifest
+in the same target storage as the rest of your content. No AI-
+specific data is recorded outside the asset manifest.
 
 ### Setting a focal point
 
@@ -225,4 +323,5 @@ are a v1.5 UX surface (the data model already supports them).
 
 - [`.claude/rules/design-media.md`](../.claude/rules/design-media.md) — full design model
 - [`.claude/rules/design-editor-ux.md`](../.claude/rules/design-editor-ux.md) — active-target UX, switching, undo
+- [`.claude/rules/design-ai.md`](../.claude/rules/design-ai.md) — AI integration design (alt-text + future tasks)
 - [template-assets.md](template-assets.md) — for template developers
