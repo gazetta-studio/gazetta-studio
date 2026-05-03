@@ -225,7 +225,10 @@ separately — producing one HTML file per slug in storage.
 
 **Component list in page.json:** The `components` list is the source of truth for component
 ordering. The admin UI's component tree shows this list. Content authors can reorder via
-drag-and-drop, add components via dialog, and remove components — all update `page.json`.
+drag-and-drop, add components via dialog, and remove components. Each operation joins the
+editor's pending-changes model (peer to content edits) and is persisted to `page.json` on
+explicit save — same dirty-dot, same Save button, same Discard semantics. The tree reflects
+pending state immediately so authors see what they're about to commit.
 
 **Fragment nesting:** Fragments can reference other fragments: `@header` can include `@logo`
 as a child component. The renderer resolves `@` references recursively. Circular references

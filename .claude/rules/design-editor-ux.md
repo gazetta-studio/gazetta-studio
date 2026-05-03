@@ -109,6 +109,14 @@ From the author's POV, save is instant on dynamic targets; on static edit target
 incurs render cost and shows a visible "Saving…" state. Preview reflects saved state
 (or dirty form state if unsaved).
 
+**Two pending lanes, one save.** Form-state covers two kinds of edits: **content** edits
+(per-component field changes) and **structural** edits (move/add/remove of components on
+a page or fragment manifest). Both are pending until explicit save; both contribute to
+the dirty-dot indicator; both are reverted by Discard for the focused page; save flushes
+both atomically in one transaction. Authors see the tree reflect a pending reorder
+immediately, but the disk file is unchanged until save lands. This avoids the asymmetry
+where a discard would revert content edits while structural changes silently persisted.
+
 ## Undo and rollback
 
 Every write records a revision on the target (see design-publishing.md for storage shape).
