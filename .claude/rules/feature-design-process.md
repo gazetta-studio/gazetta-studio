@@ -59,6 +59,8 @@ The status table updates as cuts ship. When the feature is fully shipped, the im
 
 **Naming convention**: `design-{feature}.md`. The prefix matters — it makes `grep .claude/rules/design-*.md` find every feature design.
 
+Three predecessor docs use the `-plan.md` suffix (`i18n-plan.md`, `seo-plan.md`, `testing-plan.md`) and fuse design + implementation into one file. They migrate to the `design-{feature}.md` + `design-{feature}-implementation.md` split when the feature is next touched — splitting them cold without active context risks a bad split. Until then they stay as-is and remain auto-loaded via their `paths:` frontmatter.
+
 ### 4. Implementation
 
 Ship in cuts per the implementation doc. Each cut:
