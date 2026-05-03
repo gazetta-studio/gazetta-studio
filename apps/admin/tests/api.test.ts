@@ -184,7 +184,10 @@ describe('POST /preview/*', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        overrides: { hero: { title: 'Draft Title', subtitle: 'Draft Subtitle' } },
+        overrides: {
+          content: { hero: { title: 'Draft Title', subtitle: 'Draft Subtitle' } },
+          structural: {},
+        },
       }),
     })
     expect(res.status).toBe(200)
