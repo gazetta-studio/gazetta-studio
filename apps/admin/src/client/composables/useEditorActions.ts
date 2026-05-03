@@ -343,6 +343,17 @@ export function useEditorActions() {
   }
 
   /**
+   * Drop the open editor + any stash entry for `path`. Used when removing a
+   * component — the path is about to disappear from the manifest, so any
+   * pending content under it would be orphaned by save. Other stash entries
+   * and the structural pending state are not touched.
+   */
+  function clearEditorForRemovedPath(path: string) {
+    if (ec.path === path) ec.clear()
+    if (stash.has(path)) stash.revert(path)
+  }
+
+  /**
    * Derive the manifest key for the currently-selected page or fragment.
    * Returns null when nothing is selected.
    */
@@ -497,6 +508,7 @@ export function useEditorActions() {
     moveComponentStructural,
     addComponentStructural,
     removeComponentStructural,
+    clearEditorForRemovedPath,
     discard,
     clear,
     save,

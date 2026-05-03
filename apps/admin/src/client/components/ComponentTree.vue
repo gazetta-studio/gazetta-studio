@@ -6,10 +6,10 @@ import { useSelectionStore } from '../stores/selection.js'
 import { useEditingStore } from '../stores/editing.js'
 import { useToastStore } from '../stores/toast.js'
 import { useComponentFocusStore } from '../stores/componentFocus.js'
-import { useUnsavedGuardStore } from '../stores/unsavedGuard.js'
 import { useFragmentsApi } from '../composables/api.js'
 import { hashToSelection, selectionToHash, type EditorSelection } from '../composables/editorSelection.js'
 import { useUiModeStore } from '../stores/uiMode.js'
+import { useEditorStructuralStore } from '../stores/editorStructural.js'
 import AddComponentDialog from './AddComponentDialog.vue'
 
 const fragmentsApi = useFragmentsApi()
@@ -50,14 +50,26 @@ const selection = useSelectionStore()
 const editing = useEditingStore()
 const toast = useToastStore()
 const focus = useComponentFocusStore()
-const unsavedGuard = useUnsavedGuardStore()
+const structural = useEditorStructuralStore()
 const selectedNodeKey = ref<string | null>(null)
 const hoveredNodeKey = ref<string | null>(null)
 const componentNodes = ref<ComponentNode[]>([])
 const showAddDialog = ref(false)
 
 const detail = computed(() => selection.detail)
-const componentCount = computed(() => detail.value?.components?.length ?? 0)
+/**
+ * Effective components — pending structural override when present, otherwise
+ * the disk-loaded array. The tree binds to this so move/add/remove are
+ * reflected immediately without waiting for save.
+ */
+const effectiveComponents = computed(() => {
+  const sel = selection.selection
+  const d = detail.value
+  if (!sel || !d) return null
+  const pending = structural.pendingFor({ kind: sel.type, name: sel.name })
+  return pending ?? d.components ?? []
+})
+const componentCount = computed(() => effectiveComponents.value?.length ?? 0)
 
 // Map from data-gz hash → component info (built during tree construction)
 type GzEntry = { path: string; template: string } | { isFragment: true; fragName: string }
@@ -122,8 +134,8 @@ async function buildComponentNode(
 }
 
 watch(
-  detail,
-  async d => {
+  [detail, effectiveComponents],
+  async ([d, comps]) => {
     if (!d) {
       componentNodes.value = []
       gzMap.value = new Map()
@@ -132,8 +144,8 @@ watch(
 
     const map = new Map<string, GzEntry>()
     const rootPath = selection.type === 'fragment' ? `@${selection.name}` : ''
-    const children = d.components
-      ? await Promise.all(d.components.map((entry, i) => buildComponentNode(entry, i, rootPath, map)))
+    const children = comps
+      ? await Promise.all(comps.map((entry, i) => buildComponentNode(entry, i, rootPath, map)))
       : []
 
     const rootNode: ComponentNode = {
@@ -415,44 +427,52 @@ function selectByGzId(gzId: string) {
 
 // --- Component operations ---
 
-async function moveComponent(index: number, direction: -1 | 1) {
-  const d = detail.value
-  if (!d?.components) return
-  const newIndex = index + direction
-  if (newIndex < 0 || newIndex >= d.components.length) return
-  const components = [...d.components]
-  const [moved] = components.splice(index, 1)
-  components.splice(newIndex, 0, moved)
-  await selection.updateComponents(components)
+/**
+ * Manifest key for the currently-selected page or fragment.
+ * Returns null when nothing is selected — callers no-op in that case.
+ */
+function currentManifestKey(): import('gazetta/types').ManifestKey | null {
+  const sel = selection.selection
+  if (!sel) return null
+  return { kind: sel.type, name: sel.name }
 }
 
-async function removeComponent(index: number) {
-  const d = detail.value
-  if (!d?.components) return
-  if (editing.dirty) {
-    const result = await unsavedGuard.guard()
-    if (result === 'cancel') return
-    if (result === 'save') await editing.save()
-  }
-  const components = [...d.components]
-  const removed = components.splice(index, 1)[0]
+function moveComponent(index: number, direction: -1 | 1) {
+  const comps = effectiveComponents.value
+  if (!comps) return
+  const newIndex = index + direction
+  if (newIndex < 0 || newIndex >= comps.length) return
+  const key = currentManifestKey()
+  if (!key) return
+  editing.moveComponentStructural(key, comps, index, newIndex)
+}
+
+function removeComponent(index: number) {
+  const comps = effectiveComponents.value
+  if (!comps) return
+  const key = currentManifestKey()
+  if (!key) return
+
+  const removed = comps[index]
   const removedName = typeof removed === 'string' ? removed : removed.name
-  editing.clear()
-  await selection.updateComponents(components)
+
+  // The path is about to disappear from the manifest — drop any open editor
+  // or stash entry under it so save never persists orphan content. Other
+  // pending state (sibling components' edits, the page's structural lane) is
+  // preserved — only the removed component's slot is cleared.
+  editing.clearEditorForRemovedPath(removedName)
+  editing.removeComponentStructural(key, comps, index)
   toast.show(`Removed "${removedName}"`)
 }
 
-async function addComponent(name: string, template: string) {
-  const d = detail.value
-  if (!d) return
-  try {
-    const entry: import('../api/client.js').InlineComponent = { name, template, content: {} }
-    const components = [...(d.components ?? []), entry]
-    await selection.updateComponents(components)
-    toast.show(`Added "${name}"`)
-  } catch (err) {
-    toast.showError(err, `Failed to add component "${name}"`)
-  }
+function addComponent(name: string, template: string) {
+  const comps = effectiveComponents.value
+  if (!comps) return
+  const key = currentManifestKey()
+  if (!key) return
+  const entry: import('../api/client.js').InlineComponent = { name, template, content: {} }
+  editing.addComponentStructural(key, comps, entry)
+  toast.show(`Added "${name}"`)
 }
 </script>
 
