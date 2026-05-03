@@ -43,3 +43,4 @@ export {
   ANTHROPIC_DEFAULT_MODEL,
   createAnthropicAltAdapter,
 } from './anthropic.js'
+export { type OpenAIAltAdapterOptions, OPENAI_DEFAULT_MODEL, createOpenAIAltAdapter } from './openai.js'

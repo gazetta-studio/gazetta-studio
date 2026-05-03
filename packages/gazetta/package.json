@@ -91,6 +91,7 @@
     "js-yaml": "^4.1.0",
     "marked": "^18.0.0",
     "music-metadata": "^11.12.3",
+    "openai": "^6.35.0",
     "postcss": "^8.5.8",
     "postcss-prefix-selector": "^2.1.1",
     "sharp": "^0.34.0",
