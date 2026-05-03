@@ -31,29 +31,29 @@ export const useEditorStructuralStore = defineStore('editorStructural', () => {
   const entries = reactive<Map<string, StructuralEntry>>(new Map())
 
   /**
-   * Seed an entry from the current disk-loaded array if not present, returning
-   * a writable copy of `pending` for the next mutation to operate on. Both
-   * `original` and `pending` start as independent copies of the input.
+   * Replace an entry's `pending` with a new array reference. Vue's reactivity on
+   * Map<string, T> tracks T as a value — replacing the value (rather than
+   * mutating it in place) is what fires deep watchers like the ComponentTree's
+   * tree-build watch. Splicing the existing array would silently fail to
+   * trigger a re-render because the Map.get() still returns the same reference.
    */
-  function ensureEntry(key: ManifestKey, current: readonly ComponentEntry[]): StructuralEntry {
+  function setPending(key: ManifestKey, original: readonly ComponentEntry[], next: ComponentEntry[]) {
     const k = manifestKeyToString(key)
     const existing = entries.get(k)
-    if (existing) return existing
-    const seeded: StructuralEntry = {
-      original: current.slice(),
-      pending: current.slice(),
-    }
-    entries.set(k, seeded)
-    return seeded
+    entries.set(k, {
+      original: existing?.original ?? original.slice(),
+      pending: next,
+    })
   }
 
   function moveComponent(key: ManifestKey, current: readonly ComponentEntry[], fromIndex: number, toIndex: number) {
     if (fromIndex === toIndex) return
     if (fromIndex < 0 || fromIndex >= current.length) return
     if (toIndex < 0 || toIndex >= current.length) return
-    const entry = ensureEntry(key, current)
-    const [moved] = entry.pending.splice(fromIndex, 1)
-    entry.pending.splice(toIndex, 0, moved)
+    const next = current.slice()
+    const [moved] = next.splice(fromIndex, 1)
+    next.splice(toIndex, 0, moved)
+    setPending(key, current, next)
   }
 
   function addComponent(
@@ -62,15 +62,17 @@ export const useEditorStructuralStore = defineStore('editorStructural', () => {
     component: InlineComponent | string,
     insertIndex?: number,
   ) {
-    const entry = ensureEntry(key, current)
-    const idx = insertIndex ?? entry.pending.length
-    entry.pending.splice(idx, 0, component)
+    const next = current.slice()
+    const idx = insertIndex ?? next.length
+    next.splice(idx, 0, component)
+    setPending(key, current, next)
   }
 
   function removeComponent(key: ManifestKey, current: readonly ComponentEntry[], atIndex: number) {
     if (atIndex < 0 || atIndex >= current.length) return
-    const entry = ensureEntry(key, current)
-    entry.pending.splice(atIndex, 1)
+    const next = current.slice()
+    next.splice(atIndex, 1)
+    setPending(key, current, next)
   }
 
   /**
