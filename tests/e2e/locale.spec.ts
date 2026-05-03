@@ -25,16 +25,22 @@ test.describe('Locale picker', () => {
     await page.click('[data-testid="locale-fr"]')
     await expect(page.locator('[data-testid="locale-fr"]')).toHaveClass(/active/)
     await expect(page.locator('[data-testid="locale-en"]')).not.toHaveClass(/active/)
-    await page.waitForURL(/locale=fr/)
-    expect(page.url()).toContain('locale=fr')
+    // Vue Router's pushState doesn't fire a `load` event, so
+    // `waitForURL` (which defaults to `waitUntil: 'load'`) can hang
+    // up to its full timeout even though the URL has already
+    // updated. `expect(page).toHaveURL` polls via the test runner
+    // and uses `commit` semantics — works for pushState transitions.
+    await expect(page).toHaveURL(/locale=fr/)
   })
 
   test('click EN removes ?locale from URL', async ({ page }) => {
     await page.goto('/admin/pages/home?locale=fr')
     await page.click('[data-testid="locale-en"]')
     await expect(page.locator('[data-testid="locale-en"]')).toHaveClass(/active/)
-    await page.waitForURL(/\/pages\/home(?!\?locale)/)
-    expect(page.url()).not.toContain('locale=')
+    // Same pushState concern as above — assert the URL via
+    // `expect(page).toHaveURL` rather than `page.waitForURL` to
+    // avoid hanging on the absent `load` event.
+    await expect(page).toHaveURL(/\/pages\/home(?!\?locale)/)
   })
 
   test('hidden when site has no locales config', async ({ page }) => {
@@ -92,7 +98,10 @@ test.describe('Locale URL persistence', () => {
     await page.goto('/admin/pages/home?locale=fr')
     // Click about page in tree
     await page.locator('.site-tree .node-label', { hasText: 'about' }).click()
-    await page.waitForURL(/\/pages\/about/)
+    // Same pushState concern as the locale-picker tests above —
+    // `expect(page).toHaveURL` polls via the test runner instead
+    // of waiting on a `load` event that never fires.
+    await expect(page).toHaveURL(/\/pages\/about/)
     expect(page.url()).toContain('locale=fr')
   })
 
