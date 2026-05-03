@@ -1,0 +1,270 @@
+# Gazetta
+
+Stateless CMS that structures websites as composable components stored on multiple targets. Domain glossary captures the canonical vocabulary used across design docs, code, and conversations.
+
+## Language
+
+### Actors
+
+**Content Author**:
+A person who edits content (pages, fragments, assets, metadata) through the admin UI form editor.
+_Avoid_: User, Editor (overloaded with editor pane), Publisher.
+
+**Template Developer**:
+A person who creates templates and custom editors/fields in a Gazetta project (`templates/`, `admin/`).
+_Avoid_: Frontend dev, Engineer, Coder.
+
+**Operator**:
+A person who publishes content to targets and manages deployment health, via the admin UI publish dialog or `gazetta publish` CLI.
+_Avoid_: Publisher, DevOps.
+
+**CMS Developer**:
+A person who maintains Gazetta itself (the `packages/gazetta/`, `apps/admin/` source tree). Distinct from Template Developer (who consumes Gazetta) and Operator (who runs sites built on Gazetta).
+_Avoid_: Maintainer (ambiguous), Admin (collides with `apps/admin/` package), User.
+
+### Structural primitives
+
+**Page**:
+A routable structural unit. Has a template, content, optional children, a `route`, and `metadata`. Lives under `pages/`. Identified by its directory name.
+_Avoid_: Document (Sanity term), Entry, Post.
+
+**Fragment**:
+A shared, reusable structural unit referenced from other Pages or Fragments via `@name`. Has a template, content, optional children. Lives under `fragments/`. Identified by its directory name.
+_Avoid_: Include, Partial, Block.
+
+**Inline Component**:
+A structural unit nested inside a parent Page or Fragment's `components` array, with a local `name`. Has a template, content, optional children. Not addressable from outside its parent.
+_Avoid_: Subcomponent, Child component, Embedded component, Block.
+
+**Children**:
+The contents of a parent Page or Fragment's `components` array — a mix of Fragment References and Inline Components. The same vocabulary appears in template render contracts (`({ content, children }) => ...`).
+_Avoid_: Subcomponents, Items, Slots.
+
+**Fragment Reference**:
+A string entry in a parent's `components` array of the form `"@name"` that resolves at render time to a Fragment.
+_Avoid_: Fragment include, @-ref.
+
+**Component** (internal — not domain language):
+The implementation type `ComponentManifest` in code is an internal shape shared by Page and Fragment manifests. NOT a domain term in conversation or docs. When you need "any of {Page, Fragment, Inline Component}," name them explicitly.
+_Avoid_: Using "Component" in domain conversation — it collides with React/Vue components and is rarely needed at the abstract level.
+
+### Manifests
+
+**Manifest**:
+The authoritative declarative description of a domain entity's current state, stored as a JSON or YAML file. Distinct from the entity's renders, history, or other derivatives. Always qualified — "Page Manifest," "Asset Manifest" — never bare in domain conversation when ambiguity is possible.
+_Avoid_: Definition, Spec, Descriptor, Config (collides with `site.yaml`), Document (Sanity term).
+
+**Page Manifest** (`page.json` and `page.{locale}.json`):
+The descriptor of a Page. Carries `template`, `content`, `components` (Children), `route`, `metadata`. One default per Page; optional locale variants.
+
+**Fragment Manifest** (`fragment.json` and `fragment.{locale}.json`):
+The descriptor of a Fragment. Same shape as Page Manifest minus `route` and `metadata`.
+
+**Asset Manifest** (`{name}.asset.json` and `{name}.asset.{locale}[.{theme}].json`):
+The descriptor of an Asset. Carries `kind`, `mime`, `hash`, `width`/`height`, `alt`, `tags`, `variants`, etc. The default manifest is mandatory; per-locale and per-theme variants are optional metadata or bytes overrides.
+
+**Site Manifest** (`site.yaml`):
+The descriptor of a Site. Carries `name`, `locale`, `targets`, `ai`, `altText`, `themes`, etc. One per Site.
+
+**Revision Manifest** (`rev-{timestamp}.json`):
+The descriptor of one entry in a Target's history. Carries timestamp, operation, author, items written (path → blob hash). Stored under `.gazetta/history/revisions/`.
+
+### References and usages
+
+**Reference** (out-pointing):
+An in-content link from one entity to another, stored inside a content tree. Subtypes: Asset Reference, Fragment Reference.
+_Avoid_: Ref (bare), Pointer, Link.
+
+**Asset Reference**:
+An object in a Manifest's content tree of the form `{ _asset: "name", ... }` that points to an Asset. May carry per-reference overrides like `alt` or `focalPoint`.
+_Avoid_: Asset link, Asset ref (in docs).
+
+**Fragment Reference** (already defined above):
+A string entry in a parent's `components` array of the form `"@name"` that points to a Fragment.
+
+**Usage** (in-pointing):
+The inverse of a Reference — a record stating "entity X is referenced from location Y." Materialized for fast lookup. Surfaces in the Usage Panel and gates Asset deletion.
+_Avoid_: Backlink, Inbound ref, Where-used.
+
+**Usage Sidecar**:
+The stored materialization of Usages on disk. Lives under `.gazetta/asset-refs/{asset}/{item}` (or analogous paths for other usage indices). Per-edge files (one per usage) for multi-instance write correctness.
+_Avoid_: Refs sidecar, Backlink index.
+
+**Usage Panel**:
+The admin UI surface that lists an Asset's Usages — where in the site the Asset is referenced. Drives the delete-with-replace flow when the Asset has nonzero Usages.
+
+**Ref / AssetRef** (internal — type name only):
+The TypeScript type `AssetRef` in code carries Usage data (where the Asset is referenced from), not Reference data (the in-content link). Internal naming preserved for stability; in domain conversation always say "Usage" for the discovery side.
+
+### Targets and target roles
+
+**Target**:
+A storage location plus a runtime that holds a complete copy of a Site's content. Each Target has a `type` (static / dynamic), an `environment` (local / staging / production / unset), and an `editable` flag. Multiple Targets can coexist; they may diverge in content. Defined in detail in `design-concepts.md`.
+_Avoid_: Environment (a property, not the Target itself), Stage, Channel.
+
+**Active Target**:
+The Target the editor is currently focused on. Drives tree, editor, preview, save destination, sync indicators, and publish defaults. Cheap and reversible to switch. Independent of publish operations — distinct from Source Target and Destination Target.
+_Avoid_: Selected target, Current target, Edit target.
+
+**Source Target**:
+The role a Target plays as the source of a Publish operation — the Target whose content is being read and copied or rendered. Often the Active Target, but the Operator may pick any Target.
+_Avoid_: Origin, From-target, Source (bare — collides with `SourceContext` and Asset Reference contexts).
+
+**Destination Target**:
+The role a Target plays as the destination of a Publish operation — where the Publish writes to. Picked by the Operator. Multiple Destination Targets are allowed (fan-out publish).
+_Avoid_: To-target, Target (bare in publish context — ambiguous), Sink.
+
+**Source Context** (internal — admin API plumbing):
+The TypeScript type `SourceContext` in `admin-api/source-context.ts` holds the storage, content root, and history wiring for the **Active Target** in an admin-API request. Distinct from Source Target (which is a publish role). The code-side name predates the role-naming clarification; semantics are unchanged.
+
+### Assets
+
+**Asset**:
+A first-class media or downloadable entity stored on a Target — images, video, audio, documents, fonts. Has a name, an Asset Manifest, byte content, and zero or more responsive variants. Referenced from content via Asset References. Defined in detail in `design-media.md`.
+_Avoid_: Media (acceptable as plain English in UI labels, never as the canonical noun in code or docs), File, Resource, Attachment.
+
+**Asset Kind**:
+The rendering contract an Asset honors — `embedded` (rendered inline as `<img>`/`<video>`/`<audio>`), `downloadable` (linked for download as `<a href download>`), or `font` (loaded via `@font-face`). Set at upload time; identity attribute; never overridable on locale or theme variants. Implemented as `AssetKind` in code.
+_Avoid_: Asset Type (too generic), Asset Category (no such concept), Asset Role.
+
+**Format-axis adjectives** (no abstract noun):
+When discussing file format, use adjective form: "image asset," "audio asset," "PDF asset." There is no "Asset Category" or "Asset Format" noun — the picker's `accept: ['image', ...]` filter values are picker UI concerns, not domain categories.
+_Avoid_: Asset Type, Asset Category, Asset Format (as nouns).
+
+### Locale and theme dimensions
+
+**Locale Variant**:
+A non-default-locale Manifest of a Page or Fragment, stored as a standalone file alongside the default. Example: `page.fr.json` is a Locale Variant of the home page. Has the same shape as the default Manifest; can declare different content, components, metadata. Distinct from Override (which is a partial overlay against the default; see below).
+_Avoid_: Locale Manifest (more pedantic, less idiomatic), Translation (the activity, not the entity), Localized Version, Variant (bare — collides with Responsive Variant).
+
+**Locale Bytes Override**:
+An Asset's per-locale byte payload — a Locale Override Manifest carrying its own `hash` field plus locale-specific bytes at `{name}-{hash}.{locale}.{ext}` and locale-specific Responsive Variants. The asset overlays this on top of the default Asset Manifest at resolve time. Used for assets where bytes themselves differ per locale (e.g., text baked into the image).
+_Avoid_: Locale Bytes (without "Override" — drops the layering semantics), Locale Asset.
+
+**Locale Metadata Override**:
+An Asset's per-locale metadata layer — a Locale Override Manifest with no `hash` field. Overrides metadata fields (alt, title, description, focalPoint, tags) for one locale; the bytes themselves stay default. Used for assets that share visuals across locales but need translated alt or descriptions.
+_Avoid_: Locale Metadata (without "Override"), Locale Manifest.
+
+**Theme Bytes Override** / **Theme Metadata Override**:
+Theme-axis analogues of the locale overrides above. Theme is a peer override dimension to locale; the same layering semantics apply.
+_Avoid_: Theme Variant (collides with Locale Variant — themes don't have whole-file variants today), Theme Asset.
+
+**Locale-Priority Fallback Chain**:
+The non-configurable cross-dimension resolution order when an Asset is requested for a (locale, theme) cell. Locale matters more than theme: `(fr, dark) → (fr, light) → (default-locale, dark) → (default-locale, light)`. The default-locale-default-theme manifest is the floor and is always read separately as the base.
+_Avoid_: Fallback Chain (when both dimensions matter — qualify with Locale-Priority).
+
+**Translate** (verb):
+The action of creating a Locale Variant from a default Manifest. "Translate the home page to French" copies `page.json` to `page.fr.json` so the author can edit it in the new locale. The result is a Locale Variant; the activity is "translating."
+_Avoid_: Localize (means roughly the same; pick one — Translate is the canonical verb).
+
+**Responsive Variant**:
+A single per-width entry in an image Asset's `variants` array — the responsive `srcset` ladder. Implemented as `AssetVariant` in code. Distinct from Locale Variant — same word in conversation only, qualified by context. Always say "Responsive Variant" when ambiguity is possible.
+_Avoid_: Variant (bare — qualify with Responsive or Locale), Width Variant, Asset Variant (in domain conversation; type name kept in code for stability).
+
+### Composition and resolution
+
+**Compose** (verb):
+Walk a Page or Fragment tree, replace each Fragment Reference with its loaded Manifest, recursively process Children, and produce a fully-loaded structure ready for rendering. The same verb applies to walking a content tree and replacing each Asset Reference with its Resolved Asset Reference. Distinct from Resolve (which picks a single value from rules).
+_Avoid_: Resolve (when tree-walking; reserved for chain-pick and config-merge), Hydrate (collides with SSR hydration), Render (collides with template execution), Process, Walk.
+
+**Resolve** (verb):
+Given inputs and rules, produce a single picked or flattened value. Two flavors: (a) Fallback Chain Resolution — given a (locale, theme) request and the Locale-Priority Fallback Chain, pick the right cell; (b) Config Resolution — merge layered config (env, site, target) into a single flat value. Code uses `resolve*` names for both flavors plus the (α) tree-walking operation; in conversation, reserve Resolve for chain-pick and config-merge — say Compose for tree-walking.
+_Avoid_: Compose (when picking a value), Pick (too generic), Flatten (config-only flavor; doesn't capture chain-pick).
+
+**Resolved Component**:
+The output of composing a Component (Page, Fragment, or Inline Component). A tree where Fragment References have been replaced by loaded Fragment Manifests, Children are recursively composed, and the Template plus its content are bundled. Templates receive a Resolved Component as input.
+_Avoid_: Loaded component, Hydrated component.
+
+**Resolved Page**:
+The composed form of a Page — Resolved Component plus route and metadata, ready for the renderer.
+
+**Resolved Asset Reference**:
+The output of composing an Asset Reference: `{ url, srcset, alt, width, height, focalPoint, mime, ... }` (Embedded), `{ url, title, description, size, mime }` (Downloadable), or `{ cssName, variants }` (Font). Templates receive Resolved Asset References, never raw Asset References.
+_Avoid_: Materialized asset, Hydrated asset, Asset response.
+
+**Composer** (informal — operation, not a class):
+The function or module that performs Composition. `resolveComponent` and `resolveAssetRefs` in code are Composers despite their `resolve*` names. New code that performs composition should be named `compose*` from the start.
+
+### Project, Site, and Workspace
+
+**Project**:
+The outermost unit: a Git repo + root `package.json` with npm workspaces (`admin/`, `templates/`) + zero or more Sites under `sites/`. Holds shared templates, custom editors, and admin customizations. One Project can host many Sites. Created by `gazetta init`.
+_Avoid_: Repo (mechanical, not domain), Workspace (collides with npm workspaces), Codebase.
+
+**Site**:
+One brand or domain: a content tree (pages, fragments, assets), a Site Manifest (`site.yaml`), and one or more Targets. Lives at `sites/{name}/` inside a Project. Multiple Sites per Project supported (agency / multi-brand setups). The Site is the natural unit of content; the Project is the natural unit of code-and-templates.
+_Avoid_: Project (the Project contains the Site, not vice versa), Brand, Property, Tenant.
+
+**Workspace** (internal — npm tooling, not domain):
+The npm-workspaces concept. `admin/` and `templates/` are npm workspaces inside the Project's root `package.json`. They share dependencies and tooling. Not a domain term — CMS Developers care about workspaces; Content Authors, Template Developers, and Operators don't.
+_Avoid_: Using "Workspace" as a domain noun for Project, Site, or Target.
+
+## Relationships
+
+- Roles are not exclusive — one person can hold any combination. Solo open-source projects are all four.
+- **Content Author** uses tools the **Template Developer** built (custom editors, fields), running on infrastructure the **Operator** publishes, in a system the **CMS Developer** maintains.
+- Documentation is written for one specific actor — `docs/content-assets.md` for Content Authors, `docs/template-assets.md` for Template Developers, deployment guides for Operators, `.claude/rules/*.md` for CMS Developers.
+- A **Page** has Children (zero or more). A **Fragment** has Children (zero or more). Children are a mix of **Fragment References** and **Inline Components**.
+- An **Inline Component** can have its own Children, recursively.
+- A **Fragment** can be referenced by many Pages or Fragments via Fragment References. The same Fragment is rendered everywhere it's referenced.
+- A **Page** or **Fragment** holds **Asset References** in its content tree. Each Asset Reference targets one **Asset** by name and may carry per-reference overrides.
+- Each Reference produces a **Usage** at the target entity. An Asset's Usages enumerate the (Page or Fragment, location-in-content) pairs that reference it.
+- **Usages** are derived from **References** but materialized as **Usage Sidecars** for fast lookup without scanning the full site.
+- A **Target** can play any of three roles: **Active Target** (editor focus), **Source Target** (publish reads from), **Destination Target** (publish writes to). One physical Target may play multiple roles in one workflow — the same `local` Target is typically both Active and Source of a publish to staging.
+- A **Page** or **Fragment** has one default **Manifest** plus zero or more **Locale Variants** — standalone Manifests stored alongside the default.
+- An **Asset** has one default **Asset Manifest** plus zero or more **Locale Overrides** (Bytes or Metadata) and **Theme Overrides** — partial overlays, not standalone files. The **Locale-Priority Fallback Chain** resolves a request to a concrete cell.
+- An image **Asset** has zero or more **Responsive Variants** in its default Manifest, plus zero or more Responsive Variants per Locale Bytes Override (each Locale Bytes Override is independently sized).
+- A **Project** contains zero or more **Sites**. A **Site** has one or more **Targets**. Templates, custom editors, and admin customizations are project-level (shared across all Sites in the Project). Pages, fragments, and assets are per-Site.
+
+## Example dialogue
+
+> **Content Author:** "I uploaded the hero image but the alt text didn't fill in."
+> **Operator:** "AI alt is configured for staging but not for prod — that's why."
+> **Template Developer:** "I can mark the hero field `altRequired: true` so saves block when alt is empty."
+> **CMS Developer:** "The Validator interface lets us add that check at save-delta and at publish gate independently."
+
+> **Content Author:** "The footer changed on every page. Did I do that?"
+> **Template Developer:** "The footer is a **Fragment**, so editing it once updates every Page that has a `@footer` **Fragment Reference** in its **Children**."
+
+> **Content Author:** "Does the hero on the home page also appear on /about?"
+> **Template Developer:** "No — it's an **Inline Component**, so it's local to the home page's manifest. The `@header` next to it IS shared across pages because it's a **Fragment Reference**."
+
+> **Content Author:** "Can I delete this asset?"
+> **Operator:** "It has 3 **Usages** — one **Asset Reference** in the home **Page Manifest**, two in fragment manifests. Pick a replacement to rewrite those references, then delete."
+
+> **Operator:** "I want to publish staging to prod."
+> **Content Author:** "Wait — staging is the Active Target right now. Will switching break my edits?"
+> **Operator:** "No. I'm picking staging as the **Source Target** and prod as the **Destination Target**. Active Target is independent of the publish — your editor focus stays where it is."
+
+> **Content Author:** "I clicked Translate to French and now the page has English text in it."
+> **Template Developer:** "Translate copies the default **Page Manifest** to a new **Locale Variant** (`page.fr.json`). It starts with the same content; you edit the French Locale Variant to translate."
+
+> **Content Author:** "Why does this asset have one French alt but no French version of the image?"
+> **Template Developer:** "It has a **Locale Metadata Override** — only the alt is localized. If you also need different bytes for French, add a **Locale Bytes Override**."
+
+> **CMS Developer:** "The publish pipeline composes each Page's tree, resolves the locale and theme cells per Asset Reference, and renders the final HTML."
+> **Template Developer:** "So composition is the tree-walk and resolution is the cell-pick. Got it."
+
+## Flagged ambiguities
+
+The following terms were ambiguous in the codebase or design docs at the time this glossary was written. Each was resolved by picking a canonical term; type names in code were preserved for stability (Posture A — document what is, don't refactor in this pass).
+
+- **"Component"** was used both as the abstract base and as casual shorthand for a child of a Page or Fragment — and collides with React/Vue components in template development. Resolved: drop Component as a domain noun. Use Page, Fragment, or Inline Component explicitly. The internal type `ComponentManifest` is stable.
+
+- **"Manifest"** was used as a suffix on at least 13 distinct types (`PageManifest`, `AssetManifest`, `RevisionManifest`, ...). Resolved: promote Manifest to a domain noun ("a Manifest is the authoritative declarative description of a domain entity's current state, stored as a JSON or YAML file") and always qualify in conversation when ambiguity is possible.
+
+- **"Reference / Ref"** was used for at least four distinct things: in-content link, location-record of where references occur, fragment-name string, and the storage sidecar that materializes location-records. Resolved: Reference (out-pointing, in content) vs. Usage (in-pointing, derived). The code's `AssetRef` type carries Usage data; type name is stable.
+
+- **"Source"** was used for both publish-source-Target and admin-API editing context (`SourceContext`). Resolved: Source Target (publish role) vs. Source Context (internal admin-API plumbing for the Active Target). Type name is stable.
+
+- **"Variant"** collided between Locale Variant (whole-file non-default Manifest of a Page or Fragment) and Responsive Variant (per-width entry in an image Asset's `variants` array, code type `AssetVariant`). Resolved: always qualify. Locale Variant for the standalone-file case; Responsive Variant for the image-width axis.
+
+- **"Override"** was used for both the asset-only locale-bytes-or-metadata-overlay-on-default case and (occasionally) for whole-file locale variants. Resolved: Override is partial overlay; Locale Variant is whole-file. Subtypes: Locale Bytes Override, Locale Metadata Override, Theme Bytes Override, Theme Metadata Override.
+
+- **"Resolve"** was used for three structurally different operations: (1) walk a tree and replace references with loaded contents; (2) pick a value from a fallback chain; (3) merge layered config. Resolved: Compose (verb) for the tree-walking operation; Resolve (verb) for chain-pick and config-merge. Code names with `resolve*` prefix are stable; new code should use `compose*` for tree-walking.
+
+- **"Kind"** collided between Asset Kind (rendering contract: embedded / downloadable / font, code type `AssetKind`) and informal usage for format category (image / video / audio). Resolved: Asset Kind is the rendering contract; format gets adjective form ("image asset," "audio asset") with no noun.
+
+- **"Site"** vs **"Project"** were occasionally swapped. Resolved: Project contains Sites. Project = Git repo + workspaces; Site = brand/domain with its own content and Targets.
+
+- **"User" / "Editor" / "Author" / "Developer" / "Maintainer"** were used loosely. Resolved: four canonical actors — Content Author, Template Developer, Operator, CMS Developer.
