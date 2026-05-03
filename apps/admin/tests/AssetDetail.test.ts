@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import AssetDetail from '../src/client/components/AssetDetail.vue'
+import { useActiveTargetStore } from '../src/client/stores/activeTarget.js'
 import { useAssetsListStore } from '../src/client/stores/assetsList.js'
 import { useAssetsSelectionStore } from '../src/client/stores/assetsSelection.js'
 import type { AssetSummary } from '../src/client/api/client.js'
@@ -181,6 +182,94 @@ describe('AssetDetail', () => {
 
       const wrapper = mount(AssetDetail)
       expect(wrapper.find('[data-testid="focal-default-hint"]').exists()).toBe(true)
+    })
+  })
+
+  describe('AI ✨ Suggest button', () => {
+    it('hides the button when target altText.available is false', () => {
+      const list = useAssetsListStore()
+      const selection = useAssetsSelectionStore()
+      const targets = useActiveTargetStore()
+      targets.targets = [
+        {
+          name: 'local',
+          environment: 'local',
+          type: 'static',
+          editable: true,
+          altText: { available: false, auto: false },
+        },
+      ]
+      targets.activeTargetName = 'local'
+      list.assets = [sample()]
+      selection.select('hero')
+
+      const wrapper = mount(AssetDetail)
+      expect(wrapper.find('[data-testid="asset-detail-suggest-alt"]').exists()).toBe(false)
+    })
+
+    it('shows the button when target altText.available is true', () => {
+      const list = useAssetsListStore()
+      const selection = useAssetsSelectionStore()
+      const targets = useActiveTargetStore()
+      targets.targets = [
+        {
+          name: 'local',
+          environment: 'local',
+          type: 'static',
+          editable: true,
+          altText: { available: true, auto: true },
+        },
+      ]
+      targets.activeTargetName = 'local'
+      list.assets = [sample()]
+      selection.select('hero')
+
+      const wrapper = mount(AssetDetail)
+      expect(wrapper.find('[data-testid="asset-detail-suggest-alt"]').exists()).toBe(true)
+    })
+
+    it('shows the button regardless of auto flag (auto controls upload-time, not on-demand)', () => {
+      const list = useAssetsListStore()
+      const selection = useAssetsSelectionStore()
+      const targets = useActiveTargetStore()
+      targets.targets = [
+        {
+          name: 'local',
+          environment: 'local',
+          type: 'static',
+          editable: true,
+          altText: { available: true, auto: false },
+        },
+      ]
+      targets.activeTargetName = 'local'
+      list.assets = [sample()]
+      selection.select('hero')
+
+      const wrapper = mount(AssetDetail)
+      expect(wrapper.find('[data-testid="asset-detail-suggest-alt"]').exists()).toBe(true)
+    })
+
+    it('hides the button for non-image assets even when AI is available', () => {
+      const list = useAssetsListStore()
+      const selection = useAssetsSelectionStore()
+      const targets = useActiveTargetStore()
+      targets.targets = [
+        {
+          name: 'local',
+          environment: 'local',
+          type: 'static',
+          editable: true,
+          altText: { available: true, auto: true },
+        },
+      ]
+      targets.activeTargetName = 'local'
+      list.assets = [sample({ kind: 'downloadable', mime: 'application/pdf' })]
+      selection.select('hero')
+
+      const wrapper = mount(AssetDetail)
+      // The alt section is replaced by a plain text dd for non-images,
+      // so the suggest button never gets rendered.
+      expect(wrapper.find('[data-testid="asset-detail-suggest-alt"]').exists()).toBe(false)
     })
   })
 })
