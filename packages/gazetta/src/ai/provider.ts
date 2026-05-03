@@ -27,5 +27,21 @@ export type AIProvider = 'anthropic' | 'openai' | 'ollama'
 export interface ResolvedAIBase {
   provider: AIProvider
   /** Per-provider sensible default; tasks may override. */
-  defaultModel: string
+  defaultModel: string | null
+}
+
+/**
+ * Resolve the cross-task AI base config from a `SiteManifest`. Returns
+ * null when the `ai:` block is absent — per-task resolvers fall back
+ * to their own provider field (or report the task as unconfigured).
+ *
+ * Pure function. No I/O. No env-var reads. Tests pass `SiteManifest`
+ * fragments directly.
+ */
+export function resolveAIBase(site: { ai?: { provider: AIProvider; defaultModel?: string } }): ResolvedAIBase | null {
+  if (!site.ai) return null
+  return {
+    provider: site.ai.provider,
+    defaultModel: site.ai.defaultModel ?? null,
+  }
 }
