@@ -121,6 +121,28 @@ The current "last write wins" semantics (per [`operations.md`](../.claude/rules/
 
 ---
 
+## First-class Solid / Svelte / framework-of-the-week template support
+
+**Why not**: Templates are framework-agnostic by contract. Each template imports its own framework, SSRs to the standard `{ html, css, js }` shape, and ships its own framework dependency. The CMS doesn't need to ship first-class anything — React, Vue, Svelte, Solid, plain TS all work today through the same template contract.
+
+Adding "first-class Solid support" or "first-class Svelte support" implies CMS-side machinery the contract doesn't need. Operators who want a particular framework write a template using that framework; the contract handles it.
+
+**Integration path**: write the template using the framework you want.
+
+**Closed issues**: #65 (Svelte template support), #69 (Solid.js JSX support).
+
+---
+
+## Broad plugin system beyond documented extension surfaces
+
+**Why not**: Gazetta has nine documented extension surfaces (storage providers, templates, custom editors, custom field widgets, transform adapters, deploy adapters, AI providers, hooks, validators) with their own typed interfaces. Together they ARE the plugin system — operators extend Gazetta by implementing one of these surfaces. The unifying contract for discovery + lifecycle + composition lands in [`design-plugins.md`](../.claude/rules/design-plugins.md) (Tier 2 design pass).
+
+Broader runtime extensibility — custom Hono routes, custom CLI commands — would be additive, but introduces sandboxing/trust questions that aren't worth answering without concrete operator demand.
+
+**Integration path**: file an issue with the specific extension surface needed and the use case. Most legitimate cases fit one of the existing nine surfaces; the design pass for `design-plugins.md` will formalize how new surfaces get added.
+
+---
+
 ## How to revisit a non-goal
 
 Anyone proposing a feature listed here should:

@@ -1152,7 +1152,7 @@ Locale and theme are first-class peer dimensions in the data model
 segments. Two reasons:
 
 1. **Consistency across the admin API.** Pages and fragments already
-   address locale via `?locale=fr` query (`i18n-plan.md` "Admin UI"
+   address locale via `?locale=fr` query (`design-i18n.md` "Admin UI"
    section). Splitting between path-style for assets and query-style
    for pages would make admin clients carry two patterns.
 2. **Selector ≠ identity.** The asset's identity is `:name`. The

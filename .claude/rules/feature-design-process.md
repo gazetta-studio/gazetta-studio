@@ -44,6 +44,7 @@ Capture what we're building, why, and the model.
 - **Companion docs** — link to implementation + reference + ADRs
 - **Design model / architecture** — the actual structure
 - **Distinctive choices** — what we picked vs. what we rejected, with reasons. Future-you re-litigates without these.
+- **Foundational checks** — answer each of the 8 gates (Scale / Theme / Locale / Team / Hook / Render / Validation / Plugin) — see "Foundational dimensions" below
 - **Migration** — for existing sites if applicable
 - **Open questions** — known unresolved items
 - **Future directions** — placed at the end. Lists deferred capabilities, v1.5/v2 bets, and frontier ideas that aren't committed work. Above-the-section content is the current shipped/being-built model; below-the-section content is preserved thinking, not a promise. As versions ship, items rotate up into committed scope.
@@ -80,7 +81,7 @@ The status table updates as cuts ship. When the feature is fully shipped, the im
 
 **Naming convention**: `design-{feature}.md`. The prefix matters — it makes `grep .claude/rules/design-*.md` find every feature design.
 
-Three predecessor docs use the `-plan.md` suffix (`i18n-plan.md`, `seo-plan.md`, `testing-plan.md`) and fuse design + implementation into one file. They migrate to the `design-{feature}.md` + `design-{feature}-implementation.md` split when the feature is next touched — splitting them cold without active context risks a bad split. Until then they stay as-is and remain auto-loaded via their `paths:` frontmatter.
+Two predecessor docs use the `-plan.md` suffix (`seo-plan.md`, `testing-plan.md`) and fuse design + implementation into one file. They migrate to the `design-{feature}.md` + `design-{feature}-implementation.md` split when the feature is next touched — splitting them cold without active context risks a bad split. Until then they stay as-is and remain auto-loaded via their `paths:` frontmatter. (`i18n-plan.md` was migrated to `design-i18n.md` in 2026-05 as part of the foundational-dimensions inventory; the design/implementation split happens when per-field translation #192 lands.)
 
 ### 4. Implementation
 
@@ -133,6 +134,56 @@ The skill's `ADR-FORMAT.md` lists what qualifies in concrete terms (architectura
 Most decisions don't pass this bar. The design doc carries the rationale; ADRs are the durable backstop for the load-bearing few.
 
 **Legacy:** `design-decisions.md` (18 entries) predates this two-tier model. Treat it like the `-plan.md` predecessors — lazy migration when a relevant feature is next touched: entries either move to that feature's "Distinctive choices" section or get promoted to ADRs. No new entries land in `design-decisions.md`.
+
+## Foundational dimensions
+
+Eight cross-cutting concerns that every feature design must respect. Each has its own design pass (some shipped, some pending) and corresponds to a check in the "Foundational checks" section of every new `design-{feature}.md`.
+
+The dimensions are foundational because designing a feature without respecting them is structurally expensive to retrofit later — same principle as locale, themes, validation. These are the "must be right from the beginning" concerns.
+
+| Dimension | Design doc | Gate | What every feature answers |
+|---|---|---|---|
+| Scale | `design-scale.md` | **Scale check** | Does this feature work at the documented operating envelope (target N pages / M assets / K components-per-page)? If not, what's the limitation? |
+| Themes | `design-themes.md` | **Theme check** | Does this respect the closed dimension set (locale + theme) and the locked locale-priority cross-dimension fallback? If pages/fragments aren't theme-variant yet but this feature will need them, what's today's contract vs. later? |
+| Locale (i18n) | `design-i18n.md` | **Locale check** | Does this respect locale as a closed dimension peer to theme? Does it use file-suffix locale variants (existing whole-file model) or layered overlays (per-field, future)? RTL coverage? |
+| RBAC + audit + review | `design-rbac-audit-review.md` | **Team check** | How does this feature gate on roles? What does it record to audit log? Does it interact with review workflow state? |
+| Hooks | `design-hooks.md` | **Hook check** | When does this primitive fire hooks? With what payload? Synchronous (can fail/cancel) or async? |
+| Rendering modes | `design-rendering.md` | **Render check** | Which rendering modes does this support (static / ESI / request-SSR / island)? What's the limitation for unsupported modes? Does it expose render-time queries (listings)? |
+| Validation | `design-validation.md` | **Validation check** | Does this feature need a Validator? When does it run (save-delta / background / pre-publish / cli)? What severity? |
+| Plugin / extensibility | `design-plugins.md` | **Plugin check** | Does this surface follow the plugin lifecycle (discovery, loading, composition)? If not an extension surface, N/A |
+
+**Status of design passes (sequenced, per current ROADMAP Tier 2):**
+
+1. Validation Cut 1 (in flight; locks Validator/Issue contract)
+2. `design-scale.md` (pending — gates every UI/API design)
+3. `design-i18n.md` (migrated from `i18n-plan.md` 2026-05; design/implementation split lands with #192)
+4. `design-themes.md` (pending — small, additive on i18n)
+5. `design-rbac-audit-review.md` (pending — unblocks hooks, presence)
+6. `design-rendering.md` (pending — depends on locale + themes)
+7. `design-hooks.md` (pending — depends on RBAC)
+8. `design-plugins.md` (pending — depends on hooks)
+
+A feature design started before its required dimension's design pass has shipped MUST document the assumption it's making about the pending dimension's contract — flagged as a retrofit risk. The "Foundational checks" section captures these.
+
+## Non-foundational disciplines
+
+Two narrower invariants that compose with implementation work but don't rise to dimension level. They get one-line discipline notes in this doc, not full design passes:
+
+- **MCP schema discipline** — new admin-API routes must use the existing Zod schema pattern under `packages/gazetta/src/admin-api/schemas/`. MCP tooling auto-generates from these — non-typed routes break MCP. Applies to every new route, not just MCP-aware features.
+- **Real-time event-source discipline** — save and publish handlers record write events to audit log (covered by `design-rbac-audit-review.md`). Real-time push (presence, live publish status, validation push) is a separate observer layer on top of audit log — never bolted into save/publish handlers directly.
+
+## Issue-classification discipline
+
+Every GitHub issue (bug or enhancement) is classified into a ROADMAP bucket at file time:
+
+- **Tier 1** (committed, 4-8 weeks)
+- **Tier 2** (planned, next quarter — including foundational design passes)
+- **Tier 3** (strategic bet — needs design pass before scoping)
+- **Deferred** (real gap, no current trigger)
+- **Non-goal** (per `docs/non-goals.md`)
+- **Close** (already covered, won't ship, or duplicate)
+
+Unclassified issues are a bug in the process. The retroactive sweep that established this discipline is documented in ROADMAP.md; going forward, every new issue's body should reference its bucket.
 
 ## Lifecycle of an implementation doc
 
