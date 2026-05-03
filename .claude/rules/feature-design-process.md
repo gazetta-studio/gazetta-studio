@@ -35,7 +35,7 @@ Capture what we're building, why, and the model.
 |---|---|---|
 | `.claude/rules/design-{feature}.md` | The design itself: scope, principles, model, distinctive choices, what's in/out of scope | **Required** |
 | `.claude/rules/design-{feature}-implementation.md` | Build plan: cut sequence, scope per cut, effort estimates, deferred items, status table | **Required** |
-| `.claude/rules/design-{feature}-reference.md` | Optional: fact-checked tooling specifics, library versions, citations | Optional — used when there are many fact-checked external claims (see media-v1 for example) |
+| `.claude/rules/design-{feature}-reference.md` | Optional: fact-checked tooling specifics, library versions, citations | Optional — used when ≥ 5 external claims need version/licensing/citation; below that, inline citations in the design doc are clearer (see media-v1 for an example that warranted it) |
 | `docs/adr/NNNN-slug.md` | Architecture Decision Record | Optional — only when the decision passes the three ADR criteria (hard to reverse, surprising without context, real trade-off) |
 
 **Required sections in a `design-{feature}.md`:**
