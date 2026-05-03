@@ -10,9 +10,21 @@ import type { TargetInfo, CompareResult } from '../src/client/api/client.js'
 import { useSyncStatusStore, type CompareFn } from '../src/client/stores/syncStatus.js'
 
 const TARGETS: TargetInfo[] = [
-  { name: 'local', environment: 'local', type: 'static', editable: true },
-  { name: 'staging', environment: 'staging', type: 'static', editable: false },
-  { name: 'prod', environment: 'production', type: 'static', editable: false },
+  { name: 'local', environment: 'local', type: 'static', editable: true, altText: { available: false, auto: false } },
+  {
+    name: 'staging',
+    environment: 'staging',
+    type: 'static',
+    editable: false,
+    altText: { available: false, auto: false },
+  },
+  {
+    name: 'prod',
+    environment: 'production',
+    type: 'static',
+    editable: false,
+    altText: { available: false, auto: false },
+  },
 ]
 
 const EMPTY_RESULT: CompareResult = {

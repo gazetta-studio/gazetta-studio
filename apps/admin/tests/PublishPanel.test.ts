@@ -160,8 +160,20 @@ describe('PublishPanel', () => {
     it('shows a fixed source chip when only one editable target exists', async () => {
       installTargets(
         [
-          { name: 'local', environment: 'local', type: 'static', editable: true },
-          { name: 'prod', environment: 'production', type: 'static', editable: false },
+          {
+            name: 'local',
+            environment: 'local',
+            type: 'static',
+            editable: true,
+            altText: { available: false, auto: false },
+          },
+          {
+            name: 'prod',
+            environment: 'production',
+            type: 'static',
+            editable: false,
+            altText: { available: false, auto: false },
+          },
         ],
         'local',
       )
@@ -175,9 +187,27 @@ describe('PublishPanel', () => {
     it('shows a dropdown when 2+ editable targets exist', async () => {
       installTargets(
         [
-          { name: 'local', environment: 'local', type: 'static', editable: true },
-          { name: 'staging', environment: 'staging', type: 'static', editable: true },
-          { name: 'prod', environment: 'production', type: 'static', editable: false },
+          {
+            name: 'local',
+            environment: 'local',
+            type: 'static',
+            editable: true,
+            altText: { available: false, auto: false },
+          },
+          {
+            name: 'staging',
+            environment: 'staging',
+            type: 'static',
+            editable: true,
+            altText: { available: false, auto: false },
+          },
+          {
+            name: 'prod',
+            environment: 'production',
+            type: 'static',
+            editable: false,
+            altText: { available: false, auto: false },
+          },
         ],
         'local',
       )
@@ -190,8 +220,20 @@ describe('PublishPanel', () => {
     it('defaults source to the active target when it is editable', async () => {
       installTargets(
         [
-          { name: 'local', environment: 'local', type: 'static', editable: true },
-          { name: 'staging', environment: 'staging', type: 'static', editable: true },
+          {
+            name: 'local',
+            environment: 'local',
+            type: 'static',
+            editable: true,
+            altText: { available: false, auto: false },
+          },
+          {
+            name: 'staging',
+            environment: 'staging',
+            type: 'static',
+            editable: true,
+            altText: { available: false, auto: false },
+          },
         ],
         'staging',
       )
@@ -205,8 +247,20 @@ describe('PublishPanel', () => {
     it('defaults source to the first editable when active is read-only', async () => {
       installTargets(
         [
-          { name: 'staging', environment: 'staging', type: 'static', editable: true },
-          { name: 'prod', environment: 'production', type: 'static', editable: false },
+          {
+            name: 'staging',
+            environment: 'staging',
+            type: 'static',
+            editable: true,
+            altText: { available: false, auto: false },
+          },
+          {
+            name: 'prod',
+            environment: 'production',
+            type: 'static',
+            editable: false,
+            altText: { available: false, auto: false },
+          },
         ],
         'prod',
       )
@@ -221,9 +275,27 @@ describe('PublishPanel', () => {
     it('renders one chip per non-source target (flat ≤3)', async () => {
       installTargets(
         [
-          { name: 'local', environment: 'local', type: 'static', editable: true },
-          { name: 'staging', environment: 'staging', type: 'static', editable: false },
-          { name: 'prod', environment: 'production', type: 'static', editable: false },
+          {
+            name: 'local',
+            environment: 'local',
+            type: 'static',
+            editable: true,
+            altText: { available: false, auto: false },
+          },
+          {
+            name: 'staging',
+            environment: 'staging',
+            type: 'static',
+            editable: false,
+            altText: { available: false, auto: false },
+          },
+          {
+            name: 'prod',
+            environment: 'production',
+            type: 'static',
+            editable: false,
+            altText: { available: false, auto: false },
+          },
         ],
         'local',
       )
@@ -238,10 +310,34 @@ describe('PublishPanel', () => {
     it('shows a group header for same-environment members at 4+ total', async () => {
       installTargets(
         [
-          { name: 'local', environment: 'local', type: 'static', editable: true },
-          { name: 'staging', environment: 'staging', type: 'static', editable: false },
-          { name: 'prod-us', environment: 'production', type: 'static', editable: false },
-          { name: 'prod-eu', environment: 'production', type: 'static', editable: false },
+          {
+            name: 'local',
+            environment: 'local',
+            type: 'static',
+            editable: true,
+            altText: { available: false, auto: false },
+          },
+          {
+            name: 'staging',
+            environment: 'staging',
+            type: 'static',
+            editable: false,
+            altText: { available: false, auto: false },
+          },
+          {
+            name: 'prod-us',
+            environment: 'production',
+            type: 'static',
+            editable: false,
+            altText: { available: false, auto: false },
+          },
+          {
+            name: 'prod-eu',
+            environment: 'production',
+            type: 'static',
+            editable: false,
+            altText: { available: false, auto: false },
+          },
         ],
         'local',
       )
@@ -255,8 +351,20 @@ describe('PublishPanel', () => {
     it('preselects initialDestination when provided', async () => {
       installTargets(
         [
-          { name: 'local', environment: 'local', type: 'static', editable: true },
-          { name: 'staging', environment: 'staging', type: 'static', editable: false },
+          {
+            name: 'local',
+            environment: 'local',
+            type: 'static',
+            editable: true,
+            altText: { available: false, auto: false },
+          },
+          {
+            name: 'staging',
+            environment: 'staging',
+            type: 'static',
+            editable: false,
+            altText: { available: false, auto: false },
+          },
         ],
         'local',
       )
@@ -269,8 +377,20 @@ describe('PublishPanel', () => {
     it('shows read-only badge on non-editable destinations', async () => {
       installTargets(
         [
-          { name: 'local', environment: 'local', type: 'static', editable: true },
-          { name: 'prod', environment: 'production', type: 'static', editable: false },
+          {
+            name: 'local',
+            environment: 'local',
+            type: 'static',
+            editable: true,
+            altText: { available: false, auto: false },
+          },
+          {
+            name: 'prod',
+            environment: 'production',
+            type: 'static',
+            editable: false,
+            altText: { available: false, auto: false },
+          },
         ],
         'local',
       )
@@ -284,8 +404,20 @@ describe('PublishPanel', () => {
     it('disables the publish button until source + destinations + items are all set', async () => {
       installTargets(
         [
-          { name: 'local', environment: 'local', type: 'static', editable: true },
-          { name: 'staging', environment: 'staging', type: 'static', editable: false },
+          {
+            name: 'local',
+            environment: 'local',
+            type: 'static',
+            editable: true,
+            altText: { available: false, auto: false },
+          },
+          {
+            name: 'staging',
+            environment: 'staging',
+            type: 'static',
+            editable: false,
+            altText: { available: false, auto: false },
+          },
         ],
         'local',
       )
@@ -298,8 +430,20 @@ describe('PublishPanel', () => {
     it('computes label as "Publish N items → M targets"', async () => {
       installTargets(
         [
-          { name: 'local', environment: 'local', type: 'static', editable: true },
-          { name: 'staging', environment: 'staging', type: 'static', editable: false },
+          {
+            name: 'local',
+            environment: 'local',
+            type: 'static',
+            editable: true,
+            altText: { available: false, auto: false },
+          },
+          {
+            name: 'staging',
+            environment: 'staging',
+            type: 'static',
+            editable: false,
+            altText: { available: false, auto: false },
+          },
         ],
         'local',
       )
@@ -312,8 +456,20 @@ describe('PublishPanel', () => {
     it('calls publishApi.publishStream on publish, with items + destinations + source', async () => {
       installTargets(
         [
-          { name: 'local', environment: 'local', type: 'static', editable: true },
-          { name: 'staging', environment: 'staging', type: 'static', editable: false },
+          {
+            name: 'local',
+            environment: 'local',
+            type: 'static',
+            editable: true,
+            altText: { available: false, auto: false },
+          },
+          {
+            name: 'staging',
+            environment: 'staging',
+            type: 'static',
+            editable: false,
+            altText: { available: false, auto: false },
+          },
         ],
         'local',
       )
@@ -346,8 +502,20 @@ describe('PublishPanel', () => {
     it('shows results with per-target success + undo button after a successful publish', async () => {
       installTargets(
         [
-          { name: 'local', environment: 'local', type: 'static', editable: true },
-          { name: 'staging', environment: 'staging', type: 'static', editable: false },
+          {
+            name: 'local',
+            environment: 'local',
+            type: 'static',
+            editable: true,
+            altText: { available: false, auto: false },
+          },
+          {
+            name: 'staging',
+            environment: 'staging',
+            type: 'static',
+            editable: false,
+            altText: { available: false, auto: false },
+          },
         ],
         'local',
       )
@@ -372,8 +540,20 @@ describe('PublishPanel', () => {
     it('requires explicit confirmation when a production destination is selected', async () => {
       installTargets(
         [
-          { name: 'local', environment: 'local', type: 'static', editable: true },
-          { name: 'prod', environment: 'production', type: 'static', editable: false },
+          {
+            name: 'local',
+            environment: 'local',
+            type: 'static',
+            editable: true,
+            altText: { available: false, auto: false },
+          },
+          {
+            name: 'prod',
+            environment: 'production',
+            type: 'static',
+            editable: false,
+            altText: { available: false, auto: false },
+          },
         ],
         'local',
       )
@@ -398,8 +578,20 @@ describe('PublishPanel', () => {
     it('skips confirmation when no production destination is selected', async () => {
       installTargets(
         [
-          { name: 'local', environment: 'local', type: 'static', editable: true },
-          { name: 'staging', environment: 'staging', type: 'static', editable: false },
+          {
+            name: 'local',
+            environment: 'local',
+            type: 'static',
+            editable: true,
+            altText: { available: false, auto: false },
+          },
+          {
+            name: 'staging',
+            environment: 'staging',
+            type: 'static',
+            editable: false,
+            altText: { available: false, auto: false },
+          },
         ],
         'local',
       )
@@ -420,8 +612,20 @@ describe('PublishPanel', () => {
     it('calls historyApi.undoLastWrite when result undo is clicked', async () => {
       installTargets(
         [
-          { name: 'local', environment: 'local', type: 'static', editable: true },
-          { name: 'staging', environment: 'staging', type: 'static', editable: false },
+          {
+            name: 'local',
+            environment: 'local',
+            type: 'static',
+            editable: true,
+            altText: { available: false, auto: false },
+          },
+          {
+            name: 'staging',
+            environment: 'staging',
+            type: 'static',
+            editable: false,
+            altText: { available: false, auto: false },
+          },
         ],
         'local',
       )

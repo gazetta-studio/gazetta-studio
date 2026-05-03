@@ -11,9 +11,21 @@ import type { TargetInfo } from '../src/client/api/client.js'
 import { useActiveTargetStore, type LoadTargets } from '../src/client/stores/activeTarget.js'
 
 const TARGETS: TargetInfo[] = [
-  { name: 'local', environment: 'local', type: 'static', editable: true },
-  { name: 'staging', environment: 'staging', type: 'static', editable: false },
-  { name: 'prod', environment: 'production', type: 'static', editable: false },
+  { name: 'local', environment: 'local', type: 'static', editable: true, altText: { available: false, auto: false } },
+  {
+    name: 'staging',
+    environment: 'staging',
+    type: 'static',
+    editable: false,
+    altText: { available: false, auto: false },
+  },
+  {
+    name: 'prod',
+    environment: 'production',
+    type: 'static',
+    editable: false,
+    altText: { available: false, auto: false },
+  },
 ]
 
 function fixedLoader(list: TargetInfo[]): LoadTargets {
@@ -41,8 +53,20 @@ describe('useActiveTargetStore', () => {
 
   it('falls back to the first target when none are editable', async () => {
     const readOnly: TargetInfo[] = [
-      { name: 'staging', environment: 'staging', type: 'static', editable: false },
-      { name: 'prod', environment: 'production', type: 'static', editable: false },
+      {
+        name: 'staging',
+        environment: 'staging',
+        type: 'static',
+        editable: false,
+        altText: { available: false, auto: false },
+      },
+      {
+        name: 'prod',
+        environment: 'production',
+        type: 'static',
+        editable: false,
+        altText: { available: false, auto: false },
+      },
     ]
     const store = useActiveTargetStore()
     store.configure({ loadTargets: fixedLoader(readOnly) })

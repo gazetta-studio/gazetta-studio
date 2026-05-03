@@ -48,7 +48,15 @@ describe('SyncIndicators', () => {
   })
 
   it('renders nothing when there are no non-active targets', () => {
-    const targets: TargetInfo[] = [{ name: 'local', environment: 'local', type: 'static', editable: true }]
+    const targets: TargetInfo[] = [
+      {
+        name: 'local',
+        environment: 'local',
+        type: 'static',
+        editable: true,
+        altText: { available: false, auto: false },
+      },
+    ]
     setupStores(targets, 'local')
     const w = mount(SyncIndicators)
     expect(w.find('[data-testid="sync-indicators"]').exists()).toBe(false)
@@ -56,9 +64,27 @@ describe('SyncIndicators', () => {
 
   it('renders a chip for each non-active target (flat, ≤3 targets)', () => {
     const targets: TargetInfo[] = [
-      { name: 'local', environment: 'local', type: 'static', editable: true },
-      { name: 'staging', environment: 'staging', type: 'static', editable: false },
-      { name: 'prod', environment: 'production', type: 'static', editable: false },
+      {
+        name: 'local',
+        environment: 'local',
+        type: 'static',
+        editable: true,
+        altText: { available: false, auto: false },
+      },
+      {
+        name: 'staging',
+        environment: 'staging',
+        type: 'static',
+        editable: false,
+        altText: { available: false, auto: false },
+      },
+      {
+        name: 'prod',
+        environment: 'production',
+        type: 'static',
+        editable: false,
+        altText: { available: false, auto: false },
+      },
     ]
     const { syncStore } = setupStores(targets, 'local')
     syncStore.statuses.set('staging', { changedCount: 3, firstPublish: false, result: mkResult() })
@@ -72,8 +98,20 @@ describe('SyncIndicators', () => {
 
   it('shows "N behind" for a target with changes', () => {
     const targets: TargetInfo[] = [
-      { name: 'local', environment: 'local', type: 'static', editable: true },
-      { name: 'staging', environment: 'staging', type: 'static', editable: false },
+      {
+        name: 'local',
+        environment: 'local',
+        type: 'static',
+        editable: true,
+        altText: { available: false, auto: false },
+      },
+      {
+        name: 'staging',
+        environment: 'staging',
+        type: 'static',
+        editable: false,
+        altText: { available: false, auto: false },
+      },
     ]
     const { syncStore } = setupStores(targets, 'local')
     syncStore.statuses.set('staging', { changedCount: 3, firstPublish: false, result: mkResult() })
@@ -84,8 +122,20 @@ describe('SyncIndicators', () => {
 
   it('shows "in sync" for a target with no changes', () => {
     const targets: TargetInfo[] = [
-      { name: 'local', environment: 'local', type: 'static', editable: true },
-      { name: 'staging', environment: 'staging', type: 'static', editable: false },
+      {
+        name: 'local',
+        environment: 'local',
+        type: 'static',
+        editable: true,
+        altText: { available: false, auto: false },
+      },
+      {
+        name: 'staging',
+        environment: 'staging',
+        type: 'static',
+        editable: false,
+        altText: { available: false, auto: false },
+      },
     ]
     const { syncStore } = setupStores(targets, 'local')
     syncStore.statuses.set('staging', { changedCount: 0, firstPublish: false, result: mkResult() })
@@ -96,8 +146,20 @@ describe('SyncIndicators', () => {
 
   it('shows "not yet published" when firstPublish is true', () => {
     const targets: TargetInfo[] = [
-      { name: 'local', environment: 'local', type: 'static', editable: true },
-      { name: 'staging', environment: 'staging', type: 'static', editable: false },
+      {
+        name: 'local',
+        environment: 'local',
+        type: 'static',
+        editable: true,
+        altText: { available: false, auto: false },
+      },
+      {
+        name: 'staging',
+        environment: 'staging',
+        type: 'static',
+        editable: false,
+        altText: { available: false, auto: false },
+      },
     ]
     const { syncStore } = setupStores(targets, 'local')
     syncStore.statuses.set('staging', { changedCount: 0, firstPublish: true, result: mkResult({ firstPublish: true }) })
@@ -108,8 +170,20 @@ describe('SyncIndicators', () => {
 
   it('shows "…" while loading', () => {
     const targets: TargetInfo[] = [
-      { name: 'local', environment: 'local', type: 'static', editable: true },
-      { name: 'staging', environment: 'staging', type: 'static', editable: false },
+      {
+        name: 'local',
+        environment: 'local',
+        type: 'static',
+        editable: true,
+        altText: { available: false, auto: false },
+      },
+      {
+        name: 'staging',
+        environment: 'staging',
+        type: 'static',
+        editable: false,
+        altText: { available: false, auto: false },
+      },
     ]
     const { syncStore } = setupStores(targets, 'local')
     syncStore.loading.add('staging')
@@ -120,8 +194,20 @@ describe('SyncIndicators', () => {
 
   it('shows "?" on error', () => {
     const targets: TargetInfo[] = [
-      { name: 'local', environment: 'local', type: 'static', editable: true },
-      { name: 'staging', environment: 'staging', type: 'static', editable: false },
+      {
+        name: 'local',
+        environment: 'local',
+        type: 'static',
+        editable: true,
+        altText: { available: false, auto: false },
+      },
+      {
+        name: 'staging',
+        environment: 'staging',
+        type: 'static',
+        editable: false,
+        altText: { available: false, auto: false },
+      },
     ]
     const { syncStore } = setupStores(targets, 'local')
     syncStore.errors.set('staging', 'network error')
@@ -132,8 +218,20 @@ describe('SyncIndicators', () => {
 
   it('applies env-production class to production targets', () => {
     const targets: TargetInfo[] = [
-      { name: 'local', environment: 'local', type: 'static', editable: true },
-      { name: 'prod', environment: 'production', type: 'static', editable: false },
+      {
+        name: 'local',
+        environment: 'local',
+        type: 'static',
+        editable: true,
+        altText: { available: false, auto: false },
+      },
+      {
+        name: 'prod',
+        environment: 'production',
+        type: 'static',
+        editable: false,
+        altText: { available: false, auto: false },
+      },
     ]
     const { syncStore } = setupStores(targets, 'local')
     syncStore.statuses.set('prod', { changedCount: 0, firstPublish: false, result: mkResult() })
@@ -144,8 +242,20 @@ describe('SyncIndicators', () => {
 
   it('emits select with target name on chip click', async () => {
     const targets: TargetInfo[] = [
-      { name: 'local', environment: 'local', type: 'static', editable: true },
-      { name: 'staging', environment: 'staging', type: 'static', editable: false },
+      {
+        name: 'local',
+        environment: 'local',
+        type: 'static',
+        editable: true,
+        altText: { available: false, auto: false },
+      },
+      {
+        name: 'staging',
+        environment: 'staging',
+        type: 'static',
+        editable: false,
+        altText: { available: false, auto: false },
+      },
     ]
     const { syncStore } = setupStores(targets, 'local')
     syncStore.statuses.set('staging', { changedCount: 1, firstPublish: false, result: mkResult() })
@@ -157,10 +267,34 @@ describe('SyncIndicators', () => {
 
   describe('grouping at 4+ targets', () => {
     const fourTargets: TargetInfo[] = [
-      { name: 'local', environment: 'local', type: 'static', editable: true },
-      { name: 'staging', environment: 'staging', type: 'static', editable: false },
-      { name: 'prod-us', environment: 'production', type: 'static', editable: false },
-      { name: 'prod-eu', environment: 'production', type: 'static', editable: false },
+      {
+        name: 'local',
+        environment: 'local',
+        type: 'static',
+        editable: true,
+        altText: { available: false, auto: false },
+      },
+      {
+        name: 'staging',
+        environment: 'staging',
+        type: 'static',
+        editable: false,
+        altText: { available: false, auto: false },
+      },
+      {
+        name: 'prod-us',
+        environment: 'production',
+        type: 'static',
+        editable: false,
+        altText: { available: false, auto: false },
+      },
+      {
+        name: 'prod-eu',
+        environment: 'production',
+        type: 'static',
+        editable: false,
+        altText: { available: false, auto: false },
+      },
     ]
 
     it('collapses same-environment targets into a group chip', () => {

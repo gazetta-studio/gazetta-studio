@@ -24,6 +24,7 @@ import { updateAssetMetadata, type AssetMetadataPatch } from '../../assets/updat
 import { buildSelector, type Selector } from '../../schema/dimensions.js'
 import { isValidLocale } from '../../locale.js'
 import { isValidTheme } from '../../themes.js'
+import { suggestAltForAsset } from '../../alt/route-handler.js'
 import { respondWithAssetError } from '../error-response.js'
 import type { SourceContextResolver } from '../source-context.js'
 
@@ -281,6 +282,73 @@ export function assetRoutes(resolve: SourceContextResolver) {
         history: source.history,
       })
       return c.body(null, 204)
+    } catch (err) {
+      const res = respondWithAssetError(c, err)
+      if (res) return res
+      throw err
+    }
+  })
+
+  /**
+   * POST /api/assets/:name/suggest-alt — generate alt text for the
+   * named asset using the configured AI adapter.
+   *
+   * Server fetches asset bytes from storage; client only passes the
+   * name and target. Locale (?locale=fr) controls the language the
+   * model writes in (direct generation, no translation pipeline).
+   *
+   * Refusals return 200 with `{ refused: true, refusalReason }` —
+   * the API call succeeded; the model declined. UI consumers branch
+   * on `refused` to decide whether to surface the text or the reason.
+   *
+   * Responses:
+   *   200 OK            — { text, refused, refusalReason }
+   *   400 Bad Request   — invalid locale code
+   *   404 Not Found     — asset doesn't exist on this target
+   *   502 Bad Gateway   — adapter call failed (network, auth, etc.)
+   *   503 Unavailable   — no adapter configured / MIME unsupported
+   */
+  app.post('/api/assets/:name/suggest-alt', async c => {
+    const name = c.req.param('name')
+    const localeRaw = c.req.query('locale')
+    if (localeRaw !== undefined && !isValidLocale(localeRaw)) {
+      return c.json({ code: 'BAD_REQUEST', message: `Invalid locale code: ${localeRaw}` }, 400)
+    }
+    const locale = localeRaw ?? 'en'
+
+    const source = await resolve(c.req.query('target'))
+    if (!source.manifest) {
+      // Without the site manifest we can't read `ai:` / `altText:`
+      // config. Treat as unconfigured rather than failing — same
+      // posture as a missing block.
+      return c.json(
+        { code: 'AI_ADAPTER_UNAVAILABLE', message: 'Site manifest not available; AI alt-text not configured.' },
+        503,
+      )
+    }
+
+    const targetConfig = source.targetName ? source.manifest.targets?.[source.targetName] : undefined
+
+    try {
+      const result = await suggestAltForAsset({
+        name,
+        assetsRoot: ASSETS_ROOT,
+        storage: source.storage,
+        site: source.manifest,
+        target: targetConfig,
+        locale,
+      })
+
+      switch (result.kind) {
+        case 'ok':
+          return c.json(result.suggestion, 200)
+        case 'unavailable':
+          return c.json({ code: 'AI_ADAPTER_UNAVAILABLE', message: result.message }, 503)
+        case 'failed':
+          return c.json({ code: 'AI_ADAPTER_FAILED', message: result.message }, 502)
+        case 'not-found':
+          return c.json({ code: 'ASSET_MANIFEST_NOT_FOUND', message: result.message }, 404)
+      }
     } catch (err) {
       const res = respondWithAssetError(c, err)
       if (res) return res

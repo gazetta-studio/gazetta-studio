@@ -12,7 +12,13 @@ import {
 } from '../src/client/composables/targetGrouping.js'
 
 function T(name: string, environment: 'local' | 'staging' | 'production'): TargetInfo {
-  return { name, environment, type: 'static', editable: environment === 'local' }
+  return {
+    name,
+    environment,
+    type: 'static',
+    editable: environment === 'local',
+    altText: { available: false, auto: false },
+  }
 }
 
 describe('shouldGroup', () => {

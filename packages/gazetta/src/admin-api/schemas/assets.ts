@@ -65,3 +65,20 @@ export const AssetNameCollisionResponseSchema = z.object({
   newName: z.string(),
 })
 export type AssetNameCollisionResponse = z.infer<typeof AssetNameCollisionResponseSchema>
+
+/**
+ * Body of a 200 response on POST /api/assets/:name/suggest-alt — the AI
+ * adapter's structured suggestion. `refused: true` means the model
+ * declined; consumers display `refusalReason` instead of auto-filling
+ * the alt input. Refusals are NOT errors — the API call succeeded.
+ *
+ * 503 (no adapter / unsupported MIME) and 502 (adapter call failed)
+ * use the generic `{ code, message }` shape — see `AIErrorCode` in
+ * `ai/errors.ts` for the code values.
+ */
+export const SuggestAltResponseSchema = z.object({
+  text: z.string(),
+  refused: z.boolean(),
+  refusalReason: z.string().nullable(),
+})
+export type SuggestAltResponse = z.infer<typeof SuggestAltResponseSchema>
