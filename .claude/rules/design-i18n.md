@@ -13,11 +13,24 @@ paths:
   - "**/locale*"
 ---
 
-# i18n Plan
+# i18n / Locale
 
 File-suffix localization: `page.json` (default locale), `page.fr.json` (French),
 `page.en-gb.json` (British English). Same pattern for fragments: `fragment.fr.json`.
 Zero template changes, zero schema changes. Opt-in via `locales` in site.yaml.
+
+**Foundational dimension #2 of 8.** Locale is a closed dimension peer to theme; every feature must respect locale variants, the locked locale-priority cross-dimension fallback, and the file-suffix model. See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions" — every new feature design answers the **Locale check**.
+
+**Migration note**: This doc was previously `i18n-plan.md` (predates the `design-{feature}.md` convention). Renamed in 2026-05 alongside the foundational-dimensions inventory. Per-field translation (#192) lands as the implementation phase under this design's contract; that's when the design/implementation split documented in [`feature-design-process.md`](feature-design-process.md) gets applied to this doc.
+
+**Locked invariants** (referenced by other docs and the foundational-dimensions table):
+
+- **Closed dimension set: locale + theme** — no third dimension without extending `DIMENSION_ORDER`
+- **Locale-priority cross-dimension fallback** — `(fr, dark) → (fr, light) → (default-locale, dark) → (default-locale, light)`. Locale matters more than visual presentation when content has to fall back.
+- **File-suffix model** — `page.json` is the default locale; `page.fr.json` is French; etc. Each file is a complete manifest. Whole-file overlay.
+- **Per-field overlay model (asset-side, future for pages/fragments)** — assets support layered per-locale overrides (metadata-only or with locale-specific bytes). Pages/fragments today are whole-file only; per-field overlays are #192's design space.
+- **Subpath routing default** — `/about` (default locale, no prefix), `/fr/about` (French). Per-domain and hybrid strategies also supported.
+- **hreflang strategy** — HTML `<head>` for subpath targets; sitemap-only for cross-domain targets (avoids timing 404s when one domain publishes before another).
 
 **Status legend:** ☐ todo · ◐ in progress · ✓ done
 
