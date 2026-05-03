@@ -458,11 +458,39 @@ onUnmounted(() => {
   sse?.close()
 })
 
+// Concurrency control for fetchPreview. Without this, rapid route /
+// target / locale changes fire parallel fetches; their responses
+// land in arbitrary order and `applyHtml` runs morphdom on a
+// document tree that may already be mid-mutation from the previous
+// invocation. That surfaces as a transient
+// `Cannot read properties of null (reading 'querySelector')` page
+// error from morphdom's internal traversal.
+//
+// Two-layer guard:
+//   1. `inFlightController` aborts the previous fetch before starting
+//      a new one — drops the network round-trip when we already know
+//      the response is stale.
+//   2. `fetchGeneration` discards stale responses that completed
+//      between abort and `applyHtml` — the abort may not be checked
+//      until the next microtask, so an in-progress `await res.text()`
+//      can still resolve. The generation check at the apply site
+//      makes that response a no-op.
+let inFlightController: AbortController | null = null
+let fetchGeneration = 0
+
 async function fetchPreview(morph = true) {
   if (!previewPath.value) {
     currentHtml = ''
     return
   }
+  // Cancel any in-flight fetch and bump the generation counter. The
+  // counter increment must happen before any await so the captured
+  // `myGen` below holds the new value.
+  inFlightController?.abort()
+  const controller = new AbortController()
+  inFlightController = controller
+  const myGen = ++fetchGeneration
+
   loading.value = true
   try {
     const overrides = editing.allOverrides
@@ -473,21 +501,29 @@ async function fetchPreview(morph = true) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ overrides }),
+        signal: controller.signal,
       })
     } else {
-      res = await fetch(previewPath.value)
+      res = await fetch(previewPath.value, { signal: controller.signal })
     }
     const html = injectBridge(await res.text())
+    // If a newer fetch was started while this one was in flight,
+    // discard our response — applying it would race with the newer
+    // call's `applyHtml` and corrupt morphdom's tree.
+    if (myGen !== fetchGeneration) return
     applyHtml(html, morph)
     // Send initial bridge mode + scope after iframe loads
     setTimeout(() => {
       sendBridgeMode()
       sendScope()
     }, 100)
-  } catch {
+  } catch (err) {
+    // Abort errors are expected — just bail out silently.
+    if (err instanceof DOMException && err.name === 'AbortError') return
+    if (myGen !== fetchGeneration) return
     applyHtml('<pre style="color:red;padding:2rem">Failed to load preview</pre>', false)
   } finally {
-    loading.value = false
+    if (myGen === fetchGeneration) loading.value = false
   }
 }
 
