@@ -13,29 +13,29 @@
   "dependencies": {
     "@hono/node-server": "^1.19.14",
     "@primeuix/themes": "^2.0.3",
-    "@vueuse/core": "^14.2.1",
+    "@vueuse/core": "^14.3.0",
     "gazetta": "*",
-    "hono": "^4.12.0",
+    "hono": "^4.12.16",
     "js-yaml": "^4.1.0",
     "morphdom": "^2.7.8",
     "pinia": "^3.0.0",
     "primeicons": "^7.0.0",
     "primevue": "^4.5.0",
-    "vue": "^3.5.0",
-    "vue-router": "^5.0.4",
-    "zod": "^4.3.6"
+    "vue": "^3.5.33",
+    "vue-router": "^5.0.6",
+    "zod": "^4.4.2"
   },
   "devDependencies": {
-    "@hono/vite-dev-server": "^0.25.1",
+    "@hono/vite-dev-server": "^0.25.3",
     "@types/js-yaml": "^4.0.0",
     "@types/node": "^25.6.0",
     "@vitejs/plugin-vue": "^6.0.6",
-    "@vue/test-utils": "^2.4.6",
+    "@vue/test-utils": "^2.4.10",
     "jsdom": "^29.0.2",
     "testcontainers": "^11.13.0",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.2",
-    "vite": "^8.0.8",
-    "vitest": "^4.1.0"
+    "typescript": "^6.0.3",
+    "vite": "^8.0.10",
+    "vitest": "^4.1.5"
   }
 }
