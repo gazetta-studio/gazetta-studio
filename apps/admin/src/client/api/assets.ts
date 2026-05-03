@@ -245,3 +245,41 @@ async function parseAssetError(res: Response, fallbackPrefix: string): Promise<A
   }
   return new AssetApiError(body.message ?? `${fallbackPrefix}: ${res.status}`, res.status, body.code)
 }
+
+/**
+ * Result shape for `suggestAlt`. Mirrors the server's
+ * `SuggestAltResponseSchema`: text + structured refusal info.
+ *
+ * UI consumers branch on `refused` to decide whether to display the
+ * suggestion or surface `refusalReason` (e.g., as a toast).
+ */
+export interface SuggestAltResult {
+  text: string
+  refused: boolean
+  refusalReason: string | null
+}
+
+/**
+ * Generate alt text for the named asset using the configured AI
+ * adapter. The server fetches asset bytes from storage; the client
+ * passes name + optional locale.
+ *
+ * `signal` aborts the in-flight request — used by the upload-list row
+ * to cancel suggestions when the author starts typing alt manually
+ * (author intent always wins).
+ *
+ * Returns a structured result on 200 (including refusals — refusal is
+ * not an error). Throws `AssetApiError` on 400/404/502/503.
+ */
+export async function suggestAlt(name: string, locale?: string, signal?: AbortSignal): Promise<SuggestAltResult> {
+  const params = new URLSearchParams()
+  if (locale) params.set('locale', locale)
+  const qs = params.toString() ? `?${params.toString()}` : ''
+  const res = await fetch(apiUrl(`/assets/${encodeURIComponent(name)}/suggest-alt${qs}`), {
+    method: 'POST',
+    headers: authHeaders(),
+    signal,
+  })
+  if (res.ok) return (await res.json()) as SuggestAltResult
+  throw await parseAssetError(res, 'Alt-text suggestion failed')
+}

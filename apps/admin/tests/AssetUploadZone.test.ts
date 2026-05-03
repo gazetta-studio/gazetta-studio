@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import AssetUploadZone from '../src/client/components/AssetUploadZone.vue'
+import { useActiveTargetStore } from '../src/client/stores/activeTarget.js'
 import { useAssetsUploadStore } from '../src/client/stores/assetsUpload.js'
 import { useAssetsListStore } from '../src/client/stores/assetsList.js'
 import { useAssetsUploadPromptStore } from '../src/client/stores/assetsUploadPrompt.js'
@@ -320,6 +321,196 @@ describe('AssetUploadZone', () => {
 
       const altWrap = wrapper.find(`[data-testid="upload-${id}-alt"]`)
       expect(altWrap.exists()).toBe(false)
+    })
+  })
+
+  describe('AI alt-text auto-suggestion', () => {
+    function activateTargetWithAi(available: boolean, auto: boolean) {
+      const targets = useActiveTargetStore()
+      targets.targets = [
+        {
+          name: 'local',
+          environment: 'local',
+          type: 'static',
+          editable: true,
+          altText: { available, auto },
+        },
+      ]
+      targets.activeTargetName = 'local'
+    }
+
+    function stubFetch(handler: (url: string, init?: RequestInit) => Response | Promise<Response>) {
+      const originalFetch = globalThis.fetch
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+        return handler(url, init)
+      }) as typeof globalThis.fetch
+      return () => {
+        globalThis.fetch = originalFetch
+      }
+    }
+
+    it('does not fire suggestion when target altText.available is false', async () => {
+      activateTargetWithAi(false, true)
+      const suggestSpy = vi.fn()
+      const restore = stubFetch(url => {
+        if (url.includes('/suggest-alt')) {
+          suggestSpy()
+        }
+        return new Response(null, { status: 404 })
+      })
+      try {
+        const uploads = useAssetsUploadStore()
+        uploads.configure({
+          uploadAsset: vi.fn(async () => ({ manifest: {} as never, bytesPath: 'assets/x' })),
+        })
+        mount(AssetUploadZone)
+        uploads.enqueue(fakeFile('hero.jpg'), 'hero', null)
+        await flushPromises()
+        expect(suggestSpy).not.toHaveBeenCalled()
+      } finally {
+        restore()
+      }
+    })
+
+    it('does not fire suggestion when altText.auto is false (review-first mode)', async () => {
+      activateTargetWithAi(true, false)
+      const suggestSpy = vi.fn()
+      const restore = stubFetch(url => {
+        if (url.includes('/suggest-alt')) suggestSpy()
+        return new Response(null, { status: 404 })
+      })
+      try {
+        const uploads = useAssetsUploadStore()
+        uploads.configure({
+          uploadAsset: vi.fn(async () => ({ manifest: {} as never, bytesPath: 'assets/x' })),
+        })
+        mount(AssetUploadZone)
+        uploads.enqueue(fakeFile('hero.jpg'), 'hero', null)
+        await flushPromises()
+        expect(suggestSpy).not.toHaveBeenCalled()
+      } finally {
+        restore()
+      }
+    })
+
+    it('fires suggestion + populates the alt input on success', async () => {
+      activateTargetWithAi(true, true)
+      const restore = stubFetch(url => {
+        if (url.includes('/suggest-alt')) {
+          return new Response(JSON.stringify({ text: 'A cat on a windowsill', refused: false, refusalReason: null }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+        if (url.includes('/assets/') && !url.includes('suggest-alt')) {
+          // PATCH commit — return updated manifest.
+          return new Response(JSON.stringify({ manifest: {} }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+        return new Response(null, { status: 404 })
+      })
+      try {
+        const uploads = useAssetsUploadStore()
+        uploads.configure({
+          uploadAsset: vi.fn(async () => ({ manifest: {} as never, bytesPath: 'assets/x' })),
+        })
+
+        const wrapper = mount(AssetUploadZone)
+        const id = uploads.enqueue(fakeFile('hero.jpg'), 'hero', null)
+        await flushPromises()
+        // Allow the AI fetch + PATCH commit to finish.
+        await flushPromises()
+        await flushPromises()
+
+        const altInput = wrapper.find<HTMLInputElement>(`[data-testid="upload-${id}-alt-input"]`)
+        expect(altInput.exists()).toBe(true)
+        expect(altInput.element.value).toBe('A cat on a windowsill')
+        expect(wrapper.find(`[data-testid="upload-${id}-ai-suggested"]`).exists()).toBe(true)
+      } finally {
+        restore()
+      }
+    })
+
+    it('shows refusal hint and leaves alt input empty when model declines', async () => {
+      activateTargetWithAi(true, true)
+      const restore = stubFetch(url => {
+        if (url.includes('/suggest-alt')) {
+          return new Response(
+            JSON.stringify({
+              text: "I can't describe this image.",
+              refused: true,
+              refusalReason: "I can't describe this image.",
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          )
+        }
+        return new Response(null, { status: 404 })
+      })
+      try {
+        const uploads = useAssetsUploadStore()
+        uploads.configure({
+          uploadAsset: vi.fn(async () => ({ manifest: {} as never, bytesPath: 'assets/x' })),
+        })
+
+        const wrapper = mount(AssetUploadZone)
+        const id = uploads.enqueue(fakeFile('hero.jpg'), 'hero', null)
+        await flushPromises()
+        await flushPromises()
+
+        const altInput = wrapper.find<HTMLInputElement>(`[data-testid="upload-${id}-alt-input"]`)
+        expect(altInput.element.value).toBe('')
+        expect(wrapper.find(`[data-testid="upload-${id}-ai-refused"]`).exists()).toBe(true)
+      } finally {
+        restore()
+      }
+    })
+
+    it('does not fire for non-image uploads (PDF) even when AI is configured', async () => {
+      activateTargetWithAi(true, true)
+      const suggestSpy = vi.fn()
+      const restore = stubFetch(url => {
+        if (url.includes('/suggest-alt')) suggestSpy()
+        return new Response(null, { status: 404 })
+      })
+      try {
+        const uploads = useAssetsUploadStore()
+        uploads.configure({
+          uploadAsset: vi.fn(async () => ({ manifest: {} as never, bytesPath: 'assets/x' })),
+        })
+        mount(AssetUploadZone)
+        const pdf = new File([new Uint8Array([0x25, 0x50, 0x44, 0x46])], 'doc.pdf', {
+          type: 'application/pdf',
+        })
+        uploads.enqueue(pdf, 'doc', null)
+        await flushPromises()
+        expect(suggestSpy).not.toHaveBeenCalled()
+      } finally {
+        restore()
+      }
+    })
+
+    it('does not fire for locale-bytes uploads (only default uploads)', async () => {
+      activateTargetWithAi(true, true)
+      const suggestSpy = vi.fn()
+      const restore = stubFetch(url => {
+        if (url.includes('/suggest-alt')) suggestSpy()
+        return new Response(null, { status: 404 })
+      })
+      try {
+        const uploads = useAssetsUploadStore()
+        uploads.configure({
+          uploadLocaleBytes: vi.fn(async () => ({ manifest: {} as never, bytesPath: 'assets/x' })),
+        })
+        mount(AssetUploadZone)
+        uploads.enqueueLocaleBytes(fakeFile('hero.jpg'), 'hero', { locale: 'fr' })
+        await flushPromises()
+        expect(suggestSpy).not.toHaveBeenCalled()
+      } finally {
+        restore()
+      }
     })
   })
 })

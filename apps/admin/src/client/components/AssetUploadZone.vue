@@ -11,16 +11,18 @@
  * "prompt for alt at upload" UX lands with the wide rollout.
  */
 import { ref, watch } from 'vue'
-import { updateAssetMetadata } from '../api/assets.js'
+import { suggestAlt, updateAssetMetadata, type SuggestAltResult } from '../api/assets.js'
 import { useAssetsUploadStore } from '../stores/assetsUpload.js'
 import { useAssetsUploadPromptStore } from '../stores/assetsUploadPrompt.js'
 import { useAssetsListStore } from '../stores/assetsList.js'
 import { useLocaleStore } from '../stores/locale.js'
+import { useActiveTargetStore } from '../stores/activeTarget.js'
 
 const uploads = useAssetsUploadStore()
 const list = useAssetsListStore()
 const promptStore = useAssetsUploadPromptStore()
 const locale = useLocaleStore()
+const activeTarget = useActiveTargetStore()
 
 /**
  * Per-upload-entry alt state. Keyed by `entry.id` so multiple successful
@@ -189,6 +191,127 @@ async function commitAlt(assetName: string, alt: string | null): Promise<void> {
     console.warn(`Failed to update alt for ${assetName}:`, err)
   }
 }
+
+/**
+ * Per-upload-entry AI-suggestion state.
+ *
+ *   - `aiPending`: true while a suggest call is in-flight; controls
+ *     the "✨ generating…" indicator
+ *   - `aiSuggested`: true once a suggestion has arrived AND the
+ *     author hasn't typed over it; controls the "✨ AI suggested"
+ *     hint label
+ *   - `aiAborts`: per-entry AbortController so typing into the
+ *     input cancels the in-flight suggestion (author intent wins)
+ *   - `aiRefusalReasons`: when the model declines, surface the
+ *     reason near the input so the author understands the empty state
+ */
+const aiPending = ref<Map<string, boolean>>(new Map())
+const aiSuggested = ref<Map<string, boolean>>(new Map())
+const aiRefusalReasons = ref<Map<string, string>>(new Map())
+const aiAborts = new Map<string, AbortController>()
+
+function aiPendingFor(id: string): boolean {
+  return aiPending.value.get(id) ?? false
+}
+function aiSuggestedFor(id: string): boolean {
+  return aiSuggested.value.get(id) ?? false
+}
+function aiRefusalFor(id: string): string | null {
+  return aiRefusalReasons.value.get(id) ?? null
+}
+
+/**
+ * Fire an AI suggestion for the given upload entry. Pre-fills the
+ * alt input and commits to the server (matches "alt fills itself"
+ * promise). Author can edit + blur to overwrite. Refusals leave the
+ * input empty and surface the reason inline.
+ */
+async function autoSuggestAlt(id: string, assetName: string): Promise<void> {
+  const controller = new AbortController()
+  aiAborts.set(id, controller)
+  aiPending.value.set(id, true)
+  let result: SuggestAltResult | null = null
+  try {
+    result = await suggestAlt(assetName, locale.activeLocale ?? undefined, controller.signal)
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      // User typed over the suggestion before it arrived. Silent abort.
+      return
+    }
+    // 503/502 etc. — the adapter is configured but the call failed.
+    // Don't pre-fill; leave the author to type manually. No toast in
+    // this commit; library-card no-alt badge surfaces the unset state.
+    // eslint-disable-next-line no-console
+    console.warn(`AI alt suggestion failed for ${assetName}:`, err)
+    return
+  } finally {
+    aiPending.value.set(id, false)
+    aiAborts.delete(id)
+  }
+
+  if (!result) return
+  if (result.refused) {
+    aiRefusalReasons.value.set(id, result.refusalReason ?? 'Model declined')
+    return
+  }
+  // Pre-fill the local input AND commit to the server. Local input
+  // value updates instantly; commit sends the PATCH so subsequent
+  // page loads see the suggestion as the asset's alt.
+  altText.value.set(id, result.text)
+  aiSuggested.value.set(id, true)
+  await commitAlt(assetName, result.text)
+}
+
+/**
+ * Watch successful uploads and auto-fire AI suggestion when:
+ *   1. The active target has `altText.available && altText.auto`
+ *   2. The upload was a default asset (locale-bytes overrides
+ *      inherit alt from default; per-locale alt is a future surface)
+ *   3. The MIME is an image (vision adapters only)
+ *
+ * Idempotent: tracks fired entries via aiSuggested/aiPending so
+ * watcher re-runs don't double-fire.
+ */
+watch(
+  () => uploads.uploads.filter(u => u.status === 'success').map(u => u.id),
+  (ids, prev) => {
+    const previousSet = new Set(prev ?? [])
+    const newIds = ids.filter(id => !previousSet.has(id))
+    if (newIds.length === 0) return
+
+    const cap = activeTarget.activeTarget?.altText
+    if (!cap?.available || !cap.auto) return
+
+    for (const id of newIds) {
+      const entry = uploads.uploads.find(u => u.id === id)
+      if (!entry) continue
+      if (entry.kind !== 'default') continue
+      if (!(entry.file.type ?? '').startsWith('image/')) continue
+      // Skip if we've already fired or are about to.
+      if (aiPendingFor(id) || aiSuggestedFor(id)) continue
+      void autoSuggestAlt(id, entry.name)
+    }
+  },
+)
+
+/**
+ * Cancel an in-flight AI suggestion when the author starts typing
+ * into the alt input — author intent wins over AI. Also clear the
+ * "AI suggested" hint so the author's edits aren't tagged as AI
+ * output.
+ */
+function onAltInput(id: string): void {
+  const controller = aiAborts.get(id)
+  if (controller && !controller.signal.aborted) {
+    controller.abort()
+    aiAborts.delete(id)
+    aiPending.value.set(id, false)
+  }
+  // The author is now driving — drop the "AI suggested" hint.
+  if (aiSuggestedFor(id)) {
+    aiSuggested.value.set(id, false)
+  }
+}
 </script>
 
 <template>
@@ -236,21 +359,42 @@ async function commitAlt(assetName: string, alt: string | null): Promise<void> {
         "
         class="upload-entry-alt"
         :data-testid="`upload-${entry.id}-alt`">
-        <input
-          type="text"
-          placeholder="Alt text (describe the image for accessibility)"
-          :value="altValueFor(entry.id)"
-          :disabled="altDecorativeFor(entry.id)"
-          :data-testid="`upload-${entry.id}-alt-input`"
-          @blur="onAltBlur($event, entry.id, entry.name)" />
-        <label class="upload-entry-decorative">
+        <div class="upload-entry-alt-row">
           <input
-            type="checkbox"
-            :checked="altDecorativeFor(entry.id)"
-            :data-testid="`upload-${entry.id}-alt-decorative`"
-            @change="onDecorativeChange($event, entry.id, entry.name)" />
-          Decorative
-        </label>
+            type="text"
+            placeholder="Alt text (describe the image for accessibility)"
+            :value="altValueFor(entry.id)"
+            :disabled="altDecorativeFor(entry.id)"
+            :data-testid="`upload-${entry.id}-alt-input`"
+            @input="onAltInput(entry.id)"
+            @blur="onAltBlur($event, entry.id, entry.name)" />
+          <label class="upload-entry-decorative">
+            <input
+              type="checkbox"
+              :checked="altDecorativeFor(entry.id)"
+              :data-testid="`upload-${entry.id}-alt-decorative`"
+              @change="onDecorativeChange($event, entry.id, entry.name)" />
+            Decorative
+          </label>
+        </div>
+        <p
+          v-if="aiPendingFor(entry.id)"
+          class="upload-entry-ai-state"
+          :data-testid="`upload-${entry.id}-ai-pending`">
+          ✨ Generating alt suggestion…
+        </p>
+        <p
+          v-else-if="aiSuggestedFor(entry.id)"
+          class="upload-entry-ai-state"
+          :data-testid="`upload-${entry.id}-ai-suggested`">
+          ✨ AI suggested — edit or accept
+        </p>
+        <p
+          v-else-if="aiRefusalFor(entry.id)"
+          class="upload-entry-ai-refusal"
+          :data-testid="`upload-${entry.id}-ai-refused`">
+          ✨ AI declined — please write alt manually
+        </p>
       </div>
     </div>
   </div>
@@ -313,6 +457,12 @@ async function commitAlt(assetName: string, alt: string | null): Promise<void> {
 
 .upload-entry-alt {
   display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.upload-entry-alt-row {
+  display: flex;
   align-items: center;
   gap: 0.5rem;
 }
@@ -339,5 +489,19 @@ async function commitAlt(assetName: string, alt: string | null): Promise<void> {
   font-size: 0.75rem;
   color: var(--p-text-muted-color);
   white-space: nowrap;
+}
+
+.upload-entry-ai-state {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--p-text-muted-color);
+  font-style: italic;
+}
+
+.upload-entry-ai-refusal {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--p-amber-600);
+  font-style: italic;
 }
 </style>

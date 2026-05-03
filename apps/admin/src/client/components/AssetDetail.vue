@@ -7,13 +7,15 @@
  * Reads from `assetsSelection` + `assetsList`. If the selection points to
  * an asset not in the list (stale after a refresh), shows an empty state.
  */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import Button from 'primevue/button'
 import { formatBytes } from 'gazetta/format'
-import { updateAssetMetadata } from '../api/assets.js'
+import { suggestAlt, updateAssetMetadata, type SuggestAltResult } from '../api/assets.js'
+import { useActiveTargetStore } from '../stores/activeTarget.js'
 import { useAssetsListStore } from '../stores/assetsList.js'
 import { useAssetsSelectionStore } from '../stores/assetsSelection.js'
 import { useAssetsDeleteStore } from '../stores/assetsDelete.js'
+import { useLocaleStore } from '../stores/locale.js'
 import { buildAssetUrl, extFromMime } from '../utils/assetUrl.js'
 import AssetAltEditor from './AssetAltEditor.vue'
 import AssetDetailLocaleSection from './AssetDetailLocaleSection.vue'
@@ -22,6 +24,8 @@ import AssetFocalPointEditor from './AssetFocalPointEditor.vue'
 const list = useAssetsListStore()
 const selection = useAssetsSelectionStore()
 const del = useAssetsDeleteStore()
+const activeTarget = useActiveTargetStore()
+const locale = useLocaleStore()
 
 function onDelete(): void {
   if (!asset.value) return
@@ -61,6 +65,49 @@ async function onFocalPointUpdate(value: { x: number; y: number } | null): Promi
 }
 
 const isImage = computed(() => asset.value?.mime?.startsWith('image/') ?? false)
+
+/**
+ * AI alt-text capability for the active target. The detail-pane
+ * "✨ Suggest" button renders only when the adapter is configured
+ * (independent of the `auto` flag — auto controls upload-time
+ * pre-fill, not on-demand button visibility).
+ */
+const aiAvailable = computed(() => activeTarget.activeTarget?.altText.available ?? false)
+
+/** True while a suggestion is in-flight; gates the "Generating…" indicator. */
+const aiPending = ref(false)
+/** Refusal reason from the last suggest call. Null when not refused or unset. */
+const aiRefusalReason = ref<string | null>(null)
+
+/**
+ * Trigger an AI alt-text suggestion for the currently-selected asset.
+ * On success, commits the suggestion to the manifest via the existing
+ * `onAltUpdate` flow — same path as if the author had typed manually.
+ * Refusals surface inline; transport errors log to console (toast
+ * surface is a follow-up).
+ */
+async function onSuggestAlt(): Promise<void> {
+  if (!asset.value) return
+  const name = asset.value.name
+  aiPending.value = true
+  aiRefusalReason.value = null
+  let result: SuggestAltResult | null = null
+  try {
+    result = await suggestAlt(name, locale.activeLocale ?? undefined)
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(`AI alt suggestion failed for ${name}:`, err)
+    return
+  } finally {
+    aiPending.value = false
+  }
+  if (!result) return
+  if (result.refused) {
+    aiRefusalReason.value = result.refusalReason ?? 'Model declined'
+    return
+  }
+  await onAltUpdate(result.text)
+}
 
 const asset = computed(() => {
   if (!selection.selectedName) return null
@@ -114,6 +161,22 @@ function formatDate(iso: string): string {
           <dt>Alt</dt>
           <dd>
             <AssetAltEditor :model-value="asset.alt" @update:model-value="onAltUpdate" />
+            <div v-if="aiAvailable" class="asset-detail-alt-ai">
+              <Button
+                label="✨ Suggest"
+                text
+                size="small"
+                :loading="aiPending"
+                :disabled="aiPending"
+                data-testid="asset-detail-suggest-alt"
+                @click="onSuggestAlt" />
+              <p
+                v-if="aiRefusalReason"
+                class="asset-detail-alt-refusal"
+                data-testid="asset-detail-ai-refusal">
+                ✨ AI declined: {{ aiRefusalReason }}
+              </p>
+            </div>
           </dd>
         </div>
         <div v-if="isImage && previewUrl" class="asset-detail-focal">
@@ -231,6 +294,20 @@ function formatDate(iso: string): string {
 .asset-detail-alt dd,
 .asset-detail-focal dd {
   text-align: start;
+}
+
+.asset-detail-alt-ai {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.375rem;
+}
+
+.asset-detail-alt-refusal {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--p-amber-600);
+  font-style: italic;
 }
 
 .asset-detail-actions {
