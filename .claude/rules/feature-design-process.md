@@ -55,7 +55,7 @@ Capture what we're building, why, and the model.
 - **Deferred items** — what's out of THIS feature scope; trigger to revisit
 - **SOLID checks per cut** — explicit; not implicit
 
-The status table updates as cuts ship. When the feature is fully shipped, the implementation doc trims to "what was deferred" + "lessons learned."
+The status table updates as cuts ship. When the feature is fully shipped, the implementation doc is pruned — see "Lifecycle of an implementation doc" below.
 
 **Naming convention**: `design-{feature}.md`. The prefix matters — it makes `grep .claude/rules/design-*.md` find every feature design.
 
@@ -101,6 +101,36 @@ Per `~/.claude/skills/grill-with-docs/ADR-FORMAT.md`, an ADR is warranted only w
 3. **Result of a real trade-off** — there were genuine alternatives
 
 Most decisions don't pass this bar. The design doc carries the rationale; ADRs are the durable backstop for the load-bearing few.
+
+## Lifecycle of an implementation doc
+
+`design-{feature}-implementation.md` is a working document. It carries cut-by-cut detail, status, file lists, and per-cut SOLID notes — useful while the feature is being built, noise once it ships.
+
+**Trigger**: the same commit that ships the last cut also prunes the doc. The ship is the prune. No "we'll clean it up later" — that doesn't happen.
+
+**What the prune removes:**
+- Cut-by-cut status table (git log is the source of truth for cut history)
+- Per-cut scope sections (files added, tests written, risk notes)
+- Foundation grilling notes that have been absorbed into the design doc
+- Any "in progress" or "pending" annotations
+
+**What the prune keeps:**
+- A header line: "{Feature} v1 shipped {date}; see [`design-{feature}.md`](design-{feature}.md) for the durable design."
+- **Deferred items** — what was scoped out of this version, with triggers to revisit. This survives because v1.5/v2 planning needs it.
+- **Lessons learned** — non-obvious things the implementation surfaced that the design doc didn't predict. Survives so the next feature design pass can avoid the same surprises.
+- **Open implementation questions** that are still open after ship (rare; usually they're answered or moved to deferred).
+
+**Why prune at ship time, not later:**
+
+| Option | Why we don't do it |
+|---|---|
+| Leave doc as historical record | Implementation docs accumulate; `grep design-*.md` returns shipped detail mixed with active design. The signal-to-noise ratio decays. |
+| Move to `archive/` folder | Adds a navigation step ("is this active or archived?") for every doc in the design corpus. Not worth it for a small repo. |
+| Defer cleanup to a follow-up | Doesn't happen. The shipping commit is the only moment when the author has the full context to do this well. |
+
+**The design doc (`design-{feature}.md`) is not pruned.** It carries the durable model, distinctive choices, and rationale for the shipped feature. Future readers go there to understand what the feature is and why; they go to git log to understand how it was built cut-by-cut.
+
+**Example**: when media v1 fully ships, `design-media-implementation.md` will be pruned to ~30 lines: a header pointing at `design-media.md`, the existing "out of v1" deferred-items table, the "adjacent capabilities reserved for v1.5/v2" section, and a small lessons-learned section. The 11-row status table, the foundation grilling notes, and the per-cut detail all go away — they're recoverable from git log against the `media-v1-slice` branch.
 
 ## Categories of work and their durable artifacts
 
