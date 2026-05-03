@@ -9,16 +9,22 @@ Stateless CMS that structures websites as composable fragments. All state lives 
 - `tools/mcp-dev/` — MCP dev server (screenshot tool)
 - `examples/starter/` — Sample site with templates, fragments, pages
 - `sites/gazetta.studio/` — The gazetta.studio website (dogfooding)
-- `docs/design.md` — Human-readable design document
+
+**Strategic / process docs** (read these before designing or planning):
+- `CONTEXT.md` — **Domain glossary**: canonical vocabulary for the CMS (actors, structural primitives, manifests, references, targets, assets, locale/theme dimensions, composition vs. resolution, project/site/workspace). Use the glossary terms in conversations, code, and docs.
+- `ROADMAP.md` — Strategic forward-looking priorities (Tier 1/2/3 + deferred + non-goals). Updated as priorities shift.
+- `docs/non-goals.md` — Explicit strategic non-fits (memberships, content branching, federation, built-in search, visual-first editing, database integration). Read before proposing one of these.
+- `docs/audits/cms-feature-audit.md` — Snapshot of Gazetta's coverage vs. the modern CMS landscape, with fact-checked competitor citations. Drives ROADMAP and non-goals.
+- `docs/adr/` — Architecture Decision Records for hard-to-reverse, surprising-without-context decisions.
+
+**Public docs** (user-facing):
 - `docs/cloudflare.md` — Cloudflare deployment guide (R2, Workers, cache, CI)
 - `docs/self-hosted.md` — Self-hosted deployment guide (VPS, Docker, Fly.io)
-- `docs/sidecars.md` — Sidecar files (incremental publish, reverse-dep lookups)
-- `docs/feature-gaps.md` — CMS feature gap analysis (media, i18n, drafts, SEO, RBAC, etc.) — read when planning new features or discussing roadmap
-- `CONTEXT.md` — **Domain glossary**: canonical vocabulary for the CMS (actors, structural primitives, manifests, references, targets, assets, locale/theme dimensions, composition vs. resolution, project/site/workspace). Read before designing or naming things — using the glossary terms keeps conversations and code consistent
-- `docs/template-assets.md` — Template developer guide for asset references (schema helpers, resolved shapes, rendering)
-- `docs/content-assets.md` — Author guide for the asset library (upload, replace, locale overrides, focal point, alt)
+- `docs/getting-started.md` — Onboarding tutorial
+- `docs/template-assets.md` — Template developer guide for asset references
+- `docs/content-assets.md` — Content author guide for the asset library
 - `docs/migration.md` — Migrating templates from `z.string()` URLs to `embeddedAsset()` references
-- `docs/transform-adapters.md` — Per-target image delivery strategies (sharp default, cloudflare CDN, future adapters)
+- `docs/transform-adapters.md` — Per-target image delivery strategies
 
 ## Design docs (auto-loaded by Claude)
 
@@ -35,6 +41,8 @@ Stateless CMS that structures websites as composable fragments. All state lives 
 - `.claude/rules/design-validation-implementation.md` — Phased cut sequence (save-delta, background scanner, quality validators, publish gate), scope, deferred items
 - `.claude/rules/architecture.md` — System architecture and package layout
 - `.claude/rules/testing-plan.md` — Active testing coverage + e2e restructure plan (auto-loads when editing tests)
+- `.claude/rules/feature-design-process.md` — How feature design + implementation works in Gazetta. The resumability contract (every kind of work has a designated durable artifact). Read when starting feature design or unsure where a piece of work belongs.
+- `.claude/rules/sidecars.md` — Internal mechanism docs for `.uses-`, `.tpl-`, `.{8hex}.hash`, asset-refs sidecars used for incremental publish + reverse-dep lookups
 
 ## Build & Test
 
