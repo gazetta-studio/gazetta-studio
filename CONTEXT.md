@@ -249,11 +249,11 @@ _Avoid_: Using "Workspace" as a domain noun for Project, Site, or Target.
 
 The following terms were ambiguous in the codebase or design docs at the time this glossary was written. Each was resolved by picking a canonical term; type names in code were preserved for stability (Posture A — document what is, don't refactor in this pass).
 
-- **"Component"** was used both as the abstract base and as casual shorthand for a child of a Page or Fragment — and collides with React/Vue components in template development. Resolved: drop Component as a domain noun. Use Page, Fragment, or Inline Component explicitly. The internal type `ComponentManifest` is stable.
+- **"Component"** was used both as the abstract base and as casual shorthand for a child of a Page or Fragment — and collides with React/Vue components in template development. Resolved: drop Component as a domain noun. Use Page, Fragment, or Inline Component explicitly. The internal type `ComponentManifest` is stable. See [ADR 0003](docs/adr/0003-component-not-a-domain-noun.md).
 
 - **"Manifest"** was used as a suffix on at least 13 distinct types (`PageManifest`, `AssetManifest`, `RevisionManifest`, ...). Resolved: promote Manifest to a domain noun ("a Manifest is the authoritative declarative description of a domain entity's current state, stored as a JSON or YAML file") and always qualify in conversation when ambiguity is possible.
 
-- **"Reference / Ref"** was used for at least four distinct things: in-content link, location-record of where references occur, fragment-name string, and the storage sidecar that materializes location-records. Resolved: Reference (out-pointing, in content) vs. Usage (in-pointing, derived). The code's `AssetRef` type carries Usage data; type name is stable.
+- **"Reference / Ref"** was used for at least four distinct things: in-content link, location-record of where references occur, fragment-name string, and the storage sidecar that materializes location-records. Resolved: Reference (out-pointing, in content) vs. Usage (in-pointing, derived). The code's `AssetRef` type carries Usage data; type name is stable. See [ADR 0002](docs/adr/0002-reference-vs-usage.md).
 
 - **"Source"** was used for both publish-source-Target and admin-API editing context (`SourceContext`). Resolved: Source Target (publish role) vs. Source Context (internal admin-API plumbing for the Active Target). Type name is stable.
 
@@ -261,7 +261,7 @@ The following terms were ambiguous in the codebase or design docs at the time th
 
 - **"Override"** was used for both the asset-only locale-bytes-or-metadata-overlay-on-default case and (occasionally) for whole-file locale variants. Resolved: Override is partial overlay; Locale Variant is whole-file. Subtypes: Locale Bytes Override, Locale Metadata Override, Theme Bytes Override, Theme Metadata Override.
 
-- **"Resolve"** was used for three structurally different operations: (1) walk a tree and replace references with loaded contents; (2) pick a value from a fallback chain; (3) merge layered config. Resolved: Compose (verb) for the tree-walking operation; Resolve (verb) for chain-pick and config-merge. Code names with `resolve*` prefix are stable; new code should use `compose*` for tree-walking.
+- **"Resolve"** was used for three structurally different operations: (1) walk a tree and replace references with loaded contents; (2) pick a value from a fallback chain; (3) merge layered config. Resolved: Compose (verb) for the tree-walking operation; Resolve (verb) for chain-pick and config-merge. Code names with `resolve*` prefix are stable; new code should use `compose*` for tree-walking. See [ADR 0001](docs/adr/0001-compose-vs-resolve-verb-split.md).
 
 - **"Kind"** collided between Asset Kind (rendering contract: embedded / downloadable / font, code type `AssetKind`) and informal usage for format category (image / video / audio). Resolved: Asset Kind is the rendering contract; format gets adjective form ("image asset," "audio asset") with no noun.
 
