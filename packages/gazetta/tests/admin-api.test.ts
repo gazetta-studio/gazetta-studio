@@ -219,7 +219,10 @@ describe('POST /preview/@fragment', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        overrides: { [footerPath]: { text: 'Draft Footer' } },
+        overrides: {
+          content: { [footerPath]: { text: 'Draft Footer' } },
+          structural: {},
+        },
       }),
     })
     expect(res.status).toBe(200)
@@ -234,7 +237,10 @@ describe('POST /preview/*', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        overrides: { hero: { title: 'Draft Title', subtitle: 'Draft Subtitle' } },
+        overrides: {
+          content: { hero: { title: 'Draft Title', subtitle: 'Draft Subtitle' } },
+          structural: {},
+        },
       }),
     })
     expect(res.status).toBe(200)
@@ -252,6 +258,65 @@ describe('POST /preview/*', () => {
     expect(res.status).toBe(200)
     const html = await res.text()
     expect(html).toContain('Welcome to Gazetta')
+  })
+
+  it('renders with a structural override (reordered components)', async () => {
+    // Pull the original components, swap the first two non-fragment children, send as override.
+    const original = await app.request('/api/pages/home').then(r => r.json())
+    const components = (original as { components: unknown[] }).components.slice()
+    // Find the hero (index 1, after @header) and features (index 2) and swap them.
+    const heroIdx = components.findIndex(
+      c => typeof c === 'object' && c !== null && (c as { name?: string }).name === 'hero',
+    )
+    const featuresIdx = components.findIndex(
+      c => typeof c === 'object' && c !== null && (c as { name?: string }).name === 'features',
+    )
+    expect(heroIdx).toBeGreaterThan(-1)
+    expect(featuresIdx).toBeGreaterThan(-1)
+    ;[components[heroIdx], components[featuresIdx]] = [components[featuresIdx], components[heroIdx]]
+
+    const res = await app.request('/preview/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        overrides: {
+          content: {},
+          structural: { 'page:home': components },
+        },
+      }),
+    })
+    expect(res.status).toBe(200)
+    const html = await res.text()
+    // Both components still rendered
+    expect(html).toContain('Welcome to Gazetta')
+    expect(html).toContain('Why Gazetta?')
+    // 'Why Gazetta?' (features heading) now appears before 'Welcome to Gazetta' (hero title).
+    expect(html.indexOf('Why Gazetta?')).toBeLessThan(html.indexOf('Welcome to Gazetta'))
+  })
+
+  it('does not mutate the underlying Site (concurrent override + plain renders)', async () => {
+    // Sequentially: render with structural override, then render without — second
+    // render should reflect ORIGINAL order, proving the override did not mutate
+    // the in-memory Site.
+    const original = await app.request('/api/pages/home').then(r => r.json())
+    const components = (original as { components: unknown[] }).components.slice().reverse()
+
+    await app.request('/preview/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        overrides: { content: {}, structural: { 'page:home': components } },
+      }),
+    })
+
+    const res = await app.request('/preview/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ overrides: { content: {}, structural: {} } }),
+    })
+    const html = await res.text()
+    // Original order: hero before features.
+    expect(html.indexOf('Welcome to Gazetta')).toBeLessThan(html.indexOf('Why Gazetta?'))
   })
 })
 

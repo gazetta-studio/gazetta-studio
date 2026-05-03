@@ -1,10 +1,13 @@
 import { Hono, type Context } from 'hono'
-import type { ResolvedComponent } from '../../types.js'
-import { allPageEntries } from '../../site-loader.js'
+import type { DraftOverrides, ManifestKey, ResolvedComponent } from '../../types.js'
+import { manifestKeyToString } from '../../types.js'
+import { allPageEntries, type Site } from '../../site-loader.js'
 import { loadSiteFromSource } from '../source-context.js'
 import { resolveFragment, resolvePage } from '../../resolver.js'
 import { renderFragment, renderPage } from '../../renderer.js'
 import type { SourceContext, SourceContextResolver } from '../source-context.js'
+
+const EMPTY_OVERRIDES: DraftOverrides = { content: {}, structural: {} }
 
 export function previewRoutes(resolve: SourceContextResolver, templatesDir?: string) {
   const app = new Hono()
@@ -17,24 +20,23 @@ export function previewRoutes(resolve: SourceContextResolver, templatesDir?: str
 
   app.get('/preview/*', async c => {
     const source = await resolve(c.req.query('target'))
-    return renderPreview(c, source, undefined, templatesDir)
+    return renderPreview(c, source, EMPTY_OVERRIDES, templatesDir)
   })
 
   app.post('/preview/*', async c => {
     const source = await resolve(c.req.query('target'))
-    const body = (await c.req.json()) as { overrides?: Record<string, Record<string, unknown>> }
-    return renderPreview(c, source, body.overrides, templatesDir)
+    const body = (await c.req.json()) as { overrides?: Partial<DraftOverrides> }
+    const overrides: DraftOverrides = {
+      content: body.overrides?.content ?? {},
+      structural: body.overrides?.structural ?? {},
+    }
+    return renderPreview(c, source, overrides, templatesDir)
   })
 
   return app
 }
 
-async function renderPreview(
-  c: Context,
-  source: SourceContext,
-  overrides?: Record<string, Record<string, unknown>>,
-  templatesDir?: string,
-) {
+async function renderPreview(c: Context, source: SourceContext, overrides: DraftOverrides, templatesDir?: string) {
   // Empty target (no site.yaml) — preview returns a friendly placeholder
   // so the admin can still show the iframe. Happens when the active
   // target is a never-published publish-target.
@@ -67,8 +69,9 @@ async function renderPreview(
   if (fragRequestPath.startsWith('/@')) {
     const fragmentName = fragRequestPath.slice(2)
     try {
-      const resolved = await resolveFragment(fragmentName, site, previewLocale)
-      if (overrides) applyOverrides(resolved, overrides)
+      const previewSite = withStructuralOverride(site, { kind: 'fragment', name: fragmentName }, overrides)
+      const resolved = await resolveFragment(fragmentName, previewSite, previewLocale)
+      applyContentOverrides(resolved, overrides.content)
       return c.html(await renderFragment(resolved, previewLocale))
     } catch (err) {
       const e = err as Error
@@ -85,8 +88,9 @@ async function renderPreview(
     const params = matchRoute(page.route, requestPath)
     if (params) {
       try {
-        const resolved = await resolvePage(pageName, site, pageLocale)
-        if (overrides) applyOverrides(resolved, overrides)
+        const previewSite = withStructuralOverride(site, { kind: 'page', name: pageName }, overrides)
+        const resolved = await resolvePage(pageName, previewSite, pageLocale)
+        applyContentOverrides(resolved, overrides.content)
         return c.html(
           await renderPage(resolved, {
             routeParams: params,
@@ -113,15 +117,45 @@ async function renderPreview(
   return c.html('<p>Page not found</p>', 404)
 }
 
-function applyOverrides(node: ResolvedComponent, overrides: Record<string, Record<string, unknown>>) {
+function applyContentOverrides(node: ResolvedComponent, content: DraftOverrides['content']) {
   // Match on treePath (name path) for merged JSON format, fallback to filesystem path for compatibility
   const key = node.treePath ?? node.path
-  if (key && overrides[key]) {
-    node.content = overrides[key]
+  if (key && content[key]) {
+    node.content = content[key]
   }
   for (const child of node.children) {
-    applyOverrides(child, overrides)
+    applyContentOverrides(child, content)
   }
+}
+
+/**
+ * Return a shallow-cloned Site with one page or fragment manifest's `components`
+ * array replaced by the structural override (when present). All other state is
+ * shared with the original — only the affected Map and the affected manifest are
+ * cloned. Concurrency-safe: the original Site is never mutated, so concurrent
+ * preview renders can't interleave on shared state.
+ *
+ * When no override exists for `key`, returns the original Site unchanged.
+ *
+ * v1 limitation: only patches the default-locale manifest; locale-variant
+ * structural overrides are not yet plumbed through. Locale-variant edits
+ * fall back to the default-locale structural override if any.
+ */
+function withStructuralOverride(site: Site, key: ManifestKey, overrides: DraftOverrides): Site {
+  const replacement = overrides.structural[manifestKeyToString(key)]
+  if (!replacement) return site
+  if (key.kind === 'page') {
+    const manifest = site.pages.get(key.name)
+    if (!manifest) return site
+    const patchedPages = new Map(site.pages)
+    patchedPages.set(key.name, { ...manifest, components: replacement })
+    return { ...site, pages: patchedPages }
+  }
+  const manifest = site.fragments.get(key.name)
+  if (!manifest) return site
+  const patchedFragments = new Map(site.fragments)
+  patchedFragments.set(key.name, { ...manifest, components: replacement })
+  return { ...site, fragments: patchedFragments }
 }
 
 function matchRoute(route: string, path: string): Record<string, string> | null {
