@@ -46,6 +46,7 @@ Capture what we're building, why, and the model.
 - **Distinctive choices** — what we picked vs. what we rejected, with reasons. Future-you re-litigates without these.
 - **Migration** — for existing sites if applicable
 - **Open questions** — known unresolved items
+- **Future directions** — placed at the end. Lists deferred capabilities, v1.5/v2 bets, and frontier ideas that aren't committed work. Above-the-section content is the current shipped/being-built model; below-the-section content is preserved thinking, not a promise. As versions ship, items rotate up into committed scope.
 
 **Required sections in a `design-{feature}-implementation.md`:**
 
@@ -133,6 +134,15 @@ Most decisions don't pass this bar. The design doc carries the rationale; ADRs a
 **The design doc (`design-{feature}.md`) is not pruned.** It carries the durable model, distinctive choices, and rationale for the shipped feature. Future readers go there to understand what the feature is and why; they go to git log to understand how it was built cut-by-cut.
 
 **Example**: when media v1 fully ships, `design-media-implementation.md` will be pruned to ~30 lines: a header pointing at `design-media.md`, the existing "out of v1" deferred-items table, the "adjacent capabilities reserved for v1.5/v2" section, and a small lessons-learned section. The 11-row status table, the foundation grilling notes, and the per-cut detail all go away — they're recoverable from git log against the `media-v1-slice` branch.
+
+## Versioning a design doc
+
+`design-{feature}.md` describes the version that's currently shipped or being built. When a successor version is designed:
+
+- **Extension (v1.5 adds capabilities to v1)**: edit `design-{feature}.md` in place. Items from "Future directions" rotate up into committed scope; the design doc absorbs the new capabilities. The implementation doc for the v1.5 work is a fresh `design-{feature}-implementation.md` (the v1 one was pruned at v1 ship time).
+- **Supersession (v2 diverges meaningfully from v1)**: fork the doc. Rename the v1 design to `design-{feature}-v1.md` with a header pointing at the new `design-{feature}.md`. The new file describes v2 from a clean slate. Rare — most version bumps are extensions.
+
+The choice between extension and supersession is a judgment call made when v2 grilling starts, not predicated on a rule. If you're not sure, default to extension — superseded docs are noise unless v1 and v2 genuinely tell different stories.
 
 ## Categories of work and their durable artifacts
 
