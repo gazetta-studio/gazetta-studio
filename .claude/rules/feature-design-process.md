@@ -115,15 +115,24 @@ Rules:
 
 The skill that codifies this: `grill-me` and `grill-with-docs` in `~/.claude/skills/`.
 
-## When to write an ADR
+## Where decisions live
 
-Per `~/.claude/skills/grill-with-docs/ADR-FORMAT.md`, an ADR is warranted only when ALL three are true:
+Two tiers, per `~/.claude/skills/grill-with-docs/ADR-FORMAT.md`:
+
+- **Feature-scoped decisions** → "Distinctive choices" section in `design-{feature}.md`. The bulk of design rationale.
+- **Load-bearing decisions** → `docs/adr/NNNN-slug.md`. Reserved for the few that pass the ADR criteria.
+
+ADRs are warranted only when ALL three are true:
 
 1. **Hard to reverse** — meaningful cost to change later
 2. **Surprising without context** — future reader will wonder "why on earth did they do it this way?"
 3. **Result of a real trade-off** — there were genuine alternatives
 
+The skill's `ADR-FORMAT.md` lists what qualifies in concrete terms (architectural shape, technology lock-in, boundary decisions, deliberate deviations from the obvious path, constraints not visible in code, rejected alternatives where the rejection is non-obvious). Refer to it when deciding.
+
 Most decisions don't pass this bar. The design doc carries the rationale; ADRs are the durable backstop for the load-bearing few.
+
+**Legacy:** `design-decisions.md` (18 entries) predates this two-tier model. Treat it like the `-plan.md` predecessors — lazy migration when a relevant feature is next touched: entries either move to that feature's "Distinctive choices" section or get promoted to ADRs. No new entries land in `design-decisions.md`.
 
 ## Lifecycle of an implementation doc
 
