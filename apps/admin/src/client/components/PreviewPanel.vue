@@ -493,14 +493,17 @@ async function fetchPreview(morph = true) {
 
   loading.value = true
   try {
-    const overrides = editing.allOverrides
-    const hasOverrides = Object.keys(overrides).length > 0
+    // `editing.allOverrides` carries content overrides today; structural-lane
+    // wiring lands in a follow-up commit. Wrap into the typed DraftOverrides
+    // shape that the server now requires.
+    const contentOverrides = editing.allOverrides as Record<string, Record<string, unknown>>
+    const hasOverrides = Object.keys(contentOverrides).length > 0
     let res: Response
     if (hasOverrides) {
       res = await fetch(previewPath.value, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ overrides }),
+        body: JSON.stringify({ overrides: { content: contentOverrides, structural: {} } }),
         signal: controller.signal,
       })
     } else {

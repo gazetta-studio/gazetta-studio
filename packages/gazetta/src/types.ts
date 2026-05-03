@@ -84,6 +84,38 @@ export interface ComponentManifest {
 /** Fragment manifest (shared component) */
 export interface FragmentManifest extends ComponentManifest {}
 
+/**
+ * Identifier for a structural override target — a page or fragment manifest.
+ * Serialized as `page:{name}` / `fragment:{name}` for use as object keys.
+ */
+export type ManifestKey = { kind: 'page'; name: string } | { kind: 'fragment'; name: string }
+
+export function manifestKeyToString(key: ManifestKey): string {
+  return `${key.kind}:${key.name}`
+}
+
+export function manifestKeyFromString(s: string): ManifestKey {
+  const i = s.indexOf(':')
+  if (i < 0) throw new Error(`Invalid manifest key: ${s}`)
+  const kind = s.slice(0, i)
+  if (kind !== 'page' && kind !== 'fragment') throw new Error(`Invalid manifest key kind: ${kind}`)
+  return { kind, name: s.slice(i + 1) }
+}
+
+/**
+ * Pending draft overrides sent from the admin to the preview server.
+ *
+ * Two lanes, both required (use empty maps when nothing is pending):
+ * - `content` — keyed by the component's tree path (or filesystem path); replaces
+ *   the resolved component's `content` object.
+ * - `structural` — keyed by `manifestKeyToString` (page:name | fragment:name);
+ *   replaces the manifest's `components` array.
+ */
+export interface DraftOverrides {
+  content: Record<string, Record<string, unknown>>
+  structural: Record<string, ComponentEntry[]>
+}
+
 /** CDN cache purge configuration */
 export interface PurgeConfig {
   type: 'cloudflare'
