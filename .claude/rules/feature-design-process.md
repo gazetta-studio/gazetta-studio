@@ -48,6 +48,11 @@ Capture what we're building, why, and the model.
 - **Open questions** — known unresolved items
 - **Future directions** — placed at the end. Lists deferred capabilities, v1.5/v2 bets, and frontier ideas that aren't committed work. Above-the-section content is the current shipped/being-built model; below-the-section content is preserved thinking, not a promise. As versions ship, items rotate up into committed scope.
 
+**Cross-referencing convention:**
+
+- The "Companion docs" block (placed after "Scope") lists the impl doc, reference doc (if it exists), and any ADRs that sit under this feature. Format: `- [name](relative-path) — one-line description`. Tells a cold reader which docs travel together.
+- Cross-feature references in body prose use relative paths (e.g., `[design-ai.md](design-ai.md)`, not the full project-relative path). Inline at point-of-use; no bottom-of-doc "Related" section — body links stay correct as long as the body is correct, without a parallel index to maintain.
+
 **Required sections in a `design-{feature}-implementation.md`:**
 
 - **Status legend** (✓ shipped · ◐ in progress · ☐ pending)
