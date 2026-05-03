@@ -86,16 +86,7 @@ test.describe('Custom field', () => {
 })
 
 test.describe('Rapid selection', () => {
-  test('last click wins when rapidly switching pages', { retry: 1 }, async ({ page }, testInfo) => {
-    // Racing two clicks in quick succession can leave a half-mounted
-    // PrimeVue component briefly accessing a now-detached DOM node,
-    // surfacing as a transient `Cannot read properties of null
-    // (reading 'querySelector')` page error. The test's invariant —
-    // "last click wins" — passes regardless; the console error is
-    // intrinsic to the race we're intentionally inducing. Opt out of
-    // the fixture's strict console-error policy.
-    testInfo.annotations.push({ type: 'allow-console-errors' })
-
+  test('last click wins when rapidly switching pages', { retry: 1 }, async ({ page }) => {
     await page.goto('/admin')
     const tree = new SiteTreePom(page)
     await expect(tree.pageRow('home')).toBeVisible()
