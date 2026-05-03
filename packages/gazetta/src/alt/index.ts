@@ -38,3 +38,8 @@ export {
   type SuggestInput,
   createAltSuggester,
 } from './suggester.js'
+export {
+  type AnthropicAltAdapterOptions,
+  ANTHROPIC_DEFAULT_MODEL,
+  createAnthropicAltAdapter,
+} from './anthropic.js'

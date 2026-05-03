@@ -71,6 +71,7 @@
     "test:mutation": "stryker run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.92.0",
     "@clack/prompts": "^1.2.0",
     "@floating-ui/dom": "^1.7.6",
     "@hello-pangea/dnd": "^18.0.1",
@@ -129,6 +130,7 @@
     "@types/write-file-atomic": "^4.0.3",
     "@vitejs/plugin-vue": "^6.0.6",
     "fast-check": "^4.6.0",
+    "msw": "^2.14.2",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",
     "vite": "^8.0.8",
