@@ -62,6 +62,12 @@ When an implementation cut diverges from its design, the design doc is updated i
 
 This extends [team-preferences rule 8](team-preferences.md) ("update docs in the same commit as the feature") from user-facing docs to internal design docs. Drift is a bug, caught at PR review; not a long-term decay problem to audit later.
 
+**CONTEXT.md update trigger:**
+
+Per the `grill-with-docs` skill (`~/.claude/skills/grill-with-docs/SKILL.md`), terms land in `CONTEXT.md` inline as they're resolved during grilling — captured when they crystallise, not batched. The filter is "meaningful to a domain expert" (Page, Fragment, Active Target — yes; `ComponentManifest`, `ResolveContext` — no, those are implementation type names, not domain language). Follow the skill's rule rather than layering a project-specific convention on top.
+
+Renaming or removing a glossary term is itself an ADR — rename is by definition hard-to-reverse + surprising-without-context.
+
 **Required sections in a `design-{feature}-implementation.md`:**
 
 - **Status legend** (✓ shipped · ◐ in progress · ☐ pending)
