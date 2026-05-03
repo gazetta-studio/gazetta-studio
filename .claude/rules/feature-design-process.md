@@ -53,6 +53,15 @@ Capture what we're building, why, and the model.
 - The "Companion docs" block (placed after "Scope") lists the impl doc, reference doc (if it exists), and any ADRs that sit under this feature. Format: `- [name](relative-path) — one-line description`. Tells a cold reader which docs travel together.
 - Cross-feature references in body prose use relative paths (e.g., `[design-ai.md](design-ai.md)`, not the full project-relative path). Inline at point-of-use; no bottom-of-doc "Related" section — body links stay correct as long as the body is correct, without a parallel index to maintain.
 
+**Keeping design docs aligned with reality:**
+
+When an implementation cut diverges from its design, the design doc is updated in the same commit as the diverging code. Two paths, both made at PR review (never deferred):
+
+- **Design was wrong** — fix the design doc to reflect the better approach. Call out the change in the commit message.
+- **Cut deviated for tactical reasons** — the design stays correct; the deviation goes into a "Current code alignment" subsection of the design doc, which becomes a punch list to reconcile or accept later (`design-publishing.md` is the reference example).
+
+This extends [team-preferences rule 8](team-preferences.md) ("update docs in the same commit as the feature") from user-facing docs to internal design docs. Drift is a bug, caught at PR review; not a long-term decay problem to audit later.
+
 **Required sections in a `design-{feature}-implementation.md`:**
 
 - **Status legend** (✓ shipped · ◐ in progress · ☐ pending)
