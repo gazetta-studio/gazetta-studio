@@ -7,10 +7,34 @@ import { describe, it, expect } from 'vitest'
 import type { TargetInfo } from '../src/client/api/client.js'
 import { isSavingToProd, saveButtonLabel, saveButtonSeverity } from '../src/client/composables/saveButtonBinding.js'
 
-const LOCAL: TargetInfo = { name: 'local', environment: 'local', type: 'static', editable: true }
-const STAGING: TargetInfo = { name: 'staging', environment: 'staging', type: 'static', editable: true }
-const PROD_READONLY: TargetInfo = { name: 'prod', environment: 'production', type: 'static', editable: false }
-const PROD_HOTFIX: TargetInfo = { name: 'prod', environment: 'production', type: 'static', editable: true }
+const LOCAL: TargetInfo = {
+  name: 'local',
+  environment: 'local',
+  type: 'static',
+  editable: true,
+  altText: { available: false, auto: false },
+}
+const STAGING: TargetInfo = {
+  name: 'staging',
+  environment: 'staging',
+  type: 'static',
+  editable: true,
+  altText: { available: false, auto: false },
+}
+const PROD_READONLY: TargetInfo = {
+  name: 'prod',
+  environment: 'production',
+  type: 'static',
+  editable: false,
+  altText: { available: false, auto: false },
+}
+const PROD_HOTFIX: TargetInfo = {
+  name: 'prod',
+  environment: 'production',
+  type: 'static',
+  editable: true,
+  altText: { available: false, auto: false },
+}
 
 describe('isSavingToProd', () => {
   it('true only when target is editable AND environment is production', () => {
@@ -43,7 +67,13 @@ describe('saveButtonLabel', () => {
   })
 
   it('uses the target name so multi-region prod (e.g. prod-us) is unambiguous', () => {
-    const prodUs: TargetInfo = { name: 'prod-us', environment: 'production', type: 'static', editable: true }
+    const prodUs: TargetInfo = {
+      name: 'prod-us',
+      environment: 'production',
+      type: 'static',
+      editable: true,
+      altText: { available: false, auto: false },
+    }
     expect(saveButtonLabel(prodUs)).toBe('Save to prod-us')
   })
 

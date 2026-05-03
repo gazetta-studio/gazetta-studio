@@ -214,13 +214,41 @@ describe('GET /api/fields contract', () => {
 describe('GET /api/targets contract', () => {
   describe('TargetInfo', () => {
     it('accepts a well-formed entry', () => {
-      const entry: TargetInfo = { name: 'local', environment: 'local', type: 'static', editable: true }
+      const entry: TargetInfo = {
+        name: 'local',
+        environment: 'local',
+        type: 'static',
+        editable: true,
+        altText: { available: false, auto: false },
+      }
       expect(TargetInfoSchema.safeParse(entry).success).toBe(true)
     })
 
     it('rejects entries missing required fields', () => {
       expect(TargetInfoSchema.safeParse({ name: 'local', environment: 'local', type: 'static' }).success).toBe(false)
       expect(TargetInfoSchema.safeParse({ environment: 'local', type: 'static', editable: true }).success).toBe(false)
+      // altText is required per the v1.5 capability surface.
+      expect(
+        TargetInfoSchema.safeParse({ name: 'local', environment: 'local', type: 'static', editable: true }).success,
+      ).toBe(false)
+    })
+
+    it('accepts altText capability with both availability and auto values', () => {
+      const cases = [
+        { available: false, auto: false },
+        { available: true, auto: false },
+        { available: true, auto: true },
+      ]
+      for (const altText of cases) {
+        const entry: TargetInfo = {
+          name: 'local',
+          environment: 'local',
+          type: 'static',
+          editable: true,
+          altText,
+        }
+        expect(TargetInfoSchema.safeParse(entry).success).toBe(true)
+      }
     })
   })
 

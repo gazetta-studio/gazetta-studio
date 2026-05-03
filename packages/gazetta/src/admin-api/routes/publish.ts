@@ -18,6 +18,8 @@ import {
 import { loadSiteFromSource } from '../source-context.js'
 import { publishPageAllLocales, publishFragmentAllLocales } from '../../publish-locale.js'
 import { resolveEnvVars } from '../../targets.js'
+import { isAltAdapterConfigured } from '../../alt/factory.js'
+import { resolveAltConfig } from '../../alt/config.js'
 import { scanTemplates, templateHashesFrom, type TemplateInfo } from '../../templates-scan.js'
 import { hashManifest } from '../../hash.js'
 import { createContentRoot } from '../../content-root.js'
@@ -115,14 +117,31 @@ export function publishRoutes(
 
   app.get('/api/targets', async c => {
     const t = await getTargets()
+    // Resolve once — the site manifest is the same across all
+    // targets in this loop. resolve(undefined) returns the source
+    // context whose .manifest holds `ai:` and `altText:`.
+    const source = await resolve(undefined)
+    const site = source.manifest
     return c.json(
       [...t.keys()].map(name => {
         const cfg = getTargetConfig(name)
+        // AI alt-text capability — site + target inherit chain. When
+        // the site manifest isn't available (legacy/test setups), the
+        // feature is reported off uniformly.
+        const altResolved = site ? resolveAltConfig(site, cfg) : null
+        const altAvailable = site ? isAltAdapterConfigured(site, cfg) : false
         return {
           name,
           environment: cfg ? getEnvironment(cfg) : 'local',
           type: cfg ? getType(cfg) : 'static',
           editable: cfg ? isEditable(cfg) : true,
+          altText: {
+            available: altAvailable,
+            // When not configured, the resolved value is null — surface
+            // false rather than the hardcoded default so the UI doesn't
+            // imply "auto-fire is on" for an unconfigured target.
+            auto: altResolved?.auto ?? false,
+          },
         }
       }),
     )

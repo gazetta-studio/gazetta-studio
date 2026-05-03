@@ -58,14 +58,30 @@ describe('ActiveTargetIndicator', () => {
     })
 
     it('hides when no active target is set', () => {
-      const targets: TargetInfo[] = [{ name: 'local', environment: 'local', type: 'static', editable: true }]
+      const targets: TargetInfo[] = [
+        {
+          name: 'local',
+          environment: 'local',
+          type: 'static',
+          editable: true,
+          altText: { available: false, auto: false },
+        },
+      ]
       setup(targets, null)
       const w = mountWithGlobals()
       expect(w.find('[data-testid="active-target-indicator"]').exists()).toBe(false)
     })
 
     it('shows the pill with 1 target and active set', () => {
-      const targets: TargetInfo[] = [{ name: 'local', environment: 'local', type: 'static', editable: true }]
+      const targets: TargetInfo[] = [
+        {
+          name: 'local',
+          environment: 'local',
+          type: 'static',
+          editable: true,
+          altText: { available: false, auto: false },
+        },
+      ]
       setup(targets, 'local')
       const w = mountWithGlobals()
       expect(w.find('[data-testid="active-target-indicator"]').exists()).toBe(true)
@@ -75,28 +91,60 @@ describe('ActiveTargetIndicator', () => {
 
   describe('environment chrome', () => {
     it('applies env-local for local environment', () => {
-      const targets: TargetInfo[] = [{ name: 'local', environment: 'local', type: 'static', editable: true }]
+      const targets: TargetInfo[] = [
+        {
+          name: 'local',
+          environment: 'local',
+          type: 'static',
+          editable: true,
+          altText: { available: false, auto: false },
+        },
+      ]
       setup(targets, 'local')
       const w = mountWithGlobals()
       expect(w.find('[data-testid="active-target-indicator"]').classes()).toContain('env-local')
     })
 
     it('applies env-staging for staging environment', () => {
-      const targets: TargetInfo[] = [{ name: 'staging', environment: 'staging', type: 'static', editable: false }]
+      const targets: TargetInfo[] = [
+        {
+          name: 'staging',
+          environment: 'staging',
+          type: 'static',
+          editable: false,
+          altText: { available: false, auto: false },
+        },
+      ]
       setup(targets, 'staging')
       const w = mountWithGlobals()
       expect(w.find('[data-testid="active-target-indicator"]').classes()).toContain('env-staging')
     })
 
     it('applies env-production for production environment', () => {
-      const targets: TargetInfo[] = [{ name: 'prod', environment: 'production', type: 'static', editable: false }]
+      const targets: TargetInfo[] = [
+        {
+          name: 'prod',
+          environment: 'production',
+          type: 'static',
+          editable: false,
+          altText: { available: false, auto: false },
+        },
+      ]
       setup(targets, 'prod')
       const w = mountWithGlobals()
       expect(w.find('[data-testid="active-target-indicator"]').classes()).toContain('env-production')
     })
 
     it('falls back to env-local when environment is unset', () => {
-      const targets: TargetInfo[] = [{ name: 'unset', environment: undefined, type: 'static', editable: true }]
+      const targets: TargetInfo[] = [
+        {
+          name: 'unset',
+          environment: undefined,
+          type: 'static',
+          editable: true,
+          altText: { available: false, auto: false },
+        },
+      ]
       setup(targets, 'unset')
       const w = mountWithGlobals()
       expect(w.find('[data-testid="active-target-indicator"]').classes()).toContain('env-local')
@@ -105,21 +153,45 @@ describe('ActiveTargetIndicator', () => {
 
   describe('editable vs read-only', () => {
     it('shows the read-only badge for non-editable targets', () => {
-      const targets: TargetInfo[] = [{ name: 'prod', environment: 'production', type: 'static', editable: false }]
+      const targets: TargetInfo[] = [
+        {
+          name: 'prod',
+          environment: 'production',
+          type: 'static',
+          editable: false,
+          altText: { available: false, auto: false },
+        },
+      ]
       setup(targets, 'prod')
       const w = mountWithGlobals()
       expect(w.find('[data-testid="active-target-indicator"]').text()).toContain('read-only')
     })
 
     it('omits the read-only badge for editable targets', () => {
-      const targets: TargetInfo[] = [{ name: 'local', environment: 'local', type: 'static', editable: true }]
+      const targets: TargetInfo[] = [
+        {
+          name: 'local',
+          environment: 'local',
+          type: 'static',
+          editable: true,
+          altText: { available: false, auto: false },
+        },
+      ]
       setup(targets, 'local')
       const w = mountWithGlobals()
       expect(w.find('[data-testid="active-target-indicator"]').text()).not.toContain('read-only')
     })
 
     it('reflects editable in the title attribute', () => {
-      const targetsRO: TargetInfo[] = [{ name: 'prod', environment: 'production', type: 'static', editable: false }]
+      const targetsRO: TargetInfo[] = [
+        {
+          name: 'prod',
+          environment: 'production',
+          type: 'static',
+          editable: false,
+          altText: { available: false, auto: false },
+        },
+      ]
       setup(targetsRO, 'prod')
       const w = mountWithGlobals()
       expect(w.find('[data-testid="active-target-indicator"]').attributes('title')).toContain('read-only')
@@ -128,7 +200,15 @@ describe('ActiveTargetIndicator', () => {
 
   describe('interactivity', () => {
     it('marks the pill interactive with ≥1 target', () => {
-      const targets: TargetInfo[] = [{ name: 'local', environment: 'local', type: 'static', editable: true }]
+      const targets: TargetInfo[] = [
+        {
+          name: 'local',
+          environment: 'local',
+          type: 'static',
+          editable: true,
+          altText: { available: false, auto: false },
+        },
+      ]
       setup(targets, 'local')
       const w = mountWithGlobals()
       const pill = w.find('[data-testid="active-target-indicator"]')
@@ -138,8 +218,20 @@ describe('ActiveTargetIndicator', () => {
 
     it('shows a chevron when interactive', () => {
       const targets: TargetInfo[] = [
-        { name: 'local', environment: 'local', type: 'static', editable: true },
-        { name: 'staging', environment: 'staging', type: 'static', editable: false },
+        {
+          name: 'local',
+          environment: 'local',
+          type: 'static',
+          editable: true,
+          altText: { available: false, auto: false },
+        },
+        {
+          name: 'staging',
+          environment: 'staging',
+          type: 'static',
+          editable: false,
+          altText: { available: false, auto: false },
+        },
       ]
       setup(targets, 'local')
       const w = mountWithGlobals()
@@ -148,8 +240,20 @@ describe('ActiveTargetIndicator', () => {
 
     it('renders the switcher Menu component when interactive', () => {
       const targets: TargetInfo[] = [
-        { name: 'local', environment: 'local', type: 'static', editable: true },
-        { name: 'staging', environment: 'staging', type: 'static', editable: false },
+        {
+          name: 'local',
+          environment: 'local',
+          type: 'static',
+          editable: true,
+          altText: { available: false, auto: false },
+        },
+        {
+          name: 'staging',
+          environment: 'staging',
+          type: 'static',
+          editable: false,
+          altText: { available: false, auto: false },
+        },
       ]
       setup(targets, 'local')
       const w = mountWithGlobals()
@@ -162,9 +266,27 @@ describe('ActiveTargetIndicator', () => {
   describe('switcher menu items', () => {
     it('flat list when ≤3 targets', () => {
       const targets: TargetInfo[] = [
-        { name: 'local', environment: 'local', type: 'static', editable: true },
-        { name: 'staging', environment: 'staging', type: 'static', editable: false },
-        { name: 'prod', environment: 'production', type: 'static', editable: false },
+        {
+          name: 'local',
+          environment: 'local',
+          type: 'static',
+          editable: true,
+          altText: { available: false, auto: false },
+        },
+        {
+          name: 'staging',
+          environment: 'staging',
+          type: 'static',
+          editable: false,
+          altText: { available: false, auto: false },
+        },
+        {
+          name: 'prod',
+          environment: 'production',
+          type: 'static',
+          editable: false,
+          altText: { available: false, auto: false },
+        },
       ]
       setup(targets, 'local')
       const w = mountWithGlobals()
@@ -178,10 +300,34 @@ describe('ActiveTargetIndicator', () => {
 
     it('groups same-environment targets at 4+ total', () => {
       const targets: TargetInfo[] = [
-        { name: 'local', environment: 'local', type: 'static', editable: true },
-        { name: 'staging', environment: 'staging', type: 'static', editable: false },
-        { name: 'prod-us', environment: 'production', type: 'static', editable: false },
-        { name: 'prod-eu', environment: 'production', type: 'static', editable: false },
+        {
+          name: 'local',
+          environment: 'local',
+          type: 'static',
+          editable: true,
+          altText: { available: false, auto: false },
+        },
+        {
+          name: 'staging',
+          environment: 'staging',
+          type: 'static',
+          editable: false,
+          altText: { available: false, auto: false },
+        },
+        {
+          name: 'prod-us',
+          environment: 'production',
+          type: 'static',
+          editable: false,
+          altText: { available: false, auto: false },
+        },
+        {
+          name: 'prod-eu',
+          environment: 'production',
+          type: 'static',
+          editable: false,
+          altText: { available: false, auto: false },
+        },
       ]
       setup(targets, 'local')
       const w = mountWithGlobals()
@@ -197,7 +343,15 @@ describe('ActiveTargetIndicator', () => {
     })
 
     it('always includes a View history action at the bottom', () => {
-      const targets: TargetInfo[] = [{ name: 'local', environment: 'local', type: 'static', editable: true }]
+      const targets: TargetInfo[] = [
+        {
+          name: 'local',
+          environment: 'local',
+          type: 'static',
+          editable: true,
+          altText: { available: false, auto: false },
+        },
+      ]
       setup(targets, 'local')
       const w = mountWithGlobals()
       const menu = w.findComponent({ name: 'Menu' })
