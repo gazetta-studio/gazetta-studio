@@ -95,22 +95,6 @@ export const useSelectionStore = defineStore('selection', () => {
     }
   }
 
-  /** Update the component list (after move/add/remove) and refresh */
-  async function updateComponents(components: import('../api/client.js').ComponentEntry[]) {
-    if (!selection.value) return
-    try {
-      if (selection.value.type === 'page') {
-        await api.updatePage(selection.value.name, { components })
-      } else {
-        await api.updateFragment(selection.value.name, { components })
-      }
-      await reload()
-      usePreviewStore().invalidate()
-    } catch (err) {
-      toast.showError(err, 'Failed to update components')
-    }
-  }
-
   return {
     selection,
     type,
@@ -123,6 +107,5 @@ export const useSelectionStore = defineStore('selection', () => {
     selectFragment,
     setFragmentHostPage,
     reload,
-    updateComponents,
   }
 })
