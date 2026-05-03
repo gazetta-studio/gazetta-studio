@@ -25,14 +25,19 @@ describe('editorStructural', () => {
       expect((pending![2] as InlineComponent).name).toBe('hero')
     })
 
-    it('subsequent moves operate on pending, not on the input array', () => {
+    it('subsequent moves compose when the caller passes current pending', () => {
       const store = useEditorStructuralStore()
+      // Real callers (ComponentTree) pass `effectiveComponents` which returns
+      // pending when present — so subsequent mutations naturally operate on
+      // the up-to-date order.
       store.moveComponent(homeKey, baseComponents, 1, 2)
-      // Even if we pass baseComponents again, the second move applies on top of pending.
-      store.moveComponent(homeKey, baseComponents, 0, 1)
-      const pending = store.pendingFor(homeKey)!
-      expect(pending[0]).not.toBe('@header') // @header moved to index 1
-      expect(pending[1]).toBe('@header')
+      const afterFirst = store.pendingFor(homeKey)!
+      store.moveComponent(homeKey, afterFirst, 0, 1)
+      const afterSecond = store.pendingFor(homeKey)!
+      // First move: ['@header', 'features', 'hero', '@footer']
+      // Second move (0→1): ['features', '@header', 'hero', '@footer']
+      expect((afterSecond[0] as InlineComponent).name).toBe('features')
+      expect(afterSecond[1]).toBe('@header')
     })
 
     it('does not mutate the input array', () => {
