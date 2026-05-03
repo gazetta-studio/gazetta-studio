@@ -108,3 +108,35 @@ Validated approaches and things to avoid. Each entry: rule, then why.
    Why: broken-window theory at the file level. A file with one pre-existing type error attracts more; a file that type-checks and tests cleanly stays that way. Small debt, cheap to fix right now, expensive to fix later when the context has evaporated.
 
    Example (media v1 step 5): `apps/admin/src/client/stores/editing.ts` was re-exporting `actions.open` which hadn't existed since the `useEditorActions` migration to `navigate()`. Type-checker flagged it; no runtime callers. Dropped the line as a drive-by fix in the same pass as adding the asset library store wiring.
+
+20. **Fact-check claims before building on them.**
+   When citing a competitor feature, an industry fact, an external API behavior, or anything you didn't directly verify, check it against the official source (vendor docs, GitHub releases, the actual API/SDK) before treating it as ground truth. Third-party blogs, summaries, and your own training data lie or drift. If you can't verify, say so explicitly — don't guess.
+
+   Concretely:
+   - When researching CMS features for design pressure, cite official docs URLs, not blog posts
+   - When asserting "tool X does Y," verify; when you can't, say "appears to" or "claimed by" with the source
+   - When a fact informs a structural decision, the decision is only as solid as the fact
+   - When time is short, skip the citation — but flag the claim as unverified, not as ground truth
+
+   Why: in the CMS feature audit (May 2026), of 27 cited claims about competitor features: 14 verified, 6 partially-correct or wrong, 5 unverifiable, 2 outright wrong. Wrong claims about Webflow's "backlinks" and Strapi's draft validation almost informed strategic decisions. The fact-check itself was cheap (~10 minutes via subagent); the cost of building on wrong claims is high.
+
+   Example: I claimed "Contentful has contentful-merge for content models" — fact-check found no such feature in official docs. Would have proposed Gazetta features pattern-matching a thing that doesn't exist. Caught before commitment.
+
+21. **Research informs design; design absorbs the conclusions; the research itself stays durable.**
+   When deep research feeds into a design decision, capture the research durably — competitive context, fact-check findings, rejected alternatives — somewhere reusable. The design doc absorbs the conclusions; the research itself shouldn't die in a transcript.
+
+   Where research goes:
+   - **Competitive audit / external benchmarking** → `docs/audits/{topic}.md`
+   - **Rejected alternatives + reasoning** → `design-{feature}.md` "Distinctive choices" section
+   - **Fact-check ledger** → in the research doc itself (which claims verified, which corrected)
+   - **Strategic non-goals derived from research** → `docs/non-goals.md`
+   - **Strategic prioritization** → `ROADMAP.md`
+
+   Why: the same research informs future decisions on adjacent features. Re-doing it from scratch every time is wasteful; losing the rejected-alternatives reasoning means future-me re-litigates the same debate.
+
+   Example: the CMS feature audit produced 22 categories of features modern CMSes ship; 13 were genuinely new to the roadmap. Captured in [`docs/audits/cms-feature-audit.md`](../../docs/audits/cms-feature-audit.md), driving [`ROADMAP.md`](../../ROADMAP.md) and [`docs/non-goals.md`](../../docs/non-goals.md). Without these durable artifacts the analysis would have died with the conversation.
+
+22. **Every kind of work has a durable artifact home; if a session ends without producing it, the work dies.**
+   The resumability contract: feature designs go in `design-{feature}.md` + `-implementation.md`; ADRs go in `docs/adr/`; domain language goes in `CONTEXT.md`; research goes in `docs/audits/`; strategic priorities go in `ROADMAP.md`; non-goals go in `docs/non-goals.md`; lessons go here in `team-preferences.md`. See [`feature-design-process.md`](feature-design-process.md) for the full mapping.
+
+   Why: long conversations produce work in many shapes. Without designated homes, only feature-design work tends to survive (because the design-doc pattern is established); strategic prioritization, research, fact-check findings, and process conventions all die in transcripts. Naming a home for each kind of work makes "is this resumable?" answerable.
