@@ -44,3 +44,9 @@ export {
   createAnthropicAltAdapter,
 } from './anthropic.js'
 export { type OpenAIAltAdapterOptions, OPENAI_DEFAULT_MODEL, createOpenAIAltAdapter } from './openai.js'
+export {
+  type OllamaAltAdapterOptions,
+  OLLAMA_DEFAULT_BASE_URL,
+  OLLAMA_DEFAULT_MODEL,
+  createOllamaAltAdapter,
+} from './ollama.js'
