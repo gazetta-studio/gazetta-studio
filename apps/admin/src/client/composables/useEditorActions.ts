@@ -3,6 +3,8 @@ function deepClone<T>(obj: T): T {
 }
 
 import { computed } from 'vue'
+import type { DraftOverrides, ManifestKey } from 'gazetta/types'
+import { manifestKeyFromString } from 'gazetta/types'
 import { useToastStore } from '../stores/toast.js'
 import { usePreviewStore } from '../stores/preview.js'
 import { useSelectionStore } from '../stores/selection.js'
@@ -10,7 +12,8 @@ import { usePublishStatusStore } from '../stores/publishStatus.js'
 import { useActiveTargetStore } from '../stores/activeTarget.js'
 import { useSiteStore } from '../stores/site.js'
 import { useEditorStashStore } from '../stores/editorStash.js'
-import { useEditorPersistenceStore } from '../stores/editorPersistence.js'
+import { useEditorStructuralStore } from '../stores/editorStructural.js'
+import { useEditorPersistenceStore, type StructuralWrite } from '../stores/editorPersistence.js'
 import { useEditorContentStore, type EditingTarget } from '../stores/editorContent.js'
 import { type EditorSelection, selectionToStashKey, selectionToErrorLabel } from './editorSelection.js'
 import { api } from '../api/client.js'
@@ -30,6 +33,7 @@ const BASE_RETRY_DELAY = 3000
 export function useEditorActions() {
   const toast = useToastStore()
   const stash = useEditorStashStore()
+  const structural = useEditorStructuralStore()
   const persistence = useEditorPersistenceStore()
   const ec = useEditorContentStore()
 
@@ -307,8 +311,51 @@ export function useEditorActions() {
     usePreviewStore().invalidateDraft()
   }
 
+  // --- Structural operations (with preview side effects) ---
+
+  function moveComponentStructural(
+    key: ManifestKey,
+    current: readonly import('gazetta/types').ComponentEntry[],
+    fromIndex: number,
+    toIndex: number,
+  ) {
+    structural.moveComponent(key, current, fromIndex, toIndex)
+    usePreviewStore().invalidateDraft()
+  }
+
+  function addComponentStructural(
+    key: ManifestKey,
+    current: readonly import('gazetta/types').ComponentEntry[],
+    component: import('gazetta/types').InlineComponent | string,
+    insertIndex?: number,
+  ) {
+    structural.addComponent(key, current, component, insertIndex)
+    usePreviewStore().invalidateDraft()
+  }
+
+  function removeComponentStructural(
+    key: ManifestKey,
+    current: readonly import('gazetta/types').ComponentEntry[],
+    atIndex: number,
+  ) {
+    structural.removeComponent(key, current, atIndex)
+    usePreviewStore().invalidateDraft()
+  }
+
+  /**
+   * Derive the manifest key for the currently-selected page or fragment.
+   * Returns null when nothing is selected.
+   */
+  function currentManifestKey(): ManifestKey | null {
+    const sel = useSelectionStore().selection
+    if (!sel) return null
+    return { kind: sel.type, name: sel.name }
+  }
+
   function discard() {
     ec.discard()
+    const key = currentManifestKey()
+    if (key) structural.discard(key)
     usePreviewStore().invalidateDraft()
   }
 
@@ -320,6 +367,7 @@ export function useEditorActions() {
     persistence.saving = false
     persistence.lastSaveError = null
     stash.clearAll()
+    structural.clearAll()
   }
 
   // --- Save ---
@@ -341,14 +389,42 @@ export function useEditorActions() {
     }
   }
 
+  /**
+   * Build a StructuralWrite closure for one pending entry. The closure POSTs
+   * the new components array via api.updatePage / api.updateFragment when
+   * called by the persistence orchestrator.
+   */
+  function buildStructuralWrite(keyString: string, components: unknown[]): StructuralWrite {
+    const key = manifestKeyFromString(keyString)
+    const localeOpts = { locale: useLocaleStore().effectiveLocale ?? undefined }
+    return {
+      label: keyString,
+      write: async () => {
+        if (key.kind === 'page') {
+          await api.updatePage(key.name, { components: components as never }, localeOpts)
+        } else {
+          await api.updateFragment(key.name, { components: components as never }, localeOpts)
+        }
+      },
+    }
+  }
+
   async function save() {
     const current = ec.target && ec.content ? { target: ec.target, content: ec.content } : null
     const stashedEntries = [...stash.values()]
     const stashedKeys = [...stash.entries].map(([k]) => k)
-    const result = await persistence.save(current, stashedEntries)
+    const structuralEntries = structural.allEntries()
+    const structuralWrites = structuralEntries.map(([k, entry]) => buildStructuralWrite(k, entry.pending))
+    const result = await persistence.save(current, stashedEntries, structuralWrites)
     if (result.success) {
       ec.markSaved()
       for (const key of stashedKeys) stash.revert(key)
+      structural.clearAll()
+      // Reload the affected manifests so selection.detail reflects the saved
+      // structural changes — preview will repaint from disk on the next fetch.
+      if (structuralEntries.length > 0) {
+        await useSelectionStore().reload()
+      }
       usePreviewStore().invalidate()
       usePublishStatusStore().refresh()
       toast.show('Saved', { action: buildUndoAction() })
@@ -377,13 +453,23 @@ export function useEditorActions() {
 
   // --- Derived state ---
 
-  const pendingCount = computed(() => stash.size + (ec.dirty ? 1 : 0))
+  const pendingCount = computed(() => stash.size + (ec.dirty ? 1 : 0) + structural.pendingCount)
   const hasPendingEdits = computed(() => pendingCount.value > 0)
-  const allOverrides = computed(() => {
-    const result: Record<string, Record<string, unknown>> = {}
-    for (const entry of stash.entries) result[entry[0]] = entry[1].editedContent
-    if (ec.path && ec.content && ec.dirty) result[ec.path] = ec.content
-    return result
+  /**
+   * Aggregated draft overrides for the preview server. Both lanes always
+   * present; consumers send the whole shape over the wire (server contract is
+   * `{ content, structural }` with both fields required).
+   */
+  const allOverrides = computed<DraftOverrides>(() => {
+    const content: DraftOverrides['content'] = {}
+    for (const entry of stash.entries) content[entry[0]] = entry[1].editedContent
+    if (ec.path && ec.content && ec.dirty) content[ec.path] = ec.content
+
+    const structuralOverrides: DraftOverrides['structural'] = {}
+    for (const [k, entry] of structural.allEntries()) {
+      structuralOverrides[k] = entry.pending
+    }
+    return { content, structural: structuralOverrides }
   })
 
   // --- Beforeunload guard ---
@@ -408,6 +494,9 @@ export function useEditorActions() {
     // Other actions
     markDirty,
     revertStashed,
+    moveComponentStructural,
+    addComponentStructural,
+    removeComponentStructural,
     discard,
     clear,
     save,

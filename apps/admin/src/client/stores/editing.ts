@@ -49,6 +49,9 @@ export const useEditingStore = defineStore('editing', () => {
     markDirty: actions.markDirty,
     discard: actions.discard,
     revertStashed: actions.revertStashed,
+    moveComponentStructural: actions.moveComponentStructural,
+    addComponentStructural: actions.addComponentStructural,
+    removeComponentStructural: actions.removeComponentStructural,
     save: actions.save,
     refreshAfterRestore: actions.refreshAfterRestore,
   }
