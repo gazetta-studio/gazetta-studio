@@ -51,7 +51,7 @@ Closes part of the deploy-adapters cluster:
 
 ### Foundational design passes
 
-Ten cross-cutting dimensions that every feature design must respect (see [`feature-design-process.md`](.claude/rules/feature-design-process.md) "Foundational dimensions"). Each is a separate design pass that lands a `design-{name}.md` and adds a check to every new feature design. Implementation phases sit in Tier 3 unless otherwise noted.
+Twelve cross-cutting dimensions that every feature design must respect (see [`feature-design-process.md`](.claude/rules/feature-design-process.md) "Foundational dimensions"). Each is a separate design pass that lands a `design-{name}.md` and adds a check to every new feature design. Implementation phases sit in Tier 3 unless otherwise noted.
 
 Sequence (per dependency order):
 
@@ -61,7 +61,11 @@ Sequence (per dependency order):
 
 3. **`design-themes.md`** (complete 2026-05) — presentation theming (light/dark, color schemes, accessibility variants) as a render-context dimension. Pages/fragments stay theme-agnostic at the data layer; theme reaches templates via `params.theme` peer to `params.locale`. Asset-level theme variants already shipped per `design-media.md`. Other variant motivations (audience, campaign, A/B, multi-tenant) are explicitly NOT bundled into themes — each gets its own design pass when concrete demand surfaces.
 
-4. **`design-rbac-audit-review.md`** (1-2 weeks) — covers #194, #199, #200. Roles + authorization gates + audit log shape (extends history-recorder) + review workflow state machine. Implementation is Tier 3 (~6-10 weeks).
+4. **`design-auth-rbac.md`** (complete 2026-05) — covers #194 (RBAC). Trust modes (configurable v1, plugin reserved); hybrid built-in + custom roles, single role per principal, group-claim mapped; capability-based authorization gates with role aliases. Implementation Tier 3.
+
+   - **`design-audit.md`** (extracted to its own pass; pending) — covers #200 (audit log). `AuditProvider` extension surface #11; v1 ships `HistoryAuditProvider`; v2 reserves external sinks (file, syslog, CloudWatch, Azure Monitor, OpenTelemetry, HTTP webhook).
+
+   - **`design-review-workflow.md`** (extracted to its own pass; pending) — covers #199 (review workflows). Per-content review state machine (`draft / pending-review / approved`) + per-target publish approval; 5 archetype recipes; capability extensions (`review:submit`, `review:approve`, `publish:request`, `publish:approve`).
 
 5. **`design-rendering.md`** (1-2 weeks) — full rendering taxonomy (static / ESI / request-SSR / island). Defines target type, component rendering type, when-rendered axes. Includes listings/render-time queries (covers what Algolia would otherwise provide for filtered listings). Sub-task: #80 dynamic route params at request time.
 
@@ -129,14 +133,14 @@ Operator-facing features that mature production deployments:
 ### Themes implementation (4-6 weeks)
 After `design-themes.md` lands. Theme variants for pages/fragments + runtime theme routing + admin theme switcher per active page.
 
-### RBAC + audit + review implementation (6-10 weeks)
-After `design-rbac-audit-review.md` lands. The team CMS feature set: roles, authorization gates on every API endpoint, audit log records on every write, per-target review workflow.
+### Auth + RBAC + audit + review implementation (6-10 weeks)
+After `design-auth-rbac.md`, `design-audit.md`, `design-review-workflow.md` all land. The team CMS feature set: roles, authorization gates on every API endpoint, audit log records on every write, per-content review state machine, per-target publish approval.
 
 ### Per-field translation (#192)
 After `design-i18n.md` lands. Layered overlay model on top of existing whole-file locale variants.
 
 ### Real-time presence
-After `design-rbac-audit-review.md` lands (audit log is the event source). Sanity Presence as reference. Real-time transport implementation lands as part of presence (1-2 weeks); presence MVP (presence-only, no concurrent editing): 4 weeks.
+After `design-audit.md` lands (audit log is the event source). Sanity Presence as reference. Real-time transport implementation lands as part of presence (1-2 weeks); presence MVP (presence-only, no concurrent editing): 4 weeks.
 
 ### Hooks implementation
 After `design-hooks.md` lands. Phased cut sequence similar to validation's 6-cut pattern.
@@ -179,7 +183,7 @@ See [`docs/non-goals.md`](docs/non-goals.md) for full rationale. Summary:
 - Memberships / subscriptions / paywalls / native newsletters → Ghost territory
 - Content branching (git-like content branches) → multi-Target covers it
 - Content federation at CMS level → templates handle external data
-- Built-in full-text site-wide search → delegate to Algolia / Meilisearch (filtered listings + permission-filtered output ARE in scope, covered by `design-rendering.md` + `design-rbac-audit-review.md`)
+- Built-in full-text site-wide search → delegate to Algolia / Meilisearch (filtered listings + permission-filtered output ARE in scope, covered by `design-rendering.md` + `design-auth-rbac.md`)
 - Visual editing as primary editor paradigm → form-first by design
 - Database integration → stateless CMS is a defining property
 - E-commerce primitives → out of scope

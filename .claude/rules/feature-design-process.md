@@ -44,7 +44,7 @@ Capture what we're building, why, and the model.
 - **Companion docs** — link to implementation + reference + ADRs
 - **Design model / architecture** — the actual structure
 - **Distinctive choices** — what we picked vs. what we rejected, with reasons. Future-you re-litigates without these.
-- **Foundational checks** — answer each of the 10 dimension gates (Scale / Theme / Locale / Team / Hook / Render / Validation / Plugin / Cache / Offline) AND the **Multi-instance check** (see "Foundational dimensions" + "Non-foundational disciplines" below)
+- **Foundational checks** — answer each of the 12 dimension gates (Scale / Theme / Locale / Auth+RBAC / Audit / Review / Hook / Render / Validation / Plugin / Cache / Offline) AND the **Multi-instance check** (see "Foundational dimensions" + "Non-foundational disciplines" below)
 - **Migration** — for existing sites if applicable
 - **Open questions** — known unresolved items
 - **Future directions** — placed at the end. Lists deferred capabilities, v1.5/v2 bets, and frontier ideas that aren't committed work. Above-the-section content is the current shipped/being-built model; below-the-section content is preserved thinking, not a promise. As versions ship, items rotate up into committed scope.
@@ -137,7 +137,7 @@ Most decisions don't pass this bar. The design doc carries the rationale; ADRs a
 
 ## Foundational dimensions
 
-Ten cross-cutting concerns that every feature design must respect. Each has its own design pass (some shipped, some pending) and corresponds to a check in the "Foundational checks" section of every new `design-{feature}.md`.
+Twelve cross-cutting concerns that every feature design must respect. Each has its own design pass (some shipped, some pending) and corresponds to a check in the "Foundational checks" section of every new `design-{feature}.md`.
 
 The dimensions are foundational because designing a feature without respecting them is structurally expensive to retrofit later — same principle as locale, themes, validation. These are the "must be right from the beginning" concerns.
 
@@ -146,7 +146,9 @@ The dimensions are foundational because designing a feature without respecting t
 | Scale | `design-scale.md` | **Scale check** | Does this feature work at the documented operating envelope (target N pages / M assets / K components-per-page)? If not, what's the limitation? |
 | Themes | `design-themes.md` | **Theme check** | Does this respect the closed dimension set (locale + theme) and the locked locale-priority cross-dimension fallback? If pages/fragments aren't theme-variant yet but this feature will need them, what's today's contract vs. later? |
 | Locale (i18n) | `design-i18n.md` | **Locale check** | Does this respect locale as a closed dimension peer to theme? Does it use file-suffix locale variants (existing whole-file model) or layered overlays (per-field, future)? RTL coverage? |
-| RBAC + audit + review | `design-rbac-audit-review.md` | **Team check** | How does this feature gate on roles? What does it record to audit log? Does it interact with review workflow state? |
+| Auth + RBAC | `design-auth-rbac.md` | **Auth/RBAC check** | How does this feature gate on roles? What capabilities does it require? How does it consume the `Principal`? |
+| Audit | `design-audit.md` | **Audit check** | What audit events does this feature emit? How does it compose with `AuditProvider`? |
+| Review workflow | `design-review-workflow.md` | **Review check** | Does this feature flow through the review state machine? What capabilities does it use (`review:submit`, `review:approve`, `publish:approve`)? |
 | Hooks | `design-hooks.md` | **Hook check** | When does this primitive fire hooks? With what payload? Synchronous (can fail/cancel) or async? |
 | Rendering modes | `design-rendering.md` | **Render check** | Which rendering modes does this support (static / ESI / request-SSR / island)? What's the limitation for unsupported modes? Does it expose render-time queries (listings)? |
 | Validation | `design-validation.md` | **Validation check** | Does this feature need a Validator? When does it run (save-delta / background / pre-publish / cli)? What severity? |
@@ -160,7 +162,9 @@ The dimensions are foundational because designing a feature without respecting t
 2. `design-scale.md` (complete 2026-05; closes #88 + #196)
 3. `design-i18n.md` (complete 2026-05; 13 of 15 implementation steps shipped; design/implementation split lands with #192 per-field translation)
 4. `design-themes.md` (complete 2026-05; presentation-theming-only scope; pages/fragments stay theme-agnostic at the data layer)
-5. `design-rbac-audit-review.md` (pending — unblocks hooks, presence)
+5. `design-auth-rbac.md` (complete 2026-05; unblocks audit + review + hooks)
+   - `design-audit.md` (pending — extracted from joint pass; extends history-recorder)
+   - `design-review-workflow.md` (pending — extracted from joint pass; depends on auth/RBAC + audit)
 6. `design-rendering.md` (pending — depends on locale + themes)
 7. `design-hooks.md` (pending — depends on RBAC)
 8. `design-plugins.md` (pending — depends on hooks)
@@ -174,7 +178,7 @@ A feature design started before its required dimension's design pass has shipped
 Three narrower invariants that compose with implementation work but don't rise to dimension level. They get one-line discipline notes in this doc, not full design passes:
 
 - **MCP schema discipline** — new admin-API routes must use the existing Zod schema pattern under `packages/gazetta/src/admin-api/schemas/`. MCP tooling auto-generates from these — non-typed routes break MCP. Applies to every new route, not just MCP-aware features.
-- **Real-time event-source discipline** — save and publish handlers record write events to audit log (covered by `design-rbac-audit-review.md`). Real-time push (presence, live publish status, validation push) is a separate observer layer on top of audit log — never bolted into save/publish handlers directly.
+- **Real-time event-source discipline** — save and publish handlers record write events to audit log (covered by `design-audit.md`). Real-time push (presence, live publish status, validation push) is a separate observer layer on top of audit log — never bolted into save/publish handlers directly.
 - **Multi-instance discipline** — every feature must work correctly when admin runs as horizontally-scaled instances (Cloud Run, Fly, Kubernetes, multi-replica deployments). State that affects other instances goes through shared storage with appropriate granularity (per-edge sidecars, content-addressed blobs, atomic writes); in-process caches must be scoped to one operation (per-build, per-request); cross-instance coordination uses storage-as-message-bus, not in-memory channels. Reference: the asset-refs sidecar grilling that locked per-edge files over aggregate JSON specifically because two instances writing to a shared aggregate would race; same logic generalizes. Every new design doc's "Foundational checks" section answers a **Multi-instance check**: where does this feature's state live (per-instance / per-storage / shared in-memory — last is forbidden)?
 
 ## Issue-classification discipline

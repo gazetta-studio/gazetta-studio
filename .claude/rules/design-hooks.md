@@ -10,13 +10,14 @@ paths:
 
 # Hooks — design pass pending
 
-Foundational dimension #5 of 10. Extension surface for save/publish/load/render lifecycles. Auto-slugify, auto-tag, validate against external API, enrich content at save time, transform at render time.
+Foundational dimension #7 of 12. Extension surface for save/publish/load/render lifecycles. Auto-slugify, auto-tag, validate against external API, enrich content at save time, transform at render time.
 
-**Status**: design pass pending — sequenced 7 of 10 (after `design-rbac-audit-review.md` so hooks can carry actor context). See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
+**Status**: design pass pending — sequenced after `design-auth-rbac.md` so hooks can carry actor context via the `Principal` type. See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
 
 **Companion docs**:
 - [`feature-design-process.md`](feature-design-process.md) — defines the **Hook check** every new primitive design must answer
-- [`design-rbac-audit-review.md`](design-rbac-audit-review.md) — hook payload includes actor identity (which requires RBAC settled first)
+- [`design-auth-rbac.md`](design-auth-rbac.md) — hook payload includes actor identity via `Principal` (requires auth/RBAC settled first)
+- [`design-audit.md`](design-audit.md) — hook firings are recorded as audit events with the triggering actor
 - [`design-plugins.md`](design-plugins.md) — hooks are an extension surface; plugin contract specifies how they're discovered + composed
 
 **Reference**: [Payload Hooks](https://payloadcms.com/docs/hooks/overview).

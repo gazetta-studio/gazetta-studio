@@ -11,7 +11,7 @@ paths:
 
 # Plugin / extensibility — design pass pending
 
-Foundational dimension #8 of 10. Unifying contract for the existing extension surfaces — discovery, loading, lifecycle, composition.
+Foundational dimension #10 of 12. Unifying contract for the existing extension surfaces — discovery, loading, lifecycle, composition.
 
 **Status**: design pass pending — sequenced 8 of 8 (after `design-hooks.md`; hooks are likely the integration point). See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
 
@@ -30,6 +30,38 @@ Strategic commitment locked: **plugins are foundational** (resolved from "open q
 - **Existing surfaces stay distinct interfaces** — `StorageProvider`, `EditorMount`, `FieldMount`, `AltTextAdapter`, `TransformAdapter`, etc. The plugin contract doesn't replace them; it provides discovery + loading + composition rules on top.
 - **MCP schema discipline** — new admin-API routes use the existing Zod schema pattern. MCP tooling auto-generates from these. Plugin contract respects this — plugins that add admin-API routes follow the schema pattern.
 - **Real-time event-source discipline** — plugins that observe save/publish do so via audit log, not by patching handlers. Per `feature-design-process.md` non-foundational disciplines.
+- **Pluggable provider pattern** — per [`docs/adr/0004-pluggable-provider-pattern.md`](../../docs/adr/0004-pluggable-provider-pattern.md), Storage, Cache, Audit, AltText (AI), Transform Adapter, Deploy Adapter, Validator, AuthIdentity, Hook, Admin Editor, Admin Field follow the universal Provider requirements below.
+
+## Universal Provider requirements
+
+Every Provider — regardless of which Extension Surface it implements — must satisfy these requirements. Per-surface contracts (in each surface's design doc) specialize on top of these.
+
+**1. Multi-instance correctness.** Either:
+- Per-instance scope (multi-instance-correct via independence — `MemoryCache`, `HistoryAuditProvider`); OR
+- Storage-coordinated via the provider's own atomicity primitives (per-edge sidecars, content-addressed blobs, atomic compare-and-swap, etag-based conditional writes).
+- In-process state shared across operations is forbidden per the multi-instance discipline ([`feature-design-process.md`](feature-design-process.md) "Non-foundational disciplines").
+
+**2. Stateless interface.** Provider methods are idempotent OR document where they aren't. Two instances calling the same method converge to the same result (or document the divergence and the expected reconciliation).
+
+**3. Configuration via env vars for credentials.** Credentials never appear in `site.yaml`. Provider reads its own env vars matching the upstream SDK's conventions (`AWS_*`, `AZURE_*`, `R2_*`, `ANTHROPIC_API_KEY`, etc.). Site config names the Provider + non-secret options only.
+
+**4. Sensible defaults.** Provider works with minimal config. Operator overrides defaults only when defaults don't fit. Defaults documented per-Provider in the surface's design doc.
+
+**5. Fail-mode declared per surface.** Each surface declares its discipline:
+- Audit fails open (audit failure must never block writes).
+- Storage fails closed (storage write failure must abort the operation).
+- Cache fails open (cache miss returns null; cache failure logs + falls through to source-of-truth).
+- AltText fails open with refusal flag (provider failure surfaces as null suggestion + structured error event).
+
+**6. Never throws on transport errors at the recording / observation layer.** Network errors, rate limits, transient failures are caught and logged. Throws reserved for unrecoverable infrastructure errors (configuration error, schema mismatch, init failure).
+
+**7. Stable typed contract.** Provider interface is a TypeScript interface; consumers depend on the abstraction, not concrete classes. Adding required methods is a breaking change requiring a version bump; new optional methods are additive.
+
+**8. Independent error taxonomy.** Each surface declares its Gazetta-side error type (`StorageError`, `CacheError`, `AuditError`, `AltAdapterError`, etc.). Provider implementations translate provider-specific errors (AWS SDK errors, Redis connection errors, etc.) into the surface's error type. Consumers handle the Gazetta error type, not the upstream SDK error.
+
+**9. Operator config consistency.** Across surfaces, operator config follows the same pattern: `provider: name` (or `providers: [...]` for multi-Provider surfaces) + minimal yaml + env-var credentials. Operators learn the pattern once.
+
+**10. Forward-compatible plugin promotion.** v1 ships in-tree Providers. Future plugin-packaged Providers slot in via the same interface — additive, never breaking. The internal `Provider` interface and the plugin contract converge.
 
 ## Open questions for the design pass
 
