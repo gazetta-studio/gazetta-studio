@@ -23,26 +23,36 @@ Cloudflare Worker → fetch page from R2
 npx wrangler r2 bucket create my-site
 ```
 
-### 2. Configure site.yaml
+### 2. Configure site.config.ts
 
-```yaml
-name: My Site
-targets:
-  production:
-    environment: production
-    storage:
-      type: r2
-      accountId: "your-cloudflare-account-id"
-      bucket: "my-site"
-    worker:
-      type: cloudflare
-    siteUrl: "https://mysite.com"
-    cache:
-      browser: 0
-      edge: 86400
-      purge:
-        type: cloudflare
-        apiToken: "${CLOUDFLARE_API_TOKEN}"
+```ts
+import { defineSite } from 'gazetta'
+
+export default defineSite({
+  name: 'My Site',
+  targets: {
+    production: {
+      environment: 'production',
+      storage: {
+        type: 'r2',
+        accountId: 'your-cloudflare-account-id',
+        bucket: 'my-site',
+      },
+      worker: {
+        type: 'cloudflare',
+      },
+      siteUrl: 'https://mysite.com',
+      cache: {
+        browser: 0,
+        edge: 86400,
+        purge: {
+          type: 'cloudflare',
+          apiToken: process.env.CLOUDFLARE_API_TOKEN!,
+        },
+      },
+    },
+  },
+})
 ```
 
 Find your account ID in the Cloudflare dashboard URL: `dash.cloudflare.com/<account-id>`.
@@ -76,7 +86,7 @@ R2_ACCESS_KEY_ID=...
 R2_SECRET_ACCESS_KEY=...
 ```
 
-These are read by `site.yaml` at runtime. Same credentials work locally and in CI.
+These are read by `site.config.ts` at runtime. Same credentials work locally and in CI.
 
 ### Worker deploy token (for `gazetta deploy`)
 
@@ -147,26 +157,29 @@ The CLI loads it automatically. Skipped when `CI=true`.
 
 ### Storage config
 
-```yaml
-storage:
-  type: r2
-  accountId: "your-account-id"
-  bucket: "my-site"
-  accessKeyId: "${R2_ACCESS_KEY_ID}"
-  secretAccessKey: "${R2_SECRET_ACCESS_KEY}"
+```ts
+storage: {
+  type: 'r2',
+  accountId: 'your-account-id',
+  bucket: 'my-site',
+  accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+  secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+}
 ```
 
 ## Cache
 
 ### Configuration
 
-```yaml
-cache:
-  browser: 0       # max-age in seconds (0 = always revalidate)
-  edge: 86400      # s-maxage in seconds (86400 = 24 hours)
-  purge:
-    type: cloudflare
-    apiToken: "${CLOUDFLARE_API_TOKEN}"
+```ts
+cache: {
+  browser: 0,       // max-age in seconds (0 = always revalidate)
+  edge: 86400,      // s-maxage in seconds (86400 = 24 hours)
+  purge: {
+    type: 'cloudflare',
+    apiToken: process.env.CLOUDFLARE_API_TOKEN!,
+  },
+}
 ```
 
 - `browser`: How long the browser caches before revalidating. ETags are automatic.
@@ -179,11 +192,14 @@ Set `edge: 0` to disable edge caching entirely (no purge needed). Pages are stil
 
 Override target-level cache in a page manifest:
 
-```yaml
-# pages/dashboard/page.json
-cache:
-  browser: 0
-  edge: 0
+```json
+// pages/dashboard/page.json
+{
+  "cache": {
+    "browser": 0,
+    "edge": 0
+  }
+}
 ```
 
 ### Cache purge behavior

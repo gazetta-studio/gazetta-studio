@@ -31,19 +31,25 @@ without spreading knowledge across the codebase.
 
 ### Default behavior: `sharp`
 
-If a target's `site.yaml` doesn't declare `transforms`, the `sharp`
+If a target's `site.config.ts` doesn't declare `transforms`, the `sharp`
 adapter is used. Origin URLs, content-addressed by hash. Variants
 generated at upload time and stored as separate files
 (`hero-{hash}-400w.jpg`, `-800w.jpg`, etc.) — the browser picks via
 `srcset`.
 
-```yaml
-# site.yaml
-targets:
-  production:
-    storage: { type: r2, bucket: site-prod }
-    siteUrl: https://cdn.example.com
-    # transforms: not declared → sharp adapter is used
+```ts
+// site.config.ts
+import { defineSite } from 'gazetta'
+
+export default defineSite({
+  targets: {
+    production: {
+      storage: { type: 'r2', bucket: 'site-prod' },
+      siteUrl: 'https://cdn.example.com',
+      // transforms: not declared → sharp adapter is used
+    },
+  },
+})
 ```
 
 ### Switching to `cloudflare`
@@ -52,15 +58,22 @@ Cloudflare's image-resizing service generates variants on demand at
 the edge. Origin stores one byte set; the CDN serves
 format-negotiated, width-resized derivatives.
 
-```yaml
-# site.yaml
-targets:
-  production:
-    storage: { type: r2, bucket: site-prod }
-    siteUrl: https://cdn.example.com
-    transforms:
-      adapter: cloudflare
-      zone: cdn.example.com
+```ts
+// site.config.ts
+import { defineSite } from 'gazetta'
+
+export default defineSite({
+  targets: {
+    production: {
+      storage: { type: 'r2', bucket: 'site-prod' },
+      siteUrl: 'https://cdn.example.com',
+      transforms: {
+        adapter: 'cloudflare',
+        zone: 'cdn.example.com',
+      },
+    },
+  },
+})
 ```
 
 URLs become:
@@ -178,22 +191,27 @@ export function buildTransformAdapter(target: TargetConfig): TransformAdapter {
 Adapters are per target. You can run `local` and `staging` with
 sharp, `production` with cloudflare:
 
-```yaml
-targets:
-  local:
-    storage: { type: filesystem }
-    # sharp default
+```ts
+targets: {
+  local: {
+    storage: { type: 'filesystem' },
+    // sharp default
+  },
 
-  staging:
-    storage: { type: r2, bucket: site-staging }
-    # sharp default
+  staging: {
+    storage: { type: 'r2', bucket: 'site-staging' },
+    // sharp default
+  },
 
-  production:
-    storage: { type: r2, bucket: site-prod }
-    siteUrl: https://example.com
-    transforms:
-      adapter: cloudflare
-      zone: example.com
+  production: {
+    storage: { type: 'r2', bucket: 'site-prod' },
+    siteUrl: 'https://example.com',
+    transforms: {
+      adapter: 'cloudflare',
+      zone: 'example.com',
+    },
+  },
+}
 ```
 
 The publish pipeline doesn't care — it pushes the same bytes to all
@@ -238,7 +256,7 @@ fetched.
 
 ### How do I switch back to sharp?
 
-Remove the `transforms:` block from `site.yaml`, redeploy. The
+Remove the `transforms` block from `site.config.ts`, redeploy. The
 `sharp` adapter is the default and uses the variants that were
 generated at upload time. If those variants were never generated
 (you only ran on cloudflare), run `gazetta assets reindex

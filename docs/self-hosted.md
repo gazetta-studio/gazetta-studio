@@ -19,19 +19,27 @@ Same assembly logic as the [Cloudflare deployment](./cloudflare.md), but runs on
 
 ### 1. Configure a target
 
-```yaml
-# site.yaml
-name: My Site
-targets:
-  production:
-    environment: production           # default is 'local'; opt this one into 'production' for admin UI confirmation
-    storage:
-      type: filesystem
-      path: ./dist/production
-    siteUrl: "https://mysite.com"
-    cache:
-      browser: 0
-      edge: 86400
+```ts
+// site.config.ts
+import { defineSite } from 'gazetta'
+
+export default defineSite({
+  name: 'My Site',
+  targets: {
+    production: {
+      environment: 'production',           // default is 'local'; opt this one into 'production' for admin UI confirmation
+      storage: {
+        type: 'filesystem',
+        path: './dist/production',
+      },
+      siteUrl: 'https://mysite.com',
+      cache: {
+        browser: 0,
+        edge: 86400,
+      },
+    },
+  },
+})
 ```
 
 Any storage type works:
@@ -79,10 +87,11 @@ gazetta serve staging -p 3001     # combine
 
 The server sets response headers based on your cache config:
 
-```yaml
-cache:
-  browser: 0       # Cache-Control: max-age=0 (browser always revalidates)
-  edge: 86400      # Cache-Control: s-maxage=86400 (CDN caches for 24h)
+```ts
+cache: {
+  browser: 0,       // Cache-Control: max-age=0 (browser always revalidates)
+  edge: 86400,      // Cache-Control: s-maxage=86400 (CDN caches for 24h)
+}
 ```
 
 - **ETag** — computed from assembled HTML. Browsers get `304 Not Modified` for unchanged pages.
@@ -91,11 +100,14 @@ cache:
 
 Per-page cache overrides work:
 
-```yaml
-# pages/dashboard/page.json
-cache:
-  browser: 0
-  edge: 0       # never cache this page
+```json
+// pages/dashboard/page.json
+{
+  "cache": {
+    "browser": 0,
+    "edge": 0
+  }
+}
 ```
 
 ## Docker
