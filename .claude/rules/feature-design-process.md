@@ -44,7 +44,8 @@ Capture what we're building, why, and the model.
 - **Companion docs** — link to implementation + reference + ADRs
 - **Design model / architecture** — the actual structure
 - **Distinctive choices** — what we picked vs. what we rejected, with reasons. Future-you re-litigates without these.
-- **Foundational checks** — answer each of the 12 dimension gates (Scale / Theme / Locale / Auth+RBAC / Audit / Review / Hook / Render / Validation / Plugin / Cache / Offline) AND the **Multi-instance check** (see "Foundational dimensions" + "Non-foundational disciplines" below)
+- **Foundational checks** — answer each of the 13 dimension gates (Scale / Theme / Locale / Auth+RBAC / Audit / Review / Hook / Render / Validation / Plugin / Cache / Offline / Collaboration) AND the **Multi-instance check** (see "Foundational dimensions" + "Non-foundational disciplines" below)
+- **UX check** (when feature has user-facing UI) — design must apply "Don't Make Me Think" principles per [team-preferences rule 23](team-preferences.md): absence-as-state, universal icons over jargon, same affordances regardless of system state, plain language, no help-tooltips-as-bandaid. Reference `design-offline.md`'s sync-state visibility section as the canonical example.
 - **Migration** — for existing sites if applicable
 - **Open questions** — known unresolved items
 - **Future directions** — placed at the end. Lists deferred capabilities, v1.5/v2 bets, and frontier ideas that aren't committed work. Above-the-section content is the current shipped/being-built model; below-the-section content is preserved thinking, not a promise. As versions ship, items rotate up into committed scope.
