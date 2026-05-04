@@ -171,7 +171,7 @@ The dimensions are foundational because designing a feature without respecting t
 8. `design-config.md` (complete 2026-05; reference doc — NOT a foundational dimension. TS config (`gazetta.config.ts` + `site.config.ts`) replaces YAML; identity functions; `process.env.X` for secrets; load-once-at-boot in production, hot-reload in dev. Decision in [`docs/adr/0005-typescript-config-format.md`](../../docs/adr/0005-typescript-config-format.md).)
 9. `design-plugins.md` (complete 2026-05; TS-import discovery + factory exports + per-surface PluginAPI + service-account opt-in)
 10. `design-cache.md` (complete 2026-05; L4 cache in layered model; deterministic-derived principle + explicit per-feature invalidation + sidecar cascades + PWA responsiveness; `MemoryCache` v1 with bounded eviction)
-11. `design-offline.md` (pending — depends on cache + RBAC + render; extends cache taxonomy with browser-side persistent providers)
+11. `design-offline.md` (complete 2026-05; default-on with opt-out; idb + Vue Query + service worker; force-save conflict resolution with chained If-Match; replayed audit metadata)
 12. `design-collaboration.md` (pending — depends on auth/RBAC + audit + review; comments, mentions, notifications, activity feed, presence)
 
 A feature design started before its required dimension's design pass has shipped MUST document the assumption it's making about the pending dimension's contract — flagged as a retrofit risk. The "Foundational checks" section captures these.
