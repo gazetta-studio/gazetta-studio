@@ -7,8 +7,11 @@ import { CreateFragmentRequestSchema } from '../schemas/fragments.js'
 import { isValidLocale } from '../../locale.js'
 import { rebuildAssetRefs, type ItemRef } from '../../assets/asset-deps.js'
 import { rebuildFragmentDeps } from '../../fragment-deps.js'
+import { hasBlockingIssues, runSaveDelta } from '../../validation/save-delta.js'
+import type { ValidatorRegistry } from '../../validation/registry.js'
+import type { FragmentManifest } from '../../types.js'
 
-export function fragmentRoutes(resolve: SourceContextResolver) {
+export function fragmentRoutes(resolve: SourceContextResolver, validators: ValidatorRegistry, templatesDir?: string) {
   const app = new Hono()
 
   app.get('/api/fragments', async c => {
@@ -106,7 +109,7 @@ export function fragmentRoutes(resolve: SourceContextResolver) {
 
     const source = await resolve(c.req.query('target'))
     const { storage } = source
-    const site = await loadSiteFromSource(source)
+    const site = await loadSiteFromSource(source, { templatesDir })
 
     const defaultFragment = site.fragments.get(name)
     if (!defaultFragment) return c.json({ error: `Fragment "${name}" not found` }, 404)
@@ -123,6 +126,23 @@ export function fragmentRoutes(resolve: SourceContextResolver) {
     const filename = locale ? `fragment.${locale}.json` : 'fragment.json'
     const manifestPath = join(defaultFragment.dir, filename)
     const serialized = JSON.stringify(manifest, null, 2) + '\n'
+
+    // Save-delta validation. Same contract as pages PUT handler — see
+    // pages.ts comment for rationale.
+    const issues = await runSaveDelta(
+      {
+        item: { kind: 'fragment', name, itemPath: source.contentRoot.relative(manifestPath) },
+        before: fragment as unknown as FragmentManifest,
+        after: manifest as FragmentManifest,
+        site,
+        contentRoot: source.contentRoot,
+        storage,
+      },
+      validators,
+    )
+    if (hasBlockingIssues(issues)) {
+      return c.json({ code: 'VALIDATION_FAILED' as const, issues }, 409)
+    }
 
     // History first — see pages.ts PUT handler rationale (baseline must
     // capture pre-write state).

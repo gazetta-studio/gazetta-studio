@@ -12,6 +12,7 @@ import { createEditorMount } from 'gazetta/editor'
 import type { EditorMount } from 'gazetta/types'
 import FragmentBlastRadius from './FragmentBlastRadius.vue'
 import PageMetadataEditor from './PageMetadataEditor.vue'
+import ValidationBanner from './ValidationBanner.vue'
 
 const editing = useEditingStore()
 const selection = useSelectionStore()
@@ -88,6 +89,7 @@ onKeyStroke('s', e => {
 
 <template>
   <div class="editor-panel" data-testid="editor-panel">
+    <ValidationBanner />
     <div v-if="editing.loadError" class="editor-error" data-testid="editor-error">
       <i class="pi pi-exclamation-triangle" />
       <p>{{ editing.loadError }}</p>

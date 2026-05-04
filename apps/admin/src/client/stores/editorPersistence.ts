@@ -2,10 +2,18 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { EditingTarget } from './editorContent.js'
 import type { StashedEdit } from './editorStash.js'
+import { ValidationFailedError } from '../api/client.js'
 
 export interface SaveResult {
   success: boolean
   error?: string
+  /**
+   * Set when the server returned 409 VALIDATION_FAILED. Carries structured
+   * issues for the banner UI; the route handler in useEditorActions reads
+   * this to populate the `validationIssues` store rather than firing a
+   * generic error toast.
+   */
+  validationError?: ValidationFailedError
 }
 
 /**
@@ -57,6 +65,9 @@ export const useEditorPersistenceStore = defineStore('editorPersistence', () => 
     } catch (err) {
       const message = (err as Error).message
       lastSaveError.value = message
+      if (err instanceof ValidationFailedError) {
+        return { success: false, error: message, validationError: err }
+      }
       return { success: false, error: message }
     } finally {
       saving.value = false

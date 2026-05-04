@@ -5,6 +5,34 @@ import { API_BASE as BASE, apiUrl, authHeaders, getActiveTarget } from './_reque
 
 export { setActiveTargetProvider } from './_request.js'
 
+/**
+ * One validation issue surfaced from a save-delta block. Mirrors the server
+ * Issue shape from packages/gazetta/src/admin-api/schemas/validation.ts.
+ */
+export interface ValidationIssue {
+  validator: string
+  severity: 'error' | 'warn' | 'info'
+  message: string
+  itemPath: string
+  contentPath?: string
+  suppressible?: boolean
+}
+
+/**
+ * Thrown when a save / fragment-update returns 409 with VALIDATION_FAILED.
+ * Carries the structured Issue array so the UI can surface the banner with
+ * per-issue actions instead of just a string.
+ */
+export class ValidationFailedError extends Error {
+  readonly code = 'VALIDATION_FAILED' as const
+  readonly issues: readonly ValidationIssue[]
+  constructor(issues: readonly ValidationIssue[]) {
+    super(`Validation failed (${issues.length} issue${issues.length === 1 ? '' : 's'})`)
+    this.name = 'ValidationFailedError'
+    this.issues = issues
+  }
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(apiUrl(path), {
     ...options,
@@ -12,6 +40,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }))
+    if (res.status === 409 && body && typeof body === 'object' && body.code === 'VALIDATION_FAILED') {
+      throw new ValidationFailedError(body.issues ?? [])
+    }
     throw new Error(body.error ?? `Request failed: ${res.status}`)
   }
   return res.json()

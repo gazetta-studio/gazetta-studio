@@ -15,8 +15,9 @@ import { useEditorStashStore } from '../stores/editorStash.js'
 import { useEditorStructuralStore } from '../stores/editorStructural.js'
 import { useEditorPersistenceStore, type StructuralWrite } from '../stores/editorPersistence.js'
 import { useEditorContentStore, type EditingTarget } from '../stores/editorContent.js'
+import { useValidationIssuesStore } from '../stores/validationIssues.js'
 import { type EditorSelection, selectionToStashKey, selectionToErrorLabel } from './editorSelection.js'
-import { api } from '../api/client.js'
+import { api, ValidationFailedError } from '../api/client.js'
 import { useLocaleStore } from '../stores/locale.js'
 
 const MAX_RETRY_ATTEMPTS = 3
@@ -426,11 +427,13 @@ export function useEditorActions() {
     const stashedKeys = [...stash.entries].map(([k]) => k)
     const structuralEntries = structural.allEntries()
     const structuralWrites = structuralEntries.map(([k, entry]) => buildStructuralWrite(k, entry.pending))
+    const validationStore = useValidationIssuesStore()
     const result = await persistence.save(current, stashedEntries, structuralWrites)
     if (result.success) {
       ec.markSaved()
       for (const key of stashedKeys) stash.revert(key)
       structural.clearAll()
+      validationStore.clear()
       // Reload the affected manifests so selection.detail reflects the saved
       // structural changes — preview will repaint from disk on the next fetch.
       if (structuralEntries.length > 0) {
@@ -439,6 +442,10 @@ export function useEditorActions() {
       usePreviewStore().invalidate()
       usePublishStatusStore().refresh()
       toast.show('Saved', { action: buildUndoAction() })
+    } else if (result.validationError) {
+      // 409 VALIDATION_FAILED — banner surface, not a toast. Issues are
+      // pinned until the next successful save or explicit dismiss.
+      validationStore.set(result.validationError.issues)
     } else {
       toast.showError(new Error(result.error), 'Failed to save')
     }
