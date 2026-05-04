@@ -15,3 +15,10 @@ export {
   ConfigEvaluationError,
   ConfigLayoutError,
 } from './errors.js'
+export {
+  loadGazettaConfig,
+  loadSiteConfig,
+  discoverSites,
+  loadProjectConfig,
+} from './loader.js'
+export type { DiscoveredSite, LoadedProjectConfig } from './loader.js'
