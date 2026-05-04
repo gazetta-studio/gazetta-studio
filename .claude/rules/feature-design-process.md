@@ -169,7 +169,7 @@ The dimensions are foundational because designing a feature without respecting t
 6. `design-rendering.md` (complete 2026-05; three target types + worker boundary + dynamic fragment contract; provisional locks on dynamic-side details for follow-up)
 7. `design-hooks.md` (complete 2026-05; lifecycle phases + return-new-payload contract + priority-based composition + site-local-plus-plugin discovery)
 8. `design-config.md` (complete 2026-05; reference doc — NOT a foundational dimension. TS config (`gazetta.config.ts` + `site.config.ts`) replaces YAML; identity functions; `process.env.X` for secrets; load-once-at-boot in production, hot-reload in dev. Decision in [`docs/adr/0005-typescript-config-format.md`](../../docs/adr/0005-typescript-config-format.md).)
-9. `design-plugins.md` (pending — depends on hooks + config)
+9. `design-plugins.md` (complete 2026-05; TS-import discovery + factory exports + per-surface PluginAPI + service-account opt-in)
 10. `design-cache.md` (pending — `MemoryCache` ships first; provider implementations slot in via the same interface as scale/admin demands materialize)
 11. `design-offline.md` (pending — depends on cache + RBAC + render; extends cache taxonomy with browser-side persistent providers)
 12. `design-collaboration.md` (pending — depends on auth/RBAC + audit + review; comments, mentions, notifications, activity feed, presence)
