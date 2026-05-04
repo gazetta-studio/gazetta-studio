@@ -63,7 +63,7 @@ Sequence (per dependency order):
 
 4. **`design-auth-rbac.md`** (complete 2026-05) — covers #194 (RBAC). Trust modes (configurable v1, plugin reserved); hybrid built-in + custom roles, single role per principal, group-claim mapped; capability-based authorization gates with role aliases. Implementation Tier 3.
 
-   - **`design-audit.md`** (extracted to its own pass; pending) — covers #200 (audit log). `AuditProvider` extension surface #11; v1 ships `HistoryAuditProvider`; v2 reserves external sinks (file, syslog, CloudWatch, Azure Monitor, OpenTelemetry, HTTP webhook).
+   - **`design-audit.md`** (complete 2026-05) — covers #200 (audit log). `AuditProvider` extension surface #11; v1 ships `HistoryAuditProvider` with `outcome` field on every event, structured `actor` snapshot, sync fail-open + parallel fan-out, separable retention, opt-in pseudonymization (sha256 + salt), trust-mode-driven sourceIp extraction; v2 expected order: `HttpWebhookAuditProvider` first, then file → OTel → CloudWatch → Azure Monitor → syslog. Implementation Tier 3.
 
    - **`design-review-workflow.md`** (extracted to its own pass; pending) — covers #199 (review workflows). Per-content review state machine (`draft / pending-review / approved`) + per-target publish approval; 5 archetype recipes; capability extensions (`review:submit`, `review:approve`, `publish:request`, `publish:approve`).
 

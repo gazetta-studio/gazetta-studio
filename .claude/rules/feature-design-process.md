@@ -163,7 +163,7 @@ The dimensions are foundational because designing a feature without respecting t
 3. `design-i18n.md` (complete 2026-05; 13 of 15 implementation steps shipped; design/implementation split lands with #192 per-field translation)
 4. `design-themes.md` (complete 2026-05; presentation-theming-only scope; pages/fragments stay theme-agnostic at the data layer)
 5. `design-auth-rbac.md` (complete 2026-05; unblocks audit + review + hooks)
-   - `design-audit.md` (pending — extracted from joint pass; extends history-recorder)
+   - `design-audit.md` (complete 2026-05; extends history-recorder; `AuditProvider` Extension Surface #11)
    - `design-review-workflow.md` (pending — extracted from joint pass; depends on auth/RBAC + audit)
 6. `design-rendering.md` (pending — depends on locale + themes)
 7. `design-hooks.md` (pending — depends on RBAC)
