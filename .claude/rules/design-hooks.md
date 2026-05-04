@@ -35,6 +35,12 @@ Audit category #2 from the CMS feature audit. Template Developer pain point.
 
 ## Open questions for the design pass
 
+### Multi-instance check
+- Hook handlers run on whichever admin instance receives the save/publish request. No cross-instance ordering or coordination required — the writing instance fires its own hooks against its own request.
+- Async hooks (fire-and-forget) — must complete on the instance that received the request, OR offload to a job queue (out of v1 scope). Cross-instance async hook scheduling is forbidden in v1.
+- Hook state — hook handlers MUST NOT keep state between firings within a process (that state would diverge across instances). State that needs to persist goes through storage like any other write.
+- Plugin-supplied hooks (per `design-plugins.md`) inherit these rules.
+
 ### Lifecycle phases that fire hooks
 - Save — `beforeSave`, `afterSave`?
 - Publish — `beforePublish`, `afterPublish`, `onPublishSuccess`, `onPublishFailure`?

@@ -19,7 +19,7 @@ Priorities derive from [`docs/audits/cms-feature-audit.md`](docs/audits/cms-feat
 The framing decisions that shape multi-quarter priorities. Resolved (no longer "open questions"):
 
 - **Gazetta is a team CMS** — not a solo developer tool. RBAC + audit log + review workflows are foundational dimensions, not Tier 3 strategic bets. Implementation defers; design lands as a Tier 2 design pass.
-- **Plugins are foundational** — the existing extension surfaces (storage, templates, editors, fields, transforms, deploy adapters, AI providers, hooks, validators) ARE the plugin system. The unifying contract (discovery, lifecycle, composition) gets a Tier 2 design pass; broader runtime extensibility (custom routes, custom CLI) waits for concrete demand.
+- **Plugins are foundational** — the existing extension surfaces (storage, templates, editors, fields, transforms, deploy adapters, AI providers, hooks, validators, cache providers) ARE the plugin system. The unifying contract (discovery, lifecycle, composition) gets a Tier 2 design pass; broader runtime extensibility (custom routes, custom CLI) waits for concrete demand.
 
 ## Tier 1 — committed (next 4-8 weeks)
 
@@ -51,7 +51,7 @@ Closes part of the deploy-adapters cluster:
 
 ### Foundational design passes
 
-Eight cross-cutting dimensions that every feature design must respect (see [`feature-design-process.md`](.claude/rules/feature-design-process.md) "Foundational dimensions"). Each is a separate design pass that lands a `design-{name}.md` and adds a check to every new feature design. Implementation phases sit in Tier 3 unless otherwise noted.
+Nine cross-cutting dimensions that every feature design must respect (see [`feature-design-process.md`](.claude/rules/feature-design-process.md) "Foundational dimensions"). Each is a separate design pass that lands a `design-{name}.md` and adds a check to every new feature design. Implementation phases sit in Tier 3 unless otherwise noted.
 
 Sequence (per dependency order):
 
@@ -67,7 +67,9 @@ Sequence (per dependency order):
 
 6. **`design-hooks.md`** (2 weeks) — extension surface for save/publish/load/render. Auto-slugify, auto-tag, validate against external API, enrich content. Reference: [Payload Hooks](https://payloadcms.com/docs/hooks/overview). Composes with RBAC (actor identity in payload) and audit log (hook firings recorded).
 
-7. **`design-plugins.md`** (1-2 weeks) — unifying plugin contract: discovery, loading, lifecycle, composition. Existing 9 extension surfaces (storage, templates, editors, fields, transforms, deploy adapters, AI providers, hooks, validators) follow the contract.
+7. **`design-plugins.md`** (1-2 weeks) — unifying plugin contract: discovery, loading, lifecycle, composition. Existing 10 extension surfaces (storage, templates, editors, fields, transforms, deploy adapters, AI providers, hooks, validators, cache providers) follow the contract.
+
+8. **`design-cache.md`** (1 week) — pluggable caching layer with multiple provider implementations. Ships `MemoryCache` (per-instance, v1 default) + reserved providers for v2 (Redis, Azure storage, file-based, distributed). Same extension-surface pattern as storage providers. Multi-instance discipline: per-instance providers are correct via independence; shared providers via the provider's own coordination.
 
 ### Validation Cut 2 + 3 (8 days)
 - Cut 2: background scanner + admin UI surfaces (tree dots, "Site health" drawer) — closes #40 fully
@@ -180,7 +182,7 @@ See [`docs/non-goals.md`](docs/non-goals.md) for full rationale. Summary:
 - Database integration → stateless CMS is a defining property
 - E-commerce primitives → out of scope
 - Solid.js / Svelte template support (#65, #69) — niche; React/Vue/Svelte template authoring already works via the template's own framework choice
-- Broad plugin system beyond documented extension surfaces — the named surfaces (storage, templates, editors, fields, transforms, deploy adapters, AI providers, hooks, validators) ARE the plugin system; broader runtime extensibility (custom routes, custom CLI) waits for concrete demand
+- Broad plugin system beyond documented extension surfaces — the named surfaces (storage, templates, editors, fields, transforms, deploy adapters, AI providers, hooks, validators, cache providers) ARE the plugin system; broader runtime extensibility (custom routes, custom CLI) waits for concrete demand
 
 ## Process
 

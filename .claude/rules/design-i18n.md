@@ -32,6 +32,8 @@ Zero template changes, zero schema changes. Opt-in via `locales` in site.yaml.
 - **Subpath routing default** — `/about` (default locale, no prefix), `/fr/about` (French). Per-domain and hybrid strategies also supported.
 - **hreflang strategy** — HTML `<head>` for subpath targets; sitemap-only for cross-domain targets (avoids timing 404s when one domain publishes before another).
 
+**Multi-instance check**: locale variant resolution is stateless (file-suffix manifests live in storage, resolver reads on demand). Locale routing in the runtime is per-request. No cross-instance coordination required. Multi-instance discipline holds; the design/implementation split (when #192 lands) must preserve this.
+
 **Status legend:** ☐ todo · ◐ in progress · ✓ done
 
 ---
