@@ -26,7 +26,6 @@ async function reset() {
   await mkdir(siteDir, { recursive: true })
   await mkdir(join(templatesDir, 'page'), { recursive: true })
   await writeFile(join(templatesDir, 'page/index.js'), TEMPLATE)
-  await writeFile(join(siteDir, 'site.yaml'), 'name: Test')
   await mkdir(join(siteDir, 'pages/home'), { recursive: true })
   await writeFile(
     join(siteDir, 'pages/home/page.json'),
@@ -60,7 +59,7 @@ async function writeSidecar(dir: string, hash: string) {
 
 describe('compareTargets', () => {
   it('returns firstPublish:true when target has no sidecars', async () => {
-    const r = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root })
+    const r = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root, manifest: { name: 'Test' } })
     expect(r.firstPublish).toBe(true)
     // Both pages and fragments are "added" since target is empty
     expect(r.added.sort()).toEqual(['fragments/header', 'pages/home'])
@@ -70,7 +69,7 @@ describe('compareTargets', () => {
 
   it('returns unchanged when sidecars match', async () => {
     // First call to get the local hashes
-    const r1 = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root })
+    const r1 = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root, manifest: { name: 'Test' } })
     // Re-derive: we need the actual hashes — easiest is to publish "by hand" using r1.added
     // But we only have item names, not hashes. Easier: import hashManifest directly.
     const { hashManifest } = await import('../src/hash.js')
@@ -78,7 +77,7 @@ describe('compareTargets', () => {
     const { loadSite } = await import('../src/site-loader.js')
     const tpls = await scanTemplates(templatesDir, root)
     const tHashes = templateHashesFrom(tpls)
-    const site = await loadSite({ siteDir, storage: source, templatesDir })
+    const site = await loadSite({ siteDir, storage: source, templatesDir, manifest: { name: 'Test' } })
     for (const [name, page] of site.pages) {
       await writeSidecar(join(targetDir, 'pages', name), hashManifest(page, { templateHashes: tHashes }))
     }
@@ -86,7 +85,7 @@ describe('compareTargets', () => {
       await writeSidecar(join(targetDir, 'fragments', name), hashManifest(frag, { templateHashes: tHashes }))
     }
 
-    const r2 = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root })
+    const r2 = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root, manifest: { name: 'Test' } })
     expect(r2.firstPublish).toBe(false)
     expect(r2.unchanged.sort()).toEqual(['fragments/header', 'pages/home'])
     expect(r2.added).toEqual([])
@@ -99,7 +98,7 @@ describe('compareTargets', () => {
     await writeSidecar(join(targetDir, 'pages/home'), '00000000')
     await writeSidecar(join(targetDir, 'fragments/header'), '00000000')
 
-    const r = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root })
+    const r = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root, manifest: { name: 'Test' } })
     expect(r.firstPublish).toBe(false)
     expect(r.modified.sort()).toEqual(['fragments/header', 'pages/home'])
   })
@@ -108,7 +107,7 @@ describe('compareTargets', () => {
     await writeSidecar(join(targetDir, 'pages/home'), '00000000')
     await writeSidecar(join(targetDir, 'pages/old-page'), '11111111')
 
-    const r = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root })
+    const r = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root, manifest: { name: 'Test' } })
     expect(r.deleted).toContain('pages/old-page')
   })
 
@@ -125,14 +124,14 @@ describe('compareTargets', () => {
     // Old sidecar for home so target isn't empty
     await writeSidecar(join(targetDir, 'pages/home'), '00000000')
 
-    const r = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root })
+    const r = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root, manifest: { name: 'Test' } })
     expect(r.added).toContain('pages/about')
   })
 
   it('reports invalid templates without failing the compare', async () => {
     // Break the template
     await writeFile(join(templatesDir, 'page/index.js'), 'this is not js!!!')
-    const r = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root })
+    const r = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root, manifest: { name: 'Test' } })
     expect(r.invalidTemplates.length).toBeGreaterThan(0)
     expect(r.invalidTemplates[0].name).toBe('page')
     // Compare still completes and lists items
@@ -141,11 +140,18 @@ describe('compareTargets', () => {
 
   it('omits fragments when target is static (#119)', async () => {
     // Default (esi): fragments included
-    const r1 = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root })
+    const r1 = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root, manifest: { name: 'Test' } })
     expect(r1.added.some(x => x.startsWith('fragments/'))).toBe(true)
 
     // Static mode: fragments excluded from local + target walks
-    const r2 = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root, type: 'static' })
+    const r2 = await compareTargets({
+      sourceRoot,
+      target,
+      templatesDir,
+      projectRoot: root,
+      type: 'static',
+      manifest: { name: 'Test' },
+    })
     expect(r2.added.some(x => x.startsWith('fragments/'))).toBe(false)
     expect(r2.modified.some(x => x.startsWith('fragments/'))).toBe(false)
     expect(r2.unchanged.some(x => x.startsWith('fragments/'))).toBe(false)
@@ -170,7 +176,7 @@ describe('compareTargets', () => {
     const { loadSite } = await import('../src/site-loader.js')
     const tpls = await scanTemplates(templatesDir, root)
     const tHashes = templateHashesFrom(tpls)
-    let site = await loadSite({ siteDir, storage: source, templatesDir })
+    let site = await loadSite({ siteDir, storage: source, templatesDir, manifest: { name: 'Test' } })
     const fragHashes = new Map<string, string>()
     for (const [n, f] of site.fragments) fragHashes.set(n, hashManifest(f, { templateHashes: tHashes }))
     for (const [n, p] of site.pages) {
@@ -181,7 +187,14 @@ describe('compareTargets', () => {
     }
 
     // Sanity: unchanged before any edit.
-    const r1 = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root, type: 'static' })
+    const r1 = await compareTargets({
+      sourceRoot,
+      target,
+      templatesDir,
+      projectRoot: root,
+      type: 'static',
+      manifest: { name: 'Test' },
+    })
     expect(r1.unchanged).toContain('pages/home')
 
     // Mutate the fragment's content — page manifest untouched.
@@ -194,7 +207,14 @@ describe('compareTargets', () => {
     )
 
     // Page must show modified — its baked-in output is now stale.
-    const r2 = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root, type: 'static' })
+    const r2 = await compareTargets({
+      sourceRoot,
+      target,
+      templatesDir,
+      projectRoot: root,
+      type: 'static',
+      manifest: { name: 'Test' },
+    })
     expect(r2.modified).toContain('pages/home')
   })
 
@@ -210,7 +230,7 @@ describe('compareTargets', () => {
     await writeSidecar(join(targetDir, 'pages/home'), fake)
     await writeSidecar(join(targetDir, 'fragments/header'), fake)
 
-    const r = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root })
+    const r = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root, manifest: { name: 'Test' } })
     // With the cache dropped, the source's recomputed hash differs from
     // the fabricated target hash → items show as modified, not unchanged.
     expect(r.modified).toContain('pages/home')

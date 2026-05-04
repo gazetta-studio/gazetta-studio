@@ -97,13 +97,13 @@ export async function restoreRevision(opts: RestoreRevisionOptions): Promise<Rev
       const { rebuildDepIndex } = await import('./publish-rendered.js')
       const { ASSET_REFS } = await import('./assets/asset-deps.js')
       const { FRAGMENT_DEPS } = await import('./fragment-deps.js')
-      const site = await loadSite({ contentRoot })
+      const site = await loadSite({ contentRoot, manifest: { name: '(history-restore)' } })
       await Promise.all([
         rebuildDepIndex(ASSET_REFS, site, contentRoot.storage, contentRoot.rootPath),
         rebuildDepIndex(FRAGMENT_DEPS, site, contentRoot.storage, contentRoot.rootPath),
       ])
     } catch (err) {
-      // Non-fatal: if site.yaml is missing or load fails, dep indices
+      // Non-fatal: if site config is missing or load fails, dep indices
       // might drift. Reindex CLI recovers.
       // eslint-disable-next-line no-console
       console.warn(`dep-sidecar rebuild after restore failed: ${(err as Error).message}`)

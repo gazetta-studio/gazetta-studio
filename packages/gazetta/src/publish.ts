@@ -35,16 +35,7 @@ export async function publishItems(
     const targetPath = join(targetBase, item)
     return copyRecursive(sourceStorage, sourcePath, targetStorage, targetPath)
   })
-  let copiedFiles = counts.reduce((a, b) => a + b, 0)
-
-  // Also copy site.yaml
-  try {
-    const siteYaml = await sourceStorage.readFile(join(sourceBase, 'site.yaml'))
-    await targetStorage.writeFile(join(targetBase, 'site.yaml'), siteYaml)
-    copiedFiles++
-  } catch {
-    // site.yaml may not need copying if target already has it
-  }
+  const copiedFiles = counts.reduce((a, b) => a + b, 0)
 
   return { copiedFiles }
 }

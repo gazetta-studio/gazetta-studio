@@ -24,7 +24,6 @@ const savedEnv: Partial<Record<(typeof ENV_KEYS)[number], string | undefined>> =
 
 beforeEach(async () => {
   await mkdir(testDir, { recursive: true })
-  await writeFile(join(testDir, 'site.yaml'), 'name: test-site\n')
   for (const key of ENV_KEYS) {
     savedEnv[key] = process.env[key]
     delete process.env[key]

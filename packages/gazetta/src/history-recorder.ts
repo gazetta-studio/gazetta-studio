@@ -8,7 +8,7 @@
  * right thing:
  *
  *   - First revision on a target: walks the content tree once to
- *     snapshot every manifest (page.json, fragment.json, site.yaml).
+ *     snapshot every manifest (page.json, fragment.json).
  *   - Subsequent revisions: reads the previous snapshot and overlays
  *     the delta (changed items the caller passes in). `readBlob` for
  *     each carried-over path gives us the content for the new
@@ -32,8 +32,8 @@ export interface WrittenItem {
   path: string
   /**
    * Current content as stored. `string` for text items (manifests,
-   * YAML), `Uint8Array` for binary items (asset bytes, variants).
-   * `null` marks a deletion.
+   * site config), `Uint8Array` for binary items (asset bytes,
+   * variants). `null` marks a deletion.
    */
   content: BlobContent | null
 }
@@ -63,10 +63,9 @@ export const DEFAULT_SCAN_LOCATIONS: readonly ScanLocation[] = [
 
 /**
  * Flat files at the content root to capture in the baseline snapshot
- * (no per-subdirectory recursion). Both the new TS config and the
- * legacy YAML are captured during the coexistence period.
+ * (no per-subdirectory recursion).
  */
-export const DEFAULT_SCAN_ROOT_FILES: readonly string[] = ['site.config.ts', 'site.yaml']
+export const DEFAULT_SCAN_ROOT_FILES: readonly string[] = ['site.config.ts']
 
 export interface RecordWriteOptions {
   /** HistoryProvider for the target we're recording on. */
@@ -94,7 +93,7 @@ export interface RecordWriteOptions {
   scanLocations?: readonly ScanLocation[]
   /**
    * Override the flat files captured from the content root. Defaults
-   * to `DEFAULT_SCAN_ROOT_FILES` (`site.yaml`). Missing files are
+   * to `DEFAULT_SCAN_ROOT_FILES` (`site.config.ts`). Missing files are
    * silently skipped so empty publish-targets still record cleanly.
    */
   scanRootFiles?: readonly string[]
@@ -152,7 +151,7 @@ export async function recordWrite(opts: RecordWriteOptions) {
  * Materialize the previous revision's full content snapshot as
  * `path → content`. If there is no previous revision, fall back to a
  * one-time scan of the target's content tree (pages, fragments,
- * site.yaml). That makes the first revision a proper baseline even
+ * root files). That makes the first revision a proper baseline even
  * when history was turned on after content already existed.
  */
 async function loadPreviousSnapshot(

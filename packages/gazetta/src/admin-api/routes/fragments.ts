@@ -30,7 +30,7 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
       return c.json(fragments)
     } catch (err) {
       const msg = (err as Error).message
-      if (msg.includes('No site.yaml found')) return c.json([])
+      if (msg.includes('loadSite:')) return c.json([])
       throw err
     }
   })

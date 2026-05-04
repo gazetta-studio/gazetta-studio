@@ -16,7 +16,6 @@
     "@vueuse/core": "^14.3.0",
     "gazetta": "*",
     "hono": "^4.12.16",
-    "js-yaml": "^4.1.0",
     "morphdom": "^2.7.8",
     "pinia": "^3.0.0",
     "primeicons": "^7.0.0",
@@ -27,7 +26,6 @@
   },
   "devDependencies": {
     "@hono/vite-dev-server": "^0.25.3",
-    "@types/js-yaml": "^4.0.0",
     "@types/node": "^25.6.0",
     "@vitejs/plugin-vue": "^6.0.6",
     "@vue/test-utils": "^2.4.10",

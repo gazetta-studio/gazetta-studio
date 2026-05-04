@@ -84,7 +84,6 @@ async function seedFragment(name: string, content: Record<string, unknown>): Pro
 
 beforeEach(async () => {
   await mkdir(testDir, { recursive: true })
-  await writeFile(join(testDir, 'site.yaml'), 'name: test-site\n')
 })
 
 afterEach(async () => {

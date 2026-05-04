@@ -100,7 +100,7 @@ export async function replaceAsset(input: ReplaceAssetInput): Promise<ReplaceAss
   // Keep rewrites in memory so we can bundle them into one history
   // revision and write atomically as a group.
   const contentRoot = createContentRoot(input.storage, input.siteDir)
-  const site = await loadSite({ contentRoot, manifest: input.manifest })
+  const site = await loadSite({ contentRoot, manifest: input.manifest ?? { name: '(replace-asset)' } })
 
   type Rewrite = {
     path: string

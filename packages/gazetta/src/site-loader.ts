@@ -4,7 +4,7 @@ import { siteConfigToManifest } from './config/loader.js'
 import { mapLimit } from './concurrency.js'
 import { type ContentRoot, createContentRoot } from './content-root.js'
 import { localeFromFilename, localeRoutePrefix, resolveSiteLocales } from './locale.js'
-import { parseFragmentManifest, parsePageManifest, parseSiteManifest } from './manifest.js'
+import { parseFragmentManifest, parsePageManifest } from './manifest.js'
 import type { FragmentManifest, PageManifest, SiteManifest, StorageProvider } from './types.js'
 
 /** A page entry with its name, manifest, and optional locale. */
@@ -202,23 +202,20 @@ export interface LoadSiteOptions {
   /** Override templates directory (default: siteDir/templates). */
   templatesDir?: string
   /**
-   * Pre-parsed site manifest. If provided, site.yaml is not read from the
-   * content root. Used when site.yaml is a project-level bootstrap file
-   * that lives outside target storage.
+   * Pre-loaded runtime site manifest. Used when the caller already has a
+   * `SiteManifest` in hand — typically from the dev server or admin API,
+   * which load the manifest once and pass it to `loadSite` so target
+   * content roots don't have to carry their own copy of site config.
    *
-   * Per design-config-implementation.md Cut 4: this also accepts the
-   * runtime-shape result of `siteConfigToManifest()` — TS-config-loaded
-   * sites use the same field. Cut 8 removes the YAML reading path
-   * entirely.
+   * Mutually exclusive with `config`.
    */
   manifest?: SiteManifest
   /**
    * Pre-loaded TS-config result from `loadSiteConfig()` /
-   * `loadProjectConfig()`. When provided, site.yaml is not read; the
-   * config is converted to manifest shape via `siteConfigToManifest()`.
+   * `loadProjectConfig()`. When provided, the config is converted to the
+   * runtime manifest shape via `siteConfigToManifest()`.
    *
-   * Mutually exclusive with `manifest`. Per Cut 4 — coexistence with
-   * existing `manifest` field; Cut 8 collapses the two paths.
+   * Mutually exclusive with `manifest`.
    */
   config?: SiteConfig
 }
@@ -257,20 +254,16 @@ export async function loadSite(opts: LoadSiteOptions): Promise<Site> {
 
   let manifest: SiteManifest
   if (opts.config && opts.manifest) {
-    throw new Error('loadSite: pass either `config` (TS) or `manifest` (legacy YAML), not both')
+    throw new Error('loadSite: pass either `config` or `manifest`, not both')
   }
   if (opts.config) {
     // TS config from new loader — convert to runtime manifest shape.
     manifest = siteConfigToManifest(opts.config)
   } else if (opts.manifest) {
-    // Project-level bootstrap passed in the manifest — skip the storage read.
+    // Project-level bootstrap passed in the manifest — skip any storage read.
     manifest = opts.manifest
   } else {
-    const siteYamlPath = contentRoot.path('site.yaml')
-    if (!(await contentRoot.storage.exists(siteYamlPath))) {
-      throw new Error(`No site.yaml found at ${siteYamlPath}. Is this a Gazetta site directory?`)
-    }
-    manifest = await parseSiteManifest(contentRoot.storage, siteYamlPath)
+    throw new Error('loadSite: either `config` or `manifest` must be provided')
   }
   const { pages, pageLocales } = await discoverPages(contentRoot.storage, contentRoot.path('pages'), manifest)
   const { fragments, fragmentLocales } = await discoverFragments(contentRoot.storage, contentRoot.path('fragments'))

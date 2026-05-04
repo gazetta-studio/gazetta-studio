@@ -2,7 +2,7 @@
  * Zod schemas for /api/site — the site manifest shape as seen by the
  * admin UI.
  *
- * Mirrors what parseSiteManifest() emits plus the empty-target fallback
+ * Mirrors what siteConfigToManifest() emits plus the empty-target fallback
  * (which includes an otherwise-absent `targets: {}` field).
  */
 import { z } from 'zod'

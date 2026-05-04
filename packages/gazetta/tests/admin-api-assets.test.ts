@@ -18,10 +18,6 @@ const testDir = tempDir('http-assets-test-' + Date.now())
 
 beforeEach(async () => {
   await mkdir(testDir, { recursive: true })
-  // Minimum site.yaml so delete's ref-scan can call loadSite without
-  // hitting "No site.yaml found". Asset-level tests don't need any real
-  // content beyond this.
-  await writeFile(join(testDir, 'site.yaml'), 'name: test-site\n')
 })
 
 afterEach(async () => {

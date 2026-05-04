@@ -35,7 +35,7 @@ Branch: `config-ts-migration` off `main`. **No backwards compatibility** — sin
 | 5 | Migrate `examples/starter` + CLI bootstrap/dispatch (was Cut 5 + Cut 10 — merged) | ✓ | Medium | End-to-end pipeline; dogfood; CLI commands work via TS config |
 | 6 | Sweep design docs (~30 files) — mechanical YAML → TS examples | ✓ | Low | Doc accuracy |
 | 7 | Sweep user-facing docs (`getting-started`, `cloudflare`, `self-hosted`, `migration`) | ✓ | Low | Operator UX |
-| 8 | Remove YAML loader code paths (the actual cutover) | ☐ | Medium | Hard cutover |
+| 8 | Remove YAML loader code paths (the actual cutover) | ✓ | Medium | Hard cutover |
 | 9 | Update `gazetta init` scaffolding to produce TS config | ☐ | Low | New-site UX |
 | ~~10~~ | ~~Update CLI handlers~~ — folded into Cut 5 (the starter migration cannot be verified without it) | ✓ | — | — |
 

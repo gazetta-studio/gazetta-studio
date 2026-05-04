@@ -20,18 +20,19 @@ afterEach(async () => {
 })
 
 describe('loadSite', () => {
-  it('throws when site.yaml is missing', async () => {
+  it('throws when neither manifest nor config is supplied', async () => {
     await mkdir(testDir, { recursive: true })
-    await expect(loadSite({ siteDir: testDir, storage })).rejects.toThrow('No site.yaml found')
+    await expect(loadSite({ siteDir: testDir, storage })).rejects.toThrow(
+      'either `config` or `manifest` must be provided',
+    )
   })
 
   it('loads a minimal site', async () => {
-    await writeTestFile('site.yaml', 'name: Test Site')
     await mkdir(join(testDir, 'pages'), { recursive: true })
     await mkdir(join(testDir, 'fragments'), { recursive: true })
 
     const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const site = await loadSite({ siteDir: testDir, storage })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test Site' } })
     expect(site.manifest.name).toBe('Test Site')
     expect(site.pages.size).toBe(0)
     expect(site.fragments.size).toBe(0)
@@ -39,13 +40,12 @@ describe('loadSite', () => {
   })
 
   it('discovers pages', async () => {
-    await writeTestFile('site.yaml', 'name: Test')
     await writeTestFile('pages/home/page.json', JSON.stringify({ template: 'default' }))
     await writeTestFile('pages/about/page.json', JSON.stringify({ template: 'default' }))
     await mkdir(join(testDir, 'fragments'), { recursive: true })
 
     const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const site = await loadSite({ siteDir: testDir, storage })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     expect(site.pages.size).toBe(2)
     expect(site.pages.has('home')).toBe(true)
     expect(site.pages.has('about')).toBe(true)
@@ -54,25 +54,23 @@ describe('loadSite', () => {
   })
 
   it('discovers nested pages', async () => {
-    await writeTestFile('site.yaml', 'name: Test')
     await writeTestFile('pages/blog/[slug]/page.json', JSON.stringify({ template: 'default' }))
     await mkdir(join(testDir, 'fragments'), { recursive: true })
 
     const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const site = await loadSite({ siteDir: testDir, storage })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     expect(site.pages.has('blog/[slug]')).toBe(true)
     expect(site.pages.get('blog/[slug]')!.route).toBe('/blog/:slug')
     spy.mockRestore()
   })
 
   it('discovers fragments', async () => {
-    await writeTestFile('site.yaml', 'name: Test')
     await mkdir(join(testDir, 'pages'), { recursive: true })
     await writeTestFile('fragments/header/fragment.json', JSON.stringify({ template: 'header-layout' }))
     await writeTestFile('fragments/footer/fragment.json', JSON.stringify({ template: 'footer-layout' }))
 
     const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const site = await loadSite({ siteDir: testDir, storage })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     expect(site.fragments.size).toBe(2)
     expect(site.fragments.has('header')).toBe(true)
     expect(site.fragments.has('footer')).toBe(true)
@@ -80,37 +78,34 @@ describe('loadSite', () => {
   })
 
   it('sets dir on pages and fragments', async () => {
-    await writeTestFile('site.yaml', 'name: Test')
     await writeTestFile('pages/home/page.json', JSON.stringify({ template: 'default' }))
     await writeTestFile('fragments/header/fragment.json', JSON.stringify({ template: 'header-layout' }))
 
     const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const site = await loadSite({ siteDir: testDir, storage })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     expect(site.pages.get('home')!.dir).toContain('pages/home')
     expect(site.fragments.get('header')!.dir).toContain('fragments/header')
     spy.mockRestore()
   })
 
   it('skips malformed page manifests', async () => {
-    await writeTestFile('site.yaml', 'name: Test')
     await writeTestFile('pages/good/page.json', JSON.stringify({ template: 'default' }))
     await writeTestFile('pages/bad/page.json', '{ invalid json }')
     await mkdir(join(testDir, 'fragments'), { recursive: true })
 
     const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const site = await loadSite({ siteDir: testDir, storage })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     expect(site.pages.size).toBe(1)
     expect(site.pages.has('good')).toBe(true)
     spy.mockRestore()
   })
 
   it('warns when no pages found', async () => {
-    await writeTestFile('site.yaml', 'name: Test')
     await mkdir(join(testDir, 'pages'), { recursive: true })
     await mkdir(join(testDir, 'fragments'), { recursive: true })
 
     const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    await loadSite({ siteDir: testDir, storage })
+    await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     expect(spy).toHaveBeenCalledWith(expect.stringContaining('no pages found'))
     spy.mockRestore()
   })
@@ -131,7 +126,7 @@ describe('loadSite', () => {
   })
 })
 
-describe('loadSite — TS config (Cut 4)', () => {
+describe('loadSite — TS config', () => {
   it('accepts pre-loaded SiteConfig via the `config` option', async () => {
     await mkdir(testDir, { recursive: true })
     await mkdir(join(testDir, 'pages'), { recursive: true })
@@ -148,18 +143,6 @@ describe('loadSite — TS config (Cut 4)', () => {
     spy.mockRestore()
   })
 
-  it('preserves existing manifest path when no config supplied', async () => {
-    // Smoke check: YAML still works in coexistence period (Cut 8 removes it)
-    await writeTestFile('site.yaml', 'name: Legacy YAML Site')
-    await mkdir(join(testDir, 'pages'), { recursive: true })
-    await mkdir(join(testDir, 'fragments'), { recursive: true })
-
-    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const site = await loadSite({ siteDir: testDir, storage })
-    expect(site.manifest.name).toBe('Legacy YAML Site')
-    spy.mockRestore()
-  })
-
   it('rejects passing both manifest and config', async () => {
     await mkdir(testDir, { recursive: true })
     await expect(
@@ -169,7 +152,7 @@ describe('loadSite — TS config (Cut 4)', () => {
         manifest: { name: 'A' },
         config: { name: 'B' },
       }),
-    ).rejects.toThrow('pass either `config` (TS) or `manifest` (legacy YAML)')
+    ).rejects.toThrow('pass either `config` or `manifest`, not both')
   })
 })
 

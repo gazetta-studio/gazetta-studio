@@ -26,9 +26,7 @@ describe('findAssetRefs', () => {
   let storage: StorageProvider
 
   beforeEach(() => {
-    storage = createMemoryStorage({
-      'site.yaml': 'name: test-site\n',
-    })
+    storage = createMemoryStorage({})
   })
 
   it('returns empty when no pages or fragments reference the asset', async () => {

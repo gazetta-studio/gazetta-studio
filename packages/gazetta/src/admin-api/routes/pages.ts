@@ -37,7 +37,7 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
       return c.json(pages)
     } catch (err) {
       const msg = (err as Error).message
-      if (msg.includes('No site.yaml found')) return c.json([])
+      if (msg.includes('loadSite:')) return c.json([])
       throw err
     }
   })

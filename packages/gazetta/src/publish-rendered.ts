@@ -65,7 +65,8 @@ export async function publishPageRendered(
 ): Promise<{ files: number; removed: number }> {
   // Reuse a preloaded site when the caller already has one (runPublish loops
   // over N items; loading per-item was quadratic). loadSite is idempotent.
-  const site = preloadedSite ?? (await loadSite({ contentRoot: sourceRoot, templatesDir }))
+  const site =
+    preloadedSite ?? (await loadSite({ contentRoot: sourceRoot, templatesDir, manifest: { name: '(publish)' } }))
   const page = site.pages.get(pageName)
   if (!page) throw new Error(`Page "${pageName}" not found`)
 
@@ -225,7 +226,8 @@ export async function publishPageStatic(
   /** Locale for this render pass. When set, resolves locale-specific content and writes to locale-prefixed path. */
   locale?: string,
 ): Promise<{ files: number }> {
-  const site = preloadedSite ?? (await loadSite({ contentRoot: sourceRoot, templatesDir }))
+  const site =
+    preloadedSite ?? (await loadSite({ contentRoot: sourceRoot, templatesDir, manifest: { name: '(publish)' } }))
   const page = site.pages.get(pageName)
   if (!page) throw new Error(`Page "${pageName}" not found`)
 
@@ -276,7 +278,8 @@ export async function publishFragmentRendered(
   /** Locale for this render pass. When set, resolves locale-specific content and writes to index.{locale}.html. */
   locale?: string,
 ): Promise<{ files: number; removed: number }> {
-  const site = preloadedSite ?? (await loadSite({ contentRoot: sourceRoot, templatesDir }))
+  const site =
+    preloadedSite ?? (await loadSite({ contentRoot: sourceRoot, templatesDir, manifest: { name: '(publish)' } }))
   const fragment = site.fragments.get(fragmentName)
   if (!fragment) throw new Error(`Fragment "${fragmentName}" not found`)
 
@@ -354,7 +357,7 @@ export async function publishSiteManifest(
   targetStorage: StorageProvider,
   preloadedSite?: Site,
 ): Promise<void> {
-  const site = preloadedSite ?? (await loadSite({ contentRoot: sourceRoot }))
+  const site = preloadedSite ?? (await loadSite({ contentRoot: sourceRoot, manifest: { name: '(publish)' } }))
   const manifest = { name: site.manifest.name, version: site.manifest.version }
   await targetStorage.writeFile('site.json', JSON.stringify(manifest))
 }
@@ -428,7 +431,7 @@ export async function publishDepIndices(
   targetStorage: StorageProvider,
   preloadedSite?: Site,
 ): Promise<void> {
-  const site = preloadedSite ?? (await loadSite({ contentRoot: sourceRoot }))
+  const site = preloadedSite ?? (await loadSite({ contentRoot: sourceRoot, manifest: { name: '(publish)' } }))
   await Promise.all([
     rebuildDepIndex(ASSET_REFS, site, targetStorage, ''),
     rebuildDepIndex(FRAGMENT_DEPS, site, targetStorage, ''),
@@ -444,7 +447,7 @@ export async function publishAssetRefsIndex(
   targetStorage: StorageProvider,
   preloadedSite?: Site,
 ): Promise<void> {
-  const site = preloadedSite ?? (await loadSite({ contentRoot: sourceRoot }))
+  const site = preloadedSite ?? (await loadSite({ contentRoot: sourceRoot, manifest: { name: '(publish)' } }))
   await rebuildDepIndex(ASSET_REFS, site, targetStorage, '')
 }
 

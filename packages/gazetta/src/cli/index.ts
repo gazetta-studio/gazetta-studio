@@ -6,7 +6,6 @@ import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
-import yaml from 'js-yaml'
 import { loadSite } from '../site-loader.js'
 import { resolvePage } from '../resolver.js'
 import { renderPage } from '../renderer.js'
@@ -34,23 +33,18 @@ const args = process.argv.slice(2)
 const command = args[0]
 
 /**
- * Load a site manifest from `siteDir`. Prefers `site.config.ts` (or .js/.mjs)
- * via the TS config loader; falls back to `site.yaml` during the coexistence
- * period (Cut 8 removes the YAML branch entirely).
+ * Load a site manifest from `siteDir` via the TS config loader. Recognizes
+ * `site.config.ts`, `site.config.js`, and `site.config.mjs`.
  *
  * Returns null when no config file is found.
  */
 async function loadSiteManifestForCli(siteDir: string): Promise<SiteManifest | null> {
   const tsConfigCandidates = ['site.config.ts', 'site.config.js', 'site.config.mjs']
-  if (tsConfigCandidates.some(f => existsSync(join(siteDir, f)))) {
-    const { loadSiteConfig, siteConfigToManifest } = await import('../config/loader.js')
-    const loaded = await loadSiteConfig(siteDir)
-    if (!loaded) return null
-    return siteConfigToManifest(loaded.config)
-  }
-  const yamlPath = join(siteDir, 'site.yaml')
-  if (!existsSync(yamlPath)) return null
-  return yaml.load(readFileSync(yamlPath, 'utf-8')) as SiteManifest
+  if (!tsConfigCandidates.some(f => existsSync(join(siteDir, f)))) return null
+  const { loadSiteConfig, siteConfigToManifest } = await import('../config/loader.js')
+  const loaded = await loadSiteConfig(siteDir)
+  if (!loaded) return null
+  return siteConfigToManifest(loaded.config)
 }
 
 // Served to /admin/* requests during dev-server startup before Vite middleware
@@ -186,7 +180,7 @@ function printHelp() {
     Site is auto-detected from sites/ directory. If multiple sites exist,
     you'll be prompted to choose (or pass it as an argument).
 
-    Target is auto-detected as the first target in site.yaml. If multiple
+    Target is auto-detected as the first target in site.config.ts. If multiple
     targets exist, you'll be prompted to choose (or pass it as an argument).
 
   Examples:
@@ -243,13 +237,12 @@ function parseArgs(input: string[]): ParsedArgs {
  * For commands like `publish` and `serve`, the first positional is the target
  * and the second is the site.
  */
-/** Returns true if the directory contains a Gazetta site config (TS or legacy YAML). */
+/** Returns true if the directory contains a Gazetta site config (`site.config.ts`/.js/.mjs). */
 function hasSiteConfig(dir: string): boolean {
   return (
     existsSync(join(dir, 'site.config.ts')) ||
     existsSync(join(dir, 'site.config.js')) ||
-    existsSync(join(dir, 'site.config.mjs')) ||
-    existsSync(join(dir, 'site.yaml'))
+    existsSync(join(dir, 'site.config.mjs'))
   )
 }
 
@@ -540,7 +533,7 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
   const projectRoot = detectProjectRoot(siteDir)
   const templatesDir = join(projectRoot, 'templates')
 
-  // Source comes from the default editable target in site.yaml.
+  // Source comes from the default editable target in site.config.ts.
   const { buildSourceContext } = await import('./bootstrap.js')
   let source, manifest, targetConfigs
   try {
@@ -554,7 +547,7 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
 
   const siteYaml = manifest
   if (!siteYaml.targets || Object.keys(siteYaml.targets).length === 0) {
-    console.error(`\n  Error: no targets configured in site.yaml`)
+    console.error(`\n  Error: no targets configured in site.config.ts`)
     process.exit(1)
   }
 
@@ -1131,7 +1124,7 @@ async function runAdmin(siteDir: string, port: number) {
 async function runServe(siteDir: string, port: number, targetName?: string) {
   const siteYaml = await loadSiteManifestForCli(siteDir)
   if (!siteYaml) {
-    console.error(`\n  Error: no site config found in ${siteDir} (looked for site.config.ts and site.yaml)\n`)
+    console.error(`\n  Error: no site config found in ${siteDir} (looked for site.config.ts)\n`)
     process.exit(1)
   }
   if (!siteYaml.targets || Object.keys(siteYaml.targets).length === 0) {
@@ -1175,7 +1168,7 @@ async function runDeploy(siteDir: string, targetName?: string) {
 
   const siteYaml = await loadSiteManifestForCli(siteDir)
   if (!siteYaml) {
-    console.error(`\n  Error: no site config found at ${siteDir} (looked for site.config.ts and site.yaml)\n`)
+    console.error(`\n  Error: no site config found at ${siteDir} (looked for site.config.ts)\n`)
     process.exit(1)
   }
   if (!siteYaml.targets) {
@@ -1193,7 +1186,7 @@ async function runDeploy(siteDir: string, targetName?: string) {
   }
   if (!target.worker) {
     console.error(
-      `\n  Error: Target "${targetName}" has no worker config. Add to site.yaml:\n\n  worker:\n    type: cloudflare\n    name: my-site\n`,
+      `\n  Error: Target "${targetName}" has no worker config. Add to site.config.ts:\n\n  worker: { type: 'cloudflare', name: 'my-site' }\n`,
     )
     process.exit(1)
   }
@@ -1268,9 +1261,7 @@ async function runValidate(siteDir: string) {
     ? 'site.config.ts'
     : existsSync(join(siteDir, 'site.config.js'))
       ? 'site.config.js'
-      : existsSync(join(siteDir, 'site.config.mjs'))
-        ? 'site.config.mjs'
-        : 'site.yaml'
+      : 'site.config.mjs'
   let site: Awaited<ReturnType<typeof loadSite>>
   try {
     const { buildSourceContext } = await import('./bootstrap.js')
@@ -1382,7 +1373,7 @@ async function runValidate(siteDir: string) {
   if (!hasI18n && (site.pageLocales.size > 0 || site.fragmentLocales.size > 0)) {
     const orphanCount = site.pageLocales.size + site.fragmentLocales.size
     console.log(
-      `  ${c.yellow('⚠')} ${orphanCount} locale file${orphanCount > 1 ? 's' : ''} found but i18n is disabled ${c.dim('— add locales.supported to site.yaml or remove *.locale.json files')}`,
+      `  ${c.yellow('⚠')} ${orphanCount} locale file${orphanCount > 1 ? 's' : ''} found but i18n is disabled ${c.dim('— add locales.supported to site.config.ts or remove *.locale.json files')}`,
     )
   }
 
@@ -1509,7 +1500,7 @@ async function runDev(siteDir: string, port: number) {
   const templatesDir = join(projectRoot, 'templates')
   const adminDir = join(projectRoot, 'admin')
 
-  // Build the source context from the default editable target in site.yaml.
+  // Build the source context from the default editable target in site.config.ts.
   // Cloud targets aren't init'd — admin API handles them lazily.
   const { buildSourceContext } = await import('./bootstrap.js')
   const { source, manifest, targetConfigs } = await buildSourceContext({ projectSiteDir: siteDir })
@@ -1871,7 +1862,7 @@ async function runDev(siteDir: string, port: number) {
   })
 
   // ---- File watching ----
-  // Watch site dir for content changes (JSON manifests + site.yaml config).
+  // Watch site dir for content changes (JSON manifests + site.config.ts).
   // Swallow FSWatcher 'error' events — Node's recursive watcher throws ENOENT
   // when a watched subdir disappears (rm -rf during publish, git checkout).
   // Letting it crash would take the whole dev server down; logging a warning
@@ -2053,7 +2044,7 @@ async function main() {
       return
     }
     rollbackRevisionId = rev
-    const secondIsSite = second && (second.includes('/') || existsSync(join(resolve(second), 'site.yaml')))
+    const secondIsSite = second && (second.includes('/') || hasSiteConfig(resolve(second)))
     if (secondIsSite) {
       siteDir = await resolveSiteDir(second)
       targetName = await resolveTarget(undefined, siteDir)
@@ -2064,8 +2055,8 @@ async function main() {
   } else if (targetFirstCommands.has(command)) {
     // gazetta publish [target] [site]
     const [first, second] = parsed.positional
-    // If first arg looks like a site path (contains / or has site.yaml), it's the site
-    const firstIsSite = first && (first.includes('/') || existsSync(join(resolve(first), 'site.yaml')))
+    // If first arg looks like a site path (contains / or has site.config.ts), it's the site
+    const firstIsSite = first && (first.includes('/') || hasSiteConfig(resolve(first)))
     if (firstIsSite) {
       siteDir = await resolveSiteDir(first)
       targetName = await resolveTarget(undefined, siteDir)
@@ -2225,7 +2216,7 @@ async function main() {
 /**
  * Resolve site + target + config into the shape HistoryCommandContext
  * expects. Lives here rather than in cli/history.ts so the target-
- * resolution logic (site.yaml parsing, CI env handling) stays with
+ * resolution logic (site config parsing, CI env handling) stays with
  * the other CLI commands that already do it the same way.
  */
 async function resolveHistoryContext(siteDir: string, targetName: string) {

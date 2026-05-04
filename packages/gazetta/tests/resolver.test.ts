@@ -47,7 +47,6 @@ describe('resolvePage', () => {
 
   it('resolves a simple page with inline components', async () => {
     await writeSite({
-      'site.yaml': 'name: "Test"',
       'pages/home/page.json': JSON.stringify({
         template: 'echo',
         components: [{ name: 'hero', template: 'echo', content: { text: 'Hello' } }],
@@ -55,7 +54,7 @@ describe('resolvePage', () => {
     })
     await writeTemplate('echo')
 
-    const site = await loadSite({ siteDir: testDir, storage })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     const resolved = await resolvePage('home', site)
 
     expect(resolved.children).toHaveLength(1)
@@ -64,7 +63,6 @@ describe('resolvePage', () => {
 
   it('resolves a page with fragment references', async () => {
     await writeSite({
-      'site.yaml': 'name: "Test"',
       'fragments/header/fragment.json': JSON.stringify({ template: 'echo', content: { text: 'Header' } }),
       'pages/home/page.json': JSON.stringify({
         template: 'echo',
@@ -73,7 +71,7 @@ describe('resolvePage', () => {
     })
     await writeTemplate('echo')
 
-    const site = await loadSite({ siteDir: testDir, storage })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     const resolved = await resolvePage('home', site)
 
     expect(resolved.children).toHaveLength(1)
@@ -82,7 +80,6 @@ describe('resolvePage', () => {
 
   it('resolves nested fragment with children', async () => {
     await writeSite({
-      'site.yaml': 'name: "Test"',
       'fragments/header/fragment.json': JSON.stringify({
         template: 'echo',
         components: [{ name: 'logo', template: 'echo', content: { text: 'Logo' } }],
@@ -94,7 +91,7 @@ describe('resolvePage', () => {
     })
     await writeTemplate('echo')
 
-    const site = await loadSite({ siteDir: testDir, storage })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     const resolved = await resolvePage('home', site)
 
     expect(resolved.children).toHaveLength(1)
@@ -105,7 +102,6 @@ describe('resolvePage', () => {
 
   it('resolves deeply nested components', async () => {
     await writeSite({
-      'site.yaml': 'name: "Test"',
       'pages/home/page.json': JSON.stringify({
         template: 'echo',
         components: [
@@ -122,7 +118,7 @@ describe('resolvePage', () => {
     })
     await writeTemplate('echo')
 
-    const site = await loadSite({ siteDir: testDir, storage })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     const resolved = await resolvePage('home', site)
 
     const features = resolved.children[0]
@@ -132,14 +128,14 @@ describe('resolvePage', () => {
   })
 
   it('throws on missing page', async () => {
-    await writeSite({ 'site.yaml': 'name: "Test"' })
-    const site = await loadSite({ siteDir: testDir, storage })
+    await writeSite({})
+    await mkdir(testDir, { recursive: true })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     await expect(resolvePage('nope', site)).rejects.toThrow('Page "nope" not found')
   })
 
   it('throws on missing fragment', async () => {
     await writeSite({
-      'site.yaml': 'name: "Test"',
       'pages/home/page.json': JSON.stringify({
         template: 'echo',
         components: ['@missing'],
@@ -147,13 +143,12 @@ describe('resolvePage', () => {
     })
     await writeTemplate('echo')
 
-    const site = await loadSite({ siteDir: testDir, storage })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     await expect(resolvePage('home', site)).rejects.toThrow('Fragment "@missing" not found')
   })
 
   it('throws on string entry that is not a fragment reference', async () => {
     await writeSite({
-      'site.yaml': 'name: "Test"',
       'pages/home/page.json': JSON.stringify({
         template: 'echo',
         components: ['not-a-fragment'],
@@ -161,23 +156,21 @@ describe('resolvePage', () => {
     })
     await writeTemplate('echo')
 
-    const site = await loadSite({ siteDir: testDir, storage })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     await expect(resolvePage('home', site)).rejects.toThrow('string entries must be fragment references')
   })
 
   it('throws on missing template', async () => {
     await writeSite({
-      'site.yaml': 'name: "Test"',
       'pages/home/page.json': JSON.stringify({ template: 'nonexistent' }),
     })
 
-    const site = await loadSite({ siteDir: testDir, storage })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     await expect(resolvePage('home', site)).rejects.toThrow('Template "nonexistent" not found')
   })
 
   it('lists available fragments on missing fragment error', async () => {
     await writeSite({
-      'site.yaml': 'name: "Test"',
       'fragments/header/fragment.json': JSON.stringify({ template: 'echo' }),
       'fragments/footer/fragment.json': JSON.stringify({ template: 'echo' }),
       'pages/home/page.json': JSON.stringify({
@@ -187,7 +180,7 @@ describe('resolvePage', () => {
     })
     await writeTemplate('echo')
 
-    const site = await loadSite({ siteDir: testDir, storage })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     try {
       await resolvePage('home', site)
       expect.fail('should have thrown')
@@ -200,7 +193,6 @@ describe('resolvePage', () => {
 
   it('sets treePath on resolved components', async () => {
     await writeSite({
-      'site.yaml': 'name: "Test"',
       'pages/home/page.json': JSON.stringify({
         template: 'echo',
         components: [
@@ -214,7 +206,7 @@ describe('resolvePage', () => {
     })
     await writeTemplate('echo')
 
-    const site = await loadSite({ siteDir: testDir, storage })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     const resolved = await resolvePage('home', site)
 
     expect(resolved.treePath).toBe('')
@@ -230,12 +222,11 @@ describe('resolveFragment', () => {
 
   it('resolves a simple fragment', async () => {
     await writeSite({
-      'site.yaml': 'name: "Test"',
       'fragments/header/fragment.json': JSON.stringify({ template: 'echo', content: { text: 'Header' } }),
     })
     await writeTemplate('echo')
 
-    const site = await loadSite({ siteDir: testDir, storage })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     const resolved = await resolveFragment('header', site)
 
     expect(resolved.content?.text).toBe('Header')
@@ -244,7 +235,6 @@ describe('resolveFragment', () => {
 
   it('resolves a fragment with inline children', async () => {
     await writeSite({
-      'site.yaml': 'name: "Test"',
       'fragments/header/fragment.json': JSON.stringify({
         template: 'echo',
         components: [{ name: 'logo', template: 'echo', content: { text: 'Logo' } }],
@@ -252,7 +242,7 @@ describe('resolveFragment', () => {
     })
     await writeTemplate('echo')
 
-    const site = await loadSite({ siteDir: testDir, storage })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     const resolved = await resolveFragment('header', site)
 
     expect(resolved.children).toHaveLength(1)
@@ -261,20 +251,20 @@ describe('resolveFragment', () => {
   })
 
   it('throws on missing fragment', async () => {
-    await writeSite({ 'site.yaml': 'name: "Test"' })
-    const site = await loadSite({ siteDir: testDir, storage })
+    await writeSite({})
+    await mkdir(testDir, { recursive: true })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     await expect(resolveFragment('nope', site)).rejects.toThrow('Fragment "nope" not found')
   })
 
   it('lists available fragments on missing fragment error', async () => {
     await writeSite({
-      'site.yaml': 'name: "Test"',
       'fragments/header/fragment.json': JSON.stringify({ template: 'echo' }),
       'fragments/footer/fragment.json': JSON.stringify({ template: 'echo' }),
     })
     await writeTemplate('echo')
 
-    const site = await loadSite({ siteDir: testDir, storage })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     try {
       await resolveFragment('missing', site)
       expect.fail('should have thrown')
@@ -302,7 +292,6 @@ describe('circular reference detection', () => {
     // Fragment A lists itself — smallest possible cycle. Resolver must
     // bail at the second visit, not crash the process.
     await writeSite({
-      'site.yaml': 'name: "Test"',
       'fragments/a/fragment.json': JSON.stringify({
         template: 'echo',
         components: ['@a'],
@@ -314,7 +303,7 @@ describe('circular reference detection', () => {
     })
     await writeTemplate('echo')
 
-    const site = await loadSite({ siteDir: testDir, storage })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     await expect(resolvePage('home', site)).rejects.toThrow(/[Cc]ircular reference/)
   })
 
@@ -323,7 +312,6 @@ describe('circular reference detection', () => {
     // refs across recursion depth — both fragments are valid in isolation
     // but together form a cycle.
     await writeSite({
-      'site.yaml': 'name: "Test"',
       'fragments/a/fragment.json': JSON.stringify({
         template: 'echo',
         components: ['@b'],
@@ -339,7 +327,7 @@ describe('circular reference detection', () => {
     })
     await writeTemplate('echo')
 
-    const site = await loadSite({ siteDir: testDir, storage })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     const err = await resolvePage('home', site).catch(e => e as Error)
     expect(err).toBeInstanceOf(Error)
     expect(err.message).toContain('Circular reference')
@@ -353,7 +341,6 @@ describe('circular reference detection', () => {
     // Three-hop cycle — ensures the detector isn't just catching
     // depth-2 loops.
     await writeSite({
-      'site.yaml': 'name: "Test"',
       'fragments/a/fragment.json': JSON.stringify({
         template: 'echo',
         components: ['@b'],
@@ -373,7 +360,7 @@ describe('circular reference detection', () => {
     })
     await writeTemplate('echo')
 
-    const site = await loadSite({ siteDir: testDir, storage })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     await expect(resolvePage('home', site)).rejects.toThrow(/[Cc]ircular reference/)
   })
 
@@ -384,7 +371,6 @@ describe('circular reference detection', () => {
     // ensures we don't regress to a broken visited-set that would
     // flag D as already-visited on the second branch.
     await writeSite({
-      'site.yaml': 'name: "Test"',
       'fragments/a/fragment.json': JSON.stringify({
         template: 'echo',
         components: ['@b', '@c'],
@@ -408,7 +394,7 @@ describe('circular reference detection', () => {
     })
     await writeTemplate('echo')
 
-    const site = await loadSite({ siteDir: testDir, storage })
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
     // Should NOT throw — a diamond is not a cycle.
     const resolved = await resolvePage('home', site)
     expect(resolved.children).toHaveLength(1) // @a at the root
