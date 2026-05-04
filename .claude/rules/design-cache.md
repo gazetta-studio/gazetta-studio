@@ -7,9 +7,9 @@ paths:
 
 # Cache — design pass pending
 
-Foundational dimension #9 of 10. Pluggable caching layer with multiple provider implementations (memory, Redis, Azure storage, future others). v1 ships memory-only; the abstraction is in place from day one so multi-instance deployments can swap to a shared provider without changing consumers.
+Foundational dimension #11 of 12. Pluggable caching layer with multiple provider implementations (memory, Redis, Azure storage, future others). v1 ships memory-only; the abstraction is in place from day one so multi-instance deployments can swap to a shared provider without changing consumers.
 
-**Status**: design pass pending — sequenced 9 of 10 (reuses the extension-surface pattern from plugins; extended by browser-side providers in `design-offline.md`). See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
+**Status**: design pass pending — reuses the extension-surface pattern from plugins; extended by browser-side providers in `design-offline.md`. See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
 
 **Companion docs**:
 - [`feature-design-process.md`](feature-design-process.md) — defines the **Cache check** every new feature design must answer

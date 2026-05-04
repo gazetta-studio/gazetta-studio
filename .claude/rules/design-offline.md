@@ -8,14 +8,15 @@ paths:
 
 # Admin offline mode — design pass pending
 
-Foundational dimension #10 of 10. Admin works through transient connectivity loss (server restart, Wi-Fi drop, VPN issue) and degrades gracefully. Read paths serve from a local persistent cache; write paths queue and replay on reconnect; conflict resolution preserves author intent.
+Foundational dimension #12 of 12. Admin works through transient connectivity loss (server restart, Wi-Fi drop, VPN issue) and degrades gracefully. Read paths serve from a local persistent cache; write paths queue and replay on reconnect; conflict resolution preserves author intent.
 
-**Status**: design pass pending — sequenced 10 of 10 (after `design-cache.md`; depends on cache abstraction + RBAC role-aware cache scope + render contract + real-time event-source for invalidation). See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
+**Status**: design pass pending — last in the sequence; depends on `design-cache.md` (extends taxonomy), `design-auth-rbac.md` (role-aware cache scope), `design-rendering.md` (render contract), real-time event-source discipline (cache invalidation broadcasts). See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
 
 **Companion docs**:
 - [`feature-design-process.md`](feature-design-process.md) — defines the **Offline check** every new feature design must answer
 - [`design-cache.md`](design-cache.md) — caching layer; offline mode adds a persistent client-side cache
-- [`design-rbac-audit-review.md`](design-rbac-audit-review.md) — role-aware cache scope; audit log records reconnect replay
+- [`design-auth-rbac.md`](design-auth-rbac.md) — role-aware cache scope (RBAC); reconnect replay attribution
+- [`design-audit.md`](design-audit.md) — audit log records reconnect replay events
 - [`design-rendering.md`](design-rendering.md) — preview during offline degrades to last-cached render
 
 ## Why this is foundational
@@ -91,7 +92,7 @@ class LocalStorageCache implements AdminCache { ... }
 ### Audit log shape for offline replays
 - Single revision per replayed save? Or batch of replays as one revision? Batch is more efficient but loses ordering.
 - Original-attempt timestamp recorded as field on revision; replayed-at timestamp as separate field.
-- Per `design-rbac-audit-review.md`'s audit log shape — refined when that design pass formalizes.
+- Per `design-audit.md`'s audit log shape — refined when that design pass formalizes.
 
 ### Composition with each foundational dimension
 - **Scale**: cache size budget at 5000 pages. IndexedDB quota at 50MB / page summary 150 bytes = 333K cacheable summaries — generous headroom.

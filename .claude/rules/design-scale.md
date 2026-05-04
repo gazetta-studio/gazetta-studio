@@ -9,7 +9,7 @@ paths:
 
 # Scale
 
-Foundational dimension #1 of 10. Establishes the operating envelope (target N pages / M assets / K components-per-page) and the strategies for primitives that must hold at scale.
+Foundational dimension #1 of 12. Establishes the operating envelope (target N pages / M assets / K components-per-page) and the strategies for primitives that must hold at scale.
 
 **Status**: design pass complete (2026-05). Implementation phases sit in Tier 3 unless individual primitives surface in feature-driven work.
 

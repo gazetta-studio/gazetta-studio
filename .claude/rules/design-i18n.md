@@ -19,7 +19,7 @@ File-suffix localization: `page.json` (default locale), `page.fr.json` (French),
 `page.en-gb.json` (British English). Same pattern for fragments: `fragment.fr.json`.
 Zero template changes, zero schema changes. Opt-in via `locales` in site.yaml.
 
-**Foundational dimension #2 of 10.** Locale is a closed dimension peer to theme; every feature must respect locale variants, the locked locale-priority cross-dimension fallback, and the file-suffix model. See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions" — every new feature design answers the **Locale check**.
+**Foundational dimension #2 of 12.** Locale is a closed dimension peer to theme; every feature must respect locale variants, the locked locale-priority cross-dimension fallback, and the file-suffix model. See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions" — every new feature design answers the **Locale check**.
 
 **Status**: design pass complete (2026-05). Implementation 13 of 15 steps shipped (whole-file locale variants, file-suffix model, fallback chain, hreflang, sitemap, admin locale picker, CLI translate, language detection — all live). Two implementation steps remaining: admin "Translate to..." action (step 12, surfaces in editor papercut cluster) and `gazetta validate` locale-file checks (step 15, lands with validation Cut 5 CLI rewrite). See "Implementation sequence" for per-step status.
 
@@ -605,7 +605,7 @@ Publishing a subset of locales is supported — author can publish only the
 
 ## Foundational checks
 
-Locale is itself foundational dimension #2 of 10. This section answers how each of the other 9 foundational dimensions and the multi-instance discipline compose with the locale dimension, per [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
+Locale is itself foundational dimension #2 of 12. This section answers how each of the other 11 foundational dimensions and the multi-instance discipline compose with the locale dimension, per [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
 
 - **Multi-instance check** (discipline) — locale variant resolution is stateless: file-suffix manifests live in storage; resolver reads on demand; locale routing in the runtime is per-request. No cross-instance coordination required. SSE invalidation events for locale-specific saves broadcast to connected clients of the same instance; cross-instance via storage observation is sufficient. Locale-aware search indexes (when added at scale) follow the per-instance memo pattern from `design-cache.md` until shared cache providers are needed.
 

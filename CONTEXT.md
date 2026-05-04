@@ -185,6 +185,20 @@ _Avoid_: Materialized asset, Hydrated asset, Asset response.
 **Composer** (informal — operation, not a class):
 The function or module that performs Composition. `resolveComponent` and `resolveAssetRefs` in code are Composers despite their `resolve*` names. New code that performs composition should be named `compose*` from the start.
 
+### Extension surfaces and providers
+
+**Extension surface**:
+A typed interface defining a category of pluggable functionality. Gazetta has 11: Storage, Cache, Audit, AltText (AI), Transform Adapter, Deploy Adapter, Validator, AuthIdentity, Hook, Admin Editor, Admin Field. Each surface has its own interface and per-surface conventions.
+_Avoid_: Plugin slot, Extension point, Hook (collides — Hook is one specific surface).
+
+**Provider**:
+A single implementation of an Extension Surface. `MemoryCache` and `RedisCache` are Providers of the Cache surface; `R2Storage` and `AzureBlobStorage` are Providers of the Storage surface. Operators select Providers via `site.yaml`; v1 ships reference Providers in-tree.
+_Avoid_: Plugin (overloaded — a Plugin contains Providers), Backend (too generic), Adapter (use only when matching the term-of-art for the surface, e.g., Transform Adapter, Deploy Adapter).
+
+**Plugin**:
+The unifying contract for discovery, loading, lifecycle, and composition of Providers. Plugins implement one or more Extension Surfaces. v1 plugins are in-tree implementations; v2 supports npm-packaged Providers via the plugin discovery mechanism. The Plugin contract lives in `design-plugins.md`.
+_Avoid_: Provider (narrower — a Plugin contains Providers), Extension (too generic).
+
 ### Project, Site, and Workspace
 
 **Project**:

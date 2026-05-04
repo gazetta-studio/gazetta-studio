@@ -275,7 +275,7 @@ Per-target `publishAudit` config controls whether quality warns block publish. S
 
 ## Foundational checks
 
-Validation is itself foundational dimension #7 of 10. This section answers how each of the other 9 foundational dimensions and the multi-instance discipline compose with the validation system, per [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
+Validation is itself foundational dimension #9 of 12. This section answers how each of the other 11 foundational dimensions and the multi-instance discipline compose with the validation system, per [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
 
 - **Multi-instance check** (discipline) — save-delta runs on the instance receiving the save request; no cross-instance coordination. Background scanner (Cut 2) per-page cache is per-admin-instance (each instance scans + caches independently); the multi-instance pattern is "every instance reads source-of-truth from storage on demand, caches results in-process, no cross-instance cache sharing." Per-page content-hash cache key ensures different instances arrive at the same cached result without coordination. Suppression state (when shipped) lives in storage, not in-memory.
 
@@ -285,7 +285,7 @@ Validation is itself foundational dimension #7 of 10. This section answers how e
 
 - **Locale check** — validators receive the manifest in its declared locale. Locale-variant manifests (page.fr.json) are validated as their own item, not as deltas against the default locale. Per-locale validation cache. The `altRequired` validator (Cut 3) walks the schema for the locale being validated. RTL: validators don't have a UI, so RTL is N/A here; the banner UI follows admin-wide RTL contracts per [`design-i18n.md`](design-i18n.md).
 
-- **Team check** — validators are infrastructure; they don't gate on roles. The save-delta gate runs for every author. Issue surfaces (banner, drawer, publish modal) gate on read-access to the affected content per [`design-rbac-audit-review.md`](design-rbac-audit-review.md) — an editor without page X read access doesn't see issues for page X. Audit log records every save attempt including 409 VALIDATION_FAILED responses. Review workflows (when shipped) read validation state — a "ready for review" transition can require zero open errors on the item.
+- **Team check** — validators are infrastructure; they don't gate on roles. The save-delta gate runs for every author. Issue surfaces (banner, drawer, publish modal) gate on read-access to the affected content per [`design-auth-rbac.md`](design-auth-rbac.md) — an editor without page X read access doesn't see issues for page X. Audit log (per [`design-audit.md`](design-audit.md)) records every save attempt including 409 VALIDATION_FAILED responses. Review workflows (per [`design-review-workflow.md`](design-review-workflow.md)) read validation state — a "ready for review" transition can require zero open errors on the item.
 
 - **Hook check** — validators do NOT fire hooks. They're pure functions over a manifest; firing hooks during validation would create circular dependencies (a hook that runs a validator that fires a hook). Hooks at save time fire AFTER validation passes — the save handler validates first, hooks observe the resulting save. Per [`design-hooks.md`](design-hooks.md). Validators that compose with hook-driven enrichment (e.g., a validator that checks the result of an auto-slugify hook) read the post-hook manifest, which is already what the validator gets.
 
