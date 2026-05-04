@@ -167,7 +167,7 @@ The dimensions are foundational because designing a feature without respecting t
    - `design-audit.md` (complete 2026-05; extends history-recorder; `AuditProvider` Extension Surface #11)
    - `design-review-workflow.md` (complete 2026-05; per-content state machine + per-target publish approval; depends on auth/RBAC + audit)
 6. `design-rendering.md` (complete 2026-05; three target types + worker boundary + dynamic fragment contract; provisional locks on dynamic-side details for follow-up)
-7. `design-hooks.md` (pending — depends on RBAC)
+7. `design-hooks.md` (complete 2026-05; lifecycle phases + return-new-payload contract + priority-based composition + site-local-plus-plugin discovery)
 8. `design-plugins.md` (pending — depends on hooks)
 9. `design-cache.md` (pending — `MemoryCache` ships first; provider implementations slot in via the same interface as scale/admin demands materialize)
 10. `design-offline.md` (pending — depends on cache + RBAC + render; extends cache taxonomy with browser-side persistent providers)
