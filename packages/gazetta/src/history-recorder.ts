@@ -63,9 +63,10 @@ export const DEFAULT_SCAN_LOCATIONS: readonly ScanLocation[] = [
 
 /**
  * Flat files at the content root to capture in the baseline snapshot
- * (no per-subdirectory recursion). `site.yaml` is the only one today.
+ * (no per-subdirectory recursion). Both the new TS config and the
+ * legacy YAML are captured during the coexistence period.
  */
-export const DEFAULT_SCAN_ROOT_FILES: readonly string[] = ['site.yaml']
+export const DEFAULT_SCAN_ROOT_FILES: readonly string[] = ['site.config.ts', 'site.yaml']
 
 export interface RecordWriteOptions {
   /** HistoryProvider for the target we're recording on. */

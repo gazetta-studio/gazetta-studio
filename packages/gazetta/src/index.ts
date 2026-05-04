@@ -134,5 +134,13 @@ export {
   ConfigEvaluationError,
   ConfigLayoutError,
 } from './config/index.js'
+export {
+  loadGazettaConfig,
+  loadSiteConfig,
+  discoverSites,
+  loadProjectConfig,
+  siteConfigToManifest,
+} from './config/index.js'
+export type { DiscoveredSite, LoadedProjectConfig } from './config/index.js'
 
 // Editor — import from 'gazetta/editor' (separate entry point to avoid pulling Tiptap into server builds)

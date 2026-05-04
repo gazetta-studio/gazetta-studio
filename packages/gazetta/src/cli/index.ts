@@ -33,6 +33,26 @@ const c = {
 const args = process.argv.slice(2)
 const command = args[0]
 
+/**
+ * Load a site manifest from `siteDir`. Prefers `site.config.ts` (or .js/.mjs)
+ * via the TS config loader; falls back to `site.yaml` during the coexistence
+ * period (Cut 8 removes the YAML branch entirely).
+ *
+ * Returns null when no config file is found.
+ */
+async function loadSiteManifestForCli(siteDir: string): Promise<SiteManifest | null> {
+  const tsConfigCandidates = ['site.config.ts', 'site.config.js', 'site.config.mjs']
+  if (tsConfigCandidates.some(f => existsSync(join(siteDir, f)))) {
+    const { loadSiteConfig, siteConfigToManifest } = await import('../config/loader.js')
+    const loaded = await loadSiteConfig(siteDir)
+    if (!loaded) return null
+    return siteConfigToManifest(loaded.config)
+  }
+  const yamlPath = join(siteDir, 'site.yaml')
+  if (!existsSync(yamlPath)) return null
+  return yaml.load(readFileSync(yamlPath, 'utf-8')) as SiteManifest
+}
+
 // Served to /admin/* requests during dev-server startup before Vite middleware
 // is attached. Polls /admin/ping every 500ms and reloads when the admin becomes
 // reachable. See #132 and cli/index.ts for why this is needed.
@@ -223,22 +243,32 @@ function parseArgs(input: string[]): ParsedArgs {
  * For commands like `publish` and `serve`, the first positional is the target
  * and the second is the site.
  */
+/** Returns true if the directory contains a Gazetta site config (TS or legacy YAML). */
+function hasSiteConfig(dir: string): boolean {
+  return (
+    existsSync(join(dir, 'site.config.ts')) ||
+    existsSync(join(dir, 'site.config.js')) ||
+    existsSync(join(dir, 'site.config.mjs')) ||
+    existsSync(join(dir, 'site.yaml'))
+  )
+}
+
 async function resolveSiteDir(positionalSite?: string): Promise<string> {
   // Explicit site dir provided
   if (positionalSite) {
     const dir = resolve(positionalSite)
-    if (existsSync(join(dir, 'site.yaml'))) return dir
+    if (hasSiteConfig(dir)) return dir
     // Maybe it's a site name under sites/
     const sitesSubdir = resolve('sites', positionalSite)
-    if (existsSync(join(sitesSubdir, 'site.yaml'))) return sitesSubdir
+    if (hasSiteConfig(sitesSubdir)) return sitesSubdir
     // Maybe it's a project root with sites/
     const mainSite = resolve(dir, 'sites/main')
-    if (existsSync(join(mainSite, 'site.yaml'))) return mainSite
+    if (hasSiteConfig(mainSite)) return mainSite
     return dir // let loadSite produce a clear error
   }
 
   // Auto-detect: check current dir first
-  if (existsSync(join(resolve('.'), 'site.yaml'))) return resolve('.')
+  if (hasSiteConfig(resolve('.'))) return resolve('.')
 
   // Check sites/ directory
   const sitesDir = resolve('sites')
@@ -246,7 +276,7 @@ async function resolveSiteDir(positionalSite?: string): Promise<string> {
     const { readdirSync, statSync } = await import('node:fs')
     const sites = readdirSync(sitesDir).filter(name => {
       const dir = join(sitesDir, name)
-      return statSync(dir).isDirectory() && existsSync(join(dir, 'site.yaml'))
+      return statSync(dir).isDirectory() && hasSiteConfig(dir)
     })
 
     if (sites.length === 1) return join(sitesDir, sites[0])
@@ -281,11 +311,9 @@ async function resolveSiteDir(positionalSite?: string): Promise<string> {
 async function resolveTarget(positionalTarget: string | undefined, siteDir: string): Promise<string | undefined> {
   if (positionalTarget) return positionalTarget
 
-  const siteYamlPath = join(siteDir, 'site.yaml')
-  if (!existsSync(siteYamlPath)) return undefined
-
-  const siteYaml = yaml.load(readFileSync(siteYamlPath, 'utf-8')) as SiteManifest
-  const targets = Object.keys(siteYaml.targets ?? {})
+  const manifest = await loadSiteManifestForCli(siteDir)
+  if (!manifest) return undefined
+  const targets = Object.keys(manifest.targets ?? {})
 
   if (targets.length <= 1) return targets[0] // auto-select if 0 or 1
 
@@ -1082,11 +1110,11 @@ async function runAdmin(siteDir: string, port: number) {
     return ctx.notFound()
   })
 
-  const siteYaml = yaml.load(readFileSync(join(siteDir, 'site.yaml'), 'utf-8')) as SiteManifest
+  const siteManifest = (await loadSiteManifestForCli(siteDir)) ?? ({ name: 'gazetta' } as SiteManifest)
 
   const server = serve({ fetch: app.fetch, port }, () => {
     console.log()
-    console.log(`  ${c.bgGreen(c.bold(' gazetta '))} ${c.green('admin')} ${c.dim(siteYaml.name)}`)
+    console.log(`  ${c.bgGreen(c.bold(' gazetta '))} ${c.green('admin')} ${c.dim(siteManifest.name)}`)
     console.log()
     console.log(`  ${c.dim('┃')} Admin    ${c.cyan(`http://localhost:${port}/admin`)}`)
     console.log()
@@ -1101,22 +1129,20 @@ async function runAdmin(siteDir: string, port: number) {
 }
 
 async function runServe(siteDir: string, port: number, targetName?: string) {
-  const siteYamlPath = join(siteDir, 'site.yaml')
-  if (!existsSync(siteYamlPath)) {
-    console.error(`\n  Error: ${siteYamlPath} not found\n`)
+  const siteYaml = await loadSiteManifestForCli(siteDir)
+  if (!siteYaml) {
+    console.error(`\n  Error: no site config found in ${siteDir} (looked for site.config.ts and site.yaml)\n`)
     process.exit(1)
   }
-
-  const siteYaml = yaml.load(readFileSync(siteYamlPath, 'utf-8')) as import('../types.js').SiteManifest
   if (!siteYaml.targets || Object.keys(siteYaml.targets).length === 0) {
-    console.error('\n  Error: no targets configured in site.yaml\n')
+    console.error('\n  Error: no targets configured in site config\n')
     process.exit(1)
   }
 
   const name = targetName ?? Object.keys(siteYaml.targets)[0]
   const config = siteYaml.targets[name]
   if (!config) {
-    console.error(`\n  Error: target "${name}" not found in site.yaml\n`)
+    console.error(`\n  Error: target "${name}" not found in site config\n`)
     process.exit(1)
   }
 
@@ -1147,14 +1173,13 @@ async function runDeploy(siteDir: string, targetName?: string) {
   const { execSync } = await import('node:child_process')
   const { writeFile, mkdir, rm } = await import('node:fs/promises')
 
-  const siteYamlPath = join(siteDir, 'site.yaml')
-  if (!existsSync(siteYamlPath)) {
-    console.error(`\n  Error: No site.yaml found at ${siteDir}\n`)
+  const siteYaml = await loadSiteManifestForCli(siteDir)
+  if (!siteYaml) {
+    console.error(`\n  Error: no site config found at ${siteDir} (looked for site.config.ts and site.yaml)\n`)
     process.exit(1)
   }
-  const siteYaml = yaml.load(readFileSync(siteYamlPath, 'utf-8')) as import('../types.js').SiteManifest
   if (!siteYaml.targets) {
-    console.error(`\n  Error: No targets configured in site.yaml\n`)
+    console.error(`\n  Error: No targets configured in site config\n`)
     process.exit(1)
   }
   if (!targetName) {
@@ -1238,15 +1263,22 @@ async function runValidate(siteDir: string) {
   console.log(`  ${c.bgGreen(c.bold(' gazetta '))} ${c.green('validate')} ${c.dim(siteDir)}`)
   console.log()
 
-  // 1. Check site.yaml + load default editable target's content
+  // 1. Check site config + load default editable target's content
+  const configLabel = existsSync(join(siteDir, 'site.config.ts'))
+    ? 'site.config.ts'
+    : existsSync(join(siteDir, 'site.config.js'))
+      ? 'site.config.js'
+      : existsSync(join(siteDir, 'site.config.mjs'))
+        ? 'site.config.mjs'
+        : 'site.yaml'
   let site: Awaited<ReturnType<typeof loadSite>>
   try {
     const { buildSourceContext } = await import('./bootstrap.js')
     const { source, manifest } = await buildSourceContext({ projectSiteDir: siteDir })
     site = await loadSite({ contentRoot: source.contentRoot, templatesDir, manifest })
-    console.log(`  ${c.green('✓')} site.yaml ${c.dim(`— ${site.manifest.name}`)}`)
+    console.log(`  ${c.green('✓')} ${configLabel} ${c.dim(`— ${site.manifest.name}`)}`)
   } catch (err) {
-    console.error(`  ${c.red('✗')} site.yaml ${c.dim(`— ${(err as Error).message}`)}`)
+    console.error(`  ${c.red('✗')} ${configLabel} ${c.dim(`— ${(err as Error).message}`)}`)
     process.exit(1)
   }
 
@@ -2135,9 +2167,11 @@ async function main() {
       }
       // Resolve the content directory — translate operates on a target's filesystem.
       // Uses the specified target or falls back to the first editable target.
-      const siteYaml = yaml.load(
-        readFileSync(join(siteDir, 'site.yaml'), 'utf-8'),
-      ) as import('../types.js').SiteManifest
+      const siteYaml = await loadSiteManifestForCli(siteDir)
+      if (!siteYaml) {
+        console.error(`  Error: no site config found at ${siteDir}`)
+        process.exit(1)
+      }
       const { isEditable } = await import('../types.js')
       const resolvedTarget =
         targetName ?? Object.entries(siteYaml.targets ?? {}).find(([, cfg]) => isEditable(cfg))?.[0]
@@ -2147,7 +2181,7 @@ async function main() {
       }
       const targetConfig = siteYaml.targets![resolvedTarget]
       if (!targetConfig) {
-        console.error(`  Error: target "${resolvedTarget}" not found in site.yaml`)
+        console.error(`  Error: target "${resolvedTarget}" not found in site config`)
         process.exit(1)
       }
       const storagePath = targetConfig.storage.path ?? join('targets', resolvedTarget)

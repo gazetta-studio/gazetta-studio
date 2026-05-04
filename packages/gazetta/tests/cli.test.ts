@@ -205,7 +205,7 @@ describe('runValidate', () => {
       stdio: 'pipe',
     }).toString()
     expect(output).toContain('All good')
-    expect(output).toContain('site.yaml')
+    expect(output).toContain('site.config.ts')
     expect(output).toContain('@header')
     expect(output).toContain('@footer')
     expect(output).toContain('home')

@@ -1,42 +1,51 @@
 /**
  * Shared bootstrap helpers for CLI commands and the dev server admin bootstrap.
  *
- * Responsibility: read site.yaml from the project site directory, build a
+ * Responsibility: load site.config.ts from the project site directory, build a
  * TargetRegistry from its targets, and derive a SourceContext pointing at
  * the default editable target. Callers compose these primitives; the admin
  * API and `createApp` runtime take over from there.
  */
 
 import { join } from 'node:path'
-import { readFileSync } from 'node:fs'
-import yaml from 'js-yaml'
+import { loadSiteConfig, siteConfigToManifest } from '../config/loader.js'
 import { createTargetRegistry, createTargetRegistryView } from '../targets.js'
 import type { SiteManifest, TargetConfig, StorageProvider } from '../types.js'
 import { createSourceContextFromRegistry, type SourceContext } from '../admin-api/source-context.js'
 import type { TargetRegistry } from '../targets.js'
 
 export interface BootstrapResult {
-  /** Parsed site.yaml content. */
+  /** Loaded site manifest (derived from site.config.ts). */
   manifest: SiteManifest
-  /** Target configurations declared in site.yaml. */
+  /** Target configurations declared in site.config.ts. */
   targetConfigs: Record<string, TargetConfig>
   /** Fully-initialized target registry (providers built, cloud targets connected). */
   registry: TargetRegistry
 }
 
+async function loadManifestFromConfig(projectSiteDir: string): Promise<SiteManifest> {
+  const loaded = await loadSiteConfig(projectSiteDir)
+  if (!loaded) {
+    throw new Error(
+      `No site.config.ts found in ${projectSiteDir}. ` +
+        `Add a site.config.ts (using defineSite from 'gazetta') or run \`gazetta init\` to scaffold one.`,
+    )
+  }
+  return siteConfigToManifest(loaded.config)
+}
+
 /**
- * Read site.yaml, initialize all targets, and return a TargetRegistry view.
- * Throws if site.yaml is missing or has no targets declared.
+ * Load site.config.ts, initialize all targets, and return a TargetRegistry view.
+ * Throws if site.config.ts is missing or has no targets declared.
  */
 export async function bootstrapFromSiteYaml(projectSiteDir: string): Promise<BootstrapResult> {
-  const siteYamlPath = join(projectSiteDir, 'site.yaml')
-  const manifest = yaml.load(readFileSync(siteYamlPath, 'utf-8')) as SiteManifest
+  const manifest = await loadManifestFromConfig(projectSiteDir)
   const targetConfigs = manifest.targets ?? {}
 
   if (Object.keys(targetConfigs).length === 0) {
     throw new Error(
-      `No targets declared in ${siteYamlPath}. At least one target is required — ` +
-        `add a local target:\n\ntargets:\n  local:\n    storage:\n      type: filesystem\n`,
+      `No targets declared in ${join(projectSiteDir, 'site.config.ts')}. At least one target is required — ` +
+        `add a local target:\n\ntargets: {\n  local: { storage: { type: 'filesystem' } },\n}\n`,
     )
   }
 
@@ -47,14 +56,14 @@ export async function bootstrapFromSiteYaml(projectSiteDir: string): Promise<Boo
 
 export interface BuildSourceContextOptions {
   projectSiteDir: string
-  /** Pre-parsed manifest to avoid re-reading site.yaml when caller already has it. */
+  /** Pre-loaded manifest to avoid re-loading site.config.ts when caller already has it. */
   manifest?: SiteManifest
   /** Explicit target name. Defaults to the registry's defaultEditable(). */
   targetName?: string
 }
 
 /**
- * High-level: read site.yaml, init only the chosen editable target, return a
+ * High-level: load site.config.ts, init only the chosen editable target, return a
  * SourceContext and metadata. Cloud/remote targets are not initialized —
  * callers that need them (publish, fetch, compare) init on demand.
  *
@@ -67,13 +76,12 @@ export async function buildSourceContext(opts: BuildSourceContextOptions): Promi
   manifest: SiteManifest
   targetConfigs: Record<string, TargetConfig>
 }> {
-  const siteYamlPath = join(opts.projectSiteDir, 'site.yaml')
-  const manifest = opts.manifest ?? (yaml.load(readFileSync(siteYamlPath, 'utf-8')) as SiteManifest)
+  const manifest = opts.manifest ?? (await loadManifestFromConfig(opts.projectSiteDir))
   const targetConfigs = manifest.targets ?? {}
   if (Object.keys(targetConfigs).length === 0) {
     throw new Error(
-      `No targets declared in ${siteYamlPath}. At least one target is required — ` +
-        `add a local target:\n\ntargets:\n  local:\n    storage:\n      type: filesystem\n`,
+      `No targets declared in ${join(opts.projectSiteDir, 'site.config.ts')}. At least one target is required — ` +
+        `add a local target:\n\ntargets: {\n  local: { storage: { type: 'filesystem' } },\n}\n`,
     )
   }
 
@@ -84,8 +92,8 @@ export async function buildSourceContext(opts: BuildSourceContextOptions): Promi
     .map(([n]) => n)
   if (editableNames.length === 0) {
     throw new Error(
-      `No editable target in ${siteYamlPath}. Add one:\n\n` +
-        `targets:\n  local:\n    storage:\n      type: filesystem\n`,
+      `No editable target in ${join(opts.projectSiteDir, 'site.config.ts')}. Add one:\n\n` +
+        `targets: {\n  local: { storage: { type: 'filesystem' } },\n}\n`,
     )
   }
   const targetName = opts.targetName ?? editableNames[0]
