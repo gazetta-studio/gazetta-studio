@@ -59,7 +59,7 @@ Sequence (per dependency order):
 
 2. **`design-i18n.md`** (complete 2026-05) — migrated from `i18n-plan.md`. Locked: locale as closed dimension peer to theme; locale-priority cross-dimension fallback; whole-file overlay model; subpath/per-domain/hybrid routing strategies; hreflang via HTML or sitemap. 13 of 15 implementation steps shipped; remaining steps (admin "Translate to..." action + `gazetta validate` locale checks) tracked under editor papercut cluster + validation Cut 5 respectively.
 
-3. **`design-themes.md`** (1 week) — extends asset-side theme dimension to pages/fragments/templates. Theme as render-context parameter; runtime routing (cookie / `prefers-color-scheme` / class cascade). Implementation is Tier 3.
+3. **`design-themes.md`** (complete 2026-05) — presentation theming (light/dark, color schemes, accessibility variants) as a render-context dimension. Pages/fragments stay theme-agnostic at the data layer; theme reaches templates via `params.theme` peer to `params.locale`. Asset-level theme variants already shipped per `design-media.md`. Other variant motivations (audience, campaign, A/B, multi-tenant) are explicitly NOT bundled into themes — each gets its own design pass when concrete demand surfaces.
 
 4. **`design-rbac-audit-review.md`** (1-2 weeks) — covers #194, #199, #200. Roles + authorization gates + audit log shape (extends history-recorder) + review workflow state machine. Implementation is Tier 3 (~6-10 weeks).
 
