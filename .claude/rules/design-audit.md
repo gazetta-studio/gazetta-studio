@@ -8,7 +8,7 @@ paths:
 
 # Audit log
 
-Foundational dimension #5 of 12. Pluggable audit-event recording with multiple provider implementations (history-extended at v1; external sinks reserved). Composes with auth/RBAC's `Principal` for actor identity and with the real-time event-source discipline (audit log = source of real-time events for presence + live publish status).
+Foundational dimension #5 of 13. Pluggable audit-event recording with multiple provider implementations (history-extended at v1; external sinks reserved). Composes with auth/RBAC's `Principal` for actor identity and with the real-time event-source discipline (audit log = source of real-time events for presence + live publish status).
 
 **Status**: design pass complete (2026-05). Implementation phases sit in Tier 3.
 
@@ -500,7 +500,7 @@ v1 ships full-scan only — at envelope (~25K events/year per `design-scale.md`)
 
 ## Foundational checks
 
-How audit log composes with each of the other 11 foundational dimensions plus the multi-instance discipline.
+How audit log composes with each of the other 12 foundational dimensions plus the multi-instance discipline.
 
 ### Multi-instance discipline
 - Per-revision granularity (existing history pattern). Each instance writes its own revisions to ID-keyed files (`rev-{ts}.json`); reads aggregate via `readDir`. Multi-instance-correct by construction — no shared mutable state.

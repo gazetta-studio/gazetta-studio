@@ -9,7 +9,7 @@ paths:
 
 # Auth + RBAC
 
-Foundational dimension #4 of 12. Authentication identity model (Gazetta consumes upstream identity, never does auth itself) + role-based access control + capability-based authorization gates.
+Foundational dimension #4 of 13. Authentication identity model (Gazetta consumes upstream identity, never does auth itself) + role-based access control + capability-based authorization gates.
 
 **Status**: design pass complete (2026-05). Implementation phases sit in Tier 3.
 
@@ -184,7 +184,7 @@ Hooks fire with actor context (`Principal` in payload) per `design-hooks.md`'s u
 
 ## Foundational checks
 
-How auth/RBAC composes with each of the other 11 foundational dimensions plus the multi-instance discipline. These compositions are how this dimension lands without retrofitting every other surface later.
+How auth/RBAC composes with each of the other 12 foundational dimensions plus the multi-instance discipline. These compositions are how this dimension lands without retrofitting every other surface later.
 
 ### Multi-instance discipline
 - `Principal` is per-request, derived from request headers by the auth-identity provider. No cross-request state in process; middleware is stateless.

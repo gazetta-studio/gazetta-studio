@@ -6,14 +6,15 @@ paths:
 
 # Review workflow
 
-Foundational dimension #6 of 12. Content review state machine + per-target publish approval. Operators with team workflows (content quality review, release management gates, compliance approvals) configure their flow per target; solo / small-team workflows bypass.
+Foundational dimension #6 of 13. Content review state machine + per-target publish approval. Operators with team workflows (content quality review, release management gates, compliance approvals) configure their flow per target; solo / small-team workflows bypass.
 
-**Status**: design pass pending — depends on `design-auth-rbac.md` (capability vocabulary + `Principal`) + `design-audit.md` (audit-event recording for every transition). See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
+**Status**: design pass complete (2026-05). Implementation phases sit in Tier 3.
 
 **Companion docs**:
 - [`feature-design-process.md`](feature-design-process.md) — defines the **Review check** every new feature design must answer
 - [`design-auth-rbac.md`](design-auth-rbac.md) — capability vocabulary + Principal type
 - [`design-audit.md`](design-audit.md) — audit log records every state transition
+- [`design-collaboration.md`](design-collaboration.md) — comments / mentions / notifications layer; review-workflow v1 has narrow comment fields (reject reason); broader conversational surfaces belong in collaboration
 - [`design-publishing.md`](design-publishing.md) — existing publish primitives + history-recorder
 - [`design-editor-ux.md`](design-editor-ux.md) — Active target + Save semantics that review workflow gates on
 
@@ -23,20 +24,44 @@ Different team workflows want different review shapes — some want content revi
 
 Adding review later means retrofitting save/publish handlers, audit log shape, capability vocabulary, and admin UX. Joint design with auth/RBAC and audit because review uses both.
 
-## Locked invariants (already decided)
+## Locked invariants
 
 - **Per-content review** (NOT per-target). Content reviewed once; publishable to any target the actor has `publish:` capability for. Per-target deployment timing is a separate concern (per-target publish approval, optional).
 - **Per-target publish approval** opt-in via `targets.{name}.requiresPublishApproval: true`. When set, publish events on that target need explicit approval beyond content review.
 - **Three content review states**: `draft` → `pending-review` → `approved`. The fourth state I called "published" collapses INTO `approved` + per-target deployment timestamps from existing publish sidecars. Source-side review state vs. target-side deployment state are separate concerns.
 - **Explicit-action invariant**: every state transition requires a deliberate human action recorded as an audit event. No threshold-met daemons; the click that meets the threshold writes the per-approver sidecar AND the new state in one transaction. No time-based auto-transitions.
 - **Edit during pending-review is locked**: `pending-review` state denies edits with 409; author can withdraw submission (returns to `draft`) and edit. Prevents revision-DAG complexity.
+- **Single reject action with mandatory comment.** No "request changes" state; comment captured in audit metadata. "Approve with caveats" is a collaboration concern (`design-collaboration.md`), not a review-state-machine concern.
+- **`requiredApprovers` snapshotted at submit time.** Submission carries the policy-at-submit; subsequent config changes affect future submissions only. SOC 2-friendly (policy at decision time is documented).
+- **`allowSelfApproval` defaults to `true`.** Solo / small-team archetypes (A, B) need it. Compliance archetype E opts out via `false`.
+- **`invalidateOnSave` defaults to `'content-diff'`.** Only logical content changes invalidate approval. Compliance archetype E opts into `'always'`.
+- **Combined "Submit & approve" button** when actor has both capabilities AND self-approval allowed AND `requiredApprovers: 1`. Audit records both events with same timestamp + same actor.
+- **Pages and fragments are reviewable in v1; assets and asset-metadata defer to v2.** Asset uploads / metadata edits / site config changes / template changes bypass review at v1 (gated by their own capabilities).
 
-## Open questions for the design pass
+## Design details
 
 ### State machine details
-- Three content states (`draft` / `pending-review` / `approved`) confirmed; per-content sidecar at source level
+- Three content states (`draft` / `pending-review` / `approved`); per-content sidecar at source level
 - Three publish states per publish event (when `requiresPublishApproval`): `publish-pending` / `publish-approved` / `published`
-- Multi-approver counter: `requiredApprovers` per content; `requiredPublishApprovers` per publish event
+- Multi-approver counter: `requiredApprovers` per content (snapshotted at submit time); `requiredPublishApprovers` per publish event (snapshotted at request time)
+
+### Audit event shape (extends `design-audit.md`'s `action` enum)
+
+```ts
+// Content review transitions
+{ action: 'review-submit',   outcome: 'success', actor, scope }
+{ action: 'review-approve',  outcome: 'success', actor, scope }                                  // metadata.comment optional
+{ action: 'review-reject',   outcome: 'success', actor, scope, metadata: { comment: string } }   // comment required
+{ action: 'review-withdraw', outcome: 'success', actor, scope }                                  // submitter's own action
+
+// Per-target publish approval transitions (only when requiresPublishApproval: true)
+{ action: 'publish-request',  outcome: 'success', actor, scope, metadata: { targetName: string } }
+{ action: 'publish-approve',  outcome: 'success', actor, scope, metadata: { targetName: string } }
+{ action: 'publish-reject',   outcome: 'success', actor, scope, metadata: { targetName: string, comment: string } }
+{ action: 'publish-withdraw', outcome: 'success', actor, scope, metadata: { targetName: string } }
+```
+
+Failure outcomes (`forbidden`, `validation-failed`, `unauthenticated`) follow the standard audit shape from `design-audit.md` Q1.
 
 ### Capability additions
 - `review:submit` — submit content for review
@@ -168,13 +193,71 @@ Each archetype gets a copy-paste-ready `site.yaml` snippet + role mapping + capa
 
 ## Foundational checks
 
-To be filled in when this design pass formally completes. Touchpoints to address:
-- Multi-instance: per-edge sidecar pattern; multi-instance-correct
-- Scale: paginated `/api/reviews` per `design-scale.md`
-- Locale, themes: review state is content-level; locale variants reviewed per variant
-- Team: capability composition with `design-auth-rbac.md`
-- Hook: state transitions fire hooks (touchpoints listed above)
-- Render, Validation, Plugin, Cache, Offline: composition deferred to design pass
+How review workflow composes with each of the other 12 foundational dimensions plus the multi-instance discipline.
+
+### Multi-instance discipline
+- Per-edge sidecars (per-approver files at distinct paths) — concurrent approvals don't race; same pattern as asset-refs.
+- State transitions write the per-approver sidecar AND the state file in one logical transaction; readers compute "is threshold met?" from `readDir` of the approvers directory. Last-write-wins on `state: approved` is idempotent (same target state regardless of which instance wrote it last).
+- Snapshot of `requiredApprovers` lives in the state file at submit time; no runtime config-coordination across instances.
+- Pending review queue (`/api/reviews`) reads from storage on demand per request — no shared in-memory queue.
+
+### Scale (#1)
+- Review queue paginated via prefix-shard + cursor pagination per `design-scale.md`.
+- Per-content review state lookup is O(1) (`.gazetta/review/{kind}/{name}/state.json` is one file).
+- Approver count check is O(N-approvers) via `readDir` (typically 1-3 approvers, never large).
+- AdminCache key includes filter params; per-instance cache via `MemoryCache`.
+
+### Locale (#2)
+- Review state is on the content (the manifest). Per-locale manifests (`page.fr.json`) have their own review state — translators submit French content for review separately from default-locale content.
+- Cross-locale review composition: a future "review default + auto-mark locale variants pending" mode is reserved for the per-field translation work; v1 reviews each manifest variant independently.
+- RTL admin: review drawer / publish-request modal inherit document `dir` from the active locale; CSS logical properties handle the flip.
+
+### Themes (#3)
+- Theme variants don't yet exist for pages/fragments (per `design-themes.md` v1 — presentation-only). When pages gain theme variants, theme-variant manifests are reviewed independently per the locale pattern above.
+
+### Auth + RBAC (#4)
+- Capability extensions: `review:submit`, `review:approve`, `publish:request`, `publish:approve` (plus optional `publish:{target}-emergency`).
+- `Principal` from auth/RBAC is the actor on every review/publish-approval audit event.
+- Self-approval enforced at click-time via principal-vs-submission-actor comparison. `allowSelfApproval: false` with same actor = 403.
+- Capabilities snapshot at submit time captured in audit metadata; live-evaluated at approval time.
+
+### Audit (#5)
+- Every state transition emits an audit event per the shape above.
+- `action` enum extends with 8 new values (4 content-review + 4 publish-approval).
+- Forensic queries answer "who approved what when, with which role at the time" via the existing `actor` snapshot from `design-audit.md` Q2.
+
+### Hooks (#7)
+- State-transition hooks (10 touchpoints listed in original stub: `beforeSubmitForReview`, `afterSubmitForReview`, `beforeApprove`, `afterApprove`, `beforeReject`, `afterReject`, `beforePublishRequest`, `afterPublishRequest`, `beforePublishApprove`, `afterPublishApprove`).
+- Hook payloads carry `Principal` + content/publish-request scope.
+- `before*` hooks can fail/cancel transitions; `after*` are observational.
+
+### Render (#8)
+- Review state doesn't affect render output directly. Approved content publishes as normal; pending-review content can preview but can't publish (per the publish-request gate when enabled).
+- Render-time SSR with `Principal`: a future "show this only to approvers" template hint isn't in v1 review-workflow scope (would belong to RBAC capability checks at render time).
+
+### Validation (#9)
+- Validators run independently of review state. Save-delta validation runs on every save (regardless of review state); pre-publish validation runs on publish (gated by publish approval when enabled).
+- A "ready for review" transition can require zero open errors on the item — composition with validation, not v1.
+- Validator failures during save in `pending-review` state still return 409 + `validation-failed` audit event; review state unchanged because save was rejected.
+
+### Plugin (#10)
+- Future plugin-supplied review providers (e.g., GitHub PR-as-review) reserved per stub. v1 uses hooks for external integration; provider surface deferred until concrete demand.
+- Plugin-contributed admin routes that mutate review state declare their required capabilities via the same Hono middleware contract.
+
+### Cache (#11)
+- Review queue results cached per-request by filter params; per-instance `MemoryCache`.
+- Cache invalidated on every review-state-changing audit event (existing SSE invalidation infrastructure).
+- Capability-scoped: cache entries scoped to role principal at cache time; role change invalidates.
+
+### Offline (#12)
+- Review submit / approve / reject queued offline + replayed on reconnect (per `design-offline.md`'s replay model).
+- Replay capability check at replay time — if the principal lost `review:approve` while offline, replay fails with `outcome: 'forbidden'` recorded.
+- Concurrent online approval may have already met threshold by replay time — replay sidecar write is idempotent (no-op when state is already approved); audit records the replay attempt with `metadata.replayed: true`.
+
+### Collaboration (#13)
+- Reject comment lives in audit metadata as a narrow capture; broader review discussion (inline comments, mentions to reviewers, "request changes" semantics) belongs to collaboration.
+- When collaboration ships, approver behavior expands: "leave non-blocking comments on content + approve" or "reject with reason" (current path).
+- Combined-action ("Submit & approve") UX stays as-is; collaboration adds the conversation layer alongside, not replacing the state machine.
 
 ## Migration
 

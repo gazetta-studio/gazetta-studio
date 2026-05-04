@@ -275,7 +275,7 @@ Per-target `publishAudit` config controls whether quality warns block publish. S
 
 ## Foundational checks
 
-Validation is itself foundational dimension #9 of 12. This section answers how each of the other 11 foundational dimensions and the multi-instance discipline compose with the validation system, per [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
+Validation is itself foundational dimension #9 of 13. This section answers how each of the other 12 foundational dimensions and the multi-instance discipline compose with the validation system, per [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
 
 - **Multi-instance check** (discipline) — save-delta runs on the instance receiving the save request; no cross-instance coordination. Background scanner (Cut 2) per-page cache is per-admin-instance (each instance scans + caches independently); the multi-instance pattern is "every instance reads source-of-truth from storage on demand, caches results in-process, no cross-instance cache sharing." Per-page content-hash cache key ensures different instances arrive at the same cached result without coordination. Suppression state (when shipped) lives in storage, not in-memory.
 

@@ -9,7 +9,7 @@ paths:
 
 # Themes
 
-Foundational dimension #3 of 12. Establishes presentation theming (light/dark, color schemes, accessibility variants) as a render-context dimension. Asset-level theme variants already shipped per `design-media.md`; this pass formalizes the page/fragment/template contract.
+Foundational dimension #3 of 13. Establishes presentation theming (light/dark, color schemes, accessibility variants) as a render-context dimension. Asset-level theme variants already shipped per `design-media.md`; this pass formalizes the page/fragment/template contract.
 
 **Status**: design pass complete (2026-05). Implementation phases sit in Tier 3 — admin theme switcher already shipped per `css-theming.md`; runtime theme resolution + render-context parameter implementation lands when concrete operator demand surfaces.
 

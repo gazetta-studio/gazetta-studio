@@ -137,7 +137,7 @@ Most decisions don't pass this bar. The design doc carries the rationale; ADRs a
 
 ## Foundational dimensions
 
-Twelve cross-cutting concerns that every feature design must respect. Each has its own design pass (some shipped, some pending) and corresponds to a check in the "Foundational checks" section of every new `design-{feature}.md`.
+Thirteen cross-cutting concerns that every feature design must respect. Each has its own design pass (some shipped, some pending) and corresponds to a check in the "Foundational checks" section of every new `design-{feature}.md`.
 
 The dimensions are foundational because designing a feature without respecting them is structurally expensive to retrofit later — same principle as locale, themes, validation. These are the "must be right from the beginning" concerns.
 
@@ -155,6 +155,7 @@ The dimensions are foundational because designing a feature without respecting t
 | Plugin / extensibility | `design-plugins.md` | **Plugin check** | Does this surface follow the plugin lifecycle (discovery, loading, composition)? If not an extension surface, N/A |
 | Cache | `design-cache.md` | **Cache check** | Does this feature read or write cached data? Through `AdminCache` (the abstraction)? What invalidation triggers? Per-instance memory cache OK or shared provider needed? |
 | Offline | `design-offline.md` | **Offline check** | Does this feature work when admin is offline? Read paths degrade to cache; write paths queue and replay; conflict resolution on reconnect. If feature is online-only, document the limitation. |
+| Collaboration | `design-collaboration.md` | **Collaboration check** | Does this feature carry conversation (comments, mentions)? Does it generate notifications? Does it appear in the activity feed? If not collaborative, N/A. |
 
 **Status of design passes (sequenced, per current ROADMAP Tier 2):**
 
@@ -164,12 +165,13 @@ The dimensions are foundational because designing a feature without respecting t
 4. `design-themes.md` (complete 2026-05; presentation-theming-only scope; pages/fragments stay theme-agnostic at the data layer)
 5. `design-auth-rbac.md` (complete 2026-05; unblocks audit + review + hooks)
    - `design-audit.md` (complete 2026-05; extends history-recorder; `AuditProvider` Extension Surface #11)
-   - `design-review-workflow.md` (pending — extracted from joint pass; depends on auth/RBAC + audit)
+   - `design-review-workflow.md` (complete 2026-05; per-content state machine + per-target publish approval; depends on auth/RBAC + audit)
 6. `design-rendering.md` (pending — depends on locale + themes)
 7. `design-hooks.md` (pending — depends on RBAC)
 8. `design-plugins.md` (pending — depends on hooks)
 9. `design-cache.md` (pending — `MemoryCache` ships first; provider implementations slot in via the same interface as scale/admin demands materialize)
 10. `design-offline.md` (pending — depends on cache + RBAC + render; extends cache taxonomy with browser-side persistent providers)
+11. `design-collaboration.md` (pending — depends on auth/RBAC + audit + review; comments, mentions, notifications, activity feed, presence)
 
 A feature design started before its required dimension's design pass has shipped MUST document the assumption it's making about the pending dimension's contract — flagged as a retrofit risk. The "Foundational checks" section captures these.
 
