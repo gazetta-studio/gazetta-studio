@@ -12,7 +12,7 @@ Per [team-preferences.md rule 17](team-preferences.md): "Build and validate, don
 
 | Cut | What | Effort | Dependency | Status |
 |---|---|---|---|---|
-| **1** | Validator infrastructure + save-delta | 4 days | None | ◐ |
+| **1** | Validator infrastructure + save-delta | 4 days | None | ✓ |
 | **2** | Background scanner + admin UI surfaces | 4 days | Cut 1 | ☐ |
 | **3** | Render-for-analysis + quality validators (a11y, html-validate) + altRequired | 5 days | Cut 1, Cut 2 | ☐ |
 | **4** | Publish gate + heavy validators (Lighthouse, linkinator) | 5 days | Cut 3 | ☐ |

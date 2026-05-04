@@ -7,8 +7,8 @@ Strategic forward-looking priorities for Gazetta. Captures what's prioritized, w
 ## How to read this
 
 - **Tier 1** = next 4-8 weeks; explicit commitment
-- **Tier 2** = next quarter; planned but not started — includes **foundational design passes** (architectural dimensions every feature must respect) alongside committed implementation work
-- **Tier 3** = strategic bets; implementation work that depends on a foundational design pass being done first
+- **Tier 2** = next quarter; planned but not started — historically included foundational design passes alongside committed implementation work; design corpus is now complete
+- **Tier 3** = phased implementation plan against the complete design corpus; ~7-11 month horizon for Phase 0 + Phase 1 + Phase 2 + Phase 3
 - **Deferred** = real gaps but not the right time
 - **Non-goals** = explicit strategic non-fits — see [`docs/non-goals.md`](docs/non-goals.md)
 
@@ -134,34 +134,97 @@ Operator-facing features that mature production deployments:
 ### Environment-specific content
 - #62 environment-specific content — design pass needed; sized after design
 
-## Tier 3 — strategic bets (implementation pending foundational design)
+## Tier 3 — implementation phases (design corpus complete; building features)
 
-### Themes implementation (4-6 weeks)
-After `design-themes.md` lands. Theme variants for pages/fragments + runtime theme routing + admin theme switcher per active page.
+The 13-dimension foundational design corpus is complete. Implementation is now sequenced as four phases. **No backwards-compatibility constraint** (pre-1.0 product); cutovers are clean. **No external shipping pressure**; architectural correctness prioritized over velocity.
 
-### Auth + RBAC + audit + review implementation (6-10 weeks)
-After `design-auth-rbac.md`, `design-audit.md`, `design-review-workflow.md` all land. The team CMS feature set: roles, authorization gates on every API endpoint, audit log records on every write, per-content review state machine, per-target publish approval.
+Total horizon: ~7-11 months for Phase 0 + Phase 1 + Phase 2 + Phase 3. Tier 3 strategic bets (concurrent editing, etc.) deferred indefinitely.
 
-### Per-field translation (#192)
-After `design-i18n.md` lands. Layered overlay model on top of existing whole-file locale variants.
+### Phase 0 — Implementation planning artifacts (1-2 weeks)
 
-### Real-time presence
-After `design-audit.md` lands (audit log is the event source). Sanity Presence as reference. Real-time transport implementation lands as part of presence (1-2 weeks); presence MVP (presence-only, no concurrent editing): 4 weeks.
+Write 7 missing `design-{feature}-implementation.md` docs:
+- `design-auth-rbac-implementation.md`
+- `design-audit-implementation.md`
+- `design-hooks-implementation.md`
+- `design-plugins-implementation.md`
+- `design-cache-implementation.md`
+- `design-offline-implementation.md`
+- `design-collaboration-implementation.md`
 
-### Hooks implementation
-After `design-hooks.md` lands. Phased cut sequence similar to validation's 6-cut pattern.
+Each defines cut sequence, per-cut scope, files added/modified, tests, integration consumer for validation, and SOLID checks. No migration sections needed (no backwards compat).
 
-### Plugin implementation
-After `design-plugins.md` lands. Unifies existing extension surfaces under one contract.
+Plus: lock the cross-cutting sequencing (TS config affects every consumer; serial), per-foundation test plans, and integration test strategy across foundations.
 
-### Validation Cut 4 (publish gate + heavy validators)
-Per [`design-validation-implementation.md`](.claude/rules/design-validation-implementation.md). Adds Lighthouse via Playwright + linkinator. Operator-controlled strictness at publish time. **Effort**: 5 days.
+### Phase 1 — Foundations (8-12 weeks)
 
-### Validation Cut 5 + 6 (CLI rewrite + template-developer surfaces)
-Per design-validation-implementation. Closes out the validation system.
+Each foundation: code + unit tests + contract tests (where it's an extension surface) + integration tests + at least one consumer integration + user-facing docs. Sequenced to respect cross-cutting dependencies.
 
-### Concurrent editing with OT/CRDT
-Huge investment. After presence-only ships and product positioning is clear. 3-6 months.
+| Foundation | Sequence | Estimate |
+|---|---|---|
+| TS config migration | First (mechanical, affects everything) | 1-2w |
+| AuthIdentity layer | After TS config (Principal extraction; trust modes) | 2w |
+| Component IDs | Independent (structural manifest change) | 1w |
+| AdminCache abstraction | Independent (replaces existing memos) | 1-2w |
+| Audit primitive | After AuthIdentity (records `actor` snapshot) | 1-2w |
+| Hooks lifecycle | After AuthIdentity (`Principal` in HookContext) | 2w |
+| Plugin loader | After TS config + Hooks (factory invocation; PluginAPI) | 1-2w |
+| NotificationProvider (in-admin only) | After Hooks (in-admin via subscribe) | 1w |
+
+### Phase 2 — Features composing against foundations (10-14 weeks)
+
+| Feature | Depends on | Estimate |
+|---|---|---|
+| Validation Cut 2 (background scanner) | AdminCache | 4 days |
+| Validation Cut 3 (render-for-analysis + a11y) | AdminCache + Cut 2 | 5 days |
+| Per-field translation (#192) | i18n design (shipped) + Component IDs | 2-3w |
+| Review workflow MVP | AuthIdentity + Audit + Hooks | 2-3w |
+| Comments-first collaboration v1 | AuthIdentity + Audit + Component IDs + NotificationProvider | 3w |
+| Offline mode v1 | AdminCache + service worker stack (idb + Vue Query + vite-plugin-pwa) | 3w |
+
+### Phase 3 — Polish, parallel tracks, remaining cuts (8-12 weeks)
+
+These can run in parallel with Phase 1-2 since they don't depend on the foundations:
+
+- **Editor papercut cluster** (2-3w; Tier 1 commitment): #103, #104, #105, #82, #45
+- **Onboarding sprint** (3-4w; Tier 1 commitment): #203 deploy adapter contract + 3 priority adapters + #213 container guide + #79 Docker example + #214 first-run UX
+
+After foundations + features land:
+
+- **Validation Cut 4-6** (~3w): publish gate + Lighthouse, CLI rewrite, template-developer surfaces
+- **Static publish fan-out** (#202, 1-2w)
+- **Small content cluster** (1-2w): #61 redirects, #58 RSS/Atom, #57 pagination, #91 connectivity validate
+- **Operability cluster** (2w): #19, #38, #39, #75, #76, #195, #198
+- **MCP server** (#49, 1-2w)
+- **Documentation thorough sweep** (3w; spread across phases)
+- **Examples + gazetta.studio updates** (2w)
+- **Compare polish** (1w): #109, #111
+- **E2e infra** (#184, small)
+- **Image transformations** (#201, sized after design)
+- **Environment-specific content** (#62, design pass first)
+
+### Deferred indefinitely (demand-driven)
+
+| Item | Trigger to revisit |
+|---|---|
+| Real-time presence MVP | Operator demand for live collaboration awareness |
+| Concurrent editing with OT/CRDT (3-6 months investment) | Presence ships first + product positioning clear |
+| AI tag suggestion task | After translation ships |
+| AI image generation | Concrete operator request |
+| Per-locale comments | Concrete demand |
+| Approval-blocking comments | Compliance archetype demand |
+| File attachments on comments | Operator asks |
+| Markdown formatting in comments | Operator asks |
+| Activity feed | Operator asks |
+| Reactions on comments | Operator asks |
+| Email/Slack/Teams/Discord NotificationProviders | Operator demand (expected order locked in `design-collaboration.md` Q3) |
+| Edge SSR for `dynamic` Targets (WinterTC origin) | WASM-compiled templates or framework support catches up |
+
+### Constraints driving this scope
+
+- **No backwards compatibility**: cutovers replace existing code wholesale; no migration tooling required
+- **No shipping pressure**: architectural correctness prioritized; foundations shipped before features
+- **Maintainer attention is finite**: deferred items respect their triggers; don't pre-build for hypothetical demand
+- **Design corpus is cohesive**: cutting features creates incomplete consumer profiles that make foundations look over-designed; we ship the full feature set the design corpus assumes
 
 ## Deferred — real gaps but not now
 
