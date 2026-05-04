@@ -21,6 +21,8 @@ Zero template changes, zero schema changes. Opt-in via `locales` in site.yaml.
 
 **Foundational dimension #2 of 10.** Locale is a closed dimension peer to theme; every feature must respect locale variants, the locked locale-priority cross-dimension fallback, and the file-suffix model. See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions" — every new feature design answers the **Locale check**.
 
+**Status**: design pass complete (2026-05). Implementation 13 of 15 steps shipped (whole-file locale variants, file-suffix model, fallback chain, hreflang, sitemap, admin locale picker, CLI translate, language detection — all live). Two implementation steps remaining: admin "Translate to..." action (step 12, surfaces in editor papercut cluster) and `gazetta validate` locale-file checks (step 15, lands with validation Cut 5 CLI rewrite). See "Implementation sequence" for per-step status.
+
 **Migration note**: This doc was previously `i18n-plan.md` (predates the `design-{feature}.md` convention). Renamed in 2026-05 alongside the foundational-dimensions inventory. Per-field translation (#192) lands as the implementation phase under this design's contract; that's when the design/implementation split documented in [`feature-design-process.md`](feature-design-process.md) gets applied to this doc.
 
 **Locked invariants** (referenced by other docs and the foundational-dimensions table):
@@ -31,8 +33,6 @@ Zero template changes, zero schema changes. Opt-in via `locales` in site.yaml.
 - **Per-field overlay model (asset-side, future for pages/fragments)** — assets support layered per-locale overrides (metadata-only or with locale-specific bytes). Pages/fragments today are whole-file only; per-field overlays are #192's design space.
 - **Subpath routing default** — `/about` (default locale, no prefix), `/fr/about` (French). Per-domain and hybrid strategies also supported.
 - **hreflang strategy** — HTML `<head>` for subpath targets; sitemap-only for cross-domain targets (avoids timing 404s when one domain publishes before another).
-
-**Multi-instance check**: locale variant resolution is stateless (file-suffix manifests live in storage, resolver reads on demand). Locale routing in the runtime is per-request. No cross-instance coordination required. Multi-instance discipline holds; the design/implementation split (when #192 lands) must preserve this.
 
 **Status legend:** ☐ todo · ◐ in progress · ✓ done
 
@@ -603,25 +603,67 @@ Publishing a subset of locales is supported — author can publish only the
 
 ---
 
+## Foundational checks
+
+Locale is itself foundational dimension #2 of 10. This section answers how each of the other 9 foundational dimensions and the multi-instance discipline compose with the locale dimension, per [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
+
+- **Multi-instance check** (discipline) — locale variant resolution is stateless: file-suffix manifests live in storage; resolver reads on demand; locale routing in the runtime is per-request. No cross-instance coordination required. SSE invalidation events for locale-specific saves broadcast to connected clients of the same instance; cross-instance via storage observation is sufficient. Locale-aware search indexes (when added at scale) follow the per-instance memo pattern from `design-cache.md` until shared cache providers are needed.
+
+- **Scale check** — locale multiplies content count by N (where N is locales supported). At our envelope (5000 pages × 20 locale variants = 100K total page files), the file-suffix model + per-edge sidecars per locale hold. `/api/pages` summary fields include the `locales` array per page (small string array; no scale concern). Search at scale (per `design-scale.md`) is locale-scoped or locale-agnostic — design pass open question (see below). Multi-instance + scale + locale compose: each instance reads the same storage; SSE invalidations broadcast per-instance; no cross-instance locale-state coordination required.
+
+- **Theme check** — locale + theme are peer dimensions per the locked invariants. Cross-dimension fallback is locale-priority: `(fr, dark) → (fr, light) → (default-locale, dark) → (default-locale, light)`. Theme variants compose with locale variants via filename composition order (locale before theme). When pages/fragments get theme variants per `design-themes.md`, the same fallback rule extends.
+
+- **Team check** — locale-aware role visibility: editors with read-access only to a locale subset (e.g., a French-only translator) see only French page variants in the tree. Audit log records locale-specific writes — `revision.path` includes the suffix (e.g., `pages/home/page.fr.json`). Review workflows scope to a (target, locale) pair when concrete demand surfaces (out of v1).
+
+- **Hook check** — hooks fire per-save with locale context in the payload. `beforeSave({ item, locale })` hooks can validate / enrich / reject per-locale. Translate-to hook firings (when a locale variant is auto-created) treated as standard saves; recorded with `replayed: false` in audit log.
+
+- **Render check** — render context carries locale; templates receive `params.locale`. Static targets pre-render per-locale at publish time. ESI assembles locale-suffixed fragments at edge. Request-time SSR (when shipped) reads locale from URL prefix or `Accept-Language` header. Render-for-analysis (validation Cut 3) caches per-locale.
+
+- **Validation check** — validators dispatch per-item; locale variant manifests are validated as their own item, not as deltas against the default-locale variant. The `altRequired` validator (validation Cut 3) walks the schema for the variant's locale. Open question: locale-aware validation (e.g., a "missing-French-translation" validator that flags pages without a French variant when French is configured) — deferred to validation Cut 2 / Cut 3.
+
+- **Plugin check** — plugin-supplied storage providers, AI providers, validators all see locale via the existing context shape (`params.locale`, `ResolveContext.locale`, `ValidatorInput.scope.item.locale`). Plugins inherit locale awareness without per-plugin design.
+
+- **Cache check** — cache keys include locale where the cached value differs per-locale (page summaries, rendered output, search indexes). `AdminCache` invalidation on locale-specific save invalidates only the affected locale's cache entries. Per-locale invalidation is finer-grained than per-page; reduces cache churn at scale.
+
+- **Offline check** — browser-side cache (`IndexedDBCache` / `LocalStorageCache` per `design-offline.md`) scopes entries by active locale. Offline locale switching reads from cached entries for the new locale; if not cached, surfaces the staleness banner. Save attempts during offline include the active locale in the queued payload; replay preserves locale context.
+
+## Open questions for the design pass (locked / deferred)
+
+**Locked:** the remaining items listed below have explicit triggers; trigger = the design-pass-or-implementation-work-that-resolves-them.
+
+- **Per-field translation (#192)** — Layered overlay model on top of existing whole-file locale variants. Trigger: team-i18n use case (multiple translators editing the same page, conflict-aware merge required) materializes. The asset-side per-field overlay model (`design-media.md`) is the precedent; pages/fragments adopt the same shape.
+- **Locale-specific slugs (`/fr/blog/bonjour` for `/blog/hello`)** — `slug` field in the locale variant manifest. Trigger: SEO-driven operator demand for native-language URLs. Currently same directory slug across locales is the simpler (and sufficient) default.
+- **Locale-aware search index** — At scale, search across 5000 pages × 20 locales = 100K records. `design-scale.md`'s `/api/pages/search?q=` is locale-scoped today (server filter). Trigger: a real operator hits 5000+ pages × 10+ locales and surfaces search-latency pain. Until then, server-side locale-scoped substring match is sufficient.
+- **Locale validators** — A "missing-translation" validator that flags pages without configured-locale variants would be a Cut 2 (background) or Cut 3 (quality) addition. Trigger: validation Cut 2 / 3 design pass picks up this item.
+- **Admin "Translate to..." action** — Listed in the implementation sequence (step 12) as "Small" effort. Currently CLI-only. Trigger: editor papercut cluster picks this up alongside #103/#104 UX work, or surfaces as its own Tier 1 issue when authors ask.
+- **`gazetta validate` locale-file checks** — Step 15 of the original implementation sequence. Trigger: validation Cut 5 (CLI rewrite per `design-validation-implementation.md`) picks this up.
+
+---
+
 ## Implementation sequence
 
-| Step | Scope | Effort |
-|------|-------|--------|
-| 1 | `locales` config in site.yaml + type | Small |
-| 2 | Page discovery: scan `page.*.json` siblings | Small |
-| 3 | Fragment discovery: scan `fragment.*.json` | Small |
-| 4 | Route generation with locale prefix | Medium |
-| 5 | Renderer: locale param, fragment locale resolution | Medium |
-| 6 | Renderer: hreflang injection | Medium |
-| 7 | Sitemap: hreflang cross-links | Medium |
-| 8 | Publish: per-locale fragment rendering | Medium |
-| 9 | Edge runtime: locale-aware fragment fetch | Medium |
-| 10 | Admin: locale badges on pages | Small |
-| 11 | Admin: locale picker in editor | Medium |
-| 12 | Admin: "Translate to..." action | Small |
-| 13 | Admin: `?locale=` in URL | Small |
-| 14 | CLI: `gazetta translate about --to fr` | Small |
-| 15 | `gazetta validate`: locale file validation | Small |
+| Step | Scope | Effort | Status |
+|------|-------|--------|--------|
+| 1 | `locales` config in site.yaml + type | Small | ✓ |
+| 2 | Page discovery: scan `page.*.json` siblings | Small | ✓ |
+| 3 | Fragment discovery: scan `fragment.*.json` | Small | ✓ |
+| 4 | Route generation with locale prefix | Medium | ✓ |
+| 5 | Renderer: locale param, fragment locale resolution | Medium | ✓ |
+| 6 | Renderer: hreflang injection | Medium | ✓ |
+| 7 | Sitemap: hreflang cross-links | Medium | ✓ |
+| 8 | Publish: per-locale fragment rendering | Medium | ✓ |
+| 9 | Edge runtime: locale-aware fragment fetch | Medium | ✓ |
+| 10 | Admin: locale badges on pages | Small | ✓ |
+| 11 | Admin: locale picker in editor | Medium | ✓ |
+| 12 | Admin: "Translate to..." action | Small | ☐ |
+| 13 | Admin: `?locale=` in URL | Small | ✓ |
+| 14 | CLI: `gazetta translate about --to fr` | Small | ✓ |
+| 15 | `gazetta validate`: locale file validation | Small | ☐ |
+
+**Pending step triggers:**
+
+- Step 12 (admin "Translate to..." action) lands with the editor papercut cluster (Tier 1) when author UX work picks up; or as its own issue when authors ask.
+- Step 15 (`gazetta validate` locale-file checks) lands with validation Cut 5 (CLI rewrite per `design-validation-implementation.md`).
 
 ---
 
