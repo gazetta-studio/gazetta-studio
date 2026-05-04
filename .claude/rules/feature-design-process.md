@@ -172,18 +172,19 @@ The dimensions are foundational because designing a feature without respecting t
 8. `design-config.md` (complete 2026-05; reference doc — NOT a foundational dimension. TS config (`gazetta.config.ts` + `site.config.ts`) replaces YAML; identity functions; `process.env.X` for secrets; load-once-at-boot in production, hot-reload in dev. Decision in [`docs/adr/0005-typescript-config-format.md`](../../docs/adr/0005-typescript-config-format.md).)
 9. `design-plugins.md` (complete 2026-05; TS-import discovery + factory exports + per-surface PluginAPI + service-account opt-in)
 10. `design-cache.md` (complete 2026-05; L4 cache in layered model; deterministic-derived principle + explicit per-feature invalidation + sidecar cascades + PWA responsiveness; `MemoryCache` v1 with bounded eviction)
-11. `design-offline.md` (complete 2026-05; default-on with opt-out; idb + Vue Query + service worker; force-save conflict resolution with chained If-Match; replayed audit metadata)
-12. `design-collaboration.md` (pending — depends on auth/RBAC + audit + review; comments, mentions, notifications, activity feed, presence)
+11. `design-offline.md` (complete 2026-05; always-on UX; pending-edits + save-queue distinction; save works offline as commit-intent; IndexedDB primary + MemoryCache fallback; service worker for app-shell; conflict surfaces diff with no force-overwrite; Krug-aligned sync-state visibility)
+12. `design-collaboration.md` (complete 2026-05; comments-first v1; mentions; in-admin notifications; `NotificationProvider` Extension Surface #12; 5 capabilities + 6 hooks; per-thread sidecars + etag concurrency)
 
 A feature design started before its required dimension's design pass has shipped MUST document the assumption it's making about the pending dimension's contract — flagged as a retrofit risk. The "Foundational checks" section captures these.
 
 ## Non-foundational disciplines
 
-Three narrower invariants that compose with implementation work but don't rise to dimension level. They get one-line discipline notes in this doc, not full design passes:
+Four narrower invariants that compose with implementation work but don't rise to dimension level. They get one-line discipline notes in this doc, not full design passes:
 
 - **MCP schema discipline** — new admin-API routes must use the existing Zod schema pattern under `packages/gazetta/src/admin-api/schemas/`. MCP tooling auto-generates from these — non-typed routes break MCP. Applies to every new route, not just MCP-aware features.
 - **Real-time event-source discipline** — save and publish handlers record write events to audit log (covered by `design-audit.md`). Real-time push (presence, live publish status, validation push) is a separate observer layer on top of audit log — never bolted into save/publish handlers directly.
 - **Multi-instance discipline** — every feature must work correctly when admin runs as horizontally-scaled instances (Cloud Run, Fly, Kubernetes, multi-replica deployments). State that affects other instances goes through shared storage with appropriate granularity (per-edge sidecars, content-addressed blobs, atomic writes); in-process caches must be scoped to one operation (per-build, per-request); cross-instance coordination uses storage-as-message-bus, not in-memory channels. Reference: the asset-refs sidecar grilling that locked per-edge files over aggregate JSON specifically because two instances writing to a shared aggregate would race; same logic generalizes. Every new design doc's "Foundational checks" section answers a **Multi-instance check**: where does this feature's state live (per-instance / per-storage / shared in-memory — last is forbidden)?
+- **Logging discipline** — every module emits structured JSON logs (no `console.log` in production code), uses dot-separated module namespacing (e.g., `cache.memory`, `plugin.@gazetta/slack-notify`), tags entries with `requestId` for cross-instance correlation, and excludes PII from log payloads (auth tokens, manifest content, comment bodies, asset bytes — all forbidden). Logs are operational signal; audit log is forensic record (per `design-audit.md`); both run. See [`design-logging.md`](design-logging.md) for conventions.
 
 ## Issue-classification discipline
 
