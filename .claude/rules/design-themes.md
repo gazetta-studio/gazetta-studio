@@ -35,6 +35,11 @@ These extend uniformly to pages/fragments when the design pass formalizes:
 
 ## Open questions for the design pass
 
+### Multi-instance check
+- Theme variant resolution is stateless — manifests live in storage, resolver reads on demand. No cross-instance coordination needed.
+- Theme-preview state in the admin (which theme the author is currently previewing) is per-browser, never shared across instances.
+- Confirm during design pass: any theme-related cache (e.g., resolved theme tokens for a render-pass) stays per-build / per-request scope, never long-lived across instances.
+
 ### Render-context shape
 - How does theme reach a template? `params.theme` argument like `params.locale`? Render-context object?
 - How does the runtime decide the theme? `prefers-color-scheme` cookie? URL parameter? Class-based cascade only (current css-theming.md approach)?

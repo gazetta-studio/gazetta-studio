@@ -135,7 +135,7 @@ Adding "first-class Solid support" or "first-class Svelte support" implies CMS-s
 
 ## Broad plugin system beyond documented extension surfaces
 
-**Why not**: Gazetta has nine documented extension surfaces (storage providers, templates, custom editors, custom field widgets, transform adapters, deploy adapters, AI providers, hooks, validators) with their own typed interfaces. Together they ARE the plugin system — operators extend Gazetta by implementing one of these surfaces. The unifying contract for discovery + lifecycle + composition lands in [`design-plugins.md`](../.claude/rules/design-plugins.md) (Tier 2 design pass).
+**Why not**: Gazetta has ten documented extension surfaces (storage providers, templates, custom editors, custom field widgets, transform adapters, deploy adapters, AI providers, hooks, validators, cache providers) with their own typed interfaces. Together they ARE the plugin system — operators extend Gazetta by implementing one of these surfaces. The unifying contract for discovery + lifecycle + composition lands in [`design-plugins.md`](../.claude/rules/design-plugins.md) (Tier 2 design pass).
 
 Broader runtime extensibility — custom Hono routes, custom CLI commands — would be additive, but introduces sandboxing/trust questions that aren't worth answering without concrete operator demand.
 

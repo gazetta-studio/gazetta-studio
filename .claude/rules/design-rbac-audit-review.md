@@ -33,6 +33,12 @@ Adding any of these later means auditing every consumer. Joint design — not th
 
 ## Open questions for the design pass
 
+### Multi-instance check
+- Audit log writes go to storage (extending the existing history-recorder). Multiple instances appending concurrently — granularity required (per-revision file, like history's `rev-{ts}.json`, NOT a shared append-only log file).
+- Session/auth state — where does it live? Per-instance (sticky sessions required) or storage-backed (any instance can validate any session). Latter is preferred for zero-downtime deploys.
+- Review workflow state — per-target storage, not in-memory. Multiple admin instances reading/writing the same review state must not race; per-edge-style granularity OR atomic write-through-storage.
+- Permission cache — if roles are fetched per-request, no cache; if cached, scope to per-request only (multi-instance-correct by default). Long-lived caches forbidden by the multi-instance discipline.
+
 ### Roles
 - Built-in role names — `admin` / `editor` / `viewer` / custom? Or fully configurable?
 - Per-target roles vs. site-wide roles? (E.g., editor on staging but viewer on prod)

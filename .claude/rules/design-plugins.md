@@ -11,7 +11,7 @@ paths:
 
 # Plugin / extensibility — design pass pending
 
-Foundational dimension #8 of 8. Unifying contract for the existing extension surfaces — discovery, loading, lifecycle, composition.
+Foundational dimension #8 of 9. Unifying contract for the existing extension surfaces — discovery, loading, lifecycle, composition.
 
 **Status**: design pass pending — sequenced 8 of 8 (after `design-hooks.md`; hooks are likely the integration point). See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
 
@@ -21,7 +21,7 @@ Foundational dimension #8 of 8. Unifying contract for the existing extension sur
 
 ## Why this is foundational
 
-Today, eight extension surfaces exist (storage providers, templates, custom editors, custom field widgets, transform adapters, deploy adapters, AI providers, validators) plus hooks (incoming). Each has its own interface contract. Without a unifying plugin contract, future surfaces (whatever 10th or 11th surface gets added) drift toward their own ad-hoc plug-in pattern. Unifying later is structural rework.
+Today, nine extension surfaces exist (storage providers, templates, custom editors, custom field widgets, transform adapters, deploy adapters, AI providers, validators, cache providers) plus hooks (incoming). Each has its own interface contract. Without a unifying plugin contract, future surfaces (whatever 11th or 12th surface gets added) drift toward their own ad-hoc plug-in pattern. Unifying later is structural rework.
 
 Strategic commitment locked: **plugins are foundational** (resolved from "open question"). The named surfaces ARE the plugin system. The unifying contract formalizes how they compose.
 
@@ -32,6 +32,12 @@ Strategic commitment locked: **plugins are foundational** (resolved from "open q
 - **Real-time event-source discipline** — plugins that observe save/publish do so via audit log, not by patching handlers. Per `feature-design-process.md` non-foundational disciplines.
 
 ## Open questions for the design pass
+
+### Multi-instance check
+- Plugin discovery + loading happens at admin boot; each instance loads its own plugin set independently. Plugins are file-based (npm packages or site-local), so all instances see the same plugins.
+- Plugin state — plugins MUST NOT hold state in process across operations. Any state goes through storage (using the same multi-instance-safe patterns the core uses: per-edge sidecars, content-addressed blobs, atomic writes).
+- Plugin discovery for a hot-deployed plugin (added without admin restart) — out of v1 scope. v1 plugins require admin restart on each instance to pick up changes.
+- Plugin-contributed extensions (storage providers, AI adapters, validators, etc.) inherit the multi-instance discipline of their host surface — a plugin-supplied storage provider must be as multi-instance-safe as the in-tree providers.
 
 ### Discovery
 - Where do plugins live? npm packages (registered in `package.json`)? Site-local in `admin/plugins/`? Both?

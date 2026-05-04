@@ -36,6 +36,13 @@ Issue #80 (dynamic route params at render) is a sub-task of this design pass —
 
 ## Open questions for the design pass
 
+### Multi-instance check
+- Static and ESI modes already multi-instance-safe — published HTML lives in storage; any instance reads it.
+- Request-time SSR: render context (params, cookies, principal) is per-request; no cross-instance state. Multiple SSR instances render the same page identically given the same context.
+- Render-for-analysis cache (validation Cut 3) — per-request OR per-build, never shared in-memory across instances. The cache key includes content + dependency hashes so different instances arrive at the same cache entry without coordination.
+- Listings / render-time queries — read from storage on each request; pagination cursors are stateless. No shared in-memory query cache.
+- Import maps for islands — derived from the published assets directory; computed per-render, never cached cross-instance.
+
 ### Render mode taxonomy
 - Three modes today (static / ESI / island) — adding request-SSR makes four. Naming clarity — does "dynamic" stay an alias for ESI, or get repurposed for request-SSR? Or both as separate target types?
 - Component rendering types vs. target types — orthogonal axes? A static target can have an island component; can a request-SSR target have a static component?
