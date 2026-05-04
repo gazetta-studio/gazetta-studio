@@ -1,0 +1,323 @@
+---
+paths:
+  - "**/site.config.ts"
+  - "**/gazetta.config.ts"
+  - "packages/gazetta/src/config/**"
+---
+
+# Site config — reference
+
+Operator-facing config format for Gazetta. **Reference doc, not a foundational dimension.** Captures the patterns operators and plugin authors need; the format is set once via [`docs/adr/0005-typescript-config-format.md`](../../docs/adr/0005-typescript-config-format.md).
+
+**Status**: design pass complete (2026-05). Implementation pending — Tier 3.
+
+**Companion docs**:
+- [`docs/adr/0005-typescript-config-format.md`](../../docs/adr/0005-typescript-config-format.md) — the load-bearing decision (TS over YAML, identity functions, global + site split)
+- [`design-plugins.md`](design-plugins.md) — plugins compose with config; plugin authors export factory functions invoked inside `defineSite()`
+- [`design-auth-rbac.md`](design-auth-rbac.md), [`design-audit.md`](design-audit.md), and others — every design doc with config examples will be swept to TS in the implementation PR
+
+## Why this is reference, not foundational
+
+Foundational dimensions are recurring concerns — every new feature design must answer how it composes with them. Config format is set once: the choice of TS over YAML doesn't recur in feature designs. Once made, it's fixed.
+
+But there ARE ongoing config-related concerns operators and plugin authors need: file layout, evaluation timing, secrets handling, validation. Those go here.
+
+## File layout
+
+Two files, both optional except where noted:
+
+```
+my-project/
+  gazetta.config.ts             # global, optional
+  sites/
+    main/
+      site.config.ts            # per-site, required (sites without it don't exist)
+      pages/
+      fragments/
+    blog/
+      site.config.ts
+      pages/
+```
+
+For flat (simple) projects without `sites/`:
+
+```
+my-project/
+  gazetta.config.ts             # optional
+  site.config.ts                # the one site
+  pages/
+  fragments/
+```
+
+**Discovery rules**:
+- If `sites/` directory exists → walk it; each subdirectory with `site.config.ts` is a site
+- Otherwise → look for `site.config.ts` at project root
+- `gazetta.config.ts` discovered at project root regardless of layout
+
+## File shape
+
+Both configs use typed identity functions. The functions return their input unchanged but provide TS inference for IDE autocomplete:
+
+```ts
+// In gazetta package
+export function defineGazetta<T extends GazettaConfig>(config: T): T {
+  return config
+}
+
+export function defineSite<T extends SiteConfig>(config: T): T {
+  return config
+}
+```
+
+### `gazetta.config.ts` — global
+
+Carries project-level concerns shared across sites:
+
+```ts
+import { defineGazetta } from 'gazetta'
+
+export default defineGazetta({
+  logLevel: 'info',
+  telemetry: false,
+  dev: {
+    port: 3000,
+    hostname: 'localhost',
+  },
+  defaults: {
+    // Sites inherit unless overridden
+    cache: { provider: 'memory' },
+    audit: { provider: 'history' },
+  },
+  mcp: {
+    enabled: true,
+    port: 3100,
+  },
+})
+```
+
+Fields belonging to global config:
+- `logLevel` — admin log verbosity
+- `telemetry` — opt-in/out of usage telemetry
+- `dev` — dev server port + hostname
+- `defaults` — site-config defaults (cache provider, audit provider, etc.)
+- `mcp` — MCP server settings (single MCP server per project)
+
+### `site.config.ts` — per-site
+
+Carries per-site concerns:
+
+```ts
+import { defineSite } from 'gazetta'
+import slackNotify from '@gazetta/slack-notify'
+import autoSlugify from './admin/plugins/auto-slugify'
+
+export default defineSite({
+  name: 'main',
+  defaultLocale: 'en',
+  themes: {
+    supported: ['light', 'dark'],
+    default: 'light',
+  },
+  targets: {
+    local: {
+      type: 'esi',
+      storage: { type: 'filesystem', path: './dist/local' },
+    },
+    production: {
+      type: 'esi',
+      storage: { type: 'r2', bucket: process.env.R2_BUCKET! },
+    },
+  },
+  admin: {
+    auth: {
+      trust: 'cloudflare-access',
+      roleMapping: {
+        claim: 'groups',
+        map: { 'gazetta-admins': 'admin', 'gazetta-editors': 'editor' },
+      },
+    },
+    plugins: [
+      slackNotify({ webhookUrl: process.env.SLACK_WEBHOOK_URL! }),
+      autoSlugify(),
+    ],
+    hooks: {
+      // site-local hooks discovered from admin/hooks/ automatically;
+      // disable / configure via this block
+    },
+  },
+})
+```
+
+Fields belonging to site config: see existing dimension design docs (`design-i18n.md`, `design-themes.md`, `design-auth-rbac.md`, `design-audit.md`, `design-hooks.md`, `design-rendering.md`, `design-media.md`, `design-validation.md`).
+
+### Defaults flow
+
+`gazetta.config.ts` `defaults` field provides values that `site.config.ts` inherits per-field. Site config overrides per-field. **No deep merge for arrays** (plugins, hooks): arrays are explicit per site; different sites may want different plugins, so no inheritance.
+
+```ts
+// gazetta.config.ts
+export default defineGazetta({
+  defaults: {
+    cache: { provider: 'memory' },
+    audit: { provider: 'history' },
+  },
+})
+
+// sites/main/site.config.ts — inherits cache; overrides audit
+export default defineSite({
+  name: 'main',
+  admin: {
+    audit: { providers: ['history', 'cloudwatch'] },  // overrides default
+    // cache is unspecified → inherits { provider: 'memory' }
+  },
+})
+```
+
+## Evaluation timing
+
+| Environment | Behavior |
+|---|---|
+| Production (`NODE_ENV !== 'development'`) | Load once at boot; restart to apply changes |
+| Dev (`NODE_ENV === 'development'`, `gazetta dev`) | File watcher on `gazetta.config.ts` + `sites/*/site.config.ts`; reload on save |
+
+**Plugin lifecycle on dev reload**:
+
+Plugins holding open resources (network connections, file handles) implement `dispose()`:
+
+```ts
+interface Plugin {
+  name: string
+  init(api: PluginAPI): void | Promise<void>
+  dispose?(): void | Promise<void>  // optional; called on dev reload
+}
+```
+
+Production never calls `dispose` — process restart releases everything.
+
+**Validation runs on every load** (boot OR reload):
+- TS types catch shape errors at edit time
+- Zod schema catches env-var-driven errors and shape errors not expressible in TS at load time
+- Defense in depth
+
+**Build-time JSON precompile** (v1.5 reserved):
+
+```bash
+gazetta build:config    # produces .gazetta/built-config.json from site.config.ts
+```
+
+Production loads JSON if present; falls back to evaluating TS if absent. Lower cold-start latency for cloud deployments. Not v1 critical.
+
+## Secrets handling
+
+Per Universal Provider Requirement #3 (`design-plugins.md`): credentials never appear in config files. The TS-config posture preserves this.
+
+**Convention**: `process.env.X` directly inside `defineSite()`:
+
+```ts
+storage: { type: 'r2', bucket: process.env.R2_BUCKET! },
+```
+
+The non-null assertion (`!`) is operator's promise that the env var is defined. Missing env var → first-use error (clear failure). Operators wanting earlier failure can throw explicitly:
+
+```ts
+const requireEnv = (name: string) => {
+  const v = process.env[name]
+  if (!v) throw new Error(`Required env var: ${name}`)
+  return v
+}
+
+storage: { type: 'r2', bucket: requireEnv('R2_BUCKET') },
+```
+
+No Gazetta-specific env wrapper. `process.env.X` is universal Node syntax with no learning curve.
+
+**Env var naming**:
+- Provider SDK conventions preserved: `AWS_REGION`, `AZURE_STORAGE_KEY`, `R2_BUCKET`, `ANTHROPIC_API_KEY`
+- Gazetta-specific: `GAZETTA_AUDIT_ACTOR_SALT`, `GAZETTA_AUDIT_SOURCEIP_SALT`, `GAZETTA_AUDIT_WEBHOOK_AUTH`
+- Plugin-specific: `GAZETTA_<PLUGIN_NAME>_<FIELD>` (plugin author's convention)
+
+**`.env.local` discovery** (preserved from existing convention):
+
+dotenv loaded at boot, before config evaluation. Precedence:
+
+1. `.env.local` (gitignored)
+2. `.env.{NODE_ENV}.local`
+3. `.env.{NODE_ENV}`
+4. `.env`
+
+**Inline-secret detection deferred** to existing tools (gitleaks, git-secrets, pre-commit hooks). Gazetta doesn't add a custom scanner.
+
+## Multi-instance discipline
+
+- Both `gazetta.config.ts` and `site.config.ts` live in the source tree, deployed identically to every instance
+- Each instance reads at boot from its local filesystem
+- No coordination needed; same files = same config across all instances
+- Salt env vars (per `design-audit.md`) read from env per-instance; deterministic across instances by sharing env values
+
+## Migration from `site.yaml`
+
+The implementation PR (Tier 3) ships:
+
+```bash
+gazetta migrate-config    # converts site.yaml → site.config.ts
+```
+
+Operator runs once per site. Generated TS preserves comments via TS comments; preserves env-var references via `process.env.X`; converts the rest 1:1.
+
+**Hard cutover**: when implementation PR lands, YAML support is removed in the same commit. CHANGELOG entry: "Breaking: site.yaml → site.config.ts. Run `gazetta migrate-config` to convert."
+
+## Plugin authoring
+
+Plugin authors export typed factory functions:
+
+```ts
+// In @gazetta/slack-notify
+import type { Plugin, PluginAPI } from 'gazetta'
+
+interface SlackOptions {
+  webhookUrl: string
+  channel?: string
+  transform?: (event: PublishEvent) => string
+}
+
+export default function slackNotify(options: SlackOptions): Plugin {
+  return {
+    name: '@gazetta/slack-notify',
+    init(api: PluginAPI) {
+      api.registerHook('afterPublish', async (target, result, ctx) => {
+        const message = options.transform?.(result) ?? `Published ${result.items.length} items`
+        await fetch(options.webhookUrl, { method: 'POST', body: message })
+      })
+    },
+  }
+}
+```
+
+Operator imports and invokes:
+
+```ts
+import slackNotify from '@gazetta/slack-notify'
+
+export default defineSite({
+  // ...
+  admin: {
+    plugins: [
+      slackNotify({
+        webhookUrl: process.env.SLACK_WEBHOOK_URL!,
+        transform: (event) => `🚀 Published ${event.items.length} items by ${event.actor.email}`,
+      }),
+    ],
+  },
+})
+```
+
+Callbacks-as-config is the motivating advantage of TS over YAML.
+
+The exact `Plugin` and `PluginAPI` shapes are the concern of `design-plugins.md` (sequenced after this config doc). This reference doc commits only that plugin invocation happens inline in `defineSite()` via factory functions.
+
+## Future directions
+
+- **Build-time JSON precompile** (v1.5) — reduce cold-start latency on cloud deployments
+- **Config schema extraction CLI** (`gazetta config schema`) — emit JSON Schema for the config format; useful for tooling integration
+- **Per-target config overrides** — e.g., production target uses different plugins than staging — currently handled via `if (target === 'production')` branches inline; explicit per-target syntax could ship if patterns recur
+- **Visual config editor in admin UI** — operator edits `site.config.ts` via UI form, output is TS code (matches the visual hook editor reservation in `design-hooks.md`)

@@ -168,10 +168,11 @@ The dimensions are foundational because designing a feature without respecting t
    - `design-review-workflow.md` (complete 2026-05; per-content state machine + per-target publish approval; depends on auth/RBAC + audit)
 6. `design-rendering.md` (complete 2026-05; three target types + worker boundary + dynamic fragment contract; provisional locks on dynamic-side details for follow-up)
 7. `design-hooks.md` (complete 2026-05; lifecycle phases + return-new-payload contract + priority-based composition + site-local-plus-plugin discovery)
-8. `design-plugins.md` (pending — depends on hooks)
-9. `design-cache.md` (pending — `MemoryCache` ships first; provider implementations slot in via the same interface as scale/admin demands materialize)
-10. `design-offline.md` (pending — depends on cache + RBAC + render; extends cache taxonomy with browser-side persistent providers)
-11. `design-collaboration.md` (pending — depends on auth/RBAC + audit + review; comments, mentions, notifications, activity feed, presence)
+8. `design-config.md` (complete 2026-05; reference doc — NOT a foundational dimension. TS config (`gazetta.config.ts` + `site.config.ts`) replaces YAML; identity functions; `process.env.X` for secrets; load-once-at-boot in production, hot-reload in dev. Decision in [`docs/adr/0005-typescript-config-format.md`](../../docs/adr/0005-typescript-config-format.md).)
+9. `design-plugins.md` (pending — depends on hooks + config)
+10. `design-cache.md` (pending — `MemoryCache` ships first; provider implementations slot in via the same interface as scale/admin demands materialize)
+11. `design-offline.md` (pending — depends on cache + RBAC + render; extends cache taxonomy with browser-side persistent providers)
+12. `design-collaboration.md` (pending — depends on auth/RBAC + audit + review; comments, mentions, notifications, activity feed, presence)
 
 A feature design started before its required dimension's design pass has shipped MUST document the assumption it's making about the pending dimension's contract — flagged as a retrofit risk. The "Foundational checks" section captures these.
 
@@ -242,6 +243,7 @@ The full picture:
 | Work kind | Durable artifact |
 |---|---|
 | Feature design | `.claude/rules/design-{feature}.md` + `-implementation.md` |
+| Reference doc (one-time decision with ongoing operator/author concerns) | `.claude/rules/design-{feature}.md` (no `-implementation.md`; companion to the ADR; `design-config.md` is the canonical example) |
 | Architecture decision (load-bearing) | `docs/adr/NNNN-slug.md` |
 | Domain language (terms, vocabulary) | `CONTEXT.md` + ADRs for load-bearing splits |
 | External research / audit | `docs/audits/{topic}.md` |
