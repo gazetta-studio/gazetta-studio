@@ -149,11 +149,12 @@ Or create pages in the CMS — click **New page** in the admin UI.
 
 Use `[param]` in the folder name — it becomes `:param` in the route:
 
-```yaml
-# pages/blog/[slug]/page.json → /blog/:slug
-template: blog-post
-components:
-  - article
+```json
+// pages/blog/[slug]/page.json → /blog/:slug
+{
+  "template": "blog-post",
+  "components": ["article"]
+}
 ```
 
 Templates receive route params:
@@ -366,29 +367,41 @@ Each target has a **storage** config (where files go) and an optional **worker**
 
 ### Configure targets
 
-```yaml
-# site.yaml
-name: My Site
-targets:
-  staging:
-    storage:
-      type: filesystem
-      path: ./dist/staging
-  production:
-    environment: production           # admin UI requires confirmation before publishing
-    storage:
-      type: r2
-      accountId: "your-cloudflare-account-id"
-      bucket: "my-site"
-    worker:
-      type: cloudflare
-    siteUrl: "https://mysite.com"
-    cache:
-      browser: 0
-      edge: 86400
-      purge:
-        type: cloudflare
-        apiToken: "${CLOUDFLARE_API_TOKEN}"
+```ts
+// site.config.ts
+import { defineSite } from 'gazetta'
+
+export default defineSite({
+  name: 'My Site',
+  targets: {
+    staging: {
+      storage: {
+        type: 'filesystem',
+        path: './dist/staging',
+      },
+    },
+    production: {
+      environment: 'production',           // admin UI requires confirmation before publishing
+      storage: {
+        type: 'r2',
+        accountId: 'your-cloudflare-account-id',
+        bucket: 'my-site',
+      },
+      worker: {
+        type: 'cloudflare',
+      },
+      siteUrl: 'https://mysite.com',
+      cache: {
+        browser: 0,
+        edge: 86400,
+        purge: {
+          type: 'cloudflare',
+          apiToken: process.env.CLOUDFLARE_API_TOKEN!,
+        },
+      },
+    },
+  },
+})
 ```
 
 ### Target environment
@@ -398,7 +411,7 @@ The optional `environment` field declares a target's intent — `local`, `stagin
 - Show a `prod` / `staging` badge next to the target name in the publish dialog
 - Require an explicit confirmation step before publishing to a `production` target
 
-Defaults: `filesystem` storage → `local`, everything else → `production`. Override in site.yaml when those defaults don't match your setup (e.g. a shared filesystem mount used as production, or a cloud target reserved for staging).
+Defaults: `filesystem` storage → `local`, everything else → `production`. Override in site.config.ts when those defaults don't match your setup (e.g. a shared filesystem mount used as production, or a cloud target reserved for staging).
 
 ## Customize admin appearance
 
@@ -499,7 +512,7 @@ CLOUDFLARE_API_TOKEN=your-api-token
 
 The CLI loads `.env` automatically. In CI, env vars are set directly — `.env` is skipped when `CI=true`.
 
-Values in site.yaml can reference env vars with `${VAR_NAME}` syntax — they're resolved at runtime.
+Values in site.config.ts reference env vars directly via `process.env.VAR_NAME!` — they're resolved at evaluation time.
 
 ### Unpublished change indicators
 
@@ -538,15 +551,15 @@ The publish mode is automatic based on the target config:
 
 Create a `pages/404/` page like any other page. It's automatically served with a 404 status when a route doesn't match. The URL stays as-is — no redirect.
 
-```yaml
-# pages/404/page.json
-template: page-default
-content:
-  title: "Page Not Found"
-components:
-  - "@header"
-  - error-message
-  - "@footer"
+```json
+// pages/404/page.json
+{
+  "template": "page-default",
+  "content": {
+    "title": "Page Not Found"
+  },
+  "components": ["@header", "error-message", "@footer"]
+}
 ```
 
 Works with both `gazetta serve` and Cloudflare Workers. Fragments are assembled normally.
@@ -554,20 +567,25 @@ Works with both `gazetta serve` and Cloudflare Workers. Fragments are assembled 
 ### Cache configuration
 
 Per target:
-```yaml
-cache:
-  browser: 0       # max-age — seconds before browser revalidates
-  edge: 86400      # s-maxage — seconds before edge refetches from storage
-  purge:           # optional — purge CDN cache after publish
-    type: cloudflare
-    apiToken: "${CLOUDFLARE_API_TOKEN}"
+```ts
+cache: {
+  browser: 0,       // max-age — seconds before browser revalidates
+  edge: 86400,      // s-maxage — seconds before edge refetches from storage
+  purge: {          // optional — purge CDN cache after publish
+    type: 'cloudflare',
+    apiToken: process.env.CLOUDFLARE_API_TOKEN!,
+  },
+}
 ```
 
 Per page (overrides target):
-```yaml
-# pages/dashboard/page.json
-cache:
-  browser: 0      # always fresh
+```json
+// pages/dashboard/page.json
+{
+  "cache": {
+    "browser": 0
+  }
+}
 ```
 
 Defaults: `browser: 0`, `edge: 86400`. Set `edge: 0` to skip CDN caching entirely (no purge needed).
@@ -592,7 +610,7 @@ my-project/
     page-layout/index.ts
   sites/
     main/                    # site content
-      site.yaml              # site manifest + targets
+      site.config.ts         # site manifest + targets
       fragments/             # shared components
         header/fragment.json
       pages/                 # routable pages
@@ -605,7 +623,7 @@ my-project/
 ```
 
 Templates and admin customizations are at the project root, shared across all sites.
-Content (pages, fragments, site.yaml) lives inside `sites/{name}/`.
+Content (pages, fragments, site.config.ts) lives inside `sites/{name}/`.
 
 ## Next steps
 

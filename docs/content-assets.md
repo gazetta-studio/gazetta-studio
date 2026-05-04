@@ -136,23 +136,29 @@ content; uploads always succeed regardless.
 
 #### Configuring AI alt-text
 
-Two layers in `site.yaml`:
+Two layers in `site.config.ts`:
 
-```yaml
-# Cross-task AI configuration — provider account choice
-ai:
-  provider: anthropic            # anthropic | openai | ollama
-  defaultModel: claude-haiku-4-5 # optional; per-provider sensible default
+```ts
+import { defineSite } from 'gazetta'
 
-# Per-task config — alt-text behavior
-altText:
-  auto: true                     # default; auto-fire on upload
-  maxImageEdge: 768              # default; vision-call image-resize cap
-  # model: claude-sonnet-4-5     # optional override of ai.defaultModel
+export default defineSite({
+  // Cross-task AI configuration — provider account choice
+  ai: {
+    provider: 'anthropic',            // anthropic | openai | ollama
+    defaultModel: 'claude-haiku-4-5', // optional; per-provider sensible default
+  },
+
+  // Per-task config — alt-text behavior
+  altText: {
+    auto: true,                       // default; auto-fire on upload
+    maxImageEdge: 768,                // default; vision-call image-resize cap
+    // model: 'claude-sonnet-4-5',    // optional override of ai.defaultModel
+  },
+})
 ```
 
 API credentials live in `.env.local` (gitignored, never in
-`site.yaml`):
+`site.config.ts`):
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
@@ -163,11 +169,14 @@ OPENAI_API_KEY=sk-...
 **Per-target overrides** — typically used to disable auto-fire on
 production for review-first publishing:
 
-```yaml
-targets:
-  production:
-    altText:
-      auto: false                # require explicit click on prod
+```ts
+targets: {
+  production: {
+    altText: {
+      auto: false,               // require explicit click on prod
+    },
+  },
+}
 ```
 
 Provider and credentials are operationally global — they don't

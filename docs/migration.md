@@ -217,7 +217,7 @@ Sites that stay on `z.string()` URLs miss:
   per request — both work with asset-resolved templates.
 - **Template package boundaries.** Assets don't change how templates
   are packaged or distributed.
-- **`site.yaml`.** The migration is content + schema only; no site
+- **`site.config.ts`.** The migration is content + schema only; no site
   config changes.
 
 ## Reverting
