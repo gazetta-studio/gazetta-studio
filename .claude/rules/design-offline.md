@@ -6,11 +6,11 @@ paths:
   - "**/service-worker*"
 ---
 
-# Admin offline mode — design pass pending
+# Admin offline mode
 
 Foundational dimension #12 of 13. Admin works through transient connectivity loss (server restart, Wi-Fi drop, VPN issue) and degrades gracefully. Read paths serve from a local persistent cache; write paths queue and replay on reconnect; conflict resolution preserves author intent.
 
-**Status**: design pass pending — last in the sequence; depends on `design-cache.md` (extends taxonomy), `design-auth-rbac.md` (role-aware cache scope), `design-rendering.md` (render contract), real-time event-source discipline (cache invalidation broadcasts). See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
+**Status**: design pass complete (2026-05). Implementation phases sit in Tier 3.
 
 **Companion docs**:
 - [`feature-design-process.md`](feature-design-process.md) — defines the **Offline check** every new feature design must answer
@@ -33,77 +33,555 @@ Admin offline mode is foundational because:
 
 ## Locked invariants
 
-- **Pending edits persist across browser reload.** The existing pending-edits Pinia stores (`editorContent`, `editorStash`, `editorStructural`) hydrate from IndexedDB or localStorage on admin boot.
-- **Read paths degrade to last-cached.** When the server is unreachable, `/api/pages`, `/api/fragments`, `/api/assets` etc. return cached results with a staleness indicator. Cache backed by `AdminCache` with a persistent provider (`IndexedDBCache` or `LocalStorageCache`) — extends the cache provider taxonomy.
-- **Write paths queue.** Save / publish attempts during offline are queued in browser storage; replayed on reconnect in submission order. Conflict on replay surfaces the standard validation banner.
+### Save semantics: commit intent (online or offline)
+
+**Save means "I'm ready to commit this version."** Online or offline doesn't change that. The system's job is to deliver the commit when it can.
+
+This means save works offline. Author clicks Save → save enters queue → replays on reconnect → conflicts surface per Q3 if applicable.
+
+The alternative (save disabled while offline) was considered and rejected:
+- Treats save as "send to server" — too literal
+- Disables a familiar action when authors don't expect it disabled
+- Forces a "save everything pending" prompt on reconnect (UX friction)
+- Surfaces conflicts on next-edit rather than at the moment author committed
+
+Save-as-commit aligns with `design-editor-ux.md`'s pending-edits model: author explicitly commits; system handles delivery.
+
+### Pending edits vs save queue (two distinct concepts)
+
+| Concept | Lifetime | Trigger | Persistence |
+|---|---|---|---|
+| **Pending edits** | Per-item; accumulate as author edits; persist across navigation, reload, offline | Author has not yet committed (no save click) | IndexedDB; survives browser close |
+| **Save queue** | Per save attempt; replays on reconnect | Author clicked Save while offline | IndexedDB; survives browser close |
+
+**Author flow** is navigation-free:
+
+1. Edit page X → pending edits accumulate on X (not committed)
+2. Navigate to page Y → X's pending edits persist; Y loads fresh server state OR own pending if any
+3. Edit Y → pending edits on Y
+4. Navigate back to X → X's pending edits restored; author resumes
+5. Author commits X (clicks Save) → save attempts → succeeds online OR queues offline
+6. Save queue handles delivery; pending cleared on save click (becomes save-in-flight or queued state)
+
+**Author isn't forced to save.** Author can navigate between pages with unsaved pending edits across many pages. Pending edits never silently apply or auto-save. Each save is an explicit commit by the author.
+
+**No auto-save on connection loss.** If author goes offline mid-edit, pending stays in pending state. The author chose not to commit yet; system doesn't override that choice.
+
+**Author can save partial work.** Save commits whatever is in pending at save click time. Author can keep editing after; new pending accumulates; saves when they want.
+
+### Other locked invariants
+
+- **Pending edits persist across browser reload.** The existing pending-edits Pinia stores (`editorContent`, `editorStash`, `editorStructural`) hydrate from IndexedDB on admin boot.
+- **Read paths degrade to last-cached.** When the server is unreachable, `/api/pages`, `/api/fragments`, `/api/assets` etc. return cached results with a staleness indicator. Cache backed by `AdminCache` with `IndexedDBCache` provider — extends the cache provider taxonomy.
+- **Save queue replays on reconnect.** Save / publish attempts that happened while offline are queued separately from pending edits; replayed on reconnect in submission order. Conflict on replay surfaces per Q3.
 - **Cache scope respects RBAC.** Cached entries are scoped to the role principal at cache time; switching role / re-auth invalidates the cache. Don't leak data across role switches.
 - **Audit log on reconnect.** Replay events go to audit log with `replayed: true` + original-attempt timestamp. Operators see the offline activity later.
 
-## Cache shape (browser-side persistent cache)
+## Persistence layer (Q1 locked)
 
-The cache provider taxonomy from `design-cache.md` extends with a browser-side persistent layer:
+UX-driven choice: **IndexedDB primary; MemoryCache fallback when IndexedDB unavailable.** localStorage rejected.
+
+### UX requirements driving the choice
+
+1. **Author opens admin → sees their work immediately** (cached state renders instantly)
+2. **Edits during connection blip → no interruption** (save/validate/preview work)
+3. **Pending edits survive reload/crash** (rules out MemoryCache as primary)
+4. **Save during typing without UI freeze** (rules out localStorage's sync API)
+5. **Cross-tab sync** (BroadcastChannel)
+6. **Invisible reconnect** (no buttons; transparent)
+7. **Conflict UX is clear and kind** (force-save banner; not silent overwrite — see Q3)
+8. **Storage limit hit gracefully degrades** (rules out localStorage's tight 5MB cap)
+
+### Persistence layers
+
+| Provider | When used | UX posture |
+|---|---|---|
+| **`IndexedDBCache`** | Default; whenever IndexedDB is available | Best UX; meets all 8 requirements |
+| **`MemoryCache` (browser-side)** | Fallback when IndexedDB unavailable (private browsing mostly) | Banner: "Offline persistence unavailable in private browsing — your edits will be lost on reload." Honest degradation. |
+
+**localStorage rejected**: sync API freezes UI on writes (5-50ms per save — hostile at typing rate); 5MB cap structurally too tight for envelope sites; would force eviction at much smaller scale than IndexedDB; sneaky persistence promise — would pretend to offer durable storage that gets evicted under pressure.
+
+**Reserved for v2** (when concrete demand surfaces):
+- `OPFSCache` — when site exceeds IndexedDB quota OR when worker-thread sync writes are needed
+- `LocalStorageCache` — only if a real use case demands persistence WITHOUT IndexedDB AND without UI-freeze concerns
+
+### Provider selection logic (boot)
 
 ```ts
-// In addition to the server-side AdminCache providers (Memory, Redis, Azure...)
-// the admin client gets persistent client-side cache providers:
-
-// Browser IndexedDB — large quotas (~50MB+), structured queries
-class IndexedDBCache implements AdminCache { ... }
-
-// Browser localStorage — small quotas (~5MB), simple key-value
-// Useful as fallback for older browsers
-class LocalStorageCache implements AdminCache { ... }
+async function selectBrowserCacheProvider(): Promise<AdminCache> {
+  if (await indexedDBProbe()) {
+    return new IndexedDBCache({ siteName, quotaTarget })
+  }
+  // IndexedDB unavailable — show banner; offline mode degrades to in-memory only
+  showOfflinePersistenceWarning()
+  return new MemoryCache(/* per-instance memory; no persistence */)
+}
 ```
 
-**Server-side AdminCache and client-side AdminCache share the interface but operate independently.** The server caches for hot-path reads; the client caches for offline tolerance. They're coordinated via SSE invalidation events — when the server invalidates `pages:`, it broadcasts to connected clients to invalidate their browser caches.
+`indexedDBProbe()` opens a real test transaction (catches private-mode-throws-on-use; some browsers report IndexedDB available but throw on use).
 
-## Open questions for the design pass
+### Storage isolation
 
-### Multi-instance check
-- Browser-side cache is per-browser-tab (IndexedDB/localStorage scoped to origin + browser session). Two tabs on the same browser share IndexedDB; two browsers don't. No cross-instance coordination needed at the browser layer.
-- Reconnect-replay queue is per-browser. Two browsers each replay their own queue independently — last-write-wins on the server (existing semantics).
-- Server-side: offline-mode features don't require server changes; the SSE infrastructure (already per-instance) broadcasts cache invalidations to connected clients of that instance. Cross-instance coordination uses audit log per the real-time event-source discipline.
+- Per-site key prefix matches `design-cache.md` Gap 3 lock — `IndexedDBCache` auto-prefixes keys with site name internally. Multi-site projects share IndexedDB without collision.
+- Cross-tab sync via native **BroadcastChannel** — invalidations broadcast to peer tabs in same origin. No library needed.
 
-### Persistence layer choice
-- IndexedDB: ~50MB+ quota, structured queries, async API. Modern browsers, good DX. Default.
-- localStorage: ~5MB, sync API, simpler. Fallback for low-end / older environments.
-- File System Access API: 2026-era; could enable larger persistent caches but compatibility is still uneven.
-- OPFS (Origin Private File System): browser-tab-private fs sandbox; relevant when caches grow past IndexedDB quota.
-- Decision: ship IndexedDB primary + localStorage fallback. Operator-configurable via `site.yaml admin.offline`.
+### `navigator.storage.persist()` opt-in
 
-### Reconnect detection
-- `navigator.onLine` is unreliable (browsers sometimes report online when network is broken).
-- Heartbeat ping to server (every N seconds) more accurate; costs requests when not needed.
-- Decision: hybrid — `navigator.onLine` triggers offline UI immediately; heartbeat confirms / corrects.
+```ts
+admin: {
+  offline: {
+    enabled: true,
+    requestPersistence: true,  // calls navigator.storage.persist() at boot
+  },
+}
+```
 
-### Conflict resolution on reconnect
-- Server returns 409 VALIDATION_FAILED for content-validation conflicts (already handled by Cut 1 banner).
-- New: 409 STALE for "another author saved this manifest while you were offline; your save would overwrite."
-- Two strategies:
-  - **Force-save with banner** — author chose to come back online; show what changed; operator confirms overwrite or discards local
-  - **Three-way merge** — automatic for non-conflicting fields; manual for collisions
-- Decision deferred to design pass; v1 likely starts with force-save banner, three-way merge in v2 if demand surfaces.
+User browser may grant or deny persistence based on heuristics (bookmarked, frequently used). Granting promotes IndexedDB from "best-effort" (can be cleared by browser under storage pressure) to "won't be cleared without user action." UX-positive — reduces accidental data loss.
 
-### Cache freshness UI
-- Staleness indicator format: "synced X minutes ago" vs. "offline since X" vs. silent
-- Different signals for cached read (mostly-fresh) vs. queued write (definitely-pending)
-- Per-page staleness vs. global "offline mode" indicator
+### npm stack
 
-### Audit log shape for offline replays
-- Single revision per replayed save? Or batch of replays as one revision? Batch is more efficient but loses ordering.
-- Original-attempt timestamp recorded as field on revision; replayed-at timestamp as separate field.
-- Per `design-audit.md`'s audit log shape — refined when that design pass formalizes.
+The recommended dependencies for implementation:
 
-### Composition with each foundational dimension
-- **Scale**: cache size budget at 5000 pages. IndexedDB quota at 50MB / page summary 150 bytes = 333K cacheable summaries — generous headroom.
-- **Themes**: cache key includes active theme; theme switch invalidates per-theme entries.
-- **Locale**: cache key includes active locale; same pattern.
-- **RBAC**: cache scoped to role principal; role change invalidates.
-- **Hooks**: hook firings during offline queue with the save; replayed on reconnect.
-- **Render**: preview during offline serves last-cached HTML; iframe shows staleness banner.
-- **Validation**: save-delta validation runs locally during offline (validators are pure functions); errors surface in banner. Background scanner pauses; reconnect resumes.
-- **Plugin**: plugins inherit offline behavior of their host surface; plugin-supplied storage providers must be offline-aware OR documented as online-only.
-- **Cache**: extends taxonomy with `IndexedDBCache` + `LocalStorageCache` browser-side providers.
+| Concern | Library | Role |
+|---|---|---|
+| **IndexedDB wrapper** | `idb` (^8.0.0) by Jake Archibald | Implements `IndexedDBCache` provider; ~2KB; promise-based; industry-standard |
+| **Query/mutation cache + offline queue** | `@tanstack/vue-query` | Manages client-side query state + offline mutation queue + optimistic updates |
+| **Cross-tab sync** | Native `BroadcastChannel` | No library; just the API |
+| **Connection detection** | `@tanstack/vue-query` built-in + `navigator.onLine` | No additional library; Vue Query already handles this |
+| **Persistence to L6** | `@tanstack/query-async-storage-persister` + custom `idb` adapter | Bridges Vue Query cache to `IndexedDBCache` |
+
+**Why Vue Query**: Gazetta admin is Vue 3 + Pinia. Vue Query (`@tanstack/vue-query`) provides mature primitives for offline UX:
+- Query/mutation cache with rehydration
+- Optimistic updates (`useMutation({ onMutate, onError, onSettled })`)
+- Offline mutation queue with replay
+- Online/offline detection with extension points
+- ~13K stars; ~1M weekly downloads
+
+**Why two complementary cache layers** (Vue Query + L6 IndexedDBCache):
+- **Vue Query**: client-side query state lifecycle (loading/error/data; mutations)
+- **L6 `IndexedDBCache`**: persistent storage of last-known data
+- Vue Query rehydrates from L6 at boot via `persistQueryClient` plugin
+
+**Rejected v1 dependencies**:
+- **Service Worker / Workbox** — reserved for v2 PWA installation per Future directions; v1 admin works in regular tab without service worker
+- **Yjs / Automerge / Loro** (CRDTs) — concurrent editing is Tier 3; v1 conflict resolution is force-save with banner (Q3)
+- **localForage** — older library; doesn't add value over `idb` for our use case
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Vue 3 Admin App (Pinia + PrimeVue)                          │
+│                                                             │
+│   useQuery → useMutation (Vue Query)                        │
+│   ├── In-memory query cache (QueryClient)                   │
+│   ├── In-memory mutation queue (MutationCache)              │
+│   └── persistQueryClient → IndexedDBPersister               │
+│                          │                                  │
+│                          ▼                                  │
+│   L6: IndexedDBCache (implements AdminCache, uses idb)      │
+│                          │                                  │
+│                  BroadcastChannel ◄── cross-tab sync        │
+│                          │                                  │
+│                          ▼                                  │
+│   Server (L4): AdminCache instance                          │
+│                          │                                  │
+│              SSE invalidation ◄── L4 → L6 cascade           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Server-side AdminCache and client-side AdminCache share the interface but operate independently.** The server caches for hot-path reads; the client caches for offline tolerance. They're coordinated via SSE invalidation events — when the server invalidates `pages:`, it broadcasts to connected clients to invalidate their browser caches (per `design-cache.md`'s offline composition section).
+
+### Service worker for app-shell caching (v1)
+
+**Service worker ships in v1, scoped to app-shell caching only.** Solves "open admin offline → blank screen" definitively.
+
+**What v1 SW does**:
+- Precaches admin SPA bundle (HTML/JS/CSS) via `vite-plugin-pwa`
+- Cold-load admin offline → SW serves cached shell → IndexedDBCache hydrates state → admin renders
+- Update flow: `skipWaiting` + `clientsClaim` with toast notification ("New version available — refresh to update")
+
+**What v1 SW does NOT do**:
+- **Background sync** (`BackgroundSyncPlugin`) — deferred to v2. Replay-with-tab-closed is low marginal value for CMS work. Authors reopen admin to check sync status; replay-on-next-open is acceptable UX.
+- **PWA install prompt** (`manifest.json` install) — deferred to v2 as operator opt-in feature
+- **Push notifications** — deferred; will compose with collaboration design pass
+
+**Dependency**: `vite-plugin-pwa` (^0.20.x). Built on Workbox; declarative configuration; well-maintained.
+
+**Why service worker in v1**: cold-load reliability. Without SW, browser HTTP cache may have evicted the SPA bundle by the time the user opens admin offline; "site can't be reached" failure mode. With SW, SPA bundle is intentionally cached and survives. Aligns with PWA-style responsiveness principle from `design-cache.md`.
+
+**Update detection UX** (handled by vite-plugin-pwa):
+- New SW version detected → toast "New admin version available"
+- Author clicks "Refresh" → smooth reload with new version
+- Skipping toast → next page navigation activates new version
+
+**HTTPS requirement**: service workers require HTTPS in production. Localhost development works on HTTP. Already a Gazetta requirement for auth cookies; no new constraint.
+
+## Connection detection (Q2 locked)
+
+Hybrid: `navigator.onLine` for instant UI signal + heartbeat to confirm/correct.
+
+**Why hybrid**: `navigator.onLine` is unreliable (browsers sometimes report online when network is broken; or report offline when network is fine). Pure heartbeat is accurate but lagged + costly. Hybrid uses each for what it's best at.
+
+**Heartbeat cadence** — on-demand, not constant:
+
+| State | Heartbeat behavior |
+|---|---|
+| `online` (recent successful request) | No heartbeat; quiet |
+| `degraded` (`navigator.onLine` false OR failed request) | Heartbeat every 5s |
+| `offline` (heartbeat failed N times) | Backoff to every 30s |
+| `reconnecting` (heartbeat succeeded after offline) | Trigger queue replay; transition to `online` |
+
+**Endpoint**: `GET /api/health` returning `{ ok: true, timestamp }`. Lightweight (no DB query, no auth check); public; cacheable at edge for `dynamic` targets with worker.
+
+**Connection state model**: five states surfaced via Pinia store `useConnectionState`:
+
+| State | UI |
+|---|---|
+| `online` | No banner; normal UI |
+| `degraded` | Subtle indicator ("Connection unstable"); appears after 1 failure; clears on success |
+| `offline` | Persistent banner ("Offline — your edits are queued") with status pulse |
+| `reconnecting` | Banner ("Syncing your edits...") with progress; clears when queue empty |
+
+**Vue Query integration**:
+
+```ts
+import { onlineManager } from '@tanstack/vue-query'
+
+connectionState.$subscribe((mutation, state) => {
+  onlineManager.setOnline(state.status === 'online' || state.status === 'reconnecting')
+})
+```
+
+When Vue Query is "offline," queries pause (don't refetch); mutations queue; on `setOnline(true)`, mutations replay automatically.
+
+**No "work offline" toggle** for users. Authors don't want to "go offline"; offline is what happens TO them. Browser DevTools is the override for developers testing offline behavior.
+
+**Cold-start offline**: SW serves cached admin shell → IndexedDBCache hydrates state → render UI populated → connection state immediately `offline` with banner → pending edits work; queue accumulates → on reconnect, replay invisible. No "waiting for connection" screen.
+
+## Conflict resolution (Q3 locked)
+
+**v1: force-save with diff banner.** Three-way merge reserved for v2.
+
+### The conflict scenario
+
+1. Author A starts editing page X at T0 (server version hash = X1)
+2. Author A goes offline at T1 (still editing)
+3. Author B online edits + saves page X at T2 (T0 < T1 < T2; new server hash A1)
+4. Author A reconnects at T3 with pending save (its `If-Match` is X1)
+5. Server's current is A1; A's save is stale
+
+### Detection mechanism
+
+- Reads return `etag: <content-hash>` header (existing `.{8hex}.hash` per `sidecars.md`)
+- Client stores the etag with the cached state
+- Saves include `If-Match: <hash>` header
+- Server compares incoming `If-Match` to current hash; on mismatch, returns `409 STALE`:
+
+```ts
+{
+  code: 'STALE',
+  currentVersion: { /* manifest */ },
+  currentVersionAuthor: { id, email, role },
+  currentVersionAt: '2026-05-04T...'
+}
+```
+
+### UX: surface conflict, no force-overwrite
+
+When client receives `409 STALE`, surfaces a banner with two actions:
+
+| Action | Behavior |
+|---|---|
+| **"Show what changed"** | Opens diff view: server's current vs. author's pending; field-by-field semantic diff |
+| **"Discard my changes"** | Drops pending save; reloads server's current version |
+
+**No "Save anyway (overwrite)" button.** Authors who genuinely want to overwrite specific changes manually port their edits onto the new version (load the diff, decide what to keep, save the merged result as a fresh edit).
+
+This matches Linear / Notion / Figma — no force-overwrite button. Author chooses to layer their changes onto the new state, not silently overwrite. Removes a footgun (accidental overwrites of colleague's work) and simplifies the conflict UX.
+
+### Diff view
+
+**Field-by-field semantic diff** (v1):
+- "Title: 'Welcome' → 'Hello' (yours) vs. 'Greetings' (theirs: bob@example.com, 5 min ago)"
+- Maps manifest fields to human-readable labels
+- Highlights conflicting fields (both you and they changed) vs. clean overlays (only one of you changed)
+
+**JSON diff** (rejected for v1): too technical for authors.
+**Visual diff (side-by-side rendered preview)** (rejected for v1): heavy implementation; v2 if demand surfaces.
+
+### Multi-write replay
+
+Author saves 5 times offline then reconnects:
+
+```
+T0: page hash X1
+T1 offline: save A1 (If-Match: X1) → queue
+T2 offline: save A2 (If-Match: A1's projected hash) → queue
+T3 reconnect: replay A1 → succeeds; new server hash A1
+T4: replay A2 → If-Match matches projected → succeeds
+```
+
+**Client tracks pending edit sequence with chained hash projections.** Each pending edit's `If-Match` is the previous edit's projected resulting hash. Server applies in order.
+
+If A1 conflicts (because B saved between A's start and reconnect):
+- Conflict UI surfaces ONCE at A1
+- A2-A5 paused until A resolves A1
+- After A resolves A1 (overwrite OR discard), A2-A5 replay against the new sequence (may surface their own conflicts in turn)
+
+### Publish event conflicts
+
+Same pattern: publish events also include `If-Match: <target-state-hash>`; server returns `409 STALE` on mismatch with publish-target-specific metadata. UX banner adapts: "another author published this target while you were offline."
+
+### v2: three-way merge
+
+Reserved when concurrent editing demand materializes (Tier 3 strategic bet — OT/CRDT). Three-way merge for structured content (manifest JSON) is solvable but complex:
+- Text-field merge (article body, descriptions): well-understood via OT/CRDT
+- Structural-change merge (component reordering): semantics unclear in conflict cases
+- Implementation cost high; debugging cost higher
+- v1 doesn't need it; v2 may
+
+## Cache freshness UI (Q4 locked)
+
+Three layers of staleness UI:
+
+### Global banner (locked in Q2)
+
+Connection state via `useConnectionState` Pinia store drives global banner:
+
+| State | Banner |
+|---|---|
+| `online` | Hidden |
+| `degraded` | Subtle "Connection unstable" |
+| `offline` | Persistent "Offline — your edits are queued" |
+| `reconnecting` | "Syncing N edits..." with progress |
+
+### Per-item "last synced" timestamp
+
+In editor metadata panel, small neutral text:
+
+- **Online + recent**: hidden (don't clutter when fresh)
+- **Offline OR last sync > 5 min ago**: "Last synced X min ago"
+- **Offline + viewing cached content from previous session**: "Last synced X hours ago"
+
+Threshold (5 min) tunable; goal is to surface staleness only when meaningful.
+
+### Save button state
+
+Per `design-editor-ux.md`'s pending-edits dirty-dot pattern, extended for offline. Save button is always "Save" — UI doesn't gate on connection state.
+
+| State | Save button |
+|---|---|
+| Clean (no pending) | Disabled |
+| Pending edits | Enabled "Save" |
+| Save in flight (online) | Disabled with spinner |
+| Save queued (offline) | Disabled with "Queued" indicator |
+
+Save semantics:
+- User clicks "Save" → save attempted
+- If online: succeeds immediately → button returns to disabled clean state
+- If offline: save enters queue → button shows "Queued" → on reconnect, replay attempts; succeeds or surfaces conflict (Q3)
+
+**Author isn't forced to save.** Author can navigate to other pages with unsaved pending edits on this page; each page's pending state is independent. Saving is an explicit action per item, on the author's schedule.
+
+The "Pending edits across pages" indicator surfaces in the global UI:
+- Site tree: dirty-dot on items with pending edits
+- Top bar: "N items with pending edits" indicator (clickable → list view)
+- Allows author to bulk-save all pending OR navigate to specific items to review before saving
+
+### Replay progress UI
+
+When reconnecting with a queue:
+
+| Queue state | UI |
+|---|---|
+| Replay starts | Banner: "Syncing N edits..." |
+| Replay progresses | Banner updates: "Syncing M of N edits..." |
+| All succeed | Banner clears; toast: "N edits synced" (auto-dismiss 3s) |
+| Some conflicts | Banner: "M of N edits had conflicts. Review them →" |
+
+### Conflict banner (per-page, distinct from global offline banner)
+
+When 409 STALE surfaces (per Q3), conflict banner appears at top of affected page editor:
+- Visual distinction: red/warning vs. blue/info global banner
+- Coexists with offline banner (global + per-page conflict)
+- Three actions per Q3 lock: Show diff / Save anyway / Discard
+
+### Asset upload pending badges
+
+Author drops files while offline:
+- Files queued with "pending sync" badge
+- Asset library shows pending state (different visual)
+- Reconnect triggers upload replay; badges clear as uploads complete
+
+### Rejected v1 UX
+
+- **Per-item visual freshness icons** (green/yellow/red dots): over-engineered; global state is enough; adds noise to every item view
+- **JSON diff in conflict view**: too technical for authors (per Q3 lock)
+- **Visual side-by-side preview diff**: heavy implementation; v2 if demand surfaces
+
+## Audit log shape for offline replays (Q5 locked)
+
+Per `design-audit.md`'s Foundational checks: replayed events record `metadata.replayed: true` + original-attempt timestamp; actor captured at queue time, not replay time.
+
+**Granularity**: single audit event per replayed save (NOT batch). Preserves chronology — operators see each edit as a discrete event with its own queued-at and replayed-at timestamps. Matches multi-write replay model (Q3 lock).
+
+**Replay metadata fields** on every replayed save event:
+
+```ts
+{
+  action: 'save' | 'publish' | 'delete' | ...,
+  outcome: 'success' | 'failed-render' | 'forbidden' | 'validation-failed',
+  actor: { /* captured at queue time, not replay time */ },
+  scope: { /* item being saved */ },
+  // Replay metadata
+  metadata: {
+    replayed: true,
+    queuedAt: '2026-05-04T14:23:05.123Z',       // browser-local time at queue time
+    replayedAt: '2026-05-04T14:30:00.456Z',     // server-side replay time (= event timestamp)
+    requestId: 'replay-...',
+    // For failed replays:
+    failureReason?: 'stale' | 'forbidden' | 'validation-failed',
+    // For STALE conflicts:
+    conflictWith?: { actor: { id, email }, at: '2026-05-04T14:25:00Z' },
+  }
+}
+```
+
+**Failed replay audit**: full failure context + replay metadata. STALE conflicts additionally record `conflictWith` (the in-the-meantime save's actor + timestamp) — operators can reconstruct the sequence.
+
+**`queuedAt` source**: browser-local time at queue time. Captures author's intent ("I tried to save at this moment"). Clock drift is acceptable for forensic context — most users have NTP-synced clocks; small drift bounded.
+
+**Cancelled-before-replay edits**: NOT audited. Edit removed from L6 queue; no server roundtrip; audit captures only events that reached the server. v1 doesn't audit client-side cancellations; deferred to v2 if regulated-context demand surfaces.
+
+**Conflict resolution actions** (Show diff / Discard from Q3 banner): "Discard" produces no audit event (no server roundtrip). Manual re-edit after viewing diff produces a new save event with `outcome: 'success'` against the current state — normal save audit; no special "merged" event type needed.
+
+## Always-on (Q6 locked)
+
+**Offline UX is structural, not configurable.** No opt-out. Cache + queue + sync IS the admin; not a feature on top.
+
+### Why always-on
+
+- Simpler implementation: no conditional code paths for "offline disabled"
+- Aligns with modern collaborative tools (Linear, Notion, Figma, Sanity) — none expose an "offline disable" toggle
+- Operators can't accidentally degrade UX for their authors
+- Eliminates a category of operator config decisions
+
+### Optional config
+
+```ts
+admin: {
+  offline: {
+    requestPersistence: false,        // opt-in for navigator.storage.persist()
+  },
+}
+```
+
+The only config knob is `requestPersistence` (calls `navigator.storage.persist()` to upgrade IndexedDB from "best-effort" to "won't be cleared without user action"). Default off because granting depends on browser heuristics; operator opts in when they want to request it.
+
+### What happens when IndexedDB is unavailable
+
+Per Q1: `MemoryCache` fallback with banner — "Offline persistence unavailable in private browsing — your edits will be lost on reload." Honest degradation. Vue Query still operates in-memory; admin remains functional.
+
+This isn't an "opt-out" path — it's a graceful degradation when the browser environment doesn't support persistence.
+
+### Bundle cost
+
+| Dependency | Size |
+|---|---|
+| `idb` | ~2KB |
+| `@tanstack/vue-query` | ~30KB |
+| `vite-plugin-pwa`-generated service worker (Workbox runtime) | ~50KB |
+| **Total offline UX overhead** | ~80-100KB minified |
+
+Acceptable for admin SPA at typical scale (PrimeVue + Vue 3 base is ~200KB+; the offline addition is ~40-50% of base).
+
+### Migration
+
+Existing sites: offline UX activates on upgrade. Authors observe positive behavior change ("my work didn't disappear when I closed the laptop"). Operators didn't need to opt in.
+
+### Positive surprise design
+
+Authors discovering offline UX via use:
+- First-time offline (Wi-Fi blip during edit) — banner appears, edits queue, reconnect syncs invisibly. Author thinks "oh nice, it just worked."
+- First-time browser-reopen with pending edits — admin loads with their work intact. Author thinks "I didn't lose anything."
+
+No tutorials needed; the feature reveals itself naturally during normal use.
+
+## Foundational checks
+
+How offline composes with each of the other 12 foundational dimensions plus the multi-instance discipline.
+
+### Multi-instance discipline
+- Browser-side cache is per-browser-tab (IndexedDB scoped to origin + browser session). Two tabs on the same browser share IndexedDB; two browsers don't. No cross-instance coordination needed at the browser layer.
+- Reconnect-replay queue is per-browser. Two browsers each replay their own queue independently — server's `If-Match` chain catches stale replays per Q3.
+- Server-side: offline features don't require server changes beyond the existing SSE infrastructure (already per-instance) which broadcasts cache invalidations to connected clients.
+- Cross-tab same-browser sync via native `BroadcastChannel`; no cross-instance coordination required.
+- Per-site key prefix in IndexedDB matches `design-cache.md` Gap 3 lock — multi-site projects share IndexedDB without collision.
+
+### Scale (#1)
+- Cache size budget at envelope (~5000 pages × 150 bytes/summary = ~750KB) is well under IndexedDB quota (50MB+).
+- LRU eviction in `IndexedDBCache` matches `design-cache.md` Gap 1 lock when cap is reached.
+- Replay queue size: typical offline session has 1-10 pending edits; queue stays small.
+- Long offline sessions (hours/days) accumulate larger queues but stay bounded by IndexedDB quota.
+
+### Locale (#2) + Themes (#3)
+- L6 cache keys include locale + theme dimensions per `design-cache.md` Q1 lock.
+- Theme switch invalidates per-theme entries via prefix invalidation.
+- Locale switch invalidates per-locale entries.
+
+### Auth + RBAC (#4)
+- Cache scoped to role principal at cache time; switching role / re-auth invalidates the L6 cache.
+- Per `design-auth-rbac.md` Foundational checks: "Browser-side cache scoped to role principal; role switch invalidates."
+- Replayed write events on reconnect record the actor at queue time, not replay time. If actor lost capability while offline, replay fails with `outcome: 'forbidden'` recorded.
+- Trust mode determines auth headers on replay (e.g., Cloudflare Access JWT may have expired during offline; replay fails with `outcome: 'unauthenticated'` → user re-auths → resumes).
+
+### Audit (#5)
+- Replayed events record `metadata.replayed: true` + `queuedAt` + `replayedAt` (per Q5 lock).
+- Single audit event per replayed save (not batch); preserves chronology.
+- Failed replays record full failure context including `failureReason` and (for STALE conflicts) `conflictWith`.
+- Cancelled-before-replay edits not audited (never reached server).
+
+### Review (#6)
+- Pending edits in offline queue can include review-state transitions (submit-for-review, approve, reject).
+- Replay applies the standard state-machine guards: capability check at replay time; conflict on replay if state changed in the meantime.
+- `If-Match` chain works on review-state hashes too (each transition produces a new hash).
+
+### Hooks (#7)
+- Hook firings during offline queue with the save; replayed on reconnect alongside the save.
+- Hook handlers run on the receiving instance during replay (not on the offline browser).
+- Audit `action: 'hook-fired'` events emitted during replay carry `metadata.replayed: true` for forensics.
+
+### Render (#8)
+- Preview during offline serves last-cached rendered HTML from L6 (per `design-rendering.md` Foundational checks: "offline admin previews from last-cached render").
+- Iframe shows staleness banner when serving stale render.
+- Dynamic fragments (per `design-rendering.md`): offline preview can't fetch from origin; staleness fallback applies.
+- Render-for-analysis (validation Cut 3) runs locally during offline (validators are pure functions over manifests + pre-rendered fragments per `design-validation.md` Foundational checks).
+
+### Validation (#9)
+- Save-delta validation runs locally during offline (validators are pure functions over manifests; no server roundtrip required).
+- Errors surface in standard banner; offline-specific staleness banner coexists.
+- Background scanner pauses while offline; resumes on reconnect with incremental rescan.
+
+### Plugin (#10)
+- Plugins inherit offline behavior of their host surface — a plugin-supplied hook composes with offline replay; plugin-supplied storage providers must be offline-aware OR documented as online-only.
+- Plugin-supplied cache providers register via `api.registerCacheProvider(name, factory)` per `design-plugins.md` Q3; browser-side providers (`IndexedDBCache`, future `OPFSCache`) follow the same registration pattern.
+
+### Cache (#11)
+- L4 + L6 share `AdminCache` interface; coordinate independently via SSE invalidation cascade (per `design-cache.md` offline composition section).
+- Cached values must be JSON-serializable (per `design-cache.md` Q3 lock); enforces L6 persistence compatibility.
+- `subscribe()` mechanism: L6 providers subscribe to server SSE events; invalidate browser entries on server-driven cache changes.
+- Browser-side providers extend cache provider taxonomy; same interface, different lifetime / coordination story.
+
+### Collaboration (#13)
+- Comments / mentions / notifications composed during offline: queued as edits; replayed on reconnect.
+- Notification delivery during offline window: server-side notifications (e.g., "Bob mentioned you in a comment") accumulate; visible on next reconnect.
+- Real-time presence / live cursors (Tier 3 future): out of v1; offline-aware presence deferred.
+
+### Site config (`design-config.md`)
+- Per-site `admin.offline` config drives behavior per site
+- Default-on per Q6 lock; explicit opt-out via `admin.offline.enabled: false`
+- Multi-site projects: each site's offline behavior independent
 
 ## Migration
 
