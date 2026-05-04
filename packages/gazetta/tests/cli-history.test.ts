@@ -172,18 +172,41 @@ describe('gazetta history / undo / rollback', { timeout: 60000 }, () => {
   })
 
   it('`undo` on production in CI requires --yes', async () => {
-    // Patch site.yaml: swap azure-blob production for a filesystem
-    // target with environment:production + editable:true (so our save-
-    // seed can land there) to mirror the e2e fixture.
-    const siteYamlPath = resolve(projectDir, 'sites/main/site.yaml')
-    const yaml = await readFile(siteYamlPath, 'utf-8')
-    await writeFile(
-      siteYamlPath,
-      yaml.replace(
-        /production:\s*\n\s*storage:\s*\n\s*type: azure-blob[\s\S]*?container: "[^"]*"\s*\n\s*environment: production/,
-        'production:\n    environment: production\n    editable: true\n    storage:\n      type: filesystem\n      path: ./dist/prod-test',
-      ),
-    )
+    // Patch site.config.ts: swap the azure-blob production block for a
+    // filesystem target with environment:production + editable:true (so
+    // our save-seed can land there) to mirror the e2e fixture.
+    //
+    // Strategy: locate the `production: {` line, then walk forward to its
+    // matching closing brace using a small bracket counter — regex on
+    // nested braces is brittle.
+    const siteConfigPath = resolve(projectDir, 'sites/main/site.config.ts')
+    const ts = await readFile(siteConfigPath, 'utf-8')
+    const startIdx = ts.indexOf('production: {')
+    if (startIdx === -1) {
+      throw new Error('Could not locate `production: {` in starter site.config.ts')
+    }
+    const openIdx = ts.indexOf('{', startIdx)
+    let depth = 1
+    let i = openIdx + 1
+    while (i < ts.length && depth > 0) {
+      const ch = ts[i]
+      if (ch === '{') depth++
+      else if (ch === '}') depth--
+      i++
+    }
+    if (depth !== 0) {
+      throw new Error('Unbalanced braces in starter site.config.ts production block')
+    }
+    // i is one past the closing `}`; consume the trailing `,` if present.
+    let endIdx = i
+    if (ts[endIdx] === ',') endIdx++
+    const replacement =
+      `production: {\n` +
+      `      environment: 'production',\n` +
+      `      editable: true,\n` +
+      `      storage: { type: 'filesystem', path: './dist/prod-test' },\n` +
+      `    },`
+    await writeFile(siteConfigPath, ts.slice(0, startIdx) + replacement + ts.slice(endIdx))
     // Seed history on production directly.
     const gazetta = await import('../src/index.js')
     const prodDir = resolve(projectDir, 'sites/main/dist/prod-test')

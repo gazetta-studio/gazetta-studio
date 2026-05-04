@@ -1,12 +1,11 @@
 /**
  * Shared helper for tests that use the starter site.
- * Reads the project-level site.yaml manifest once —
- * targets don't have their own site.yaml.
+ * Loads the project-level site.config.ts once via the TS config loader —
+ * targets don't have their own config.
  */
 
 import { resolve } from 'node:path'
-import { createFilesystemProvider } from '../../src/providers/filesystem.js'
-import { parseSiteManifest } from '../../src/manifest.js'
+import { loadSiteConfig, siteConfigToManifest } from '../../src/config/loader.js'
 import type { SiteManifest } from '../../src/types.js'
 
 export const starterProjectRoot = resolve(import.meta.dirname, '../../../../examples/starter')
@@ -19,7 +18,8 @@ let cached: SiteManifest | null = null
 /** Load the starter's project-level manifest (cached). */
 export async function starterManifest(): Promise<SiteManifest> {
   if (cached) return cached
-  const storage = createFilesystemProvider(starterSiteDir)
-  cached = await parseSiteManifest(storage, 'site.yaml')
+  const loaded = await loadSiteConfig(starterSiteDir)
+  if (!loaded) throw new Error(`No site.config.ts at ${starterSiteDir}`)
+  cached = siteConfigToManifest(loaded.config)
   return cached
 }

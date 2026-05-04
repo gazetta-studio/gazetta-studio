@@ -28,16 +28,16 @@ Branch: `config-ts-migration` off `main`. **No backwards compatibility** — sin
 
 | # | Cut | Status | Risk | Validates |
 |---|---|---|---|---|
-| 1 | `config/` types + Zod schemas + `defineSite` / `defineGazetta` exports | ☐ | Low | Type contracts |
-| 2 | `config/` loader: walks filesystem; jiti evaluation; Zod validation | ☐ | Medium | Real file loading |
-| 3 | Loader integration tests with fixture configs | ☐ | Low | Loader works against `defineSite()` outputs |
-| 4 | Wire `site-loader.ts` to use new config loader | ☐ | Medium-high | Cutover; existing consumers see same `Site` shape |
-| 5 | Migrate `examples/starter` from YAML to TS config | ☐ | Medium | End-to-end pipeline; dogfood |
+| 1 | `config/` types + Zod schemas + `defineSite` / `defineGazetta` exports | ✓ | Low | Type contracts |
+| 2 | `config/` loader: walks filesystem; jiti evaluation; Zod validation | ✓ | Medium | Real file loading |
+| 3 | Loader integration tests with fixture configs | ✓ | Low | Loader works against `defineSite()` outputs |
+| 4 | Wire `site-loader.ts` to use new config loader | ✓ | Medium-high | Cutover; existing consumers see same `Site` shape |
+| 5 | Migrate `examples/starter` + CLI bootstrap/dispatch (was Cut 5 + Cut 10 — merged) | ✓ | Medium | End-to-end pipeline; dogfood; CLI commands work via TS config |
 | 6 | Sweep design docs (~30 files) — mechanical YAML → TS examples | ☐ | Low | Doc accuracy |
 | 7 | Sweep user-facing docs (`getting-started`, `cloudflare`, `self-hosted`, `migration`) | ☐ | Low | Operator UX |
 | 8 | Remove YAML loader code paths (the actual cutover) | ☐ | Medium | Hard cutover |
 | 9 | Update `gazetta init` scaffolding to produce TS config | ☐ | Low | New-site UX |
-| 10 | Update CLI handlers (`gazetta dev`, `gazetta publish`, etc.) | ☐ | Low | CLI commands work end-to-end |
+| ~~10~~ | ~~Update CLI handlers~~ — folded into Cut 5 (the starter migration cannot be verified without it) | ✓ | — | — |
 
 ## Per-cut scope
 

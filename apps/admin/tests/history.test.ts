@@ -12,7 +12,8 @@ import {
   createFilesystemProvider,
   createSourceContext,
   createHistoryProvider,
-  loadSite,
+  loadSiteConfig,
+  siteConfigToManifest,
   type SourceContext,
   type SiteManifest,
 } from 'gazetta'
@@ -24,9 +25,9 @@ const templatesDir = resolve(import.meta.dirname, '../../../examples/starter/tem
 let _manifest: SiteManifest | null = null
 async function getManifest(): Promise<SiteManifest> {
   if (_manifest) return _manifest
-  const s = createFilesystemProvider()
-  const site = await loadSite({ siteDir: starterSiteDir, storage: s })
-  _manifest = site.manifest
+  const loaded = await loadSiteConfig(starterSiteDir)
+  if (!loaded) throw new Error(`No site.config.ts at ${starterSiteDir}`)
+  _manifest = siteConfigToManifest(loaded.config)
   return _manifest
 }
 

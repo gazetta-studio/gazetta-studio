@@ -651,10 +651,7 @@ describe('SEO publish integration', () => {
         metadata: { robots: 'noindex' },
       }),
     )
-    // Copy site.yaml from starter
-    const { readFile: readF } = await import('node:fs/promises')
-    await writeFile(join(noindexSourceDir, 'site.yaml'), await readF(join(starterDir, '../../site.yaml'), 'utf-8'))
-
+    // No site.yaml needed: loadSite() below receives `manifest` directly.
     const target = createFilesystemProvider(seoTargetDir)
     const { hashManifest } = await import('../src/hash.js')
     const { loadSite } = await import('../src/site-loader.js')

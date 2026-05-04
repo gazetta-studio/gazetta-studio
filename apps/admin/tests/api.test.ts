@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { rm } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import type { Hono } from 'hono'
-import { createFilesystemProvider, createSourceContext, loadSite } from 'gazetta'
+import { createFilesystemProvider, createSourceContext, loadSiteConfig, siteConfigToManifest } from 'gazetta'
 import { createAdminApp } from '../src/server/index.js'
 
 const projectSiteDir = resolve(import.meta.dirname, '../../../examples/starter/sites/main')
@@ -13,9 +13,10 @@ const storage = createFilesystemProvider(contentDir)
 let app: Hono
 
 beforeAll(async () => {
-  // Load project-level manifest so target storage doesn't need site.yaml
-  const projStorage = createFilesystemProvider()
-  const { manifest } = await loadSite({ siteDir: projectSiteDir, storage: projStorage })
+  // Load project-level manifest from the TS config so target storage doesn't need site.yaml.
+  const loaded = await loadSiteConfig(projectSiteDir)
+  if (!loaded) throw new Error(`No site.config.ts at ${projectSiteDir}`)
+  const manifest = siteConfigToManifest(loaded.config)
   const source = createSourceContext({ storage, siteDir: '', projectSiteDir, manifest })
   app = createAdminApp({ source, siteDir: projectSiteDir, templatesDir })
 })

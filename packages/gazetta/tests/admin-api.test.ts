@@ -5,7 +5,7 @@ import type { Hono } from 'hono'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
 import { createAdminApp } from '../src/admin-api/index.js'
 import { createSourceContext } from '../src/admin-api/source-context.js'
-import { parseSiteManifest } from '../src/manifest.js'
+import { loadSiteConfig, siteConfigToManifest } from '../src/config/loader.js'
 import { tempDir } from './_helpers/temp.js'
 
 // Copy the starter into .tmp/ so admin API tests can mutate pages/fragments
@@ -24,10 +24,11 @@ beforeAll(async () => {
     recursive: true,
     filter: src => !src.includes('/dist') && !src.includes('/node_modules') && !src.includes('/.tmp'),
   })
-  // Read the project-level manifest — routes use it instead of reading
-  // from the target's storage (targets don't have site.yaml).
-  const projectStorage = createFilesystemProvider(projectSiteDir)
-  const manifest = await parseSiteManifest(projectStorage, 'site.yaml')
+  // Read the project-level manifest from the TS config — routes use it
+  // instead of reading from the target's storage (targets have no config).
+  const loaded = await loadSiteConfig(projectSiteDir)
+  if (!loaded) throw new Error(`No site.config.ts at ${projectSiteDir}`)
+  const manifest = siteConfigToManifest(loaded.config)
   // Target-rooted source: storage points at targets/local, siteDir is '',
   // projectSiteDir is the actual project site directory.
   const source = createSourceContext({

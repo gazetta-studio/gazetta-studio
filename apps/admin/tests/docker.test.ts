@@ -11,6 +11,8 @@ import {
   createAzureBlobProvider,
   createContentRoot,
   loadSite,
+  loadSiteConfig,
+  siteConfigToManifest,
   type Site,
 } from 'gazetta'
 import { publishItems, resolveDependencies } from 'gazetta'
@@ -26,8 +28,9 @@ const templatesDir = resolve(projectRoot, 'templates')
 let _site: Site | null = null
 async function getStarterSite(): Promise<Site> {
   if (_site) return _site
-  const s = createFilesystemProvider()
-  const { manifest } = await loadSite({ siteDir: starterSiteDir, storage: s })
+  const loaded = await loadSiteConfig(starterSiteDir)
+  if (!loaded) throw new Error(`No site.config.ts at ${starterSiteDir}`)
+  const manifest = siteConfigToManifest(loaded.config)
   _site = await loadSite({ siteDir: starterDir, storage: createFilesystemProvider(), templatesDir, manifest })
   return _site
 }
@@ -123,7 +126,7 @@ describe('Azure Blob publish (Azurite)', () => {
     const sourceRoot = createContentRoot(source, starterDir)
     const allItems = await resolveDependencies(sourceRoot, ['pages/home'])
     const { copiedFiles } = await publishItems(sourceRoot, createContentRoot(blobProvider), allItems)
-    expect(copiedFiles).toBeGreaterThanOrEqual(2) // page.json + site.yaml
+    expect(copiedFiles).toBeGreaterThanOrEqual(1) // at least page.json (site config is TS, not copied raw)
     expect(await blobProvider.exists('pages/home/page.json')).toBe(true)
   })
 
@@ -378,7 +381,7 @@ describe('Filesystem publish', () => {
     expect(allItems).toContain('fragments/header')
 
     const { copiedFiles } = await publishItems(sourceRoot, createContentRoot(target), allItems)
-    expect(copiedFiles).toBeGreaterThanOrEqual(2) // at least page.json + site.yaml
+    expect(copiedFiles).toBeGreaterThanOrEqual(1) // at least page.json (site config is TS, not copied raw)
     expect(await target.exists('pages/home/page.json')).toBe(true)
   })
 
