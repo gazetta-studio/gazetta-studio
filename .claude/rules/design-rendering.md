@@ -10,9 +10,9 @@ paths:
 
 # Rendering modes — design pass pending
 
-Foundational dimension #6 of 8. The full taxonomy of when and where rendering happens: static (pre-rendered), ESI (assembled at edge from pre-rendered fragments), request-time SSR (templates execute per request), island (SSR'd + hydrated in browser). Plus listings / render-time queries.
+Foundational dimension #6 of 10. The full taxonomy of when and where rendering happens: static (pre-rendered), ESI (assembled at edge from pre-rendered fragments), request-time SSR (templates execute per request), island (SSR'd + hydrated in browser). Plus listings / render-time queries.
 
-**Status**: design pass pending — sequenced 6 of 8 (after `design-themes.md`; depends on locale + theme as render-context). See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
+**Status**: design pass pending — sequenced 6 of 10 (after `design-themes.md`; depends on locale + theme as render-context). See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
 
 **Companion docs**:
 - [`feature-design-process.md`](feature-design-process.md) — defines the **Render check** every new feature design must answer

@@ -9,9 +9,9 @@ paths:
 
 # Themes — design pass pending
 
-Foundational dimension #3 of 8. Extends the asset-side theme dimension to pages/fragments/templates as a first-class render-context dimension.
+Foundational dimension #3 of 10. Extends the asset-side theme dimension to pages/fragments/templates as a first-class render-context dimension.
 
-**Status**: design pass pending — sequenced 4 of 8 (after `design-i18n.md`). See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
+**Status**: design pass pending — sequenced 4 of 10 (after `design-i18n.md`). See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
 
 **Companion docs**:
 - [`feature-design-process.md`](feature-design-process.md) — defines the **Theme check** every new feature design must answer

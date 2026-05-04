@@ -51,7 +51,7 @@ Closes part of the deploy-adapters cluster:
 
 ### Foundational design passes
 
-Nine cross-cutting dimensions that every feature design must respect (see [`feature-design-process.md`](.claude/rules/feature-design-process.md) "Foundational dimensions"). Each is a separate design pass that lands a `design-{name}.md` and adds a check to every new feature design. Implementation phases sit in Tier 3 unless otherwise noted.
+Ten cross-cutting dimensions that every feature design must respect (see [`feature-design-process.md`](.claude/rules/feature-design-process.md) "Foundational dimensions"). Each is a separate design pass that lands a `design-{name}.md` and adds a check to every new feature design. Implementation phases sit in Tier 3 unless otherwise noted.
 
 Sequence (per dependency order):
 
@@ -70,6 +70,8 @@ Sequence (per dependency order):
 7. **`design-plugins.md`** (1-2 weeks) — unifying plugin contract: discovery, loading, lifecycle, composition. Existing 10 extension surfaces (storage, templates, editors, fields, transforms, deploy adapters, AI providers, hooks, validators, cache providers) follow the contract.
 
 8. **`design-cache.md`** (1 week) — pluggable caching layer with multiple provider implementations. Ships `MemoryCache` (per-instance, v1 default) + reserved providers for v2 (Redis, Azure storage, file-based, distributed). Same extension-surface pattern as storage providers. Multi-instance discipline: per-instance providers are correct via independence; shared providers via the provider's own coordination.
+
+9. **`design-offline.md`** (1-2 weeks) — admin works through transient connectivity loss. Read paths serve from a browser-side persistent cache (extends cache taxonomy with `IndexedDBCache` + `LocalStorageCache`); write paths queue + replay on reconnect; conflict resolution on stale write. Pending edits persist across browser reload. Composes with cache (extends taxonomy), RBAC (role-aware cache scope), audit log (replay events recorded), real-time event-source (cache invalidation broadcasts).
 
 ### Validation Cut 2 + 3 (8 days)
 - Cut 2: background scanner + admin UI surfaces (tree dots, "Site health" drawer) — closes #40 fully

@@ -10,9 +10,9 @@ paths:
 
 # Hooks — design pass pending
 
-Foundational dimension #5 of 8. Extension surface for save/publish/load/render lifecycles. Auto-slugify, auto-tag, validate against external API, enrich content at save time, transform at render time.
+Foundational dimension #5 of 10. Extension surface for save/publish/load/render lifecycles. Auto-slugify, auto-tag, validate against external API, enrich content at save time, transform at render time.
 
-**Status**: design pass pending — sequenced 7 of 8 (after `design-rbac-audit-review.md` so hooks can carry actor context). See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
+**Status**: design pass pending — sequenced 7 of 10 (after `design-rbac-audit-review.md` so hooks can carry actor context). See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
 
 **Companion docs**:
 - [`feature-design-process.md`](feature-design-process.md) — defines the **Hook check** every new primitive design must answer

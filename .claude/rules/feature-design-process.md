@@ -44,7 +44,7 @@ Capture what we're building, why, and the model.
 - **Companion docs** — link to implementation + reference + ADRs
 - **Design model / architecture** — the actual structure
 - **Distinctive choices** — what we picked vs. what we rejected, with reasons. Future-you re-litigates without these.
-- **Foundational checks** — answer each of the 9 dimension gates (Scale / Theme / Locale / Team / Hook / Render / Validation / Plugin / Cache) AND the **Multi-instance check** (see "Foundational dimensions" + "Non-foundational disciplines" below)
+- **Foundational checks** — answer each of the 10 dimension gates (Scale / Theme / Locale / Team / Hook / Render / Validation / Plugin / Cache / Offline) AND the **Multi-instance check** (see "Foundational dimensions" + "Non-foundational disciplines" below)
 - **Migration** — for existing sites if applicable
 - **Open questions** — known unresolved items
 - **Future directions** — placed at the end. Lists deferred capabilities, v1.5/v2 bets, and frontier ideas that aren't committed work. Above-the-section content is the current shipped/being-built model; below-the-section content is preserved thinking, not a promise. As versions ship, items rotate up into committed scope.
@@ -137,7 +137,7 @@ Most decisions don't pass this bar. The design doc carries the rationale; ADRs a
 
 ## Foundational dimensions
 
-Nine cross-cutting concerns that every feature design must respect. Each has its own design pass (some shipped, some pending) and corresponds to a check in the "Foundational checks" section of every new `design-{feature}.md`.
+Ten cross-cutting concerns that every feature design must respect. Each has its own design pass (some shipped, some pending) and corresponds to a check in the "Foundational checks" section of every new `design-{feature}.md`.
 
 The dimensions are foundational because designing a feature without respecting them is structurally expensive to retrofit later — same principle as locale, themes, validation. These are the "must be right from the beginning" concerns.
 
@@ -152,11 +152,12 @@ The dimensions are foundational because designing a feature without respecting t
 | Validation | `design-validation.md` | **Validation check** | Does this feature need a Validator? When does it run (save-delta / background / pre-publish / cli)? What severity? |
 | Plugin / extensibility | `design-plugins.md` | **Plugin check** | Does this surface follow the plugin lifecycle (discovery, loading, composition)? If not an extension surface, N/A |
 | Cache | `design-cache.md` | **Cache check** | Does this feature read or write cached data? Through `AdminCache` (the abstraction)? What invalidation triggers? Per-instance memory cache OK or shared provider needed? |
+| Offline | `design-offline.md` | **Offline check** | Does this feature work when admin is offline? Read paths degrade to cache; write paths queue and replay; conflict resolution on reconnect. If feature is online-only, document the limitation. |
 
 **Status of design passes (sequenced, per current ROADMAP Tier 2):**
 
 1. Validation Cut 1 (in flight; locks Validator/Issue contract)
-2. `design-scale.md` (pending — gates every UI/API design)
+2. `design-scale.md` (complete 2026-05; closes #88 + #196)
 3. `design-i18n.md` (migrated from `i18n-plan.md` 2026-05; design/implementation split lands with #192)
 4. `design-themes.md` (pending — small, additive on i18n)
 5. `design-rbac-audit-review.md` (pending — unblocks hooks, presence)
@@ -164,6 +165,7 @@ The dimensions are foundational because designing a feature without respecting t
 7. `design-hooks.md` (pending — depends on RBAC)
 8. `design-plugins.md` (pending — depends on hooks)
 9. `design-cache.md` (pending — `MemoryCache` ships first; provider implementations slot in via the same interface as scale/admin demands materialize)
+10. `design-offline.md` (pending — depends on cache + RBAC + render; extends cache taxonomy with browser-side persistent providers)
 
 A feature design started before its required dimension's design pass has shipped MUST document the assumption it's making about the pending dimension's contract — flagged as a retrofit risk. The "Foundational checks" section captures these.
 

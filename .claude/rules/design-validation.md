@@ -275,7 +275,7 @@ Per-target `publishAudit` config controls whether quality warns block publish. S
 
 ## Foundational checks
 
-Validation is itself foundational dimension #7. This section answers how each of the other 8 foundational dimensions and the multi-instance discipline compose with the validation system, per [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
+Validation is itself foundational dimension #7 of 10. This section answers how each of the other 9 foundational dimensions and the multi-instance discipline compose with the validation system, per [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
 
 - **Multi-instance check** (discipline) — save-delta runs on the instance receiving the save request; no cross-instance coordination. Background scanner (Cut 2) per-page cache is per-admin-instance (each instance scans + caches independently); the multi-instance pattern is "every instance reads source-of-truth from storage on demand, caches results in-process, no cross-instance cache sharing." Per-page content-hash cache key ensures different instances arrive at the same cached result without coordination. Suppression state (when shipped) lives in storage, not in-memory.
 
@@ -294,6 +294,8 @@ Validation is itself foundational dimension #7. This section answers how each of
 - **Plugin check** — validators are an extension surface. The `Validator` interface is the contract; the registry (`packages/gazetta/src/validation/registry.ts`) is the discovery mechanism. Cut 1 ships 5 in-tree validators registered via `defaultValidatorRegistry()`. Future plugin contract per [`design-plugins.md`](design-plugins.md) extends the registry with npm-packaged validators — same interface, additional discovery path. The registry pattern is foundational specifically so Cut 2+ and plugin-contributed validators slot in without changing orchestrator code.
 
 - **Cache check** — Cut 1 (save-delta) is uncached: each save runs validators against the incoming manifest fresh. Cut 2 (background scanner) caches per-page validation results by content hash; cache key includes content + dependency hashes per `design-cache.md`. Cut 3 render-for-analysis caches rendered HTML by content + template + transitive-dependency hash. All caching goes through `AdminCache` once the design pass formalizes the abstraction; v1 cuts use per-instance memory cache via `MemoryCache` provider.
+
+- **Offline check** — save-delta validation runs locally during offline (validators are pure functions over a manifest; no server roundtrip required). Issues surface in the standard banner. Background scanner (Cut 2) pauses while offline; resumes on reconnect with incremental rescan. Render-for-analysis (Cut 3) serves last-cached output; staleness indicator visible in surfaced issues. Per `design-offline.md`.
 
 ## Migration
 

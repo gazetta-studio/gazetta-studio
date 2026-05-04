@@ -9,9 +9,9 @@ paths:
 
 # RBAC + audit log + review workflows — design pass pending
 
-Foundational dimension #4 of 8. Joint design across role-based access control, audit logging, and review workflow state. The team-CMS feature set.
+Foundational dimension #4 of 10. Joint design across role-based access control, audit logging, and review workflow state. The team-CMS feature set.
 
-**Status**: design pass pending — sequenced 5 of 8 (after `design-themes.md`). See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
+**Status**: design pass pending — sequenced 5 of 10 (after `design-themes.md`). See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
 
 **Companion docs**:
 - [`feature-design-process.md`](feature-design-process.md) — defines the **Team check** every new feature design must answer
