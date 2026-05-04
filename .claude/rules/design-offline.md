@@ -366,28 +366,139 @@ In editor metadata panel, small neutral text:
 
 Threshold (5 min) tunable; goal is to surface staleness only when meaningful.
 
+### Sync-state visibility (locked principle)
+
+Authors must always know where their work stands relative to the server. **Five distinct states** surfaced via UI:
+
+| State | Meaning |
+|---|---|
+| **Pending** | Edits in progress; not yet committed |
+| **In-flight** | Save being transmitted to server right now |
+| **Synced** | Server has acknowledged; durable |
+| **Queued** | Author committed; sitting in browser queue waiting for connection |
+| **Failed** | Send attempt failed (conflict, validation, transport error) |
+
+Distinguishing "queued" from "synced" is non-negotiable — author can't trust the system if "save" is opaque.
+
 ### Save button state
 
-Per `design-editor-ux.md`'s pending-edits dirty-dot pattern, extended for offline. Save button is always "Save" — UI doesn't gate on connection state.
+Per `design-editor-ux.md`'s pending-edits dirty-dot pattern, extended for offline visibility. Save button is always "Save" — UI doesn't gate the affordance on connection state, but visibly distinguishes queued vs synced.
 
-| State | Save button |
-|---|---|
-| Clean (no pending) | Disabled |
-| Pending edits | Enabled "Save" |
-| Save in flight (online) | Disabled with spinner |
-| Save queued (offline) | Disabled with "Queued" indicator |
+| State | Save button | Item indicator | Global indicator |
+|---|---|---|---|
+| Clean (synced) | Disabled | Clean | Online (silent) |
+| Pending | Enabled "Save" | Dirty dot | Online (silent) |
+| In-flight (online) | Disabled, spinner | Spinner | Online (silent) |
+| Synced after save | Disabled | Briefly "Saved ✓" → fades to clean | Online (silent) |
+| Queued (offline at save click) | Disabled, "Queued" badge | "Queued for sync" | "Offline — N items queued" |
+| Replaying (reconnecting) | Disabled, spinner | "Syncing..." | "Syncing N items..." |
+| Failed (replay conflict / error) | Re-enabled | Error indicator | Banner with details |
 
-Save semantics:
+### Per-item sync metadata
+
+Editor metadata panel surfaces precise sync state:
+
+- **Online + recent**: "Last synced: 2 minutes ago" (small, neutral)
+- **Synced: never**: "Created offline — not yet synced" (warning)
+- **Queued**: "Queued: waiting to sync" (warning)
+- **Failed**: "Sync failed: conflict — resolve to continue" (error)
+
+Hover any sync indicator for precise timestamp tooltip ("Queued at 10:23" vs "Synced at 10:25").
+
+### Global queue summary
+
+When items are in queue, top-bar indicator shows:
+- **"N items waiting to sync"** — clickable; opens queue panel
+- Queue panel lists: item name, queued-at timestamp, status (waiting / replaying / failed)
+
+Author has a panopticon view of "what's pending delivery."
+
+### Late conflict surfaces
+
+If author committed offline at 10am, reconnects at 2pm, save replays and conflicts:
+- **Notification surfaces immediately**: "Sync failed for 'Home page' — colleague edited it while you were offline. Review →"
+- Item's editor shows conflict banner if author opens it (per Q3 lock)
+- Conflict NOT silently dropped or buried in queue list
+
+**Author isn't forced to save.** Author can navigate to other pages with unsaved pending edits on this page; each page's pending state is independent. Saving is an explicit action per item, on the author's schedule. Sync state remains visible for items in queue regardless of which page is open.
+
+The "Pending edits across pages" indicator coexists with sync indicators:
+- Site tree: dirty-dot on items with pending edits; separate "queued" indicator on items waiting to sync
+- Top bar: "N items with pending edits" + "M items waiting to sync" — distinct counts
+- Both clickable → respective list views
+
+### Save semantics with sync visibility
+
 - User clicks "Save" → save attempted
-- If online: succeeds immediately → button returns to disabled clean state
-- If offline: save enters queue → button shows "Queued" → on reconnect, replay attempts; succeeds or surfaces conflict (Q3)
+- **If online**: in-flight → server responds → either synced (success state, brief "✓") or failed (banner)
+- **If offline**: save enters queue → button shows "Queued" → on reconnect, replay attempts; success → synced, conflict → failed surface
 
-**Author isn't forced to save.** Author can navigate to other pages with unsaved pending edits on this page; each page's pending state is independent. Saving is an explicit action per item, on the author's schedule.
+Author always knows whether their commit reached the server.
 
-The "Pending edits across pages" indicator surfaces in the global UI:
-- Site tree: dirty-dot on items with pending edits
-- Top bar: "N items with pending edits" indicator (clickable → list view)
-- Allows author to bulk-save all pending OR navigate to specific items to review before saving
+### Mid-save connection-loss
+
+Edge case: author clicks Save online → save in-flight → connection drops before server responds:
+
+- **Server received but response lost**: client retries with same `If-Match` hash; server-side idempotency returns "already at this hash" success; client transitions to synced
+- **Server didn't receive**: save automatically transitions from in-flight to queued (without author action); replays on reconnect
+
+Either way, the author sees "queued" if the save didn't confirm, "synced" if it did. No silent loss.
+
+### Force-sync affordance
+
+Queue panel includes **"Retry all"** button:
+- Triggers heartbeat probe + replay sequence immediately
+- Useful when heartbeat hasn't yet detected reconnect (e.g., author knows network is back; system is still backing off)
+- Explicit action; not silent magic
+
+Per-item retry: each queue panel row has individual retry button for granular control.
+
+### Numeric progress in sync banner
+
+When replaying queue, banner shows precise count:
+- "Syncing 3 of 15 items..." (numeric)
+- Progress bar visualizing the count
+- On completion: toast "All 15 items synced" OR "13 synced, 2 had conflicts. Review →"
+
+Authors appreciate concrete feedback over abstract "syncing..." — especially after long offline sessions.
+
+### Tab title indicator
+
+When admin tab is in background and sync activity happens, tab title updates:
+- During sync: `(3 syncing) Admin — Gazetta`
+- After completion: returns to `Admin — Gazetta`
+- On failure: `(! 1 failed) Admin — Gazetta`
+
+Author notices via peripheral vision; clicks tab → toast + queue panel show details.
+
+### Storage quota warnings
+
+When IndexedDB cache approaches quota cap (80% of allocated):
+- Subtle banner: "Storage approaching limit — please sync your queued items soon"
+- Queue panel surfaces the warning at the top
+- Operators with very large pending queues get advance notice before eviction
+
+Per `design-cache.md` Gap 1 lock: LRU eviction kicks in when cap is hit. Warning at 80% gives buffer to act.
+
+### First-time-user help
+
+The first time an author sees the offline banner, an inline "?" link surfaces help:
+- Modal/tooltip: "Your work is saved locally. When you reconnect, we'll sync it to the server. You can close this tab — your edits won't be lost."
+- Auto-dismisses after first interaction
+- Reappears if author seems confused (e.g., long pause hovering the queue indicator)
+
+Documentation in operator/author guide reinforces: "Gazetta admin works offline. Your edits are saved locally and synced when you reconnect. The 'Queued' indicator means your save is committed locally and waiting to sync."
+
+### Accessibility
+
+Visual language for sync states uses text labels alongside color:
+- "Queued" badge has the word "Queued" (not just color)
+- "Synced ✓" has both checkmark icon and text
+- Colors paired with shapes/icons (don't rely on color alone)
+
+Screen reader announces state transitions: "Page Home: queued for sync" → "Page Home: synced."
+
+RTL inheritance from admin root; CSS logical properties for indicator placement (margin-inline-start). Text translates per active admin locale.
 
 ### Replay progress UI
 
