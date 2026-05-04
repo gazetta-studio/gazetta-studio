@@ -11,7 +11,7 @@ paths:
 
 # Plugin / extensibility — design pass pending
 
-Foundational dimension #8 of 9. Unifying contract for the existing extension surfaces — discovery, loading, lifecycle, composition.
+Foundational dimension #8 of 10. Unifying contract for the existing extension surfaces — discovery, loading, lifecycle, composition.
 
 **Status**: design pass pending — sequenced 8 of 8 (after `design-hooks.md`; hooks are likely the integration point). See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
 

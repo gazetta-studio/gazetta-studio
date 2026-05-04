@@ -9,7 +9,7 @@ paths:
 
 # Scale
 
-Foundational dimension #1 of 9. Establishes the operating envelope (target N pages / M assets / K components-per-page) and the strategies for primitives that must hold at scale.
+Foundational dimension #1 of 10. Establishes the operating envelope (target N pages / M assets / K components-per-page) and the strategies for primitives that must hold at scale.
 
 **Status**: design pass complete (2026-05). Implementation phases sit in Tier 3 unless individual primitives surface in feature-driven work.
 
@@ -26,6 +26,25 @@ These dimension-level decisions are locked, even before the design pass formaliz
 - **Per-edge sidecars over aggregate JSON** — the asset-refs index uses `.gazetta/asset-refs/{asset}/{item}` zero-byte files rather than `.refs/{asset}.json`. Multi-instance correct, O(1) writes per edge, O(N) readDir on lookup. Same pattern for `.uses-*` and `.tpl-*` sidecars. Per [`design-media-implementation.md`](design-media-implementation.md) "Asset refs."
 - **Save-delta validation over save-full** — save handlers validate only refs introduced by THIS edit, not the whole site. Per [`design-validation.md`](design-validation.md). O(diff) instead of O(site).
 - **History uses content-addressed blobs** — unchanged items dedupe across revisions. Per [`design-publishing.md`](design-publishing.md) "History." Storage scales with unique content, not revision count.
+
+## Exploited host-OS behavior
+
+Beyond our own primitives, scale strategies lean on the **host filesystem cache** (Linux page cache, macOS unified buffer cache, Windows cache manager). The OS aggressively caches recent file reads in RAM; we exploit this rather than caching at the application layer for some operations.
+
+**Concrete reliances:**
+
+- **Cold-vs-warm latency model.** A 5000-page filesystem walk is ~150ms cold, ~10ms warm. Our boot-warm strategy populates the OS cache in addition to `AdminCache`, so the next admin instance booting on the same host (or the same instance restarting) sees warm reads.
+- **Sidecar size discipline.** Per-edge sidecars are zero-byte or <1KB on purpose — small files fit in OS cache pages efficiently; readDir + parallel small reads stay near-memory-speed once warm.
+- **Concurrency tuning differs cold vs. warm.** Provider-aware concurrency (locked above) targets cold-read SLA; warm reads need lower concurrency because the OS cache absorbs them serially fast enough.
+- **Multi-instance considerations.** OS cache is per-host. Instances on the same host share it (reduce redundant cold reads); instances on different hosts don't (each pays its own cold read once). Hot-host effects observable in benchmarks; not exploitable for cross-instance coordination.
+
+**Not exploited (out of scope for this design):**
+
+- **OS-level prefetch hints** (`posix_fadvise`, etc.) — micro-optimization not yet justified at our envelope.
+- **Memory-mapped reads** — would force an mmap-aware StorageProvider implementation; complexity exceeds gain for the read patterns we have.
+- **Deliberate cache eviction control** — we let the OS manage; relevant only at enterprise tier where cache pressure becomes a budget item.
+
+This is a documented dependency, not a managed system. Cloud-storage-backed sources (R2, S3, Azure) don't get OS filesystem cache; they get HTTP-level caching from the SDK plus our `AdminCache` on top. The two paths converge at the storage-provider abstraction.
 
 ## Site tree strategy (locked)
 
@@ -146,6 +165,7 @@ This design IS a foundational dimension. Below it answers how every other founda
 - **Validation check** — background scanner (validation Cut 2) iterates pages incrementally with per-page content-hash cache; full-site rescan is admin-boot-only. Reuses the existing sidecar dependency tracking so a fragment edit invalidates only affected pages.
 - **Plugin check** — plugin-contributed extension surfaces (custom validators, custom transform adapters, etc.) operate within the operating envelope; plugins that perform O(N) work per primitive are flagged at design time.
 - **Cache check** — every primitive that benefits from caching at scale (notably `/api/pages` summary, `/api/fragments` summary, fragment-resolution within tree-build) goes through `AdminCache` per `design-cache.md`. v1 ships `MemoryCache` provider; per-instance scope, multi-instance-correct via independence + SSE invalidation. Operators on multi-instance deployments switch to a shared provider (Redis, Azure storage) for higher hit rates without changing consumer code.
+- **Offline check** — primitives at scale must degrade gracefully when offline (per `design-offline.md`). Tree-build serves from browser-side `IndexedDBCache`; admin API endpoints return 503 with the staleness banner; save-delta validation continues to run locally; reconnect replays queued saves. Boot-warm strategy populates IndexedDB cache in addition to MemoryCache so first offline encounter has hot data.
 
 ## Operating envelope (the supported scale)
 

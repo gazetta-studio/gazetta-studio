@@ -19,7 +19,7 @@ File-suffix localization: `page.json` (default locale), `page.fr.json` (French),
 `page.en-gb.json` (British English). Same pattern for fragments: `fragment.fr.json`.
 Zero template changes, zero schema changes. Opt-in via `locales` in site.yaml.
 
-**Foundational dimension #2 of 8.** Locale is a closed dimension peer to theme; every feature must respect locale variants, the locked locale-priority cross-dimension fallback, and the file-suffix model. See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions" — every new feature design answers the **Locale check**.
+**Foundational dimension #2 of 10.** Locale is a closed dimension peer to theme; every feature must respect locale variants, the locked locale-priority cross-dimension fallback, and the file-suffix model. See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions" — every new feature design answers the **Locale check**.
 
 **Migration note**: This doc was previously `i18n-plan.md` (predates the `design-{feature}.md` convention). Renamed in 2026-05 alongside the foundational-dimensions inventory. Per-field translation (#192) lands as the implementation phase under this design's contract; that's when the design/implementation split documented in [`feature-design-process.md`](feature-design-process.md) gets applied to this doc.
 

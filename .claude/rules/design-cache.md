@@ -7,9 +7,9 @@ paths:
 
 # Cache — design pass pending
 
-Foundational dimension #9 of 9. Pluggable caching layer with multiple provider implementations (memory, Redis, Azure storage, future others). v1 ships memory-only; the abstraction is in place from day one so multi-instance deployments can swap to a shared provider without changing consumers.
+Foundational dimension #9 of 10. Pluggable caching layer with multiple provider implementations (memory, Redis, Azure storage, future others). v1 ships memory-only; the abstraction is in place from day one so multi-instance deployments can swap to a shared provider without changing consumers.
 
-**Status**: design pass pending — sequenced 9 of 9 (last in the foundational sequence; reuses the extension-surface pattern from plugins). See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
+**Status**: design pass pending — sequenced 9 of 10 (reuses the extension-surface pattern from plugins; extended by browser-side providers in `design-offline.md`). See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
 
 **Companion docs**:
 - [`feature-design-process.md`](feature-design-process.md) — defines the **Cache check** every new feature design must answer
@@ -76,6 +76,13 @@ export interface CacheStats {
 - **`AzureCache`** — Azure Cache for Redis (managed); same shape as `RedisCache` with Azure-specific connection.
 - **`FileCache`** — disk-backed cache under `.gazetta/cache/`. Useful for small teams without a Redis instance who still want persistence across admin restarts.
 - **`DistributedCache`** — opt-in for enterprise tier; consistent-hashing across multiple Redis nodes or similar.
+
+**Browser-side providers** (per `design-offline.md`, foundational dimension #10):
+
+- **`IndexedDBCache`** — large quotas (~50MB+), structured queries; default browser-side provider for offline-mode admin clients.
+- **`LocalStorageCache`** — small quotas (~5MB); fallback for older browsers.
+
+Browser-side providers are scoped to one browser tab; never shared across browsers / users / instances. They're peers to the server-side providers — implementing the same `AdminCache` interface — but coordinated independently. Server SSE invalidation events broadcast to connected browsers to invalidate their browser caches.
 
 Operator config:
 
