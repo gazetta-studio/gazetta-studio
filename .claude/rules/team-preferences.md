@@ -140,3 +140,15 @@ Validated approaches and things to avoid. Each entry: rule, then why.
    The resumability contract: feature designs go in `design-{feature}.md` + `-implementation.md`; ADRs go in `docs/adr/`; domain language goes in `CONTEXT.md`; research goes in `docs/audits/`; strategic priorities go in `ROADMAP.md`; non-goals go in `docs/non-goals.md`; lessons go here in `team-preferences.md`. See [`feature-design-process.md`](feature-design-process.md) for the full mapping.
 
    Why: long conversations produce work in many shapes. Without designated homes, only feature-design work tends to survive (because the design-doc pattern is established); strategic prioritization, research, fact-check findings, and process conventions all die in transcripts. Naming a home for each kind of work makes "is this resumable?" answerable.
+
+23. **UX follows "Don't Make Me Think" (Steve Krug).** When designing user-facing UI, ask "what can I remove?" not "what should I add?":
+
+   - **Absence of indicator IS a state** — show indicators only when something is NOT-default or needs attention. The default state should be visually quiet.
+   - **Universal icons over jargon** — cloud-with-slash, not "Queued"; refresh icon, not "Reload page from server."
+   - **Same affordances regardless of system state** when possible — e.g., save button identical online and offline; author's mental model unchanged by connection state.
+   - **Plain language** — "Was edited by someone else" not "STALE conflict"; "Saved locally" not "Queued."
+   - **When tempted to add a help tooltip, fix the UI instead** — if the indicator needs explanation, the indicator is wrong.
+
+   Why: every sub-decision in UX work risks accumulating cognitive load on users. The default question for any UI element should be "can I remove this without losing meaning?" not "what should I add?"
+
+   Example: `design-offline.md`'s sync-state visibility went through three iterations — initially 5 explicit states with "Queued" badges and numeric progress; the Krug-aligned final has a cloud-with-slash icon (synced is the absence of indicator), plain-language messages, and an identical save button online/offline. Two-thirds of the original UI surface removed without losing meaning.
