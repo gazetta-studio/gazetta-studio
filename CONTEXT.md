@@ -117,6 +117,14 @@ _Avoid_: To-target, Target (bare in publish context — ambiguous), Sink.
 **Source Context** (internal — admin API plumbing):
 The TypeScript type `SourceContext` in `admin-api/source-context.ts` holds the storage, content root, and history wiring for the **Active Target** in an admin-API request. Distinct from Source Target (which is a publish role). The code-side name predates the role-naming clarification; semantics are unchanged.
 
+**Worker** (Gazetta-specific contract):
+The runtime that handles HTTP requests at the edge for `esi` and `dynamic` Targets — typically Cloudflare Workers, Deno Deploy, or a WinterTC-compatible edge runtime. Gazetta workers route requests, cache responses, and assemble pre-rendered fragments via string concatenation. **Workers never run template code** (locked invariant per [ADR 0007](docs/adr/0007-worker-boundary-discipline.md) and `design-rendering.md` Q1). Template execution happens at publish time (Node/Bun) or at Origin (Node/Bun for `dynamic` Targets).
+_Avoid_: Edge runtime (broader; not Gazetta-specific), Worker process (generic Node concept).
+
+**Origin** (Gazetta-specific contract):
+The Node/Bun server that runs templates per request for `dynamic` Targets. Origin executes Dynamic Fragments with full Node API access (file system, child processes, etc.). Workers call Origin on cache miss for dynamic content; Origin's responses are not cached by the Worker (per `design-cache.md` Q4 — cache only content-addressed responses). For `static` and `esi` Targets, no Origin exists.
+_Avoid_: Server (too generic), Backend (broader infrastructure term).
+
 ### Assets
 
 **Asset**:
@@ -188,7 +196,7 @@ The function or module that performs Composition. `resolveComponent` and `resolv
 ### Extension surfaces and providers
 
 **Extension surface**:
-A typed interface defining a category of pluggable functionality. Gazetta has 11: Storage, Cache, Audit, AltText (AI), Transform Adapter, Deploy Adapter, Validator, AuthIdentity, Hook, Admin Editor, Admin Field. Each surface has its own interface and per-surface conventions.
+A typed interface defining a category of pluggable functionality. Gazetta has 12: Storage, Cache, Audit, AltText (AI), Transform Adapter, Deploy Adapter, Validator, AuthIdentity, Hook, Admin Editor, Admin Field, Notification. Each surface has its own interface and per-surface conventions.
 _Avoid_: Plugin slot, Extension point, Hook (collides — Hook is one specific surface).
 
 **Provider**:
@@ -198,6 +206,50 @@ _Avoid_: Plugin (overloaded — a Plugin contains Providers), Backend (too gener
 **Plugin**:
 The unifying contract for discovery, loading, lifecycle, and composition of Providers. Plugins implement one or more Extension Surfaces. v1 plugins are in-tree implementations; v2 supports npm-packaged Providers via the plugin discovery mechanism. The Plugin contract lives in `design-plugins.md`.
 _Avoid_: Provider (narrower — a Plugin contains Providers), Extension (too generic).
+
+### Identity, capabilities, and trust
+
+**Capability**:
+A `verb:domain` permission token (e.g., `read:pages`, `edit:fragments`, `publish:non-production`, `comment:write`). The vocabulary primitive of Gazetta's authorization model. Operators assign Capabilities to Roles in `site.config.ts`; Roles aggregate Capabilities into named sets that map to Principals via the Trust mode's group/claim mapping. Plugin-contributed Capabilities use a plugin-specific prefix (e.g., `search:rebuild-index`) — built-in prefixes (read / edit / delete / publish / configure / review / restore / comment / mention / subscribe) are reserved.
+_Avoid_: Permission (collides with filesystem permissions), Right, Privilege.
+
+**Trust mode**:
+The strategy by which Gazetta extracts a Principal from an incoming request — chosen by the Operator at site config time per `admin.auth.trust`. Six in-tree modes (`none` / `forwarded-user` / `cloudflare-access` / `azure-easy-auth` / `aws-cognito` / `tailscale`) each describe how Gazetta reads the authenticated identity from upstream-provided headers / tokens. Plugin-supplied trust modes register via the AuthIdentity Extension Surface. Locked invariant: Gazetta consumes upstream identity, never authenticates itself.
+_Avoid_: Auth mode (less specific), Auth provider (collides with AuthIdentity Provider — the implementation), Identity strategy.
+
+**Principal** (internal — request-context type):
+The TypeScript type carrying the runtime user identity (id / email? / role / trustMode) propagated through admin-API requests, hook contexts, and audit events. Domain conversation says "Actor" (the role: Content Author / Operator / etc.) or just "user"; "Principal" is the API-surface technical name. Same posture as `ComponentManifest` and `SourceContext`.
+_Avoid_: Using "Principal" in domain conversation — say "actor" or "user."
+
+### Audit and notifications
+
+**Audit event**:
+The unit of forensic record in Gazetta's audit log. Every write (save / publish / delete / restore / configure-roles) emits exactly one Audit event with a structured shape: timestamp, actor (snapshot at decision time), action, outcome, scope, optional metadata. Closed enums for `action` and `outcome`; extension is closed-enum-additive. Stored via the configured AuditProvider — `HistoryAuditProvider` extends each history Revision with audit fields; external sinks (`HttpWebhookAuditProvider`, etc.) emit standalone events.
+_Avoid_: Audit log entry (longer; less precise), Log event (collides with operational logs — see `design-logging.md`).
+
+**Notification**:
+The unit of delivery for collaboration events to a recipient (mention, reply, subscription firing, content-comment). Has a recipient identity, a category, a human-readable message, and a deep-link to the relevant content. Stored at `.gazetta/notifications/{recipient-id}/{notification-id}.json` for in-admin delivery; future external NotificationProviders (email, Slack, webhook) deliver to operator-configured destinations.
+_Avoid_: Alert (too generic, collides with browser notifications), Message (collides with comment messages).
+
+### Collaboration
+
+**Comment thread**:
+A conversation anchored to a Gazetta entity — a Page, Fragment, Asset, or specific position within a Manifest (via stable component ID + optional field path). Contains an ordered list of Messages (text + structured Mentions), open/resolved state, and audit metadata. Stored at `.gazetta/comments/{kind}/{name}/threads/{thread-id}.json` with per-thread granularity for multi-instance correctness. Resolution is reversible; the thread persists.
+_Avoid_: Discussion (less precise), Conversation (broader UX term), Thread (bare — qualify with Comment when ambiguity is possible).
+
+**Mention**:
+A structured reference to an Actor inside a Comment Thread message — `{ type: 'mention', userId: 'bob@example.com' }`. NOT parsed from text; created by the `@`-picker UI which filters to users with content access (privacy gate). Triggers Notification dispatch to the mentioned user.
+_Avoid_: @-mention (decorative; the structured form is the truth), Tag (too generic).
+
+### Editor state
+
+**Pending edits**:
+Form-state changes the Author has made but not yet committed via explicit Save click. Stored per-item in Pinia stores (`editorContent`, `editorStash`, `editorStructural`); persisted to IndexedDB so they survive browser reload, navigation between pages, and offline sessions. The Author can navigate freely between items with multiple pending edits accumulated; each item's pending state is independent. Pending edits never silently apply; saving is always an explicit Author action. Distinct from Save queue.
+_Avoid_: Draft (overloaded with review-state's `draft` value), Working copy (rejected term per `design-decisions.md` #14), Dirty state (UI-only; doesn't capture the persistence semantics), Unsaved changes (acceptable in plain-language UI; less precise as domain noun).
+
+**Save queue**:
+Save attempts the Author committed (clicked Save) while offline that are waiting for the system to deliver to the Server. Stored in IndexedDB; replays on reconnect via Vue Query mutation cache. Each queued save was an explicit commit-of-intent by the Author — Save semantics don't change online vs. offline (per [ADR 0006](docs/adr/0006-save-as-commit-intent.md)). Conflicts on replay surface to the Author for resolution. Distinct from Pending edits — Pending is "I haven't committed," Queue is "I committed but delivery's pending."
+_Avoid_: Outbox (email metaphor; misleading since not sent, just local), Pending saves (collides with "Pending edits" — different concept), Sync queue (less precise; doesn't capture commit-intent).
 
 ### Project, Site, and Workspace
 
