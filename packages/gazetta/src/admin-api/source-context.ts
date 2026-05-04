@@ -61,7 +61,7 @@ export interface SourceContext {
 
 /**
  * Load a site from a SourceContext. Passes the project-level manifest
- * so loadSite doesn't need a target-level site.yaml.
+ * so loadSite doesn't need a target-level site config file.
  */
 export function loadSiteFromSource(source: SourceContext, opts?: Partial<LoadSiteOptions>): Promise<Site> {
   return loadSite({ contentRoot: source.contentRoot, manifest: source.manifest, ...opts })
@@ -74,7 +74,7 @@ export interface CreateSourceContextOptions {
   /** Absolute project site directory. Defaults to `siteDir` for backward compat. */
   projectSiteDir?: string
   history?: HistoryProvider
-  /** Project-level site manifest — passed to loadSite so targets don't need site.yaml. */
+  /** Project-level site manifest — passed to loadSite so targets don't need their own site config. */
   manifest?: SiteManifest
 }
 

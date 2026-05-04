@@ -31,21 +31,18 @@ afterEach(async () => {
 describe('publishItems', () => {
   it('copies a single page directory', async () => {
     await writeTestFile(sourceDir, 'pages/home/page.json', JSON.stringify({ template: 'default' }))
-    await writeTestFile(sourceDir, 'site.yaml', 'name: Test')
 
     const source = createFilesystemProvider(sourceDir)
     const target = createFilesystemProvider(targetDir)
 
     const { copiedFiles } = await publishItems(createContentRoot(source), createContentRoot(target), ['pages/home'])
-    expect(copiedFiles).toBeGreaterThanOrEqual(2) // page.json + site.yaml
+    expect(copiedFiles).toBe(1)
     expect(await target.exists('pages/home/page.json')).toBe(true)
-    expect(await target.exists('site.yaml')).toBe(true)
   })
 
   it('copies multiple items', async () => {
     await writeTestFile(sourceDir, 'pages/home/page.json', JSON.stringify({ template: 'default' }))
     await writeTestFile(sourceDir, 'fragments/header/fragment.json', JSON.stringify({ template: 'header' }))
-    await writeTestFile(sourceDir, 'site.yaml', 'name: Test')
 
     const source = createFilesystemProvider(sourceDir)
     const target = createFilesystemProvider(targetDir)
@@ -54,14 +51,13 @@ describe('publishItems', () => {
       'pages/home',
       'fragments/header',
     ])
-    expect(copiedFiles).toBeGreaterThanOrEqual(3)
+    expect(copiedFiles).toBe(2)
     expect(await target.exists('pages/home/page.json')).toBe(true)
     expect(await target.exists('fragments/header/fragment.json')).toBe(true)
   })
 
   it('copies nested directory structure', async () => {
     await writeTestFile(sourceDir, 'pages/blog/[slug]/page.json', JSON.stringify({ template: 'article' }))
-    await writeTestFile(sourceDir, 'site.yaml', 'name: Test')
 
     const source = createFilesystemProvider(sourceDir)
     const target = createFilesystemProvider(targetDir)
@@ -69,14 +65,13 @@ describe('publishItems', () => {
     const { copiedFiles } = await publishItems(createContentRoot(source), createContentRoot(target), [
       'pages/blog/[slug]',
     ])
-    expect(copiedFiles).toBeGreaterThanOrEqual(2)
+    expect(copiedFiles).toBe(1)
     expect(await target.exists('pages/blog/[slug]/page.json')).toBe(true)
   })
 
   it('preserves file content', async () => {
     const content = JSON.stringify({ template: 'page-default', metadata: { title: 'Home' } })
     await writeTestFile(sourceDir, 'pages/home/page.json', content)
-    await writeTestFile(sourceDir, 'site.yaml', 'name: Test')
 
     const source = createFilesystemProvider(sourceDir)
     const target = createFilesystemProvider(targetDir)
@@ -86,31 +81,18 @@ describe('publishItems', () => {
     expect(copied).toBe(content)
   })
 
-  it('handles missing site.yaml gracefully', async () => {
-    await writeTestFile(sourceDir, 'pages/home/page.json', JSON.stringify({ template: 'default' }))
-
-    const source = createFilesystemProvider(sourceDir)
-    const target = createFilesystemProvider(targetDir)
-
-    const { copiedFiles } = await publishItems(createContentRoot(source), createContentRoot(target), ['pages/home'])
-    expect(copiedFiles).toBe(1) // only page.json, no site.yaml
-  })
-
   it('returns 0 for nonexistent items', async () => {
-    await writeTestFile(sourceDir, 'site.yaml', 'name: Test')
-
     const source = createFilesystemProvider(sourceDir)
     const target = createFilesystemProvider(targetDir)
 
     const { copiedFiles } = await publishItems(createContentRoot(source), createContentRoot(target), [
       'pages/nonexistent',
     ])
-    expect(copiedFiles).toBe(1) // only site.yaml
+    expect(copiedFiles).toBe(0)
   })
 
   it('accepts ContentRoot inputs (preferred shape)', async () => {
     await writeTestFile(sourceDir, 'pages/home/page.json', JSON.stringify({ template: 'default' }))
-    await writeTestFile(sourceDir, 'site.yaml', 'name: Test')
 
     const source = createFilesystemProvider(sourceDir)
     const target = createFilesystemProvider(targetDir)
@@ -119,9 +101,8 @@ describe('publishItems', () => {
     const targetRoot = createContentRoot(target)
 
     const { copiedFiles } = await publishItems(sourceRoot, targetRoot, ['pages/home'])
-    expect(copiedFiles).toBeGreaterThanOrEqual(2)
+    expect(copiedFiles).toBe(1)
     expect(await target.exists('pages/home/page.json')).toBe(true)
-    expect(await target.exists('site.yaml')).toBe(true)
   })
 })
 
@@ -651,7 +632,7 @@ describe('SEO publish integration', () => {
         metadata: { robots: 'noindex' },
       }),
     )
-    // No site.yaml needed: loadSite() below receives `manifest` directly.
+    // No site config file needed: loadSite() below receives `manifest` directly.
     const target = createFilesystemProvider(seoTargetDir)
     const { hashManifest } = await import('../src/hash.js')
     const { loadSite } = await import('../src/site-loader.js')

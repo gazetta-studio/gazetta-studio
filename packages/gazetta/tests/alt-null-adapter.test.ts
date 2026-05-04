@@ -55,7 +55,7 @@ describe('nullAltAdapter', () => {
       } catch (err) {
         if (err instanceof AIAdapterUnavailableError) {
           expect(err.message.toLowerCase()).toContain('altText'.toLowerCase())
-          expect(err.message.toLowerCase()).toContain('site.yaml'.toLowerCase())
+          expect(err.message.toLowerCase()).toContain('site.config.ts'.toLowerCase())
         } else {
           throw new Error('expected AIAdapterUnavailableError')
         }

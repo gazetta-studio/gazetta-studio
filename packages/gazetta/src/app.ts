@@ -6,7 +6,7 @@ import { renderPage } from './renderer.js'
 
 export async function createApp(siteDir: string, storage: StorageProvider): Promise<Hono> {
   const app = new Hono()
-  const site = await loadSite({ siteDir, storage })
+  const site = await loadSite({ siteDir, storage, manifest: { name: '(app)' } })
 
   for (const [pageName, page] of site.pages) {
     app.get(page.route, async c => {

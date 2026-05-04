@@ -108,12 +108,6 @@ export async function buildSyntheticSite(storage: StorageProvider, opts: Synthet
   const { pageCount, contentRoot } = opts
   const root = contentRoot ? `${contentRoot}/` : ''
 
-  // site.yaml — minimum viable
-  await storage.writeFile(
-    `${root}site.yaml`,
-    `name: Synthetic Site\nlocale: en\ntargets:\n  local:\n    storage:\n      type: filesystem\n`,
-  )
-
   // Pages
   for (let i = 0; i < pageCount; i++) {
     const manifest = buildPageManifest(i)

@@ -21,7 +21,7 @@ describe('recordWrite', () => {
   it('first recordWrite emits a baseline revision then the delta revision', async () => {
     // Seed some content before the first save.
     storage.seed({
-      'site.yaml': 'name: demo\n',
+      'site.config.ts': "export default { name: 'demo' }\n",
       'pages/home/page.json': '{"template":"page-default"}',
       'pages/about/page.json': '{"template":"page-default"}',
       'fragments/header/fragment.json': '{"template":"header-layout"}',
@@ -59,13 +59,13 @@ describe('recordWrite', () => {
       'fragments/header/fragment.json',
       'pages/about/page.json',
       'pages/home/page.json',
-      'site.yaml',
+      'site.config.ts',
     ])
   })
 
   it('second revision overlays the delta onto the previous snapshot', async () => {
     storage.seed({
-      'site.yaml': 'name: demo\n',
+      'site.config.ts': "export default { name: 'demo' }\n",
       'pages/home/page.json': 'v1',
       'pages/about/page.json': 'unchanged',
     })
@@ -87,7 +87,7 @@ describe('recordWrite', () => {
     })
 
     const m2 = await history.readRevision(rev2.id)
-    expect(Object.keys(m2.snapshot).sort()).toEqual(['pages/about/page.json', 'pages/home/page.json', 'site.yaml'])
+    expect(Object.keys(m2.snapshot).sort()).toEqual(['pages/about/page.json', 'pages/home/page.json', 'site.config.ts'])
     // pages/about carries forward with an unchanged hash (same blob).
     // Grab the first save's revision (= head-1; the oldest is baseline).
     const list = await history.listRevisions()

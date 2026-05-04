@@ -1,27 +1,4 @@
-import yaml from 'js-yaml'
-import type {
-  ComponentEntry,
-  FragmentManifest,
-  LocalesConfig,
-  PageManifest,
-  SiteManifest,
-  StorageProvider,
-} from './types.js'
-
-function parseYaml(content: string, filePath: string): Record<string, unknown> {
-  try {
-    const parsed = yaml.load(content)
-    if (!parsed || typeof parsed !== 'object') {
-      throw new Error(`Expected a YAML object in ${filePath}, got ${typeof parsed}`)
-    }
-    return parsed as Record<string, unknown>
-  } catch (err) {
-    if (err instanceof yaml.YAMLException) {
-      throw new Error(`YAML parse error in ${filePath}: ${err.message}`)
-    }
-    throw err
-  }
-}
+import type { ComponentEntry, FragmentManifest, PageManifest, StorageProvider } from './types.js'
 
 function parseJson(content: string, filePath: string): Record<string, unknown> {
   try {
@@ -53,33 +30,6 @@ function parseComponents(raw: unknown): ComponentEntry[] | undefined {
     }
     return entry as string
   })
-}
-
-export async function parseSiteManifest(storage: StorageProvider, filePath: string): Promise<SiteManifest> {
-  const raw = parseYaml(await storage.readFile(filePath), filePath)
-  if (typeof raw.name !== 'string') {
-    throw new Error(`Invalid site.yaml at ${filePath}: missing required "name" field`)
-  }
-  return {
-    name: raw.name,
-    version: raw.version as string | undefined,
-    locale: raw.locale as string | undefined,
-    locales: parseLocalesConfig(raw.locales),
-    defaultOgImage: raw.defaultOgImage as string | undefined,
-    systemPages: Array.isArray(raw.systemPages) ? (raw.systemPages as string[]) : undefined,
-  }
-}
-
-function parseLocalesConfig(raw: unknown): LocalesConfig | undefined {
-  if (!raw || typeof raw !== 'object') return undefined
-  const obj = raw as Record<string, unknown>
-  if (!Array.isArray(obj.supported) || obj.supported.length === 0) return undefined
-  return {
-    supported: obj.supported as string[],
-    fallbacks: obj.fallbacks as Record<string, string> | undefined,
-    defaultPrefix: typeof obj.defaultPrefix === 'boolean' ? obj.defaultPrefix : undefined,
-    detection: typeof obj.detection === 'boolean' ? obj.detection : undefined,
-  }
 }
 
 export async function parsePageManifest(storage: StorageProvider, filePath: string): Promise<PageManifest> {

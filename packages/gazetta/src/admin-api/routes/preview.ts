@@ -37,14 +37,14 @@ export function previewRoutes(resolve: SourceContextResolver, templatesDir?: str
 }
 
 async function renderPreview(c: Context, source: SourceContext, overrides: DraftOverrides, templatesDir?: string) {
-  // Empty target (no site.yaml) — preview returns a friendly placeholder
-  // so the admin can still show the iframe. Happens when the active
-  // target is a never-published publish-target.
+  // Empty target (no site config / no project manifest) — preview returns
+  // a friendly placeholder so the admin can still show the iframe.
+  // Happens when the active target is a never-published publish-target.
   let site: Awaited<ReturnType<typeof loadSiteFromSource>>
   try {
     site = await loadSiteFromSource(source, { templatesDir })
   } catch (err) {
-    if ((err as Error).message.includes('No site.yaml found')) {
+    if ((err as Error).message.includes('loadSite:')) {
       return c.html(
         '<!doctype html><html><body style="font-family:system-ui;padding:2rem;color:#525252">' +
           '<h2 style="margin:0 0 0.5rem">No content on this target yet</h2>' +

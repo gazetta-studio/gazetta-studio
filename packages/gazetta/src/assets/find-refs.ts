@@ -28,7 +28,7 @@ export interface FindRefsInput {
   assetName: string
   /**
    * Optional project-level site manifest. Passed through to `loadSite` so
-   * scans work in contexts where the target doesn't have its own site.yaml.
+   * scans work in contexts where the target doesn't have its own site config.
    */
   manifest?: SiteManifest
 }
@@ -40,7 +40,7 @@ export interface FindRefsInput {
  */
 export async function findAssetRefs(input: FindRefsInput): Promise<AssetRef[]> {
   const contentRoot = createContentRoot(input.storage, input.siteDir)
-  const site = await loadSite({ contentRoot, manifest: input.manifest })
+  const site = await loadSite({ contentRoot, manifest: input.manifest ?? { name: '(refs-scan)' } })
 
   const refs: AssetRef[] = []
 

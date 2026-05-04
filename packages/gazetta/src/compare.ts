@@ -27,7 +27,7 @@ export interface CompareOptions {
   target: StorageProvider
   templatesDir: string
   projectRoot: string
-  /** Project-level manifest — passed to loadSite so targets don't need site.yaml. */
+  /** Project-level manifest — passed to loadSite so targets don't need their own site config. */
   manifest?: import('./types.js').SiteManifest
   /**
    * Target's rendering type. In static mode fragments are baked into pages, so
@@ -68,29 +68,26 @@ export async function compareTargets(opts: CompareOptions): Promise<CompareResul
   // whose manifest + templates haven't changed since the last save. Fall
   // back to hashManifest for items without a source sidecar.
   //
-  // Empty source (no site.yaml) is a valid state when the "active" target
-  // is a publish-target that's never received content — e.g., the author
-  // just switched to an empty staging for a peek. Treat as zero items;
-  // everything on the destination target becomes "deleted" (present on
-  // target, absent from source), matching the logical diff semantics.
+  // Empty source (no site config / no manifest supplied) is a valid state
+  // when the "active" target is a publish-target that's never received
+  // content — e.g., the author just switched to an empty staging for a
+  // peek. Treat as zero items; everything on the destination target becomes
+  // "deleted" (present on target, absent from source), matching the
+  // logical diff semantics.
   let site: Awaited<ReturnType<typeof loadSite>>
-  try {
+  if (opts.manifest) {
     site = await loadSite({ contentRoot: sourceRoot, templatesDir: opts.templatesDir, manifest: opts.manifest })
-  } catch (err) {
-    if ((err as Error).message.includes('No site.yaml found')) {
-      site = {
-        manifest: { name: '(empty)', targets: {} },
-        pages: new Map(),
-        pageLocales: new Map(),
-        fragments: new Map(),
-        fragmentLocales: new Map(),
-        contentRoot: sourceRoot,
-        storage: sourceRoot.storage,
-        siteDir: sourceRoot.rootPath,
-        templatesDir: opts.templatesDir,
-      }
-    } else {
-      throw err
+  } else {
+    site = {
+      manifest: { name: '(empty)', targets: {} },
+      pages: new Map(),
+      pageLocales: new Map(),
+      fragments: new Map(),
+      fragmentLocales: new Map(),
+      contentRoot: sourceRoot,
+      storage: sourceRoot.storage,
+      siteDir: sourceRoot.rootPath,
+      templatesDir: opts.templatesDir,
     }
   }
   // Hash fragments first (they don't depend on page hashes). Static-mode

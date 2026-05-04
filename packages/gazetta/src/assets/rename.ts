@@ -147,7 +147,7 @@ export async function renameAsset(input: RenameAssetInput): Promise<RenameAssetR
 
   // Step 4 — load the site once, rewrite refs in memory.
   const contentRoot = input.contentRoot ?? createContentRoot(input.storage, input.siteDir)
-  const site = await loadSite({ contentRoot, manifest: input.manifest })
+  const site = await loadSite({ contentRoot, manifest: input.manifest ?? { name: '(rename-asset)' } })
 
   type Rewrite = {
     path: string

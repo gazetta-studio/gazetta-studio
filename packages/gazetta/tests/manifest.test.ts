@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { writeFile, mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
-import { parseSiteManifest, parsePageManifest, parseFragmentManifest } from '../src/manifest.js'
+import { parsePageManifest, parseFragmentManifest } from '../src/manifest.js'
 import { tempDir } from './_helpers/temp.js'
 
 const testDir = tempDir('manifest-test')
@@ -17,31 +17,6 @@ async function writeTestFile(filename: string, content: string): Promise<string>
 
 afterEach(async () => {
   await rm(testDir, { recursive: true, force: true })
-})
-
-describe('parseSiteManifest', () => {
-  it('parses a valid site.yaml', async () => {
-    const path = await writeTestFile('site.yaml', 'name: "My Site"\nversion: "1.0"')
-    const result = await parseSiteManifest(storage, path)
-    expect(result.name).toBe('My Site')
-    expect(result.version).toBe('1.0')
-  })
-
-  it('parses site.yaml without version', async () => {
-    const path = await writeTestFile('site.yaml', 'name: "My Site"')
-    const result = await parseSiteManifest(storage, path)
-    expect(result.name).toBe('My Site')
-    expect(result.version).toBeUndefined()
-  })
-
-  it('throws on missing name', async () => {
-    const path = await writeTestFile('site.yaml', 'version: "1.0"')
-    await expect(parseSiteManifest(storage, path)).rejects.toThrow('missing required "name" field')
-  })
-
-  it('throws on file not found', async () => {
-    await expect(parseSiteManifest(storage, '/nonexistent/site.yaml')).rejects.toThrow('File not found')
-  })
 })
 
 describe('parsePageManifest', () => {

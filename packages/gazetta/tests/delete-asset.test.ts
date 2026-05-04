@@ -49,8 +49,6 @@ async function seedAsset(assetName: string, width = 16, height = 16) {
 
 beforeEach(async () => {
   await mkdir(testDir, { recursive: true })
-  // Minimum site.yaml — loadSite needs something to chew on.
-  await writeFile(join(testDir, 'site.yaml'), 'name: test-site\n')
 })
 
 afterEach(async () => {

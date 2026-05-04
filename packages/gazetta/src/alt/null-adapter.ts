@@ -40,7 +40,7 @@ export const nullAltAdapter: AltTextAdapter = {
   },
   async generate() {
     throw new AIAdapterUnavailableError(
-      'No AI alt-text adapter is configured. Add `altText:` to site.yaml or set provider credentials in .env.local.',
+      'No AI alt-text adapter is configured. Add `altText:` to site.config.ts or set provider credentials in .env.local.',
     )
   },
 }

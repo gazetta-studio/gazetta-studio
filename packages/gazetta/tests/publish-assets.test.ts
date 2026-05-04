@@ -64,7 +64,6 @@ async function seedSourcePage(name: string, content: Record<string, unknown>) {
 beforeEach(async () => {
   await mkdir(sourceDir, { recursive: true })
   await mkdir(targetDir, { recursive: true })
-  await writeFile(join(sourceDir, 'site.yaml'), 'name: test-site\n')
 })
 
 afterEach(async () => {

@@ -68,7 +68,6 @@ async function seedDefaultAsset(name: string) {
 
 beforeEach(async () => {
   await mkdir(testDir, { recursive: true })
-  await writeFile(join(testDir, 'site.yaml'), 'name: test-site\n')
 })
 
 afterEach(async () => {
