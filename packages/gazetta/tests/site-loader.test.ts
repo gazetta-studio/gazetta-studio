@@ -131,6 +131,48 @@ describe('loadSite', () => {
   })
 })
 
+describe('loadSite — TS config (Cut 4)', () => {
+  it('accepts pre-loaded SiteConfig via the `config` option', async () => {
+    await mkdir(testDir, { recursive: true })
+    await mkdir(join(testDir, 'pages'), { recursive: true })
+    await mkdir(join(testDir, 'fragments'), { recursive: true })
+
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const site = await loadSite({
+      siteDir: testDir,
+      storage,
+      config: { name: 'TS Site', locale: 'en' },
+    })
+    expect(site.manifest.name).toBe('TS Site')
+    expect(site.manifest.locale).toBe('en')
+    spy.mockRestore()
+  })
+
+  it('preserves existing manifest path when no config supplied', async () => {
+    // Smoke check: YAML still works in coexistence period (Cut 8 removes it)
+    await writeTestFile('site.yaml', 'name: Legacy YAML Site')
+    await mkdir(join(testDir, 'pages'), { recursive: true })
+    await mkdir(join(testDir, 'fragments'), { recursive: true })
+
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const site = await loadSite({ siteDir: testDir, storage })
+    expect(site.manifest.name).toBe('Legacy YAML Site')
+    spy.mockRestore()
+  })
+
+  it('rejects passing both manifest and config', async () => {
+    await mkdir(testDir, { recursive: true })
+    await expect(
+      loadSite({
+        siteDir: testDir,
+        storage,
+        manifest: { name: 'A' },
+        config: { name: 'B' },
+      }),
+    ).rejects.toThrow('pass either `config` (TS) or `manifest` (legacy YAML)')
+  })
+})
+
 describe('deriveRoute', () => {
   it('home → /', () => {
     expect(deriveRoute('home')).toBe('/')

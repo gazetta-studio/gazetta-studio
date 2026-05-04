@@ -1,9 +1,11 @@
 import { join } from 'node:path'
-import type { PageManifest, FragmentManifest, SiteManifest, StorageProvider } from './types.js'
-import { parseSiteManifest, parsePageManifest, parseFragmentManifest } from './manifest.js'
+import type { SiteConfig } from './config/types.js'
+import { siteConfigToManifest } from './config/loader.js'
 import { mapLimit } from './concurrency.js'
-import { createContentRoot, type ContentRoot } from './content-root.js'
+import { type ContentRoot, createContentRoot } from './content-root.js'
 import { localeFromFilename, localeRoutePrefix, resolveSiteLocales } from './locale.js'
+import { parseFragmentManifest, parsePageManifest, parseSiteManifest } from './manifest.js'
+import type { FragmentManifest, PageManifest, SiteManifest, StorageProvider } from './types.js'
 
 /** A page entry with its name, manifest, and optional locale. */
 export interface PageEntry {
@@ -203,8 +205,22 @@ export interface LoadSiteOptions {
    * Pre-parsed site manifest. If provided, site.yaml is not read from the
    * content root. Used when site.yaml is a project-level bootstrap file
    * that lives outside target storage.
+   *
+   * Per design-config-implementation.md Cut 4: this also accepts the
+   * runtime-shape result of `siteConfigToManifest()` — TS-config-loaded
+   * sites use the same field. Cut 8 removes the YAML reading path
+   * entirely.
    */
   manifest?: SiteManifest
+  /**
+   * Pre-loaded TS-config result from `loadSiteConfig()` /
+   * `loadProjectConfig()`. When provided, site.yaml is not read; the
+   * config is converted to manifest shape via `siteConfigToManifest()`.
+   *
+   * Mutually exclusive with `manifest`. Per Cut 4 — coexistence with
+   * existing `manifest` field; Cut 8 collapses the two paths.
+   */
+  config?: SiteConfig
 }
 
 /**
@@ -240,7 +256,13 @@ export async function loadSite(opts: LoadSiteOptions): Promise<Site> {
   }
 
   let manifest: SiteManifest
-  if (opts.manifest) {
+  if (opts.config && opts.manifest) {
+    throw new Error('loadSite: pass either `config` (TS) or `manifest` (legacy YAML), not both')
+  }
+  if (opts.config) {
+    // TS config from new loader — convert to runtime manifest shape.
+    manifest = siteConfigToManifest(opts.config)
+  } else if (opts.manifest) {
     // Project-level bootstrap passed in the manifest — skip the storage read.
     manifest = opts.manifest
   } else {

@@ -259,3 +259,30 @@ export async function loadProjectConfig(
     sites,
   }
 }
+
+/**
+ * Adapter: convert the user's SiteConfig (input shape) into the
+ * runtime SiteManifest shape consumed by site-loader.ts and
+ * downstream code.
+ *
+ * The two shapes are equivalent at runtime — SiteManifest types nested
+ * provider blocks (ai, altText, targets, themes.default) more strictly
+ * than SiteConfig (which uses Record<string, unknown> for forward-
+ * compatibility with foundations that haven't shipped yet).
+ *
+ * The conversion is structural: pass the values through; cast nested
+ * provider blocks to their runtime types. Downstream validation (alt
+ * adapter factory, etc.) still runs and rejects malformed nested data.
+ *
+ * Per design-config-implementation.md Cut 4 — wires the new TS-config
+ * loader into existing site-loader.ts without breaking downstream
+ * consumers that read site.manifest.{name, locale, targets, ...}.
+ */
+export function siteConfigToManifest(config: SiteConfig): import('../types.js').SiteManifest {
+  // The shapes overlap nearly entirely; runtime values flow through.
+  // The cast through `unknown` is required because SiteConfig's
+  // permissive `Record<string, unknown>` blocks (ai, altText,
+  // targets) don't satisfy SiteManifest's stricter typed shapes by
+  // simple assignment, but the runtime data is identical.
+  return config as unknown as import('../types.js').SiteManifest
+}

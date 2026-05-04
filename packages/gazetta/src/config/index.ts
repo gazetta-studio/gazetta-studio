@@ -20,5 +20,6 @@ export {
   loadSiteConfig,
   discoverSites,
   loadProjectConfig,
+  siteConfigToManifest,
 } from './loader.js'
 export type { DiscoveredSite, LoadedProjectConfig } from './loader.js'
