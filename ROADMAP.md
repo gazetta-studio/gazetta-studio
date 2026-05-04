@@ -57,7 +57,7 @@ Sequence (per dependency order):
 
 1. **`design-scale.md`** (1-2 weeks) — covers #88 (nested route tree + search), #196 (large-site editor profile). Establishes operating envelope (target N pages / M assets / K components). Strategy for tree virtualization, paginated `/api/pages`, search-driven navigation, lazy-load asset library. Gates every UI/API design that follows.
 
-2. **`design-i18n.md`** (1 week) — migrates `i18n-plan.md` to formal design doc. Locks: locale as closed dimension peer to theme; locale-priority cross-dimension fallback; whole-file vs. per-field overlay model. Most plumbing exists; this formalizes the contract.
+2. **`design-i18n.md`** (complete 2026-05) — migrated from `i18n-plan.md`. Locked: locale as closed dimension peer to theme; locale-priority cross-dimension fallback; whole-file overlay model; subpath/per-domain/hybrid routing strategies; hreflang via HTML or sitemap. 13 of 15 implementation steps shipped; remaining steps (admin "Translate to..." action + `gazetta validate` locale checks) tracked under editor papercut cluster + validation Cut 5 respectively.
 
 3. **`design-themes.md`** (1 week) — extends asset-side theme dimension to pages/fragments/templates. Theme as render-context parameter; runtime routing (cookie / `prefers-color-scheme` / class cascade). Implementation is Tier 3.
 

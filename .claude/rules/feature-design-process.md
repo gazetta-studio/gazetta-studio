@@ -158,7 +158,7 @@ The dimensions are foundational because designing a feature without respecting t
 
 1. Validation Cut 1 (in flight; locks Validator/Issue contract)
 2. `design-scale.md` (complete 2026-05; closes #88 + #196)
-3. `design-i18n.md` (migrated from `i18n-plan.md` 2026-05; design/implementation split lands with #192)
+3. `design-i18n.md` (complete 2026-05; 13 of 15 implementation steps shipped; design/implementation split lands with #192 per-field translation)
 4. `design-themes.md` (pending — small, additive on i18n)
 5. `design-rbac-audit-review.md` (pending — unblocks hooks, presence)
 6. `design-rendering.md` (pending — depends on locale + themes)
