@@ -125,4 +125,14 @@ export { format } from './formats.js'
 // ESI assembly (for edge workers and servers)
 export { assembleEsi, parseCacheComment, splitFragment, findEsiPaths } from './assemble.js'
 
+// Site config — typed identity functions for site.config.ts and gazetta.config.ts
+export { defineSite, defineGazetta } from './config/index.js'
+export type { SiteConfig, GazettaConfig } from './config/index.js'
+export {
+  ConfigError,
+  ConfigValidationError,
+  ConfigEvaluationError,
+  ConfigLayoutError,
+} from './config/index.js'
+
 // Editor — import from 'gazetta/editor' (separate entry point to avoid pulling Tiptap into server builds)
