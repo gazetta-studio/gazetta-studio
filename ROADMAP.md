@@ -51,7 +51,7 @@ Closes part of the deploy-adapters cluster:
 
 ### Foundational design passes
 
-Twelve cross-cutting dimensions that every feature design must respect (see [`feature-design-process.md`](.claude/rules/feature-design-process.md) "Foundational dimensions"). Each is a separate design pass that lands a `design-{name}.md` and adds a check to every new feature design. Implementation phases sit in Tier 3 unless otherwise noted.
+Thirteen cross-cutting dimensions that every feature design must respect (see [`feature-design-process.md`](.claude/rules/feature-design-process.md) "Foundational dimensions"). Each is a separate design pass that lands a `design-{name}.md` and adds a check to every new feature design. Implementation phases sit in Tier 3 unless otherwise noted.
 
 Sequence (per dependency order):
 
@@ -65,7 +65,7 @@ Sequence (per dependency order):
 
    - **`design-audit.md`** (complete 2026-05) — covers #200 (audit log). `AuditProvider` extension surface #11; v1 ships `HistoryAuditProvider` with `outcome` field on every event, structured `actor` snapshot, sync fail-open + parallel fan-out, separable retention, opt-in pseudonymization (sha256 + salt), trust-mode-driven sourceIp extraction; v2 expected order: `HttpWebhookAuditProvider` first, then file → OTel → CloudWatch → Azure Monitor → syslog. Implementation Tier 3.
 
-   - **`design-review-workflow.md`** (extracted to its own pass; pending) — covers #199 (review workflows). Per-content review state machine (`draft / pending-review / approved`) + per-target publish approval; 5 archetype recipes; capability extensions (`review:submit`, `review:approve`, `publish:request`, `publish:approve`).
+   - **`design-review-workflow.md`** (complete 2026-05) — covers #199 (review workflows). Per-content review state machine (`draft / pending-review / approved`) + per-target publish approval (opt-in via `requiresPublishApproval`); 5 archetype recipes (solo / small-content / small-release / mid / compliance); capability extensions (`review:submit`, `review:approve`, `publish:request`, `publish:approve`); single reject with mandatory comment; `requiredApprovers` snapshotted at submit; `allowSelfApproval` defaults true; `invalidateOnSave` defaults `'content-diff'`. Pages + fragments reviewable in v1; assets defer to v2. Implementation Tier 3.
 
 5. **`design-rendering.md`** (1-2 weeks) — full rendering taxonomy (static / ESI / request-SSR / island). Defines target type, component rendering type, when-rendered axes. Includes listings/render-time queries (covers what Algolia would otherwise provide for filtered listings). Sub-task: #80 dynamic route params at request time.
 
@@ -76,6 +76,8 @@ Sequence (per dependency order):
 8. **`design-cache.md`** (1 week) — pluggable caching layer with multiple provider implementations. Ships `MemoryCache` (per-instance, v1 default) + reserved providers for v2 (Redis, Azure storage, file-based, distributed). Same extension-surface pattern as storage providers. Multi-instance discipline: per-instance providers are correct via independence; shared providers via the provider's own coordination.
 
 9. **`design-offline.md`** (1-2 weeks) — admin works through transient connectivity loss. Read paths serve from a browser-side persistent cache (extends cache taxonomy with `IndexedDBCache` + `LocalStorageCache`); write paths queue + replay on reconnect; conflict resolution on stale write. Pending edits persist across browser reload. Composes with cache (extends taxonomy), RBAC (role-aware cache scope), audit log (replay events recorded), real-time event-source (cache invalidation broadcasts).
+
+10. **`design-collaboration.md`** (2-3 weeks) — comments (page-level + inline + asset + review-event), mentions, notifications (in-admin + pluggable Notification Provider as Extension Surface candidate), activity feed, presence (cursor sharing reserved). Composes with auth/RBAC (capability vocabulary extends), audit log (collaboration events recorded), review workflow (approver leaves comment without gating approval), hooks (`afterCommentPosted`, `afterMention`). Discovered while grilling review-workflow Q1 — "approve-with-caveats" is a conversation, not a state-machine state.
 
 ### Validation Cut 2 + 3 (8 days)
 - Cut 2: background scanner + admin UI surfaces (tree dots, "Site health" drawer) — closes #40 fully

@@ -8,7 +8,7 @@ paths:
 
 # Admin offline mode — design pass pending
 
-Foundational dimension #12 of 12. Admin works through transient connectivity loss (server restart, Wi-Fi drop, VPN issue) and degrades gracefully. Read paths serve from a local persistent cache; write paths queue and replay on reconnect; conflict resolution preserves author intent.
+Foundational dimension #12 of 13. Admin works through transient connectivity loss (server restart, Wi-Fi drop, VPN issue) and degrades gracefully. Read paths serve from a local persistent cache; write paths queue and replay on reconnect; conflict resolution preserves author intent.
 
 **Status**: design pass pending — last in the sequence; depends on `design-cache.md` (extends taxonomy), `design-auth-rbac.md` (role-aware cache scope), `design-rendering.md` (render contract), real-time event-source discipline (cache invalidation broadcasts). See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
 
