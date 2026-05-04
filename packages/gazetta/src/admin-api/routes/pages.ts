@@ -7,8 +7,11 @@ import { CreatePageRequestSchema } from '../schemas/pages.js'
 import { isValidLocale } from '../../locale.js'
 import { rebuildAssetRefs, type ItemRef } from '../../assets/asset-deps.js'
 import { rebuildFragmentDeps } from '../../fragment-deps.js'
+import { hasBlockingIssues, runSaveDelta } from '../../validation/save-delta.js'
+import type { ValidatorRegistry } from '../../validation/registry.js'
+import type { PageManifest } from '../../types.js'
 
-export function pageRoutes(resolve: SourceContextResolver) {
+export function pageRoutes(resolve: SourceContextResolver, validators: ValidatorRegistry, templatesDir?: string) {
   const app = new Hono()
 
   app.get('/api/pages', async c => {
@@ -125,7 +128,7 @@ export function pageRoutes(resolve: SourceContextResolver) {
 
     const source = await resolve(c.req.query('target'))
     const { storage } = source
-    const site = await loadSiteFromSource(source)
+    const site = await loadSiteFromSource(source, { templatesDir })
 
     // Resolve the page to update — locale variant or default
     const defaultPage = site.pages.get(name)
@@ -147,6 +150,27 @@ export function pageRoutes(resolve: SourceContextResolver) {
     const filename = locale ? `page.${locale}.json` : 'page.json'
     const manifestPath = join(defaultPage.dir, filename)
     const serialized = JSON.stringify(manifest, null, 2) + '\n'
+
+    // Save-delta validation runs against the manifest the author is about to
+    // commit. The route handler is responsible for converting issues into a
+    // 409 response when error-severity issues are present. The validation
+    // contract: validators must not throw on validation failure; the
+    // orchestrator catches infrastructure errors and surfaces them as
+    // synthetic issues so the save flow stays predictable.
+    const issues = await runSaveDelta(
+      {
+        item: { kind: 'page', name, itemPath: source.contentRoot.relative(manifestPath) },
+        before: page as unknown as PageManifest,
+        after: { ...(manifest as unknown as PageManifest), route: page.route },
+        site,
+        contentRoot: source.contentRoot,
+        storage,
+      },
+      validators,
+    )
+    if (hasBlockingIssues(issues)) {
+      return c.json({ code: 'VALIDATION_FAILED' as const, issues }, 409)
+    }
 
     // Record the history revision BEFORE the disk write. recordWrite's
     // first call scans the content tree to produce a pre-save baseline

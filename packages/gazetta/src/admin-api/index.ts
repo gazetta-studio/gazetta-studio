@@ -18,6 +18,7 @@ import { authMiddleware } from './middleware/auth.js'
 import { siteRoutes } from './routes/site.js'
 import { pageRoutes } from './routes/pages.js'
 import { fragmentRoutes } from './routes/fragments.js'
+import { defaultValidatorRegistry } from '../validation/default-registry.js'
 import { templateRoutes } from './routes/templates.js'
 import { previewRoutes } from './routes/preview.js'
 import { publishRoutes } from './routes/publish.js'
@@ -151,9 +152,13 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
     resolveSource = staticSourceResolver(source)
   }
 
+  // Validator registry built once per app — Cut 1 ships the 5 reference-
+  // existence validators; Cut 2+ extend the default registry.
+  const validators = defaultValidatorRegistry()
+
   app.route('/', siteRoutes(resolveSource))
-  app.route('/', pageRoutes(resolveSource))
-  app.route('/', fragmentRoutes(resolveSource))
+  app.route('/', pageRoutes(resolveSource, validators, templatesDir))
+  app.route('/', fragmentRoutes(resolveSource, validators, templatesDir))
   app.route('/', templateRoutes(resolveSource, templatesDir, adminDir, opts.production))
   app.route('/', previewRoutes(resolveSource, templatesDir))
   app.route('/', publishRoutes(resolveSource, opts.targets, opts.targetConfigs, templatesDir, scan))

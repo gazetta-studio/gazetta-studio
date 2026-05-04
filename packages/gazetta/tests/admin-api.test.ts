@@ -393,6 +393,45 @@ describe('PUT /api/pages/:name', () => {
     })
     expect(res.status).toBe(404)
   })
+
+  it('returns 409 with VALIDATION_FAILED when save introduces a missing asset ref', async () => {
+    // Create a clean page first
+    await app.request('/api/pages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'val-test', template: 'page-default' }),
+    })
+    // Update with content that references a non-existent asset
+    const res = await app.request('/api/pages/val-test', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: { hero: { _asset: 'definitely-not-an-asset-name' } } }),
+    })
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as { code: string; issues: Array<{ validator: string; message: string }> }
+    expect(body.code).toBe('VALIDATION_FAILED')
+    expect(body.issues.some(i => i.validator === 'referenced-asset-exists')).toBe(true)
+    expect(body.issues.some(i => i.message.includes('definitely-not-an-asset-name'))).toBe(true)
+    // Cleanup
+    await rm(resolve(localTargetDir, 'pages/val-test'), { recursive: true, force: true })
+  })
+
+  it('returns 409 when a fragment ref is introduced that does not exist', async () => {
+    await app.request('/api/pages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'val-frag-test', template: 'page-default' }),
+    })
+    const res = await app.request('/api/pages/val-frag-test', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ components: ['@nonexistent-fragment'] }),
+    })
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as { code: string; issues: Array<{ validator: string }> }
+    expect(body.issues.some(i => i.validator === 'referenced-fragment-exists')).toBe(true)
+    await rm(resolve(localTargetDir, 'pages/val-frag-test'), { recursive: true, force: true })
+  })
 })
 
 describe('PUT /api/pages/:name (metadata round-trip)', () => {

@@ -273,6 +273,24 @@ Issues carry a `suppressible: true` hint. Suppression itself is a future operati
 
 Per-target `publishAudit` config controls whether quality warns block publish. Strict workflows enable; loose workflows skip. The CMS doesn't impose a one-size-fits-all severity.
 
+## Foundational checks
+
+Validation is itself foundational dimension #7. This section answers how each of the other 7 foundational dimensions composes with the validation system, per [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions."
+
+- **Scale check** — save-delta is O(diff) per save; only checks refs introduced by THIS save, not the full site. Background scanner (Cut 2) caches per-page validation results by content hash; only re-validates when something material changed. Heavy validators (Cut 4 Lighthouse, linkinator) are pre-publish only, opt-in. The framework scales because phase-separation matches detection cost to author commitment level. Gates: Cut 2 must reuse the existing sidecar dependency tracking (`findDependentsFromSidecars`) so a fragment edit only invalidates pages that use that fragment.
+
+- **Theme check** — validation runs against rendered output for quality validators (Cut 3 axe-core, html-validate). Render-for-analysis composes with the active theme: when themes ship per [`design-themes.md`](design-themes.md), render-for-analysis renders per-(content, locale, theme) tuple, and validators see theme-specific output. Cache key includes theme. v1 (single-theme world): no impact.
+
+- **Locale check** — validators receive the manifest in its declared locale. Locale-variant manifests (page.fr.json) are validated as their own item, not as deltas against the default locale. Per-locale validation cache. The `altRequired` validator (Cut 3) walks the schema for the locale being validated. RTL: validators don't have a UI, so RTL is N/A here; the banner UI follows admin-wide RTL contracts per [`design-i18n.md`](design-i18n.md).
+
+- **Team check** — validators are infrastructure; they don't gate on roles. The save-delta gate runs for every author. Issue surfaces (banner, drawer, publish modal) gate on read-access to the affected content per [`design-rbac-audit-review.md`](design-rbac-audit-review.md) — an editor without page X read access doesn't see issues for page X. Audit log records every save attempt including 409 VALIDATION_FAILED responses. Review workflows (when shipped) read validation state — a "ready for review" transition can require zero open errors on the item.
+
+- **Hook check** — validators do NOT fire hooks. They're pure functions over a manifest; firing hooks during validation would create circular dependencies (a hook that runs a validator that fires a hook). Hooks at save time fire AFTER validation passes — the save handler validates first, hooks observe the resulting save. Per [`design-hooks.md`](design-hooks.md). Validators that compose with hook-driven enrichment (e.g., a validator that checks the result of an auto-slugify hook) read the post-hook manifest, which is already what the validator gets.
+
+- **Render check** — Cut 3's render-for-analysis IS a render mode. It's the same renderer used for preview/publish, with output captured in-memory rather than written to storage. Composes with [`design-rendering.md`](design-rendering.md)'s mode taxonomy: validators that need rendered HTML opt in via `RenderedOutputAccess`; validators that work on the manifest alone (the 5 ref-existence validators in Cut 1) don't. Request-time SSR: when shipped, dynamic components SSR per request, so validation runs against a representative request context (or the static fallback when one isn't available).
+
+- **Plugin check** — validators are an extension surface. The `Validator` interface is the contract; the registry (`packages/gazetta/src/validation/registry.ts`) is the discovery mechanism. Cut 1 ships 5 in-tree validators registered via `defaultValidatorRegistry()`. Future plugin contract per [`design-plugins.md`](design-plugins.md) extends the registry with npm-packaged validators — same interface, additional discovery path. The registry pattern is foundational specifically so Cut 2+ and plugin-contributed validators slot in without changing orchestrator code.
+
 ## Migration
 
 ### Existing sites
