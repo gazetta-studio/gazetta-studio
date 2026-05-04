@@ -370,13 +370,17 @@ The "dynamic is a kind of fragment" reframe is provisional. Open threads to gril
 
 **Future runtime sub-field** (reserved):
 
-```yaml
-targets:
-  production:
-    type: dynamic
-    runtime: node    # v1: 'node' | 'bun'
-    # type: dynamic
-    # runtime: edge  # v2: WinterTC edge SSR (templates stay in WinterTC subset)
+```ts
+export default defineSite({
+  targets: {
+    production: {
+      type: 'dynamic',
+      runtime: 'node',   // v1: 'node' | 'bun'
+      // type: 'dynamic',
+      // runtime: 'edge', // v2: WinterTC edge SSR (templates stay in WinterTC subset)
+    },
+  },
+})
 ```
 
 v1 ships `dynamic` target with implicit `runtime: node`. Edge SSR reserved.

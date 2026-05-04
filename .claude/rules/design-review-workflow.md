@@ -88,24 +88,31 @@ Failure outcomes (`forbidden`, `validation-failed`, `unauthenticated`) follow th
 - Per-edge granularity → multi-instance correct via the same pattern as asset-refs
 
 ### Configuration
-```yaml
-targets:
-  staging:
-    storage: { type: r2, ... }
-    reviewWorkflow:
-      enabled: true
-      requiredApprovers: 1
-      allowSelfApproval: true
-      invalidateOnSave: content-diff
-  production:
-    storage: { type: r2, ... }
-    reviewWorkflow:
-      enabled: true
-      requiredApprovers: 2
-      allowSelfApproval: false
-      invalidateOnSave: always
-    requiresPublishApproval: true
-    requiredPublishApprovers: 1
+```ts
+export default defineSite({
+  targets: {
+    staging: {
+      storage: { type: 'r2' /* ... */ },
+      reviewWorkflow: {
+        enabled: true,
+        requiredApprovers: 1,
+        allowSelfApproval: true,
+        invalidateOnSave: 'content-diff',
+      },
+    },
+    production: {
+      storage: { type: 'r2' /* ... */ },
+      reviewWorkflow: {
+        enabled: true,
+        requiredApprovers: 2,
+        allowSelfApproval: false,
+        invalidateOnSave: 'always',
+      },
+      requiresPublishApproval: true,
+      requiredPublishApprovers: 1,
+    },
+  },
+})
 ```
 
 ### Workflow archetypes (5 documented recipes)
@@ -115,7 +122,7 @@ targets:
 - **D. Mid team — both** — review on + publish gate on (prod only); 3 distinct roles
 - **E. Compliance** — review on with `requiredApprovers: 2`, `allowSelfApproval: false`, publish gate on with `requiredPublishApprovers: 2`
 
-Each archetype gets a copy-paste-ready `site.yaml` snippet + role mapping + capability mapping in the design doc.
+Each archetype gets a copy-paste-ready `site.config.ts` snippet + role mapping + capability mapping in the design doc.
 
 ### Capability scoping for advanced archetypes (deferred)
 - **Level 2 (per-target capability scoping)** — `review:approve@{target}`, `publish:approve@{target}`. Future when multi-stage release demand (archetype H) surfaces.

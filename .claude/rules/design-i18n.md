@@ -17,7 +17,7 @@ paths:
 
 File-suffix localization: `page.json` (default locale), `page.fr.json` (French),
 `page.en-gb.json` (British English). Same pattern for fragments: `fragment.fr.json`.
-Zero template changes, zero schema changes. Opt-in via `locales` in site.yaml.
+Zero template changes, zero schema changes. Opt-in via `locales` in site.config.ts.
 
 **Foundational dimension #2 of 13.** Locale is a closed dimension peer to theme; every feature must respect locale variants, the locked locale-priority cross-dimension fallback, and the file-suffix model. See [`feature-design-process.md`](feature-design-process.md) "Foundational dimensions" — every new feature design answers the **Locale check**.
 
@@ -53,9 +53,9 @@ Zero template changes, zero schema changes. Opt-in via `locales` in site.yaml.
    a content field — not hardcoded. The template contract is unchanged.
 
 4. **Fallback chain.** `pt-BR` → `pt` → default locale. Configurable per locale in
-   site.yaml. Applies to both pages and fragments.
+   site.config.ts. Applies to both pages and fragments.
 
-5. **Opt-in.** No `locales` in site.yaml = no i18n. Existing sites work unchanged.
+5. **Opt-in.** No `locales` in site.config.ts = no i18n. Existing sites work unchanged.
    `page.json` is the only manifest. Adding `locales` enables the feature —
    existing `page.json` files become the default locale automatically.
 
@@ -66,14 +66,20 @@ Zero template changes, zero schema changes. Opt-in via `locales` in site.yaml.
 
 ## Configuration
 
-```yaml
-# site.yaml
-name: "My Site"
-locale: en                    # optional — default locale (falls back to first in supported)
-locales:                      # new (optional) — enables i18n
-  supported: [en, fr, de, pt-BR]
-  fallbacks:                  # optional — locale-specific fallback chains
-    pt-BR: pt                 # pt-BR falls back to pt before default
+```ts
+// site.config.ts
+import { defineSite } from 'gazetta'
+
+export default defineSite({
+  name: 'My Site',
+  locale: 'en',                   // optional — default locale (falls back to first in supported)
+  locales: {                      // new (optional) — enables i18n
+    supported: ['en', 'fr', 'de', 'pt-BR'],
+    fallbacks: {                  // optional — locale-specific fallback chains
+      'pt-BR': 'pt',              // pt-BR falls back to pt before default
+    },
+  },
+})
 ```
 
 `locale` is optional. When omitted, the first entry in `locales.supported`
@@ -117,11 +123,14 @@ No explicit config needed — the system infers from the single-entry list.
 
 #### Minimal i18n setup
 
-```yaml
-# Minimum config to enable i18n — everything else is inferred
-locale: en
-locales:
-  supported: [en, fr]
+```ts
+// Minimum config to enable i18n — everything else is inferred
+export default defineSite({
+  locale: 'en',
+  locales: {
+    supported: ['en', 'fr'],
+  },
+})
 ```
 
 This gives:
@@ -139,17 +148,22 @@ target configurations. All can coexist in the same site.
 
 #### Strategy 1: Subpath — one target, all locales in URL
 
-```yaml
-targets:
-  local:
-    storage: { type: filesystem }
-    # inherits all site-level locales, default = en
+```ts
+export default defineSite({
+  targets: {
+    local: {
+      storage: { type: 'filesystem' },
+      // inherits all site-level locales, default = en
+    },
 
-  production:
-    storage: { type: s3, bucket: site }
-    environment: production
-    siteUrl: https://example.com
-    # → /about (en), /fr/about, /de/about, /pt-br/about
+    production: {
+      storage: { type: 's3', bucket: 'site' },
+      environment: 'production',
+      siteUrl: 'https://example.com',
+      // → /about (en), /fr/about, /de/about, /pt-br/about
+    },
+  },
+})
 ```
 
 Default locale has no prefix. Other locales get `/{locale}/` prefix.
@@ -157,33 +171,40 @@ Google's recommended approach — inherits domain authority.
 
 #### Strategy 2: Per-domain — one target per locale
 
-```yaml
-targets:
-  local:
-    storage: { type: filesystem }
-    # dev serves all locales with subpath (convenient for development)
+```ts
+export default defineSite({
+  targets: {
+    local: {
+      storage: { type: 'filesystem' },
+      // dev serves all locales with subpath (convenient for development)
+    },
 
-  production-en:
-    storage: { type: s3, bucket: site-en }
-    environment: production
-    siteUrl: https://example.com
-    locales: [en]              # single locale — no prefix, no hreflang on this domain
-    # → /about (en only)
+    'production-en': {
+      storage: { type: 's3', bucket: 'site-en' },
+      environment: 'production',
+      siteUrl: 'https://example.com',
+      locales: ['en'],            // single locale — no prefix, no hreflang on this domain
+      // → /about (en only)
+    },
 
-  production-fr:
-    storage: { type: s3, bucket: site-fr }
-    environment: production
-    siteUrl: https://example.fr
-    locales: [fr]              # single locale
-    # → /about (fr only)
+    'production-fr': {
+      storage: { type: 's3', bucket: 'site-fr' },
+      environment: 'production',
+      siteUrl: 'https://example.fr',
+      locales: ['fr'],            // single locale
+      // → /about (fr only)
+    },
 
-  production-de:
-    storage: { type: s3, bucket: site-de }
-    environment: production
-    siteUrl: https://example.de
-    locales: [de, en]          # two locales — German default, English secondary
-    locale: de                 # overrides default for this target
-    # → /about (de), /en/about (en)
+    'production-de': {
+      storage: { type: 's3', bucket: 'site-de' },
+      environment: 'production',
+      siteUrl: 'https://example.de',
+      locales: ['de', 'en'],      // two locales — German default, English secondary
+      locale: 'de',               // overrides default for this target
+      // → /about (de), /en/about (en)
+    },
+  },
+})
 ```
 
 Each target serves one domain with its own locale subset. hreflang
@@ -191,23 +212,29 @@ cross-links point across domains using each target's `siteUrl`.
 
 #### Strategy 3: Hybrid — subpath for dev, per-domain for production
 
-```yaml
-targets:
-  local:
-    storage: { type: filesystem }
-    # all locales via subpath — author previews everything locally
+```ts
+export default defineSite({
+  targets: {
+    local: {
+      storage: { type: 'filesystem' },
+      // all locales via subpath — author previews everything locally
+    },
 
-  production-en:
-    storage: { type: s3, bucket: site-en }
-    environment: production
-    siteUrl: https://example.com
-    locales: [en]
+    'production-en': {
+      storage: { type: 's3', bucket: 'site-en' },
+      environment: 'production',
+      siteUrl: 'https://example.com',
+      locales: ['en'],
+    },
 
-  production-fr:
-    storage: { type: s3, bucket: site-fr }
-    environment: production
-    siteUrl: https://example.fr
-    locales: [fr]
+    'production-fr': {
+      storage: { type: 's3', bucket: 'site-fr' },
+      environment: 'production',
+      siteUrl: 'https://example.fr',
+      locales: ['fr'],
+    },
+  },
+})
 ```
 
 Author works in subpath mode locally (one server, all locales). Publishes
@@ -237,26 +264,33 @@ Behavior:
 - Configurable at site level (default for all targets) and per target
   (override). Target config wins.
 
-```yaml
-# site.yaml
-locales:
-  supported: [en, fr, de]
-  detection: true               # site-level default — all targets redirect
-  defaultPrefix: false          # site-level default — no prefix for default locale
+```ts
+// site.config.ts
+export default defineSite({
+  locales: {
+    supported: ['en', 'fr', 'de'],
+    detection: true,             // site-level default — all targets redirect
+    defaultPrefix: false,        // site-level default — no prefix for default locale
+  },
 
-targets:
-  local:
-    storage: { type: filesystem }
-    # inherits site-level detection: true
+  targets: {
+    local: {
+      storage: { type: 'filesystem' },
+      // inherits site-level detection: true
+    },
 
-  production:
-    siteUrl: https://example.com
-    detection: false            # override — no redirect on production (CDN handles it)
-    defaultPrefix: true         # override — all locales prefixed: /en/about, /fr/about
+    production: {
+      siteUrl: 'https://example.com',
+      detection: false,          // override — no redirect on production (CDN handles it)
+      defaultPrefix: true,       // override — all locales prefixed: /en/about, /fr/about
+    },
 
-  staging:
-    siteUrl: https://staging.example.com
-    # inherits site-level detection: true, defaultPrefix: false
+    staging: {
+      siteUrl: 'https://staging.example.com',
+      // inherits site-level detection: true, defaultPrefix: false
+    },
+  },
+})
 ```
 
 This is a runtime feature — only applies to `gazetta serve` and edge
@@ -567,7 +601,7 @@ Publishing a subset of locales is supported — author can publish only the
 | Dynamic route `:slug` shared across locales | Same slug, locale prefix only: `/fr/blog/hello-world` |
 | Template has hardcoded text | Templates should be content-driven — "Read more" is a content field |
 | Site name localization | Site name stays global. Use a content field if locale-specific needed |
-| `pt-BR` fallback to `pt` | Configured in site.yaml `locales.fallbacks` |
+| `pt-BR` fallback to `pt` | Configured in site.config.ts `locales.fallbacks` |
 | noindex on one locale but not another | Excluded from hreflang group; only visible locale gets hreflang |
 | Sitemap with 500 pages × 20 locales | Single sitemap for now; add index splitting when needed |
 | Locale-specific slugs (/fr/blog/bonjour) | Future — `slug` field in manifest. Same directory slug for now |
@@ -644,7 +678,7 @@ Locale is itself foundational dimension #2 of 13. This section answers how each 
 
 | Step | Scope | Effort | Status |
 |------|-------|--------|--------|
-| 1 | `locales` config in site.yaml + type | Small | ✓ |
+| 1 | `locales` config in site.config.ts + type | Small | ✓ |
 | 2 | Page discovery: scan `page.*.json` siblings | Small | ✓ |
 | 3 | Fragment discovery: scan `fragment.*.json` | Small | ✓ |
 | 4 | Route generation with locale prefix | Medium | ✓ |

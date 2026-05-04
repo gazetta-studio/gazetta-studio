@@ -35,7 +35,7 @@ Adding audit later means auditing every save/publish/delete consumer and adding 
 - **Audit log is the source of real-time events.** Per the real-time event-source discipline in `feature-design-process.md`, save/publish handlers record to audit log; real-time push (presence, live publish status) observes audit log. Not bolted into save/publish handlers directly. Real-time consumers filter by `outcome === 'success'` when they only want state changes.
 - **Audit and history are conceptually peer surfaces.** v1 ships them unified in `HistoryAuditProvider` (writes a revision on success; writes an audit event on every outcome). v2 separates them — operators wanting "audit to CloudWatch but history stays local" get a clean split. The `AuditProvider` interface is independent of `HistoryProvider`; `HistoryAuditProvider` implements both because they share storage in v1.
 - **Outcome is required on every event.** No implicit "default to success" — recording sites supply outcome explicitly. Cuts a class of "I forgot to record the failure" bugs.
-- **Actor is a snapshot, not a live reference.** The recorded `actor.role` reflects the role at decision time. Subsequent role changes don't rewrite history. Capabilities are NOT embedded per event — they derive from role + the site.yaml revision active at the event's timestamp (recoverable via history). Group claims are NOT embedded — privacy isolation; correlate with upstream auth logs when needed.
+- **Actor is a snapshot, not a live reference.** The recorded `actor.role` reflects the role at decision time. Subsequent role changes don't rewrite history. Capabilities are NOT embedded per event — they derive from role + the site.config.ts revision active at the event's timestamp (recoverable via history). Group claims are NOT embedded — privacy isolation; correlate with upstream auth logs when needed.
 
 ## Surface-specific contract
 
@@ -84,7 +84,7 @@ export interface AuditEvent {
     trustMode: string
   }
   /** Narrowed enum; configure-roles records role-mapping changes
-   *  in site.yaml as a special "configuration write". */
+   *  in site.config.ts as a special "configuration write". */
   action: 'save' | 'publish' | 'delete' | 'restore' | 'configure-roles'
   /** Required. Each recording site supplies its own outcome explicitly —
    *  no implicit default. Closed enum; future ambient-log additions
@@ -180,10 +180,14 @@ async function recordToAll(event: AuditEvent, providers: AuditProvider[]) {
 
 **Strict mode opt-in:**
 
-```yaml
-admin:
-  audit:
-    strict: true   # any provider failure blocks the write
+```ts
+export default defineSite({
+  admin: {
+    audit: {
+      strict: true,   // any provider failure blocks the write
+    },
+  },
+})
 ```
 
 For HIPAA / SOC 2 compliance contexts where "audit recording confirmed successful" is a hard prerequisite for the write to proceed. Default off; opt-in.
@@ -199,25 +203,34 @@ For HIPAA / SOC 2 compliance contexts where "audit recording confirmed successfu
 
 Zero-config default — `HistoryAuditProvider` runs automatically; no `admin.audit` block needed.
 
-```yaml
-# Single-string Provider name
-admin:
-  audit:
-    provider: cloudwatch    # SDK reads AWS_REGION + credentials from env
-    # logGroup: gazetta-audit  # optional; default shown
+```ts
+// Single-string Provider name
+export default defineSite({
+  admin: {
+    audit: {
+      provider: 'cloudwatch',    // SDK reads AWS_REGION + credentials from env
+      // logGroup: 'gazetta-audit',  // optional; default shown
+    },
+  },
+})
 ```
 
-```yaml
-# List form for multi-Provider compliance scenarios
-admin:
-  audit:
-    providers:
-      - history             # local copy in target storage
-      - cloudwatch          # also stream to CloudWatch
-    strict: false           # default; audit failures never block writes
-    actorPseudonym: none    # default; 'sha256' for opt-in pseudonymization
-    recordSourceIp: false   # default; opt-in per GDPR consideration
-    recordUserAgent: false  # default; opt-in per GDPR consideration
+```ts
+// List form for multi-Provider compliance scenarios
+export default defineSite({
+  admin: {
+    audit: {
+      providers: [
+        'history',             // local copy in target storage
+        'cloudwatch',          // also stream to CloudWatch
+      ],
+      strict: false,           // default; audit failures never block writes
+      actorPseudonym: 'none',  // default; 'sha256' for opt-in pseudonymization
+      recordSourceIp: false,   // default; opt-in per GDPR consideration
+      recordUserAgent: false,  // default; opt-in per GDPR consideration
+    },
+  },
+})
 ```
 
 **Defaults per Provider** (sensible — operator overrides only when needed):
@@ -238,7 +251,7 @@ Every write **attempt** — success and write-class rejection:
 | `publish` (any target) | `success`, `forbidden`, `unauthenticated` |
 | `delete` (page, fragment, or asset) | `success`, `forbidden`, `unauthenticated` |
 | `restore` (history rollback) | `success`, `forbidden`, `unauthenticated` |
-| `configure-roles` (`site.yaml`'s `admin.auth.roleMapping` change) | `success`, `validation-failed`, `forbidden`, `unauthenticated` |
+| `configure-roles` (`site.config.ts`'s `admin.auth.roleMapping` change) | `success`, `validation-failed`, `forbidden`, `unauthenticated` |
 
 **Recording sites** (the layer that produced the outcome records its own event):
 - Save/publish/delete handler success path → `success`
@@ -263,12 +276,16 @@ Every write **attempt** — success and write-class rejection:
 
 ### Source IP recording (`admin.audit.recordSourceIp`)
 
-```yaml
-admin:
-  audit:
-    recordSourceIp: none           # 'none' | 'raw' | 'hashed' | 'truncated'
-    trustedProxyHeader: X-Forwarded-For   # forwarded-user trust mode only
-    trustedProxyCount: 1                  # number of trusted proxies in front of Gazetta
+```ts
+export default defineSite({
+  admin: {
+    audit: {
+      recordSourceIp: 'none',                 // 'none' | 'raw' | 'hashed' | 'truncated'
+      trustedProxyHeader: 'X-Forwarded-For',  // forwarded-user trust mode only
+      trustedProxyCount: 1,                   // number of trusted proxies in front of Gazetta
+    },
+  },
+})
 ```
 
 **Modes:**
@@ -301,10 +318,14 @@ Future plugin-supplied trust modes declare their own `getClientIp(req): string |
 
 ### User agent recording (`admin.audit.recordUserAgent`)
 
-```yaml
-admin:
-  audit:
-    recordUserAgent: none          # 'none' | 'raw' | 'truncated'
+```ts
+export default defineSite({
+  admin: {
+    audit: {
+      recordUserAgent: 'none',     // 'none' | 'raw' | 'truncated'
+    },
+  },
+})
 ```
 
 | Mode | What's stored |
@@ -320,11 +341,15 @@ Lower priority than IP — most operators don't enable. No `hashed` mode for UA 
 
 Default: `'none'`. Audit events store the upstream subject as-is.
 
-```yaml
-admin:
-  audit:
-    actorPseudonym: sha256   # opt-in privacy hardening
-    # GAZETTA_AUDIT_ACTOR_SALT env var required when sha256 is enabled
+```ts
+export default defineSite({
+  admin: {
+    audit: {
+      actorPseudonym: 'sha256',   // opt-in privacy hardening
+      // GAZETTA_AUDIT_ACTOR_SALT env var required when sha256 is enabled
+    },
+  },
+})
 ```
 
 **When to opt in:**
@@ -333,7 +358,7 @@ admin:
 - Multi-tenant SIEM correlation where the operator wants to share hashes across systems (using a shared salt) without sharing raw subjects.
 
 **Salt management:**
-- Salt is a credential. Stored in `GAZETTA_AUDIT_ACTOR_SALT` env var per Universal Provider Requirement #3 ("Configuration via env vars for credentials"). Never in `site.yaml`.
+- Salt is a credential. Stored in `GAZETTA_AUDIT_ACTOR_SALT` env var per Universal Provider Requirement #3 ("Configuration via env vars for credentials"). Never in `site.config.ts`.
 - 16+ random bytes. Operator generates at site creation; documents the creation date as part of operational records.
 - Salt rotation breaks historic correlation by design. Rotate per security policy (annually is typical); document rotation dates so forensic queries can scope by salt-era.
 - Multi-instance: every instance reads the same env var → deterministic hash across instances. No coordination needed.
@@ -395,13 +420,18 @@ Cross-border transfers (EU operators using `cloudwatch us-east-1`) require Stand
 
 Audit retention is configurable independently from content history retention. Defaults to inherit history retention.
 
-```yaml
-admin:
-  audit:
-    retention:
-      events: 10000        # max audit events to keep (per provider)
-      maxAgeMonths: 72     # 6 years for HIPAA; null = no time limit
-      # When neither set, defaults to history.retention (shared retention)
+```ts
+export default defineSite({
+  admin: {
+    audit: {
+      retention: {
+        events: 10000,        // max audit events to keep (per provider)
+        maxAgeMonths: 72,     // 6 years for HIPAA; null = no time limit
+        // When neither set, defaults to history.retention (shared retention)
+      },
+    },
+  },
+})
 ```
 
 **Why separable**: compliance regimes specify retention windows (SOC 2 ~1 year, HIPAA 6 years, financial 7+ years, legal hold indefinite) that differ from content history retention budgets. Forcing `history.retention: 1000` to satisfy HIPAA audit balloons content storage; B lets operators keep 50 content revisions + 6 years of audit events independently.

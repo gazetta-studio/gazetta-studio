@@ -71,7 +71,7 @@ both have `environment: production`); they're distinguished by target name, not 
 **Current code:** `environment` is already implemented on `TargetConfig`
 ([packages/gazetta/src/types.ts](../../packages/gazetta/src/types.ts)). `type` replaces
 the existing `publishMode` field (`esi` → `dynamic`, `static` → `static`) with no
-backward-compatible alias — all `site.yaml` files must be migrated in the same change.
+backward-compatible alias — all `site.config.ts` files must be migrated in the same change.
 `editable` is a new optional field, defaulting to `true`.
 
 ## Active Target
@@ -305,7 +305,7 @@ my-project/
     page-default/
   sites/
     main/             # site content
-      site.yaml
+      site.config.ts
       fragments/      # shared components (reusable across pages)
         header/
           fragment.json
@@ -327,5 +327,5 @@ my-project/
 ```
 
 Templates and admin live at the project root, shared across all sites.
-Content (pages, fragments, site.yaml) lives inside `sites/{name}/`.
+Content (pages, fragments, site.config.ts) lives inside `sites/{name}/`.
 Flat structure (everything at one level) still works for simple projects.
