@@ -12,7 +12,7 @@ How the CMS integrates AI capabilities — alt-text generation in v1.5, with tra
 **In v1.5:**
 - Alt-text generation as the first AI task
 - Three providers: Anthropic Claude, OpenAI gpt-4o, Ollama llama3.2-vision (self-hosted)
-- Per-task config blocks under `site.yaml` (`altText:`)
+- Per-task config blocks under `site.config.ts` (`altText:`)
 - Cross-task `ai:` block for shared concerns (`provider`, `defaultModel`)
 - Process-level credentials via `.env.local` (no per-target API keys)
 - Auto-fill on upload (default) + on-demand from detail pane
@@ -41,10 +41,10 @@ AI in Gazetta is **three concerns at three lifetimes**, each with its own home:
 | Layer | What it owns | Where it lives | Lifetime |
 |---|---|---|---|
 | **Provider account** | API keys, base URLs | `.env.local` | Process |
-| **Task configuration** | Per-task model, behavior flags, sizing | `site.yaml` (per-task blocks, `ai:` for shared) | Site lifetime |
+| **Task configuration** | Per-task model, behavior flags, sizing | `site.config.ts` (per-task blocks, `ai:` for shared) | Site lifetime |
 | **Cross-task infrastructure** | Refusal detection, prompt composition, vision preprocessing | Code modules under `packages/gazetta/src/ai/` | Code, not config |
 
-These layers don't bleed into each other. Credentials never appear in `site.yaml`. Cross-task code never reads config directly — it operates on resolved literal arguments. Per-task config never references env vars; the factory wires the layers together.
+These layers don't bleed into each other. Credentials never appear in `site.config.ts`. Cross-task code never reads config directly — it operates on resolved literal arguments. Per-task config never references env vars; the factory wires the layers together.
 
 ### Why three layers, not one big config block
 
@@ -60,7 +60,7 @@ This avoids inventing a "vision tasks" sub-grouping (ISP violation — would mea
 
 ### Env (`.env.local`)
 
-Process-level credentials only. Gitignored. Never in `site.yaml`.
+Process-level credentials only. Gitignored. Never in `site.config.ts`.
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
@@ -70,47 +70,60 @@ OPENAI_API_KEY=sk-...
 
 If a provider's adapter is selected but its key is missing, `isAltAdapterConfigured(target)` returns false, the UI hides AI affordances, and any direct route call returns `503 alt_adapter_unavailable` with a structured error. No throw at admin boot — process starts always; per-task features fail at first invocation, where the failure is in context.
 
-### Site-level (`site.yaml` top-level)
+### Site-level (`site.config.ts` top-level)
 
 Two blocks: `ai:` for cross-task, `altText:` for the v1.5 task.
 
-```yaml
-name: main
-defaultLocale: en
+```ts
+import { defineSite } from 'gazetta'
 
-ai:
-  provider: anthropic              # one of: anthropic, openai, ollama
-  defaultModel: claude-haiku-4-5   # falls back to per-provider sensible default if unset
+export default defineSite({
+  name: 'main',
+  defaultLocale: 'en',
 
-altText:
-  # provider: <inherits ai.provider>
-  # model: <inherits ai.defaultModel>
-  auto: true                       # default; auto-fire suggest on upload
-  maxImageEdge: 768                # default; vision-call sizing
+  ai: {
+    provider: 'anthropic',              // one of: anthropic, openai, ollama
+    defaultModel: 'claude-haiku-4-5',   // falls back to per-provider sensible default if unset
+  },
 
-# Future:
-# translation:
-#   model: claude-sonnet-4-5       # override defaultModel for translation quality
-#   translateOnPublish: false
+  altText: {
+    // provider: <inherits ai.provider>
+    // model: <inherits ai.defaultModel>
+    auto: true,                         // default; auto-fire suggest on upload
+    maxImageEdge: 768,                  // default; vision-call sizing
+  },
+
+  // Future:
+  // translation: {
+  //   model: 'claude-sonnet-4-5',      // override defaultModel for translation quality
+  //   translateOnPublish: false,
+  // },
+})
 ```
 
 **Field inheritance:** task block resolves left-to-right against `target → site task block → site ai block → hardcoded default`. First defined wins. The `resolveAltConfig(site, target, base)` function is the single source of truth for the merge.
 
-**Provider can be overridden per task** (e.g., `altText.provider: ollama` while `ai.provider: anthropic`). v1.5 doesn't expose this in any UI, but the config model accepts it — when a future operator needs Anthropic for translation and Ollama for alt-text in one site, no schema migration is required.
+**Provider can be overridden per task** (e.g., `altText.provider: 'ollama'` while `ai.provider: 'anthropic'`). v1.5 doesn't expose this in any UI, but the config model accepts it — when a future operator needs Anthropic for translation and Ollama for alt-text in one site, no schema migration is required.
 
-### Target-level (`site.yaml` per target)
+### Target-level (`site.config.ts` per target)
 
 Per-task **behavior** overrides only. Never provider, never credentials.
 
-```yaml
-targets:
-  local:
-    storage: { type: filesystem }
-    # inherits everything from site
-  production:
-    storage: { type: r2, ... }
-    altText:
-      auto: false                  # review-first on prod
+```ts
+export default defineSite({
+  targets: {
+    local: {
+      storage: { type: 'filesystem' },
+      // inherits everything from site
+    },
+    production: {
+      storage: { type: 'r2' /* ... */ },
+      altText: {
+        auto: false,                    // review-first on prod
+      },
+    },
+  },
+})
 ```
 
 **Why behavior-only at target level:** provider/credentials are operationally global. An operator with one Anthropic account uses it for staging and prod alike. Per-target provider-switching is theoretically possible (the schema permits it for forward-compatibility) but not a v1.5 feature.
@@ -404,7 +417,7 @@ POST /api/assets/:name/suggest-alt?target=&locale=
 
 ### How the UI knows
 
-`/api/targets` reports `TargetInfo.altText: { available, auto }` per target. The UI reads this on admin load and on `site.yaml` reload (existing SSE infrastructure). No probe-by-failure; no separate capability endpoint.
+`/api/targets` reports `TargetInfo.altText: { available, auto }` per target. The UI reads this on admin load and on `site.config.ts` reload (existing SSE infrastructure). No probe-by-failure; no separate capability endpoint.
 
 ```vue
 <!-- AssetUploadZone.vue (excerpt) -->
@@ -436,7 +449,7 @@ We do **not** add a moderation layer. Provider safety policies apply (Claude ref
 
 ### API key exposure
 
-Keys live in `.env.local` (gitignored, per [operations.md](operations.md)). Adapter modules read `process.env.X_API_KEY` at construction. Never logged. Never returned in API responses. Never in `site.yaml`.
+Keys live in `.env.local` (gitignored, per [operations.md](operations.md)). Adapter modules read `process.env.X_API_KEY` at construction. Never logged. Never returned in API responses. Never in `site.config.ts`.
 
 If a key is missing for a configured provider, `isAltAdapterConfigured(target)` returns false at the capability check; the route returns `503 alt_adapter_unavailable`; the UI hides affordances. No leak path.
 
@@ -477,7 +490,7 @@ For sites uploading user-generated content (future use case), authors should rev
 
 ### Existing sites
 
-`site.yaml` files without `ai:` or `altText:` blocks continue to work — AI alt is a v1.5 feature behind explicit config. Operators opt in by adding the blocks.
+`site.config.ts` files without `ai:` or `altText:` blocks continue to work — AI alt is a v1.5 feature behind explicit config. Operators opt in by adding the blocks.
 
 ### Existing assets
 

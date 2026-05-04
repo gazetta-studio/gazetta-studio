@@ -299,7 +299,7 @@ my-project/
   templates/                      # existing
   sites/
     main/
-      site.yaml
+      site.config.ts
       pages/
       fragments/
 ```
@@ -361,19 +361,24 @@ Audit `metadata.hookName` carries the namespaced form. Forensic queries can filt
 - Site-local hooks: operator's own code; trusted as the operator
 - Plugin-supplied hooks: third-party npm code; full Node access per `design-plugins.md` stub locks ("npm packages have no sandbox — accept and document")
 - Both run with the triggering principal's capabilities by default
-- Plugin-supplied hooks needing elevated access declare `serviceAccount` capabilities (operator-approved per-plugin in `site.yaml`); deferred to `design-plugins.md`
+- Plugin-supplied hooks needing elevated access declare `serviceAccount` capabilities (operator-approved per-plugin in `site.config.ts`); deferred to `design-plugins.md`
 
 **Hot-reload (deferred)**: v1 hook changes require admin restart. Site-local file watcher hot-reload reserved when v2 plugin hot-reload lands.
 
 **Disable-by-config (deferred)**: v1 disables a hook by deleting the file (site-local) or unconfiguring the plugin. Future:
 
-```yaml
-# Reserved for v2
-admin:
-  hooks:
-    disable:
-      - auto-slugify
-      - '@gazetta/cdn-purge:purge'
+```ts
+// Reserved for v2
+export default defineSite({
+  admin: {
+    hooks: {
+      disable: [
+        'auto-slugify',
+        '@gazetta/cdn-purge:purge',
+      ],
+    },
+  },
+})
 ```
 
 **Plugin-promotion path**: a site-local hook can be extracted to an npm package + plugin without changing handler signature. The dispatch surface is identical — only registration differs.

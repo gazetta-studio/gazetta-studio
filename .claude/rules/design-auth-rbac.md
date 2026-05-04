@@ -38,7 +38,7 @@ Adding auth/RBAC later means auditing every endpoint consumer and adding a Princ
 
   Why: cloud platforms ship better auth than Gazetta would; auth code is where security bugs live; Gazetta stays narrow and inherits the platform's auth posture. Documented per-platform.
 
-- **Auth identity model: configurable at v1, pluggable reserved.** `site.yaml`'s `admin.auth` block selects from a fixed set of built-in trust modes:
+- **Auth identity model: configurable at v1, pluggable reserved.** `site.config.ts`'s `admin.auth` block selects from a fixed set of built-in trust modes:
 
   | Mode | Reads identity from | Use case |
   |---|---|---|
@@ -75,31 +75,40 @@ Adding auth/RBAC later means auditing every endpoint consumer and adding a Princ
 | `editor` | Read everything; edit + save; publish to non-production targets; cannot delete or configure |
 | `viewer` | Read-only; cannot edit, save, or publish |
 
-**Custom roles** allowed via `site.yaml` `roles:` block. Operator names + capabilities. Common cases: `translator` (editor-scope on locale variants only), `approver` (viewer + publish), `auditor` (read + audit-log access).
+**Custom roles** allowed via `site.config.ts` `roles:` block. Operator names + capabilities. Common cases: `translator` (editor-scope on locale variants only), `approver` (viewer + publish), `auditor` (read + audit-log access).
 
 **Single role per principal.** Each authenticated user resolves to exactly one Gazetta role. Multi-role complexity (precedence conflicts, role intersection) is rare in practice and adds significant surface area; deferred until concrete operator demand.
 
-**Group-claim mapping.** The upstream auth provider populates a group / role claim; Gazetta maps it. Operator configures `admin.auth.roleMapping` in `site.yaml`:
+**Group-claim mapping.** The upstream auth provider populates a group / role claim; Gazetta maps it. Operator configures `admin.auth.roleMapping` in `site.config.ts`:
 
-```yaml
-admin:
-  auth:
-    trust: cloudflare-access
-    roleMapping:
-      claim: groups          # JSON claim / header field carrying the group list
-      map:
-        gazetta-admins: admin
-        gazetta-editors: editor
-        gazetta-readers: viewer
-        gazetta-translators: translator
-    defaultRole: viewer      # fallback when no group matches; null = deny access
-  roles:
-    translator:
-      capabilities:
-        # ... see Q3 ...
+```ts
+export default defineSite({
+  admin: {
+    auth: {
+      trust: 'cloudflare-access',
+      roleMapping: {
+        claim: 'groups',         // JSON claim / header field carrying the group list
+        map: {
+          'gazetta-admins': 'admin',
+          'gazetta-editors': 'editor',
+          'gazetta-readers': 'viewer',
+          'gazetta-translators': 'translator',
+        },
+      },
+      defaultRole: 'viewer',     // fallback when no group matches; null = deny access
+    },
+    roles: {
+      translator: {
+        capabilities: [
+          // ... see Q3 ...
+        ],
+      },
+    },
+  },
+})
 ```
 
-**Why upstream claims, not `site.yaml` user→role hardcoding**: upstream auth provider (Cloudflare Access, Azure AD, etc.) already manages user→group membership; Gazetta just maps group names to role names. Brittle "user-list-in-config" approaches force config edits on every team change.
+**Why upstream claims, not `site.config.ts` user→role hardcoding**: upstream auth provider (Cloudflare Access, Azure AD, etc.) already manages user→group membership; Gazetta just maps group names to role names. Brittle "user-list-in-config" approaches force config edits on every team change.
 
 **Per-target / per-page roles deferred.** v1 ships site-wide roles. Per-target roles ("editor on staging, viewer on prod") and per-page roles ("can edit /docs/* but not /blog/*") wait for concrete operator demand. The capability shape (Q3) is forward-compatible with both.
 
@@ -133,14 +142,21 @@ const BUILT_IN_ROLES = {
 
 **Custom roles** declare capabilities directly:
 
-```yaml
-roles:
-  translator:
-    capabilities:
-      - read:pages
-      - read:fragments
-      - read:assets
-      - edit:locale-variants  # narrower than edit:pages
+```ts
+export default defineSite({
+  admin: {
+    roles: {
+      translator: {
+        capabilities: [
+          'read:pages',
+          'read:fragments',
+          'read:assets',
+          'edit:locale-variants',  // narrower than edit:pages
+        ],
+      },
+    },
+  },
+})
 ```
 
 **Hono middleware** per-route checks the required capability against the principal's effective capability set. Plugin-supplied routes declare their required capability via the same middleware contract.
@@ -160,7 +176,7 @@ roles:
 
 **Custom-role capability validation** at site-load: unknown capabilities in custom role definitions are flagged (warning by default, error in strict mode via `admin.auth.strict: true`).
 
-**Multi-instance**: capability checks are per-request stateless. Middleware reads the principal's role from request context (set by upstream identity consumption per Q1), looks up capabilities in the in-memory role table (loaded from `site.yaml` at boot), no shared state. Multi-instance-correct by construction.
+**Multi-instance**: capability checks are per-request stateless. Middleware reads the principal's role from request context (set by upstream identity consumption per Q1), looks up capabilities in the in-memory role table (loaded from `site.config.ts` at boot), no shared state. Multi-instance-correct by construction.
 
 ### Audit log — see [`design-audit.md`](design-audit.md)
 
@@ -188,7 +204,7 @@ How auth/RBAC composes with each of the other 12 foundational dimensions plus th
 
 ### Multi-instance discipline
 - `Principal` is per-request, derived from request headers by the auth-identity provider. No cross-request state in process; middleware is stateless.
-- Role-mapping table loads from `site.yaml` at boot; reread on `site.yaml` change via the existing config-watch loop. Each instance loads independently — no shared mutable state.
+- Role-mapping table loads from `site.config.ts` at boot; reread on `site.config.ts` change via the existing config-watch loop. Each instance loads independently — no shared mutable state.
 - Permission cache (if any) is per-request only. Long-lived caches forbidden.
 - Header-spoofing protection (signed JWT validation, source-IP whitelist) runs per-request; no shared state.
 
@@ -213,12 +229,12 @@ How auth/RBAC composes with each of the other 12 foundational dimensions plus th
 
 ### Review (#6)
 - Review-state transitions consume capabilities (`review:submit`, `review:approve`, `publish:request`, `publish:approve`).
-- Self-approval is configurable; default deny (the same principal can't approve their own submission). Configuration lives in `site.yaml admin.review.allowSelfApproval`.
+- Self-approval is configurable; default deny (the same principal can't approve their own submission). Configuration lives in `site.config.ts admin.review.allowSelfApproval`.
 - The review state machine attributes each transition to a `Principal` so the history trail is reconstructable from audit log alone.
 
 ### Hooks (#7)
 - Hook firings carry the triggering `Principal` in payload. Hook handlers run with the same effective capabilities as the triggering principal — they don't gain elevated access.
-- Plugin-supplied hooks that need to act on behalf of a system identity declare a `serviceAccount` capability set; operator-approved per-plugin in `site.yaml`.
+- Plugin-supplied hooks that need to act on behalf of a system identity declare a `serviceAccount` capability set; operator-approved per-plugin in `site.config.ts`.
 - Hook failures audit as the same actor that triggered the hook.
 
 ### Render (#8)

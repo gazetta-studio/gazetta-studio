@@ -165,11 +165,14 @@ library card badge surfaces the unset state until the author resolves it.
 
 Assets can vary along two peer dimensions: **locale** (content-level — language-specific bytes or metadata) and **theme** (presentation-level — typically light/dark). Both are first-class. An asset can opt into either, both, or neither.
 
-```yaml
-# site.yaml — opt into theme dimension
-themes:
-  supported: [light, dark]
-  default: light
+```ts
+// site.config.ts — opt into theme dimension
+export default defineSite({
+  themes: {
+    supported: ['light', 'dark'],
+    default: 'light',
+  },
+})
 ```
 
 When `themes` is absent, the theme dimension is unused — assets are theme-agnostic. When present, assets can carry per-theme byte overrides keyed under the same selector model as locale.
@@ -204,7 +207,7 @@ Locale wins over theme because language matters more than visual presentation wh
 
 ```
 <target root>/
-  site.yaml
+  site.config.ts
   pages/
   fragments/
   templates/
@@ -309,7 +312,7 @@ Format-specific rules for upload, variant generation, and rendering. Each row is
 
 - **Template code** — `templates/*/index.tsx` returns `{ html, css, js }`. Template-owned, always has been
 - **Author-editable custom CSS or scripts per-page** — template exposes a schema field (`z.string()`) for it, author fills it, template renders it inline. Template author controls what's exposable (security choice)
-- **Site-wide scripts** (analytics, tracking) — out of media scope; future `site.yaml` field or template `head` contribution
+- **Site-wide scripts** (analytics, tracking) — out of media scope; future `site.config.ts` field or template `head` contribution
 - **Downloadable code samples** — `kind: downloadable` for CSS/JS files offered for visitors to download
 
 Not in the model: `kind: stylesheet` or `kind: script`. Code assets are a security surface requiring template-author review of each use, and rendering them via the resolver would conflict with templates' existing CSS/JS pipeline.
@@ -344,13 +347,17 @@ Four providers to update: filesystem, R2, S3, Azure Blob.
 
 ### URL construction
 
-Target config in `site.yaml`:
+Target config in `site.config.ts`:
 
-```yaml
-targets:
-  production:
-    storage: { type: r2, ... }
-    siteUrl: https://cdn.example.com/   # optional; default is root-relative
+```ts
+export default defineSite({
+  targets: {
+    production: {
+      storage: { type: 'r2' /* ... */ },
+      siteUrl: 'https://cdn.example.com/',   // optional; default is root-relative
+    },
+  },
+})
 ```
 
 Resolver constructs URLs: `{siteUrl}assets/{name}-{hash}.{ext}`. Default (no `siteUrl`) → root-relative `/assets/...` — portable across domains.
@@ -361,21 +368,26 @@ Resolver constructs URLs: `{siteUrl}assets/{name}-{hash}.{ext}`. Default (no `si
 
 Every target has a transform adapter — `sharp` by default, swappable via `target.transforms.adapter`. The adapter owns three coupled concerns: URL composition, srcset semantics, and cache policy. Co-locating them on one interface (rather than scattering URL construction in the resolver and cache headers in the serve-route) means future adapters with non-trivial delivery (signed URLs, format negotiation, server-side proxying) plug in without leaking knowledge across modules.
 
-```yaml
-# Default — no transforms config means sharp adapter
-targets:
-  local:
-    storage: { type: filesystem }
-    # transforms unset → sharp adapter, immutable cache, origin URLs
+```ts
+export default defineSite({
+  targets: {
+    // Default — no transforms config means sharp adapter
+    local: {
+      storage: { type: 'filesystem' },
+      // transforms unset → sharp adapter, immutable cache, origin URLs
+    },
 
-# Cloudflare CDN
-targets:
-  production:
-    storage: { type: r2, bucket: site-prod }
-    siteUrl: https://cdn.example.com
-    transforms:
-      adapter: cloudflare
-      zone: cdn.example.com   # where /cdn-cgi/image/ is served
+    // Cloudflare CDN
+    production: {
+      storage: { type: 'r2', bucket: 'site-prod' },
+      siteUrl: 'https://cdn.example.com',
+      transforms: {
+        adapter: 'cloudflare',
+        zone: 'cdn.example.com',   // where /cdn-cgi/image/ is served
+      },
+    },
+  },
+})
 ```
 
 **Adapter contract** — URL builder + cache policy + optional server-side route:
