@@ -7,10 +7,10 @@
  * API and `createApp` runtime take over from there.
  */
 
-import { join } from 'node:path'
-import { loadSiteConfig, siteConfigToManifest } from '../config/loader.js'
+import { dirname, join } from 'node:path'
+import { gazettaConfigToManifest, loadGazettaConfig, loadSiteConfig, siteConfigToManifest } from '../config/loader.js'
 import { createTargetRegistry, createTargetRegistryView } from '../targets.js'
-import type { SiteManifest, TargetConfig, StorageProvider } from '../types.js'
+import type { GazettaManifest, SiteManifest, TargetConfig, StorageProvider } from '../types.js'
 import { createSourceContextFromRegistry, type SourceContext } from '../admin-api/source-context.js'
 import type { TargetRegistry } from '../targets.js'
 
@@ -21,6 +21,12 @@ export interface BootstrapResult {
   targetConfigs: Record<string, TargetConfig>
   /** Fully-initialized target registry (providers built, cloud targets connected). */
   registry: TargetRegistry
+  /**
+   * Optional gazetta-level manifest (from `gazetta.config.ts` at project root).
+   * First rung of the three-rung config chain (gazetta → site → target).
+   * Absent when no `gazetta.config.ts` exists.
+   */
+  gazettaManifest?: GazettaManifest
 }
 
 async function loadManifestFromConfig(projectSiteDir: string): Promise<SiteManifest> {
@@ -35,23 +41,53 @@ async function loadManifestFromConfig(projectSiteDir: string): Promise<SiteManif
 }
 
 /**
+ * Load the gazetta-level config (from `gazetta.config.ts` at project root).
+ * Returns undefined when the file is absent — gazetta config is optional.
+ *
+ * The project root is the directory above the `sites/` parent of the
+ * given `projectSiteDir`. For flat layouts (no `sites/` dir), we walk
+ * up one level. The loader returns null when no config exists, and
+ * we widen to `undefined` to match the GazettaManifest? optional shape.
+ */
+async function loadGazettaManifestFromProject(projectSiteDir: string): Promise<GazettaManifest | undefined> {
+  // projectSiteDir is typically `<root>/sites/<name>` for multi-site layouts
+  // or `<root>` for flat. Walk up to the directory that contains either
+  // `sites/` or `package.json` — that's the project root where
+  // `gazetta.config.ts` lives.
+  const projectRoot = inferProjectRoot(projectSiteDir)
+  const gazetta = await loadGazettaConfig(projectRoot)
+  return gazetta ? gazettaConfigToManifest(gazetta) : undefined
+}
+
+function inferProjectRoot(projectSiteDir: string): string {
+  // sites/<name> layout → walk up two levels
+  const parent = dirname(projectSiteDir)
+  if (parent.endsWith('/sites') || parent.endsWith('\\sites')) {
+    return dirname(parent)
+  }
+  // Flat layout → projectSiteDir IS the project root
+  return projectSiteDir
+}
+
+/**
  * Load site.config.ts, initialize all targets, and return a TargetRegistry view.
  * Throws if site.config.ts is missing or has no targets declared.
  */
 export async function bootstrapFromSiteYaml(projectSiteDir: string): Promise<BootstrapResult> {
   const manifest = await loadManifestFromConfig(projectSiteDir)
+  const gazettaManifest = await loadGazettaManifestFromProject(projectSiteDir)
   const targetConfigs = manifest.targets ?? {}
 
   if (Object.keys(targetConfigs).length === 0) {
     throw new Error(
       `No targets declared in ${join(projectSiteDir, 'site.config.ts')}. At least one target is required — ` +
-        `add a local target:\n\ntargets: {\n  local: { storage: { type: 'filesystem' } },\n}\n`,
+        `add a local target:\n\ntargets: {\n  local: { storage: filesystemStorage() },\n}\n`,
     )
   }
 
   const providers = await createTargetRegistry(targetConfigs)
   const registry = createTargetRegistryView(providers, targetConfigs)
-  return { manifest, targetConfigs, registry }
+  return { manifest, targetConfigs, registry, gazettaManifest }
 }
 
 export interface BuildSourceContextOptions {
@@ -75,13 +111,15 @@ export async function buildSourceContext(opts: BuildSourceContextOptions): Promi
   source: SourceContext
   manifest: SiteManifest
   targetConfigs: Record<string, TargetConfig>
+  gazettaManifest?: GazettaManifest
 }> {
   const manifest = opts.manifest ?? (await loadManifestFromConfig(opts.projectSiteDir))
+  const gazettaManifest = await loadGazettaManifestFromProject(opts.projectSiteDir)
   const targetConfigs = manifest.targets ?? {}
   if (Object.keys(targetConfigs).length === 0) {
     throw new Error(
       `No targets declared in ${join(opts.projectSiteDir, 'site.config.ts')}. At least one target is required — ` +
-        `add a local target:\n\ntargets: {\n  local: { storage: { type: 'filesystem' } },\n}\n`,
+        `add a local target:\n\ntargets: {\n  local: { storage: filesystemStorage() },\n}\n`,
     )
   }
 
@@ -93,7 +131,7 @@ export async function buildSourceContext(opts: BuildSourceContextOptions): Promi
   if (editableNames.length === 0) {
     throw new Error(
       `No editable target in ${join(opts.projectSiteDir, 'site.config.ts')}. Add one:\n\n` +
-        `targets: {\n  local: { storage: { type: 'filesystem' } },\n}\n`,
+        `targets: {\n  local: { storage: filesystemStorage() },\n}\n`,
     )
   }
   const targetName = opts.targetName ?? editableNames[0]
@@ -125,7 +163,8 @@ export async function buildSourceContext(opts: BuildSourceContextOptions): Promi
     targetName,
     projectSiteDir: opts.projectSiteDir,
     manifest,
+    gazettaManifest,
   })
 
-  return { source, manifest, targetConfigs }
+  return { source, manifest, targetConfigs, gazettaManifest }
 }

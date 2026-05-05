@@ -3,56 +3,41 @@
  *
  * # Why no SDK
  *
- * Ollama's API is a single endpoint, no auth, no streaming
- * negotiation, no schema beyond simple JSON. The official
- * `ollama` npm SDK exists but adds little value over raw `fetch`
- * for this single-call use case. Skipping the SDK keeps adapter
- * dependencies minimal.
+ * Ollama's API is a single endpoint, no auth, no streaming negotiation,
+ * no schema beyond simple JSON. The official `ollama` npm SDK exists
+ * but adds little value over raw `fetch` for this single-call use case.
+ * Skipping the SDK keeps adapter dependencies minimal.
  *
  * # Defaults
  *
  *   - Base URL: `http://localhost:11434` (Ollama's documented default).
  *     Operators running Ollama on a different host configure via
- *     `OLLAMA_BASE_URL` env (factory) or `baseUrl` (direct).
+ *     `baseUrl` on the transport.
  *   - Model: `llama3.2-vision:11b`. The 11B variant is the entry-level
  *     size; `:90b` is also available for operators who want better
  *     description quality at higher GPU/RAM cost.
  *
  * # API contract details (verified against Ollama API docs)
  *
- *   - Endpoint: `POST /api/chat` (not `/api/generate` — chat-style is
- *     better for multi-message prompts and matches the system+user
- *     pattern we use)
- *   - Request body:
- *     ```json
- *     {
- *       "model": "llama3.2-vision:11b",
- *       "messages": [
- *         { "role": "system", "content": "<prompt>" },
- *         { "role": "user", "content": "Describe this.", "images": ["<base64>"] }
- *       ],
- *       "stream": false
- *     }
- *     ```
- *   - Images are base64 strings in the per-message `images` array (NOT
- *     top-level). Different from Anthropic and OpenAI shapes — same
- *     adapter abstraction holds.
+ *   - Endpoint: `POST /api/chat` (chat-style fits the system+user pattern).
+ *   - Images are base64 strings in the per-message `images` array.
+ *     Different from Anthropic and OpenAI shapes — same adapter
+ *     abstraction holds via the scaffold.
  *   - Response: `{ message: { content: "..." }, done: true, ... }`
- *   - Auth: none for local install; we don't send credentials
- *   - AbortSignal: standard fetch — `fetch(url, { signal })` aborts
- *     correctly
+ *   - Auth: none for local install
+ *   - AbortSignal: standard fetch — `fetch(url, { signal })`. Errors
+ *     surface as `Error` with `name: 'AbortError'`.
  *
  * # SOLID
  *
- *   - SRP: Ollama-specific request/response/error shape only
- *   - LSP: third concrete `AltTextAdapter` — same contract as
- *     Anthropic and OpenAI; substitutable in the suggester
- *   - DIP: callers get `AltTextAdapter`; never see fetch URLs or
- *     Ollama-specific JSON shapes
+ *   - Same lenses as Anthropic / OpenAI — orchestration via
+ *     `ai/adapter-scaffold.ts`, Ollama-specific request/response/error
+ *     shape here only.
  */
 import { AIAdapterFailedError, AIInvalidResponseError } from '../ai/errors.js'
-import { detectRefusal } from '../ai/refusal.js'
-import type { AltGenerateInput, AltSuggestion, AltTextAdapter } from './adapter.js'
+import type { AIProvider, AltTextTaskConfig } from '../ai/provider.js'
+import { buildAltAdapterFromScaffold } from '../ai/adapter-scaffold.js'
+import type { AltTextAdapter } from './adapter.js'
 
 const OLLAMA_REFUSAL_MARKERS: readonly string[] = [
   // llama3.2-vision tends to refuse with these patterns more than
@@ -70,11 +55,28 @@ export const OLLAMA_DEFAULT_MODEL = 'llama3.2-vision:11b'
 
 const OLLAMA_SUPPORTED_MIMES = new Set(['image/jpeg', 'image/png'])
 
-export interface OllamaAltAdapterOptions {
+/**
+ * Ollama transport-only options. Per Path X (transport-vs-task split).
+ * Ollama needs no API key; baseUrl is the only transport knob.
+ */
+export interface OllamaTransportOptions {
   /** Base URL of the Ollama server. Defaults to {@link OLLAMA_DEFAULT_BASE_URL}. */
   baseUrl?: string
+}
+
+/**
+ * Internal type for `createOllamaAltAdapter` callers (tests). Combines
+ * transport with per-task config; new code goes through
+ * `ollamaProvider(transport).altText(taskConfig)`.
+ */
+export interface OllamaAltAdapterOptions extends OllamaTransportOptions {
   /** Model ID. Defaults to {@link OLLAMA_DEFAULT_MODEL}. */
   model?: string
+  /** Operator-supplied system prompt; prepended to system-composed prompt. */
+  systemPrompt?: string
+  /** Generation token cap. Ollama doesn't expose it directly, but the
+   *  scaffold passes it through to keep the contract uniform. */
+  maxTokens?: number
 }
 
 interface OllamaChatResponse {
@@ -84,27 +86,29 @@ interface OllamaChatResponse {
 }
 
 /**
- * Construct the Ollama alt-text adapter. Pure factory — no env-var
- * reads inside the adapter. The factory in commit 6 reads
- * `OLLAMA_BASE_URL` if present and forwards it as `baseUrl`.
+ * Construct the Ollama alt-text adapter. Internal factory — kept public
+ * for tests + advanced wiring. Operator-facing config goes through
+ * `ollamaProvider(transport).altText(taskConfig)` (Path X).
  */
 export function createOllamaAltAdapter(opts: OllamaAltAdapterOptions = {}): AltTextAdapter {
   const baseUrl = (opts.baseUrl ?? OLLAMA_DEFAULT_BASE_URL).replace(/\/+$/, '')
   const model = opts.model ?? OLLAMA_DEFAULT_MODEL
   const endpoint = `${baseUrl}/api/chat`
 
-  return {
+  return buildAltAdapterFromScaffold({
     name: 'ollama',
-    supports(mime: string) {
-      return OLLAMA_SUPPORTED_MIMES.has(mime)
-    },
-    async generate(input: AltGenerateInput, signal?: AbortSignal): Promise<AltSuggestion> {
-      const imageB64 = Buffer.from(input.bytes).toString('base64')
-
+    supportedMimes: OLLAMA_SUPPORTED_MIMES,
+    operatorSystemPrompt: opts.systemPrompt,
+    operatorMaxTokens: opts.maxTokens,
+    refusalMarkers: OLLAMA_REFUSAL_MARKERS,
+    isAbortError: err => err instanceof Error && err.name === 'AbortError',
+    errorContextSuffix: `Is Ollama running at ${baseUrl}?`,
+    async callProvider({ bytes, mime: _mime, systemPrompt, signal }) {
+      const imageB64 = Buffer.from(bytes).toString('base64')
       const body = {
         model,
         messages: [
-          { role: 'system', content: input.prompt },
+          { role: 'system', content: systemPrompt },
           {
             role: 'user',
             content: 'Describe this image for use as alt text.',
@@ -114,26 +118,12 @@ export function createOllamaAltAdapter(opts: OllamaAltAdapterOptions = {}): AltT
         stream: false,
       }
 
-      let res: Response
-      try {
-        res = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-          signal,
-        })
-      } catch (err) {
-        // AbortError on signal; let it propagate so the suggester's
-        // signal.aborted check returns null.
-        if (err instanceof Error && err.name === 'AbortError') throw err
-        if (err instanceof Error) {
-          throw new AIAdapterFailedError(
-            `Ollama alt-text generation failed: ${err.message}. Is Ollama running at ${baseUrl}?`,
-            { cause: err },
-          )
-        }
-        throw new AIAdapterFailedError(`Ollama alt-text generation failed: unknown error`)
-      }
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal,
+      })
 
       if (!res.ok) {
         // Ollama returns plain-text errors for connection-level issues
@@ -148,7 +138,7 @@ export function createOllamaAltAdapter(opts: OllamaAltAdapterOptions = {}): AltT
         } catch {
           // Body unreadable; status code alone is the diagnostic.
         }
-        throw new AIAdapterFailedError(`Ollama alt-text generation failed: ${detail}`)
+        throw new AIAdapterFailedError(`Ollama HTTP error: ${detail}`)
       }
 
       let parsed: OllamaChatResponse
@@ -166,14 +156,25 @@ export function createOllamaAltAdapter(opts: OllamaAltAdapterOptions = {}): AltT
       if (typeof parsed.message?.content !== 'string') {
         throw new AIInvalidResponseError('Ollama response had no message.content')
       }
+      return parsed.message.content
+    },
+  })
+}
 
-      const text = parsed.message.content.trim()
-      const refusal = detectRefusal(text, OLLAMA_REFUSAL_MARKERS)
-      return {
-        text,
-        refused: refusal.refused,
-        refusalReason: refusal.reason,
-      }
+/**
+ * Operator-facing Ollama provider. See `anthropicProvider` for the full
+ * Path X rationale. Ollama needs no API key; transport is just baseUrl.
+ */
+export function ollamaProvider(transport: OllamaTransportOptions = {}): AIProvider {
+  return {
+    name: 'ollama',
+    altText(taskConfig: AltTextTaskConfig): AltTextAdapter {
+      return createOllamaAltAdapter({
+        ...transport,
+        model: taskConfig.model,
+        systemPrompt: taskConfig.systemPrompt,
+        maxTokens: taskConfig.maxTokens,
+      })
     },
   }
 }

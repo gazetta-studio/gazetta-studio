@@ -8,7 +8,8 @@
  * [team-preferences.md] convention 1: composition over inheritance.
  */
 
-export type { AIProvider, ResolvedAIBase } from './provider.js'
+export type { AIProvider, AltTextTaskConfig } from './provider.js'
+export { PROVIDER_DEFAULT_MODELS } from './provider.js'
 export {
   AIError,
   AIAdapterUnavailableError,
@@ -21,3 +22,8 @@ export {
 export { detectRefusal, type RefusalDetection } from './refusal.js'
 export { composePrompt, type PromptPolicy } from './compose-prompt.js'
 export { prepareForVision, MAX_EDGE, type PrepareInput, type PreparedImage } from './vision-prep.js'
+export {
+  buildAltAdapterFromScaffold,
+  type AdapterScaffoldOptions,
+  type ProviderCallInput,
+} from './adapter-scaffold.js'

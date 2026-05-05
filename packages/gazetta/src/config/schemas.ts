@@ -133,6 +133,30 @@ export const GazettaConfigSchema = z
         audit: z.record(z.string(), z.unknown()).optional(),
       })
       .optional(),
+    /**
+     * Cross-task AI defaults (gazetta-level rung). Inherited by sites
+     * that don't override per the three-rung chain (gazetta → site →
+     * target). `provider` is a constructed AIProvider instance (factory
+     * call); `model` is a data literal. Schema accepts the opaque
+     * provider via `z.unknown()`.
+     */
+    ai: z
+      .object({
+        provider: z.unknown().optional(),
+        model: z.string().optional(),
+      })
+      .optional(),
+    /**
+     * Per-task AI defaults at gazetta level (`altText:` for the alt-text
+     * task; future `translation:` etc.). Carry data literals only;
+     * provider lives on the cross-task `ai:` block above.
+     */
+    altText: z
+      .object({
+        systemPrompt: z.string().optional(),
+        maxTokens: z.number().int().positive().optional(),
+      })
+      .optional(),
     mcp: z
       .object({
         enabled: z.boolean().optional(),

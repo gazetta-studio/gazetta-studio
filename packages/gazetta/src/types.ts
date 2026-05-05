@@ -1,3 +1,4 @@
+import type { AIProvider } from './ai/provider.js'
 import type { AdminCache } from './cache/types.js'
 import type { TransformAdapter } from './transforms/adapter.js'
 
@@ -289,56 +290,89 @@ export interface TargetConfig {
  *
  * See `.claude/rules/design-ai.md` for the three-layer architecture.
  */
+/**
+ * Cross-task AI configuration (`ai:` block in `site.config.ts` or
+ * `gazetta.config.ts`). Per Path X (design-provider-config.md
+ * Exception A — three-rung AI task config):
+ *
+ *   - `provider` is a constructed `AIProvider` instance (factory call)
+ *   - `model` is a data-literal string used as the default for tasks
+ *     that don't override it
+ *
+ * Per-task blocks (`altText:`, future `translation:`) carry per-task
+ * data literals (systemPrompt, maxTokens). Per-target overrides under
+ * `targets.X.altText.ai` accept the union for full per-target tuning.
+ */
 export interface AIConfig {
-  /** Provider account choice. v1.5 ships these three. */
-  provider: 'anthropic' | 'openai' | 'ollama'
-  /**
-   * Per-provider sensible default model. Per-task blocks override
-   * (`altText.model: claude-sonnet-4-5`) when a task wants different
-   * cost/quality tradeoffs.
-   */
-  defaultModel?: string
+  /** Constructed AI provider instance (e.g., `anthropicProvider({...})`). */
+  provider?: AIProvider
+  /** Default model ID for tasks; per-task blocks may override. */
+  model?: string
 }
 
 /**
- * Site-level alt-text configuration (`altText:` in `site.config.ts`).
- * Defaults inherited from `ai:` block when fields are unset.
+ * Site-level (or gazetta-level) alt-text task config. Carries per-task
+ * data literals only — provider lives on the cross-task `ai:` block.
+ * Inherited via the three-rung chain (gazetta → site → target).
  */
 export interface AltTextSiteConfig {
-  /** Override `ai.provider` for the alt-text task only. Rare; mostly inherited. */
-  provider?: AIConfig['provider']
-  /** Override `ai.defaultModel` for alt-text. Useful when a task needs higher quality than the default. */
-  model?: string
+  /**
+   * Operator-supplied system prompt; prepended to the system-composed
+   * neutral prompt at request time. Custom prompt policies (full
+   * replacement of the WCAG-grounded base) remain v1.6+ deferred.
+   */
+  systemPrompt?: string
+  /** Generation token cap; provider derives from maxChars when absent. */
+  maxTokens?: number
   /**
    * Whether upload flows auto-fire suggest after upload completes.
-   * Default: `true`. Set `false` for review-first workflows where every
-   * alt suggestion is reviewed before being applied.
+   * Default: `true`. Set `false` for review-first workflows. Behavior
+   * field — read at request time, doesn't affect adapter construction.
    */
   auto?: boolean
   /**
    * Long-edge cap for the image bytes sent to the vision provider.
-   * Default 768 (`MAX_EDGE` in `ai/vision-prep.ts`). Sites with
-   * text-heavy asset libraries (screenshots, scanned documents) may
-   * raise to 1024 to preserve text legibility for the model.
+   * Default 768 (`MAX_EDGE` in `ai/vision-prep.ts`). Behavior field —
+   * read at request time.
    */
   maxImageEdge?: number
 }
 
 /**
- * Target-level alt-text override. Carries behavior overrides only —
- * never provider/credentials (those are operationally global).
+ * Per-target alt-text override.
  *
- * The fields that make sense at target level are a subset of
- * `AltTextSiteConfig`. Common pattern: `auto: false` on `production`
- * for review-first prod, default elsewhere.
+ * Two shapes per Path X (design-provider-config.md Exception A + B):
+ *   - **Behavior fields at root** (`auto`, `maxImageEdge`): partial
+ *     literals for runtime knobs the suggester reads per call (Exception B).
+ *   - **`ai:` sub-block**: full per-task config override accepting
+ *     `provider` (factory result), `model`, `systemPrompt`, `maxTokens`
+ *     as data literals (Exception A's third rung).
+ *
+ * Common patterns:
+ *   - `{ auto: false }` — review-first on production
+ *   - `{ ai: { model: 'gpt-4o' } }` — higher-quality model on prod
+ *   - `{ ai: { provider: openaiProvider({...}) } }` — different provider per target
  */
 export interface AltTextTargetConfig {
   /** Override site-level `auto`. Common: `false` on production. */
   auto?: boolean
   /** Override site-level `maxImageEdge` for this target. */
   maxImageEdge?: number
-  /** Override site-level `model` for this target. */
-  model?: string
+  /**
+   * Per-target AI overrides. All four fields are partial overrides on
+   * the inherited chain; absent fields inherit naturally (target →
+   * site → gazetta → per-provider default for `model`).
+   */
+  ai?: {
+    /** Replace the inherited provider for this target only. */
+    provider?: AIProvider
+    /** Override the inherited model for this target only. */
+    model?: string
+    /** Override the inherited systemPrompt for this target only. */
+    systemPrompt?: string
+    /** Override the inherited maxTokens for this target only. */
+    maxTokens?: number
+  }
 }
 
 /** Per-target asset upload policy. */
@@ -471,12 +505,46 @@ export interface SiteManifest {
    * `memoryCache({...})`). Path X — the field's value IS the constructed
    * cache instance (see `design-provider-config.md`).
    *
-   * When absent, the loader builds a default `memoryCache()` per site
-   * from any `gazetta.config.ts defaults.cache` raw options (Exception A
-   * per ADR-0008 — defaults are options, not instances, so each site
-   * gets its own per-site cache).
+   * When absent, sites inherit the gazetta-level cache instance (per
+   * single-Site-per-process invariant — each process re-evaluates
+   * `gazetta.config.ts` and gets its own fresh instance).
    */
   cache?: AdminCache
+}
+
+/**
+ * Project-level Gazetta runtime manifest — derived from `gazetta.config.ts`.
+ * Carries cross-site defaults inherited by sites unless they override.
+ *
+ * Mirrors `GazettaConfig` (the user-input shape from the Zod schema) but
+ * with the typed AI/cache shapes — at runtime the loader has already
+ * constructed `AIProvider` / `AdminCache` instances from operator factory
+ * calls, so the manifest carries those instances directly.
+ */
+export interface GazettaManifest {
+  logLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error'
+  telemetry?: boolean
+  dev?: { port?: number; hostname?: string }
+  /** Cross-site defaults inherited by sites unless overridden. */
+  defaults?: {
+    /** AdminCache instance constructed via `memoryCache({...})` factory. */
+    cache?: AdminCache
+    /** Audit defaults (loose record until audit foundation migrates to Path X). */
+    audit?: Record<string, unknown>
+  }
+  /**
+   * Cross-task AI defaults at gazetta level. First rung of the three-rung
+   * chain (gazetta → site → target). Sites inherit per-field unless they
+   * override.
+   */
+  ai?: AIConfig
+  /**
+   * Per-task AI defaults at gazetta level (alt-text in v1.5; future
+   * translation, summarization). Carries data literals only; provider
+   * lives on `ai:` block.
+   */
+  altText?: AltTextSiteConfig
+  mcp?: { enabled?: boolean; port?: number }
 }
 
 /** Directory entry returned by StorageProvider.readDir */

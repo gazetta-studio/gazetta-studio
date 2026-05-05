@@ -304,3 +304,14 @@ export function siteConfigToManifest(config: SiteConfig): import('../types.js').
   // simple assignment, but the runtime data is identical.
   return config as unknown as import('../types.js').SiteManifest
 }
+
+/**
+ * Convert a `GazettaConfig` (Zod-inferred user input) to a runtime
+ * `GazettaManifest`. Same lossless cast as `siteConfigToManifest` —
+ * the shapes overlap; runtime values flow through. Gazetta-level
+ * `ai.provider` is opaque (`z.unknown()`) in the schema but is the
+ * constructed `AIProvider` instance at runtime.
+ */
+export function gazettaConfigToManifest(config: GazettaConfig): import('../types.js').GazettaManifest {
+  return config as unknown as import('../types.js').GazettaManifest
+}

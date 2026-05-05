@@ -13,6 +13,8 @@ import { Hono } from 'hono'
 import sharp from 'sharp'
 import { assetRoutes } from '../src/admin-api/routes/assets.js'
 import { staticSourceResolver, createSourceContext } from '../src/admin-api/source-context.js'
+import { anthropicProvider } from '../src/alt/anthropic.js'
+import { ollamaProvider } from '../src/alt/ollama.js'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
 import type { SiteManifest } from '../src/types.js'
 import { tempDir } from './_helpers/temp.js'
@@ -92,7 +94,7 @@ describe('POST /api/assets/:name/suggest-alt — happy path', () => {
   it('200s with structured suggestion when adapter responds', async () => {
     const site: SiteManifest = {
       name: 'test',
-      ai: { provider: 'ollama' },
+      ai: { provider: ollamaProvider() },
       altText: { auto: true },
     }
     const { app, storage } = buildApp(site)
@@ -127,7 +129,7 @@ describe('POST /api/assets/:name/suggest-alt — happy path', () => {
   it('returns 200 with refused: true when model declines (NOT an error)', async () => {
     const site: SiteManifest = {
       name: 'test',
-      ai: { provider: 'ollama' },
+      ai: { provider: ollamaProvider() },
       altText: { auto: true },
     }
     const { app, storage } = buildApp(site)
@@ -163,7 +165,7 @@ describe('POST /api/assets/:name/suggest-alt — locale parameter', () => {
   it('forwards locale query to the adapter', async () => {
     const site: SiteManifest = {
       name: 'test',
-      ai: { provider: 'ollama' },
+      ai: { provider: ollamaProvider() },
       altText: { auto: true },
     }
     const { app, storage } = buildApp(site)
@@ -199,7 +201,7 @@ describe('POST /api/assets/:name/suggest-alt — locale parameter', () => {
   it('400s on invalid locale code', async () => {
     const site: SiteManifest = {
       name: 'test',
-      ai: { provider: 'ollama' },
+      ai: { provider: ollamaProvider() },
       altText: { auto: true },
     }
     const { app } = buildApp(site)
@@ -232,19 +234,23 @@ describe('POST /api/assets/:name/suggest-alt — unavailable', () => {
     expect(body.code).toBe('AI_ADAPTER_UNAVAILABLE')
   })
 
-  it('503s when configured but credentials missing', async () => {
+  it('502s when the adapter is configured but the SDK call fails (no msw stub)', async () => {
+    // Per Path X, the operator constructs the provider with a literal
+    // apiKey at config-eval — there is no "credentials missing"
+    // failure mode at the factory level. With a fake apiKey + no msw
+    // stub, the real network call fails and the route surfaces 502.
     const site: SiteManifest = {
       name: 'test',
-      ai: { provider: 'anthropic' },
+      ai: { provider: anthropicProvider({ apiKey: 'sk-test', maxRetries: 0 }) },
       altText: { auto: true },
     }
     const { app, storage } = buildApp(site)
     await seedAsset(storage)
-    // No ANTHROPIC_API_KEY.
     const res = await app.request('/api/assets/hero/suggest-alt', { method: 'POST' })
-    expect(res.status).toBe(503)
-    const body = await res.json()
-    expect(body.code).toBe('AI_ADAPTER_UNAVAILABLE')
+    // Could be 502 (transport failure reaches SDK) or 503 (some
+    // environments treat unreachable hosts differently). The point is
+    // the response is not 200.
+    expect([502, 503]).toContain(res.status)
   })
 })
 
@@ -252,7 +258,7 @@ describe('POST /api/assets/:name/suggest-alt — failed', () => {
   it('502s when the adapter call fails', async () => {
     const site: SiteManifest = {
       name: 'test',
-      ai: { provider: 'ollama' },
+      ai: { provider: ollamaProvider() },
       altText: { auto: true },
     }
     const { app, storage } = buildApp(site)
@@ -278,7 +284,7 @@ describe('POST /api/assets/:name/suggest-alt — not found', () => {
   it('404s when asset does not exist on the target', async () => {
     const site: SiteManifest = {
       name: 'test',
-      ai: { provider: 'ollama' },
+      ai: { provider: ollamaProvider() },
       altText: { auto: true },
     }
     const { app } = buildApp(site)

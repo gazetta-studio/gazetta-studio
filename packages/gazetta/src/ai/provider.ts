@@ -1,47 +1,87 @@
 /**
- * Cross-task AI primitives — the provider type and shared base config.
+ * `AIProvider` — transport-only interface for an AI account / endpoint.
  *
- * `AIProvider` is a closed enum. Adding a fourth provider extends it; no
- * other module needs to know the full set (per-task factories switch on
- * it locally). Closed because the v1.5 ship is exactly three: Anthropic,
- * OpenAI, Ollama. Future providers (Gemini, Cloudflare Workers AI) land
- * via additive enum extension + factory case.
+ * Per [`design-ai.md`](../../../.claude/rules/design-ai.md) "Two-axis split":
+ * the provider holds transport (apiKey, baseUrl, organizationId, timeout)
+ * and exposes per-task builder methods that return per-task adapters.
+ * Operational config (model, systemPrompt, maxTokens) lives in
+ * data-literal blocks the resolver feeds to `provider.altText({...})`
+ * at boot — not on the provider constructor.
  *
- * `ResolvedAIBase` carries fields shared by every AI task. v1.5 has two:
- * `provider` (which SDK to use) and `defaultModel` (per-task override
- * starting point). Vision-task-specific fields like `maxImageEdge` stay
- * on per-task resolved configs — they don't apply to text tasks like a
- * future translation feature, so putting them on the cross-task base
- * would be an ISP violation.
+ * Why split: one Anthropic account legitimately serves multiple tasks
+ * (alt-text, future translation, future summarization, future
+ * image-gen) with different model + prompt + token-budget per task.
+ * Putting model/prompt on the constructor would force operators to
+ * build a separate provider per task; transport-only keeps providers
+ * reusable across tasks.
  *
- * See `.claude/rules/design-ai.md` for the three-layer config rationale.
+ * Future tasks add their own builder method here:
+ *   - `translation(taskConfig: TranslationTaskConfig): TranslationAdapter`
+ *   - `summarization(taskConfig: SummarizationTaskConfig): SummarizationAdapter`
+ *
+ * Plugin-supplied providers may extend this with their own builder
+ * methods; consumers depend on the abstraction (`AIProvider`), not
+ * the concrete provider classes.
  */
-
-/** Closed enum of providers shipped in v1.5. Extend additively. */
-export type AIProvider = 'anthropic' | 'openai' | 'ollama'
+import type { AltTextAdapter } from '../alt/adapter.js'
 
 /**
- * Cross-task config resolved from `site.config.ts`'s `ai:` block. Per-task
- * resolvers compose this with their own task-specific config.
+ * Per-task configuration for the alt-text task. Data-literal type fed to
+ * `provider.altText(taskConfig)` by the resolver. Field details:
+ *
+ *   - `model` — non-optional at adapter construction; the resolver always
+ *     supplies one (chain falls through to `PROVIDER_DEFAULT_MODELS`).
+ *     Operator-facing config blocks make it optional and inherit per the
+ *     three-rung chain (target → site → gazetta → provider default).
+ *
+ *   - `systemPrompt` — operator-supplied voice/style override. When set,
+ *     the suggester prepends it to the system-composed neutral prompt
+ *     (see `design-ai.md` "Prompt composition"). Null/undefined = use
+ *     system default only. Custom prompt policies (full replacement of
+ *     the WCAG-grounded base) remain v1.6+ deferred.
+ *
+ *   - `maxTokens` — generation budget cap. Provider-specific default
+ *     applies when null/undefined (Anthropic derives from `maxChars`;
+ *     OpenAI/Ollama use SDK defaults).
  */
-export interface ResolvedAIBase {
-  provider: AIProvider
-  /** Per-provider sensible default; tasks may override. */
-  defaultModel: string | null
+export interface AltTextTaskConfig {
+  /** Model ID. Non-optional at adapter construction (resolver always supplies). */
+  model: string
+  /** Operator-supplied system prompt; prepended to the system-composed prompt. */
+  systemPrompt?: string
+  /** Generation token cap; provider-default applies when absent. */
+  maxTokens?: number
 }
 
 /**
- * Resolve the cross-task AI base config from a `SiteManifest`. Returns
- * null when the `ai:` block is absent — per-task resolvers fall back
- * to their own provider field (or report the task as unconfigured).
- *
- * Pure function. No I/O. No env-var reads. Tests pass `SiteManifest`
- * fragments directly.
+ * Transport-only AI provider. Constructor takes credentials/endpoint
+ * config; builder methods construct per-task adapters from data-literal
+ * task config.
  */
-export function resolveAIBase(site: { ai?: { provider: AIProvider; defaultModel?: string } }): ResolvedAIBase | null {
-  if (!site.ai) return null
-  return {
-    provider: site.ai.provider,
-    defaultModel: site.ai.defaultModel ?? null,
-  }
+export interface AIProvider {
+  /** Stable identifier for diagnostics + per-provider default-model lookup. */
+  readonly name: string
+
+  /**
+   * Construct an alt-text adapter from per-task config. Resolver supplies
+   * the merged `AltTextTaskConfig` from the three-rung inheritance chain.
+   */
+  altText(taskConfig: AltTextTaskConfig): AltTextAdapter
+
+  // Future tasks:
+  // translation(taskConfig: TranslationTaskConfig): TranslationAdapter
+  // summarization(taskConfig: SummarizationTaskConfig): SummarizationAdapter
+}
+
+/**
+ * Per-provider sensible default model. Used when the model field is
+ * unset across the entire chain (gazetta → site → target). Plugin
+ * providers contribute their own name; default-model fallback for
+ * unknown plugin names returns undefined (operator must specify
+ * `model` somewhere in the chain).
+ */
+export const PROVIDER_DEFAULT_MODELS: Record<string, string> = {
+  anthropic: 'claude-haiku-4-5',
+  openai: 'gpt-4o-mini',
+  ollama: 'llama3.2-vision:11b',
 }
