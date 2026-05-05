@@ -445,6 +445,61 @@ export interface ThemesConfig {
   default?: string
 }
 
+/**
+ * `MemoryCache`-specific config block. Lives at
+ * `siteManifest.admin.cache.memory.{maxEntries, maxBytes}` per
+ * `design-cache.md` Gap 1. Both fields optional; defaults are
+ * 10,000 entries and 50 MB.
+ */
+export interface MemoryCacheConfig {
+  /** Max entry count before LRU eviction kicks in. Default 10,000. */
+  maxEntries?: number
+  /** Approximate max bytes before LRU eviction kicks in. Default 50 MB. */
+  maxBytes?: number
+}
+
+/**
+ * `AdminCache` provider config. The `provider` field discriminates
+ * which provider builds at admin boot; provider-specific fields
+ * live alongside in their own namespace (e.g., `memory: {...}` for
+ * `MemoryCache`, `redis: {...}` for a future RedisCache). Plugin
+ * providers choose their own field shape.
+ */
+export interface CacheSiteConfig {
+  /** Provider name. v1 ships `memory`. v2 reserves `redis`, `azure`, `file`, `distributed`. */
+  provider?: 'memory' | string
+  /** `MemoryCache`-specific fields. */
+  memory?: MemoryCacheConfig
+  /**
+   * Strict-mode opt-in (per `design-cache.md` Gap 4). Blocks admin
+   * boot until the cache provider's `subscribe()` is established.
+   * Used in compliance contexts where eventual consistency during
+   * the boot window is unacceptable. Default `false`.
+   */
+  requireSubscribeOnBoot?: boolean
+}
+
+/**
+ * Admin-runtime config — distinct from content/render dimensions
+ * (`locales`, `themes`, `ai`) which live at `SiteManifest` top level.
+ * Foundational extension surfaces (cache today; auth, audit, hooks,
+ * notifications, offline as their cuts ship) attach here.
+ *
+ * Mirrors the `admin` block in `site.config.ts` per
+ * `design-config.md`; the runtime-cast bridge in
+ * `config/loader.ts` (`siteConfigToManifest`) casts the loose
+ * `Record<string, unknown>` schema field to this typed shape.
+ */
+export interface AdminConfig {
+  cache?: CacheSiteConfig
+  // Future foundations extend AdminConfig with their own optional fields:
+  //   auth?: AuthConfig
+  //   audit?: AuditConfig
+  //   hooks?: HooksConfig
+  //   notifications?: NotificationsConfig
+  //   offline?: OfflineConfig
+}
+
 /** Site manifest — runtime shape derived from site.config.ts */
 export interface SiteManifest {
   name: string
@@ -480,6 +535,13 @@ export interface SiteManifest {
   altText?: AltTextSiteConfig
   systemPages?: string[]
   targets?: Record<string, TargetConfig>
+  /**
+   * Admin-runtime concerns (cache, auth, audit, hooks, notifications,
+   * offline). Distinct from content/render dimensions above; mirrors
+   * the `admin` block in `site.config.ts`. First foundation to use
+   * this surface is the L4 cache (`admin.cache`).
+   */
+  admin?: AdminConfig
 }
 
 /** Directory entry returned by StorageProvider.readDir */
