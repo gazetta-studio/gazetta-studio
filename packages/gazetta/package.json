@@ -50,6 +50,14 @@
       "types": "./dist/schema/index.d.ts",
       "import": "./dist/schema/index.js"
     },
+    "./providers/azure-blob": {
+      "types": "./dist/providers/azure-blob.d.ts",
+      "import": "./dist/providers/azure-blob.js"
+    },
+    "./providers/s3": {
+      "types": "./dist/providers/s3.d.ts",
+      "import": "./dist/providers/s3.js"
+    },
     "./workers/cloudflare-r2": {
       "types": "./dist/workers/cloudflare-r2.d.ts",
       "import": "./dist/workers/cloudflare-r2.js"

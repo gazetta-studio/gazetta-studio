@@ -330,7 +330,7 @@ async function runInit(dir: string) {
   const { writeFile, mkdir } = await import('node:fs/promises')
   const target = resolve(dir)
 
-  if (existsSync(join(target, 'sites')) || existsSync(join(target, 'site.yaml'))) {
+  if (existsSync(join(target, 'sites')) || existsSync(join(target, 'site.config.ts'))) {
     console.error(`\n  Error: project already exists in ${target}\n`)
     process.exit(1)
   }
@@ -338,7 +338,21 @@ async function runInit(dir: string) {
   const name = target.split('/').pop() ?? 'my-site'
 
   const files: Record<string, string> = {
-    'sites/main/site.yaml': `name: ${name}\nversion: 1.0.0\nsystemPages:\n  - "404"\ntargets:\n  local:\n    storage:\n      type: filesystem\n    # environment=local, editable=true (defaults); path=./targets/local (default)\n`,
+    'sites/main/site.config.ts': `import { defineSite } from 'gazetta'
+
+export default defineSite({
+  name: '${name}',
+  version: '1.0.0',
+  systemPages: ['404'],
+  targets: {
+    local: {
+      storage: { type: 'filesystem' },
+      // environment: 'local' (default); editable: true (default for local);
+      // storage.path defaults to ./targets/local
+    },
+  },
+})
+`,
 
     'templates/page-layout/index.ts': `import { z } from 'zod'
 import type { TemplateFunction } from 'gazetta'
@@ -509,7 +523,7 @@ export default template
       `  ${c.dim('pages/home/')}       ${c.dim('home page with hero + intro')}\n` +
       `  ${c.dim('pages/404/')}        ${c.dim('error page')}\n` +
       `  ${c.dim('fragments/header/')} ${c.dim('shared header nav')}\n` +
-      `  ${c.dim('site.yaml')}         ${c.dim('site config + local target')}\n` +
+      `  ${c.dim('site.config.ts')}    ${c.dim('site config + local target')}\n` +
       `${c.bold('package.json')}`,
     `Created ${c.green(name)}/`,
   )
