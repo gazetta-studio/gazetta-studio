@@ -56,8 +56,8 @@ const PRISTINE_HOME: Record<string, unknown> = {
 }
 
 /** Dist dirs every scenario should wipe before running. Matches
- *  site.yaml targets in examples/starter, with `production` swapped to
- *  `prod-test` per the fixtures.ts patch. */
+ *  site.config.ts targets in examples/starter, with `production`
+ *  swapped to `prod-test` per the fixtures.ts patch. */
 const TARGET_DIST_DIRS = ['dist/staging', 'dist/esi-test', 'dist/prod-test'] as const
 
 /**

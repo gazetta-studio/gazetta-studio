@@ -468,7 +468,7 @@ export function assetRoutes(resolve: SourceContextResolver) {
     // alt: absent → null, empty string → "" (decorative), string → the value
     const alt = typeof altRaw === 'string' ? altRaw : null
 
-    // Pull per-target upload policy from site.yaml. When the source
+    // Pull per-target upload policy from site.config.ts. When the source
     // didn't resolve a named target (legacy static-resolver path) or
     // the site manifest isn't wired, ingest falls back to the default
     // size cap.

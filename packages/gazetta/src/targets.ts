@@ -22,7 +22,7 @@ export interface TargetRegistry {
   /**
    * Name of the default editable target for this site. Throws if none exists.
    * Resolution: first target where `isEditable(config) === true`, in the order
-   * they appear in site.yaml.
+   * they appear in site.config.ts.
    */
   defaultEditable(): string
 }
@@ -35,7 +35,7 @@ export class UnknownTargetError extends Error {
 }
 export class NoEditableTargetError extends Error {
   constructor() {
-    super('No editable target is configured. At least one target in site.yaml must be editable.')
+    super('No editable target is configured. At least one target in site.config.ts must be editable.')
     this.name = 'NoEditableTargetError'
   }
 }
@@ -89,7 +89,7 @@ export function resolveEnvVars(value: string | undefined): string | undefined {
  *
  * For filesystem targets, `path` defaults to `./targets/<targetName>` (relative
  * to the site dir). Users can override by setting `path` explicitly in
- * site.yaml — useful for shared drives, existing layouts, or multi-site setups
+ * site.config.ts — useful for shared drives, existing layouts, or multi-site setups
  * that need custom paths. If neither `path` nor `targetName` is available for
  * a filesystem target, throws.
  */

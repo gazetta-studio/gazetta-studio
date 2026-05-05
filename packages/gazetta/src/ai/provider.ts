@@ -21,7 +21,7 @@
 export type AIProvider = 'anthropic' | 'openai' | 'ollama'
 
 /**
- * Cross-task config resolved from `site.yaml`'s `ai:` block. Per-task
+ * Cross-task config resolved from `site.config.ts`'s `ai:` block. Per-task
  * resolvers compose this with their own task-specific config.
  */
 export interface ResolvedAIBase {

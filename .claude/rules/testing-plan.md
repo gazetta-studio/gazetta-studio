@@ -475,11 +475,11 @@ surface codes below are used throughout for cross-referencing.
 
 **Deferred — hotfix: source=prod → local** (AT + PB reverse-direction + PB.P). Requires
 `editable: true` on the production target to make the source dropdown appear, but the
-dev server's site.yaml watcher doesn't invalidate the target registry on config change —
+dev server's site.config.ts watcher doesn't invalidate the target registry on config change —
 a beforeEach patch isn't picked up by the already-running admin API. Two paths for the
 follow-up: (a) add a separate Playwright project that spawns its own dev server against
-a pre-patched site.yaml, or (b) fix the dev server to reload target registry on
-site.yaml change. Both are infrastructure work, not scenario work.
+a pre-patched site.config.ts, or (b) fix the dev server to reload target registry on
+site.config.ts change. Both are infrastructure work, not scenario work.
 
 **Test-data isolation:** scenarios mutate both the editable source (local's
 `pages/home/page.json`) and multiple target dist dirs. The worker-scoped `testSite`

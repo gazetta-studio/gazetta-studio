@@ -160,7 +160,7 @@ export interface StorageConfig {
   /**
    * Filesystem storage directory, relative to the site directory.
    * Defaults to `./targets/<target-key>` when unset — the target's key in
-   * site.yaml maps to a subdirectory under `targets/`. Override for shared
+   * site.config.ts maps to a subdirectory under `targets/`. Override for shared
    * drives, external mounts, or existing custom layouts.
    */
   path?: string
@@ -184,7 +184,7 @@ export type TargetEnvironment = 'local' | 'staging' | 'production'
 
 export type TargetType = 'static' | 'dynamic'
 
-/** Target configuration in site.yaml */
+/** Target configuration in site.config.ts */
 export interface TargetConfig {
   storage: StorageConfig
   worker?: WorkerConfig
@@ -276,7 +276,7 @@ export interface TargetConfig {
 }
 
 /**
- * Cross-task AI configuration block (`ai:` in `site.yaml`). Carries
+ * Cross-task AI configuration block (`ai:` in `site.config.ts`). Carries
  * fields used by ALL AI-powered tasks (alt-text in v1.5; future
  * translation, tag suggestion, summarization).
  *
@@ -301,7 +301,7 @@ export interface AIConfig {
 }
 
 /**
- * Site-level alt-text configuration (`altText:` in `site.yaml`).
+ * Site-level alt-text configuration (`altText:` in `site.config.ts`).
  * Defaults inherited from `ai:` block when fields are unset.
  */
 export interface AltTextSiteConfig {
@@ -445,7 +445,7 @@ export interface ThemesConfig {
   default?: string
 }
 
-/** Site manifest (site.yaml) */
+/** Site manifest — runtime shape derived from site.config.ts */
 export interface SiteManifest {
   name: string
   version?: string

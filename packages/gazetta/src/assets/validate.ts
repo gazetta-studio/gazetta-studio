@@ -24,7 +24,7 @@ import {
 
 /**
  * Default per-asset upload size cap — 50 MB. Sites override per target
- * via `targets.{name}.assets.maxBytes` in `site.yaml`. Targets that
+ * via `targets.{name}.assets.maxBytes` in `site.config.ts`. Targets that
  * don't override get this value.
  *
  * Why a default at all (per Q5):

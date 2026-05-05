@@ -48,7 +48,7 @@ docs/
 
 ```
 site/
-  site.yaml              # site manifest
+  site.config.ts         # site config (TS)
   templates/             # developer-created, each with own deps
     hero/index.ts
     header-layout/index.ts

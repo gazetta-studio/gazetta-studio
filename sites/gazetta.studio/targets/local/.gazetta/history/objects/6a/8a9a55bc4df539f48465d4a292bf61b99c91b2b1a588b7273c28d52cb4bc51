@@ -1,0 +1,22 @@
+{
+  "template": "nav-bar",
+  "content": {
+    "brand": "Gazetta",
+    "links": [
+      {
+        "label": "Docs",
+        "href": "/docs"
+      },
+      {
+        "label": "Blog",
+        "href": "/blog"
+      },
+      {
+        "label": "GitHub",
+        "href": "https://github.com/gazetta-studio/gazetta-studio"
+      }
+    ],
+    "cta": "Get Started",
+    "ctaHref": "/docs"
+  }
+}

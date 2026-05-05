@@ -102,7 +102,7 @@ Creates:
       page-default/index.tsx
     sites/
       main/
-        site.yaml          # name + filesystem staging target
+        site.config.ts     # name + filesystem staging target
         fragments/
         pages/
           home/page.json
@@ -232,7 +232,7 @@ $ gazetta dev
   CMS: http://localhost:3000/admin (dev mode + HMR)
 
   Template changed: hero
-  site.yaml changed — config reloaded
+  site.config.ts changed — config reloaded
   ← GET /about 200 45ms
   ← GET /admin/api/pages 200 12ms
 ```
@@ -262,7 +262,7 @@ CLI shows helpful errors when arguments don't match:
 
 ```
 gazetta publish productoin
-> Error: target "productoin" not found in site.yaml.
+> Error: target "productoin" not found in site.config.ts.
 > Available targets: staging, production
 ```
 
@@ -281,7 +281,7 @@ my-site/
     package.json           # { name: "templates", ... }
     tsconfig.json          # jsx, strict, node target
   sites/main/
-    site.yaml
+    site.config.ts
     ...
 ```
 
@@ -381,7 +381,7 @@ The runtime serves the 404 page for unmatched routes. If no 404 page exists, the
 returns a plain text "Not found" response. 500 errors show a generic error page (no
 custom template — future).
 
-`site.yaml` `systemPages` field lists system pages: `systemPages: [404]`
+`site.config.ts` `systemPages` field lists system pages: `systemPages: [404]`
 
 ## Publish Progress Output
 
@@ -446,5 +446,5 @@ Storage providers implement `StorageProvider` interface in `packages/gazetta/src
 Edge platforms require:
 1. Worker adapter code in `packages/gazetta/src/workers/{platform}.ts`
 2. Deploy logic in `cli/index.ts` (under `gazetta deploy`)
-3. `worker.type` value in `site.yaml` (e.g. `worker: { type: deno }`)
+3. `worker.type` value in `site.config.ts` (e.g. `worker: { type: 'deno' }`)
 4. Document in hosting.md under Future Hosting Platforms

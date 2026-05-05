@@ -2,7 +2,7 @@
 paths:
   - "packages/gazetta/src/**"
   - "examples/starter/**"
-  - "sites/*/site.yaml"
+  - "sites/*/site.config.ts"
 ---
 
 # Operations and Edge Cases
@@ -24,12 +24,16 @@ reverse proxy (Caddy, nginx, Cloudflare) for rate limiting and DDoS protection. 
 built-in rate limiting on auth endpoints.
 
 **CORS:** Same-origin by default (single process serves SPA + API). For split deployments,
-configure allowed origins in `site.yaml`:
+configure allowed origins in `site.config.ts`:
 
-```yaml
-admin:
-  cors:
-    origins: ["https://admin.mysite.com"]
+```ts
+defineSite({
+  admin: {
+    cors: {
+      origins: ['https://admin.mysite.com'],
+    },
+  },
+})
 ```
 
 **Content author permissions:** Basic auth is binary — authenticated users have full access.
@@ -103,8 +107,8 @@ const template: TemplateFunction = ({ content, params }) => {
 ## Multi-site Operations
 
 **Target resolution order:** site first, then target.
-1. Auto-detect or specify site → determines which `site.yaml` to read
-2. Auto-detect or specify target → looked up in that site's `site.yaml`
+1. Auto-detect or specify site → determines which `site.config.ts` to read
+2. Auto-detect or specify target → looked up in that site's `site.config.ts`
 
 Two sites can have targets with the same name (e.g. both have "production") — they're
 independent. `gazetta publish production my-site` resolves unambiguously.
@@ -142,9 +146,9 @@ The editor panel is NOT reloaded — form state (undo stack, unsaved changes, sc
 is preserved. If the template's **schema** changes (field added/removed), the editor detects
 the schema mismatch on next save attempt and offers to remount with the new schema.
 
-**Hot reload for site.yaml:** `gazetta dev` watches `site.yaml` for changes. Target config
+**Hot reload for site.config.ts:** `gazetta dev` watches `site.config.ts` for changes. Target config
 changes (new target, updated credentials) are picked up without restart. The dev server
-logs: "site.yaml changed — config reloaded."
+logs: "site.config.ts changed — config reloaded."
 
 **Authoring errors — clear messages for common mistakes:**
 
@@ -254,7 +258,7 @@ sites/my-site/
 ```
 
 Each locale is a separate page with its own content and route. Templates are shared.
-No built-in translation framework — content is managed per-page. `site.yaml` `locale`
+No built-in translation framework — content is managed per-page. `site.config.ts` `locale`
 field sets the default locale for metadata (lang attribute, etc.).
 
 **Static assets (images, fonts, CSS):** Static assets live in `sites/my-site/public/`.
@@ -467,7 +471,7 @@ pages skipped.
 **Version upgrades:** No migration tooling exists. Update version in both `admin/package.json`
 and `templates/package.json`, run `npm install`, check for breaking changes. Template contract
 changes reported by `gazetta validate`. Storage format re-rendered on publish. Editor API
-changes caught by TypeScript at compile time. New site.yaml fields are backward compatible.
+changes caught by TypeScript at compile time. New site.config.ts fields are backward compatible.
 
 **Multiple developers:** Each developer runs their own `gazetta dev` on a different port.
 Content changes (YAML) may conflict in git — standard merge conflict resolution. No
@@ -481,7 +485,7 @@ git hook). No auto-commit.
 without corruption — each renders independently, uploads to the same storage. Last write
 wins. For teams, publish from CI (on merge to main) is recommended.
 
-**Sites without `site.yaml`:** A directory in `sites/` without `site.yaml` is ignored by
+**Sites without `site.config.ts`:** A directory in `sites/` without `site.config.ts` is ignored by
 auto-detection. Not an error.
 
 **Disaster recovery:** Source of truth is **git** (templates, content YAML, site config).
@@ -545,7 +549,7 @@ in CI scripts:
 - run: curl -X POST $SLACK_WEBHOOK -d '{"text":"Site published"}'
 ```
 
-Future: `site.yaml` `hooks` field for post-publish actions.
+Future: `site.config.ts` `hooks` field for post-publish actions.
 
 ## Template Development Without a Site
 
@@ -580,7 +584,7 @@ my-site/
   admin/package.json              # gazetta, react
   templates/package.json          # gazetta, zod
   templates/page/index.ts         # one template
-  sites/main/site.yaml            # name + one target
+  sites/main/site.config.ts       # name + one target
   sites/main/pages/home/page.json # one page
 ```
 

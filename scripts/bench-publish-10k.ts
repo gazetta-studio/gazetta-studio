@@ -58,18 +58,22 @@ async function seedPages(dir: string, count: number): Promise<void> {
     await Promise.all(batch)
   }
 
-  // Site yaml
+  // Site config
   await writeFile(
-    join(dir, 'site.yaml'),
-    `name: Bench Site
-baseUrl: https://bench.example.com
-locale: en
-systemPages: []
-targets:
-  bench:
-    storage:
-      type: filesystem
-      path: ./dist/bench
+    join(dir, 'site.config.ts'),
+    `import { defineSite } from 'gazetta'
+
+export default defineSite({
+  name: 'Bench Site',
+  baseUrl: 'https://bench.example.com',
+  locale: 'en',
+  systemPages: [],
+  targets: {
+    bench: {
+      storage: { type: 'filesystem', path: './dist/bench' },
+    },
+  },
+})
 `,
   )
 

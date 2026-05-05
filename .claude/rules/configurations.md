@@ -5,7 +5,7 @@ paths:
   - "packages/gazetta/src/targets.ts"
   - "packages/gazetta/src/publish-rendered.ts"
   - "packages/gazetta/src/admin-api/routes/publish.ts"
-  - "sites/*/site.yaml"
+  - "sites/*/site.config.ts"
 ---
 
 # Configurations
@@ -31,7 +31,7 @@ import from other CMS, webhook notifications on publish, offline editing.
 | Mode | Who | What they run | What they edit |
 |------|-----|---------------|----------------|
 | **Gazetta contributor** | Core developer | `npm run dev` from monorepo root (builds core, starts starter) | `packages/gazetta/`, `apps/admin/` |
-| **Site author (new)** | End user | `npx gazetta init my-site && cd my-site && gazetta dev` | `templates/`, `sites/*/fragments/`, `sites/*/pages/`, `sites/*/site.yaml` |
+| **Site author (new)** | End user | `npx gazetta init my-site && cd my-site && gazetta dev` | `templates/`, `sites/*/fragments/`, `sites/*/pages/`, `sites/*/site.config.ts` |
 | **Site author (existing)** | End user | `gazetta dev` in project dir | Same as above |
 | **Template developer** | Frontend dev | `gazetta dev` — builds/tests templates in a site context | `templates/` (schema, render fn) + `admin/editors/` (custom editors) |
 | **Admin UI developer** | Core developer | `npm run dev` from `apps/admin/` (Vite UI :3000 + Hono API :4000) | `apps/admin/src/client/`, `apps/admin/src/server/` |
@@ -41,10 +41,10 @@ targets configured — exercises most code paths locally.
 
 ## Site Topology
 
-| Setup | Structure | site.yaml targets | Use case |
-|-------|-----------|-------------------|----------|
+| Setup | Structure | site.config.ts targets | Use case |
+|-------|-----------|------------------------|----------|
 | **Single site** | `sites/main/` (default from `gazetta init`) | 1+ targets | Most sites |
-| **Multi-site monorepo** | Multiple dirs under `sites/` sharing templates | Each site has own `site.yaml` | Agency, multi-brand |
+| **Multi-site monorepo** | Multiple dirs under `sites/` sharing templates | Each site has own `site.config.ts` | Agency, multi-brand |
 
 Multi-site: each site is independent. CLI operates on one site at a time (`gazetta publish production my-site`).
 Templates and admin are shared across all sites in the project.
@@ -101,7 +101,7 @@ my-project/
       cta/index.tsx            # template name: "buttons/cta"
   sites/
     my-site/                   # A site — content + config
-      site.yaml                # Site manifest — name, targets
+      site.config.ts           # Site manifest — name, targets
       fragments/               # Shared components (reusable across pages)
         header/
           fragment.json        # all components inline
@@ -113,7 +113,7 @@ my-project/
         about/
           page.json
     another-site/              # Another site — same templates, different content
-      site.yaml
+      site.config.ts
       fragments/
       pages/
 ```
@@ -148,7 +148,7 @@ cd my-project && npm install    # everything — admin + templates workspaces
 
 ## Storage Providers
 
-| Provider | Type in site.yaml | Auth (local) | Auth (CI) | Init |
+| Provider | Type in site.config.ts | Auth (local) | Auth (CI) | Init |
 |----------|-------------------|-------------|-----------|------|
 | **Filesystem** | `filesystem` | None (file access) | None | Auto-creates dirs |
 | **Cloudflare R2** | `r2` | `accessKeyId`+`secretAccessKey` (R2 API token) | Same, via env vars | Creates bucket if needed |
@@ -157,8 +157,9 @@ cd my-project && npm install    # everything — admin + templates workspaces
 
 All providers implement `StorageProvider` interface: `readFile`, `readDir`, `exists`, `writeFile`, `mkdir`, `rm`, `readStream`, `writeStream`.
 
-Credentials use `${ENV_VAR}` syntax in site.yaml, resolved at runtime. CLI loads `.env` from
-site dir (skipped when `CI=true`).
+Credentials use `process.env.X!` (with the non-null assertion when the var is required) directly
+in `site.config.ts`, resolved at TS evaluation time. CLI loads `.env` and `.env.local` from the
+project root before evaluating the config (skipped when `CI=true`).
 
 R2 uses the S3-compatible API. Create an R2 API token at the Cloudflare dashboard
 (R2 → Manage R2 API Tokens) — same credentials work locally and in CI.
@@ -180,26 +181,57 @@ Both CLI and admin API use `getPublishMode(target)` from `types.ts` to determine
 
 ### Real-world target examples
 
-```yaml
-# Local dev — filesystem, static mode
-staging:
-  storage: { type: filesystem, path: ./dist/staging }
+```ts
+import { defineSite } from 'gazetta'
 
-# Cloudflare — R2 + Worker, ESI mode
-production:
-  storage: { type: r2, accountId: "...", bucket: "my-site", accessKeyId: "${R2_ACCESS_KEY_ID}", secretAccessKey: "${R2_SECRET_ACCESS_KEY}" }
-  worker: { type: cloudflare, name: my-site }
-  siteUrl: "https://mysite.com"
-  cache: { browser: 0, edge: 86400, purge: { type: cloudflare, apiToken: "${CLOUDFLARE_API_TOKEN}" } }
+defineSite({
+  targets: {
+    // Local dev — filesystem, static mode
+    staging: {
+      storage: { type: 'filesystem', path: './dist/staging' },
+    },
 
-# Azure Blob — local dev with Azurite emulator
-production:
-  storage: { type: azure-blob, connectionString: "UseDevelopmentStorage=true", container: "my-site" }
+    // Cloudflare — R2 + Worker, ESI mode
+    production: {
+      storage: {
+        type: 'r2',
+        accountId: '...',
+        bucket: 'my-site',
+        accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+      },
+      worker: { type: 'cloudflare', name: 'my-site' },
+      siteUrl: 'https://mysite.com',
+      cache: {
+        browser: 0,
+        edge: 86400,
+        purge: { type: 'cloudflare', apiToken: process.env.CLOUDFLARE_API_TOKEN! },
+      },
+    },
 
-# Self-hosted — S3 storage, served by gazetta serve
-production:
-  storage: { type: s3, endpoint: "https://s3.amazonaws.com", bucket: "my-site", region: "us-east-1", accessKeyId: "${AWS_ACCESS_KEY_ID}", secretAccessKey: "${AWS_SECRET_ACCESS_KEY}" }
-  publishMode: esi  # ESI for gazetta serve — no worker needed
+    // Azure Blob — local dev with Azurite emulator
+    'production-azure': {
+      storage: {
+        type: 'azure-blob',
+        connectionString: 'UseDevelopmentStorage=true',
+        container: 'my-site',
+      },
+    },
+
+    // Self-hosted — S3 storage, served by gazetta serve
+    'production-s3': {
+      storage: {
+        type: 's3',
+        endpoint: 'https://s3.amazonaws.com',
+        bucket: 'my-site',
+        region: 'us-east-1',
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+      },
+      publishMode: 'esi', // ESI for gazetta serve — no worker needed
+    },
+  },
+})
 ```
 
 ### Invalid/misleading combinations
@@ -211,42 +243,53 @@ production:
 | `cache.purge` on non-Cloudflare target | Purge silently skipped | User thinks cache is purged, but it's not. Only `purge.type: cloudflare` is implemented |
 | `worker.type` other than `cloudflare` | `gazetta deploy` fails with error | `WorkerConfig.type` is `string` but only `'cloudflare'` is handled. Should be a literal type |
 
-## site.yaml Complete Schema
+## site.config.ts Complete Schema
 
-```yaml
-name: My Site                              # required — display name
-locale: en                                 # optional — default locale (default: en)
-baseUrl: https://mysite.com                # optional — production URL for SEO/meta
-systemPages: [404]                         # optional — system page names
+```ts
+import { defineSite } from 'gazetta'
 
-admin:                                     # optional — admin UI configuration
-  auth: basic                              # auth method (basic | none)
-  users:                                   # users for basic auth
-    - username: admin
-      password: "${ADMIN_PASSWORD}"
+export default defineSite({
+  name: 'My Site',                              // required — display name
+  locale: 'en',                                 // optional — default locale (default: en)
+  baseUrl: 'https://mysite.com',                // optional — production URL for SEO/meta
+  systemPages: [404],                           // optional — system page names
 
-targets:                                   # required — at least one target
-  staging:
-    storage: { type: filesystem, path: ./dist/staging }
-  production:
-    storage: { type: r2, ... }
-    worker: { type: cloudflare, name: my-site }
-    publishMode: esi                       # optional — esi | static (auto-detected from worker)
-    environment: production                # optional — local | staging | production. Default: local for filesystem, production otherwise. Drives admin UI confirmation prompts and badges.
-    siteUrl: https://mysite.com            # optional — for cache purge URL resolution
-    cache:                                 # optional — caching configuration
-      browser: 0                           # browser cache TTL in seconds
-      edge: 86400                          # CDN cache TTL in seconds
-      purge:                               # CDN cache purge
-        type: cloudflare
-        apiToken: "${CLOUDFLARE_API_TOKEN}"
-    history:                               # optional — per-target undo / rollback (default: enabled, retain 50)
-      enabled: true                        # set to false to skip .gazetta/history/ writes entirely
-      retention: 50                        # keep at most N most-recent revisions; oldest evicted
+  admin: {                                      // optional — admin UI configuration
+    auth: 'basic',                              // auth method ('basic' | 'none')
+    users: [                                    // users for basic auth
+      { username: 'admin', password: process.env.ADMIN_PASSWORD! },
+    ],
+  },
+
+  targets: {                                    // required — at least one target
+    staging: {
+      storage: { type: 'filesystem', path: './dist/staging' },
+    },
+    production: {
+      storage: { type: 'r2' /* ... */ },
+      worker: { type: 'cloudflare', name: 'my-site' },
+      publishMode: 'esi',                       // optional — 'esi' | 'static' (auto-detected from worker)
+      environment: 'production',                // optional — 'local' | 'staging' | 'production'. Default: local for filesystem, production otherwise. Drives admin UI confirmation prompts and badges.
+      siteUrl: 'https://mysite.com',            // optional — for cache purge URL resolution
+      cache: {                                  // optional — caching configuration
+        browser: 0,                             // browser cache TTL in seconds
+        edge: 86400,                            // CDN cache TTL in seconds
+        purge: {                                // CDN cache purge
+          type: 'cloudflare',
+          apiToken: process.env.CLOUDFLARE_API_TOKEN!,
+        },
+      },
+      history: {                                // optional — per-target undo / rollback (default: enabled, retain 50)
+        enabled: true,                          // set to false to skip .gazetta/history/ writes entirely
+        retention: 50,                          // keep at most N most-recent revisions; oldest evicted
+      },
+    },
+  },
+})
 ```
 
 Custom site-level settings can be added as top-level fields — accessible to templates via
-the render context. Not currently validated — future schema for site.yaml.
+the render context. Not currently validated — future schema for site.config.ts.
 
 ## Data Flow Summary
 

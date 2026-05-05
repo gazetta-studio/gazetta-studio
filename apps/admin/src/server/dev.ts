@@ -7,7 +7,7 @@ import { createAdminApp } from './index.js'
 const siteDir = resolve(process.argv[2] ?? '../../examples/starter')
 const port = parseInt(process.env.API_PORT ?? '4000', 10)
 
-// Resolve the default editable target from site.yaml and derive a
+// Resolve the default editable target from site.config.ts and derive a
 // SourceContext pointing at its content. Cloud targets are not initialized
 // here — the admin API does lazy init on first publish/fetch/compare.
 const { source, manifest, targetConfigs } = await buildSourceContext({ projectSiteDir: siteDir })

@@ -121,7 +121,7 @@ export interface HistoryProvider {
 
   /**
    * Read a content blob by hash. Returns raw bytes — callers that
-   * expect text (page/fragment manifests, site.yaml) decode UTF-8 on
+   * expect text (page/fragment manifests, site.config.ts) decode UTF-8 on
    * receipt. Callers that expect binary (asset bytes, variants) use
    * the bytes as-is.
    *

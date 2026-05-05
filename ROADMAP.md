@@ -126,7 +126,7 @@ Operator-facing features that mature production deployments:
 - #111 standalone compare view
 
 ### E2e infrastructure
-- #184 reload target registry on `site.yaml` change — unblocks the deferred hotfix-from-prod e2e scenario per `testing-plan.md`
+- #184 reload target registry on `site.config.ts` change — unblocks the deferred hotfix-from-prod e2e scenario per `testing-plan.md`
 
 ### Image transformations (media v1.5 followon)
 - #201 image transformations (resize, crop, WebP/AVIF, focal point)

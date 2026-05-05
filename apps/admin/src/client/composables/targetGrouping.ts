@@ -20,7 +20,7 @@ export const GROUPING_THRESHOLD = 4
 
 /**
  * A group of targets sharing the same `environment`. Members preserve
- * declaration order from site.yaml.
+ * declaration order from site.config.ts.
  */
 export interface TargetGroup {
   /** Environment value, e.g. 'production'. */

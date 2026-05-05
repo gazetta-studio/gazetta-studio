@@ -1,0 +1,47 @@
+{
+  "template": "site-footer",
+  "components": [
+    {
+      "name": "links-product",
+      "template": "link-list",
+      "content": {
+        "title": "Product",
+        "links": [
+          {
+            "label": "Documentation",
+            "href": "/docs"
+          },
+          {
+            "label": "Getting Started",
+            "href": "/docs"
+          },
+          {
+            "label": "Blog",
+            "href": "/blog"
+          }
+        ]
+      }
+    },
+    {
+      "name": "links-resources",
+      "template": "link-list",
+      "content": {
+        "title": "Resources",
+        "links": [
+          {
+            "label": "GitHub",
+            "href": "https://github.com/gazetta-studio/gazetta-studio"
+          },
+          {
+            "label": "Contributing",
+            "href": "https://github.com/gazetta-studio/gazetta-studio/blob/main/CONTRIBUTING.md"
+          },
+          {
+            "label": "License",
+            "href": "https://github.com/gazetta-studio/gazetta-studio/blob/main/LICENSE"
+          }
+        ]
+      }
+    }
+  ]
+}

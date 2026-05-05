@@ -45,7 +45,7 @@ Every Provider — regardless of which Extension Surface it implements — must 
 
 **2. Stateless interface.** Provider methods are idempotent OR document where they aren't. Two instances calling the same method converge to the same result (or document the divergence and the expected reconciliation).
 
-**3. Configuration via env vars for credentials.** Credentials never appear in `site.yaml`. Provider reads its own env vars matching the upstream SDK's conventions (`AWS_*`, `AZURE_*`, `R2_*`, `ANTHROPIC_API_KEY`, etc.). Site config names the Provider + non-secret options only.
+**3. Configuration via env vars for credentials.** Credentials never appear in `site.config.ts` literals; they're injected via `process.env.X!`. Provider reads its own env vars matching the upstream SDK's conventions (`AWS_*`, `AZURE_*`, `R2_*`, `ANTHROPIC_API_KEY`, etc.). Site config names the Provider + non-secret options only.
 
 **4. Sensible defaults.** Provider works with minimal config. Operator overrides defaults only when defaults don't fit. Defaults documented per-Provider in the surface's design doc.
 

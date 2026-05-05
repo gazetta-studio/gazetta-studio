@@ -13,7 +13,7 @@ const storage = createFilesystemProvider(contentDir)
 let app: Hono
 
 beforeAll(async () => {
-  // Load project-level manifest from the TS config so target storage doesn't need site.yaml.
+  // Load project-level manifest from the TS config so target storage doesn't need site.config.ts.
   const loaded = await loadSiteConfig(projectSiteDir)
   if (!loaded) throw new Error(`No site.config.ts at ${projectSiteDir}`)
   const manifest = siteConfigToManifest(loaded.config)

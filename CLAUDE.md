@@ -55,7 +55,7 @@ npm run dev        # start dev server (examples/starter on localhost:3000)
 npm test           # run all tests
 ```
 
-**Note:** Page and fragment manifests use JSON (`page.json`, `fragment.json`). Site config stays YAML (`site.yaml`). Components are inline in the page manifest — no separate component files.
+**Note:** Page and fragment manifests use JSON (`page.json`, `fragment.json`). Site config is TypeScript (`site.config.ts`) using `defineSite()` from the `gazetta` package. Components are inline in the page manifest — no separate component files.
 
 ## Conventions
 

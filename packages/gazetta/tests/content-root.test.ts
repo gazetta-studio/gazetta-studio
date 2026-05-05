@@ -18,13 +18,13 @@ describe('createContentRoot', () => {
     const root = createContentRoot(mockStorage(), '/abs/path/sites/main')
     expect(root.path('pages', 'home')).toBe('/abs/path/sites/main/pages/home')
     expect(root.path('pages/home', 'page.json')).toBe('/abs/path/sites/main/pages/home/page.json')
-    expect(root.path('site.yaml')).toBe('/abs/path/sites/main/site.yaml')
+    expect(root.path('site.config.ts')).toBe('/abs/path/sites/main/site.config.ts')
   })
 
   it('joins segments without a prefix when rootPath is empty', () => {
     const root = createContentRoot(mockStorage())
     expect(root.path('pages', 'home')).toBe('pages/home')
-    expect(root.path('site.yaml')).toBe('site.yaml')
+    expect(root.path('site.config.ts')).toBe('site.config.ts')
   })
 
   it('rootPath defaults to empty string', () => {

@@ -55,7 +55,7 @@ This pass commits to theme-as-presentation only. Other dimensions are designed w
 - **Locale-priority cross-dimension fallback** — `(fr, dark) → (fr, light) → (default-locale, dark) → (default-locale, light)`. Locked, non-configurable. Locale matters more than visual presentation when content has to fall back.
 - **Filename composition order: locale before theme.** `{name}.asset[.{loc}][.{theme}].json`. Adding a future dimension extends the order; existing filenames stay valid (no value for the new dimension).
 - **Theme name validation** — lowercase ASCII, must NOT collide with valid BCP 47 locale codes (so `hero.asset.en.json` is unambiguously a locale variant, never a theme variant).
-- **Site config opt-in** — `themes.supported: [light, dark]` in `site.yaml` enables the dimension. When absent, the theme dimension is unused.
+- **Site config opt-in** — `themes: { supported: ['light', 'dark'] }` in `site.config.ts` enables the dimension. When absent, the theme dimension is unused.
 
 **Pages/fragments (this design pass commits):**
 

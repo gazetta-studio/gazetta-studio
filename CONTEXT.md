@@ -51,8 +51,8 @@ _Avoid_: Using "Component" in domain conversation — it collides with React/Vue
 ### Manifests
 
 **Manifest**:
-The authoritative declarative description of a domain entity's current state, stored as a JSON or YAML file. Distinct from the entity's renders, history, or other derivatives. Always qualified — "Page Manifest," "Asset Manifest" — never bare in domain conversation when ambiguity is possible.
-_Avoid_: Definition, Spec, Descriptor, Config (collides with `site.yaml`), Document (Sanity term).
+The authoritative declarative description of a domain entity's current state, stored as a JSON or TypeScript file. Distinct from the entity's renders, history, or other derivatives. Always qualified — "Page Manifest," "Asset Manifest" — never bare in domain conversation when ambiguity is possible.
+_Avoid_: Definition, Spec, Descriptor, Config (collides with `site.config.ts`), Document (Sanity term).
 
 **Page Manifest** (`page.json` and `page.{locale}.json`):
 The descriptor of a Page. Carries `template`, `content`, `components` (Children), `route`, `metadata`. One default per Page; optional locale variants.
@@ -63,8 +63,8 @@ The descriptor of a Fragment. Same shape as Page Manifest minus `route` and `met
 **Asset Manifest** (`{name}.asset.json` and `{name}.asset.{locale}[.{theme}].json`):
 The descriptor of an Asset. Carries `kind`, `mime`, `hash`, `width`/`height`, `alt`, `tags`, `variants`, etc. The default manifest is mandatory; per-locale and per-theme variants are optional metadata or bytes overrides.
 
-**Site Manifest** (`site.yaml`):
-The descriptor of a Site. Carries `name`, `locale`, `targets`, `ai`, `altText`, `themes`, etc. One per Site.
+**Site Manifest** (`site.config.ts`):
+The descriptor of a Site, expressed as a TypeScript module using `defineSite()` from the `gazetta` package. Carries `name`, `locale`, `targets`, `ai`, `altText`, `themes`, etc. One per Site.
 
 **Revision Manifest** (`rev-{timestamp}.json`):
 The descriptor of one entry in a Target's history. Carries timestamp, operation, author, items written (path → blob hash). Stored under `.gazetta/history/revisions/`.
@@ -200,7 +200,7 @@ A typed interface defining a category of pluggable functionality. Gazetta has 12
 _Avoid_: Plugin slot, Extension point, Hook (collides — Hook is one specific surface).
 
 **Provider**:
-A single implementation of an Extension Surface. `MemoryCache` and `RedisCache` are Providers of the Cache surface; `R2Storage` and `AzureBlobStorage` are Providers of the Storage surface. Operators select Providers via `site.yaml`; v1 ships reference Providers in-tree.
+A single implementation of an Extension Surface. `MemoryCache` and `RedisCache` are Providers of the Cache surface; `R2Storage` and `AzureBlobStorage` are Providers of the Storage surface. Operators select Providers via `site.config.ts`; v1 ships reference Providers in-tree.
 _Avoid_: Plugin (overloaded — a Plugin contains Providers), Backend (too generic), Adapter (use only when matching the term-of-art for the surface, e.g., Transform Adapter, Deploy Adapter).
 
 **Plugin**:
@@ -258,7 +258,7 @@ The outermost unit: a Git repo + root `package.json` with npm workspaces (`admin
 _Avoid_: Repo (mechanical, not domain), Workspace (collides with npm workspaces), Codebase.
 
 **Site**:
-One brand or domain: a content tree (pages, fragments, assets), a Site Manifest (`site.yaml`), and one or more Targets. Lives at `sites/{name}/` inside a Project. Multiple Sites per Project supported (agency / multi-brand setups). The Site is the natural unit of content; the Project is the natural unit of code-and-templates.
+One brand or domain: a content tree (pages, fragments, assets), a Site Manifest (`site.config.ts`), and one or more Targets. Lives at `sites/{name}/` inside a Project. Multiple Sites per Project supported (agency / multi-brand setups). The Site is the natural unit of content; the Project is the natural unit of code-and-templates.
 _Avoid_: Project (the Project contains the Site, not vice versa), Brand, Property, Tenant.
 
 **Workspace** (internal — npm tooling, not domain):

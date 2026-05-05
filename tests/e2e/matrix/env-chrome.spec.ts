@@ -4,7 +4,7 @@
  * fixture site (tests/fixtures/sites/target-matrix/) so each row
  * tests a real live target, not a mocked one.
  *
- * Axis coverage (see site.yaml):
+ * Axis coverage (see site.config.ts):
  *   environment: local | staging | production
  *   editable:    true  | false
  *   type:        static | dynamic
@@ -18,7 +18,7 @@
 import { test, expect } from '@playwright/test'
 
 /**
- * One row per target in tests/fixtures/sites/target-matrix/site.yaml.
+ * One row per target in tests/fixtures/sites/target-matrix/site.config.ts.
  * Kept deliberately exhaustive so a new axis-behavior becomes a single
  * data-table entry, not a new test.
  */

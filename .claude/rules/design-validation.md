@@ -325,6 +325,6 @@ Each cut is independently shippable; authors learn one new surface per ship.
 
 3. **Background scanner cost on huge sites.** A 5000-page site running axe + html-validate on every fragment edit could take minutes. Mitigation already exists (dependency-aware re-validation); needs to be wired correctly.
 
-4. **Suppression UX.** When an author wants to silence a specific issue ("I know this image is decorative even though axe doesn't"), where does the suppression live? Options: per-content (in the manifest as `_suppressions: {...}`), per-asset (on the asset manifest), per-site (in `site.yaml`). Each has different scoping characteristics. Defer designing until authors actually ask.
+4. **Suppression UX.** When an author wants to silence a specific issue ("I know this image is decorative even though axe doesn't"), where does the suppression live? Options: per-content (in the manifest as `_suppressions: {...}`), per-asset (on the asset manifest), per-site (in `site.config.ts`). Each has different scoping characteristics. Defer designing until authors actually ask.
 
 5. **Validator versioning.** axe-core releases new rules; sites that pass today might fail tomorrow. Pin versions; document update policy. Same as the AI alt refusal-marker maintenance question.
