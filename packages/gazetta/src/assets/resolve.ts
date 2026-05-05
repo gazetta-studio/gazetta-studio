@@ -40,7 +40,7 @@ import { type Selector, buildSelector, selectorsEqual } from '../schema/dimensio
 import type { ResolvedLocales } from '../locale.js'
 import type { ResolvedThemes } from '../themes.js'
 import { crossDimensionFallbackChain } from '../selector-chain.js'
-import { sharpAdapter } from '../transforms/sharp.js'
+import { defaultSharpAdapter } from '../transforms/sharp.js'
 import type { TransformAdapter } from '../transforms/adapter.js'
 import { AssetManifestCorruptError, AssetManifestNotFoundError } from './errors.js'
 import { foldLocaleChain } from './manifest-merge.js'
@@ -143,7 +143,7 @@ export async function resolveEmbeddedRef(
     )
   }
 
-  const adapter = ctx.transformAdapter ?? sharpAdapter
+  const adapter = ctx.transformAdapter ?? defaultSharpAdapter
   const adapterInput = {
     name: defaultManifest.name,
     hash: bytesSource.hash!,
@@ -204,7 +204,7 @@ export async function resolveDownloadableRef(
     )
   }
 
-  const adapter = ctx.transformAdapter ?? sharpAdapter
+  const adapter = ctx.transformAdapter ?? defaultSharpAdapter
   const url = adapter.primaryUrl({
     name: defaultManifest.name,
     hash: bytesSource.hash!,
@@ -269,7 +269,7 @@ export async function resolveFontRef(
   // derive from the asset name.
   const cssName = defaultManifest.name
 
-  const adapter = ctx.transformAdapter ?? sharpAdapter
+  const adapter = ctx.transformAdapter ?? defaultSharpAdapter
 
   // Default variant is always present in the union — every font has
   // its default file.

@@ -112,6 +112,21 @@ export type {
 // operator-facing factories above.
 export { createFilesystemProvider } from './providers/filesystem.js'
 
+// Transform adapter factories — operator-facing (Path X). Operators import
+// these into `site.config.ts` and call them inline at the `transforms:` field.
+export { sharpAdapter, cloudflareAdapter } from './transforms/factories.js'
+export type { SharpAdapterOptions, CloudflareAdapterOptions } from './transforms/factories.js'
+
+// Internal transform-adapter factories — kept public for tests + advanced wiring.
+export {
+  createSharpAdapter,
+  createCloudflareAdapter,
+  defaultSharpAdapter,
+  type AssetUrlInput,
+  type CachePolicy,
+  type TransformAdapter,
+} from './transforms/index.js'
+
 // Targets
 export { createTargetRegistry } from './targets.js'
 
