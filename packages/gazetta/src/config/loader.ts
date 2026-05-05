@@ -158,15 +158,31 @@ export async function loadSiteConfig(siteDir: string): Promise<{
 /**
  * Apply gazetta.config.defaults to a site config (object-fields only;
  * arrays do not inherit per design-config.md "Defaults flow").
+ *
+ * Cache (Exception A): when the site doesn't set its own `cache:` field,
+ * build a fresh `memoryCache(defaults.cache)` per site from the gazetta-
+ * level raw options. Each site gets its own per-site cache instance,
+ * preserving per-site isolation (`design-cache.md` Gap 3).
+ *
+ * Audit defaults still flow through the `admin` block as a loose record
+ * — the audit foundation hasn't migrated to Path X yet.
  */
-function applyGazettaDefaults(site: SiteConfig, defaults: GazettaConfig['defaults']): SiteConfig {
+async function applyGazettaDefaults(site: SiteConfig, defaults: GazettaConfig['defaults']): Promise<SiteConfig> {
   if (!defaults) return site
+
+  // Cache: build per-site instance from raw options when site didn't override.
+  let cache = site.cache
+  if (!cache && defaults.cache) {
+    const { memoryCache } = await import('../cache/factories.js')
+    cache = memoryCache(defaults.cache)
+  }
+
   const admin = site.admin ?? {}
   return {
     ...site,
+    cache,
     admin: {
       ...admin,
-      cache: admin.cache ?? defaults.cache,
       audit: admin.audit ?? defaults.audit,
     },
   }
@@ -202,7 +218,7 @@ export async function discoverSites(
   // Flat layout: single site at project root
   if (rootConfigPath) {
     const value = await evaluateConfig(rootConfigPath)
-    const config = applyGazettaDefaults(validateSiteConfig(value, rootConfigPath), defaults)
+    const config = await applyGazettaDefaults(validateSiteConfig(value, rootConfigPath), defaults)
     return [
       {
         name: config.name,
@@ -241,7 +257,7 @@ export async function discoverSites(
       name: loaded.config.name,
       dir: siteDir,
       configPath: loaded.configPath,
-      config: applyGazettaDefaults(loaded.config, defaults),
+      config: await applyGazettaDefaults(loaded.config, defaults),
     })
   }
   return sites

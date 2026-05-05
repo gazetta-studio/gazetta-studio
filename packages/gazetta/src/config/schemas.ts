@@ -77,9 +77,16 @@ export const SiteConfigSchema = z
      */
     targets: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
     /**
+     * AdminCache instance (Path X — operator constructs via factory call,
+     * e.g., `cache: memoryCache({...})`). Validated downstream by checking
+     * for the AdminCache method shape; Zod's role here is to accept the
+     * opaque constructed instance.
+     */
+    cache: z.unknown().optional(),
+    /**
      * Reserved for future foundations (auth, plugins, hooks, audit,
-     * cache, notifications). Each block is validated by its own
-     * factory at load time per the Universal Provider Requirements.
+     * notifications). Each block is validated by its own factory at
+     * load time per the Universal Provider Requirements.
      */
     admin: z
       .object({
@@ -87,7 +94,6 @@ export const SiteConfigSchema = z
         plugins: z.array(z.unknown()).optional(),
         hooks: z.record(z.string(), z.unknown()).optional(),
         audit: z.record(z.string(), z.unknown()).optional(),
-        cache: z.record(z.string(), z.unknown()).optional(),
         notifications: z.record(z.string(), z.unknown()).optional(),
         offline: z.record(z.string(), z.unknown()).optional(),
       })
@@ -114,10 +120,20 @@ export const GazettaConfigSchema = z
      * Defaults that sites inherit unless they override. Object fields
      * merge per-field; arrays (plugins, hooks) do NOT inherit (locked
      * per design-config.md "Defaults flow").
+     *
+     * `defaults.cache` is the documented Exception A (per ADR-0008):
+     * raw `MemoryCacheOptions` rather than a constructed instance, so
+     * each inheriting site builds its own per-site cache instance
+     * required by `design-cache.md` Gap 3 (per-site isolation).
      */
     defaults: z
       .object({
-        cache: z.record(z.string(), z.unknown()).optional(),
+        cache: z
+          .object({
+            maxEntries: z.number().int().positive().optional(),
+            maxBytes: z.number().int().positive().optional(),
+          })
+          .optional(),
         audit: z.record(z.string(), z.unknown()).optional(),
       })
       .optional(),
