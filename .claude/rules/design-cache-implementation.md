@@ -41,13 +41,19 @@ Branch: `cache-v1` off `main`. **No backwards compatibility** — replaces exist
 
 **Tests:** key encoding + special-char handling
 
-### Cut 2: `AdminCache` + `MemoryCache`
+### Cut 2: `MemoryCache` + admin typed surface
 
 **Files added:**
-- `packages/gazetta/src/cache/provider.ts` — `AdminCache` interface
-- `packages/gazetta/src/cache/providers/memory.ts` — `MemoryCache` with default 10K entries / 50MB cap; LRU eviction
+- `packages/gazetta/src/cache/memory.ts` — `createMemoryCache(opts)`; default 10K entries / 50MB cap; LRU via `Map` insertion-order with delete-then-set on hit; `subscribe()` no-op (handler stored in Set, returns disposer; Cut 4 modifies this file to wire EventEmitter for cross-instance events)
+
+**Files modified:**
+- `packages/gazetta/src/types.ts` — add `AdminConfig` + `CacheSiteConfig` interfaces; add `SiteManifest.admin?: AdminConfig`. First foundation to need typed admin-runtime concerns at the runtime-manifest layer (matches `SiteConfig.admin.cache`'s loose-record schema in `config/schemas.ts`; runtime cast bridges per existing `altText` pattern).
 
 **Tests:** get-set-invalidate round-trip + LRU eviction at cap + invalidatePrefix returns count
+
+**Why no `cache/provider.ts`:** `AdminCache` interface lives in Cut 1's `cache/types.ts` (colocation matches `alt/adapter.ts`, `transforms/adapter.ts` newer foundation pattern; ISP-clean since `AdminCache`, `CacheStats`, `InvalidationEvent` are one cohesive contract).
+
+**Why flat `cache/memory.ts` (not `cache/providers/memory.ts`):** matches `alt/anthropic.ts`, `transforms/sharp.ts` — implementations flat at foundation root. The package-root `packages/gazetta/src/providers/` directory is a legacy storage-provider pattern; newer foundations colocate flat.
 
 ### Cut 3: Key conventions
 
@@ -60,20 +66,22 @@ Branch: `cache-v1` off `main`. **No backwards compatibility** — replaces exist
 
 **Files added:**
 - `packages/gazetta/src/cache/sse.ts` — server-side broadcast on invalidate / invalidatePrefix
-- `packages/gazetta/src/cache/providers/memory.ts` — `subscribe()` via Node EventEmitter
 
 **Files modified:**
-- `packages/gazetta/src/admin-api/middleware/sse.ts` (extends existing dev-server reload SSE) — adds invalidation channel
+- `packages/gazetta/src/cache/memory.ts` — replace Cut 2's no-op `subscribe()` with Node EventEmitter wiring; SSE listener calls handler set via emit
+- SSE channel location TBD when Cut 4 starts. Existing dev-server reload SSE lives at [`cli/index.ts`](../../packages/gazetta/src/cli/index.ts) (`/__reload`, line 1536); Cut 4 either extends it or adds a new admin-api SSE route alongside the existing `streamSSE` use in `admin-api/routes/publish.ts:522`. No `admin-api/middleware/sse.ts` exists today.
 
 **Tests:** invalidation broadcasts + subscribers receive events + auto-reconnect with backoff (single-process; trivial case)
 
 ### Cut 5: Sweep existing memos
 
 **Files modified:**
-- `packages/gazetta/src/source-sidecars.ts` (memoization) — migrate to `AdminCache`
-- `packages/gazetta/src/locale.ts` (locale cache) — migrate
-- `packages/gazetta/src/manifest.ts` (template-scan cache) — migrate
-- Other ad-hoc memos identified during cut
+- `packages/gazetta/src/admin-api/index.ts` — `cachedScan` (template scan via `memoizeAsync`) → migrate to `AdminCache`
+- `packages/gazetta/src/admin-api/routes/publish.ts` — `fragmentDepsBackfill` Map (per-source in-flight memo for `/api/dependents`) → migrate to `AdminCache`
+- `packages/gazetta/src/admin-api/source-context.ts` — per-source `Map<string, SourceContext>` cache → migrate to `AdminCache`
+- Other ad-hoc memos identified during cut (the codebase isn't memo-heavy; expected sweep is small)
+
+**Note**: a previous draft of this section listed `source-sidecars.ts`, `locale.ts`, and `manifest.ts` as sweep targets. `source-sidecars.ts` was deleted in commit `7d61ce5` (Media v1 step 13c — drop forward sidecars + `SourceSidecarWriter`); `locale.ts` and `manifest.ts` carry no caches. The actual cache-pattern callers above replace that stale list.
 
 **Tests:** equivalence tests confirm cache hits return same shapes as pre-migration
 
@@ -104,9 +112,11 @@ Branch: `cache-v1` off `main`. **No backwards compatibility** — replaces exist
 
 ### Cut 9: Per-site cache instance + key prefix
 
+**Files added:**
+- `packages/gazetta/src/cache/factory.ts` — `createAdminCache(site)` returns per-site instance with auto-prefix; matches existing foundation factory pattern (`alt/factory.ts`, `transforms/index.ts`'s `buildTransformAdapter`). Cuts 1-2 don't ship a factory because no consumer needs one until Cut 5 starts wiring cache callers — by which point per-site multi-tenant key prefixing is the load-bearing concern.
+
 **Files modified:**
-- `packages/gazetta/src/cache/factory.ts` — `createAdminCache(site)` returns per-site instance with auto-prefix
-- Loader: each site's cache initialized at site-load time
+- Loader / site-loader integration: each site's cache initialized at site-load time
 
 **Tests:** two sites in same project don't collide on cache keys
 

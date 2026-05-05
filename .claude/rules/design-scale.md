@@ -95,7 +95,7 @@ Locked endpoints:
 - **`GET /api/pages/search?q=foo`** — server walks all pages with substring match; returns matches. Typically <100 KB. Server-side because filesystem walks at 5000 pages are fast (~150ms cold) and shipping the full set client-side is wasteful.
 - **`GET /api/pages/:name`** — unchanged; per-page detail fetched on selection.
 - **`GET /api/fragments`** — same prefix pattern, smaller scale.
-- **`GET /api/dependents`** — unchanged; already memoized per-process via source-sidecars pattern.
+- **`GET /api/dependents`** — unchanged; already memoized per-process via in-flight backfill in [`admin-api/routes/publish.ts`](../../packages/gazetta/src/admin-api/routes/publish.ts) (`fragmentDepsBackfill: Map<string, Promise<void>>` shares one walk across concurrent callers per source-target).
 
 Locked performance machinery:
 
