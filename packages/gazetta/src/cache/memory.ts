@@ -29,8 +29,23 @@
  *   - events would fire if any source emitted them
  *   - it's just that v1 single-instance has no source
  */
-import type { MemoryCacheConfig } from '../types.js'
 import type { AdminCache, CacheStats, InvalidationEvent } from './types.js'
+
+/**
+ * Options for constructing an in-process `MemoryCache`. Both fields
+ * optional; defaults are 10,000 entries and 50 MB approximate.
+ *
+ * Lives on the factory signature (rather than as a separate `*Config`
+ * interface in `types.ts`) per Phase 3 of the Path X migration — the
+ * options type is provider-specific construction config, not a
+ * runtime-manifest field.
+ */
+export interface MemoryCacheOptions {
+  /** Max entry count before LRU eviction kicks in. Default 10,000. */
+  maxEntries?: number
+  /** Approximate max bytes before LRU eviction kicks in. Default 50 MB. */
+  maxBytes?: number
+}
 
 /** Default cap when operator config doesn't override. */
 const DEFAULT_MAX_ENTRIES = 10_000
@@ -44,15 +59,12 @@ interface CacheEntry {
 }
 
 /**
- * Build a `MemoryCache` from operator config. Reads
- * `admin.cache.memory.{maxEntries, maxBytes}` per `design-cache.md`
- * Gap 1; falls back to `DEFAULT_MAX_*` when fields absent.
- *
- * `MemoryCacheConfig` is the typed shape — operators set it via the
- * loose `admin.cache: z.record(...)` block in `site.config.ts`; the
- * runtime cast in `config/loader.ts` aligns shapes.
+ * Build a `MemoryCache` instance. Internal factory — kept public for
+ * tests and advanced wiring. Operators use the operator-facing
+ * `memoryCache()` factory exported from `gazetta` (Path X), which
+ * delegates here.
  */
-export function createMemoryCache(config: MemoryCacheConfig = {}): AdminCache {
+export function createMemoryCache(config: MemoryCacheOptions = {}): AdminCache {
   const maxEntries = config.maxEntries ?? DEFAULT_MAX_ENTRIES
   const maxBytes = config.maxBytes ?? DEFAULT_MAX_BYTES
 

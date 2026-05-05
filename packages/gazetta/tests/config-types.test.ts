@@ -58,7 +58,8 @@ describe('defineGazetta identity function', () => {
       telemetry: false,
       dev: { port: 3000, hostname: 'localhost' },
       defaults: {
-        cache: { provider: 'memory' },
+        // Exception A — raw MemoryCache options at gazetta level.
+        cache: { maxEntries: 5000 },
         audit: { provider: 'history' },
       },
       mcp: { enabled: true, port: 3100 },
@@ -108,10 +109,12 @@ describe('SiteConfigSchema validation', () => {
   it('accepts config with admin block (forward-compat for foundations)', () => {
     const result = SiteConfigSchema.safeParse({
       name: 'main',
+      // Top-level cache field holds the constructed AdminCache instance
+      // (Path X). Zod accepts it as opaque (z.unknown()).
+      cache: { get: () => null, set: () => {}, invalidate: () => {} },
       admin: {
         auth: { trust: 'cloudflare-access' },
         plugins: [],
-        cache: { provider: 'memory' },
         audit: { providers: ['history'] },
       },
     })
@@ -180,7 +183,8 @@ describe('GazettaConfigSchema validation', () => {
       logLevel: 'debug',
       telemetry: false,
       dev: { port: 3000, hostname: 'localhost' },
-      defaults: { cache: { provider: 'memory' } },
+      // Exception A — typed MemoryCache options at gazetta level.
+      defaults: { cache: { maxEntries: 10000, maxBytes: 50_000_000 } },
       mcp: { enabled: true, port: 3100 },
     })
     expect(result.success).toBe(true)

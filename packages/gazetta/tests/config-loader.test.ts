@@ -46,7 +46,8 @@ describe('loadGazettaConfig', () => {
     const result = await loadGazettaConfig(join(FIXTURES, 'with-global'))
     expect(result).not.toBeNull()
     expect(result?.logLevel).toBe('info')
-    expect(result?.defaults?.cache).toEqual({ provider: 'memory' })
+    // Exception A — raw MemoryCache options at gazetta level.
+    expect(result?.defaults?.cache).toEqual({ maxEntries: 5000 })
     expect(result?.defaults?.audit).toEqual({ provider: 'history' })
   })
 })
@@ -139,9 +140,23 @@ describe('discoverSites — defaults flow', () => {
     const sites = await discoverSites(join(FIXTURES, 'with-global'), gazetta)
     expect(sites).toHaveLength(1)
     const site = sites[0]
-    // Site didn't set cache/audit; should inherit from gazetta defaults
-    expect(site.config.admin?.cache).toEqual({ provider: 'memory' })
+    // Site didn't set its own cache; loader builds a per-site `memoryCache`
+    // instance from `defaults.cache` raw options (Exception A — per-site
+    // isolation). The result is an `AdminCache` with the contract methods.
+    expect(site.config.cache).toBeDefined()
+    expect(typeof site.config.cache?.get).toBe('function')
+    expect(typeof site.config.cache?.set).toBe('function')
+    expect(typeof site.config.cache?.invalidate).toBe('function')
+    // Audit defaults still flow through `admin.audit` (audit foundation
+    // hasn't migrated to Path X yet).
     expect(site.config.admin?.audit).toEqual({ provider: 'history' })
+  })
+
+  it('builds independent cache instances per site (Gap 3 — per-site isolation)', async () => {
+    const gazetta = await loadGazettaConfig(join(FIXTURES, 'with-global'))
+    const a = await discoverSites(join(FIXTURES, 'with-global'), gazetta)
+    const b = await discoverSites(join(FIXTURES, 'with-global'), gazetta)
+    expect(a[0].config.cache).not.toBe(b[0].config.cache)
   })
 })
 
@@ -151,8 +166,9 @@ describe('loadProjectConfig — top-level entry point', () => {
     expect(result.gazetta?.logLevel).toBe('info')
     expect(result.sites).toHaveLength(1)
     expect(result.sites[0].name).toBe('main')
-    // Defaults applied
-    expect(result.sites[0].config.admin?.cache).toEqual({ provider: 'memory' })
+    // Defaults applied: site inherits a constructed cache from gazetta defaults.
+    expect(result.sites[0].config.cache).toBeDefined()
+    expect(typeof result.sites[0].config.cache?.get).toBe('function')
   })
 
   it('handles flat layout without gazetta config', async () => {

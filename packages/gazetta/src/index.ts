@@ -127,6 +127,16 @@ export {
   type TransformAdapter,
 } from './transforms/index.js'
 
+// Cache provider factories — operator-facing (Path X). Operators import
+// these into `site.config.ts` and call them inline at the `cache:` field;
+// `gazetta.config.ts defaults.cache` accepts raw options instead per
+// Exception A in ADR-0008 (per-site isolation).
+export { memoryCache, type MemoryCacheOptions } from './cache/factories.js'
+
+// Internal cache provider factories — kept public for tests + advanced wiring.
+export { createMemoryCache } from './cache/memory.js'
+export type { AdminCache, CacheStats, InvalidationEvent } from './cache/types.js'
+
 // Targets
 export { createTargetRegistry } from './targets.js'
 
