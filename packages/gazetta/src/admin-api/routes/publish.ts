@@ -347,10 +347,11 @@ export function publishRoutes(
         const pageHashOpts = isStatic ? { templateHashes, fragmentHashes } : { templateHashes }
 
         // SEO context for this target — built once, shared across all page renders.
+        const { defaultLocaleFor } = await import('../../locale.js')
         const seo = {
           siteName: site.manifest.name,
           siteUrl: config?.siteUrl,
-          locale: site.manifest.locale,
+          locale: defaultLocaleFor(site.manifest),
           defaultOgImage: site.manifest.defaultOgImage,
         }
 

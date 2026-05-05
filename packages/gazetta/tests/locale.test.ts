@@ -95,7 +95,7 @@ describe('resolveSiteLocales', () => {
   })
 
   it('uses explicit locale as default', () => {
-    const result = resolveSiteLocales({ name: 'test', locale: 'fr', locales: { supported: ['en', 'fr'] } })
+    const result = resolveSiteLocales({ name: 'test', locales: { default: 'fr', supported: ['en', 'fr'] } })
     expect(result?.default).toBe('fr')
   })
 

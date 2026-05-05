@@ -3,8 +3,8 @@ import { defineSite, filesystemStorage, azureBlobStorage } from 'gazetta'
 export default defineSite({
   name: 'Gazetta Starter',
   version: '1.0.0',
-  locale: 'en',
   locales: {
+    default: 'en',
     supported: ['en', 'fr', 'ar', 'ja'],
   },
   systemPages: ['404'],

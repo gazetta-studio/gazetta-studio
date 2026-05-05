@@ -31,7 +31,7 @@ describe('loadSiteConfig', () => {
     const result = await loadSiteConfig(join(FIXTURES, 'flat-single-site'))
     expect(result).not.toBeNull()
     expect(result?.config.name).toBe('flat-site')
-    expect(result?.config.locale).toBe('en')
+    expect(result?.config.locales?.default).toBe('en')
     expect(result?.configPath).toMatch(/site\.config\.ts$/)
   })
 })

@@ -2,7 +2,7 @@ import { defineSite, filesystemStorage, r2Storage } from 'gazetta'
 
 export default defineSite({
   name: 'Gazetta Studio',
-  locale: 'en',
+  locales: { default: 'en', supported: ['en'] },
   targets: {
     local: {
       // Relative paths are anchored to this config file's directory.

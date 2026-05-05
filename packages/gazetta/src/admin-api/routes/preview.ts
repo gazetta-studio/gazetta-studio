@@ -5,6 +5,7 @@ import { allPageEntries, type Site } from '../../site-loader.js'
 import { loadSiteFromSource } from '../source-context.js'
 import { resolveFragment, resolvePage } from '../../resolver.js'
 import { renderFragment, renderPage } from '../../renderer.js'
+import { defaultLocaleFor } from '../../locale.js'
 import type { SourceContext, SourceContextResolver } from '../source-context.js'
 
 const EMPTY_OVERRIDES: DraftOverrides = { content: {}, structural: {} }
@@ -98,7 +99,7 @@ async function renderPreview(c: Context, source: SourceContext, overrides: Draft
             route: page.route,
             seo: {
               siteName: site.manifest.name,
-              locale: pageLocale ?? site.manifest.locale,
+              locale: pageLocale ?? defaultLocaleFor(site.manifest),
               defaultOgImage: site.manifest.defaultOgImage,
             },
           }),

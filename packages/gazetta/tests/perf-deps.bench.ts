@@ -56,7 +56,10 @@ import { buildSyntheticSite } from './_helpers/synthetic-site.js'
 // Synthetic manifest for `loadSite` calls below. Cut 8 of the TS-config
 // migration removed YAML loading from site-loader; benches don't need a
 // real config since they exercise content discovery, not config evaluation.
-const syntheticManifest: SiteManifest = { name: 'Synthetic Site', locale: 'en' }
+const syntheticManifest: SiteManifest = {
+  name: 'Synthetic Site',
+  locales: { default: 'en', supported: ['en'] },
+}
 
 const repoRoot = resolve(import.meta.dirname, '../../..')
 const tmpRoot = resolve(repoRoot, '.tmp/perf-deps')

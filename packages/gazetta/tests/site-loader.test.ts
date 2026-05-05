@@ -136,10 +136,10 @@ describe('loadSite — TS config', () => {
     const site = await loadSite({
       siteDir: testDir,
       storage,
-      config: { name: 'TS Site', locale: 'en' },
+      config: { name: 'TS Site', locales: { default: 'en', supported: ['en'] } },
     })
     expect(site.manifest.name).toBe('TS Site')
-    expect(site.manifest.locale).toBe('en')
+    expect(site.manifest.locales?.default).toBe('en')
     spy.mockRestore()
   })
 
