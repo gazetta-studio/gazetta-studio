@@ -72,8 +72,8 @@ import { defineSite } from 'gazetta'
 
 export default defineSite({
   name: 'My Site',
-  locale: 'en',                   // optional — default locale (falls back to first in supported)
   locales: {                      // new (optional) — enables i18n
+    default: 'en',                // optional — default locale (falls back to first in supported)
     supported: ['en', 'fr', 'de', 'pt-BR'],
     fallbacks: {                  // optional — locale-specific fallback chains
       'pt-BR': 'pt',              // pt-BR falls back to pt before default
@@ -82,11 +82,11 @@ export default defineSite({
 })
 ```
 
-`locale` is optional. When omitted, the first entry in `locales.supported`
-is the default. `locale: en` and `locales.supported: [en, fr]` are
-equivalent to just `locales.supported: [en, fr]`.
+`locales.default` is optional. When omitted, the first entry in `locales.supported`
+is the default. `locales: { default: 'en', supported: ['en', 'fr'] }` and
+`locales: { supported: ['en', 'fr'] }` are equivalent.
 
-When `locales` is absent, the site is single-locale. `locale: en` is used for
+When `locales` is absent, the site is single-locale (defaults to `en`) for
 `<html lang>` and sitemap, same as today. Adding `locales.supported` is the
 only change needed to enable i18n — everything else has sensible defaults.
 
@@ -96,7 +96,7 @@ only change needed to enable i18n — everything else has sensible defaults.
 
 | Setting | Default | Why |
 |---------|---------|-----|
-| `locale` | First in `supported` list | `supported: [en, fr]` → default is `en` |
+| `locales.default` | First in `supported` list | `supported: [en, fr]` → default is `en` |
 | `detection` | `false` | Opt-in — don't redirect until the author is ready |
 | `defaultPrefix` | `false` | Google recommended — `/about` not `/en/about` |
 | `fallbacks` | None — fall through to default locale | Explicit chains are rare |
@@ -108,7 +108,7 @@ Every target setting inherits from the site level unless overridden.
 | Setting | Default | Why |
 |---------|---------|-----|
 | `locales` | Site's `supported` | Serve all locales unless narrowed |
-| `locale` | Site's `locale` | Same default locale unless overridden |
+| `locale` | Site's `locales.default` | Same default locale unless overridden |
 | `detection` | Site's `detection` | Consistent unless overridden |
 | `defaultPrefix` | Site's `defaultPrefix` | Consistent unless overridden |
 
@@ -126,8 +126,8 @@ No explicit config needed — the system infers from the single-entry list.
 ```ts
 // Minimum config to enable i18n — everything else is inferred
 export default defineSite({
-  locale: 'en',
   locales: {
+    default: 'en',
     supported: ['en', 'fr'],
   },
 })
@@ -152,12 +152,12 @@ target configurations. All can coexist in the same site.
 export default defineSite({
   targets: {
     local: {
-      storage: { type: 'filesystem' },
+      storage: filesystemStorage(),
       // inherits all site-level locales, default = en
     },
 
     production: {
-      storage: { type: 's3', bucket: 'site' },
+      storage: s3Storage({ bucket: 'site' }),
       environment: 'production',
       siteUrl: 'https://example.com',
       // → /about (en), /fr/about, /de/about, /pt-br/about
@@ -175,12 +175,12 @@ Google's recommended approach — inherits domain authority.
 export default defineSite({
   targets: {
     local: {
-      storage: { type: 'filesystem' },
+      storage: filesystemStorage(),
       // dev serves all locales with subpath (convenient for development)
     },
 
     'production-en': {
-      storage: { type: 's3', bucket: 'site-en' },
+      storage: s3Storage({ bucket: 'site-en' }),
       environment: 'production',
       siteUrl: 'https://example.com',
       locales: ['en'],            // single locale — no prefix, no hreflang on this domain
@@ -188,7 +188,7 @@ export default defineSite({
     },
 
     'production-fr': {
-      storage: { type: 's3', bucket: 'site-fr' },
+      storage: s3Storage({ bucket: 'site-fr' }),
       environment: 'production',
       siteUrl: 'https://example.fr',
       locales: ['fr'],            // single locale
@@ -196,7 +196,7 @@ export default defineSite({
     },
 
     'production-de': {
-      storage: { type: 's3', bucket: 'site-de' },
+      storage: s3Storage({ bucket: 'site-de' }),
       environment: 'production',
       siteUrl: 'https://example.de',
       locales: ['de', 'en'],      // two locales — German default, English secondary
@@ -216,19 +216,19 @@ cross-links point across domains using each target's `siteUrl`.
 export default defineSite({
   targets: {
     local: {
-      storage: { type: 'filesystem' },
+      storage: filesystemStorage(),
       // all locales via subpath — author previews everything locally
     },
 
     'production-en': {
-      storage: { type: 's3', bucket: 'site-en' },
+      storage: s3Storage({ bucket: 'site-en' }),
       environment: 'production',
       siteUrl: 'https://example.com',
       locales: ['en'],
     },
 
     'production-fr': {
-      storage: { type: 's3', bucket: 'site-fr' },
+      storage: s3Storage({ bucket: 'site-fr' }),
       environment: 'production',
       siteUrl: 'https://example.fr',
       locales: ['fr'],
@@ -275,7 +275,7 @@ export default defineSite({
 
   targets: {
     local: {
-      storage: { type: 'filesystem' },
+      storage: filesystemStorage(),
       // inherits site-level detection: true
     },
 

@@ -104,8 +104,8 @@ defineSite({
 **site.config.ts additions:**
 ```ts
 defineSite({
-  locale: 'en',                              // already existed (optional)
-  defaultOgImage: '/images/og-default.jpg',  // new (optional)
+  locales: { default: 'en', supported: ['en'] }, // already existed (optional)
+  defaultOgImage: '/images/og-default.jpg',      // new (optional)
 })
 ```
 

@@ -26,18 +26,19 @@ npx wrangler r2 bucket create my-site
 ### 2. Configure site.config.ts
 
 ```ts
-import { defineSite } from 'gazetta'
+import { defineSite, r2Storage } from 'gazetta'
 
 export default defineSite({
   name: 'My Site',
   targets: {
     production: {
       environment: 'production',
-      storage: {
-        type: 'r2',
+      storage: r2Storage({
         accountId: 'your-cloudflare-account-id',
         bucket: 'my-site',
-      },
+        accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+      }),
       worker: {
         type: 'cloudflare',
       },
@@ -158,13 +159,14 @@ The CLI loads it automatically. Skipped when `CI=true`.
 ### Storage config
 
 ```ts
-storage: {
-  type: 'r2',
+import { r2Storage } from 'gazetta'
+
+storage: r2Storage({
   accountId: 'your-account-id',
   bucket: 'my-site',
   accessKeyId: process.env.R2_ACCESS_KEY_ID!,
   secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-}
+})
 ```
 
 ## Cache

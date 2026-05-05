@@ -148,12 +148,14 @@ cd my-project && npm install    # everything — admin + templates workspaces
 
 ## Storage Providers
 
-| Provider | Type in site.config.ts | Auth (local) | Auth (CI) | Init |
-|----------|-------------------|-------------|-----------|------|
-| **Filesystem** | `filesystem` | None (file access) | None | Auto-creates dirs |
-| **Cloudflare R2** | `r2` | `accessKeyId`+`secretAccessKey` (R2 API token) | Same, via env vars | Creates bucket if needed |
-| **AWS S3 / MinIO** | `s3` | `accessKeyId`+`secretAccessKey` | Same, via env vars | Creates bucket if needed |
-| **Azure Blob** | `azure-blob` | `connectionString` (supports Azurite `UseDevelopmentStorage=true`) | `connectionString` via env var | Creates container if needed |
+Operators wire storage providers via factory calls imported from `gazetta` (per `design-provider-config.md`). Each factory returns a `StorageProvider` instance.
+
+| Provider | Factory | Auth (local) | Auth (CI) | Init |
+|----------|---------|-------------|-----------|------|
+| **Filesystem** | `filesystemStorage` | None (file access) | None | Auto-creates dirs |
+| **Cloudflare R2** | `r2Storage` | `accessKeyId`+`secretAccessKey` (R2 API token) | Same, via env vars | Creates bucket if needed |
+| **AWS S3 / MinIO** | `s3Storage` | `accessKeyId`+`secretAccessKey` | Same, via env vars | Creates bucket if needed |
+| **Azure Blob** | `azureBlobStorage` | `connectionString` (supports Azurite `UseDevelopmentStorage=true`) | `connectionString` via env var | Creates container if needed |
 
 All providers implement `StorageProvider` interface: `readFile`, `readDir`, `exists`, `writeFile`, `mkdir`, `rm`, `readStream`, `writeStream`.
 
@@ -182,24 +184,29 @@ Both CLI and admin API use `getPublishMode(target)` from `types.ts` to determine
 ### Real-world target examples
 
 ```ts
-import { defineSite } from 'gazetta'
+import {
+  defineSite,
+  filesystemStorage,
+  r2Storage,
+  s3Storage,
+  azureBlobStorage,
+} from 'gazetta'
 
 defineSite({
   targets: {
     // Local dev — filesystem, static mode
     staging: {
-      storage: { type: 'filesystem', path: './dist/staging' },
+      storage: filesystemStorage({ path: './dist/staging' }),
     },
 
     // Cloudflare — R2 + Worker, ESI mode
     production: {
-      storage: {
-        type: 'r2',
+      storage: r2Storage({
         accountId: '...',
         bucket: 'my-site',
         accessKeyId: process.env.R2_ACCESS_KEY_ID!,
         secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-      },
+      }),
       worker: { type: 'cloudflare', name: 'my-site' },
       siteUrl: 'https://mysite.com',
       cache: {
@@ -211,23 +218,21 @@ defineSite({
 
     // Azure Blob — local dev with Azurite emulator
     'production-azure': {
-      storage: {
-        type: 'azure-blob',
+      storage: azureBlobStorage({
         connectionString: 'UseDevelopmentStorage=true',
         container: 'my-site',
-      },
+      }),
     },
 
     // Self-hosted — S3 storage, served by gazetta serve
     'production-s3': {
-      storage: {
-        type: 's3',
+      storage: s3Storage({
         endpoint: 'https://s3.amazonaws.com',
         bucket: 'my-site',
         region: 'us-east-1',
         accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-      },
+      }),
       publishMode: 'esi', // ESI for gazetta serve — no worker needed
     },
   },
@@ -246,13 +251,20 @@ defineSite({
 ## site.config.ts Complete Schema
 
 ```ts
-import { defineSite } from 'gazetta'
+import {
+  defineSite,
+  filesystemStorage,
+  r2Storage,
+  memoryCache,
+} from 'gazetta'
 
 export default defineSite({
   name: 'My Site',                              // required — display name
-  locale: 'en',                                 // optional — default locale (default: en)
+  locales: { default: 'en', supported: ['en'] }, // optional — locale config (default block: defaults to ['en'])
   baseUrl: 'https://mysite.com',                // optional — production URL for SEO/meta
   systemPages: [404],                           // optional — system page names
+
+  cache: memoryCache({ maxEntries: 5000 }),     // optional — site-level AdminCache (factory call returns instance)
 
   admin: {                                      // optional — admin UI configuration
     auth: 'basic',                              // auth method ('basic' | 'none')
@@ -263,15 +275,15 @@ export default defineSite({
 
   targets: {                                    // required — at least one target
     staging: {
-      storage: { type: 'filesystem', path: './dist/staging' },
+      storage: filesystemStorage({ path: './dist/staging' }),
     },
     production: {
-      storage: { type: 'r2' /* ... */ },
+      storage: r2Storage({ /* ... */ }),
       worker: { type: 'cloudflare', name: 'my-site' },
       publishMode: 'esi',                       // optional — 'esi' | 'static' (auto-detected from worker)
       environment: 'production',                // optional — 'local' | 'staging' | 'production'. Default: local for filesystem, production otherwise. Drives admin UI confirmation prompts and badges.
       siteUrl: 'https://mysite.com',            // optional — for cache purge URL resolution
-      cache: {                                  // optional — caching configuration
+      cache: {                                  // optional — HTTP/CDN caching configuration (separate from site-level AdminCache)
         browser: 0,                             // browser cache TTL in seconds
         edge: 86400,                            // CDN cache TTL in seconds
         purge: {                                // CDN cache purge

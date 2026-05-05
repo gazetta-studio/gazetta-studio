@@ -109,13 +109,13 @@ Fields belonging to global config:
 Carries per-site concerns:
 
 ```ts
-import { defineSite } from 'gazetta'
+import { defineSite, filesystemStorage, r2Storage } from 'gazetta'
 import slackNotify from '@gazetta/slack-notify'
 import autoSlugify from './admin/plugins/auto-slugify'
 
 export default defineSite({
   name: 'main',
-  defaultLocale: 'en',
+  locales: { default: 'en', supported: ['en'] },
   themes: {
     supported: ['light', 'dark'],
     default: 'light',
@@ -123,11 +123,11 @@ export default defineSite({
   targets: {
     local: {
       type: 'esi',
-      storage: { type: 'filesystem', path: './dist/local' },
+      storage: filesystemStorage({ path: './dist/local' }),
     },
     production: {
       type: 'esi',
-      storage: { type: 'r2', bucket: process.env.R2_BUCKET! },
+      storage: r2Storage({ bucket: process.env.R2_BUCKET! }),
     },
   },
   admin: {
@@ -217,10 +217,10 @@ Production loads JSON if present; falls back to evaluating TS if absent. Lower c
 
 Per Universal Provider Requirement #3 (`design-plugins.md`): credentials never appear in config files. The TS-config posture preserves this.
 
-**Convention**: `process.env.X` directly inside `defineSite()`:
+**Convention**: `process.env.X` directly inside `defineSite()`, passed into the factory call:
 
 ```ts
-storage: { type: 'r2', bucket: process.env.R2_BUCKET! },
+storage: r2Storage({ bucket: process.env.R2_BUCKET! }),
 ```
 
 The non-null assertion (`!`) is operator's promise that the env var is defined. Missing env var → first-use error (clear failure). Operators wanting earlier failure can throw explicitly:
@@ -232,7 +232,7 @@ const requireEnv = (name: string) => {
   return v
 }
 
-storage: { type: 'r2', bucket: requireEnv('R2_BUCKET') },
+storage: r2Storage({ bucket: requireEnv('R2_BUCKET') }),
 ```
 
 No Gazetta-specific env wrapper. `process.env.X` is universal Node syntax with no learning curve.

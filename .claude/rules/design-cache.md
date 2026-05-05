@@ -290,19 +290,14 @@ interface CacheStats {
 
 ## Plugin-contributed cache providers (Q6 locked)
 
-Per `design-plugins.md` Q3, plugins register providers via `api.registerCacheProvider(name, factory)`. Operators select one in `site.config.ts`:
+Per `design-plugins.md` and `design-provider-config.md`, plugins export a factory that returns an `AdminCache` instance; operators import and invoke it directly at the `cache:` field:
 
 ```ts
-import customCachePlugin from '@my-org/distributed-cache'
+import { defineSite } from 'gazetta'
+import { distributedCache } from '@my-org/distributed-cache'
 
 export default defineSite({
-  admin: {
-    plugins: [customCachePlugin()],
-    cache: {
-      provider: 'distributed-cache',  // matches name registered by plugin
-      url: process.env.DISTRIBUTED_CACHE_URL!,
-    },
-  },
+  cache: distributedCache({ url: process.env.DISTRIBUTED_CACHE_URL! }),
 })
 ```
 
@@ -454,21 +449,16 @@ Browser-side providers are scoped to one browser tab; never shared across browse
 Operator config in `site.config.ts` (per `design-config.md`):
 
 ```ts
-import { defineSite } from 'gazetta'
+import { defineSite, memoryCache } from 'gazetta'
 
 export default defineSite({
   // ...
-  admin: {
-    cache: {
-      provider: 'memory',                          // v1 default
-      // provider: 'redis',
-      // url: process.env.REDIS_URL!,
-      // provider: 'azure',
-      // connectionString: process.env.AZURE_REDIS_CONN!,
-      // provider: 'file',
-      // path: './.gazetta/cache',
-    },
-  },
+  cache: memoryCache(),                            // v1 default
+
+  // Future / plugin-contributed providers (illustrative — factories shipped by their packages):
+  // cache: redisCache({ url: process.env.REDIS_URL! }),
+  // cache: azureRedisCache({ connectionString: process.env.AZURE_REDIS_CONN! }),
+  // cache: fileCache({ path: './.gazetta/cache' }),
 })
 ```
 
