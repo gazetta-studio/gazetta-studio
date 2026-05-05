@@ -45,8 +45,13 @@ import { createFilesystemProvider } from '../src/providers/filesystem.js'
 import { createS3Provider } from '../src/providers/s3.js'
 import { rebuildAssetRefsIndex } from '../src/publish-rendered.js'
 import { loadSite } from '../src/site-loader.js'
-import type { StorageProvider } from '../src/types.js'
+import type { SiteManifest, StorageProvider } from '../src/types.js'
 import { buildSyntheticSite, SYNTHETIC_ASSETS } from './_helpers/synthetic-site.js'
+
+// Synthetic manifest for `loadSite` calls below. Cut 8 of the TS-config
+// migration removed YAML loading from site-loader; benches don't need a
+// real config since they exercise content discovery, not config evaluation.
+const syntheticManifest: SiteManifest = { name: 'Synthetic Site', locale: 'en' }
 
 const repoRoot = resolve(import.meta.dirname, '../../..')
 const tmpRoot = resolve(repoRoot, '.tmp/perf-refs')
@@ -114,7 +119,7 @@ async function setup(backend: BackendName, N: number): Promise<PreparedScenario>
   // Populate the sidecar index — this is what `gazetta publish` writes
   // at end-of-publish and what `gazetta assets reindex` rebuilds. The
   // sidecar-lookup bench reads from this populated state.
-  const site = await loadSite({ contentRoot: createContentRoot(storage, '') })
+  const site = await loadSite({ contentRoot: createContentRoot(storage, ''), manifest: syntheticManifest })
   await rebuildAssetRefsIndex(site, storage, '')
   return { backend, N, storage, siteDir: '' }
 }
@@ -157,7 +162,7 @@ for (const s of scenarios) {
     bench(
       'loadSite (full site read)',
       async () => {
-        await loadSite({ contentRoot })
+        await loadSite({ contentRoot, manifest: syntheticManifest })
       },
       { time: 0, iterations: 3, warmupIterations: 1, throws: true },
     )
