@@ -115,10 +115,10 @@ describe('runInit', () => {
     const siteConfig = await import('node:fs').then(fs =>
       fs.readFileSync(join(testDir, 'sites/main/site.config.ts'), 'utf-8'),
     )
-    expect(siteConfig).toContain("import { defineSite } from 'gazetta'")
+    expect(siteConfig).toContain("import { defineSite, filesystemStorage } from 'gazetta'")
     expect(siteConfig).toContain('targets:')
     expect(siteConfig).toContain('local:')
-    expect(siteConfig).toContain("type: 'filesystem'")
+    expect(siteConfig).toContain('filesystemStorage()')
     expect(siteConfig).toContain('systemPages:')
 
     // No legacy YAML or old flat structure

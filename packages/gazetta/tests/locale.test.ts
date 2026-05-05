@@ -12,6 +12,7 @@ import {
 } from '../src/locale.js'
 import { resolveSeoTags, type SeoContext } from '../src/seo.js'
 import type { SiteManifest, TargetConfig } from '../src/types.js'
+import { memoryStorage } from './_helpers/memory-storage.js'
 
 describe('isValidLocale', () => {
   it('accepts simple locale codes', () => {
@@ -141,24 +142,24 @@ describe('resolveTargetLocales', () => {
   })
 
   it('inherits site locales when target has no override', () => {
-    const result = resolveTargetLocales({ storage: { type: 'filesystem' } }, site)
+    const result = resolveTargetLocales({ storage: memoryStorage() }, site)
     expect(result?.supported).toEqual(['en', 'fr', 'de'])
     expect(result?.default).toBe('en')
   })
 
   it('narrows locales with target override', () => {
-    const result = resolveTargetLocales({ storage: { type: 'filesystem' }, locales: ['de', 'en'] }, site)
+    const result = resolveTargetLocales({ storage: memoryStorage(), locales: ['de', 'en'] }, site)
     expect(result?.supported).toEqual(['de', 'en'])
     expect(result?.default).toBe('en')
   })
 
   it('overrides default locale', () => {
-    const result = resolveTargetLocales({ storage: { type: 'filesystem' }, locales: ['de', 'en'], locale: 'de' }, site)
+    const result = resolveTargetLocales({ storage: memoryStorage(), locales: ['de', 'en'], locale: 'de' }, site)
     expect(result?.default).toBe('de')
   })
 
   it('infers default for single-locale target', () => {
-    const result = resolveTargetLocales({ storage: { type: 'filesystem' }, locales: ['fr'] }, site)
+    const result = resolveTargetLocales({ storage: memoryStorage(), locales: ['fr'] }, site)
     expect(result?.default).toBe('fr')
     expect(result?.detection).toBe(false)
   })
@@ -168,7 +169,7 @@ describe('resolveTargetLocales', () => {
       name: 'test',
       locales: { supported: ['en', 'fr'], detection: true },
     }
-    const result = resolveTargetLocales({ storage: { type: 'filesystem' } }, siteWithDetection)
+    const result = resolveTargetLocales({ storage: memoryStorage() }, siteWithDetection)
     expect(result?.detection).toBe(true)
   })
 
@@ -177,7 +178,7 @@ describe('resolveTargetLocales', () => {
       name: 'test',
       locales: { supported: ['en', 'fr'], detection: true },
     }
-    const result = resolveTargetLocales({ storage: { type: 'filesystem' }, detection: false }, siteWithDetection)
+    const result = resolveTargetLocales({ storage: memoryStorage(), detection: false }, siteWithDetection)
     expect(result?.detection).toBe(false)
   })
 })

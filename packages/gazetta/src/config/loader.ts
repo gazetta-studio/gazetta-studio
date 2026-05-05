@@ -74,11 +74,19 @@ async function evaluateConfig(filePath: string): Promise<unknown> {
     jsx: false,
     moduleCache: false,
   })
+  // Anchor relative filesystem paths inside the config to the config file's
+  // directory (so `filesystemStorage({ path: './dist' })` resolves the same
+  // way regardless of which directory the CLI was invoked from). Cleared in
+  // a finally block so test harnesses + concurrent loads don't leak state.
+  const { setConfigAnchor, configAnchorFromFile } = await import('../providers/factories.js')
+  setConfigAnchor(configAnchorFromFile(filePath))
   let mod: Record<string, unknown>
   try {
     mod = (await jiti.import(filePath)) as Record<string, unknown>
   } catch (err) {
     throw new ConfigEvaluationError(`Failed to evaluate config: ${(err as Error).message}`, filePath, { cause: err })
+  } finally {
+    setConfigAnchor(null)
   }
   if (!mod || typeof mod !== 'object') {
     throw new ConfigEvaluationError('Config module did not produce a default export', filePath)

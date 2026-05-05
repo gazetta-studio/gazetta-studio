@@ -49,7 +49,7 @@ export async function bootstrapFromSiteYaml(projectSiteDir: string): Promise<Boo
     )
   }
 
-  const providers = await createTargetRegistry(targetConfigs, projectSiteDir)
+  const providers = await createTargetRegistry(targetConfigs)
   const registry = createTargetRegistryView(providers, targetConfigs)
   return { manifest, targetConfigs, registry }
 }
@@ -106,9 +106,10 @@ export async function buildSourceContext(opts: BuildSourceContextOptions): Promi
     throw new Error(`Target "${targetName}" is not editable`)
   }
 
-  // Init only the chosen target's provider.
-  const { createStorageProvider } = await import('../targets.js')
-  const storage = await createStorageProvider(config.storage, opts.projectSiteDir, targetName)
+  // Storage is already a constructed provider (Path X — operator-facing
+  // factory ran at config-eval). Init the connection if the provider
+  // exposes one (S3 + Azure use this for connectivity probes).
+  const storage = config.storage
   const initProvider = storage as StorageProvider & { init?: () => Promise<void> }
   if (typeof initProvider.init === 'function') {
     await initProvider.init()

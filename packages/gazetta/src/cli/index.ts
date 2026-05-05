@@ -338,7 +338,7 @@ async function runInit(dir: string) {
   const name = target.split('/').pop() ?? 'my-site'
 
   const files: Record<string, string> = {
-    'sites/main/site.config.ts': `import { defineSite } from 'gazetta'
+    'sites/main/site.config.ts': `import { defineSite, filesystemStorage } from 'gazetta'
 
 export default defineSite({
   name: '${name}',
@@ -346,9 +346,9 @@ export default defineSite({
   systemPages: ['404'],
   targets: {
     local: {
-      storage: { type: 'filesystem' },
+      storage: filesystemStorage(),
       // environment: 'local' (default); editable: true (default for local);
-      // storage.path defaults to ./targets/local
+      // filesystemStorage() defaults path to ./targets/local
     },
   },
 })
@@ -576,10 +576,7 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
 
   // Initialize targets
   const { createTargetRegistry } = await import('../targets.js')
-  const targets = await createTargetRegistry(
-    Object.fromEntries(targetNames.map(n => [n, siteYaml.targets![n]])),
-    siteDir,
-  )
+  const targets = await createTargetRegistry(Object.fromEntries(targetNames.map(n => [n, siteYaml.targets![n]])))
 
   const { publishPageRendered, publishPageStatic, publishFragmentRendered, publishSiteManifest, publishDepIndices } =
     await import('../publish-rendered.js')
@@ -1153,9 +1150,9 @@ async function runServe(siteDir: string, port: number, targetName?: string) {
     process.exit(1)
   }
 
-  const { createStorageProvider } = await import('../targets.js')
-  // Pass targetName so filesystem path defaults to ./targets/<name> when unset.
-  const storage = await createStorageProvider(config.storage, siteDir, name)
+  // Storage is already a constructed provider (Path X — operator-facing
+  // factory ran at config-eval).
+  const storage = config.storage
   const { getType } = await import('../types.js')
   const { createServer } = await import('../serve.js')
   const app = createServer({ storage, type: getType(config) })
@@ -1213,7 +1210,7 @@ async function runDeploy(siteDir: string, targetName?: string) {
 
   // Generate worker in temp dir
   const workerName = target.worker.name ?? targetName
-  const bucketName = target.storage.bucket ?? workerName
+  const bucketName = target.worker.bucket ?? workerName
   const tmpDir = join(siteDir, '.gazetta-deploy')
   await rm(tmpDir, { recursive: true, force: true })
   await mkdir(tmpDir, { recursive: true })
@@ -1716,10 +1713,11 @@ async function runDev(siteDir: string, port: number) {
         const env = getEnvironment(cfg)
         const type = getType(cfg)
         const ed = isEditable(cfg) ? 'editable ' : 'read-only'
-        const storagePath =
-          cfg.storage?.type === 'filesystem' ? (cfg.storage.path ?? `targets/${name}`) : `${cfg.storage?.type ?? '?'}`
+        // Path X — the storage provider is opaque (operator constructed it via
+        // factory at config-eval). Display target name + axes; the provider
+        // identity is not introspectable from the StorageProvider interface.
         console.log(
-          `  ${c.dim('┃')}     ${c.dim('•')} ${name.padEnd(14)} ${c.dim(env.padEnd(11))} ${c.dim(ed)} ${c.dim(type.padEnd(8))} ${c.dim('→ ' + storagePath)}`,
+          `  ${c.dim('┃')}     ${c.dim('•')} ${name.padEnd(14)} ${c.dim(env.padEnd(11))} ${c.dim(ed)} ${c.dim(type.padEnd(8))}`,
         )
       }
     }
@@ -2189,23 +2187,24 @@ async function main() {
         console.error(`  Error: target "${resolvedTarget}" not found in site config`)
         process.exit(1)
       }
-      const storagePath = targetConfig.storage.path ?? join('targets', resolvedTarget)
-      const contentDir = resolve(siteDir, storagePath)
+      // Translate goes through the storage provider so it works on any
+      // storage backend (filesystem / R2 / S3 / Azure). Path X — the storage
+      // provider was constructed by the operator's factory at config-eval.
+      const storage = targetConfig.storage
       const baseName = isPage ? 'page' : 'fragment'
-      const dir = join(contentDir, itemArg)
-      const sourceFile = join(dir, `${baseName}.json`)
-      const destFile = join(dir, localeFilename(baseName, locale))
-      const fs = await import('node:fs/promises')
-      if (!existsSync(sourceFile)) {
-        console.error(`  Error: ${sourceFile} not found`)
+      const sourcePath = `${itemArg}/${baseName}.json`
+      const destPath = `${itemArg}/${localeFilename(baseName, locale)}`
+      if (!(await storage.exists(sourcePath))) {
+        console.error(`  Error: ${sourcePath} not found on target "${resolvedTarget}"`)
         process.exit(1)
       }
-      if (existsSync(destFile)) {
-        console.error(`  Error: ${destFile} already exists`)
+      if (await storage.exists(destPath)) {
+        console.error(`  Error: ${destPath} already exists on target "${resolvedTarget}"`)
         process.exit(1)
       }
-      await fs.copyFile(sourceFile, destFile)
-      console.log(`  ${c.green('✓')} Created ${relative(process.cwd(), destFile)}`)
+      const sourceContent = await storage.readFile(sourcePath)
+      await storage.writeFile(destPath, sourceContent)
+      console.log(`  ${c.green('✓')} Created ${destPath}`)
       console.log(`  Edit the file to translate the content.`)
       break
     }

@@ -60,8 +60,10 @@ async function buildHistory(ctx: HistoryCommandContext) {
   if (!isHistoryEnabled(ctx.config)) {
     throw new Error(`History disabled on target "${ctx.targetName}" (site.config.ts: history.enabled: false)`)
   }
-  const { createStorageProvider } = await import('../targets.js')
-  const storage = await createStorageProvider(ctx.config.storage, ctx.siteDir, ctx.targetName)
+  // Storage is already a constructed provider (Path X — operator-facing
+  // factory ran at config-eval). Init the connection if the provider
+  // exposes one (S3 + Azure use this for connectivity probes).
+  const storage = ctx.config.storage
   const maybeInit = storage as typeof storage & { init?: () => Promise<void> }
   if (typeof maybeInit.init === 'function') await maybeInit.init()
   const history = createHistoryProvider({ storage, retention: getHistoryRetention(ctx.config) })

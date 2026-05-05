@@ -50,7 +50,7 @@ export function historyRoutes(
     }
     if (!targetsInitPromise) {
       const { createTargetRegistry } = await import('../../targets.js')
-      targetsInitPromise = createTargetRegistry(targetConfigs, projectSiteDir)
+      targetsInitPromise = createTargetRegistry(targetConfigs)
         .then(t => {
           targets = t
           return t
