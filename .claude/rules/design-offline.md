@@ -685,7 +685,7 @@ How offline composes with each of the other 12 foundational dimensions plus the 
 
 ## Migration
 
-Sites without offline mode configured continue to work — pending edits stay in-memory only (current behavior); save fails surface as toast. Operators opt in via `site.yaml admin.offline.enabled: true`.
+Sites without offline mode configured continue to work — pending edits stay in-memory only (current behavior); save fails surface as toast. Operators opt in via `site.config.ts` `admin.offline.enabled: true`.
 
 Existing pending-edits state in Pinia stores migrates to persistent storage when offline mode is enabled — first save queue / cache write triggers IndexedDB initialization; subsequent reads/writes go through persistent layer.
 

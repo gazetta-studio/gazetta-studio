@@ -101,7 +101,7 @@ export { createFilesystemProvider } from './providers/filesystem.js'
 // Targets
 export { createStorageProvider, createTargetRegistry } from './targets.js'
 
-// Bootstrap helpers — read site.yaml, build registry, derive SourceContext
+// Bootstrap helpers — load site.config.ts, build registry, derive SourceContext
 export { bootstrapFromSiteYaml, buildSourceContext } from './cli/bootstrap.js'
 export type { BootstrapResult, BuildSourceContextOptions } from './cli/bootstrap.js'
 

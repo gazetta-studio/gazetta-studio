@@ -91,16 +91,22 @@ empty. Authors override only when they want different values for search vs conte
 - Fallback-generated values flow into the SERP preview via the admin API.
 
 **target config additions:**
-```yaml
-targets:
-  production:
-    siteUrl: https://gazetta.studio   # per-target (required for sitemap/canonical)
+```ts
+defineSite({
+  targets: {
+    production: {
+      siteUrl: 'https://gazetta.studio', // per-target (required for sitemap/canonical)
+    },
+  },
+})
 ```
 
-**site.yaml additions:**
-```yaml
-locale: en                          # already existed (optional)
-defaultOgImage: /images/og-default.jpg  # new (optional)
+**site.config.ts additions:**
+```ts
+defineSite({
+  locale: 'en',                              // already existed (optional)
+  defaultOgImage: '/images/og-default.jpg',  // new (optional)
+})
 ```
 
 **Changes to `PageMetadata` type:**
@@ -171,7 +177,7 @@ subpath deployments (Google ignores robots.txt at non-root paths).
 | Item | Why deferred |
 |------|-------------|
 | JSON-LD Article schema auto-generation | Template authors need to opt in per content type; not a renderer-level default |
-| Redirect management (`redirects` in site.yaml + Hono middleware) | Separate feature, not SEO metadata |
+| Redirect management (`redirects` in site.config.ts + Hono middleware) | Separate feature, not SEO metadata |
 | Metadata validation warnings (missing title, duplicate titles) | Useful but not blocking; SERP preview covers the visual case |
 | OG image preview in editor (thumbnail of the OG image URL) | Nice polish, not essential |
 

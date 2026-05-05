@@ -22,7 +22,7 @@ Branch: `ai-alt-v1.5` off `main`. Commits ordered low-risk-first per [team-prefe
 | 6 | Site/target config types + `ai:` block schema + resolvers + factory | ✓ | Medium | Config layering correctness |
 | 7 | `POST /api/assets/:name/suggest-alt` route + `/api/targets` capability | ✓ | Medium | Admin API integration |
 | 8 | UI: upload-list auto-fill + detail-pane "✨ Suggest" | ✓ | Medium | The visible feature |
-| 9 | Docs (`docs/content-assets.md` AI alt section + `site.yaml` examples) + plan update | ✓ | Low | User-facing documentation |
+| 9 | Docs (`docs/content-assets.md` AI alt section + `site.config.ts` examples) + plan update | ✓ | Low | User-facing documentation |
 
 ### Per-commit scope
 
@@ -153,7 +153,7 @@ Branch: `ai-alt-v1.5` off `main`. Commits ordered low-risk-first per [team-prefe
 **Files added/modified:**
 - `docs/content-assets.md` — new "AI alt text" section: configuration, provider choice, privacy considerations, refusal handling, manual override
 - `docs/transform-adapters.md` — cross-link to AI integration
-- `examples/starter/sites/main/site.yaml` — add commented-out `ai:` and `altText:` examples
+- `examples/starter/sites/main/site.config.ts` — add commented-out `ai` and `altText` blocks
 - `.claude/rules/design-media-implementation.md` — mark "AI alt-text adapter" row ✓ in v1.5 capabilities table
 - `.claude/rules/design-ai-implementation.md` — mark commits ✓ as they land
 
@@ -190,7 +190,7 @@ Translation is the most likely v1.6 task. Its arrival validates the v1.5 archite
 - `ai/prompt-policies.ts` — extends with translation-specific policies (preserve technical terms, formality, etc.)
 - `ai/vision-prep.ts` — not used (text task)
 - `ai/provider.ts` — `ResolvedAIBase` reused; `resolveTranslationConfig` peers `resolveAltConfig`
-- `site.yaml` — adds `translation:` block; `ai:` block unchanged
+- `site.config.ts` — adds `translation` block; `ai` block unchanged
 - `TargetInfo` — adds `translation: { available, configuredFor: ['fr', 'ar'] }` peer to `altText`
 
 If translation lands cleanly with no `ai/` modifications, the v1.5 architecture passed. If `ai/` needs significant changes, the abstraction was wrong and gets restructured then — with two real consumers as evidence.
@@ -215,7 +215,7 @@ If translation lands cleanly with no `ai/` modifications, the v1.5 architecture 
 
 ### Existing sites
 
-`site.yaml` files without `ai:` or `altText:` blocks continue to work — schema validation treats both as optional. AI features stay off until configured.
+`site.config.ts` files without `ai` or `altText` blocks continue to work — schema validation treats both as optional. AI features stay off until configured.
 
 ### Pre-existing assets
 

@@ -32,7 +32,7 @@ export function buildTransformAdapter(target: TargetConfig): TransformAdapter {
     }
     default: {
       // Exhaustive check — TypeScript ensures we don't miss a known adapter.
-      // Runtime fallthrough is for when site.yaml carries an adapter name
+      // Runtime fallthrough is for when site.config.ts carries an adapter name
       // this build doesn't know.
       const unknown = (config as { adapter: string }).adapter
       throw new Error(`Unknown transforms.adapter "${unknown}". Supported: sharp, cloudflare.`)

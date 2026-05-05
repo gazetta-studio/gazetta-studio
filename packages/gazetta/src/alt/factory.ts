@@ -1,6 +1,6 @@
 /**
  * Alt-text adapter factory — the single seam between configuration
- * (env + `site.yaml`) and adapter construction.
+ * (env + `site.config.ts`) and adapter construction.
  *
  * Two functions:
  *
@@ -79,7 +79,7 @@ export function isAltAdapterConfigured(
 /**
  * Construct the alt-text adapter for the resolved config. Returns the
  * null adapter when:
- *   - No `ai:` / `altText:` block in `site.yaml`
+ *   - No `ai:` / `altText:` block in `site.config.ts`
  *   - Credentials missing for the configured provider
  *
  * Always returns an `AltTextAdapter` — consumers never null-check the

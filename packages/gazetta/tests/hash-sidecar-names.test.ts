@@ -35,8 +35,8 @@ import {
 } from '../src/hash.js'
 
 /**
- * Reference names are fragment/template ids authored in site.yaml /
- * component lists. Per operations.md they're lowercase-kebab-case,
+ * Reference names are fragment/template ids authored in site.config.ts
+ * / component lists. Per operations.md they're lowercase-kebab-case,
  * optionally subfolder-qualified with `/` (e.g. `buttons/primary`).
  * The encoder's `/` ↔ `.` scheme is invertible only when the input
  * has no `.` — encodeRefName validates that, and this arbitrary stays

@@ -29,7 +29,7 @@ reports/
 **/targets/**/.gazetta/fragment-deps/
 
 # Rendered output from `gazetta publish` to filesystem targets. The
-# editable source of truth (page.json, fragment.json, site.yaml) stays
+# editable source of truth (page.json, fragment.json, site.config.ts) stays
 # tracked; everything below is regenerated on every publish.
 #   - {route}/index.html and the route directories created for each page
 #     (e.g. blog/, docs/) when the page route is non-root

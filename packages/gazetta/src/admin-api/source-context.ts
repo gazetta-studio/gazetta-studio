@@ -27,7 +27,7 @@ export interface SourceContext {
    */
   readonly siteDir: string
   /**
-   * Absolute path to the project's site directory — where site.yaml lives,
+   * Absolute path to the project's site directory — where site.config.ts lives,
    * and the parent of `templates/` and `admin/`. Independent of storage
    * rooting: always the on-disk project path, even when the content storage
    * is target-rooted elsewhere.
@@ -46,15 +46,15 @@ export interface SourceContext {
   /**
    * Optional history provider for recording revisions on save. Absent
    * when history is disabled for this target (via
-   * `history.enabled: false` in site.yaml) or when history isn't
+   * `history.enabled: false` in site.config.ts) or when history isn't
    * wired at the caller (tests, legacy setups). Save routes check for
    * presence before recording — no-op if absent.
    */
   readonly history?: HistoryProvider
   /**
-   * Project-level site manifest — read once from sites/{name}/site.yaml
+   * Project-level site manifest — read once from sites/{name}/site.config.ts
    * at boot. Routes pass this to loadSite({ manifest }) so content
-   * discovery works without a target-level site.yaml.
+   * discovery works without a target-level site.config.ts.
    */
   readonly manifest?: SiteManifest
 }
@@ -91,7 +91,7 @@ export function createSourceContext(opts: CreateSourceContextOptions): SourceCon
 
 /**
  * Build a HistoryProvider for a resolved target. Returns `undefined`
- * when history is disabled (via site.yaml `history.enabled: false`).
+ * when history is disabled (via site.config.ts `history.enabled: false`).
  * Injected via `SourceContextFromRegistryOptions.buildHistory` so the
  * source-context module stays agnostic of target-config parsing — the
  * caller (admin-api boot) owns the enabled/retention decision.
@@ -109,7 +109,7 @@ export interface SourceContextFromRegistryOptions {
    */
   siteDir?: string
   /**
-   * Absolute project site directory — where site.yaml lives. Required.
+   * Absolute project site directory — where site.config.ts lives. Required.
    * This is independent of the target's storage rooting.
    */
   projectSiteDir: string
@@ -201,7 +201,7 @@ export function registrySourceResolver(opts: RegistrySourceResolverOptions): Sou
     // Cross-target reads may hit targets that weren't pre-initialized by
     // the bootstrap (dev only inits the editable local target by default).
     // If the target is configured but its provider hasn't been built yet,
-    // let the caller lazy-init. Unknown targets (not in site.yaml at all)
+    // let the caller lazy-init. Unknown targets (not in site.config.ts at all)
     // fall through so registry.get throws a clean UnknownTargetError.
     const isConfigured = opts.registry.list().includes(name)
     if (opts.lazyInit && isConfigured) {

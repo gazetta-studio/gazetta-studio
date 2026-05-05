@@ -4,7 +4,7 @@
  * # Defaults
  *
  *   - Model: `claude-haiku-4-5` (cost-effective vision; ~$0.003/image).
- *     Sites needing higher quality override via `altText.model` in `site.yaml`.
+ *     Sites needing higher quality override via `altText.model` in `site.config.ts`.
  *
  * # API contract details (verified against @anthropic-ai/sdk v0.92.0)
  *
@@ -60,7 +60,7 @@ const ANTHROPIC_REFUSAL_MARKERS: readonly string[] = ['i cannot create captions'
 /**
  * Default model for the Anthropic adapter. Haiku is the cost-optimized
  * choice for the alt-text task (~$0.003/image at 768x768 input). Sites
- * needing higher quality set `altText.model` in `site.yaml` to a Sonnet
+ * needing higher quality set `altText.model` in `site.config.ts` to a Sonnet
  * or Opus model.
  */
 export const ANTHROPIC_DEFAULT_MODEL = 'claude-haiku-4-5'

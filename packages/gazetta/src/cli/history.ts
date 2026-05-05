@@ -58,7 +58,7 @@ function formatItems(items: readonly string[]): string {
  */
 async function buildHistory(ctx: HistoryCommandContext) {
   if (!isHistoryEnabled(ctx.config)) {
-    throw new Error(`History disabled on target "${ctx.targetName}" (site.yaml: history.enabled: false)`)
+    throw new Error(`History disabled on target "${ctx.targetName}" (site.config.ts: history.enabled: false)`)
   }
   const { createStorageProvider } = await import('../targets.js')
   const storage = await createStorageProvider(ctx.config.storage, ctx.siteDir, ctx.targetName)

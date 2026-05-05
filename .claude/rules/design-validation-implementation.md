@@ -220,7 +220,7 @@ Per [team-preferences.md rule 17](team-preferences.md): "Build and validate, don
 
 2. **Worker thread for render-for-analysis.** Investigate Node `worker_threads` vs. spawning a separate Node process. Worker threads share memory (good for the template registry); spawning is more isolation but slower init. Likely worker threads.
 
-3. **axe-core ruleset configuration.** axe-core ships ~90 rules; some are noisy (e.g., color-contrast on dynamic content). Pick a sensible default subset; expose via `site.yaml` for operator customization.
+3. **axe-core ruleset configuration.** axe-core ships ~90 rules; some are noisy (e.g., color-contrast on dynamic content). Pick a sensible default subset; expose via `site.config.ts` for operator customization.
 
 4. **Test pages for quality validators.** Need fixture pages with known issues (`<img>` no alt, broken HTML, contrast fails) to validate the integration. Build small `tests/fixtures/quality-pages/` directory.
 

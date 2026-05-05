@@ -58,8 +58,9 @@ cache purge, but **always uses ESI mode** — does not check `publishMode` (see 
 | Deno Deploy (future) | `DENO_DEPLOY_TOKEN` env var | — |
 | Vercel (future) | `VERCEL_TOKEN` env var | — |
 
-Deploy credentials go in `.env` or CI secrets. They are NOT in `site.yaml` (which holds
-storage credentials). Deploy is a one-time setup — credentials are rarely needed after initial deploy.
+Deploy credentials go in `.env` or CI secrets. They are NOT in `site.config.ts` (which holds
+storage credentials via `process.env.X!`). Deploy is a one-time setup — credentials are rarely
+needed after initial deploy.
 
 ## Self-hosting Deployment Workflow
 
@@ -82,7 +83,7 @@ enable the admin UI."
 
 ## `gazetta serve` Target Selection
 
-`serve` auto-detects the first target in `site.yaml`. For sites with multiple targets
+`serve` auto-detects the first target in `site.config.ts`. For sites with multiple targets
 (staging + production), the developer should specify: `gazetta serve production`.
 Default is the first target — usually staging/filesystem for local development.
 
@@ -146,13 +147,15 @@ Future: `--https` flag using a self-signed cert.
 ## Auth for Production Admin
 
 `gazetta serve` protects `/admin/*` routes via auth middleware. Auth method configured
-in `site.yaml`:
+in `site.config.ts`:
 
-```yaml
-admin:
-  auth: basic                    # HTTP Basic Auth
-  users:
-    - { username: admin, password: "${ADMIN_PASSWORD}" }
+```ts
+defineSite({
+  admin: {
+    auth: 'basic', // HTTP Basic Auth
+    users: [{ username: 'admin', password: process.env.ADMIN_PASSWORD! }],
+  },
+})
 ```
 
 Future: OAuth, API key, custom middleware. For now, Basic Auth behind HTTPS (reverse proxy).

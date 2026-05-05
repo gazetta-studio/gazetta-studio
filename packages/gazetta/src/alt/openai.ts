@@ -8,7 +8,7 @@
  *     cheaper per text token than gpt-4o, vision token cost differs
  *     and the math is workload-dependent. Sites comparing costs
  *     should benchmark against their actual asset library; sites that
- *     want explicit cost-ceiling pick a specific model in `site.yaml`.
+ *     want explicit cost-ceiling pick a specific model in `site.config.ts`.
  *
  * # API contract details (verified against `openai` SDK v6+)
  *

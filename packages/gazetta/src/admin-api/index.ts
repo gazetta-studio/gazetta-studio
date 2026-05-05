@@ -92,7 +92,7 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
     // Backfill history on the source if the caller didn't supply one —
     // dev bootstrap builds a bare SourceContext and relies on admin-api
     // to wire history per the target's config. Skip when the target's
-    // site.yaml has `history.enabled: false`, or when there's no
+    // site.config.ts has `history.enabled: false`, or when there's no
     // matching targetConfig (legacy single-storage path).
     if (!opts.source.history) {
       source = { ...opts.source, history: buildHistoryForSource(opts, opts.source) }
@@ -139,7 +139,7 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
         if (typeof maybeInit.init === 'function') await maybeInit.init()
         providers.set(name, storage)
       },
-      // Build a HistoryProvider per target, honoring the site.yaml
+      // Build a HistoryProvider per target, honoring the site.config.ts
       // `history` block (enabled/retention). Returns undefined when the
       // target has history turned off — routes no-op on absent provider.
       buildHistory: (name, storage) => {

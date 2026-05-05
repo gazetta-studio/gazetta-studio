@@ -291,7 +291,7 @@ describe('GET /api/site contract', () => {
 
   it('accepts the empty-target fallback shape (includes targets:{})', () => {
     // The /api/site handler returns { name: '(empty)', targets: {} }
-    // when the target has no site.yaml yet. The schema is loose so
+    // when the target has no site.config.ts yet. The schema is loose so
     // the extra field passes through.
     const r = SiteManifestSchema.safeParse({ name: '(empty)', targets: {} })
     expect(r.success).toBe(true)

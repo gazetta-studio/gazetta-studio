@@ -72,7 +72,7 @@ export async function suggestAltForAsset(opts: SuggestAltOptions): Promise<Sugge
   if (!resolved) {
     return {
       kind: 'unavailable',
-      message: 'AI alt-text is not configured for this site. Add an `altText:` block to site.yaml.',
+      message: 'AI alt-text is not configured for this site. Add an `altText:` block to site.config.ts.',
     }
   }
 
