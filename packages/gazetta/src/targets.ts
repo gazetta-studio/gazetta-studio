@@ -1,7 +1,5 @@
-import { resolve, join } from 'node:path'
-import type { StorageProvider, TargetConfig, StorageConfig } from './types.js'
+import type { StorageProvider, TargetConfig } from './types.js'
 import { isEditable } from './types.js'
-import { createFilesystemProvider } from './providers/filesystem.js'
 
 /**
  * Target resolution surface used by route handlers and anything that needs
@@ -42,8 +40,9 @@ export class NoEditableTargetError extends Error {
 
 /**
  * Build a TargetRegistry from already-initialized providers and their configs.
- * The factory that boots the dev server populates `providers` by running
- * `createStorageProvider` per target; tests pass in-memory providers.
+ * Per Phase 1 (Path X), storage providers are constructed by operator-facing
+ * factories at config-eval time; the registry consumes the resulting
+ * `StorageProvider` instances directly. Tests pass in-memory providers.
  */
 export function createTargetRegistryView(
   providers: Map<string, StorageProvider>,
@@ -79,93 +78,17 @@ export function listEditableTargets(configs: Record<string, TargetConfig>): stri
     .map(([name]) => name)
 }
 
+/**
+ * Expand `${VAR}` placeholders in a string by reading from `process.env`.
+ * Empty or undefined input passes through. Used by purge-config resolution
+ * (`PurgeConfig.apiToken`, `zoneId`) where operators may reference env
+ * vars without writing `process.env.X!` directly. Storage credentials
+ * use `process.env.X!` at the factory call site (Path X) and don't go
+ * through this helper.
+ */
 export function resolveEnvVars(value: string | undefined): string | undefined {
   if (!value) return value
   return value.replace(/\$\{(\w+)\}/g, (_, name) => process.env[name] ?? '')
-}
-
-/**
- * Build a storage provider from config.
- *
- * For filesystem targets, `path` defaults to `./targets/<targetName>` (relative
- * to the site dir). Users can override by setting `path` explicitly in
- * site.config.ts — useful for shared drives, existing layouts, or multi-site setups
- * that need custom paths. If neither `path` nor `targetName` is available for
- * a filesystem target, throws.
- */
-export async function createStorageProvider(
-  config: StorageConfig,
-  siteDir: string,
-  targetName?: string,
-): Promise<StorageProvider> {
-  switch (config.type) {
-    case 'filesystem': {
-      const path = config.path ?? (targetName ? join('targets', targetName) : undefined)
-      if (!path) throw new Error('Filesystem storage requires "path" (or a target name to derive the default from)')
-      return createFilesystemProvider(resolve(siteDir, path))
-    }
-    case 'azure-blob': {
-      const connectionString = resolveEnvVars(config.connectionString)
-      if (!connectionString) throw new Error('Azure Blob storage requires "connectionString"')
-      if (!config.container) throw new Error('Azure Blob storage requires "container"')
-      try {
-        const { createAzureBlobProvider } = await import('./providers/azure-blob.js')
-        return createAzureBlobProvider({ connectionString, container: config.container })
-      } catch {
-        throw new Error('Azure Blob storage requires @azure/storage-blob. Install it: npm install @azure/storage-blob')
-      }
-    }
-    case 's3': {
-      const endpoint = resolveEnvVars(config.endpoint)
-      if (!endpoint) throw new Error('S3 storage requires "endpoint"')
-      if (!config.bucket) throw new Error('S3 storage requires "bucket"')
-      try {
-        const { createS3Provider } = await import('./providers/s3.js')
-        return createS3Provider({
-          endpoint,
-          bucket: config.bucket,
-          accessKeyId: resolveEnvVars(config.accessKeyId) ?? 'minioadmin',
-          secretAccessKey: resolveEnvVars(config.secretAccessKey) ?? 'minioadmin',
-          region: config.region,
-        })
-      } catch {
-        throw new Error(
-          'S3 storage requires @aws-sdk/client-s3 and @aws-sdk/lib-storage. ' +
-            'Install them: npm install @aws-sdk/client-s3 @aws-sdk/lib-storage',
-        )
-      }
-    }
-    case 'r2': {
-      if (!config.accountId) throw new Error('R2 storage requires "accountId"')
-      if (!config.bucket) throw new Error('R2 storage requires "bucket"')
-      const accessKeyId = resolveEnvVars(config.accessKeyId)
-      const secretAccessKey = resolveEnvVars(config.secretAccessKey)
-      if (!accessKeyId || !secretAccessKey) {
-        throw new Error(
-          'R2 storage requires accessKeyId and secretAccessKey.\n' +
-            '  Set R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY environment variables, or\n' +
-            '  create an R2 API token at https://dash.cloudflare.com/<account>/r2/api-tokens',
-        )
-      }
-      try {
-        const { createS3Provider } = await import('./providers/s3.js')
-        return createS3Provider({
-          endpoint: `https://${config.accountId}.r2.cloudflarestorage.com`,
-          bucket: config.bucket,
-          accessKeyId,
-          secretAccessKey,
-          region: config.region,
-        })
-      } catch {
-        throw new Error(
-          'R2 storage requires @aws-sdk/client-s3 and @aws-sdk/lib-storage. ' +
-            'Install them: npm install @aws-sdk/client-s3 @aws-sdk/lib-storage',
-        )
-      }
-    }
-    default:
-      throw new Error(`Unknown storage type: ${(config as StorageConfig).type}`)
-  }
 }
 
 /**
@@ -176,21 +99,28 @@ export async function createStorageProvider(
  */
 const TARGET_INIT_TIMEOUT_MS = 10000
 
+/**
+ * Initialize all target providers in parallel, calling each provider's
+ * optional `init()` method (used for connectivity probes by S3 / Azure).
+ * Returns a `Map<targetName, StorageProvider>` ready for
+ * `createTargetRegistryView`.
+ *
+ * Failed inits are logged and skipped — callers see a partial registry.
+ * Slow inits time out at `TARGET_INIT_TIMEOUT_MS` so a hanging SDK doesn't
+ * stall the whole boot.
+ */
 export async function createTargetRegistry(
   targets: Record<string, TargetConfig>,
-  siteDir: string,
 ): Promise<Map<string, StorageProvider>> {
   const registry = new Map<string, StorageProvider>()
-  // Init targets in parallel — a slow/failing target must not serialize
-  // behind the others. Each has its own timeout so a hang doesn't stall the
-  // registry indefinitely.
   await Promise.all(
     Object.entries(targets).map(async ([name, config]) => {
       try {
         const initOne = async () => {
-          const provider = await createStorageProvider(config.storage, siteDir, name)
-          if ('init' in provider && typeof provider.init === 'function') {
-            await (provider as StorageProvider & { init(): Promise<void> }).init()
+          const provider = config.storage
+          const initFn = (provider as StorageProvider & { init?: () => Promise<void> }).init
+          if (typeof initFn === 'function') {
+            await initFn.call(provider)
           }
           return provider
         }

@@ -11,7 +11,6 @@ export type {
   SiteManifest,
   ResolvedComponent,
   TargetConfig,
-  StorageConfig,
   WorkerConfig,
   CacheConfig,
   DirEntry,
@@ -91,15 +90,30 @@ export { allPageEntries, allFragmentEntries } from './site-loader.js'
 export { loadTemplate, invalidateTemplate, invalidateAllTemplates } from './template-loader.js'
 export { scopeHtml, scopeCss, hashPath } from './scope.js'
 
-// Storage providers — filesystem in the root barrel; cloud providers live under
-// `gazetta/providers/*` subpath exports so the optional `@aws-sdk/*` and
-// `@azure/storage-blob` peer deps don't leak into every consumer's module graph
-// (a user's `site.config.ts` evaluates the gazetta barrel via `defineSite`,
-// and absent peers would crash that evaluation).
+// Storage provider factories — operator-facing (Path X). Operators import
+// these into `site.config.ts` and call them inline at the `storage:` field.
+// Cloud SDK peer deps load lazily on first method call so sites that don't
+// use a given provider don't pay the install cost.
+export {
+  filesystemStorage,
+  r2Storage,
+  s3Storage,
+  azureBlobStorage,
+} from './providers/factories.js'
+export type {
+  FilesystemStorageOptions,
+  R2StorageOptions,
+  S3StorageOptions,
+  AzureBlobStorageOptions,
+} from './providers/factories.js'
+
+// Internal storage provider factories — kept public for tests and advanced
+// wiring (mocking with pre-resolved options, etc.). Operators should use the
+// operator-facing factories above.
 export { createFilesystemProvider } from './providers/filesystem.js'
 
 // Targets
-export { createStorageProvider, createTargetRegistry } from './targets.js'
+export { createTargetRegistry } from './targets.js'
 
 // Bootstrap helpers — load site.config.ts, build registry, derive SourceContext
 export { bootstrapFromSiteYaml, buildSourceContext } from './cli/bootstrap.js'

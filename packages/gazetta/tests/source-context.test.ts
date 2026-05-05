@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { StorageProvider, TargetConfig } from '../src/types.js'
+import { memoryStorage } from './_helpers/memory-storage.js'
 import { createTargetRegistryView, NoEditableTargetError, UnknownTargetError } from '../src/targets.js'
 import {
   createSourceContext,
@@ -47,9 +48,9 @@ describe('createSourceContext', () => {
 
 describe('createSourceContextFromRegistry', () => {
   const configs: Record<string, TargetConfig> = {
-    local: { storage: { type: 'filesystem' } },
-    staging: { storage: { type: 'r2' }, environment: 'staging' },
-    prod: { storage: { type: 'r2' }, environment: 'production' },
+    local: { storage: memoryStorage() },
+    staging: { storage: memoryStorage(), environment: 'staging' },
+    prod: { storage: memoryStorage(), environment: 'production' },
   }
 
   it('picks the default editable target when no name is given', () => {
@@ -81,8 +82,8 @@ describe('createSourceContextFromRegistry', () => {
 
   it('throws NoEditableTargetError when no editable target exists and no name is given', () => {
     const readOnlyConfigs: Record<string, TargetConfig> = {
-      staging: { storage: { type: 'r2' }, environment: 'staging' },
-      prod: { storage: { type: 'r2' }, environment: 'production' },
+      staging: { storage: memoryStorage(), environment: 'staging' },
+      prod: { storage: memoryStorage(), environment: 'production' },
     }
     const registry = createTargetRegistryView(new Map(), readOnlyConfigs)
     expect(() => createSourceContextFromRegistry({ registry, projectSiteDir: '.' })).toThrow(NoEditableTargetError)
@@ -108,9 +109,9 @@ describe('staticSourceResolver', () => {
 
 describe('registrySourceResolver', () => {
   const configs: Record<string, TargetConfig> = {
-    local: { storage: { type: 'filesystem' } },
-    staging: { storage: { type: 'r2' }, environment: 'staging', editable: true },
-    prod: { storage: { type: 'r2' }, environment: 'production' },
+    local: { storage: memoryStorage() },
+    staging: { storage: memoryStorage(), environment: 'staging', editable: true },
+    prod: { storage: memoryStorage(), environment: 'production' },
   }
 
   function buildRegistry() {
@@ -159,8 +160,8 @@ describe('registrySourceResolver', () => {
 
   it('throws NoEditableTargetError when resolving the default on a registry with none editable', async () => {
     const readOnlyConfigs: Record<string, TargetConfig> = {
-      staging: { storage: { type: 'r2' }, environment: 'staging' },
-      prod: { storage: { type: 'r2' }, environment: 'production' },
+      staging: { storage: memoryStorage(), environment: 'staging' },
+      prod: { storage: memoryStorage(), environment: 'production' },
     }
     const providers = new Map<string, StorageProvider>([
       ['staging', mockProvider('staging')],

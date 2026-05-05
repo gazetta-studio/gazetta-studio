@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest'
 import { join, resolve } from 'node:path'
 import { writeFile, mkdir, rm, readdir } from 'node:fs/promises'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
+import { filesystemStorage, r2Storage, s3Storage } from '../src/providers/factories.js'
 import { publishItems, resolveDependencies } from '../src/publish.js'
 import { publishPageRendered, publishPageStatic, publishFragmentRendered } from '../src/publish-rendered.js'
 import { createContentRoot } from '../src/content-root.js'
@@ -473,27 +474,56 @@ describe('publishPageStatic', () => {
 describe('isEditable', () => {
   it('defaults to true for local environment (explicit or unset)', async () => {
     const { isEditable } = await import('../src/types.js')
-    expect(isEditable({ storage: { type: 'filesystem', path: './dist' } })).toBe(true)
-    expect(isEditable({ storage: { type: 'r2' }, environment: 'local' })).toBe(true)
+    expect(isEditable({ storage: filesystemStorage({ path: './dist' }) })).toBe(true)
+    expect(
+      isEditable({
+        storage: r2Storage({ accountId: 'a', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' }),
+        environment: 'local',
+      }),
+    ).toBe(true)
     // Unset environment → defaults to 'local' → editable
-    expect(isEditable({ storage: { type: 'r2' } })).toBe(true)
+    expect(
+      isEditable({ storage: r2Storage({ accountId: 'a', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' }) }),
+    ).toBe(true)
   })
 
   it('defaults to false for staging and production', async () => {
     const { isEditable } = await import('../src/types.js')
-    expect(isEditable({ storage: { type: 'r2' }, environment: 'staging' })).toBe(false)
-    expect(isEditable({ storage: { type: 'r2' }, environment: 'production' })).toBe(false)
+    expect(
+      isEditable({
+        storage: r2Storage({ accountId: 'a', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' }),
+        environment: 'staging',
+      }),
+    ).toBe(false)
+    expect(
+      isEditable({
+        storage: r2Storage({ accountId: 'a', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' }),
+        environment: 'production',
+      }),
+    ).toBe(false)
   })
 
   it('respects explicit editable: false on local target', async () => {
     const { isEditable } = await import('../src/types.js')
-    expect(isEditable({ storage: { type: 'filesystem', path: './dist' }, editable: false })).toBe(false)
+    expect(isEditable({ storage: filesystemStorage({ path: './dist' }), editable: false })).toBe(false)
   })
 
   it('respects explicit editable: true on staging/production', async () => {
     const { isEditable } = await import('../src/types.js')
-    expect(isEditable({ storage: { type: 'r2' }, environment: 'staging', editable: true })).toBe(true)
-    expect(isEditable({ storage: { type: 'r2' }, environment: 'production', editable: true })).toBe(true)
+    expect(
+      isEditable({
+        storage: r2Storage({ accountId: 'a', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' }),
+        environment: 'staging',
+        editable: true,
+      }),
+    ).toBe(true)
+    expect(
+      isEditable({
+        storage: r2Storage({ accountId: 'a', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' }),
+        environment: 'production',
+        editable: true,
+      }),
+    ).toBe(true)
   })
 })
 
@@ -501,20 +531,36 @@ describe('getType', () => {
   // Import dynamically to avoid circular deps
   it('returns dynamic when worker configured', async () => {
     const { getType } = await import('../src/types.js')
-    expect(getType({ storage: { type: 'r2' }, worker: { type: 'cloudflare' } })).toBe('dynamic')
+    expect(
+      getType({
+        storage: r2Storage({ accountId: 'a', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' }),
+        worker: { type: 'cloudflare' },
+      }),
+    ).toBe('dynamic')
   })
 
   it('returns static when no worker', async () => {
     const { getType } = await import('../src/types.js')
-    expect(getType({ storage: { type: 'filesystem', path: './dist' } })).toBe('static')
+    expect(getType({ storage: filesystemStorage({ path: './dist' }) })).toBe('static')
   })
 
   it('respects explicit type over worker config', async () => {
     const { getType } = await import('../src/types.js')
     // Dynamic without worker (for gazetta serve)
-    expect(getType({ storage: { type: 's3' }, type: 'dynamic' })).toBe('dynamic')
+    expect(
+      getType({
+        storage: s3Storage({ endpoint: 'http://x', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' }),
+        type: 'dynamic',
+      }),
+    ).toBe('dynamic')
     // Static even with worker (override)
-    expect(getType({ storage: { type: 'r2' }, worker: { type: 'cloudflare' }, type: 'static' })).toBe('static')
+    expect(
+      getType({
+        storage: r2Storage({ accountId: 'a', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' }),
+        worker: { type: 'cloudflare' },
+        type: 'static',
+      }),
+    ).toBe('static')
   })
 })
 

@@ -13,6 +13,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { defineSite, defineGazetta } from '../src/config/define.js'
+import { filesystemStorage } from '../src/providers/factories.js'
 import { SiteConfigSchema, GazettaConfigSchema } from '../src/config/schemas.js'
 import { ConfigError, ConfigValidationError, ConfigEvaluationError, ConfigLayoutError } from '../src/config/errors.js'
 
@@ -29,7 +30,7 @@ describe('defineSite identity function', () => {
       locales: { supported: ['en', 'fr'] },
       themes: { supported: ['light', 'dark'], default: 'light' },
       targets: {
-        local: { storage: { type: 'filesystem', path: './dist/local' } },
+        local: { storage: filesystemStorage({ path: './dist/local' }) },
       },
     })
     expect(config.targets?.local).toBeDefined()

@@ -154,30 +154,18 @@ export interface PageManifest extends ComponentManifest {
   cache?: CacheConfig
 }
 
-/** Storage configuration */
-export interface StorageConfig {
-  type: 'filesystem' | 'azure-blob' | 's3' | 'r2'
-  /**
-   * Filesystem storage directory, relative to the site directory.
-   * Defaults to `./targets/<target-key>` when unset — the target's key in
-   * site.config.ts maps to a subdirectory under `targets/`. Override for shared
-   * drives, external mounts, or existing custom layouts.
-   */
-  path?: string
-  connectionString?: string
-  container?: string
-  endpoint?: string
-  bucket?: string
-  accessKeyId?: string
-  secretAccessKey?: string
-  region?: string
-  accountId?: string
-}
-
 /** Worker/runtime configuration */
 export interface WorkerConfig {
   type: 'cloudflare'
   name?: string
+  /** R2 bucket name to bind into the worker as `SITE_BUCKET`. Required when
+   *  the worker reads content from R2; `gazetta deploy` writes this into
+   *  wrangler.toml's `[[r2_buckets]]` block. Path X separates storage
+   *  construction (operator imports `r2Storage(...)`) from worker-deploy
+   *  config (which bucket the worker binds at runtime); both name the same
+   *  bucket but live on different fields. Defaults to `worker.name` (which
+   *  itself defaults to the target name) when unset. */
+  bucket?: string
 }
 
 export type TargetEnvironment = 'local' | 'staging' | 'production'
@@ -186,7 +174,14 @@ export type TargetType = 'static' | 'dynamic'
 
 /** Target configuration in site.config.ts */
 export interface TargetConfig {
-  storage: StorageConfig
+  /**
+   * Storage provider for this target. Operators construct via factory
+   * functions imported from `gazetta` (e.g., `r2Storage({...})`,
+   * `filesystemStorage()`, `s3Storage({...})`, `azureBlobStorage({...})`).
+   * The field's value IS the constructed provider (Path X — see
+   * `design-provider-config.md`).
+   */
+  storage: StorageProvider
   worker?: WorkerConfig
   /**
    * Rendering model:

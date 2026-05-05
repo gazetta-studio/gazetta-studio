@@ -1,4 +1,4 @@
-import { defineSite } from 'gazetta'
+import { defineSite, filesystemStorage } from 'gazetta'
 
 export default defineSite({
   name: 'Target Matrix Fixture',
@@ -7,24 +7,25 @@ export default defineSite({
     // Axis coverage (environment × editable × type). Each target exists
     // to prove the admin UI reacts correctly to one combination. Minimal
     // storage — filesystem — because matrix tests don't exercise publish
-    // execution, only the UI that reacts to target properties.
+    // execution, only the UI that reacts to target properties. Relative
+    // paths anchor to this config file's directory.
 
     // --- local environment ---
     'local-edit': {
-      storage: { type: 'filesystem' },
-      // path defaults to ./targets/local-edit — where the source content
-      // lives. environment: local, editable: true, type: static (all defaults).
+      storage: filesystemStorage({ path: './targets/local-edit' }),
+      // The source content lives here. environment: local, editable: true,
+      // type: static (all defaults).
     },
 
     'local-ro': {
-      storage: { type: 'filesystem', path: './dist/local-ro' },
+      storage: filesystemStorage({ path: './dist/local-ro' }),
       editable: false,
       // Local target that's NOT editable — an override of the default.
       // Proves the editable flag is respected even against env defaults.
     },
 
     'local-dyn': {
-      storage: { type: 'filesystem', path: './dist/local-dyn' },
+      storage: filesystemStorage({ path: './dist/local-dyn' }),
       type: 'dynamic',
       // Editable dynamic local — proves the type flag flows independently
       // of environment.
@@ -32,13 +33,13 @@ export default defineSite({
 
     // --- staging environment ---
     'staging-ro': {
-      storage: { type: 'filesystem', path: './dist/staging-ro' },
+      storage: filesystemStorage({ path: './dist/staging-ro' }),
       environment: 'staging',
       // editable: false is the env default for staging
     },
 
     'staging-edit': {
-      storage: { type: 'filesystem', path: './dist/staging-edit' },
+      storage: filesystemStorage({ path: './dist/staging-edit' }),
       environment: 'staging',
       editable: true,
       // Editable staging — overrides the env default for draft-editing
@@ -47,12 +48,12 @@ export default defineSite({
 
     // --- production environment ---
     'prod-ro': {
-      storage: { type: 'filesystem', path: './dist/prod-ro' },
+      storage: filesystemStorage({ path: './dist/prod-ro' }),
       environment: 'production',
     },
 
     'prod-edit': {
-      storage: { type: 'filesystem', path: './dist/prod-edit' },
+      storage: filesystemStorage({ path: './dist/prod-edit' }),
       environment: 'production',
       editable: true,
       // Hotfix-accepting production — unblocks the deferred Phase 3 scenario
@@ -61,7 +62,7 @@ export default defineSite({
     },
 
     'prod-dyn': {
-      storage: { type: 'filesystem', path: './dist/prod-dyn' },
+      storage: filesystemStorage({ path: './dist/prod-dyn' }),
       environment: 'production',
       type: 'dynamic',
     },

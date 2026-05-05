@@ -13,6 +13,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { TargetConfig } from '../src/types.js'
+import { memoryStorage } from './_helpers/memory-storage.js'
 import { buildTransformAdapter, sharpAdapter, createCloudflareAdapter } from '../src/transforms/index.js'
 import type { AssetUrlInput } from '../src/transforms/adapter.js'
 import { buildSelector } from '../src/schema/dimensions.js'
@@ -142,7 +143,7 @@ describe('cloudflareAdapter', () => {
 
 describe('buildTransformAdapter (factory)', () => {
   function target(transforms?: TargetConfig['transforms']): TargetConfig {
-    return { storage: { type: 'filesystem' }, transforms }
+    return { storage: memoryStorage(), transforms }
   }
 
   it('defaults to sharp when transforms config is absent', () => {

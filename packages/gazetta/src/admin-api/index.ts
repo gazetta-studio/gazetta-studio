@@ -133,8 +133,10 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
       lazyInit: async name => {
         const config = opts.targetConfigs![name]
         if (!config) return
-        const { createStorageProvider } = await import('../targets.js')
-        const storage = await createStorageProvider(config.storage, source.projectSiteDir, name)
+        // Storage is already a constructed provider (Path X — operator-facing
+        // factory ran at config-eval). Init the connection if the provider
+        // exposes one (S3 + Azure use this for connectivity probes).
+        const storage = config.storage
         const maybeInit = storage as StorageProvider & { init?: () => Promise<void> }
         if (typeof maybeInit.init === 'function') await maybeInit.init()
         providers.set(name, storage)

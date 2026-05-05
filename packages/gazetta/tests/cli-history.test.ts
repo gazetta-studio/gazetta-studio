@@ -204,7 +204,7 @@ describe('gazetta history / undo / rollback', { timeout: 60000 }, () => {
       `production: {\n` +
       `      environment: 'production',\n` +
       `      editable: true,\n` +
-      `      storage: { type: 'filesystem', path: './dist/prod-test' },\n` +
+      `      storage: filesystemStorage({ path: './dist/prod-test' }),\n` +
       `    },`
     await writeFile(siteConfigPath, ts.slice(0, startIdx) + replacement + ts.slice(endIdx))
     // Seed history on production directly.
