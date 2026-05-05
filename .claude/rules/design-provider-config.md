@@ -103,7 +103,7 @@ ai: { provider: anthropic, model: 'claude-haiku-4-5' }   // cross-task transport
 altText: { systemPrompt: 'editorial voice', maxTokens: 300 }  // per-task config
 // future: translation: { systemPrompt: '...', maxTokens: 500 }
 ```
-The `AIProvider` interface is **transport-only** (apiKey, baseUrl, timeout — credentials and endpoint identity). Per-task **operational config** (model, systemPrompt, maxTokens) lives in data-literal blocks at the site root. The `provider` field inside the `ai:` block is always a factory call (Path X); the surrounding fields and the `altText:` task block are data literals. Three-rung inheritance (gazetta → site → target) carries provider/model/systemPrompt/maxTokens independently — see Exception B below for the rationale.
+The `AIProvider` interface is **transport-only** (apiKey, baseUrl, timeout — credentials and endpoint identity). Per-task **operational config** (model, systemPrompt, maxTokens) lives in data-literal blocks at the site root. The `provider` field inside the `ai:` block is always a factory call (Path X); the surrounding fields and the `altText:` task block are data literals. Three-rung inheritance (gazetta → site → target) carries provider/model/systemPrompt/maxTokens independently — see Exception A below for the rationale.
 
 **Pattern 3 — Multi-provider fan-out with cross-cutting settings:**
 ```ts
@@ -118,20 +118,9 @@ These patterns are **principled heterogeneity** — each shape reflects a struct
 
 ### 3. Two narrow data-layer exceptions
 
-The "no config-data layer" principle has two pragmatic exceptions:
+The "no config-data layer" principle has two pragmatic exceptions. Earlier drafts had three; **Exception A collapsed under the locked single-Site-per-process invariant** documented in [`CONTEXT.md`](../../CONTEXT.md). With one Site per process, every gazetta-level field can be a constructed instance — each process re-evaluates `gazetta.config.ts` and gets fresh instances; there's no isolation concern across Sites in the same process because there are no other Sites in the same process.
 
-**Exception A — Defaults inheritance in `gazetta.config.ts`:**
-```ts
-defaults: {
-  cache: { provider: 'memory', maxEntries: 5000 }  // RAW OPTIONS, not factory call
-}
-```
-
-`defaults.cache` accepts raw options instead of a factory call. Reason: `AdminCache` requires per-site instances (`design-cache.md` Gap 3 lock). If `defaults.cache` were a constructed instance, every inheriting site would share that instance, violating per-site isolation. Raw options let each site's loader construct its own instance from the inherited defaults.
-
-This is a **single-slot exception** for inheritance semantics. Sites that don't inherit don't see this layer.
-
-**Exception B — AI task config across three rungs (gazetta / site / target):**
+**Exception A — AI task config across rungs (gazetta / site / target):**
 ```ts
 // gazetta.config.ts (cross-site)
 defineGazetta({
@@ -146,7 +135,7 @@ defineSite({
   targets: {
     production: {
       altText: {
-        auto: false,                                       // behavior (Exception C)
+        auto: false,                                       // behavior (Exception B)
         ai: { model: 'gpt-4o', systemPrompt: 'prod voice' },  // task override
       },
     },
@@ -166,7 +155,7 @@ Resolver chain (per task — example for `altText`):
 
 Per-target `ai` sub-block applies its fields atop the inherited chain; absent fields inherit naturally.
 
-**Exception C — Per-target behavior-only overrides:**
+**Exception B — Per-target behavior-only overrides:**
 ```ts
 targets: {
   production: {
@@ -175,23 +164,23 @@ targets: {
 }
 ```
 
-`targets.X.altText.auto` and `targets.X.altText.maxImageEdge` are partial literals for **behavior-only fields** — runtime knobs that don't affect adapter construction (the suggester reads them per call). They sit at the root of `altText:` (alongside the `ai:` sub-block from Exception B); semantically distinct from AI task config because they don't flow into provider/adapter construction.
+`targets.X.altText.auto` and `targets.X.altText.maxImageEdge` are partial literals for **behavior-only fields** — runtime knobs that don't affect adapter construction (the suggester reads them per call). They sit at the root of `altText:` (alongside the `ai:` sub-block from Exception A); semantically distinct from AI task config because they don't flow into provider/adapter construction.
 
-All three exceptions (A, B, C) are honest pragmatic compromises scoped narrowly so the factory-returns-instance principle holds for the dominant case.
+Both exceptions (A, B) are honest pragmatic compromises scoped narrowly so the factory-returns-instance principle holds for the dominant case.
 
 ### 3a. Why AI is the outlier (and other surfaces aren't)
 
-Path X's default is "operator-facing config is factory calls returning instances." AI is the only Pattern-A surface that earns Exception B (data-literal task config across three rungs). The rationale matters because future surface designers will ask "why can't I do this for X?" — the honest test is structural, not stylistic.
+Path X's default is "operator-facing config is factory calls returning instances." AI is the only Pattern-A surface that earns Exception A (data-literal task config across three rungs). The rationale matters because future surface designers will ask "why can't I do this for X?" — the honest test is structural, not stylistic.
 
-**The structural test for Exception B eligibility:** the surface multiplexes one transport across multiple distinct request shapes that operators legitimately want to tune independently. AI passes because one Anthropic API account serves alt-text, translation, summarization, and image-gen as distinct tasks with different model / prompt / generation params per task. Storage doesn't pass — one R2 bucket isn't multiplexed across "tasks"; per-target storage is full reconfiguration. Transform doesn't pass — the width ladder and adapter config are bundled per-target. Cache doesn't pass — TTL and size limits are per-instance config, not per-task. Audit doesn't pass — the chain composition arg is already a small data-literal exception within Pattern 3, but each provider's transport is still a factory call.
+**The structural test for Exception A eligibility:** the surface multiplexes one transport across multiple distinct request shapes that operators legitimately want to tune independently. AI passes because one Anthropic API account serves alt-text, translation, summarization, and image-gen as distinct tasks with different model / prompt / generation params per task. Storage doesn't pass — one R2 bucket isn't multiplexed across "tasks"; per-target storage is full reconfiguration. Transform doesn't pass — the width ladder and adapter config are bundled per-target. Cache doesn't pass — TTL and size limits are per-instance config, not per-task. Audit doesn't pass — the chain composition arg is already a small data-literal exception within Pattern 3, but each provider's transport is still a factory call.
 
 **Inheritance rungs per surface** also reflect structural honesty:
 
 | Surface | Pattern | Transport | Operational config | Inheritance rungs |
 |---|---|---|---|---|
-| Storage | 1 | Factory-call | (bundled) | 2 (site → target); gazetta default optional via Exception A class |
-| Transform | 1 | Factory-call | (bundled) | 2 (site → target) |
-| Cache | 1 + Exception A | Factory-call | (bundled) | 2 (site → target); gazetta `defaults.cache` raw options |
+| Storage | 1 | Factory-call | (bundled) | 2 (site → target); gazetta-level default factory call optional |
+| Transform | 1 | Factory-call | (bundled) | 2 (site → target); gazetta-level default factory call optional |
+| Cache | 1 | Factory-call | (bundled) | 2 (gazetta-level → site); single-Site-per-process means each process re-evaluates `gazetta.config.ts` and gets a fresh instance — no isolation concern |
 | **AI** | **2** | **Factory-call (provider field)** | **Data-literal (model/systemPrompt/maxTokens)** | **3 (gazetta → site → target)** |
 | Audit | 3 | Factory-call (chain) | Chain composition arg | 2 (site → target) |
 | Auth | 1 | Factory-call | (bundled) | 2 |
@@ -200,7 +189,7 @@ Path X's default is "operator-facing config is factory calls returning instances
 
 Three-rung inheritance for non-AI surfaces would add complexity for no documented use case. Operator running multi-site setup wants shared editorial voice for AI (agency setup); operator does NOT want shared R2 bucket across sites (each site has its own storage account). The asymmetry reflects how operators actually configure these surfaces.
 
-**Search reservation.** If a future Search surface ships (currently Tier 3 deferred), it has the same transport-multiplexed-across-tasks property as AI: one Algolia / Typesense / Meilisearch / Elasticsearch account serves multiple indexes (pages, assets, audit log) with per-index config (ranking, faceting, typo tolerance). When/if Search ships, it reuses Pattern 2 + Exception B without widening Path X — same justification, same shape (`search: { provider: searchProvider, ... }; pages: { ranking: ... }; assets: { facets: [...] }`). Documented in advance so future grilling doesn't re-litigate.
+**Search reservation.** If a future Search surface ships (currently Tier 3 deferred), it has the same transport-multiplexed-across-tasks property as AI: one Algolia / Typesense / Meilisearch / Elasticsearch account serves multiple indexes (pages, assets, audit log) with per-index config (ranking, faceting, typo tolerance). When/if Search ships, it reuses Pattern 2 + Exception A without widening Path X — same justification, same shape (`search: { provider: searchProvider, ... }; pages: { ranking: ... }; assets: { facets: [...] }`). Documented in advance so future grilling doesn't re-litigate.
 
 **The default for new surfaces is Pattern 1, factory-call, no exceptions.** Surface designers asking "should I do data-literal here?" answer: "only if the surface multiplexes one transport across distinct request shapes that operators tune per-shape." Most surfaces don't.
 
@@ -363,14 +352,14 @@ export default defineSite({
   targets: {
     staging: {
       altText: {
-        auto: true,                                    // behavior (Exception C)
+        auto: true,                                    // behavior (Exception B)
         // Inherits provider/model/systemPrompt/maxTokens from site
       },
     },
     production: {
       altText: {
-        auto: false,                                   // behavior (Exception C)
-        ai: {                                          // task config override (Exception B)
+        auto: false,                                   // behavior (Exception B)
+        ai: {                                          // task config override (Exception A)
           provider: openai,                            // swap to OpenAI for prod
           model: 'gpt-4o',                             // higher-quality model
           systemPrompt: 'descriptive, brand-aligned, screen-reader-friendly',
@@ -415,19 +404,21 @@ Plugin's `dropboxStorage` returns a `StorageProvider` instance. Operator's `stor
 ### Project-level defaults (gazetta.config.ts)
 
 ```ts
-import { defineGazetta } from 'gazetta'
+import { defineGazetta, memoryCache, anthropicProvider } from 'gazetta'
 
 export default defineGazetta({
   logLevel: 'info',
   telemetry: false,
   dev: { port: 3000, hostname: 'localhost' },
 
-  // Exception A — defaults take raw options; each site builds own instance
+  // Cache: factory call returning a constructed AdminCache instance.
+  // Each gazetta process re-evaluates this config and gets a fresh
+  // instance — single-Site-per-process means no isolation concern.
   defaults: {
-    cache: { provider: 'memory', maxEntries: 5000 },
+    cache: memoryCache({ maxEntries: 5000 }),
   },
 
-  // Exception B — cross-site AI defaults (provider transport via factory; model + task config as data literals)
+  // Exception A — cross-rung AI defaults (provider transport via factory; model + task config as data literals)
   ai: { provider: anthropicProvider({ apiKey: process.env.ANTHROPIC_API_KEY! }), model: 'claude-haiku-4-5' },
   altText: { systemPrompt: 'agency editorial voice', maxTokens: 300 },
 
@@ -435,9 +426,9 @@ export default defineGazetta({
 })
 ```
 
-Sites that don't set their own `cache:` field inherit by building from `defaults.cache` raw options. Sites that DO set their own `cache:` field override entirely (no merge).
+Sites that don't set their own `cache:` field inherit the gazetta-level instance directly. Sites that DO set their own `cache:` field override entirely (no merge).
 
-Sites inherit the gazetta-level `ai:` and `altText:` per-field via the three-rung chain (Exception B): a site that sets only `altText: { systemPrompt: 'site voice' }` inherits the gazetta-level `ai.provider`, `ai.model`, and `altText.maxTokens` while overriding the system prompt. Three-rung inheritance is per-field, not per-block.
+Sites inherit the gazetta-level `ai:` and `altText:` per-field via the three-rung chain (Exception A): a site that sets only `altText: { systemPrompt: 'site voice' }` inherits the gazetta-level `ai.provider`, `ai.model`, and `altText.maxTokens` while overriding the system prompt. Three-rung inheritance is per-field, not per-block.
 
 ### Failure modes (what TypeScript catches at edit time)
 
@@ -502,7 +493,7 @@ Provider instances constructed at config-eval are **per-process scope**: every G
 - `MemoryCache`: each process holds its own instance; SSE invalidation broadcast (Cut 4) keeps process-local caches eventually consistent across instances
 - `RedisCache` (future): each process holds its own client; cache STATE is shared via Redis (the backing service), and instances coordinate via Redis pub/sub
 - Storage providers wrap stateless SDK clients; each process constructs its own client; backing store (R2 / S3 / Azure / filesystem) is the shared state
-- `AdminCache` defaults inheritance (Exception A) preserves per-site-per-process scope: defaults are options, not instances; each site×process constructs its own from the inherited options
+- `AdminCache` from `gazetta.config.ts defaults.cache` is a constructed instance inherited by the Site directly. Single-Site-per-process means each process re-evaluates `gazetta.config.ts` and gets a fresh instance; no cross-Site-in-process isolation concern exists
 
 Hot reload (dev only) reconstructs per-process; production never reloads. No multi-process coordination state created across reloads.
 
@@ -597,7 +588,7 @@ Plugin authors choose: ship a pure-provider package (just a factory) and don't d
 
 ### Cache (#11)
 
-`AdminCache` is itself one of the surfaces this design configures. The design recursively applies: `cache: memoryCache({...})` returns an `AdminCache`. `gazetta.config.ts defaults.cache` takes raw options (Exception A) for per-site instance construction.
+`AdminCache` is itself one of the surfaces this design configures. The design applies uniformly: `cache: memoryCache({...})` returns an `AdminCache`; the field type is the runtime interface; no data-layer exception. `gazetta.config.ts defaults.cache` accepts a factory result like every other field — single-Site-per-process means each process gets its own instance from a fresh evaluation of `gazetta.config.ts`.
 
 `AdminCache` SSE invalidation (Cut 4 of `design-cache-implementation.md`) is independent of provider config — it's a runtime concern of the cache provider's `subscribe()` method.
 
@@ -734,7 +725,7 @@ locales: { default: 'en', supported: ['en', 'fr'] }
 
 3. **`AIProvider` interface per-task method shape** — locked: `provider.altText(taskConfig: AltTextTaskConfig): AltTextAdapter`. Future tasks add their own builder method (`.translation(taskConfig)`, `.summarization(taskConfig)`). Plugin author adding a new AI task (e.g., a custom embedding task) ships a `CapableProvider` extension interface (`EmbeddingCapableProvider extends AIProvider`) and an in-tree-or-plugin task-config block. Capability detection at the resolver via `'embedding' in provider`. Defer concrete shape to first capability extension.
 
-4. **Per-target provider override semantic** — locked: per-target `altText.ai` sub-block accepts `provider`, `model`, `systemPrompt`, `maxTokens` as data literals (Exception B). Operator wanting region-specific provider per target writes the full factory call inside the sub-block (`ai: { provider: r2Storage(...) }` analog for AI: `ai: { provider: anthropicProvider({ apiKey: process.env.ANTHROPIC_EU_KEY! }) }`). The data-literal at target level is what supports this — Exception B's three-rung scope is exactly the per-target override path.
+4. **Per-target provider override semantic** — locked: per-target `altText.ai` sub-block accepts `provider`, `model`, `systemPrompt`, `maxTokens` as data literals (Exception A). Operator wanting region-specific provider per target writes the full factory call inside the sub-block (`ai: { provider: r2Storage(...) }` analog for AI: `ai: { provider: anthropicProvider({ apiKey: process.env.ANTHROPIC_EU_KEY! }) }`). The data-literal at target level is what supports this — Exception A's three-rung scope is exactly the per-target override path.
 
 5. **Hot reload `dispose()` lifecycle for providers** — accepted as G7'a (no formalization); revisit if a provider author reports resource-leak issues from hot reload.
 

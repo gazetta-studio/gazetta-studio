@@ -121,19 +121,15 @@ export const GazettaConfigSchema = z
      * merge per-field; arrays (plugins, hooks) do NOT inherit (locked
      * per design-config.md "Defaults flow").
      *
-     * `defaults.cache` is the documented Exception A (per ADR-0008):
-     * raw `MemoryCacheOptions` rather than a constructed instance, so
-     * each inheriting site builds its own per-site cache instance
-     * required by `design-cache.md` Gap 3 (per-site isolation).
+     * `defaults.cache` is a constructed AdminCache instance (Path X —
+     * `defaults: { cache: memoryCache({...}) }`). Per the single-Site-
+     * per-process invariant in `CONTEXT.md`, each process re-evaluates
+     * `gazetta.config.ts` and gets a fresh instance; no per-Site
+     * reconstruction needed. Zod accepts the opaque instance.
      */
     defaults: z
       .object({
-        cache: z
-          .object({
-            maxEntries: z.number().int().positive().optional(),
-            maxBytes: z.number().int().positive().optional(),
-          })
-          .optional(),
+        cache: z.unknown().optional(),
         audit: z.record(z.string(), z.unknown()).optional(),
       })
       .optional(),
