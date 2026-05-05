@@ -28,6 +28,12 @@ reports/
 **/targets/**/.gazetta/asset-refs/
 **/targets/**/.gazetta/fragment-deps/
 
+# Per-target history — runtime state written by save/publish recorders.
+# Content-addressed blobs + revision manifests; regenerated and (per
+# retention) garbage-collected by the runtime. Same anchoring as the
+# reverse-dep indices: only inside a target's `.gazetta/`.
+**/targets/**/.gazetta/history/
+
 # Rendered output from `gazetta publish` to filesystem targets. The
 # editable source of truth (page.json, fragment.json, site.config.ts) stays
 # tracked; everything below is regenerated on every publish.
