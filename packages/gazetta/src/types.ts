@@ -436,10 +436,16 @@ export function getHistoryRetention(target: TargetConfig): number {
 /**
  * i18n configuration. Opt-in: absent = single-locale site.
  * Adding `locales` enables multi-locale support.
+ *
+ * Shape mirrors `themes: { default?, supported }` for project-wide
+ * consistency: `default` is optional (falls back to `supported[0]`);
+ * `supported` is required.
  */
 export interface LocalesConfig {
-  /** All supported locale codes (BCP 47). First entry is the default if `locale` is not set. */
+  /** All supported locale codes (BCP 47). */
   supported: string[]
+  /** Default locale code. Falls back to `supported[0]` when omitted. */
+  default?: string
   /** Locale-specific fallback chains. E.g. `{ 'pt-BR': 'pt' }` → pt-BR falls back to pt before default. */
   fallbacks?: Record<string, string>
   /** Whether the default locale gets a URL prefix. Default: false (no prefix for default). */
@@ -468,9 +474,12 @@ export interface ThemesConfig {
 export interface SiteManifest {
   name: string
   version?: string
-  /** Default locale code (BCP 47). Falls back to first in `locales.supported`, then 'en'. */
-  locale?: string
-  /** i18n configuration. Absent = single-locale site. */
+  /**
+   * i18n configuration. Absent = single-locale site (effective locale
+   * falls back to 'en'). Default locale lives at `locales.default`
+   * (or first in `locales.supported` when omitted) — the previous
+   * top-level `locale` field is removed in this migration.
+   */
   locales?: LocalesConfig
   /**
    * Theme configuration for asset overrides. Absent = no theme dimension

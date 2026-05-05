@@ -186,7 +186,10 @@ export { assembleEsi, parseCacheComment, splitFragment, findEsiPaths } from './a
 
 // Site config — typed identity functions for site.config.ts and gazetta.config.ts
 export { defineSite, defineGazetta } from './config/index.js'
-export type { SiteConfig, GazettaConfig } from './config/index.js'
+// `SiteConfig` / `GazettaConfig` (z.infer-derived input shapes) are no longer
+// publicly exported — the user-input shape and runtime manifest shape converged
+// under Path X. Operators get types via inference from `SiteManifest` /
+// `GazettaManifest` through `defineSite` / `defineGazetta`.
 export {
   ConfigError,
   ConfigValidationError,

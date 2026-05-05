@@ -80,8 +80,8 @@ describe('SiteConfigSchema validation', () => {
   it('accepts config with locales', () => {
     const result = SiteConfigSchema.safeParse({
       name: 'main',
-      locale: 'en',
       locales: {
+        default: 'en',
         supported: ['en', 'fr', 'pt-br'],
         defaultPrefix: false,
       },
@@ -136,7 +136,7 @@ describe('SiteConfigSchema validation', () => {
   it('rejects malformed locale codes', () => {
     const result = SiteConfigSchema.safeParse({
       name: 'main',
-      locale: 'EN', // uppercase rejected
+      locales: { default: 'EN', supported: ['EN'] }, // uppercase rejected
     })
     expect(result.success).toBe(false)
   })
@@ -144,7 +144,10 @@ describe('SiteConfigSchema validation', () => {
   it('accepts BCP 47 locale variants', () => {
     const valid = ['en', 'fr', 'pt-br', 'en-gb', 'zh-hans']
     for (const locale of valid) {
-      const result = SiteConfigSchema.safeParse({ name: 'main', locale })
+      const result = SiteConfigSchema.safeParse({
+        name: 'main',
+        locales: { default: locale, supported: [locale] },
+      })
       expect(result.success, `${locale} should be valid`).toBe(true)
     }
   })

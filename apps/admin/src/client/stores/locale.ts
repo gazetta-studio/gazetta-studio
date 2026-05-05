@@ -25,10 +25,10 @@ export const useLocaleStore = defineStore('locale', () => {
   /** Whether i18n is enabled for this site. */
   const isEnabled = computed(() => siteLocales.value !== null && siteLocales.value.length > 1)
 
-  /** The default locale (first in supported list, or site.locale). */
+  /** The default locale (locales.default, or first in supported list). */
   const defaultLocale = computed(() => {
     const site = useSiteStore()
-    if (site.manifest?.locale) return site.manifest.locale
+    if (site.manifest?.locales?.default) return site.manifest.locales.default
     return siteLocales.value?.[0] ?? null
   })
 

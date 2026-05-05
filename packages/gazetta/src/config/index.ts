@@ -7,7 +7,14 @@
  */
 
 export { defineSite, defineGazetta } from './define.js'
-export type { SiteConfig, GazettaConfig } from './types.js'
+// `SiteConfig` / `GazettaConfig` (z.infer-derived input shapes) are no
+// longer publicly exported. Per Path X, the user-input shape and the
+// runtime manifest shape converged when provider fields became factory
+// instances — there's no separate "loose" input type worth aliasing.
+// Operators get types via `defineSite` / `defineGazetta` inference from
+// `SiteManifest` / `GazettaManifest` (runtime shapes from `gazetta`).
+// Internal callers in `packages/gazetta/src/config/` import `SiteConfig`
+// / `GazettaConfig` from `./types.js` directly.
 export { SiteConfigSchema, GazettaConfigSchema } from './schemas.js'
 export {
   ConfigError,
@@ -21,5 +28,6 @@ export {
   discoverSites,
   loadProjectConfig,
   siteConfigToManifest,
+  gazettaConfigToManifest,
 } from './loader.js'
 export type { DiscoveredSite, LoadedProjectConfig } from './loader.js'

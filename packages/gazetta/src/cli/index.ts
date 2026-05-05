@@ -658,10 +658,11 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
     }
 
     // SEO context for this target — built once, shared across all page renders.
+    const { defaultLocaleFor: _defaultLocaleFor } = await import('../locale.js')
     const seo = {
       siteName: site.manifest.name,
       siteUrl: targetConfig?.siteUrl,
-      locale: site.manifest.locale,
+      locale: _defaultLocaleFor(site.manifest),
       defaultOgImage: site.manifest.defaultOgImage,
     }
 
@@ -1575,6 +1576,7 @@ async function runDev(siteDir: string, port: number) {
 
   // ---- Site page routes (default + locale variants) ----
   const { allPageEntries } = await import('../site-loader.js')
+  const { defaultLocaleFor: _devDefaultLocaleFor } = await import('../locale.js')
   for (const { name: pageName, page, locale: pageLocale } of allPageEntries(site)) {
     app.get(page.route, async c => {
       try {
@@ -1589,7 +1591,7 @@ async function runDev(siteDir: string, port: number) {
           route: freshPage?.route ?? page.route,
           seo: {
             siteName: freshSite.manifest.name,
-            locale: pageLocale ?? freshSite.manifest.locale,
+            locale: pageLocale ?? _devDefaultLocaleFor(freshSite.manifest),
             defaultOgImage: freshSite.manifest.defaultOgImage,
           },
         })

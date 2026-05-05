@@ -47,10 +47,10 @@ export const SiteConfigSchema = z
   .object({
     name: z.string().min(1, 'Site name is required'),
     version: z.string().optional(),
-    locale: LocaleCodeSchema.optional(),
     locales: z
       .object({
         supported: z.array(LocaleCodeSchema).min(1),
+        default: LocaleCodeSchema.optional(),
         fallbacks: z.record(z.string(), LocaleCodeSchema).optional(),
         defaultPrefix: z.boolean().optional(),
         detection: z.boolean().optional(),

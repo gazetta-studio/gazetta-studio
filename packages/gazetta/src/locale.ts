@@ -44,10 +44,14 @@ export function normalizeLocale(locale: string): string {
 
 /**
  * Resolve the default locale for a site manifest.
- * Chain: explicit `locale` field → first in `locales.supported` → 'en'.
+ * Chain: `locales.default` → first in `locales.supported` → 'en'.
+ *
+ * The previous top-level `locale` field was removed in the locale-shape
+ * migration (Phase 5 of the Path X work); operators now write
+ * `locales: { default: 'fr', supported: ['en', 'fr'] }`.
  */
 export function defaultLocaleFor(site: SiteManifest): string {
-  return site.locale ?? site.locales?.supported?.[0] ?? 'en'
+  return site.locales?.default ?? site.locales?.supported?.[0] ?? 'en'
 }
 
 /**
