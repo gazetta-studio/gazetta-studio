@@ -1,3 +1,5 @@
+import type { TransformAdapter } from './transforms/adapter.js'
+
 /** Output of a rendered component */
 export interface RenderOutput {
   html: string
@@ -238,12 +240,14 @@ export interface TargetConfig {
    */
   history?: HistoryConfig
   /**
-   * Image-transform delivery strategy. When unset, `sharp` adapter is
-   * used — bytes serve from origin with the immutable cache headers
-   * the v1 slice ships. Set to `cloudflare` (or future adapters) to
-   * route URLs through a CDN's transform pipeline.
+   * Image-transform delivery strategy. Operators construct via factory
+   * functions imported from `gazetta` (e.g., `sharpAdapter()`,
+   * `cloudflareAdapter({ zone })`). When unset, the resolver falls back
+   * to the default sharp adapter — bytes serve from origin with
+   * immutable cache headers. Path X — the field's value IS the
+   * constructed adapter (see `design-provider-config.md`).
    */
-  transforms?: TransformConfig
+  transforms?: TransformAdapter
   /**
    * Per-target asset upload policy. Today carries the size cap; future
    * fields (MIME allowlist subset, name policy overrides) extend this
@@ -344,21 +348,6 @@ export interface AssetUploadConfig {
    * Content-Length claim). Default: 50 MB.
    */
   maxBytes?: number
-}
-
-/** Per-target transform-adapter configuration. */
-export interface TransformConfig {
-  /**
-   * Adapter name. v1 ships:
-   *   - `sharp` (default): origin bytes + pre-generated variant ladder
-   *   - `cloudflare`: `/cdn-cgi/image/...` URL builder against a zone
-   */
-  adapter: 'sharp' | 'cloudflare'
-  /**
-   * Cloudflare adapter only: the zone (hostname) where `/cdn-cgi/image/`
-   * is served. Required when adapter is `cloudflare`.
-   */
-  zone?: string
 }
 
 /** Per-target history configuration. */

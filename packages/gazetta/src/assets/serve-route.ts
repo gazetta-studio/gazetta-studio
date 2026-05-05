@@ -26,7 +26,7 @@ import { Hono } from 'hono'
 import { stream } from 'hono/streaming'
 import type { StorageProvider } from '../types.js'
 import type { AssetUrlInput, TransformAdapter } from '../transforms/adapter.js'
-import { sharpAdapter } from '../transforms/sharp.js'
+import { defaultSharpAdapter } from '../transforms/sharp.js'
 
 /** Where assets live, relative to the target storage root. */
 const ASSETS_ROOT = 'assets'
@@ -93,7 +93,7 @@ export function assetServeRoutes(resolveStorageOrOptions: AssetStorageResolver |
     // from the filename. Today's adapters return constant policies
     // regardless of input; future per-input policy adapters will have
     // what they need.
-    const adapter = opts.resolveAdapter ? await opts.resolveAdapter(targetName) : sharpAdapter
+    const adapter = opts.resolveAdapter ? await opts.resolveAdapter(targetName) : defaultSharpAdapter
     const policy = adapter.cachePolicy(parseAssetUrlInput(path, ext))
 
     try {

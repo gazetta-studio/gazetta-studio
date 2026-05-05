@@ -23,25 +23,48 @@ const IMMUTABLE_CACHE: CachePolicy = {
   cacheControl: 'public, max-age=31536000, immutable',
 }
 
-export const sharpAdapter: TransformAdapter = {
-  name: 'sharp',
-
-  primaryUrl(input: AssetUrlInput): string {
-    return buildAssetUrl({
-      name: input.name,
-      hash: input.hash,
-      ext: input.ext,
-      siteUrl: input.siteUrl,
-      selector: input.selector,
-    })
-  },
-
-  srcset(input: AssetUrlInput): string | null {
-    if (input.variants.length === 0) return null
-    return buildSrcset(input.variants, input.siteUrl)
-  },
-
-  cachePolicy(_input: AssetUrlInput): CachePolicy {
-    return IMMUTABLE_CACHE
-  },
+export interface SharpAdapterOptions {
+  // Reserved for future use. The sharp adapter currently has no operator
+  // knobs — variant ladder lives on the manifest, cache policy is fixed,
+  // origin URL composition uses the resolver's siteUrl. Keeping the
+  // signature `(opts?)` matches the Path X factory shape and leaves room
+  // for future fields without a breaking change.
 }
+
+/**
+ * Internal factory — constructs the runtime adapter. Operator-facing
+ * `sharpAdapter()` wraps this. Kept public for tests and advanced wiring.
+ */
+export function createSharpAdapter(_opts: SharpAdapterOptions = {}): TransformAdapter {
+  return {
+    name: 'sharp',
+
+    primaryUrl(input: AssetUrlInput): string {
+      return buildAssetUrl({
+        name: input.name,
+        hash: input.hash,
+        ext: input.ext,
+        siteUrl: input.siteUrl,
+        selector: input.selector,
+      })
+    },
+
+    srcset(input: AssetUrlInput): string | null {
+      if (input.variants.length === 0) return null
+      return buildSrcset(input.variants, input.siteUrl)
+    },
+
+    cachePolicy(_input: AssetUrlInput): CachePolicy {
+      return IMMUTABLE_CACHE
+    },
+  }
+}
+
+/**
+ * Singleton sharp adapter shared by internal callers that need a default
+ * (resolver fallback when target has no `transforms` configured). Operator
+ * code should call the operator-facing `sharpAdapter()` factory exported
+ * from `gazetta` — both produce the same instance shape; this constant
+ * exists so the resolver doesn't construct a new one per render.
+ */
+export const defaultSharpAdapter: TransformAdapter = createSharpAdapter()
