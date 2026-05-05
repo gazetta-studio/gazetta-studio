@@ -49,9 +49,14 @@ import { rebuildDepIndex } from '../src/publish-rendered.js'
 import { FRAGMENT_DEPS } from '../src/fragment-deps.js'
 import { loadSite } from '../src/site-loader.js'
 import { hashManifest } from '../src/hash.js'
-import type { StorageProvider } from '../src/types.js'
+import type { SiteManifest, StorageProvider } from '../src/types.js'
 import type { TemplateInfo } from '../src/templates-scan.js'
 import { buildSyntheticSite } from './_helpers/synthetic-site.js'
+
+// Synthetic manifest for `loadSite` calls below. Cut 8 of the TS-config
+// migration removed YAML loading from site-loader; benches don't need a
+// real config since they exercise content discovery, not config evaluation.
+const syntheticManifest: SiteManifest = { name: 'Synthetic Site', locale: 'en' }
 
 const repoRoot = resolve(import.meta.dirname, '../../..')
 const tmpRoot = resolve(repoRoot, '.tmp/perf-deps')
@@ -128,7 +133,7 @@ async function setup(backend: BackendName, N: number): Promise<PreparedScenario>
   // writes at end-of-publish via publishDepIndices, and what the admin's
   // memoized `ensureFragmentDepsIndex` rebuilds on first /api/dependents
   // for a fresh dev server.
-  const site = await loadSite({ contentRoot: createContentRoot(storage, '') })
+  const site = await loadSite({ contentRoot: createContentRoot(storage, ''), manifest: syntheticManifest })
   await rebuildDepIndex(FRAGMENT_DEPS, site, storage, '')
   return { backend, N, storage, siteDir: '' }
 }
@@ -174,7 +179,7 @@ for (const s of scenarios) {
         await s.storage.rm('.gazetta/fragment-deps').catch(() => {
           /* missing dir = nothing to wipe */
         })
-        const site = await loadSite({ contentRoot })
+        const site = await loadSite({ contentRoot, manifest: syntheticManifest })
         await rebuildDepIndex(FRAGMENT_DEPS, site, s.storage, s.siteDir)
       },
       { time: 0, iterations: 2, warmupIterations: 0, throws: true },
@@ -206,7 +211,7 @@ for (const s of scenarios) {
     bench(
       'hashManifest × N (loadSite + hash all)',
       async () => {
-        const site = await loadSite({ contentRoot })
+        const site = await loadSite({ contentRoot, manifest: syntheticManifest })
         const templateHashes = new Map(STUB_TEMPLATES.map(t => [t.name, t.hash]))
         for (const [, frag] of site.fragments) hashManifest(frag, { templateHashes })
         for (const [, page] of site.pages) hashManifest(page, { templateHashes })
