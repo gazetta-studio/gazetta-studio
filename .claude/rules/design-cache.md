@@ -189,11 +189,14 @@ Example:
 - Provider stores: `pages:detail:very-long-page-name:en:light:role:editor:p:{sha256(rest).slice(0,8)}` (capped at 255)
 - Prefix invalidation on `pages:detail:very-long-page-name:` still works
 
-### Gap 3 — Multi-site key isolation
+### Gap 3 — Single-Site-per-process invariant
 
-- **Per-site `AdminCache` instances**: each site gets its own cache instance based on its `admin.cache` config (per `design-config.md`'s per-site config split)
-- **Shared-provider implementations** (Redis, Azure): auto-prefix keys with site name internally — operators can run one Redis instance shared across sites without manual key engineering
-- **Cross-site cache sharing not supported**: each site is an independent unit; preserves the architectural boundary
+Per the locked invariant in [`CONTEXT.md`](../../CONTEXT.md): each Gazetta runtime invocation loads exactly one Site. Multi-Site Projects exist as a layout concern (operator picks one Site per command), not a runtime concern.
+
+- **Per-process `AdminCache` instance**: one Site per process means one cache per process; isolation is automatic via process boundaries
+- **`gazetta.config.ts defaults.cache`**: accepts a constructed `AdminCache` instance (operator writes `defaults: { cache: memoryCache({...}) }`). Each process re-evaluates `gazetta.config.ts` and gets a fresh instance; no cross-Site sharing concern exists in-process because there are no other Sites in-process
+- **Shared-provider implementations** (Redis, Azure, future): the operator's deployment runs N Site processes, each connecting to the same Redis as one logical cache. Each process's local in-memory adapter wraps the shared backing service; no per-Site key prefixing required (Site identity is enforced at the process boundary)
+- **Cross-Site cache sharing across processes**: not a Gazetta concern. Two Site processes that happen to share Redis credentials get separate logical caches because each process keys against its own Site's content paths; collision requires intentional operator misconfiguration
 
 ### Gap 4 — Boot-time subscribe behavior
 
@@ -370,7 +373,7 @@ How cache composes with each of the other 12 foundational dimensions plus the mu
 - Shared providers (Redis, Azure) coordinate via their own atomicity primitives.
 - Deterministic-derived value principle (Q2 lock) ensures idempotent writes — two instances writing the same key write the same value; last-write-wins is a no-op.
 - `subscribe()` auto-reconnects with backoff (Q4 lock); full local cache reset on reconnect.
-- Per-site cache instances (Gap 3 lock); cross-site cache sharing not supported.
+- Single-Site-per-process invariant (Gap 3 lock; locked in `CONTEXT.md`); each process holds its own cache instance for the one Site it serves.
 
 ### Scale (#1)
 - `MemoryCache` capped at 10K entries / 50MB by default (Gap 1 lock); LRU eviction.
@@ -424,7 +427,7 @@ How cache composes with each of the other 12 foundational dimensions plus the mu
 - Comment counts and notification badges cached per page; invalidated on collaboration events when collaboration ships per `design-collaboration.md`.
 
 ### Site config (`design-config.md`)
-- Per-site `AdminCache` instance based on site's `admin.cache` config (Gap 3 lock).
+- One `AdminCache` instance per process, constructed at config-eval time. Operator's `cache:` field at site level (or `defaults.cache` at gazetta level) is a factory call returning the instance.
 - Config evaluated at boot; cache provider initialized once.
 - Dev hot-reload of config triggers full process restart for cache (graceful, simple).
 

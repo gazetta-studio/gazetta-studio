@@ -12,6 +12,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
+import { memoryCache } from '../src/cache/factories.js'
 import { defineSite, defineGazetta } from '../src/config/define.js'
 import { filesystemStorage } from '../src/providers/factories.js'
 import { SiteConfigSchema, GazettaConfigSchema } from '../src/config/schemas.js'
@@ -58,8 +59,9 @@ describe('defineGazetta identity function', () => {
       telemetry: false,
       dev: { port: 3000, hostname: 'localhost' },
       defaults: {
-        // Exception A — raw MemoryCache options at gazetta level.
-        cache: { maxEntries: 5000 },
+        // Path X — factory result. Single-Site-per-process invariant means
+        // each process re-evaluates this and gets a fresh instance.
+        cache: memoryCache({ maxEntries: 5000 }),
         audit: { provider: 'history' },
       },
       mcp: { enabled: true, port: 3100 },
@@ -183,8 +185,8 @@ describe('GazettaConfigSchema validation', () => {
       logLevel: 'debug',
       telemetry: false,
       dev: { port: 3000, hostname: 'localhost' },
-      // Exception A — typed MemoryCache options at gazetta level.
-      defaults: { cache: { maxEntries: 10000, maxBytes: 50_000_000 } },
+      // Path X — factory result. Schema treats it as opaque (z.unknown).
+      defaults: { cache: memoryCache({ maxEntries: 10000, maxBytes: 50_000_000 }) },
       mcp: { enabled: true, port: 3100 },
     })
     expect(result.success).toBe(true)

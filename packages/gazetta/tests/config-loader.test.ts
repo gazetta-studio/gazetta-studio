@@ -46,8 +46,13 @@ describe('loadGazettaConfig', () => {
     const result = await loadGazettaConfig(join(FIXTURES, 'with-global'))
     expect(result).not.toBeNull()
     expect(result?.logLevel).toBe('info')
-    // Exception A — raw MemoryCache options at gazetta level.
-    expect(result?.defaults?.cache).toEqual({ maxEntries: 5000 })
+    // defaults.cache is a constructed AdminCache instance (Path X). Per
+    // single-Site-per-process, the gazetta-level cache is inherited
+    // directly by the Site without per-Site reconstruction.
+    const cache = result?.defaults?.cache as { get?: unknown; set?: unknown } | undefined
+    expect(cache).toBeDefined()
+    expect(typeof cache?.get).toBe('function')
+    expect(typeof cache?.set).toBe('function')
     expect(result?.defaults?.audit).toEqual({ provider: 'history' })
   })
 })
@@ -140,23 +145,26 @@ describe('discoverSites — defaults flow', () => {
     const sites = await discoverSites(join(FIXTURES, 'with-global'), gazetta)
     expect(sites).toHaveLength(1)
     const site = sites[0]
-    // Site didn't set its own cache; loader builds a per-site `memoryCache`
-    // instance from `defaults.cache` raw options (Exception A — per-site
-    // isolation). The result is an `AdminCache` with the contract methods.
+    // Site didn't set its own cache; inherits the gazetta-level
+    // constructed AdminCache instance directly (Path X — single-Site-
+    // per-process invariant in CONTEXT.md).
     expect(site.config.cache).toBeDefined()
-    expect(typeof site.config.cache?.get).toBe('function')
-    expect(typeof site.config.cache?.set).toBe('function')
-    expect(typeof site.config.cache?.invalidate).toBe('function')
+    const cache = site.config.cache as { get?: unknown; set?: unknown; invalidate?: unknown } | undefined
+    expect(typeof cache?.get).toBe('function')
+    expect(typeof cache?.set).toBe('function')
+    expect(typeof cache?.invalidate).toBe('function')
     // Audit defaults still flow through `admin.audit` (audit foundation
     // hasn't migrated to Path X yet).
     expect(site.config.admin?.audit).toEqual({ provider: 'history' })
   })
 
-  it('builds independent cache instances per site (Gap 3 — per-site isolation)', async () => {
+  it('Site inherits the gazetta-level cache instance by reference (single-Site-per-process)', async () => {
     const gazetta = await loadGazettaConfig(join(FIXTURES, 'with-global'))
-    const a = await discoverSites(join(FIXTURES, 'with-global'), gazetta)
-    const b = await discoverSites(join(FIXTURES, 'with-global'), gazetta)
-    expect(a[0].config.cache).not.toBe(b[0].config.cache)
+    const sites = await discoverSites(join(FIXTURES, 'with-global'), gazetta)
+    // The Site receives the same instance the gazetta-level config
+    // produced — no per-Site reconstruction. Each process re-evaluates
+    // `gazetta.config.ts` separately and gets its own fresh instance.
+    expect(sites[0].config.cache).toBe(gazetta?.defaults?.cache)
   })
 })
 
@@ -166,9 +174,10 @@ describe('loadProjectConfig — top-level entry point', () => {
     expect(result.gazetta?.logLevel).toBe('info')
     expect(result.sites).toHaveLength(1)
     expect(result.sites[0].name).toBe('main')
-    // Defaults applied: site inherits a constructed cache from gazetta defaults.
+    // Defaults applied: site inherits the gazetta-level cache instance.
     expect(result.sites[0].config.cache).toBeDefined()
-    expect(typeof result.sites[0].config.cache?.get).toBe('function')
+    const cache = result.sites[0].config.cache as { get?: unknown } | undefined
+    expect(typeof cache?.get).toBe('function')
   })
 
   it('handles flat layout without gazetta config', async () => {

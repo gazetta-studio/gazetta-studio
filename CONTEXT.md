@@ -259,6 +259,8 @@ _Avoid_: Repo (mechanical, not domain), Workspace (collides with npm workspaces)
 
 **Site**:
 One brand or domain: a content tree (pages, fragments, assets), a Site Manifest (`site.config.ts`), and one or more Targets. Lives at `sites/{name}/` inside a Project. Multiple Sites per Project supported (agency / multi-brand setups). The Site is the natural unit of content; the Project is the natural unit of code-and-templates.
+
+**Locked invariant: one Site per process.** Each Gazetta runtime invocation (`gazetta dev`, `gazetta serve`, `gazetta publish`) loads exactly one Site. Multi-Site Projects exist as a *layout* concern — `sites/{a,b,c}/` coexist on disk — but the operator picks ONE per command (`gazetta dev site-a`). The runtime has no concept of multi-Site routing, multi-Site cache scoping, or cross-Site state. Multiple Sites in one Project means multiple processes, deployed independently. This invariant simplifies every foundational dimension (cache, auth, audit, hooks, plugins, offline) by removing per-Site isolation as a recurring concern.
 _Avoid_: Project (the Project contains the Site, not vice versa), Brand, Property, Tenant.
 
 **Workspace** (internal — npm tooling, not domain):

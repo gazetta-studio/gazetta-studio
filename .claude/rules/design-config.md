@@ -84,8 +84,10 @@ export default defineGazetta({
     hostname: 'localhost',
   },
   defaults: {
-    // Sites inherit unless overridden
-    cache: { provider: 'memory' },
+    // Sites inherit unless overridden. `cache` is a factory result
+    // (Path X — see ADR-0008); each gazetta process re-evaluates this
+    // config and gets a fresh instance.
+    cache: memoryCache({ maxEntries: 5000 }),
     audit: { provider: 'history' },
   },
   mcp: {
@@ -154,21 +156,25 @@ Fields belonging to site config: see existing dimension design docs (`design-i18
 
 `gazetta.config.ts` `defaults` field provides values that `site.config.ts` inherits per-field. Site config overrides per-field. **No deep merge for arrays** (plugins, hooks): arrays are explicit per site; different sites may want different plugins, so no inheritance.
 
+Defaults are factory results (constructed instances), not raw config data — Path X applies uniformly. Per the **single-Site-per-process invariant** (locked in `CONTEXT.md`), each Gazetta process loads exactly one Site, so the gazetta-level instance is inherited by the Site directly. No per-Site-instance reconstruction is needed because each process has its own evaluation of `gazetta.config.ts` and its own runtime memory.
+
 ```ts
 // gazetta.config.ts
+import { defineGazetta, memoryCache } from 'gazetta'
+
 export default defineGazetta({
   defaults: {
-    cache: { provider: 'memory' },
-    audit: { provider: 'history' },
+    cache: memoryCache({ maxEntries: 5000 }),  // factory result
+    audit: { provider: 'history' },             // (audit foundation hasn't migrated to Path X yet)
   },
 })
 
-// sites/main/site.config.ts — inherits cache; overrides audit
+// sites/main/site.config.ts — inherits cache instance; overrides audit
 export default defineSite({
   name: 'main',
+  // cache is unspecified → inherits the gazetta-level memoryCache instance
   admin: {
     audit: { providers: ['history', 'cloudwatch'] },  // overrides default
-    // cache is unspecified → inherits { provider: 'memory' }
   },
 })
 ```
