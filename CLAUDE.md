@@ -44,7 +44,7 @@ Stateless CMS that structures websites as composable fragments. All state lives 
 - `.claude/rules/feature-design-process.md` — How feature design + implementation works in Gazetta. The resumability contract (every kind of work has a designated durable artifact). Read when starting feature design or unsure where a piece of work belongs.
 - `.claude/rules/design-config.md` — Site config reference (companion to ADR-0005). TS config (`gazetta.config.ts` + `site.config.ts`) replacing YAML; identity functions; secrets handling; evaluation timing.
 - `.claude/rules/design-logging.md` — Operational logging reference. Structured JSON logs, levels, module namespacing, requestId correlation, privacy rules. Companion to `design-audit.md` (audit = forensic record; logs = operational signal; both run).
-- `.claude/rules/sidecars.md` — Internal mechanism docs for `.uses-`, `.tpl-`, `.{8hex}.hash`, asset-refs sidecars used for incremental publish + reverse-dep lookups
+- `.claude/rules/sidecars.md` — Internal mechanism docs for per-item sidecars (`.{8hex}.hash`, `.pub-{ts}`) and reverse-dep indices (`.gazetta/fragment-deps/`, `.gazetta/asset-refs/`) used for incremental publish + reverse-dep lookups
 
 ## Build & Test
 
