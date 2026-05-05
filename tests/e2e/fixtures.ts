@@ -89,14 +89,37 @@ export const test = base.extend<{ page: Page }, { testSite: TestSite; baseURL: s
       // that click [data-testid="publish-target-production"]. Using a local
       // filesystem target preserves the prod semantics (badge + confirmation
       // prompt via environment: production) without a network dependency.
+      //
+      // The starter is TS config now; locate the `production: {` block and
+      // walk its braces to find the matching close — regex on nested braces
+      // is brittle.
       const { readFile, writeFile: writeFileFs } = await import('node:fs/promises')
-      const siteYamlPath = resolve(projectDir, 'sites/main/site.yaml')
-      const yaml = await readFile(siteYamlPath, 'utf-8')
-      const patched = yaml.replace(
-        /production:\s*\n\s*storage:\s*\n\s*type: azure-blob[\s\S]*?container: "[^"]*"\s*\n\s*environment: production/,
-        'production:\n    environment: production\n    storage:\n      type: filesystem\n      path: ./dist/prod-test',
-      )
-      await writeFileFs(siteYamlPath, patched)
+      const siteConfigPath = resolve(projectDir, 'sites/main/site.config.ts')
+      const ts = await readFile(siteConfigPath, 'utf-8')
+      const startIdx = ts.indexOf('production: {')
+      if (startIdx === -1) {
+        throw new Error('Could not locate `production: {` in starter site.config.ts')
+      }
+      const openIdx = ts.indexOf('{', startIdx)
+      let depth = 1
+      let i = openIdx + 1
+      while (i < ts.length && depth > 0) {
+        const ch = ts[i]
+        if (ch === '{') depth++
+        else if (ch === '}') depth--
+        i++
+      }
+      if (depth !== 0) {
+        throw new Error('Unbalanced braces in starter site.config.ts production block')
+      }
+      let endIdx = i
+      if (ts[endIdx] === ',') endIdx++
+      const replacement =
+        `production: {\n` +
+        `      environment: 'production',\n` +
+        `      storage: { type: 'filesystem', path: './dist/prod-test' },\n` +
+        `    },`
+      await writeFileFs(siteConfigPath, ts.slice(0, startIdx) + replacement + ts.slice(endIdx))
 
       const server = spawnDev(projectDir, port)
       try {
