@@ -336,6 +336,7 @@ export function assetRoutes(resolve: SourceContextResolver) {
         storage: source.storage,
         site: source.manifest,
         target: targetConfig,
+        gazetta: source.gazettaManifest,
         locale,
       })
 

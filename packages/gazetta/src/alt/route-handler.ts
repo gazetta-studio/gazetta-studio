@@ -23,7 +23,7 @@
 import { readManifest } from '../assets/manifest.js'
 import { assetStoragePaths } from '../assets/asset-paths.js'
 import { AssetManifestNotFoundError } from '../assets/errors.js'
-import type { SiteManifest, StorageProvider, TargetConfig } from '../types.js'
+import type { GazettaManifest, SiteManifest, StorageProvider, TargetConfig } from '../types.js'
 import { buildAltAdapter } from './factory.js'
 import { resolveAltConfig } from './config.js'
 import { createAltSuggester } from './suggester.js'
@@ -54,6 +54,8 @@ export interface SuggestAltOptions {
   site: Pick<SiteManifest, 'ai' | 'altText'>
   /** Resolved target config (target-level overrides applied via factory). */
   target: Pick<TargetConfig, 'altText'> | undefined
+  /** Optional gazetta-level manifest; first rung of the three-rung chain. */
+  gazetta?: Pick<GazettaManifest, 'ai' | 'altText'>
   /** Locale to generate alt in. Defaults to 'en' upstream. */
   locale: string
   /** Optional AbortSignal forwarded to the adapter. */
@@ -68,7 +70,7 @@ export interface SuggestAltOptions {
 export async function suggestAltForAsset(opts: SuggestAltOptions): Promise<SuggestAltResult> {
   // Resolve config first to validate the feature is configured for
   // this site/target. No adapter construction yet — cheap.
-  const resolved = resolveAltConfig(opts.site, opts.target)
+  const resolved = resolveAltConfig(opts.site, opts.target, opts.gazetta)
   if (!resolved) {
     return {
       kind: 'unavailable',
@@ -93,16 +95,16 @@ export async function suggestAltForAsset(opts: SuggestAltOptions): Promise<Sugge
     throw err
   }
 
-  // Build the adapter via the factory. Returns nullAltAdapter when
-  // credentials are missing — the suggester's `available()` check
+  // Build the adapter via the factory. Returns nullAltAdapter when no
+  // provider is configured — the suggester's `available()` check
   // surfaces this as `false` and we map to 503.
-  const adapter = buildAltAdapter(opts.site, opts.target)
+  const adapter = buildAltAdapter(opts.site, opts.target, opts.gazetta)
   const suggester = createAltSuggester({ adapter })
 
   if (!suggester.available(manifest.mime)) {
     return {
       kind: 'unavailable',
-      message: `AI alt-text adapter unavailable. Check that '${resolved.provider}' credentials are set in .env.local and that the asset MIME (${manifest.mime}) is supported.`,
+      message: `AI alt-text adapter unavailable. Check that '${resolved.provider.name}' credentials are valid and that the asset MIME (${manifest.mime}) is supported.`,
     }
   }
 

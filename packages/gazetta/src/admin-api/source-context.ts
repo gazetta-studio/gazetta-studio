@@ -9,7 +9,7 @@
  * TargetRegistry's selected editable target with no changes to routes.
  */
 
-import type { StorageProvider, SiteManifest } from '../types.js'
+import type { GazettaManifest, StorageProvider, SiteManifest } from '../types.js'
 import { createContentRoot, type ContentRoot } from '../content-root.js'
 import { loadSite, type Site, type LoadSiteOptions } from '../site-loader.js'
 import type { TargetRegistry } from '../targets.js'
@@ -57,6 +57,12 @@ export interface SourceContext {
    * discovery works without a target-level site.config.ts.
    */
   readonly manifest?: SiteManifest
+  /**
+   * Project-level Gazetta manifest — read once from gazetta.config.ts at
+   * boot. Carries cross-site defaults inherited via the three-rung chain
+   * (gazetta → site → target). Absent when no `gazetta.config.ts` exists.
+   */
+  readonly gazettaManifest?: GazettaManifest
 }
 
 /**
@@ -76,6 +82,8 @@ export interface CreateSourceContextOptions {
   history?: HistoryProvider
   /** Project-level site manifest — passed to loadSite so targets don't need their own site config. */
   manifest?: SiteManifest
+  /** Optional gazetta-level manifest; first rung of the three-rung config chain. */
+  gazettaManifest?: GazettaManifest
 }
 
 export function createSourceContext(opts: CreateSourceContextOptions): SourceContext {
@@ -86,6 +94,7 @@ export function createSourceContext(opts: CreateSourceContextOptions): SourceCon
     contentRoot: createContentRoot(opts.storage, opts.siteDir),
     history: opts.history,
     manifest: opts.manifest,
+    gazettaManifest: opts.gazettaManifest,
   }
 }
 
@@ -117,6 +126,8 @@ export interface SourceContextFromRegistryOptions {
   buildHistory?: BuildHistory
   /** Project-level site manifest. */
   manifest?: SiteManifest
+  /** Optional gazetta-level manifest. */
+  gazettaManifest?: GazettaManifest
 }
 
 /**
@@ -134,6 +145,7 @@ export function createSourceContextFromRegistry(opts: SourceContextFromRegistryO
       projectSiteDir: opts.projectSiteDir,
       history: opts.buildHistory?.(name, storage),
       manifest: opts.manifest,
+      gazettaManifest: opts.gazettaManifest,
     }),
     targetName: name,
   }
@@ -184,6 +196,8 @@ export interface RegistrySourceResolverOptions {
   buildHistory?: BuildHistory
   /** Project-level site manifest. */
   manifest?: SiteManifest
+  /** Optional gazetta-level manifest. */
+  gazettaManifest?: GazettaManifest
 }
 
 /**
@@ -218,6 +232,7 @@ export function registrySourceResolver(opts: RegistrySourceResolverOptions): Sou
       buildHistory: opts.buildHistory,
       siteDir: opts.siteDir,
       manifest: opts.manifest,
+      gazettaManifest: opts.gazettaManifest,
     })
     cache.set(name, ctx)
     return ctx

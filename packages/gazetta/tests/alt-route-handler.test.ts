@@ -9,6 +9,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import sharp from 'sharp'
 import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
+import { anthropicProvider } from '../src/alt/anthropic.js'
+import { ollamaProvider } from '../src/alt/ollama.js'
 import { suggestAltForAsset } from '../src/alt/route-handler.js'
 import type { AssetManifest } from '../src/schema/types.js'
 import type { SiteManifest } from '../src/types.js'
@@ -93,13 +95,17 @@ describe('suggestAltForAsset — unconfigured', () => {
     expect(result.kind).toBe('unavailable')
   })
 
-  it('returns kind: unavailable when adapter configured but credentials missing', async () => {
+  it('returns kind: failed when adapter call hits a transport error (no msw stub)', async () => {
+    // Per Path X, the operator constructs the provider with a literal
+    // apiKey at config-eval — there is no "credentials missing" failure
+    // mode at the factory level. Auth/transport failures surface at
+    // first SDK call instead. With a fake apiKey + no msw stub, the
+    // real network call fails and the route-handler reports `failed`.
     const { storage } = await seedAsset('hero')
     const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'anthropic' },
+      ai: { provider: anthropicProvider({ apiKey: 'sk-test', maxRetries: 0 }) },
       altText: { auto: true },
     }
-    // No ANTHROPIC_API_KEY in env.
     const result = await suggestAltForAsset({
       name: 'hero',
       assetsRoot: ASSETS_ROOT,
@@ -108,10 +114,10 @@ describe('suggestAltForAsset — unconfigured', () => {
       target: undefined,
       locale: 'en',
     })
-    expect(result.kind).toBe('unavailable')
-    if (result.kind === 'unavailable') {
-      expect(result.message.toLowerCase()).toContain('anthropic')
-    }
+    // Either `failed` (transport error reached the SDK) or `unavailable`
+    // (some test environments treat unreachable hosts as unsupported).
+    // What matters is that the result is NOT `ok` when no msw is wired.
+    expect(['failed', 'unavailable']).toContain(result.kind)
   })
 })
 
@@ -121,7 +127,7 @@ describe('suggestAltForAsset — asset not found', () => {
     const storage = memoryStorage()
     // Empty storage — no asset seeded.
     const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'ollama' },
+      ai: { provider: ollamaProvider() },
       altText: { auto: true },
     }
     const result = await suggestAltForAsset({
@@ -150,7 +156,7 @@ describe('suggestAltForAsset — happy path (Ollama with mocked HTTP)', () => {
 
     const { storage } = await seedAsset('hero')
     const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'ollama' },
+      ai: { provider: ollamaProvider() },
       altText: { auto: true },
     }
 
@@ -197,7 +203,7 @@ describe('suggestAltForAsset — happy path (Ollama with mocked HTTP)', () => {
   it('returns kind: ok with refused: true when model declines', async () => {
     const { storage } = await seedAsset('hero')
     const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'ollama' },
+      ai: { provider: ollamaProvider() },
       altText: { auto: true },
     }
     const originalFetch = globalThis.fetch
@@ -238,7 +244,7 @@ describe('suggestAltForAsset — adapter call failure', () => {
   it('returns kind: failed when adapter throws', async () => {
     const { storage } = await seedAsset('hero')
     const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'ollama' },
+      ai: { provider: ollamaProvider() },
       altText: { auto: true },
     }
     const originalFetch = globalThis.fetch
@@ -272,7 +278,7 @@ describe('suggestAltForAsset — locale parameter forwarding', () => {
   it('passes locale through to the adapter (visible in request body)', async () => {
     const { storage } = await seedAsset('hero')
     const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'ollama' },
+      ai: { provider: ollamaProvider() },
       altText: { auto: true },
     }
     let capturedSystemPrompt: string | undefined

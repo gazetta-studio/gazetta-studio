@@ -128,14 +128,34 @@ export {
 } from './transforms/index.js'
 
 // Cache provider factories — operator-facing (Path X). Operators import
-// these into `site.config.ts` and call them inline at the `cache:` field;
-// `gazetta.config.ts defaults.cache` accepts raw options instead per
-// Exception A in ADR-0008 (per-site isolation).
+// these into `site.config.ts` and call them inline at the `cache:` field.
+// Per the single-Site-per-process invariant (CONTEXT.md), gazetta-level
+// `defaults.cache` accepts the same factory result; each process gets a
+// fresh instance from re-evaluating `gazetta.config.ts`.
 export { memoryCache, type MemoryCacheOptions } from './cache/factories.js'
 
 // Internal cache provider factories — kept public for tests + advanced wiring.
 export { createMemoryCache } from './cache/memory.js'
 export type { AdminCache, CacheStats, InvalidationEvent } from './cache/types.js'
+
+// AI provider factories — operator-facing (Path X). Operators import
+// these into `site.config.ts` / `gazetta.config.ts` and call them inline:
+//   const anthropic = anthropicProvider({ apiKey: process.env.ANTHROPIC_API_KEY! })
+//   ai: { provider: anthropic, model: 'claude-haiku-4-5' }
+// Provider transports are reusable across tasks (alt-text today; future
+// translation, summarization). Per-task config (model, systemPrompt,
+// maxTokens) lives in data-literal blocks the resolver feeds to
+// `provider.altText({...})` at boot.
+export { anthropicProvider, type AnthropicTransportOptions } from './alt/anthropic.js'
+export { openaiProvider, type OpenAITransportOptions } from './alt/openai.js'
+export { ollamaProvider, type OllamaTransportOptions } from './alt/ollama.js'
+export { type AIProvider, type AltTextTaskConfig, PROVIDER_DEFAULT_MODELS } from './ai/provider.js'
+
+// Internal AI factories — kept public for tests + advanced wiring.
+export { createAnthropicAltAdapter, type AnthropicAltAdapterOptions } from './alt/anthropic.js'
+export { createOpenAIAltAdapter, type OpenAIAltAdapterOptions } from './alt/openai.js'
+export { createOllamaAltAdapter, type OllamaAltAdapterOptions } from './alt/ollama.js'
+export type { AltTextAdapter, AltGenerateInput, AltSuggestion, AltRequest, AltStyle } from './alt/adapter.js'
 
 // Targets
 export { createTargetRegistry } from './targets.js'

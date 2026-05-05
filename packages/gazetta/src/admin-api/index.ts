@@ -127,6 +127,7 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
       registry,
       projectSiteDir: source.projectSiteDir,
       manifest: source.manifest,
+      gazettaManifest: source.gazettaManifest,
       // The registry's filesystem targets are already content-rooted
       // (path=./targets/<key>); siteDir on the resolved context is empty.
       siteDir: '',

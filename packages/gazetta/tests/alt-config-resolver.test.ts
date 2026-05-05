@@ -1,272 +1,274 @@
 /**
- * Unit tests for `alt/config.ts` — resolves alt-text config from
- * site `ai:` + site `altText:` + target `altText:` layers.
+ * Tests for `resolveAltConfig` — the three-rung inheritance chain
+ * (target → site → gazetta) that produces a `ResolvedAltConfig`.
  *
- * Pure function tests. No env mocking, no SDK construction.
+ * Per Phase 4 of the Path X migration: `provider` is a constructed
+ * `AIProvider` instance (not a string discriminator); `model`,
+ * `systemPrompt`, `maxTokens` are data literals inheriting per-field
+ * across rungs.
  */
 import { describe, expect, it } from 'vitest'
+import { anthropicProvider } from '../src/alt/anthropic.js'
+import { openaiProvider } from '../src/alt/openai.js'
 import { resolveAltConfig } from '../src/alt/config.js'
-import type { SiteManifest, TargetConfig } from '../src/types.js'
+import type { AIProvider } from '../src/ai/provider.js'
+import { MAX_EDGE } from '../src/ai/vision-prep.js'
+import type { GazettaManifest, SiteManifest, TargetConfig } from '../src/types.js'
+
+// Constructed provider instances reused across tests. Per-task config
+// (model, systemPrompt, maxTokens) flows through the resolver chain;
+// the provider transport stays constant.
+const anthropic: AIProvider = anthropicProvider({ apiKey: 'sk-ant-test' })
+const openai: AIProvider = openaiProvider({ apiKey: 'sk-oai-test' })
 
 describe('resolveAltConfig — null cases', () => {
-  it('returns null when nothing is configured', () => {
+  it('returns null when no provider configured anywhere', () => {
     const site: Pick<SiteManifest, 'ai' | 'altText'> = {}
     expect(resolveAltConfig(site, undefined)).toBeNull()
   })
 
-  it('returns null when ai: is set but altText: is missing AND ai has no provider for tasks to inherit', () => {
-    // ai: must have provider; ai with provider but no altText block is
-    // legitimately unconfigured for the alt-text task — the operator
-    // didn't opt in to alt-text.
+  it('returns null when ai: is set but provider is absent', () => {
     const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'anthropic' },
+      ai: { model: 'claude-haiku-4-5' },
     }
-    // Without altText block, resolver still returns a result because
-    // the provider is set. But we expect provider inheritance to work
-    // even from an empty altText block. The "unconfigured" answer
-    // requires neither block present.
-    const result = resolveAltConfig(site, undefined)
-    // With ai but no altText, the implementation infers the task is
-    // configured via inheritance — provider comes from ai.
-    expect(result).not.toBeNull()
-    expect(result?.provider).toBe('anthropic')
+    expect(resolveAltConfig(site, undefined)).toBeNull()
   })
 
-  it('returns null when altText is set but has no provider AND no ai block', () => {
-    // The block is present but no provider can be derived.
+  it('returns null when only behavior fields present (no provider)', () => {
     const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      altText: { auto: true },
+      altText: { systemPrompt: 'voice', maxTokens: 300 },
     }
     expect(resolveAltConfig(site, undefined)).toBeNull()
   })
 })
 
-describe('resolveAltConfig — provider resolution', () => {
-  it('uses altText.provider when set', () => {
+describe('resolveAltConfig — provider resolution (three-rung chain)', () => {
+  it('uses site.ai.provider when set', () => {
     const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      altText: { provider: 'anthropic' },
+      ai: { provider: anthropic },
     }
-    expect(resolveAltConfig(site, undefined)?.provider).toBe('anthropic')
+    expect(resolveAltConfig(site, undefined)?.provider).toBe(anthropic)
   })
 
-  it('inherits from ai.provider when altText.provider is unset', () => {
-    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'openai' },
-      altText: { auto: true },
+  it('inherits from gazetta.ai.provider when site has none', () => {
+    const gazetta: Pick<GazettaManifest, 'ai' | 'altText'> = {
+      ai: { provider: anthropic },
     }
-    expect(resolveAltConfig(site, undefined)?.provider).toBe('openai')
+    const site: Pick<SiteManifest, 'ai' | 'altText'> = {}
+    expect(resolveAltConfig(site, undefined, gazetta)?.provider).toBe(anthropic)
   })
 
-  it('altText.provider wins over ai.provider', () => {
-    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'anthropic' },
-      altText: { provider: 'openai' },
+  it('site.ai.provider wins over gazetta.ai.provider', () => {
+    const gazetta: Pick<GazettaManifest, 'ai' | 'altText'> = {
+      ai: { provider: anthropic },
     }
-    expect(resolveAltConfig(site, undefined)?.provider).toBe('openai')
+    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
+      ai: { provider: openai },
+    }
+    expect(resolveAltConfig(site, undefined, gazetta)?.provider).toBe(openai)
   })
 
-  it('target cannot override provider (provider is operationally global)', () => {
-    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'anthropic' },
+  it('target.altText.ai.provider wins over site and gazetta', () => {
+    const gazetta: Pick<GazettaManifest, 'ai' | 'altText'> = {
+      ai: { provider: anthropic },
     }
-    // Target has no `provider` field on AltTextTargetConfig — TypeScript
-    // forbids it. We just verify provider resolves from site.
-    const target: Pick<TargetConfig, 'altText'> = { altText: { auto: false } }
-    expect(resolveAltConfig(site, target)?.provider).toBe('anthropic')
+    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
+      ai: { provider: anthropic },
+    }
+    const target: Pick<TargetConfig, 'altText'> = {
+      altText: { ai: { provider: openai } },
+    }
+    expect(resolveAltConfig(site, target, gazetta)?.provider).toBe(openai)
   })
 })
 
 describe('resolveAltConfig — model resolution', () => {
-  it('uses provider default when no model is set anywhere', () => {
+  it('falls back to PROVIDER_DEFAULT_MODELS when no model anywhere in chain', () => {
     const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'anthropic' },
+      ai: { provider: anthropic },
     }
     expect(resolveAltConfig(site, undefined)?.model).toBe('claude-haiku-4-5')
   })
 
-  it('uses provider default for openai when no model set', () => {
+  it('uses site.ai.model when set', () => {
     const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'openai' },
-    }
-    expect(resolveAltConfig(site, undefined)?.model).toBe('gpt-4o-mini')
-  })
-
-  it('uses provider default for ollama when no model set', () => {
-    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'ollama' },
-    }
-    expect(resolveAltConfig(site, undefined)?.model).toBe('llama3.2-vision:11b')
-  })
-
-  it('uses ai.defaultModel when set (overrides provider default)', () => {
-    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'anthropic', defaultModel: 'claude-sonnet-4-5' },
+      ai: { provider: anthropic, model: 'claude-sonnet-4-5' },
     }
     expect(resolveAltConfig(site, undefined)?.model).toBe('claude-sonnet-4-5')
   })
 
-  it('altText.model wins over ai.defaultModel', () => {
-    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'anthropic', defaultModel: 'claude-haiku-4-5' },
-      altText: { model: 'claude-sonnet-4-5' },
+  it('inherits from gazetta.ai.model when site has none', () => {
+    const gazetta: Pick<GazettaManifest, 'ai' | 'altText'> = {
+      ai: { provider: anthropic, model: 'claude-opus-4-7' },
     }
-    expect(resolveAltConfig(site, undefined)?.model).toBe('claude-sonnet-4-5')
+    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
+      ai: { provider: anthropic },
+    }
+    expect(resolveAltConfig(site, undefined, gazetta)?.model).toBe('claude-opus-4-7')
   })
 
-  it('target.altText.model wins over site.altText.model', () => {
+  it('target.altText.ai.model wins over site, gazetta, and provider default', () => {
+    const gazetta: Pick<GazettaManifest, 'ai' | 'altText'> = {
+      ai: { provider: anthropic, model: 'claude-haiku-4-5' },
+    }
     const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'anthropic' },
-      altText: { model: 'claude-haiku-4-5' },
+      ai: { provider: anthropic, model: 'claude-sonnet-4-5' },
     }
     const target: Pick<TargetConfig, 'altText'> = {
-      altText: { model: 'claude-opus-4-7' },
+      altText: { ai: { model: 'claude-opus-4-7' } },
     }
-    expect(resolveAltConfig(site, target)?.model).toBe('claude-opus-4-7')
+    expect(resolveAltConfig(site, target, gazetta)?.model).toBe('claude-opus-4-7')
+  })
+
+  it('uses different per-provider defaults when provider differs', () => {
+    const siteAnthropic: Pick<SiteManifest, 'ai' | 'altText'> = {
+      ai: { provider: anthropic },
+    }
+    const siteOpenai: Pick<SiteManifest, 'ai' | 'altText'> = {
+      ai: { provider: openai },
+    }
+    expect(resolveAltConfig(siteAnthropic, undefined)?.model).toBe('claude-haiku-4-5')
+    expect(resolveAltConfig(siteOpenai, undefined)?.model).toBe('gpt-4o-mini')
   })
 })
 
-describe('resolveAltConfig — auto resolution', () => {
-  it('defaults to true when nothing is set', () => {
+describe('resolveAltConfig — systemPrompt resolution', () => {
+  it('null when no systemPrompt anywhere in chain', () => {
     const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'anthropic' },
+      ai: { provider: anthropic },
+    }
+    expect(resolveAltConfig(site, undefined)?.systemPrompt).toBeNull()
+  })
+
+  it('uses site.altText.systemPrompt when set', () => {
+    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
+      ai: { provider: anthropic },
+      altText: { systemPrompt: 'site voice' },
+    }
+    expect(resolveAltConfig(site, undefined)?.systemPrompt).toBe('site voice')
+  })
+
+  it('inherits from gazetta.altText.systemPrompt when site has none', () => {
+    const gazetta: Pick<GazettaManifest, 'ai' | 'altText'> = {
+      altText: { systemPrompt: 'agency voice' },
+    }
+    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
+      ai: { provider: anthropic },
+    }
+    expect(resolveAltConfig(site, undefined, gazetta)?.systemPrompt).toBe('agency voice')
+  })
+
+  it('target.altText.ai.systemPrompt wins over site and gazetta', () => {
+    const gazetta: Pick<GazettaManifest, 'ai' | 'altText'> = {
+      altText: { systemPrompt: 'agency voice' },
+    }
+    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
+      ai: { provider: anthropic },
+      altText: { systemPrompt: 'site voice' },
+    }
+    const target: Pick<TargetConfig, 'altText'> = {
+      altText: { ai: { systemPrompt: 'prod voice' } },
+    }
+    expect(resolveAltConfig(site, target, gazetta)?.systemPrompt).toBe('prod voice')
+  })
+})
+
+describe('resolveAltConfig — maxTokens resolution', () => {
+  it('undefined when no maxTokens anywhere', () => {
+    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
+      ai: { provider: anthropic },
+    }
+    expect(resolveAltConfig(site, undefined)?.maxTokens).toBeUndefined()
+  })
+
+  it('inherits per-rung', () => {
+    const gazetta: Pick<GazettaManifest, 'ai' | 'altText'> = {
+      altText: { maxTokens: 200 },
+    }
+    const site1: Pick<SiteManifest, 'ai' | 'altText'> = {
+      ai: { provider: anthropic },
+    }
+    expect(resolveAltConfig(site1, undefined, gazetta)?.maxTokens).toBe(200)
+
+    const site2: Pick<SiteManifest, 'ai' | 'altText'> = {
+      ai: { provider: anthropic },
+      altText: { maxTokens: 300 },
+    }
+    expect(resolveAltConfig(site2, undefined, gazetta)?.maxTokens).toBe(300)
+
+    const target: Pick<TargetConfig, 'altText'> = {
+      altText: { ai: { maxTokens: 400 } },
+    }
+    expect(resolveAltConfig(site2, target, gazetta)?.maxTokens).toBe(400)
+  })
+})
+
+describe('resolveAltConfig — behavior fields (auto, maxImageEdge)', () => {
+  it('defaults auto to true', () => {
+    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
+      ai: { provider: anthropic },
     }
     expect(resolveAltConfig(site, undefined)?.auto).toBe(true)
   })
 
-  it('uses site.altText.auto when set', () => {
+  it('site.altText.auto wins when set', () => {
     const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'anthropic' },
+      ai: { provider: anthropic },
       altText: { auto: false },
     }
     expect(resolveAltConfig(site, undefined)?.auto).toBe(false)
   })
 
-  it('target.altText.auto wins over site.altText.auto', () => {
+  it('target.altText.auto wins over site', () => {
     const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'anthropic' },
+      ai: { provider: anthropic },
       altText: { auto: true },
     }
     const target: Pick<TargetConfig, 'altText'> = { altText: { auto: false } }
     expect(resolveAltConfig(site, target)?.auto).toBe(false)
   })
 
-  it('common pattern: prod target overrides default auto:true to false', () => {
+  it('defaults maxImageEdge to MAX_EDGE', () => {
     const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'anthropic' },
-      // site default: auto: true (review-friendly for staging/local)
+      ai: { provider: anthropic },
     }
-    const prodTarget: Pick<TargetConfig, 'altText'> = {
-      altText: { auto: false }, // review-first on prod
+    expect(resolveAltConfig(site, undefined)?.maxImageEdge).toBe(MAX_EDGE)
+  })
+
+  it('target.altText.maxImageEdge wins over site', () => {
+    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
+      ai: { provider: anthropic },
+      altText: { maxImageEdge: 1024 },
     }
-    expect(resolveAltConfig(site, prodTarget)?.auto).toBe(false)
-    // And local target inherits site default.
-    expect(resolveAltConfig(site, undefined)?.auto).toBe(true)
+    const target: Pick<TargetConfig, 'altText'> = { altText: { maxImageEdge: 2048 } }
+    expect(resolveAltConfig(site, target)?.maxImageEdge).toBe(2048)
   })
 })
 
-describe('resolveAltConfig — maxImageEdge resolution', () => {
-  it('defaults to 768 when nothing is set', () => {
-    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'anthropic' },
+describe('resolveAltConfig — full chain scenario', () => {
+  it('full three-rung scenario: gazetta provider + site model + target prompt', () => {
+    const gazetta: Pick<GazettaManifest, 'ai' | 'altText'> = {
+      ai: { provider: anthropic, model: 'claude-haiku-4-5' },
+      altText: { systemPrompt: 'agency voice', maxTokens: 200 },
     }
-    expect(resolveAltConfig(site, undefined)?.maxImageEdge).toBe(768)
-  })
-
-  it('uses site.altText.maxImageEdge when set', () => {
     const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'anthropic' },
-      altText: { maxImageEdge: 1024 },
-    }
-    expect(resolveAltConfig(site, undefined)?.maxImageEdge).toBe(1024)
-  })
-
-  it('target.altText.maxImageEdge wins over site.altText.maxImageEdge', () => {
-    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'anthropic' },
-      altText: { maxImageEdge: 768 },
+      ai: { model: 'claude-sonnet-4-5' }, // overrides model only
+      altText: { auto: false }, // overrides behavior
     }
     const target: Pick<TargetConfig, 'altText'> = {
-      altText: { maxImageEdge: 1568 },
+      altText: {
+        ai: { systemPrompt: 'prod-specific voice' }, // overrides systemPrompt
+        maxImageEdge: 1024, // overrides behavior
+      },
     }
-    expect(resolveAltConfig(site, target)?.maxImageEdge).toBe(1568)
-  })
-})
 
-describe('resolveAltConfig — full integration cases', () => {
-  it('typical site config: ai with anthropic, altText opted in with defaults', () => {
-    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'anthropic', defaultModel: 'claude-haiku-4-5' },
-      altText: { auto: true },
-    }
-    expect(resolveAltConfig(site, undefined)).toEqual({
-      provider: 'anthropic',
-      model: 'claude-haiku-4-5',
-      auto: true,
-      maxImageEdge: 768,
-    })
-  })
-
-  it('site with self-hosted ollama, prod target opts out of auto', () => {
-    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'ollama' },
-      altText: { auto: true },
-    }
-    const prodTarget: Pick<TargetConfig, 'altText'> = {
-      altText: { auto: false },
-    }
-    expect(resolveAltConfig(site, prodTarget)).toEqual({
-      provider: 'ollama',
-      model: 'llama3.2-vision:11b',
-      auto: false,
-      maxImageEdge: 768,
-    })
-  })
-
-  it('site with text-heavy assets bumps maxImageEdge globally', () => {
-    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'openai' },
-      altText: { maxImageEdge: 1024 },
-    }
-    expect(resolveAltConfig(site, undefined)?.maxImageEdge).toBe(1024)
-  })
-
-  it('multi-target site: each target inherits unless overriding', () => {
-    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'anthropic' },
-      altText: { auto: true, maxImageEdge: 768 },
-    }
-    const localTarget: Pick<TargetConfig, 'altText'> | undefined = undefined
-    const prodTarget: Pick<TargetConfig, 'altText'> = { altText: { auto: false } }
-
-    const local = resolveAltConfig(site, localTarget)
-    const prod = resolveAltConfig(site, prodTarget)
-
-    expect(local?.auto).toBe(true)
-    expect(prod?.auto).toBe(false)
-    expect(local?.provider).toBe(prod?.provider)
-    expect(local?.model).toBe(prod?.model)
-    expect(local?.maxImageEdge).toBe(prod?.maxImageEdge)
-  })
-})
-
-describe('resolveAltConfig — pure function properties', () => {
-  it('returns a fresh object each call (no mutation hazards)', () => {
-    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'anthropic' },
-    }
-    const a = resolveAltConfig(site, undefined)
-    const b = resolveAltConfig(site, undefined)
-    expect(a).not.toBe(b)
-    expect(a).toEqual(b)
-  })
-
-  it('does not mutate input', () => {
-    const site: Pick<SiteManifest, 'ai' | 'altText'> = {
-      ai: { provider: 'anthropic' },
-      altText: { auto: true },
-    }
-    const before = JSON.stringify(site)
-    resolveAltConfig(site, undefined)
-    expect(JSON.stringify(site)).toBe(before)
+    const resolved = resolveAltConfig(site, target, gazetta)
+    expect(resolved).not.toBeNull()
+    expect(resolved?.provider).toBe(anthropic) // inherited from gazetta
+    expect(resolved?.model).toBe('claude-sonnet-4-5') // overridden at site
+    expect(resolved?.systemPrompt).toBe('prod-specific voice') // overridden at target
+    expect(resolved?.maxTokens).toBe(200) // inherited from gazetta
+    expect(resolved?.auto).toBe(false) // overridden at site
+    expect(resolved?.maxImageEdge).toBe(1024) // overridden at target
   })
 })
