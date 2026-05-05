@@ -175,7 +175,7 @@ unreferenced blobs.
 export default defineSite({
   targets: {
     staging: {
-      storage: { type: 'filesystem', path: './dist/staging' },
+      storage: filesystemStorage({ path: './dist/staging' }),
       history: {
         enabled: true,      // default; set to false to skip .gazetta/history/ entirely
         retention: 100,     // default 50

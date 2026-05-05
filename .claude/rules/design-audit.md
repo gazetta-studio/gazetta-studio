@@ -203,6 +203,12 @@ For HIPAA / SOC 2 compliance contexts where "audit recording confirmed successfu
 
 Zero-config default — `HistoryAuditProvider` runs automatically; no `admin.audit` block needed.
 
+> **Path X migration note**: the operator-config examples below predate the
+> Path X factory-call shape (per [`design-provider-config.md`](design-provider-config.md)).
+> When audit foundation ships, it'll move to Pattern 3 (multi-provider fan-out):
+> `audit: auditChain([historyAudit(), cloudwatchAudit({ logGroup: 'gazetta-audit' })], { strict: false, actorPseudonym: 'sha256' })`.
+> The string-discriminator `provider: 'name'` shape below is pre-cutover and will not ship.
+
 ```ts
 // Single-string Provider name
 export default defineSite({

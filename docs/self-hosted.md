@@ -21,17 +21,14 @@ Same assembly logic as the [Cloudflare deployment](./cloudflare.md), but runs on
 
 ```ts
 // site.config.ts
-import { defineSite } from 'gazetta'
+import { defineSite, filesystemStorage } from 'gazetta'
 
 export default defineSite({
   name: 'My Site',
   targets: {
     production: {
       environment: 'production',           // default is 'local'; opt this one into 'production' for admin UI confirmation
-      storage: {
-        type: 'filesystem',
-        path: './dist/production',
-      },
+      storage: filesystemStorage({ path: './dist/production' }),
       siteUrl: 'https://mysite.com',
       cache: {
         browser: 0,
@@ -42,14 +39,14 @@ export default defineSite({
 })
 ```
 
-Any storage type works:
+Any storage provider works (operators import the factory from `gazetta`):
 
-| Storage | Config |
-|---------|--------|
-| Filesystem | `type: filesystem`, `path: ./dist/production` |
-| S3 / MinIO | `type: s3`, `endpoint`, `bucket`, `accessKeyId`, `secretAccessKey` |
-| R2 | `type: r2`, `accountId`, `bucket` |
-| Azure Blob | `type: azure-blob`, `connectionString`, `container` |
+| Storage | Factory call |
+|---------|--------------|
+| Filesystem | `filesystemStorage({ path: './dist/production' })` |
+| S3 / MinIO | `s3Storage({ endpoint, bucket, accessKeyId, secretAccessKey })` |
+| R2 | `r2Storage({ accountId, bucket, accessKeyId, secretAccessKey })` |
+| Azure Blob | `azureBlobStorage({ connectionString, container })` |
 
 ### 2. Build + Publish
 

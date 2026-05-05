@@ -136,29 +136,29 @@ content; uploads always succeed regardless.
 
 #### Configuring AI alt-text
 
-Two layers in `site.config.ts`:
+Two layers in `site.config.ts`. The provider transport is a factory
+call (carries credentials); per-task knobs are data literals:
 
 ```ts
-import { defineSite } from 'gazetta'
+import { defineSite, anthropicProvider } from 'gazetta'
 
 export default defineSite({
-  // Cross-task AI configuration — provider account choice
+  // Cross-task AI configuration — provider transport (factory call) + cross-task model
   ai: {
-    provider: 'anthropic',            // anthropic | openai | ollama
-    defaultModel: 'claude-haiku-4-5', // optional; per-provider sensible default
+    provider: anthropicProvider({ apiKey: process.env.ANTHROPIC_API_KEY! }),
+    model: 'claude-haiku-4-5',        // optional; per-provider sensible default
   },
 
-  // Per-task config — alt-text behavior
+  // Per-task config — alt-text behavior + tuning
   altText: {
-    auto: true,                       // default; auto-fire on upload
-    maxImageEdge: 768,                // default; vision-call image-resize cap
-    // model: 'claude-sonnet-4-5',    // optional override of ai.defaultModel
+    systemPrompt: 'descriptive, screen-reader-friendly',  // optional voice override
+    maxTokens: 300,                   // optional; provider default otherwise
   },
 })
 ```
 
-API credentials live in `.env.local` (gitignored, never in
-`site.config.ts`):
+API credentials live in `.env.local` (gitignored, never as literals
+in `site.config.ts` — the factory call references `process.env.X`):
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
@@ -166,22 +166,34 @@ OPENAI_API_KEY=sk-...
 # OLLAMA_BASE_URL=http://localhost:11434  (optional; default shown)
 ```
 
-**Per-target overrides** — typically used to disable auto-fire on
-production for review-first publishing:
+**Per-target overrides** — behavior fields (`auto`, `maxImageEdge`)
+sit at the root of `altText:`; task-config and provider overrides
+live in the per-target `altText.ai` sub-block:
 
 ```ts
+import { openaiProvider } from 'gazetta'
+
 targets: {
   production: {
     altText: {
-      auto: false,               // require explicit click on prod
+      auto: false,                   // behavior — require explicit click on prod
+      maxImageEdge: 1024,            // behavior — vision-call image-resize cap
+      ai: {                          // task-config override (Exception A)
+        provider: openaiProvider({ apiKey: process.env.OPENAI_API_KEY! }),
+        model: 'gpt-4o',             // higher-quality model for prod
+        systemPrompt: 'descriptive, brand-aligned, screen-reader-friendly',
+        maxTokens: 400,
+      },
     },
   },
 }
 ```
 
-Provider and credentials are operationally global — they don't
-appear at the target level. Behavior fields (`auto`, `maxImageEdge`,
-`model`) can be overridden per target.
+Behavior fields (`auto`, `maxImageEdge`) live at the root of
+`altText:` because they don't affect adapter construction. Task
+config (`provider`, `model`, `systemPrompt`, `maxTokens`) goes inside
+`altText.ai` and inherits the gazetta → site → target chain
+per-field.
 
 #### Provider choice
 

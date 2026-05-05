@@ -353,7 +353,7 @@ Target config in `site.config.ts`:
 export default defineSite({
   targets: {
     production: {
-      storage: { type: 'r2' /* ... */ },
+      storage: r2Storage({ /* ... */ }),
       siteUrl: 'https://cdn.example.com/',   // optional; default is root-relative
     },
   },
@@ -369,22 +369,23 @@ Resolver constructs URLs: `{siteUrl}assets/{name}-{hash}.{ext}`. Default (no `si
 Every target has a transform adapter — `sharp` by default, swappable via `target.transforms.adapter`. The adapter owns three coupled concerns: URL composition, srcset semantics, and cache policy. Co-locating them on one interface (rather than scattering URL construction in the resolver and cache headers in the serve-route) means future adapters with non-trivial delivery (signed URLs, format negotiation, server-side proxying) plug in without leaking knowledge across modules.
 
 ```ts
+import { defineSite, filesystemStorage, r2Storage, sharpAdapter, cloudflareAdapter } from 'gazetta'
+
 export default defineSite({
   targets: {
     // Default — no transforms config means sharp adapter
     local: {
-      storage: { type: 'filesystem' },
+      storage: filesystemStorage(),
       // transforms unset → sharp adapter, immutable cache, origin URLs
     },
 
     // Cloudflare CDN
     production: {
-      storage: { type: 'r2', bucket: 'site-prod' },
+      storage: r2Storage({ bucket: 'site-prod' }),
       siteUrl: 'https://cdn.example.com',
-      transforms: {
-        adapter: 'cloudflare',
+      transforms: cloudflareAdapter({
         zone: 'cdn.example.com',   // where /cdn-cgi/image/ is served
-      },
+      }),
     },
   },
 })

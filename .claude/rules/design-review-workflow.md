@@ -92,7 +92,7 @@ Failure outcomes (`forbidden`, `validation-failed`, `unauthenticated`) follow th
 export default defineSite({
   targets: {
     staging: {
-      storage: { type: 'r2' /* ... */ },
+      storage: r2Storage({ /* ... */ }),
       reviewWorkflow: {
         enabled: true,
         requiredApprovers: 1,
@@ -101,7 +101,7 @@ export default defineSite({
       },
     },
     production: {
-      storage: { type: 'r2' /* ... */ },
+      storage: r2Storage({ /* ... */ }),
       reviewWorkflow: {
         enabled: true,
         requiredApprovers: 2,
