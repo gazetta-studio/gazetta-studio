@@ -12,18 +12,22 @@ How the CMS integrates AI capabilities — alt-text generation in v1.5, with tra
 **In v1.5:**
 - Alt-text generation as the first AI task
 - Three providers: Anthropic Claude, OpenAI gpt-4o, Ollama llama3.2-vision (self-hosted)
-- Per-task config blocks under `site.config.ts` (`altText:`)
-- Cross-task `ai:` block for shared concerns (`provider`, `defaultModel`)
-- Process-level credentials via `.env.local` (no per-target API keys)
+- Two-axis split per [`design-provider-config.md`](design-provider-config.md) Exception B: provider transport (factory call) + task config (data literal)
+- Three-rung inheritance (gazetta → site → target) for both provider/model and per-task config
+- Cross-task `ai:` block carries `provider` (factory call) + `model` (data literal); per-task `altText:` block carries `systemPrompt` + `maxTokens` (data literals)
+- Per-target `altText.ai` data-literal sub-block accepts full per-task override (provider/model/systemPrompt/maxTokens)
+- Per-target behavior fields (`auto`, `maxImageEdge`) at the root of `altText:` (Exception C — runtime knobs, not adapter construction)
+- Operator `systemPrompt` prepends to system-composed WCAG-grounded prompt
+- Credentials via `process.env.X` passed to provider constructors (no literals in config)
 - Auto-fill on upload (default) + on-demand from detail pane
 - Structured refusal detection (provider says no → don't auto-fill, show reason)
 - Direct multilingual generation (model writes in target locale; no separate translation pass)
-- Per-target overrides for behavior (`auto`, etc.); never for credentials/provider
 
 **Out of v1.5 (explicit):**
 - Translation task (designed for; not implemented)
 - Tag suggestion, summarization, image generation
-- Per-target adapter override (process-level adapter only in v1.5)
+- Capability interface formalization (`AltTextCapableProvider`) — deferred until translation v1.6 proves the abstraction
+- Custom prompt policies (full replacement of WCAG-grounded base) — `composePrompt(req, customPolicies)` already supports it; operator-facing config field deferred
 - Distributed cache for suggestions (suggester is stateless; multi-replica correct)
 - Confidence scoring (the field doesn't exist on the contract)
 - Cost monitoring / budget caps
@@ -40,21 +44,24 @@ AI in Gazetta is **three concerns at three lifetimes**, each with its own home:
 
 | Layer | What it owns | Where it lives | Lifetime |
 |---|---|---|---|
-| **Provider account** | API keys, base URLs | `.env.local` | Process |
-| **Task configuration** | Per-task model, behavior flags, sizing | `site.config.ts` (per-task blocks, `ai:` for shared) | Site lifetime |
+| **Provider transport** | API keys, base URLs, organization IDs, timeout, retry policy | `.env.local` (values) → provider constructor in `gazetta.config.ts`/`site.config.ts` | Process |
+| **Task configuration** | Per-task model, systemPrompt, maxTokens, behavior flags, sizing | `gazetta.config.ts`/`site.config.ts` data-literal blocks (`ai:` cross-task, `altText:` per-task, target overrides) | Boot lifetime |
 | **Cross-task infrastructure** | Refusal detection, prompt composition, vision preprocessing | Code modules under `packages/gazetta/src/ai/` | Code, not config |
 
-These layers don't bleed into each other. Credentials never appear in `site.config.ts`. Cross-task code never reads config directly — it operates on resolved literal arguments. Per-task config never references env vars; the factory wires the layers together.
+These layers don't bleed into each other. Credentials never appear as literals in config files (only as `process.env.X`). Cross-task code never reads config directly — it operates on resolved literal arguments supplied by the resolver. Provider transport (`AIProvider` constructor) carries credentials only; per-task config (data literals) carries operational tuning. Three-rung inheritance (gazetta → site → target) for both transport and task config — see "Three-rung inheritance" below.
 
-### Why three layers, not one big config block
+### Why two axes, not one big config block
 
-Earlier drafts of this design merged all AI config into one `ai:` block. That bundled cross-task concerns (provider) with task-specific concerns (`maxImageEdge` only applies to vision tasks; `auto` only applies to alt-text). Splitting at the right SOLID seams:
+Earlier drafts of this design merged transport and operational config on the provider constructor (`anthropicProvider({apiKey, defaultModel})`). That bundled "where to call" (transport) with "what to ask for" (task config), forcing operators to construct a new provider for every model change.
 
-- **Cross-task fields** in `ai:` — fields that ALL AI tasks legitimately use (provider, default model)
-- **Task-specific fields** in per-task blocks — fields that only one task uses (`auto` for alt; future `translateOnPublish` for translation)
+The locked design splits at the right SOLID seams:
+
+- **Transport** (provider constructor) — fields that bind to "which AI account at which endpoint": apiKey, baseUrl, organizationId, timeout, retryPolicy. Constructed once; reused across tasks.
+- **Cross-task fields** (`ai:` block, data literal) — fields that ALL AI tasks legitimately use: provider (the constructed instance), model
+- **Per-task fields** (`altText:` / future `translation:` blocks, data literals) — fields that one task uses: systemPrompt, maxTokens, future task-specific knobs
 - **Vision-specific fields** stay on vision-using task blocks — `maxImageEdge` is on `altText:`, would also be on a future tag-suggestion task that processes images, never on `translation:`
 
-This avoids inventing a "vision tasks" sub-grouping (ISP violation — would mean some tasks implement an interface they don't fully use).
+This split makes one provider instance reusable across N tasks (one Anthropic account serves alt-text, translation, summarization with different per-task model + prompt + token budget). Avoids inventing a "vision tasks" sub-grouping (ISP violation — would mean some tasks implement an interface they don't fully use).
 
 ## Configuration model
 
@@ -70,63 +77,140 @@ OPENAI_API_KEY=sk-...
 
 If a provider's adapter is selected but its key is missing, `isAltAdapterConfigured(target)` returns false, the UI hides AI affordances, and any direct route call returns `503 alt_adapter_unavailable` with a structured error. No throw at admin boot — process starts always; per-task features fail at first invocation, where the failure is in context.
 
-### Site-level (`site.config.ts` top-level)
+### Two-axis split: transport (factory) vs task config (data literal)
 
-Two blocks: `ai:` for cross-task, `altText:` for the v1.5 task.
+Per [`design-provider-config.md`](design-provider-config.md) Path X + Exception B, AI config splits along two axes:
+
+- **Transport** — credentials, base URL, organization ID, timeout, retry policy. Bound to "which AI account at which endpoint." Always a factory call returning an `AIProvider` instance.
+- **Task config** — model, systemPrompt, maxTokens. Bound to "what we're asking this provider to do." Always a data literal at the task block.
+
+The provider is **transport-only** by design — it does NOT carry model or prompt. Per-task adapters are constructed by the resolver from `(provider, taskConfig)` at boot. This makes one provider instance reusable across tasks (alt-text, translation, summarization) with different per-task tuning.
+
+### Three-rung inheritance: gazetta → site → target
+
+Both axes inherit through three rungs. Each rung carries documented operator value:
+
+- **Gazetta-level** (`gazetta.config.ts`) — cross-site defaults; useful when one operator runs many sites with shared editorial voice + cost ceilings.
+- **Site-level** (`site.config.ts` top-level) — per-site overrides; the dominant rung for solo operators.
+- **Target-level** (`site.config.ts` per target) — per-environment tuning (prod uses higher-quality model; staging cheaper).
+
+### Gazetta-level (`gazetta.config.ts`)
 
 ```ts
-import { defineSite } from 'gazetta'
+import { defineGazetta, anthropicProvider } from 'gazetta'
 
-export default defineSite({
-  name: 'main',
-  defaultLocale: 'en',
-
+export default defineGazetta({
   ai: {
-    provider: 'anthropic',              // one of: anthropic, openai, ollama
-    defaultModel: 'claude-haiku-4-5',   // falls back to per-provider sensible default if unset
+    provider: anthropicProvider({ apiKey: process.env.ANTHROPIC_API_KEY! }),
+    model: 'claude-haiku-4-5',
   },
-
   altText: {
-    // provider: <inherits ai.provider>
-    // model: <inherits ai.defaultModel>
-    auto: true,                         // default; auto-fire suggest on upload
-    maxImageEdge: 768,                  // default; vision-call sizing
+    systemPrompt: 'agency editorial voice — concise, descriptive, screen-reader-friendly',
+    maxTokens: 300,
   },
-
-  // Future:
-  // translation: {
-  //   model: 'claude-sonnet-4-5',      // override defaultModel for translation quality
-  //   translateOnPublish: false,
-  // },
+  // Future: translation: { systemPrompt: '...', maxTokens: 500 }
 })
 ```
 
-**Field inheritance:** task block resolves left-to-right against `target → site task block → site ai block → hardcoded default`. First defined wins. The `resolveAltConfig(site, target, base)` function is the single source of truth for the merge.
+### Site-level (`site.config.ts` top-level)
 
-**Provider can be overridden per task** (e.g., `altText.provider: 'ollama'` while `ai.provider: 'anthropic'`). v1.5 doesn't expose this in any UI, but the config model accepts it — when a future operator needs Anthropic for translation and Ollama for alt-text in one site, no schema migration is required.
+```ts
+import { defineSite, openaiProvider, anthropicProvider } from 'gazetta'
+
+const anthropic = anthropicProvider({ apiKey: process.env.ANTHROPIC_API_KEY! })
+
+export default defineSite({
+  name: 'main',
+  locales: { default: 'en', supported: ['en', 'fr', 'ja'] },
+
+  // Cross-task transport + model (overrides gazetta-level if set there)
+  ai: { provider: anthropic, model: 'claude-haiku-4-5' },
+
+  // Per-task config: alt-text-specific systemPrompt + maxTokens
+  altText: {
+    systemPrompt: 'descriptive, screen-reader-friendly',
+    maxTokens: 300,
+  },
+
+  // Behavior fields (auto, maxImageEdge) live at target level — see Exception C below
+})
+```
+
+**Field inheritance per axis:**
+
+| Field | Chain (most specific first) |
+|---|---|
+| `provider` | `target.altText.ai.provider ?? site.ai.provider ?? gazetta.ai.provider` |
+| `model` | `target.altText.ai.model ?? site.ai.model ?? gazetta.ai.model ?? PROVIDER_DEFAULT_MODELS[provider.name]` |
+| `systemPrompt` | `target.altText.ai.systemPrompt ?? site.altText.systemPrompt ?? gazetta.altText.systemPrompt ?? null` |
+| `maxTokens` | `target.altText.ai.maxTokens ?? site.altText.maxTokens ?? gazetta.altText.maxTokens` |
+
+The resolver function `resolveAltAdapter(gazetta, site, target)` walks the chain per field and constructs the per-target `AltTextAdapter` via `provider.altText({ model, systemPrompt, maxTokens })`. Per-field inheritance — not per-block — so a site overriding only `altText.systemPrompt` inherits gazetta's `ai.provider`, `ai.model`, and `altText.maxTokens` unchanged.
+
+**`PROVIDER_DEFAULT_MODELS`** (in `packages/gazetta/src/ai/provider.ts`):
+```ts
+export const PROVIDER_DEFAULT_MODELS: Record<string, string> = {
+  anthropic: 'claude-haiku-4-5',
+  openai: 'gpt-4o-mini',
+  ollama: 'llama3.2-vision',
+}
+```
+
+The resolver always supplies a model to `provider.altText({...})` — either resolved from the chain or the per-provider default. Eliminates two-place defaulting.
 
 ### Target-level (`site.config.ts` per target)
 
-Per-task **behavior** overrides only. Never provider, never credentials.
+Per-target overrides take two shapes:
+
+**Behavior fields (`auto`, `maxImageEdge`)** — at the root of `altText:`. Don't affect adapter construction; the suggester reads them per call.
+
+**Task config (`ai` sub-block)** — accepts `provider`, `model`, `systemPrompt`, `maxTokens` as data literals. Per-field overrides on the inherited chain.
 
 ```ts
 export default defineSite({
+  // ... site-level config above ...
+
   targets: {
-    local: {
-      storage: { type: 'filesystem' },
-      // inherits everything from site
+    staging: {
+      storage: filesystemStorage(),
+      altText: {
+        auto: true,                                    // behavior — auto-fire on upload
+        maxImageEdge: 1024,                            // behavior — vision-call sizing
+        // Inherits ai.provider, ai.model, altText.systemPrompt, altText.maxTokens from site
+      },
     },
     production: {
-      storage: { type: 'r2' /* ... */ },
+      storage: r2Storage({ /* ... */ }),
       altText: {
-        auto: false,                    // review-first on prod
+        auto: false,                                   // behavior — review-first on prod
+        ai: {                                          // task config override
+          model: 'claude-sonnet-4-5',                  // higher-quality model for prod
+          systemPrompt: 'descriptive, brand-aligned, screen-reader-friendly',
+          maxTokens: 400,
+          // provider inherits from site.ai.provider (anthropic)
+        },
       },
     },
   },
 })
 ```
 
-**Why behavior-only at target level:** provider/credentials are operationally global. An operator with one Anthropic account uses it for staging and prod alike. Per-target provider-switching is theoretically possible (the schema permits it for forward-compatibility) but not a v1.5 feature.
+**Provider override per target.** Operators wanting a different provider on a specific target write the full factory call inside `ai: { provider: ... }`:
+
+```ts
+const openai = openaiProvider({ apiKey: process.env.OPENAI_API_KEY! })
+
+targets: {
+  production: {
+    altText: {
+      auto: false,
+      ai: { provider: openai, model: 'gpt-4o' },       // OpenAI on prod, Anthropic elsewhere
+    },
+  },
+}
+```
+
+This was theoretical in earlier drafts; the data-literal `ai` sub-block at target level makes it concrete. Per-target provider-switching is now a documented capability, not "schema-permits-but-no-UI."
 
 ### The capability flag the UI sees
 
@@ -177,7 +261,25 @@ This is composition over inheritance from the start, per [team-preferences.md](t
 ### The contract
 
 ```ts
-// alt/adapter.ts
+// ai/provider.ts — transport-only interface
+export interface AIProvider {
+  readonly name: string                                              // 'anthropic' | 'openai' | 'ollama' | plugin name
+  /** Per-task builder method. Returns a configured adapter. */
+  altText(taskConfig: AltTextTaskConfig): AltTextAdapter
+  // Future: translation(taskConfig: TranslationTaskConfig): TranslationAdapter
+  // Future: summarization(taskConfig: SummarizationTaskConfig): SummarizationAdapter
+}
+
+// alt/adapter.ts — task config (data literal) + adapter (factory result)
+export interface AltTextTaskConfig {
+  /** Resolver always supplies (chain falls back to PROVIDER_DEFAULT_MODELS). */
+  model: string
+  /** Operator's voice/style override; null/undefined = system default only. */
+  systemPrompt?: string
+  /** Generation token cap; null/undefined = provider default. */
+  maxTokens?: number
+}
+
 export interface AltTextAdapter {
   readonly name: string
   /** True when the adapter can describe this MIME (images-only in v1.5). */
@@ -354,12 +456,26 @@ export function composePrompt(
 
 If Ollama's non-English quality proves insufficient in real use, an opt-in `translateFrom: 'en'` per-task field activates a translation pipeline. Additive; no v1.5 design cost.
 
+**Operator's `systemPrompt` prepends to the system-composed prompt.** The resolved task config carries an optional `systemPrompt` (chained from gazetta → site → target per Exception B). When present, the suggester prepends it to the system-composed output:
+
+```ts
+// In suggester.ts
+const operatorPrompt = adapter.config.systemPrompt  // string | null from chain resolution
+const systemComposed = composePrompt(request, DEFAULT_POLICIES)
+const finalPrompt = [operatorPrompt, systemComposed].filter(Boolean).join('\n\n')
+```
+
+Operator extends, never replaces. WCAG guidance, length constraints, locale handling, output discipline stay under system control via the typed policies. Operator adds voice/style on top.
+
+**Custom prompt policies** (full replacement of the WCAG-grounded base) remains a v1.6+ deferred capability. The current `composePrompt(req, policies)` signature already accepts a custom policy array — when v1.6 ships custom policies, it becomes a per-site or per-task config field threaded through the resolver. v1.5 surface stays at "operator prepends voice; system owns the rest."
+
 ## Provider adapters
 
 ### What each adapter owns
 
-- Provider SDK construction (with literal `apiKey` from factory)
-- Request shape: convert `AltGenerateInput` → provider-specific request body
+- Provider SDK construction (with transport from `AIProvider` constructor: apiKey, baseUrl, etc.)
+- Per-task config storage (model, systemPrompt, maxTokens — supplied by resolver via `provider.altText({...})`)
+- Request shape: convert `AltGenerateInput` + stored task config → provider-specific request body
 - Response parsing: extract text from provider response shape
 - Refusal detection: call `detectRefusal` with provider-specific markers
 - AbortSignal forwarding
@@ -367,19 +483,22 @@ If Ollama's non-English quality proves insufficient in real use, an opt-in `tran
 
 ### What no adapter owns
 
-- Reading env vars (factory does this)
+- Reading env vars (operator passes via `process.env.X` to provider constructor)
+- Resolving the per-task config chain (resolver does this; adapter receives final values)
 - Image preprocessing (`vision-prep.ts` does this)
-- Prompt composition (`compose-prompt.ts` does this)
+- Prompt composition (`compose-prompt.ts` does this; operator's `systemPrompt` prepended by suggester)
 - Memoization (the suggester is stateless; no memoization in v1.5)
 - UI concerns (consumers handle errors and refusals)
 
 ### Three providers in v1.5
 
-| Provider | API | Auth | Model default | Why ship |
+| Provider | API | Auth | Default model (`PROVIDER_DEFAULT_MODELS`) | Why ship |
 |---|---|---|---|---|
-| **Anthropic** | `messages.create` with image content block | `ANTHROPIC_API_KEY` | `claude-haiku-4-5` | Aligned with the codebase's tooling; well-priced; multilingually competent |
+| **Anthropic** | `messages.create` with image content block | `ANTHROPIC_API_KEY` (transport-only at constructor) | `claude-haiku-4-5` | Aligned with the codebase's tooling; well-priced; multilingually competent |
 | **OpenAI** | `chat.completions` with `image_url` (base64 data URL) | `OPENAI_API_KEY` | `gpt-4o-mini` | Wide adoption; cheapest paid SaaS; required for substitution proof |
-| **Ollama** | HTTP to `/api/generate` (or `/api/chat`) | None (local) | `llama3.2-vision` | Self-hosted; zero-cost; bytes never leave operator infra; required for self-hosted parity |
+| **Ollama** | HTTP to `/api/generate` (or `/api/chat`) | None (local; `OLLAMA_BASE_URL` optional) | `llama3.2-vision` | Self-hosted; zero-cost; bytes never leave operator infra; required for self-hosted parity |
+
+Provider constructors take **transport only** — apiKey, baseUrl, organizationId, timeout, retryPolicy. They do NOT take `model` or `defaultModel` (removed; lived on the constructor in earlier drafts). Default models live in the resolver's chain fallback (`PROVIDER_DEFAULT_MODELS[provider.name]`); per-provider `.altText({...})` receives a non-optional model from the resolver.
 
 Three providers prove the abstraction holds (one paid, one paid alternative, one self-hosted). Future adapters (Gemini, Cloudflare Workers AI) land additively.
 
@@ -449,9 +568,9 @@ We do **not** add a moderation layer. Provider safety policies apply (Claude ref
 
 ### API key exposure
 
-Keys live in `.env.local` (gitignored, per [operations.md](operations.md)). Adapter modules read `process.env.X_API_KEY` at construction. Never logged. Never returned in API responses. Never in `site.config.ts`.
+Keys live in `.env.local` (gitignored, per [operations.md](operations.md)). Operators pass `process.env.X_API_KEY` to provider constructors in `gazetta.config.ts` or `site.config.ts`. Never logged. Never returned in API responses. Never embedded as literals in config files.
 
-If a key is missing for a configured provider, `isAltAdapterConfigured(target)` returns false at the capability check; the route returns `503 alt_adapter_unavailable`; the UI hides affordances. No leak path.
+If a key is missing for a configured provider, the provider constructor throws at config-eval (operator's `process.env.X!` non-null assertion is the explicit failure point). `isAltAdapterConfigured(target)` returns false at the capability check; the route returns `503 alt_adapter_unavailable`; the UI hides affordances. No leak path.
 
 ### Prompt injection
 
@@ -474,7 +593,11 @@ For sites uploading user-generated content (future use case), authors should rev
 
 ### Architectural choices
 
-**Per-task config blocks, not a single AI block.** Each AI capability has its own concerns; bundling them creates SRP violations. The shared `ai:` block carries only truly cross-task fields (`provider`, `defaultModel`).
+**Two-axis split: transport (factory) vs task config (data literal).** Provider constructors carry transport only (apiKey, baseUrl, etc.); per-task data-literal blocks (`ai:`, `altText:`) carry model + systemPrompt + maxTokens. One provider instance is reusable across tasks (alt-text, translation, summarization) with different per-task tuning. The split is the natural ISP boundary — provider is "where to call," task config is "what to ask for."
+
+**Three-rung inheritance (gazetta → site → target).** Each rung has documented operator value: gazetta-level for agency multi-site setups; site-level for per-site brand voice; target-level for environment-specific tuning (prod higher quality, staging cheaper). Per [`design-provider-config.md`](design-provider-config.md) Exception B; AI is the only Pattern-A surface that earns three rungs because it's the only one where each rung carries independent value.
+
+**Per-task config blocks, not a single AI block.** Each AI capability has its own concerns; bundling them creates SRP violations. Cross-task fields (`provider`, `model`) live in the shared `ai:` block; per-task fields (`systemPrompt`, `maxTokens`) live in per-task blocks (`altText:`, future `translation:`).
 
 **Cross-task code under `ai/` from the start.** Not after the second consumer materializes. Refusal detection, prompt composition, vision preprocessing are conceptually cross-task even with one consumer in v1.5. Right structure now beats right structure later, because translation is on the documented roadmap.
 
@@ -484,7 +607,7 @@ For sites uploading user-generated content (future use case), authors should rev
 
 **Refusal as structured signal, not confidence number.** The honest categorical: did the model decline? Not a fake graduated score. Consumers branch on `refused`, not `confidence < threshold`.
 
-**Process-level credentials, target-level behavior.** Reflects operational reality: one operator, one set of API accounts; per-target workflow differs (`auto: false` on prod, default on staging).
+**Operator's `systemPrompt` prepends to system-composed prompt.** Operator extends WCAG-grounded base; never replaces. Custom prompt policies (full replacement) deferred to v1.6+. Keeps accessibility floor under system control.
 
 ## Migration
 
@@ -498,8 +621,34 @@ The detail-pane "✨ Suggest" button works on assets uploaded before AI alt was 
 
 ### Provider switching
 
-Changing `ai.provider` from `anthropic` to `openai` requires:
-- Updating `.env.local` to provide the new credentials
-- Restarting the admin process (config is read at boot for env, at first use for adapter)
+Changing the cross-task default provider:
+
+```ts
+// Before
+ai: { provider: anthropicProvider({ apiKey: process.env.ANTHROPIC_API_KEY! }), model: 'claude-haiku-4-5' }
+
+// After
+ai: { provider: openaiProvider({ apiKey: process.env.OPENAI_API_KEY! }), model: 'gpt-4o-mini' }
+```
+
+Operator updates `.env.local` to provide the new credentials and the config file to point at the new factory. Restarts the admin process (production) or relies on hot reload (`gazetta dev`).
 
 No data migration. Existing alt text on assets is unchanged. New suggestions come from the new provider.
+
+### Schema migration from v1.5 transport+model conflated shape
+
+Earlier v1.5 drafts conflated transport and model on the provider constructor (`anthropicProvider({ apiKey, defaultModel })`). The locked design splits them. Operators with the conflated shape migrate by:
+
+```ts
+// Before (conflated)
+ai: anthropicProvider({ apiKey: '...', defaultModel: 'claude-haiku-4-5' })
+
+// After (split)
+ai: { provider: anthropicProvider({ apiKey: '...' }), model: 'claude-haiku-4-5' }
+```
+
+`AltTextSiteConfig.model` (was a top-level site field) → `site.ai.model`.
+`AltTextTargetConfig.model` (was a top-level target field) → `targets.X.altText.ai.model`.
+`AIConfig.defaultModel` (cross-task site field) → `site.ai.model` (same name across rungs).
+
+Hard cutover per ADR-0005 / ADR-0008 precedent. Pre-1.0 product; operators absorb the rewrite.
