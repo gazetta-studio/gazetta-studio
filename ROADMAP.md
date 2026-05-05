@@ -27,9 +27,7 @@ The framing decisions that shape multi-quarter priorities. Resolved (no longer "
 - ✓ Land dependabot PR #219 — shipped
 - ✓ Land `@hono/node-server` v2 bump (PR #224) — shipped
 - ✓ Fix bug #106 (component reordering immediate-save, PR #225) — shipped
-
-### Validation Cut 1 (4 days)
-Save-time integrity validation per [`design-validation.md`](.claude/rules/design-validation.md). Establishes the `Validator` interface; ships 5 reference-existence validators; closes part of issue #40.
+- ✓ Validation Cut 1 — shipped. Save-time integrity validation per [`design-validation.md`](.claude/rules/design-validation.md): `Validator` interface, save-delta orchestrator, 5 reference-existence validators, 409 wiring on page/fragment PUT, `ValidationBanner.vue`. Closes part of issue #40. Cut 2 is Tier 2 / Phase 2 work — depends on AdminCache (per [Phase 2 table](#phase-2--features-composing-against-foundations-10-14-weeks)), not next-up here.
 
 ### Editor papercut cluster (2-3 weeks)
 Aggregate small-but-high-impact UX wins:

@@ -13,7 +13,7 @@ Per [team-preferences.md rule 17](team-preferences.md): "Build and validate, don
 | Cut | What | Effort | Dependency | Status |
 |---|---|---|---|---|
 | **1** | Validator infrastructure + save-delta | 4 days | None | ✓ |
-| **2** | Background scanner + admin UI surfaces | 4 days | Cut 1 | ☐ |
+| **2** | Background scanner + admin UI surfaces | 4 days | Cut 1, AdminCache (Phase 1 foundation) | ☐ |
 | **3** | Render-for-analysis + quality validators (a11y, html-validate) + altRequired | 5 days | Cut 1, Cut 2 | ☐ |
 | **4** | Publish gate + heavy validators (Lighthouse, linkinator) | 5 days | Cut 3 | ☐ |
 | **5** | `gazetta validate` CLI rewrite | 2 days | Cut 1 (more useful after Cut 3) | ☐ |
@@ -23,7 +23,7 @@ Per [team-preferences.md rule 17](team-preferences.md): "Build and validate, don
 
 **Minimum useful ship: Cut 1 (4 days)** — catches the most common author-introduced breaks; establishes the abstraction.
 
-**Recommended first ship: Cut 1 + Cut 2 (8 days)** — gives authors both delta blocking and ambient visibility; the seam is uniform.
+**Recommended first ship: Cut 1 + Cut 2 (8 days)** — gives authors both delta blocking and ambient visibility; the seam is uniform. Cut 2 depends on AdminCache; sequence in practice is AdminCache cuts 1-2 (the seam + `MemoryCache` provider) before Cut 2's scanner can be a clean composition consumer rather than an ad-hoc memo that gets ripped out later.
 
 **"Real quality" ship: Cut 1 + 2 + 3 (13 days)** — adds a11y + HTML validity + altRequired; validators against rendered output.
 
@@ -74,8 +74,11 @@ Per [team-preferences.md rule 17](team-preferences.md): "Build and validate, don
 **What ships:**
 - Background scanner service (`packages/gazetta/src/validation/scanner.ts`):
   - Initial full-site scan on admin server boot
-  - Incremental rescan on file watcher events (manifest, template, asset changes)
-  - Per-item validation cache keyed by content hash; only re-runs when something material changed
+  - Incremental rescan triggered by:
+    - File watcher events in `gazetta dev` (manifest, template, asset changes — dev-only since `gazetta serve` has no watcher)
+    - Save handler in both `dev` and `serve` modes — Cut 1's save-delta path notifies the scanner of committed changes, scanner re-validates the affected item plus its transitive dependents (via `findDependentsFromSidecars({ fragment })` for fragment edits, `readRefsForAsset(name)` for asset edits)
+  - Per-item validation cache backed by `AdminCache.MemoryCache`, keyed by content hash; only re-runs when something material changed
+  - Template-edit invalidation in v1: full-site rescan as fallback (no `template-deps` reverse-dep relation ships; see "Deferred from Cut 2" below)
   - Result store keyed by item path
 - New admin API: `GET /api/validation/issues` returns current `Issue[]` across the site
 - SSE event: `validation-issues-updated` — pushes new issue counts when the scanner finishes a pass
@@ -213,10 +216,11 @@ Per [team-preferences.md rule 17](team-preferences.md): "Build and validate, don
 | `css-validity` (stylelint) | Lower priority than a11y/HTML; ship in a follow-up |
 | Performance budget gates (LCP, CLS) | Lighthouse covers this once configured |
 | Cross-content validation (e.g., "every page has a meta description") | Authors ask |
+| `template-deps` reverse-dep sidecar relation (peer to `fragment-deps` / `asset-refs`) | Concrete demand for incremental invalidation on template edits — from validation scanner OR publish flow's "items affected by template change". v1 falls back to full-site rescan; template edits are rare relative to content edits. Mechanical to add when needed (one new `DepRelation` binding + save/publish writers + reindex CLI handler). |
 
 ## Open implementation questions
 
-1. **Sidecar machinery integration.** Cache invalidation should reuse `findDependentsFromSidecars` from media v1. Confirm the API surface fits validation's needs before Cut 3.
+1. **Sidecar machinery integration — locked.** Pre-flight against the shipped code (2026-05) confirmed: fragment-edit invalidation reuses `findDependentsFromSidecars(sourceRoot, { fragment })` from [publish.ts](../../packages/gazetta/src/publish.ts); asset-edit invalidation uses `readRefsForAsset(contentRoot, name)` from [assets/asset-deps.ts](../../packages/gazetta/src/assets/asset-deps.ts) — both ship with the right shape, no extension needed. Template-edit invalidation falls back to full-site rescan because no `template-deps` reverse-dep relation ships (only `fragment-deps` and `asset-refs` exist as `DepRelation` bindings). See "Deferred from Cut 2" below.
 
 2. **Worker thread for render-for-analysis.** Investigate Node `worker_threads` vs. spawning a separate Node process. Worker threads share memory (good for the template registry); spawning is more isolation but slower init. Likely worker threads.
 
@@ -224,7 +228,7 @@ Per [team-preferences.md rule 17](team-preferences.md): "Build and validate, don
 
 4. **Test pages for quality validators.** Need fixture pages with known issues (`<img>` no alt, broken HTML, contrast fails) to validate the integration. Build small `tests/fixtures/quality-pages/` directory.
 
-5. **SSE channel for validation issues.** Reuse the existing `/__reload` SSE channel? Or new `/__validation` channel? The former couples; the latter adds infra. Likely new channel.
+5. **SSE channel for validation issues — locked.** New `/__validation` channel, scoped to `gazetta dev` only. Rationale: `/__reload` (defined at [cli/index.ts:1536](../../packages/gazetta/src/cli/index.ts#L1536)) drives full preview-iframe reload; piggybacking validation events would force unnecessary preview reloads on every scanner pass. Production (`gazetta serve`) has the route stubbed at 204 — admin store fetches `/api/validation/issues` on load and on save; no SSE-driven push needed.
 
 6. **Render-for-analysis vs. preview path.** Preview already renders per-request; render-for-analysis caches. Worth unifying eventually so authors get consistent output. Don't unify in Cut 3 — wait for the seam to stabilize.
 
