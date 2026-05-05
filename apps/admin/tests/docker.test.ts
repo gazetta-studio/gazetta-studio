@@ -7,14 +7,14 @@ import { resolve } from 'node:path'
 import { DockerComposeEnvironment, type StartedDockerComposeEnvironment } from 'testcontainers'
 import {
   createFilesystemProvider,
-  createS3Provider,
-  createAzureBlobProvider,
   createContentRoot,
   loadSite,
   loadSiteConfig,
   siteConfigToManifest,
   type Site,
 } from 'gazetta'
+import { createS3Provider } from 'gazetta/providers/s3'
+import { createAzureBlobProvider } from 'gazetta/providers/azure-blob'
 import { publishItems, resolveDependencies } from 'gazetta'
 import { publishPageRendered, publishFragmentRendered, publishSiteManifest } from 'gazetta'
 import { runProviderConformance } from './_helpers/provider-conformance.js'

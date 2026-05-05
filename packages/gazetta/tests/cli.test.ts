@@ -89,9 +89,7 @@ describe('runInit', () => {
     await rm(testDir, { recursive: true, force: true })
   })
 
-  // Cut 9 of the TS-config migration flips this expectation: init will scaffold
-  // site.config.ts instead of site.yaml. Skipped until that cut lands.
-  it.skip('scaffolds the correct project structure', { timeout: 60000 }, async () => {
+  it('scaffolds the correct project structure', { timeout: 60000 }, async () => {
     // Run init via the compiled CLI
     const { execSync } = await import('node:child_process')
     execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} init ${testDir}`, { stdio: 'pipe' })
@@ -103,9 +101,9 @@ describe('runInit', () => {
     expect(existsSync(join(testDir, 'templates/nav/index.ts'))).toBe(true)
     expect(existsSync(join(testDir, 'templates/text-block/index.ts'))).toBe(true)
     expect(existsSync(join(testDir, 'admin/.gitkeep'))).toBe(true)
-    expect(existsSync(join(testDir, 'sites/main/site.yaml'))).toBe(true)
-    // No target-level site.yaml — project-level site.yaml is the single source of truth.
-    expect(existsSync(join(testDir, 'sites/main/targets/local/site.yaml'))).toBe(false)
+    expect(existsSync(join(testDir, 'sites/main/site.config.ts'))).toBe(true)
+    // No target-level site.config.ts — project-level site.config.ts is the single source of truth.
+    expect(existsSync(join(testDir, 'sites/main/targets/local/site.config.ts'))).toBe(false)
     expect(existsSync(join(testDir, 'sites/main/targets/local/pages/home/page.json'))).toBe(true)
     expect(existsSync(join(testDir, 'sites/main/targets/local/fragments/header/fragment.json'))).toBe(true)
     expect(existsSync(join(testDir, 'sites/main/targets/local/pages/404/page.json'))).toBe(true)
@@ -113,22 +111,25 @@ describe('runInit', () => {
     // No component subdirectories (components are inline in page.json)
     expect(existsSync(join(testDir, 'sites/main/targets/local/pages/home/hero'))).toBe(false)
 
-    // site.yaml has a default local target
-    const siteYaml = await import('node:fs').then(fs => fs.readFileSync(join(testDir, 'sites/main/site.yaml'), 'utf-8'))
-    expect(siteYaml).toContain('targets:')
-    expect(siteYaml).toContain('local:')
-    expect(siteYaml).toContain('type: filesystem')
-    expect(siteYaml).toContain('systemPages:')
+    // site.config.ts has a default local target
+    const siteConfig = await import('node:fs').then(fs =>
+      fs.readFileSync(join(testDir, 'sites/main/site.config.ts'), 'utf-8'),
+    )
+    expect(siteConfig).toContain("import { defineSite } from 'gazetta'")
+    expect(siteConfig).toContain('targets:')
+    expect(siteConfig).toContain('local:')
+    expect(siteConfig).toContain("type: 'filesystem'")
+    expect(siteConfig).toContain('systemPages:')
 
-    // No old flat structure
+    // No legacy YAML or old flat structure
+    expect(existsSync(join(testDir, 'sites/main/site.yaml'))).toBe(false)
     expect(existsSync(join(testDir, 'site.yaml'))).toBe(false)
+    expect(existsSync(join(testDir, 'site.config.ts'))).toBe(false)
     expect(existsSync(join(testDir, 'pages'))).toBe(false)
     expect(existsSync(join(testDir, 'fragments'))).toBe(false)
   })
 
-  // Cut 9 of the TS-config migration flips this expectation: init will scaffold
-  // site.config.ts instead of site.yaml. Skipped until that cut lands.
-  it.skip('package.json has correct fields', { timeout: 60000 }, async () => {
+  it('package.json has correct fields', { timeout: 60000 }, async () => {
     const { execSync } = await import('node:child_process')
     execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} init ${testDir}`, { stdio: 'pipe' })
 

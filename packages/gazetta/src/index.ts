@@ -91,12 +91,12 @@ export { allPageEntries, allFragmentEntries } from './site-loader.js'
 export { loadTemplate, invalidateTemplate, invalidateAllTemplates } from './template-loader.js'
 export { scopeHtml, scopeCss, hashPath } from './scope.js'
 
-// Storage providers
+// Storage providers — filesystem in the root barrel; cloud providers live under
+// `gazetta/providers/*` subpath exports so the optional `@aws-sdk/*` and
+// `@azure/storage-blob` peer deps don't leak into every consumer's module graph
+// (a user's `site.config.ts` evaluates the gazetta barrel via `defineSite`,
+// and absent peers would crash that evaluation).
 export { createFilesystemProvider } from './providers/filesystem.js'
-export { createAzureBlobProvider } from './providers/azure-blob.js'
-export type { AzureBlobProviderOptions } from './providers/azure-blob.js'
-export { createS3Provider } from './providers/s3.js'
-export type { S3ProviderOptions } from './providers/s3.js'
 
 // Targets
 export { createStorageProvider, createTargetRegistry } from './targets.js'
