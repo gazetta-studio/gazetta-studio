@@ -71,7 +71,7 @@ Sequence (per dependency order):
 
 6. **`design-hooks.md`** (complete 2026-05) — extension surface for save/publish/load lifecycles. Phases: `beforeSave`/`afterSave`/`afterLoad`/`beforePublish`/`afterPublish`/`beforeUpload`/`afterUpload` + 10 review-lifecycle phases. Return-new-payload contract; sync-blocking with per-hook timeout (5s default). Priority-based composition (3 bands: built-in 0-99 / plugin 100-999 / site-local 1000+); `before*` chains, `after*` parallel, fail-open. Discovery: site-local files in `admin/hooks/` + plugin-supplied via plugin contract. Render hooks deferred. Validation hooks rejected (validators are pure). Audit `action: 'hook-fired'` + `outcome: 'hook-cancelled'` closed-enum extensions. Implementation Tier 3.
 
-7. **`design-config.md`** (complete 2026-05) — reference doc, NOT a foundational dimension. TS config (`gazetta.config.ts` + `site.config.ts`) replaces `site.yaml`; `defineGazetta` / `defineSite` identity functions; global + per-site split with defaults flow; `process.env.X` for secrets; load-once-at-boot in production, hot-reload in dev; plugin authors export factory functions invoked inline. Decision in [`docs/adr/0005-typescript-config-format.md`](docs/adr/0005-typescript-config-format.md). Implementation Tier 3 — ships migration tool (`gazetta migrate-config`) + sweeps every YAML example across ~30 design docs to TS in a single PR; hard cutover removes YAML support.
+7. **`design-config.md`** (complete 2026-05) — reference doc, NOT a foundational dimension. TS config (`gazetta.config.ts` + `site.config.ts`) replaces `site.yaml`; `defineGazetta` / `defineSite` identity functions; global + per-site split with defaults flow; `process.env.X` for secrets; load-once-at-boot in production, hot-reload in dev; plugin authors export factory functions invoked inline. Decision in [`docs/adr/0005-typescript-config-format.md`](docs/adr/0005-typescript-config-format.md). Implementation shipped 2026-05 (Phase 1 first foundation): hard cutover replaces YAML with TS in one branch (`config-ts-migration`, 13 commits); ~30 design docs swept; `js-yaml` dep removed; `gazetta init` scaffolds TS config; no automated migration tool (operators rewrite by hand per ADR-0005).
 
 8. **`design-plugins.md`** (complete 2026-05) — unifying plugin contract: TS-import discovery (no auto-discovery; `import slackNotify from '@gazetta/slack-notify'` in `defineSite()`); serial async init with fail-boot default + `optional()` opt-in for graceful skip; factory function exports returning `Plugin`; per-surface `PluginAPI` methods (typed registration, IDE autocomplete); `registerRoute` for plugin-contributed admin routes with Zod schemas + capability gates; reserved capability prefixes for built-ins (`read:` / `edit:` / `delete:` / `publish:` / `configure:` / `review:` / `restore:`); peerDep on `gazetta` + load-time warn-not-refuse SemVer check; full Node access (no sandbox) with `serviceAccount` opt-in for elevated plugin hooks. Implementation Tier 3.
 
@@ -161,7 +161,7 @@ Each foundation: code + unit tests + contract tests (where it's an extension sur
 
 | Foundation | Sequence | Estimate |
 |---|---|---|
-| TS config migration | First (mechanical, affects everything) | 1-2w |
+| ✓ TS config migration | First (mechanical, affects everything) — shipped 2026-05 | 1-2w |
 | AuthIdentity layer | After TS config (Principal extraction; trust modes) | 2w |
 | Component IDs | Independent (structural manifest change) | 1w |
 | AdminCache abstraction | Independent (replaces existing memos) | 1-2w |
