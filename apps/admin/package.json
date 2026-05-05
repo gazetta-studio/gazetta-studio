@@ -22,7 +22,7 @@
     "primevue": "^4.5.0",
     "vue": "^3.5.33",
     "vue-router": "^5.0.6",
-    "zod": "^4.4.2"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@hono/vite-dev-server": "^0.25.3",
