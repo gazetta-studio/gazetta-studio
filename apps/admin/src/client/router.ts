@@ -98,7 +98,16 @@ export function createRouter() {
     // Sync active target from URL query param.
     // ?target=staging → switch to staging. No ?target= → use default (first editable).
     // Only non-default targets appear in the URL — keeps default URLs clean.
+    //
+    // Await `ensureLoaded` so the first navigation's `?target=` lookup
+    // finds the named target. App.vue's `onMounted` hook also kicks
+    // off this load; both call sites share one in-flight promise via
+    // single-flight, so awaiting here is cheap on subsequent navigations.
+    // Without this, the first navigation runs before the targets list
+    // is populated, `setActiveTarget(name)` throws, and the catch
+    // clause silently strips `?target=` from the URL.
     const activeTarget = useActiveTargetStore()
+    await activeTarget.ensureLoaded()
     const urlTarget = to.query.target as string | undefined
     if (urlTarget) {
       // Strip ?target= if it's the default — keep URLs clean

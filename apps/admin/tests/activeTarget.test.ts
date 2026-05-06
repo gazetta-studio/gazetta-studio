@@ -125,4 +125,86 @@ describe('useActiveTargetStore', () => {
     expect(store.activeTargetName).toBe(null)
     expect(store.error).toBe(null)
   })
+
+  // The router guard runs on every navigation, including the first one,
+  // before App.vue's `onMounted` fires `load()`. Without `ensureLoaded`
+  // the guard's `?target=staging` lookup hits an empty `targets.value`
+  // and `setActiveTarget('staging')` throws — the catch clause silently
+  // strips `?target=` from the URL, the indicator stays on `local`, and
+  // the e2e test fails. `ensureLoaded` lets the guard await the load
+  // before checking. Single-flight semantics ensure App.vue's parallel
+  // `load()` doesn't fire a second request.
+  it('ensureLoaded loads when the targets list is empty', async () => {
+    const store = useActiveTargetStore()
+    let calls = 0
+    store.configure({
+      loadTargets: async () => {
+        calls++
+        return TARGETS
+      },
+    })
+    await store.ensureLoaded()
+    expect(store.targets).toHaveLength(3)
+    expect(calls).toBe(1)
+  })
+
+  it('ensureLoaded is a no-op when targets are already loaded', async () => {
+    const store = useActiveTargetStore()
+    let calls = 0
+    store.configure({
+      loadTargets: async () => {
+        calls++
+        return TARGETS
+      },
+    })
+    await store.load()
+    expect(calls).toBe(1)
+    await store.ensureLoaded()
+    expect(calls).toBe(1) // didn't refetch
+  })
+
+  it('ensureLoaded shares one in-flight load across concurrent callers', async () => {
+    const store = useActiveTargetStore()
+    let calls = 0
+    let resolveLoad!: () => void
+    const blocked = new Promise<void>(r => {
+      resolveLoad = r
+    })
+    store.configure({
+      loadTargets: async () => {
+        calls++
+        await blocked
+        return TARGETS
+      },
+    })
+    // Two concurrent ensureLoaded calls — the second must reuse the first's promise.
+    const a = store.ensureLoaded()
+    const b = store.ensureLoaded()
+    resolveLoad()
+    await Promise.all([a, b])
+    expect(calls).toBe(1)
+  })
+
+  it('ensureLoaded retries after a previous failure clears error', async () => {
+    const store = useActiveTargetStore()
+    let attempt = 0
+    store.configure({
+      loadTargets: async () => {
+        attempt++
+        if (attempt === 1) throw new Error('first call fails')
+        return TARGETS
+      },
+    })
+    // First call fails — error set, targets empty.
+    await store.ensureLoaded()
+    expect(store.error).toBe('first call fails')
+    expect(attempt).toBe(1)
+    // Second call must retry because `error` is set (a no-op here
+    // would mean "I tried once, that's enough" — wrong shape for a
+    // guard that runs on every navigation).
+    await store.ensureLoaded()
+    expect(store.error).toBe(null)
+    expect(store.targets).toHaveLength(3)
+    expect(attempt).toBe(2)
+  })
 })
