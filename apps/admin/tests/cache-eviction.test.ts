@@ -25,6 +25,7 @@
  */
 import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { reactive } from 'vue'
 import type { AdminCache } from 'gazetta'
 import { createIndexedDBCache } from '../src/client/cache/indexeddb-cache.js'
 import { createBrowserMemoryCache } from '../src/client/cache/memory-cache.js'
@@ -205,5 +206,69 @@ describe('Browser MemoryCache eviction (LRU)', () => {
     const stats = await cache.stats!()
     expect(stats.size).toBe(2)
     expect(stats.evictions).toBe(3)
+  })
+})
+
+describe('cache.set sanitizes Vue reactive values (CI regression)', () => {
+  // Real bug caught by CI: IndexedDBCache.set used to store the
+  // value raw via `db.put`. When persistence callers snapshotted
+  // Pinia state — which wraps everything in Vue reactive Proxies —
+  // structured-clone rejected with:
+  //   "Failed to execute 'put' on 'IDBObjectStore':
+  //    #<Object> could not be cloned."
+  // The fix round-trips through JSON before put, stripping Proxies
+  // (and any other non-cloneable wrappers) along the way.
+
+  let cache: (AdminCache & { close(): void }) | null = null
+
+  afterEach(() => {
+    cache?.close()
+    cache = null
+  })
+
+  it('IndexedDBCache.set accepts a Vue reactive object', async () => {
+    cache = await createIndexedDBCache({ dbName: `proxy-test-${Math.random()}` })
+    const reactiveValue = reactive({ title: 'Hello', tags: ['a', 'b'] })
+
+    // Without the JSON sanitize, this throws inside db.put.
+    await cache.set('key', reactiveValue)
+    const got = await cache.get<{ title: string; tags: string[] }>('key')
+    expect(got).toEqual({ title: 'Hello', tags: ['a', 'b'] })
+  })
+
+  it('IndexedDBCache.set accepts a deeply-nested reactive object', async () => {
+    // The Pinia stores the persistence layer snapshots have nested
+    // shapes (entries Map → entry → editedContent → arbitrary
+    // user JSON). Verify the round-trip handles depth.
+    cache = await createIndexedDBCache({ dbName: `proxy-test-${Math.random()}` })
+    const nested = reactive({
+      version: 1 as const,
+      entries: [
+        [
+          'page:home::_root',
+          reactive({ key: 'page:home::_root', editedContent: reactive({ title: 'Mine' }), updatedAt: '' }),
+        ],
+      ],
+    })
+
+    await cache.set('snap', nested)
+    const got = await cache.get<{
+      version: number
+      entries: Array<[string, { key: string; editedContent: { title: string }; updatedAt: string }]>
+    }>('snap')
+    expect(got!.version).toBe(1)
+    expect(got!.entries[0][1].editedContent.title).toBe('Mine')
+  })
+
+  it('Browser MemoryCache.set accepts a Vue reactive object (parity)', async () => {
+    // Memory cache stores in a Map (no structured clone), so this
+    // already works — the regression test pins the parity so a
+    // future refactor that adds clone semantics doesn't break it.
+    const memCache = createBrowserMemoryCache()
+    const reactiveValue = reactive({ title: 'Hello', tags: ['a', 'b'] })
+
+    await memCache.set('key', reactiveValue)
+    const got = await memCache.get<{ title: string; tags: string[] }>('key')
+    expect(got).toEqual({ title: 'Hello', tags: ['a', 'b'] })
   })
 })
