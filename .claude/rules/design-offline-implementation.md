@@ -29,8 +29,9 @@ Branch: `offline-v1` off `main`. Sequenced after AdminCache (depends on `AdminCa
 | 7 | Health endpoint `GET /api/health` | ✓ | Low | Server-side support |
 | 8a | Pending-edits store migration — `editorStructural` only (pure-data subset) | ✓ | Medium | Structural edits survive reload |
 | 8b | Pending-edits store migration — `editorStash` + `editorContent` (closure-rebuild flow) | ☐ | Medium | Content edits survive reload (deferred from original Cut 8) |
-| 9 | Save queue: client-generated thread IDs + chained If-Match etag projections | ☐ | High | Conflict-on-replay machinery |
-| 10 | Conflict UX: 409 STALE handling; field-by-field semantic diff banner; Show / Discard actions | ☐ | High | Conflict resolution UX |
+| 9 | Save-etag plumbing: server `ETag` + `If-Match` + 409 STALE + client `StaleSaveError` + `getPageWithEtag` / `updatePage(..., ifMatch)` | ✓ | High | Conflict-detection contract |
+| 9b | Save queue Pinia store: per-item chain projection + Vue Query mutation queue integration (deferred from Cut 9) | ☐ | High | Conflict-on-replay machinery |
+| 10 | Conflict UX: `StaleSaveError` → field-by-field semantic diff banner; Show / Discard actions | ☐ | High | Conflict resolution UX |
 | 11 | Service worker via vite-plugin-pwa: app-shell precache | ☐ | Medium | Cold-load offline reliability |
 | 12 | UX indicators: cloud-with-slash icon + offline banner + "Send now" affordance + sync-state metadata | ☐ | Medium | Krug-aligned visibility |
 | 13 | Mid-save connection-loss handling: retry-with-If-Match; idempotency | ☐ | Medium | Edge case correctness |
@@ -114,7 +115,29 @@ Branch: `offline-v1` off `main`. Sequenced after AdminCache (depends on `AdminCa
 
 **Tests:** browser reload preserves stashed edits across pages; current-page dirty state restored on reload via navigate flow; stash restore picks up persisted dirty content during multi-page-edit scenario.
 
-### Cut 9: Save queue (highest risk cut)
+### Cut 9: Save-etag plumbing (shipped)
+
+**Files added:**
+- `packages/gazetta/src/save-etag.ts` — shared `computeSaveEtag(manifest)`. SHA-256 truncated to 16 hex over canonical manifest JSON. Web Crypto API; works in Node 18+ AND browsers. Exposed via `gazetta/save-etag` subpath so the client can import without pulling in `node:crypto`-flavored modules.
+- `packages/gazetta/tests/save-etag.test.ts` — 12 unit tests pin determinism + field coverage + canonical-key ordering + null vs undefined.
+- `apps/admin/tests/api-save-etag.test.ts` — 11 client tests via mocked fetch.
+
+**Files modified:**
+- `packages/gazetta/src/admin-api/routes/pages.ts` — GET sets `ETag` header; PUT honors `If-Match` and returns 409 STALE with `current` manifest body + `currentEtag` on mismatch; success echoes the new etag both as response header AND as `etag` field in body so chain projection works without a follow-up GET. The echo shape includes `route` so it matches the next GET.
+- `packages/gazetta/src/admin-api/routes/fragments.ts` — same shape (without `route`/`metadata` fields since fragments don't carry them).
+- `packages/gazetta/tests/admin-api.test.ts` — 7 new tests pin: header round-trip on pages + fragments, optional If-Match (last-write-wins), stale 409 with current body, chained projection for offline replay.
+- `apps/admin/src/client/api/client.ts` — new `StaleSaveError` peer to `ValidationFailedError`; `requestWithEtag<T>` helper; `getPageWithEtag` / `getFragmentWithEtag`; `updatePage` / `updateFragment` extend opts with `ifMatch?: string`.
+- `packages/gazetta/package.json` — `gazetta/save-etag` subpath export.
+
+**Why two etags coexist:** the publish-state `.{8hex}.hash` includes template + fragment hashes (drives publish/cache invalidation: a template change must invalidate every dependent page). The save etag is pure manifest content (the browser can't access template/fragment hashes; mixing them would force false 409s on every author after a template edit). Two etags, two semantics, two consumers.
+
+**Why SHA-256 truncated to 16 hex (not MD5 truncated to 8):** save etags collide more often than publish hashes (every save is a new etag candidate; many saves per page over a long offline session). 8 hex = 4B keyspace; tens of thousands of saves would hit the birthday bound. 16 hex = 18.4 quintillion keyspace.
+
+**Tests:** see file references above. All tests green; no regressions on existing `VALIDATION_FAILED` 409 path.
+
+**Why Cut 9 is split into 9 + 9b:** the server contract + client API plumbing (this cut) is sufficient for any consumer that tracks the etag itself. The full save-queue Pinia store with Vue Query mutation-queue integration + per-item chain state machine is a separate surface area that would bloat this commit. Cut 9b lands when concrete consumer demand surfaces (likely with `useEditorActions` integration when Cut 8b's content-edit persistence ships).
+
+### Cut 9b: Save queue (deferred)
 
 **Files added:**
 - `apps/admin/src/client/queries/save-queue.ts` — client-generated UUIDs; chained If-Match projections; sequential replay on reconnect
@@ -177,7 +200,7 @@ Branch: `offline-v1` off `main`. Sequenced after AdminCache (depends on `AdminCa
 
 ## Validation gate (definition of done)
 
-- [ ] All 17 cuts merged (1-7, 8a, 8b, 9-16)
+- [ ] All 18 cuts merged (1-7, 8a, 8b, 9, 9b, 10-16)
 - [ ] Manual test: edit page offline → close laptop → reopen → edits persist → reconnect → sync invisibly
 - [ ] Conflict scenario test: edit offline + concurrent online edit → reconnect → conflict banner surfaces
 - [ ] Service worker test: cold-load admin offline → SPA loads from cache
@@ -211,7 +234,8 @@ Branch: `offline-v1` off `main`. Sequenced after AdminCache (depends on `AdminCa
 | 6-7 (Connection + health) | 1 day |
 | 8a (Structural pending-edits) | 0.5 day |
 | 8b (Stash + content pending-edits, with closure rebuild) | 1.5 days |
-| 9 (Save queue) | 2.5 days |
+| 9 (Save-etag plumbing) | 1 day |
+| 9b (Save queue + Vue Query integration) | 1.5 days |
 | 10 (Conflict UX) | 2 days |
 | 11 (Service worker) | 1.5 days |
 | 12 (UX indicators) | 1.5 days |
