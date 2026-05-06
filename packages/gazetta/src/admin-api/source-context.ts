@@ -10,6 +10,9 @@
  */
 
 import type { GazettaManifest, StorageProvider, SiteManifest } from '../types.js'
+import { memoryCache } from '../cache/factories.js'
+import { forSite } from '../cache/per-site.js'
+import type { AdminCache } from '../cache/types.js'
 import { createContentRoot, type ContentRoot } from '../content-root.js'
 import { loadSite, type Site, type LoadSiteOptions } from '../site-loader.js'
 import type { TargetRegistry } from '../targets.js'
@@ -63,14 +66,35 @@ export interface SourceContext {
    * (gazetta → site → target). Absent when no `gazetta.config.ts` exists.
    */
   readonly gazettaManifest?: GazettaManifest
+  /**
+   * Per-source `AdminCache` instance — already wrapped via `forSite()`
+   * so keys are scoped to this source's site name. Always present;
+   * `createSourceContext` lazily builds a `MemoryCache` when the caller
+   * doesn't supply one.
+   *
+   * Routes that read site-derived data (page summaries, fragment lists,
+   * dependents) read this cache through `loadSiteFromSource` — every
+   * load of the same source returns a `Site` whose `cache` field is the
+   * same instance, so consumers share entries across requests.
+   *
+   * Save handlers invalidate via `source.cache.invalidatePrefix('pages:')`
+   * etc. on writes (Cut 4).
+   */
+  readonly cache: AdminCache
 }
 
 /**
  * Load a site from a SourceContext. Passes the project-level manifest
- * so loadSite doesn't need a target-level site config file.
+ * so loadSite doesn't need a target-level site config file. Forwards
+ * the source's per-site cache so every load shares one cache instance.
  */
 export function loadSiteFromSource(source: SourceContext, opts?: Partial<LoadSiteOptions>): Promise<Site> {
-  return loadSite({ contentRoot: source.contentRoot, manifest: source.manifest, ...opts })
+  return loadSite({
+    contentRoot: source.contentRoot,
+    manifest: source.manifest,
+    cache: source.cache,
+    ...opts,
+  })
 }
 
 export interface CreateSourceContextOptions {
@@ -84,9 +108,32 @@ export interface CreateSourceContextOptions {
   manifest?: SiteManifest
   /** Optional gazetta-level manifest; first rung of the three-rung config chain. */
   gazettaManifest?: GazettaManifest
+  /**
+   * Pre-built unscoped `AdminCache` — typically the operator's
+   * gazetta.config.ts default or per-site override (Path X). When
+   * provided, `createSourceContext` wraps it with `forSite()` using
+   * the manifest's site name. When absent, a fresh `MemoryCache()`
+   * is built and wrapped.
+   *
+   * The wrapping happens here (not at every loadSite call) so all
+   * loads of the same source share one site-scoped cache instance.
+   */
+  cache?: AdminCache
+  /**
+   * Site name used for `forSite()` key scoping. Defaults to
+   * `manifest.name`. Required when `manifest` is absent and the
+   * caller still wants a site-scoped cache.
+   */
+  siteName?: string
 }
 
 export function createSourceContext(opts: CreateSourceContextOptions): SourceContext {
+  // Site-scoped cache: wrap the operator-supplied (or fresh) instance
+  // once, here, so every loadSiteFromSource() call shares it. Per the
+  // single-Site-per-process invariant, the source's site name is
+  // stable for the process lifetime.
+  const siteName = opts.siteName ?? opts.manifest?.name ?? 'unnamed'
+  const cache = forSite(opts.cache ?? memoryCache(), siteName)
   return {
     storage: opts.storage,
     siteDir: opts.siteDir,
@@ -95,6 +142,7 @@ export function createSourceContext(opts: CreateSourceContextOptions): SourceCon
     history: opts.history,
     manifest: opts.manifest,
     gazettaManifest: opts.gazettaManifest,
+    cache,
   }
 }
 

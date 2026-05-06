@@ -234,6 +234,18 @@ export interface LoadSiteOptions {
    * Mutually exclusive with `manifest`.
    */
   config?: SiteConfig
+  /**
+   * Pre-built per-site `AdminCache` — used when the caller owns the
+   * cache lifetime (typically the admin-api boot, which builds one per
+   * SourceContext so every load of the same source shares one cache).
+   *
+   * When provided, `loadSite` assumes the cache is already site-scoped
+   * and uses it verbatim. When absent, falls back to constructing one
+   * from `manifest.cache` (operator-supplied via Path X) or a fresh
+   * `memoryCache()`, wrapped with `forSite()` per call. The fallback
+   * suits CLI and tests where loadSite is called once.
+   */
+  cache?: AdminCache
 }
 
 /**
@@ -288,14 +300,18 @@ export async function loadSite(opts: LoadSiteOptions): Promise<Site> {
     console.warn(`  Warning: no pages found in ${contentRoot.path('pages')}`)
   }
 
-  // Per-site cache: use the operator-supplied instance from
-  // manifest.cache (Path X — set via gazetta.config.ts defaults or
-  // per-site override). When absent (most CLI / test paths) fall back
-  // to a fresh MemoryCache so consumers always have a cache to use.
-  // Wrap with forSite() so future shared providers (Redis, Azure)
-  // get key isolation across sites.
-  const baseCache: AdminCache = manifest.cache ?? memoryCache()
-  const cache = forSite(baseCache, manifest.name)
+  // Per-site cache resolution:
+  //   1. If the caller owns the cache lifetime (admin-api boot via
+  //      SourceContext), use the supplied instance verbatim — it's
+  //      already site-scoped.
+  //   2. Else use the operator-supplied instance from manifest.cache
+  //      (Path X — set via gazetta.config.ts defaults or per-site
+  //      override), wrapped with forSite() per call.
+  //   3. Else fall back to a fresh MemoryCache (CLI, tests) wrapped
+  //      with forSite(). Each loadSite() call gets its own — fine for
+  //      one-shot uses; the admin-api path takes (1) to share across
+  //      requests.
+  const cache: AdminCache = opts.cache ?? forSite(manifest.cache ?? memoryCache(), manifest.name)
 
   return {
     manifest,

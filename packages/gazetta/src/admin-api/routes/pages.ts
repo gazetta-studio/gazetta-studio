@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { loadSiteFromSource } from '../source-context.js'
 import { recordWrite } from '../../history-recorder.js'
 import type { SourceContextResolver } from '../source-context.js'
-import { CreatePageRequestSchema } from '../schemas/pages.js'
+import { CreatePageRequestSchema, type PageSummary } from '../schemas/pages.js'
 import { isValidLocale } from '../../locale.js'
 import { rebuildAssetRefs, type ItemRef } from '../../assets/asset-deps.js'
 import { rebuildFragmentDeps } from '../../fragment-deps.js'
@@ -24,8 +24,16 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
     // open" (wrong, reports items as present) and "fail closed" (wrong,
     // hides legitimate targets the user might want to switch to).
     try {
+      // Cache the summary list. Per design-scale.md, /api/pages is a
+      // load-bearing read; per design-cache.md the key includes the
+      // 'pages:' reserved prefix so save handlers can blow this entry
+      // (and any future per-prefix entries) with one invalidatePrefix.
+      // SourceContext owns the cache, so two requests against the same
+      // target reuse the same instance.
+      const cached = await source.cache.get<PageSummary[]>('pages:summary')
+      if (cached) return c.json(cached)
       const site = await loadSiteFromSource(source)
-      const pages = [...site.pages.entries()].map(([name, page]) => {
+      const pages: PageSummary[] = [...site.pages.entries()].map(([name, page]) => {
         const localeEntry = site.pageLocales.get(name)
         return {
           name,
@@ -34,6 +42,7 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
           locales: localeEntry ? [...localeEntry.locales.keys()] : undefined,
         }
       })
+      await source.cache.set('pages:summary', pages)
       return c.json(pages)
     } catch (err) {
       const msg = (err as Error).message
@@ -85,6 +94,10 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
       rebuildAssetRefs(source.contentRoot, item, null, manifest),
       rebuildFragmentDeps(source.contentRoot, item, null, manifest),
     ])
+    // The summary list is now stale — drop it so the next /api/pages
+    // recomputes from disk. Cheap (single key) and explicit per
+    // design-cache.md Q2 (no auto-invalidation; consumers enumerate).
+    await source.cache.invalidatePrefix('pages:')
     return c.json({ ok: true, name: body.name })
   })
 
@@ -197,6 +210,7 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
       rebuildAssetRefs(source.contentRoot, item, page, manifest),
       rebuildFragmentDeps(source.contentRoot, item, page, manifest),
     ])
+    await source.cache.invalidatePrefix('pages:')
     return c.json({ ok: true })
   })
 
@@ -237,6 +251,7 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
       )
     }
     await Promise.all(teardowns)
+    await source.cache.invalidatePrefix('pages:')
     return c.json({ ok: true })
   })
 
