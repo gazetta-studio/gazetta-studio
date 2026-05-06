@@ -18,15 +18,15 @@ Branch: `cache-v1` off `main`. **No backwards compatibility** — replaces exist
 
 | # | Cut | Status | Risk | Validates |
 |---|---|---|---|---|
-| 1 | `cache/` infrastructure: types, errors, key conventions | ☐ | Low | Type-only foundation |
-| 2 | `AdminCache` interface + `MemoryCache` provider with bounded LRU eviction | ☐ | Medium | The seam + v1 default |
-| 3 | Key conventions: colon-separated, automatic Gazetta-major-version prefix, 255-char overflow-hash | ☐ | Low | Key-handling utility |
+| 1 | `cache/` infrastructure: types, errors, key conventions | ✓ | Low | Type-only foundation (shipped pre-Path-X-Phase-3) |
+| 2 | `AdminCache` interface + `MemoryCache` provider with bounded LRU eviction | ✓ | Medium | The seam + v1 default (shipped pre-Path-X-Phase-3) |
+| 3 | Key conventions: colon-separated, automatic Gazetta-major-version prefix, 255-char overflow-hash | ✓ | Low | Key-handling utility |
 | 4 | SSE invalidation broadcast + `subscribe()` method | ☐ | Medium | Cross-instance coordination primitive |
-| 5 | Sweep existing memos: `findDependentsFromSidecars`, template-scan cache, locale-cache → migrate to `AdminCache.MemoryCache` | ☐ | Medium | Real consumers; replaces ad-hoc memos |
-| 6 | Save handler invalidation: `cache.invalidatePrefix('pages:')` etc. on save / publish | ☐ | Low-medium | Explicit per-feature invalidation |
+| 5 | First real consumer (/api/pages summary) + paired save invalidation | ✓ | Medium | The contract works on real consumers; folds in the original Cut 6 (split shipped a regression). See "Per-cut scope" Cut 5 below for the audit findings on memos that don't migrate. |
+| 6 | _(folded into Cut 5 — see Per-cut scope)_ | ✓ | — | Save handler invalidation paired with read-side caching to avoid shipping a stale-cache regression. |
 | 7 | Stats: hit / miss / size / errors counters + structured log every 5 min + `GET /api/system/cache/stats` | ☐ | Low | Observability |
-| 8 | `CacheError` taxonomy: `CacheConfigurationError`, `CacheSchemaError` | ☐ | Low | Error contracts |
-| 9 | Per-site cache instance + per-site key auto-prefix | ☐ | Medium | Multi-site isolation |
+| 8 | `CacheError` taxonomy: `CacheConfigurationError`, `CacheSchemaError` | ✓ | Low | Error contracts (shipped pre-Path-X-Phase-3) |
+| 9 | Per-site cache instance + per-site key auto-prefix | ✓ | Medium | Multi-site isolation |
 | 10 | `adminCacheContractTests` test helper exported from `gazetta/testing` | ☐ | Low | Plugin author validation surface |
 | 11 | Docs + operator config examples | ☐ | Low | User-facing |
 
@@ -73,25 +73,65 @@ Branch: `cache-v1` off `main`. **No backwards compatibility** — replaces exist
 
 **Tests:** invalidation broadcasts + subscribers receive events + auto-reconnect with backoff (single-process; trivial case)
 
-### Cut 5: Sweep existing memos
+### Cut 5: First real consumer + save invalidation (paired)
 
-**Files modified:**
-- `packages/gazetta/src/admin-api/index.ts` — `cachedScan` (template scan via `memoizeAsync`) → migrate to `AdminCache`
-- `packages/gazetta/src/admin-api/routes/publish.ts` — `fragmentDepsBackfill` Map (per-source in-flight memo for `/api/dependents`) → migrate to `AdminCache`
-- `packages/gazetta/src/admin-api/source-context.ts` — per-source `Map<string, SourceContext>` cache → migrate to `AdminCache`
-- Other ad-hoc memos identified during cut (the codebase isn't memo-heavy; expected sweep is small)
+**Reshaped from the original Cut 5 + Cut 6 plan.** The pre-implementation
+draft listed three "sweep targets" — `cachedScan`, `fragmentDepsBackfill`,
+the `registrySourceResolver` SourceContext map. Audit found none of them
+fit the `AdminCache` contract:
 
-**Note**: a previous draft of this section listed `source-sidecars.ts`, `locale.ts`, and `manifest.ts` as sweep targets. `source-sidecars.ts` was deleted in commit `7d61ce5` (Media v1 step 13c — drop forward sidecars + `SourceSidecarWriter`); `locale.ts` and `manifest.ts` carry no caches. The actual cache-pattern callers above replace that stale list.
+| Candidate | Why not |
+|---|---|
+| `cachedScan` (template scan, `memoizeAsync` wrapper) | Singleflight semantics — concurrent misses share one in-flight Promise. `AdminCache.get/set` doesn't provide thundering-herd protection; migrating would regress 5 concurrent template scans on cold start. `memoizeAsync` is a published primitive (`concurrency.ts`), not ad-hoc. Stays. |
+| `fragmentDepsBackfill: Map<string, Promise<void>>` | Same singleflight pattern; in-flight memo of a side-effecting build (`rebuildDepIndex`). No cached value to return. Stays. |
+| `registrySourceResolver` Map | Caches `SourceContext` instances carrying function refs (`history.recordWrite`) and class instances. Violates the locked invariant "Cached values MUST be JSON-serializable" (`design-cache.md` offline composition). Stays. |
 
-**Tests:** equivalence tests confirm cache hits return same shapes as pre-migration
+The codebase is genuinely not memo-heavy as the draft anticipated.
+The right Cut 5 is: pick a real consumer that benefits from JSON-
+serializable cached results and wire it through, paired with the save
+invalidation Cut 6 originally separated. Splitting them ships a
+regression (cache shows stale data until next save) — same lesson
+called out in `design-config-implementation.md` Cut 5/Cut 10 reshuffle.
 
-### Cut 6: Save handler invalidation
+**What shipped (paired Cut 5 + Cut 6):**
 
-**Files modified:**
-- `packages/gazetta/src/admin-api/routes/pages.ts` — explicit `cache.invalidatePrefix('pages:')` on save; sidecar-driven cascade invalidates dependent pages
-- Similar in `fragments.ts`, `assets.ts`, `publish.ts`
+Files modified:
+- `packages/gazetta/src/admin-api/source-context.ts` — `SourceContext`
+  gains a `cache: AdminCache` field. `createSourceContext` lazily
+  builds a `MemoryCache` (and wraps with `forSite()`) when the caller
+  doesn't supply one. The cache lives at SourceContext lifetime, so
+  every `loadSiteFromSource(source)` returns a `Site` whose `cache`
+  is the same instance — entries persist across requests.
+- `packages/gazetta/src/site-loader.ts` — `LoadSiteOptions.cache`
+  added; when supplied, used verbatim (already site-scoped).
+  Fallback path (CLI, tests) builds a fresh wrapped cache per call.
+- `packages/gazetta/src/admin-api/routes/pages.ts` — `GET /api/pages`
+  reads `pages:summary` from `source.cache`, computes on miss, sets.
+  Save handlers (`POST/PUT/DELETE`) call
+  `source.cache.invalidatePrefix('pages:')` before returning.
+- `packages/gazetta/src/admin-api/routes/fragments.ts` — same shape
+  for `GET /api/fragments` (`fragments:summary`). Fragment writes
+  also invalidate `pages:` because page summaries reflect fragment
+  references resolvable through the loader.
+- `packages/gazetta/src/admin-api/routes/history.ts` — undo and
+  restore invalidate `pages:` + `fragments:` when the target is the
+  source target (the common case; restoring on a non-source target
+  doesn't affect this source's cache).
 
-**Tests:** save invalidates correct prefix; sidecar cascade invalidates dependents
+**Not invalidated (deliberately, to keep the diff small):**
+- Asset writes — the cached page/fragment summary doesn't include
+  asset refs (just `name/route/template/locales`); rename/replace/
+  delete don't dirty the summary.
+- Publish — writes to target storage, not source content; source
+  cache stays valid.
+
+**Tests:** existing `admin-api.test.ts` POST→GET round-trips already
+exercise the contract end-to-end (creating a page then listing must
+return the new page); they were failing under read-only Cut 5 and
+now pass with the paired invalidation. No new test files needed —
+the cache primitives are unit-tested in `cache-keys`/`cache-memory`/
+`cache-per-site`; the integration is exercised via the admin-api
+suite.
 
 ### Cut 7: Stats
 

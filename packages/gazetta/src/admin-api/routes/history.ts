@@ -128,6 +128,12 @@ export function historyRoutes(
       revisionId: list[1].id,
       message: `Undo ${list[0].operation} (rev ${list[0].id})`,
     })
+    // Restoring on the source target rewrites the manifests we summarize
+    // through `/api/pages` and `/api/fragments`. Other targets share no
+    // cache with this source so they're untouched.
+    if (targetName === source.targetName) {
+      await Promise.all([source.cache.invalidatePrefix('pages:'), source.cache.invalidatePrefix('fragments:')])
+    }
     return c.json({ revision: restored, restoredFrom: list[1].id })
   })
 
@@ -148,6 +154,9 @@ export function historyRoutes(
         revisionId,
         message: `Rollback to ${revisionId}`,
       })
+      if (targetName === source.targetName) {
+        await Promise.all([source.cache.invalidatePrefix('pages:'), source.cache.invalidatePrefix('fragments:')])
+      }
       return c.json({ revision: restored, restoredFrom: revisionId })
     } catch (err) {
       // readRevision throws ENOENT-style errors when the id doesn't

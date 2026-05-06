@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { loadSiteFromSource } from '../source-context.js'
 import { recordWrite } from '../../history-recorder.js'
 import type { SourceContextResolver } from '../source-context.js'
-import { CreateFragmentRequestSchema } from '../schemas/fragments.js'
+import { CreateFragmentRequestSchema, type FragmentSummary } from '../schemas/fragments.js'
 import { isValidLocale } from '../../locale.js'
 import { rebuildAssetRefs, type ItemRef } from '../../assets/asset-deps.js'
 import { rebuildFragmentDeps } from '../../fragment-deps.js'
@@ -18,8 +18,11 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
     const source = await resolve(c.req.query('target'))
     // Empty target → empty list. See pages.ts for rationale.
     try {
+      // Cache the summary list (see pages.ts for the same rationale).
+      const cached = await source.cache.get<FragmentSummary[]>('fragments:summary')
+      if (cached) return c.json(cached)
       const site = await loadSiteFromSource(source)
-      const fragments = [...site.fragments.entries()].map(([name, frag]) => {
+      const fragments: FragmentSummary[] = [...site.fragments.entries()].map(([name, frag]) => {
         const localeEntry = site.fragmentLocales.get(name)
         return {
           name,
@@ -27,6 +30,7 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
           locales: localeEntry ? [...localeEntry.locales.keys()] : undefined,
         }
       })
+      await source.cache.set('fragments:summary', fragments)
       return c.json(fragments)
     } catch (err) {
       const msg = (err as Error).message
@@ -69,6 +73,10 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
       rebuildAssetRefs(source.contentRoot, item, null, manifest),
       rebuildFragmentDeps(source.contentRoot, item, null, manifest),
     ])
+    // Fragment edits affect both fragments and any pages that
+    // reference them — drop both summaries so /api/pages reflects
+    // any newly-resolvable fragment refs on the next call.
+    await Promise.all([source.cache.invalidatePrefix('fragments:'), source.cache.invalidatePrefix('pages:')])
     return c.json({ ok: true, name: body.name })
   })
 
@@ -162,6 +170,7 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
       rebuildAssetRefs(source.contentRoot, item, fragment, manifest),
       rebuildFragmentDeps(source.contentRoot, item, fragment, manifest),
     ])
+    await Promise.all([source.cache.invalidatePrefix('fragments:'), source.cache.invalidatePrefix('pages:')])
     return c.json({ ok: true })
   })
 
@@ -198,6 +207,7 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
       )
     }
     await Promise.all(teardowns)
+    await Promise.all([source.cache.invalidatePrefix('fragments:'), source.cache.invalidatePrefix('pages:')])
     return c.json({ ok: true })
   })
 
