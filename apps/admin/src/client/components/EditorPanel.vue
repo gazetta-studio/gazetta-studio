@@ -15,15 +15,15 @@ import PageMetadataEditor from './PageMetadataEditor.vue'
 import ValidationBanner from './ValidationBanner.vue'
 import ConflictBanner from './ConflictBanner.vue'
 import { useLocaleStore } from '../stores/locale.js'
-import { useSaveConflictsStore } from '../stores/saveConflicts.js'
 import { manifestPath } from '../stores/editorEtags.js'
+import { useConflictDiscard } from '../composables/useConflictDiscard.js'
 
 const editing = useEditingStore()
 const selection = useSelectionStore()
 const theme = useThemeStore()
 const unsavedGuard = useUnsavedGuardStore()
-const conflicts = useSaveConflictsStore()
 const localeStore = useLocaleStore()
+const conflictDiscard = useConflictDiscard()
 const route = useRoute()
 const router = useRouter()
 const containerRef = ref<HTMLElement | null>(null)
@@ -107,25 +107,15 @@ const activeManifestPath = computed<string | null>(() => {
 const showConflictBanner = computed(() => activeManifestPath.value !== null)
 
 /**
- * Author chose "Discard my changes" — replace the editor's local
- * edit with the server's current manifest content + clear the
- * conflict. The conflict carries the full manifest the server has;
- * we apply the relevant slice (root content / current path's
- * component content) to editorContent.
- *
- * For the v1 minimum: reload the selection from the server. This
- * pulls fresh content + a fresh etag in one round-trip and clears
- * any stale state. Heavier than strictly necessary (the conflict
- * already has the data) but it guarantees correctness for every
- * edit context (root, component, fragment) without per-context
- * orchestration.
+ * Author chose "Discard my changes" — delegate to the dedicated
+ * conflict-discard composable. The orchestration (clear conflict
+ * → drop local pending → reload selection) lives there so the
+ * flow is independently testable without mounting the editor's
+ * real-DOM machinery.
  */
 async function handleConflictDiscard() {
   if (!activeManifestPath.value) return
-  conflicts.clear(activeManifestPath.value)
-  // Drop local pending; reload from server.
-  editing.discard()
-  await selection.reload()
+  await conflictDiscard.run(activeManifestPath.value)
 }
 </script>
 
