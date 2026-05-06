@@ -168,3 +168,50 @@ describe('MemoryCache stats', () => {
     expect(stats?.size).toBe(2)
   })
 })
+
+describe('MemoryCache key policy (Cut 1)', () => {
+  it('round-trips values keyed by very long consumer keys', async () => {
+    // Long keys force the overflow-hash path inside applyKeyPolicy.
+    // The provider must be consistent: set under a long consumer key,
+    // get under the same long consumer key, and read the value back.
+    const cache = createMemoryCache()
+    const longKey = `pages:detail:${'x'.repeat(300)}`
+    await cache.set(longKey, { title: 'long' })
+    expect(await cache.get(longKey)).toEqual({ title: 'long' })
+  })
+
+  it('distinguishes two different long keys via the overflow hash', async () => {
+    // Two long keys differing only in the overflow tail must NOT
+    // collide — overflow hash is what makes them distinct.
+    const cache = createMemoryCache()
+    const a = `pages:detail:${'a'.repeat(300)}`
+    const b = `pages:detail:${'b'.repeat(300)}`
+    await cache.set(a, 'A')
+    await cache.set(b, 'B')
+    expect(await cache.get(a)).toBe('A')
+    expect(await cache.get(b)).toBe('B')
+  })
+
+  it('invalidatePrefix matches long-keyed entries when the prefix is short', async () => {
+    // Critical contract from design-cache.md Gap 2: prefix invalidation
+    // works regardless of how long the full key is, as long as the
+    // prefix is short enough to be preserved verbatim by applyKeyPolicy.
+    const cache = createMemoryCache()
+    await cache.set(`pages:detail:${'a'.repeat(300)}`, 1)
+    await cache.set(`pages:detail:${'b'.repeat(300)}`, 2)
+    await cache.set('fragments:detail:header', 3)
+    const cleared = await cache.invalidatePrefix('pages:')
+    expect(cleared).toBe(2)
+    expect(await cache.get(`pages:detail:${'a'.repeat(300)}`)).toBeNull()
+    expect(await cache.get(`pages:detail:${'b'.repeat(300)}`)).toBeNull()
+    expect(await cache.get('fragments:detail:header')).toBe(3)
+  })
+
+  it('invalidate removes a long-keyed entry', async () => {
+    const cache = createMemoryCache()
+    const longKey = `pages:detail:${'z'.repeat(300)}`
+    await cache.set(longKey, 'value')
+    await cache.invalidate(longKey)
+    expect(await cache.get(longKey)).toBeNull()
+  })
+})
