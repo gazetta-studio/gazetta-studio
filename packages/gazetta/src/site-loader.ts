@@ -1,4 +1,7 @@
 import { join } from 'node:path'
+import { memoryCache } from './cache/factories.js'
+import { forSite } from './cache/per-site.js'
+import type { AdminCache } from './cache/types.js'
 import type { SiteConfig } from './config/types.js'
 import { siteConfigToManifest } from './config/loader.js'
 import { mapLimit } from './concurrency.js'
@@ -77,6 +80,19 @@ export interface Site {
   siteDir: string
   /** Directory containing template packages. Project-level, separate from content rooting. */
   templatesDir: string
+  /**
+   * AdminCache instance for L4 admin / origin-server caching. Always
+   * present — `loadSite` either wires the operator-supplied instance
+   * from `manifest.cache` (Path X — gazetta.config.ts defaults or per-
+   * site override) or falls back to a fresh `memoryCache()`.
+   *
+   * Per-site key scoping is automatic via `forSite()` — consumers call
+   * `site.cache.get('pages:home')` and the wrapper transparently
+   * prefixes with `site:{name}:` before hitting the underlying provider.
+   * Future shared backing services (Redis, Azure) inherit isolation
+   * for free.
+   */
+  cache: AdminCache
 }
 
 interface DiscoverPagesResult {
@@ -272,6 +288,15 @@ export async function loadSite(opts: LoadSiteOptions): Promise<Site> {
     console.warn(`  Warning: no pages found in ${contentRoot.path('pages')}`)
   }
 
+  // Per-site cache: use the operator-supplied instance from
+  // manifest.cache (Path X — set via gazetta.config.ts defaults or
+  // per-site override). When absent (most CLI / test paths) fall back
+  // to a fresh MemoryCache so consumers always have a cache to use.
+  // Wrap with forSite() so future shared providers (Redis, Azure)
+  // get key isolation across sites.
+  const baseCache: AdminCache = manifest.cache ?? memoryCache()
+  const cache = forSite(baseCache, manifest.name)
+
   return {
     manifest,
     pages,
@@ -279,6 +304,7 @@ export async function loadSite(opts: LoadSiteOptions): Promise<Site> {
     fragments,
     fragmentLocales,
     contentRoot,
+    cache,
     // backward-compat fields
     siteDir,
     templatesDir,
