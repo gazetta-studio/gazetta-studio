@@ -111,8 +111,33 @@ export function useEditorActions() {
    * on 409 STALE per design-offline.md Q3. Used by every save path
    * (root content, component content, fragment edit, structural).
    *
-   * Re-throws on conflict so callers can short-circuit; non-conflict
-   * errors propagate untouched.
+   * # Mid-save connection-loss handling (Cut 13)
+   *
+   * If the PUT itself fails with a network error (fetch rejects with
+   * TypeError — DNS / refused / aborted), we don't know whether the
+   * server received the save before the connection dropped. Two
+   * possibilities:
+   *
+   *   (a) Server received + processed the save; the response was
+   *       lost in transit. The on-disk manifest matches what we
+   *       tried to save.
+   *   (b) Server didn't receive the save. The on-disk manifest is
+   *       still the pre-save state.
+   *
+   * We reconcile via a single GET-and-compare:
+   *
+   *   - GET the current manifest + etag
+   *   - If GET also fails: surface the original network error;
+   *     editor stays dirty so the author can retry manually
+   *   - If server's current === pending: case (a). Advance the
+   *     etag store; treat as silent success per design-offline.md
+   *     Q4 "handled invisibly"
+   *   - Else: case (b) OR case (a) with a concurrent third-party
+   *     save in between. Surface as `StaleSaveError` so the normal
+   *     conflict flow takes over
+   *
+   * Re-throws on (resolved) conflict + on the original network
+   * error when GET also fails. Silent on case (a).
    */
   async function updateManifest(
     kind: 'page' | 'fragment',
@@ -139,9 +164,104 @@ export function useEditorActions() {
         // Update etag baseline so the next manual save (after the
         // author rebases) chains correctly.
         etags.set(path, err.currentEtag)
+        throw err
+      }
+      // Network error path — try to reconcile via GET-and-compare.
+      // TypeError is fetch's standard network-failure shape; HTTP
+      // errors (4xx / 5xx) come back as `Error` from request<T>
+      // and don't go through reconcile (a 5xx isn't ambiguous in
+      // the same way; the server told us it failed).
+      if (err instanceof TypeError) {
+        await reconcileMidSaveDrop(kind, name, locale, pendingForConflict, path)
+        return
       }
       throw err
     }
+  }
+
+  /**
+   * Mid-save connection-loss reconcile. See updateManifest header
+   * for the rationale. Called when the PUT failed with a network
+   * error; we don't yet know whether the save landed.
+   */
+  async function reconcileMidSaveDrop(
+    kind: 'page' | 'fragment',
+    name: string,
+    locale: string | undefined,
+    pendingForConflict: Record<string, unknown>,
+    path: string,
+  ): Promise<void> {
+    const etags = useEditorEtagsStore()
+    let current: { template?: unknown; content?: unknown; components?: unknown }
+    let currentEtag: string | null
+    try {
+      const fetchFn = kind === 'page' ? api.getPageWithEtag : api.getFragmentWithEtag
+      const result = await fetchFn(name, { locale })
+      current = result.data as { template?: unknown; content?: unknown; components?: unknown }
+      currentEtag = result.etag
+    } catch (getErr) {
+      // GET failed too — surface the network error. The author's
+      // local edits stay dirty (editor unchanged); they can retry
+      // when connection comes back.
+      throw getErr
+    }
+
+    // Compare server's current to the manifest the author tried to
+    // save. Equal = case (a); the save actually landed before the
+    // connection dropped.
+    if (manifestsEquivalent(current, pendingForConflict)) {
+      if (currentEtag) etags.set(path, currentEtag)
+      // Silent success per design-offline.md Q4 "handled invisibly."
+      return
+    }
+
+    // Different = case (b) or a concurrent save by someone else.
+    // Surface as a stale-save conflict; the editor's banner +
+    // diff view take over from here.
+    const fallbackEtag = currentEtag ?? ''
+    useSaveConflictsStore().set({
+      itemPath: path,
+      current: current as Record<string, unknown>,
+      currentEtag: fallbackEtag,
+      pending: pendingForConflict,
+    })
+    if (fallbackEtag) etags.set(path, fallbackEtag)
+    throw new StaleSaveError(current as Record<string, unknown>, fallbackEtag)
+  }
+
+  /**
+   * Compare two manifest snapshots for save-equivalence. Compares
+   * the union of save-relevant fields (template, content,
+   * components, route, metadata) via canonicalized JSON. Same shape
+   * as the server's `computeSaveEtag` canonicalization; if the
+   * server's etag would equal the etag of `pending`, they're
+   * equivalent.
+   *
+   * We could call computeSaveEtag for both sides and compare hashes;
+   * deep-equal via JSON canonicalization is cheaper for small
+   * manifests and avoids the async crypto call on the reconcile
+   * hot path.
+   */
+  function manifestsEquivalent(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+    const fields = ['template', 'content', 'components', 'metadata', 'route'] as const
+    const pickA: Record<string, unknown> = {}
+    const pickB: Record<string, unknown> = {}
+    for (const f of fields) {
+      if (f in a) pickA[f] = a[f]
+      if (f in b) pickB[f] = b[f]
+    }
+    return JSON.stringify(pickA, sortedKeyReplacer) === JSON.stringify(pickB, sortedKeyReplacer)
+  }
+
+  function sortedKeyReplacer(_key: string, value: unknown): unknown {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const out: Record<string, unknown> = {}
+      for (const k of Object.keys(value as Record<string, unknown>).sort()) {
+        out[k] = (value as Record<string, unknown>)[k]
+      }
+      return out
+    }
+    return value
   }
 
   function buildSaveFn(namePath: string): (content: Record<string, unknown>) => Promise<void> {
