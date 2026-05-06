@@ -59,6 +59,20 @@ async function bootstrap(): Promise<void> {
 
   app.mount('#app')
 
+  // User theme — append AFTER PrimeVue (which injects styles at runtime
+  // via app.use(PrimeVue)) so user declarations win the cascade. Must be
+  // INSIDE bootstrap and AFTER app.mount() so the order is deterministic
+  // even when bootstrap awaits cache + persistence hydration. A static
+  // <link> at module scope would race with PrimeVue's runtime injection.
+  // The server returns an empty stylesheet when the user has no
+  // admin/theme.css, so no onerror handling needed.
+  {
+    const link = document.createElement('link')
+    link.rel = 'stylesheet'
+    link.href = '/admin/theme.css'
+    document.head.appendChild(link)
+  }
+
   if (provider.degraded) {
     // Surface persistence degradation to operators via console for
     // now; the user-facing banner lands as a Vue component reading
@@ -71,15 +85,3 @@ async function bootstrap(): Promise<void> {
 }
 
 void bootstrap()
-
-// User theme — append AFTER PrimeVue and tokens.css so user declarations
-// win the cascade. PrimeVue injects styles at runtime via app.use(PrimeVue),
-// so a static <link> in index.html would lose to it. The server returns an
-// empty stylesheet when the user has no admin/theme.css, so no onerror
-// handling needed.
-{
-  const link = document.createElement('link')
-  link.rel = 'stylesheet'
-  link.href = '/admin/theme.css'
-  document.head.appendChild(link)
-}

@@ -74,8 +74,25 @@ export const useActiveTargetStore = defineStore('activeTarget', () => {
     return list[0]?.name ?? null
   }
 
+  /**
+   * In-flight `load()` promise — single-flight so the router guard can
+   * await the same promise as App.vue's `onMounted` hook without firing
+   * a second request. Cleared when load() finishes.
+   */
+  let loadPromise: Promise<void> | null = null
+
   /** Load the list of targets and resolve the active target name. */
-  async function load() {
+  async function load(): Promise<void> {
+    if (loadPromise) return loadPromise
+    loadPromise = doLoad()
+    try {
+      await loadPromise
+    } finally {
+      loadPromise = null
+    }
+  }
+
+  async function doLoad(): Promise<void> {
     loading.value = true
     error.value = null
     try {
@@ -91,6 +108,17 @@ export const useActiveTargetStore = defineStore('activeTarget', () => {
     } finally {
       loading.value = false
     }
+  }
+
+  /**
+   * Ensure the target list is loaded before resolving. Idempotent —
+   * concurrent callers share one in-flight request. Used by the router
+   * guard to make `?target=` resolution work on first navigation
+   * (App.vue's `onMounted` may not have fired yet).
+   */
+  async function ensureLoaded(): Promise<void> {
+    if (targets.value.length > 0 && !error.value) return
+    return load()
   }
 
   /** Change the active target. Called by the router guard when ?target= changes. */
@@ -129,6 +157,7 @@ export const useActiveTargetStore = defineStore('activeTarget', () => {
     // actions
     configure,
     load,
+    ensureLoaded,
     setActiveTarget,
     resetToDefault,
     clear,
