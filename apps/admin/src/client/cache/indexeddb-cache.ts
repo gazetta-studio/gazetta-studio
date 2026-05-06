@@ -39,9 +39,12 @@
  *   works because both providers expose the same consumer-facing
  *   API; their internal storage encoding doesn't have to match.
  *
- * - **Subscribers are local-only in this cut**: same as `MemoryCache`
- *   pre-Cut-4. BroadcastChannel cross-tab fan-out lands in offline
- *   Cut 4.
+ * - **Cross-tab fan-out via BroadcastChannel**: `subscribe()` fires
+ *   for events from any source — local invalidations on this provider
+ *   AND invalidations from peer tabs in the same origin. Matches the
+ *   server-side `MemoryCache` contract evolution ("events from any
+ *   source"). Peer events skip the originator's own subscribers via
+ *   instance-ID comparison; no infinite loop on rebroadcast.
  */
 import { type IDBPDatabase, openDB } from 'idb'
 import type { AdminCache, CacheStats, InvalidationEvent } from 'gazetta'
@@ -55,6 +58,13 @@ const DB_NAME = 'gazetta-cache'
 const DB_VERSION = 1
 const STORE_NAME = 'cache'
 const SET_AT_INDEX = 'setAt'
+
+/**
+ * BroadcastChannel name prefix. Suffixed by `dbName` so different
+ * cache databases in the same origin (tests, future per-site DB names)
+ * don't cross-talk.
+ */
+const BROADCAST_CHANNEL_PREFIX = 'gazetta-cache:'
 
 interface CacheRow {
   /** The cache key (primary key on the store). */
@@ -123,18 +133,66 @@ export async function createIndexedDBCache(opts: IndexedDBCacheOptions = {}): Pr
   let evictions = 0
   let lastInvalidation: { prefix: string; at: string; source: string } | undefined
 
-  function emit(prefix: string): void {
-    if (subscribers.size === 0) return
-    const event: InvalidationEvent = {
-      prefix,
-      source: { instance, timestamp: new Date().toISOString() },
-    }
+  // Cross-tab fan-out via BroadcastChannel. Same-origin tabs share
+  // IndexedDB storage, so an invalidation in tab A means tab B's
+  // cached read result is now stale; the channel notifies peers so
+  // their local subscribers (Vue Query bridge, validation drawer,
+  // etc.) can react. The underlying storage is already shared — we're
+  // not syncing state, just notifying that state changed.
+  //
+  // BroadcastChannel can be undefined in older test runners or
+  // sandboxed contexts; fall back to a no-op so cross-tab degrades
+  // gracefully without breaking single-tab usage.
+  const channel: BroadcastChannel | null =
+    typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(`${BROADCAST_CHANNEL_PREFIX}${dbName}`) : null
+
+  function fireSubscribers(event: InvalidationEvent): void {
     for (const handler of subscribers) {
       try {
         handler(event)
       } catch {
-        // Subscriber faults must not interfere with the
-        // invalidation that triggered them. Silently swallow.
+        // Subscriber faults must not interfere with the invalidation
+        // that triggered them. Silently swallow.
+      }
+    }
+  }
+
+  if (channel) {
+    channel.onmessage = (msgEvent: MessageEvent) => {
+      const event = msgEvent.data as InvalidationEvent | undefined
+      // Defensive: ignore messages we can't parse. BroadcastChannel
+      // only delivers structured-clone-able payloads, so malformed
+      // events shouldn't happen — but a future contract change in a
+      // peer tab shouldn't crash this tab.
+      if (!event || typeof event !== 'object' || typeof event.prefix !== 'string') return
+      // Loop guard. The originating tab's local emit() already fired
+      // its own subscribers; receiving the rebroadcast and firing
+      // again would double-fire on the originator.
+      if (event.source?.instance === instance) return
+      fireSubscribers(event)
+    }
+  }
+
+  /**
+   * Build the invalidation event, fire local subscribers, then
+   * broadcast to peer tabs. Local-fire-first ordering matches the
+   * server-side `MemoryCache` contract: subscribers see the event in
+   * the same order regardless of cross-tab semantics.
+   */
+  function emit(prefix: string): void {
+    const event: InvalidationEvent = {
+      prefix,
+      source: { instance, timestamp: new Date().toISOString() },
+    }
+    fireSubscribers(event)
+    if (channel) {
+      try {
+        channel.postMessage(event)
+      } catch {
+        // postMessage can throw on closed channels (test teardown
+        // race) or when the payload isn't structured-cloneable. The
+        // payload is plain JSON — clone failures shouldn't happen —
+        // but we still don't want to corrupt the local invalidation.
       }
     }
   }
@@ -271,12 +329,15 @@ export async function createIndexedDBCache(opts: IndexedDBCacheOptions = {}): Pr
     },
 
     /**
-     * Close the underlying IndexedDB connection. Tests use this to
-     * release the database between runs so version-bumps in upgrade
-     * don't get blocked. Production code doesn't call this — the
-     * connection lives for the tab session.
+     * Close the underlying IndexedDB connection AND the
+     * BroadcastChannel. Tests use this to release the database
+     * between runs so version-bumps in upgrade don't get blocked,
+     * and to avoid leaking channel listeners across tests. Production
+     * code doesn't call this — the connection + channel live for the
+     * tab session.
      */
     close(): void {
+      channel?.close()
       db.close()
     },
   }
