@@ -10,6 +10,7 @@ import { rebuildFragmentDeps } from '../../fragment-deps.js'
 import { hasBlockingIssues, runSaveDelta } from '../../validation/save-delta.js'
 import type { ValidatorRegistry } from '../../validation/registry.js'
 import type { FragmentManifest } from '../../types.js'
+import { computeSaveEtag } from '../../save-etag.js'
 
 export function fragmentRoutes(resolve: SourceContextResolver, validators: ValidatorRegistry, templatesDir?: string) {
   const app = new Hono()
@@ -101,6 +102,14 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
     if (!fragment) return c.json({ error: `Fragment "${name}" not found` }, 404)
 
     const localeEntry = site.fragmentLocales.get(name)
+    // Save-concurrency etag — see save-etag.ts. Same shape as pages
+    // (without metadata + route since fragments don't carry them).
+    const etag = await computeSaveEtag({
+      template: fragment.template,
+      content: fragment.content,
+      components: fragment.components,
+    })
+    c.header('ETag', `"${etag}"`)
     return c.json({
       name,
       template: fragment.template,
@@ -126,6 +135,34 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
     if (!defaultFragment) return c.json({ error: `Fragment "${name}" not found` }, 404)
     const localeVariant = locale ? site.fragmentLocales.get(name)?.locales.get(locale) : undefined
     const fragment = localeVariant ?? defaultFragment
+
+    // Save-concurrency check per design-offline.md Q3. Mirrors the
+    // pages PUT handler — see pages.ts for the rationale + 409 STALE
+    // shape.
+    const ifMatchRaw = c.req.header('If-Match')
+    const ifMatch = ifMatchRaw?.replace(/^"(.*)"$/, '$1')
+    if (ifMatch) {
+      const currentEtag = await computeSaveEtag({
+        template: fragment.template,
+        content: fragment.content,
+        components: fragment.components,
+      })
+      if (currentEtag !== ifMatch) {
+        return c.json(
+          {
+            code: 'STALE' as const,
+            current: {
+              template: fragment.template,
+              content: fragment.content,
+              components: fragment.components,
+            },
+            currentEtag,
+          },
+          409,
+          { ETag: `"${currentEtag}"` },
+        )
+      }
+    }
 
     const body = await c.req.json()
     const manifest = {
@@ -174,7 +211,9 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
       rebuildFragmentDeps(source.contentRoot, item, fragment, manifest),
     ])
     await Promise.all([source.cache.invalidatePrefix('fragments:'), source.cache.invalidatePrefix('pages:')])
-    return c.json({ ok: true })
+    const newEtag = await computeSaveEtag(manifest)
+    c.header('ETag', `"${newEtag}"`)
+    return c.json({ ok: true, etag: newEtag })
   })
 
   app.delete('/api/fragments/:name', async c => {

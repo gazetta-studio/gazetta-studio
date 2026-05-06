@@ -548,6 +548,157 @@ describe('PUT /api/pages/:name', () => {
   })
 })
 
+describe('save-etag concurrency (design-offline.md Q3)', () => {
+  afterAll(async () => {
+    await rm(resolve(localTargetDir, 'pages/etag-test'), { recursive: true, force: true })
+    await rm(resolve(localTargetDir, 'fragments/etag-test'), { recursive: true, force: true })
+  })
+
+  function unquote(etag: string | null): string | null {
+    return etag?.replace(/^"(.*)"$/, '$1') ?? null
+  }
+
+  it('GET /api/pages/:name returns ETag header (16 hex, RFC-7232 quoted)', async () => {
+    const res = await app.request('/api/pages/home')
+    expect(res.status).toBe(200)
+    const etag = res.headers.get('ETag')
+    expect(etag).not.toBeNull()
+    expect(etag).toMatch(/^"[0-9a-f]{16}"$/)
+  })
+
+  it('GET /api/fragments/:name returns ETag header', async () => {
+    const res = await app.request('/api/fragments/header')
+    expect(res.status).toBe(200)
+    const etag = res.headers.get('ETag')
+    expect(etag).toMatch(/^"[0-9a-f]{16}"$/)
+  })
+
+  it('PUT without If-Match succeeds (last-write-wins for non-offline-aware clients)', async () => {
+    await app.request('/api/pages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'etag-test', template: 'page-default' }),
+    })
+    const res = await app.request('/api/pages/etag-test', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: { title: 'No If-Match' } }),
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { ok: boolean; etag?: string }
+    expect(body.ok).toBe(true)
+    // Successful save echoes the new etag for client baseline update.
+    expect(body.etag).toMatch(/^[0-9a-f]{16}$/)
+    expect(res.headers.get('ETag')).toBe(`"${body.etag}"`)
+  })
+
+  it('PUT with matching If-Match succeeds', async () => {
+    // Read current etag.
+    const readRes = await app.request('/api/pages/etag-test')
+    const currentEtag = unquote(readRes.headers.get('ETag'))!
+    expect(currentEtag).toMatch(/^[0-9a-f]{16}$/)
+
+    const res = await app.request('/api/pages/etag-test', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'If-Match': `"${currentEtag}"` },
+      body: JSON.stringify({ content: { title: 'Matching If-Match' } }),
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { ok: boolean; etag: string }
+    // New etag MUST differ from the pre-save etag (content changed).
+    expect(body.etag).not.toBe(currentEtag)
+  })
+
+  it('PUT with stale If-Match returns 409 STALE with current manifest', async () => {
+    // Read once to capture an etag, save twice via the no-If-Match
+    // path so the etag goes stale.
+    const readRes = await app.request('/api/pages/etag-test')
+    const staleEtag = unquote(readRes.headers.get('ETag'))!
+
+    // Drift the server state — simulates "another author saved while
+    // I was offline."
+    await app.request('/api/pages/etag-test', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: { title: 'Drift' } }),
+    })
+
+    // Now try to save with the stale etag.
+    const res = await app.request('/api/pages/etag-test', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'If-Match': `"${staleEtag}"` },
+      body: JSON.stringify({ content: { title: 'My Edit' } }),
+    })
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as {
+      code: string
+      current: { content: { title: string } }
+      currentEtag: string
+    }
+    expect(body.code).toBe('STALE')
+    // Current manifest body so the client can show the conflict diff.
+    expect(body.current.content.title).toBe('Drift')
+    expect(body.currentEtag).toMatch(/^[0-9a-f]{16}$/)
+    expect(body.currentEtag).not.toBe(staleEtag)
+    expect(res.headers.get('ETag')).toBe(`"${body.currentEtag}"`)
+  })
+
+  it('chained saves with projected etags work (offline replay sequence)', async () => {
+    // Simulates the chained-projection pattern from design-offline.md
+    // Q3: A1 saves with If-Match=baseline; A2 saves with If-Match=
+    // projected-from-A1's-result. Both succeed end-to-end.
+    const readRes = await app.request('/api/pages/etag-test')
+    const baselineEtag = unquote(readRes.headers.get('ETag'))!
+
+    // A1
+    const a1 = await app.request('/api/pages/etag-test', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'If-Match': `"${baselineEtag}"` },
+      body: JSON.stringify({ content: { title: 'A1' } }),
+    })
+    expect(a1.status).toBe(200)
+    const a1Body = (await a1.json()) as { etag: string }
+
+    // A2 chains via A1's projected etag.
+    const a2 = await app.request('/api/pages/etag-test', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'If-Match': `"${a1Body.etag}"` },
+      body: JSON.stringify({ content: { title: 'A2' } }),
+    })
+    expect(a2.status).toBe(200)
+  })
+
+  it('fragments PUT honors If-Match (same shape as pages)', async () => {
+    await app.request('/api/fragments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'etag-test', template: 'header-layout' }),
+    })
+    const readRes = await app.request('/api/fragments/etag-test')
+    const currentEtag = unquote(readRes.headers.get('ETag'))!
+    expect(currentEtag).toMatch(/^[0-9a-f]{16}$/)
+
+    // Stale If-Match → 409 STALE.
+    const stale = await app.request('/api/fragments/etag-test', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'If-Match': '"0000000000000000"' },
+      body: JSON.stringify({ content: { title: 'Stale' } }),
+    })
+    expect(stale.status).toBe(409)
+    const staleBody = (await stale.json()) as { code: string; current: unknown }
+    expect(staleBody.code).toBe('STALE')
+    expect(staleBody.current).toBeDefined()
+
+    // Matching If-Match → success.
+    const ok = await app.request('/api/fragments/etag-test', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'If-Match': `"${currentEtag}"` },
+      body: JSON.stringify({ content: { title: 'Fresh' } }),
+    })
+    expect(ok.status).toBe(200)
+  })
+})
+
 describe('PUT /api/pages/:name (metadata round-trip)', () => {
   afterAll(async () => {
     await rm(resolve(localTargetDir, 'pages/meta-test'), { recursive: true, force: true })

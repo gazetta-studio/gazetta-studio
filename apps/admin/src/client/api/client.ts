@@ -33,6 +33,28 @@ export class ValidationFailedError extends Error {
   }
 }
 
+/**
+ * Thrown when a save / fragment-update returns 409 with code STALE — the
+ * server's etag changed between the client's read and write per
+ * `design-offline.md` Q3. Carries the server's CURRENT manifest so the
+ * conflict UX (Cut 10) can surface a field-by-field diff banner.
+ *
+ * `currentEtag` is the server's post-mismatch etag — the client uses it
+ * to retry by either rebasing the local edit on top of the new manifest
+ * or discarding the local edit.
+ */
+export class StaleSaveError extends Error {
+  readonly code = 'STALE' as const
+  readonly current: Record<string, unknown>
+  readonly currentEtag: string
+  constructor(current: Record<string, unknown>, currentEtag: string) {
+    super('Save failed: the server has a newer version of this content')
+    this.name = 'StaleSaveError'
+    this.current = current
+    this.currentEtag = currentEtag
+  }
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(apiUrl(path), {
     ...options,
@@ -40,12 +62,41 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }))
-    if (res.status === 409 && body && typeof body === 'object' && body.code === 'VALIDATION_FAILED') {
-      throw new ValidationFailedError(body.issues ?? [])
+    if (res.status === 409 && body && typeof body === 'object') {
+      if (body.code === 'VALIDATION_FAILED') throw new ValidationFailedError(body.issues ?? [])
+      if (body.code === 'STALE') throw new StaleSaveError(body.current ?? {}, body.currentEtag ?? '')
     }
     throw new Error(body.error ?? `Request failed: ${res.status}`)
   }
   return res.json()
+}
+
+/**
+ * `request<T>` for endpoints that return the save-concurrency `ETag`
+ * header (per design-offline.md Q3). Returns the parsed body plus the
+ * unquoted etag value when present. Used by `getPageWithEtag` /
+ * `getFragmentWithEtag` so offline-aware save flows can echo the etag
+ * back as `If-Match` on the next save.
+ */
+async function requestWithEtag<T>(path: string, options?: RequestInit): Promise<{ data: T; etag: string | null }> {
+  const res = await fetch(apiUrl(path), {
+    ...options,
+    headers: authHeaders({ 'Content-Type': 'application/json', ...(options?.headers as Record<string, string>) }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }))
+    if (res.status === 409 && body && typeof body === 'object') {
+      if (body.code === 'VALIDATION_FAILED') throw new ValidationFailedError(body.issues ?? [])
+      if (body.code === 'STALE') throw new StaleSaveError(body.current ?? {}, body.currentEtag ?? '')
+    }
+    throw new Error(body.error ?? `Request failed: ${res.status}`)
+  }
+  const data = (await res.json()) as T
+  // RFC-7232 wraps the etag value in quotes; strip them for the typed
+  // value the consumer stores. Re-quoted at If-Match send time.
+  const raw = res.headers.get('ETag')
+  const etag = raw ? raw.replace(/^"(.*)"$/, '$1') : null
+  return { data, etag }
 }
 
 /**
@@ -206,12 +257,28 @@ export const api = {
     const path = options?.locale ? `/pages/${name}?locale=${encodeURIComponent(options.locale)}` : `/pages/${name}`
     return request<PageDetail>(path, options)
   },
+  /**
+   * Same as `getPage` but also returns the server's save-etag (the
+   * `ETag` response header per design-offline.md Q3). Offline-aware
+   * save flows store this and echo it as `If-Match` on the next save
+   * to detect mid-edit drift.
+   */
+  getPageWithEtag: (name: string, options?: RequestInit & { locale?: string }) => {
+    const path = options?.locale ? `/pages/${name}?locale=${encodeURIComponent(options.locale)}` : `/pages/${name}`
+    return requestWithEtag<PageDetail>(path, options)
+  },
   createPage: (data: CreatePageRequest) =>
     request<CreatePageResponse>('/pages', { method: 'POST', body: JSON.stringify(data) }),
   deletePage: (name: string) => request<{ ok: boolean }>(`/pages/${name}`, { method: 'DELETE' }),
-  updatePage: (name: string, data: Partial<PageDetail>, opts?: { locale?: string }) => {
+  updatePage: (name: string, data: Partial<PageDetail>, opts?: { locale?: string; ifMatch?: string }) => {
     const qs = opts?.locale ? `?locale=${encodeURIComponent(opts.locale)}` : ''
-    return request<{ ok: boolean }>(`/pages/${name}${qs}`, { method: 'PUT', body: JSON.stringify(data) })
+    const headers: Record<string, string> = {}
+    if (opts?.ifMatch) headers['If-Match'] = `"${opts.ifMatch}"`
+    return request<{ ok: boolean; etag?: string }>(`/pages/${name}${qs}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+      headers,
+    })
   },
   /** List fragments. See getPages for the `target` option. */
   getFragments: (opts?: { target?: string }) =>
@@ -222,12 +289,28 @@ export const api = {
       : `/fragments/${name}`
     return request<FragmentDetail>(path, options)
   },
+  /**
+   * Same as `getFragment` but also returns the server's save-etag.
+   * See `getPageWithEtag` for the rationale.
+   */
+  getFragmentWithEtag: (name: string, options?: RequestInit & { locale?: string }) => {
+    const path = options?.locale
+      ? `/fragments/${name}?locale=${encodeURIComponent(options.locale)}`
+      : `/fragments/${name}`
+    return requestWithEtag<FragmentDetail>(path, options)
+  },
   createFragment: (data: CreateFragmentRequest) =>
     request<CreateFragmentResponse>('/fragments', { method: 'POST', body: JSON.stringify(data) }),
   deleteFragment: (name: string) => request<{ ok: boolean }>(`/fragments/${name}`, { method: 'DELETE' }),
-  updateFragment: (name: string, data: Partial<FragmentDetail>, opts?: { locale?: string }) => {
+  updateFragment: (name: string, data: Partial<FragmentDetail>, opts?: { locale?: string; ifMatch?: string }) => {
     const qs = opts?.locale ? `?locale=${encodeURIComponent(opts.locale)}` : ''
-    return request<{ ok: boolean }>(`/fragments/${name}${qs}`, { method: 'PUT', body: JSON.stringify(data) })
+    const headers: Record<string, string> = {}
+    if (opts?.ifMatch) headers['If-Match'] = `"${opts.ifMatch}"`
+    return request<{ ok: boolean; etag?: string }>(`/fragments/${name}${qs}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+      headers,
+    })
   },
   getTemplates: () => request<TemplateSummary[]>('/templates'),
   getTemplateSchema: (name: string, options?: RequestInit) =>

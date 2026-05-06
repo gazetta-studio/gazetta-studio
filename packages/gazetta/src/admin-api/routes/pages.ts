@@ -10,6 +10,7 @@ import { rebuildFragmentDeps } from '../../fragment-deps.js'
 import { hasBlockingIssues, runSaveDelta } from '../../validation/save-delta.js'
 import type { ValidatorRegistry } from '../../validation/registry.js'
 import type { PageManifest } from '../../types.js'
+import { computeSaveEtag } from '../../save-etag.js'
 
 export function pageRoutes(resolve: SourceContextResolver, validators: ValidatorRegistry, templatesDir?: string) {
   const app = new Hono()
@@ -140,6 +141,18 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
     if (!page) return c.json({ error: `Page "${name}" not found` }, 404)
 
     const localeEntry = site.pageLocales.get(name)
+    // Save-concurrency etag — see save-etag.ts. Client uses this in
+    // If-Match on the next PUT to detect mid-edit drift (someone else
+    // saved while the author was editing). Different from the
+    // `.{8hex}.hash` publish-state hash; both run.
+    const etag = await computeSaveEtag({
+      template: page.template,
+      content: page.content,
+      components: page.components,
+      metadata: page.metadata,
+      route: page.route,
+    })
+    c.header('ETag', `"${etag}"`)
     return c.json({
       name,
       route: page.route,
@@ -168,6 +181,41 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
     if (!defaultPage) return c.json({ error: `Page "${name}" not found` }, 404)
     const localeVariant = locale ? site.pageLocales.get(name)?.locales.get(locale) : undefined
     const page = localeVariant ?? defaultPage
+
+    // Save-concurrency check per design-offline.md Q3. If-Match
+    // present → server compares against current on-disk etag; mismatch
+    // returns 409 STALE with current manifest body so the client can
+    // surface a conflict diff. Absent If-Match → no concurrency check
+    // (online clients without offline-awareness keep working — last-
+    // write-wins). Header value is RFC-7232 quoted; normalize.
+    const ifMatchRaw = c.req.header('If-Match')
+    const ifMatch = ifMatchRaw?.replace(/^"(.*)"$/, '$1')
+    if (ifMatch) {
+      const currentEtag = await computeSaveEtag({
+        template: page.template,
+        content: page.content,
+        components: page.components,
+        metadata: page.metadata,
+        route: page.route,
+      })
+      if (currentEtag !== ifMatch) {
+        return c.json(
+          {
+            code: 'STALE' as const,
+            current: {
+              template: page.template,
+              content: page.content,
+              components: page.components,
+              metadata: page.metadata,
+              route: page.route,
+            },
+            currentEtag,
+          },
+          409,
+          { ETag: `"${currentEtag}"` },
+        )
+      }
+    }
 
     const body = await c.req.json()
     const manifest: Record<string, unknown> = {
@@ -231,7 +279,17 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
       rebuildFragmentDeps(source.contentRoot, item, page, manifest),
     ])
     await source.cache.invalidatePrefix('pages:')
-    return c.json({ ok: true })
+    // Echo the new save-etag so the client updates its baseline
+    // without a separate GET. The shape MUST match what the next
+    // GET produces — `route` is derived from the folder, not stored
+    // in the file, but the in-memory entry carries it. Carry it
+    // here so the projection chain works for offline replay
+    // sequences (design-offline.md Q3).
+    const echoShape: Record<string, unknown> = { ...manifest }
+    if (page.route !== undefined) echoShape.route = page.route
+    const newEtag = await computeSaveEtag(echoShape)
+    c.header('ETag', `"${newEtag}"`)
+    return c.json({ ok: true, etag: newEtag })
   })
 
   app.delete('/api/pages/:name{.+}', async c => {
