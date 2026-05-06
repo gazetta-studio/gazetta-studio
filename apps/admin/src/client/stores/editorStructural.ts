@@ -92,6 +92,22 @@ export const useEditorStructuralStore = defineStore('editorStructural', () => {
     return entries.get(manifestKeyToString(key))?.pending ?? null
   }
 
+  /**
+   * Hydration primitive — restore a previously-persisted entry with
+   * both `original` and `pending` arrays as-is. Used by the pending-
+   * edits persistence module at admin boot. Leading underscore flags
+   * the method as internal: app code MUST use the intent-named
+   * mutators (move / add / remove / discard) which preserve the
+   * "original captured once" invariant. This bypasses that invariant
+   * because the persisted snapshot IS the prior captured original.
+   */
+  function _hydrateFromSnapshot(key: ManifestKey, entry: StructuralEntry): void {
+    entries.set(manifestKeyToString(key), {
+      original: entry.original,
+      pending: entry.pending,
+    })
+  }
+
   function hasPendingFor(key: ManifestKey): boolean {
     return entries.has(manifestKeyToString(key))
   }
@@ -116,5 +132,6 @@ export const useEditorStructuralStore = defineStore('editorStructural', () => {
     allEntries,
     pendingCount,
     hasPendingEdits,
+    _hydrateFromSnapshot,
   }
 })

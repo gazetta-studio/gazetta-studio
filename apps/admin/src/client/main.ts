@@ -9,6 +9,7 @@ import { selectBrowserCacheProvider } from './cache/provider-selector.js'
 import { createAdminQueryClient, createGazettaClientPersister } from './queries/client.js'
 import { createGazettaPersister } from './queries/persister.js'
 import { useConnectionState } from './stores/connectionState.js'
+import { attachPendingEditsPersistence } from './stores/_pendingEditsPersistence.js'
 import './assets/tokens.css'
 
 // Async boot: provider selection probes IndexedDB before constructing
@@ -40,6 +41,14 @@ async function bootstrap(): Promise<void> {
   // when degraded. Must run after Pinia install + before mount so
   // the first render sees a populated state.
   useConnectionState()
+
+  // Wire pending-edits persistence on top of the L6 cache. Awaits
+  // initial hydration so the first render of the editor sees any
+  // structural pending changes that survived a previous session.
+  // Per Cut 8 scope: persists `editorStructural` only; `editorStash`
+  // + `editorContent` persistence land in Cut 8b.
+  const pendingEditsPersistence = attachPendingEditsPersistence(provider.cache)
+  await pendingEditsPersistence.hydrated
 
   app.mount('#app')
 
