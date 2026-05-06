@@ -27,8 +27,8 @@ Branch: `cache-v1` off `main`. **No backwards compatibility** — replaces exist
 | 7 | Stats: hit / miss / size / errors counters + structured log every 5 min + `GET /api/system/cache/stats` | ✓ | Low | Observability |
 | 8 | `CacheError` taxonomy: `CacheConfigurationError`, `CacheSchemaError` | ✓ | Low | Error contracts (shipped pre-Path-X-Phase-3) |
 | 9 | Per-site cache instance + per-site key auto-prefix | ✓ | Medium | Multi-site isolation |
-| 10 | `adminCacheContractTests` test helper exported from `gazetta/testing` | ☐ | Low | Plugin author validation surface |
-| 11 | Docs + operator config examples | ☐ | Low | User-facing |
+| 10 | `adminCacheContractTests` test helper exported from `gazetta/testing` | ✓ | Low | Plugin author validation surface |
+| 11 | Docs + operator config examples | ✓ | Low | User-facing |
 
 ## Per-cut scope
 
