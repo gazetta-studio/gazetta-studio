@@ -42,6 +42,7 @@ beforeAll(async () => {
     siteDir: projectSiteDir, // used for templatesDir/adminDir defaults
     templatesDir: resolve(projectRoot, 'templates'),
     adminDir: resolve(projectRoot, 'admin'),
+    disableCacheStatsLogger: true,
   })
 })
 
@@ -64,6 +65,24 @@ describe('GET /api/site', () => {
     const { status, body } = await get('/api/site')
     expect(status).toBe(200)
     expect(body.name).toBe('Gazetta Starter')
+  })
+})
+
+describe('GET /api/system/cache/stats', () => {
+  it('returns the source cache snapshot', async () => {
+    // Hit /api/pages first so the cache has something to report —
+    // the stats() shape is provider-defined but the floor (hits,
+    // misses, size) is required by the AdminCache contract.
+    await get('/api/pages')
+    const { status, body } = await get('/api/system/cache/stats')
+    expect(status).toBe(200)
+    expect(body).toMatchObject({
+      hits: expect.any(Number),
+      misses: expect.any(Number),
+      size: expect.any(Number),
+    })
+    // /api/pages writes to the cache on miss → at least one entry.
+    expect(body.size).toBeGreaterThanOrEqual(1)
   })
 })
 

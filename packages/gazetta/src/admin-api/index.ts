@@ -26,6 +26,8 @@ import { compareRoutes } from './routes/compare.js'
 import { fieldRoutes } from './routes/fields.js'
 import { historyRoutes } from './routes/history.js'
 import { assetRoutes } from './routes/assets.js'
+import { systemRoutes } from './routes/system.js'
+import { startCacheStatsLogger } from './cache-stats-logger.js'
 
 export interface AdminAppOptions {
   /**
@@ -47,6 +49,12 @@ export interface AdminAppOptions {
   targets?: Map<string, StorageProvider>
   /** Target configurations — providers are initialized lazily on first publish/fetch/compare. */
   targetConfigs?: Record<string, TargetConfig>
+  /**
+   * Disable the periodic cache-stats logger. Defaults to false (logger
+   * runs every 5 minutes). Tests pass true to avoid background timers
+   * leaking into the test runtime.
+   */
+  disableCacheStatsLogger?: boolean
 }
 
 type AdminApp = Hono & {
@@ -169,6 +177,17 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   app.route('/', fieldRoutes(resolveSource, adminDir))
   app.route('/', historyRoutes(resolveSource, opts.targets, opts.targetConfigs))
   app.route('/', assetRoutes(resolveSource))
+  app.route('/', systemRoutes(resolveSource))
+
+  // Periodic cache stats log — fires every 5 minutes against the
+  // bootstrap source's cache. Runs unobtrusively (timer.unref()
+  // means it never blocks process exit). Tests pass
+  // `disableCacheStatsLogger: true` to avoid background timers; the
+  // route at /api/system/cache/stats still exposes on-demand
+  // snapshots either way.
+  if (!opts.disableCacheStatsLogger) {
+    startCacheStatsLogger({ cache: source.cache })
+  }
 
   // Exposed for the CLI's template file watcher: clears the memoized scan
   // so the next publish/compare picks up template edits. Not part of the

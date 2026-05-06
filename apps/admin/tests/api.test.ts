@@ -18,7 +18,7 @@ beforeAll(async () => {
   if (!loaded) throw new Error(`No site.config.ts at ${projectSiteDir}`)
   const manifest = siteConfigToManifest(loaded.config)
   const source = createSourceContext({ storage, siteDir: '', projectSiteDir, manifest })
-  app = createAdminApp({ source, siteDir: projectSiteDir, templatesDir })
+  app = createAdminApp({ source, siteDir: projectSiteDir, templatesDir, disableCacheStatsLogger: true })
 })
 
 afterAll(async () => {
