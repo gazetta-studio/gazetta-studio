@@ -6,7 +6,7 @@
  * and drive transitions via `sample()` directly. Banner tests
  * use `mount` with a mock estimate.
  */
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import PrimeVue from 'primevue/config'
 import { useStorageQuota } from '../src/client/composables/useStorageQuota.js'
@@ -118,37 +118,95 @@ describe('useStorageQuota', () => {
 })
 
 describe('StorageQuotaBanner', () => {
-  it('renders nothing when storage usage is below threshold', async () => {
-    const wrapper = mount(StorageQuotaBanner, {
-      global: {
-        plugins: [PrimeVue],
-      },
+  /**
+   * The banner consumes `useStorageQuota()` internally — that
+   * composable reads `navigator.storage.estimate()`. We stub the
+   * navigator method globally for these tests so the banner sees a
+   * real ratio without polling against a real browser API.
+   *
+   * jsdom doesn't ship `navigator.storage`, so the stub also
+   * defines the shape if missing.
+   */
+  type StorageEstimateImpl = () => Promise<{ usage?: number; quota?: number }>
+  let originalStorage: typeof navigator.storage | undefined
+  function stubStorageEstimate(impl: StorageEstimateImpl): void {
+    originalStorage = (navigator as { storage?: typeof navigator.storage }).storage
+    Object.defineProperty(navigator, 'storage', {
+      value: { estimate: impl },
+      configurable: true,
     })
-    // No estimate has been sampled yet → showWarning = false.
-    expect(wrapper.find('[data-testid="storage-quota-banner"]').exists()).toBe(false)
-  })
+  }
+  function restoreStorageEstimate(): void {
+    if (originalStorage === undefined) {
+      // @ts-expect-error: deleting a stubbed property on navigator
+      delete (navigator as { storage?: typeof navigator.storage }).storage
+    } else {
+      Object.defineProperty(navigator, 'storage', {
+        value: originalStorage,
+        configurable: true,
+      })
+    }
+  }
 
-  it('renders banner with plain-language copy + dismiss button', () => {
-    // Mount the banner; the composable inside polls at default
-    // interval. We can't easily inject an estimate fn through the
-    // component (that'd require a prop). Instead, smoke-test the
-    // render by triggering the composable's reactivity directly
-    // via a separate mount with stubbed reactive showWarning.
-    //
-    // Simpler approach: assert plain-language copy is present in
-    // the SFC source. The composable contract is already tested
-    // above; the banner just renders the visible state.
+  afterEach(() => restoreStorageEstimate())
+
+  async function settle(): Promise<void> {
+    // Component's onMounted calls `sample()` which awaits
+    // navigator.storage.estimate(). Two ticks for safety: one for
+    // the awaited estimate, one for Vue's reactivity flush.
+    await new Promise(resolve => setTimeout(resolve, 0))
+    await new Promise(resolve => setTimeout(resolve, 0))
+  }
+
+  it('renders nothing when storage usage is below threshold', async () => {
+    stubStorageEstimate(async () => ({ usage: 40, quota: 100 }))
     const wrapper = mount(StorageQuotaBanner, {
       global: { plugins: [PrimeVue] },
     })
-    // Banner only renders when showWarning is true; we verify the
-    // copy exists in the template by checking the SFC's HTML
-    // structure rather than mounting with a forced state.
-    const html = wrapper.html()
-    // The template is conditionally rendered, so when the warning
-    // is off, only the comment placeholder is rendered. This is
-    // the correct shape — the banner is hidden by default.
-    expect(html).not.toContain('quota')
-    expect(html).not.toContain('exceeded')
+    await settle()
+    expect(wrapper.find('[data-testid="storage-quota-banner"]').exists()).toBe(false)
+  })
+
+  it('renders banner with plain-language copy when usage exceeds 80%', async () => {
+    stubStorageEstimate(async () => ({ usage: 85, quota: 100 }))
+    const wrapper = mount(StorageQuotaBanner, {
+      global: { plugins: [PrimeVue] },
+    })
+    await settle()
+
+    const banner = wrapper.find('[data-testid="storage-quota-banner"]')
+    expect(banner.exists()).toBe(true)
+    // Plain-language copy lock: "almost full" is the user-facing
+    // phrasing per design-offline.md Q4.
+    expect(banner.text()).toContain('almost full')
+    // No jargon.
+    const text = banner.text().toLowerCase()
+    expect(text).not.toContain('quota')
+    expect(text).not.toContain('exceeded')
+    expect(text).not.toContain('80')
+  })
+
+  it('exposes a dismiss button when banner is shown', async () => {
+    stubStorageEstimate(async () => ({ usage: 90, quota: 100 }))
+    const wrapper = mount(StorageQuotaBanner, {
+      global: { plugins: [PrimeVue] },
+    })
+    await settle()
+
+    expect(wrapper.find('[data-testid="storage-quota-banner-dismiss"]').exists()).toBe(true)
+  })
+
+  it('clicking the dismiss button hides the banner', async () => {
+    stubStorageEstimate(async () => ({ usage: 90, quota: 100 }))
+    const wrapper = mount(StorageQuotaBanner, {
+      global: { plugins: [PrimeVue] },
+    })
+    await settle()
+    expect(wrapper.find('[data-testid="storage-quota-banner"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="storage-quota-banner-dismiss"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="storage-quota-banner"]').exists()).toBe(false)
   })
 })
