@@ -1,4 +1,6 @@
 import { join } from 'node:path'
+import { memoryCache } from './cache/factories.js'
+import { forSite } from './cache/per-site.js'
 import { loadSite } from './site-loader.js'
 import { hashManifest } from './hash.js'
 import { scanTemplates, templateHashesFrom, type TemplateInfo } from './templates-scan.js'
@@ -88,6 +90,10 @@ export async function compareTargets(opts: CompareOptions): Promise<CompareResul
       storage: sourceRoot.storage,
       siteDir: sourceRoot.rootPath,
       templatesDir: opts.templatesDir,
+      // Fresh per-empty-site cache; not shared. Compare doesn't read
+      // through this cache, but the Site type now requires the field
+      // (Cut 2). forSite-wrapped to keep the contract uniform.
+      cache: forSite(memoryCache(), '(empty)'),
     }
   }
   // Hash fragments first (they don't depend on page hashes). Static-mode
