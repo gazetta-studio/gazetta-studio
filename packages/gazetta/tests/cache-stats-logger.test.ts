@@ -30,6 +30,23 @@ describe('startCacheStatsLogger', () => {
     expect(entry?.timestamp).toMatch(/Z$/)
   })
 
+  it('hoists instance to a top-level field for log-aggregator filtering (Gap 2)', async () => {
+    const cache = createMemoryCache({ instance: 'pod-log-test' })
+    const entries: CacheStatsLogEntry[] = []
+    const logger = startCacheStatsLogger({
+      cache,
+      intervalMs: 0,
+      sink: e => entries.push(e),
+    })
+    await logger.tick()
+    logger.dispose()
+
+    expect(entries).toHaveLength(1)
+    expect(entries[0]?.instance).toBe('pod-log-test')
+    // Also nested inside stats for direct-stats consumers.
+    expect(entries[0]?.stats.instance).toBe('pod-log-test')
+  })
+
   it('falls back to a zero snapshot when the provider has no stats()', async () => {
     // Construct a minimal AdminCache that omits the optional stats()
     // method — exercises the fallback path.

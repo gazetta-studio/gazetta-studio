@@ -44,6 +44,43 @@ describe('createSourceContext', () => {
     // Content paths are target-relative
     expect(source.contentRoot.path('pages', 'home')).toBe('pages/home')
   })
+
+  it('honors manifest.cache when no explicit cache option is supplied (Gap 8)', async () => {
+    // Operator's tuned cache lives on `manifest.cache` after the
+    // config loader's `applyGazettaDefaults` hoists it from
+    // `gazetta.config.ts defaults.cache`. Without this fallback it
+    // would be silently ignored at the SourceContext seam — operator
+    // config that does nothing.
+    const { createMemoryCache } = await import('../src/cache/memory.js')
+    const operatorCache = createMemoryCache({ instance: 'operator-tuned' })
+    const storage = mockProvider()
+    const source = createSourceContext({
+      storage,
+      siteDir: '',
+      projectSiteDir: '/abs/project/sites/main',
+      manifest: { name: 'main', cache: operatorCache },
+    })
+    // forSite wraps with site:{name}: scope; the inner stats() call
+    // passes through unchanged, so we read the operator's instance ID.
+    const stats = await source.cache.stats?.()
+    expect(stats?.instance).toBe('operator-tuned')
+  })
+
+  it('explicit opts.cache overrides manifest.cache', async () => {
+    const { createMemoryCache } = await import('../src/cache/memory.js')
+    const explicit = createMemoryCache({ instance: 'explicit-instance' })
+    const fromManifest = createMemoryCache({ instance: 'from-manifest' })
+    const storage = mockProvider()
+    const source = createSourceContext({
+      storage,
+      siteDir: '',
+      projectSiteDir: '/abs/project/sites/main',
+      manifest: { name: 'main', cache: fromManifest },
+      cache: explicit,
+    })
+    const stats = await source.cache.stats?.()
+    expect(stats?.instance).toBe('explicit-instance')
+  })
 })
 
 describe('createSourceContextFromRegistry', () => {

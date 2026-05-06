@@ -37,6 +37,7 @@
  * sees consumer-facing prefixes.
  */
 import { randomBytes } from 'node:crypto'
+import { hostname } from 'node:os'
 import { applyKeyPolicy, applyPrefixPolicy } from './keys.js'
 import type { AdminCache, CacheStats, InvalidationEvent } from './types.js'
 
@@ -56,11 +57,39 @@ export interface MemoryCacheOptions {
   maxBytes?: number
   /**
    * Stable identifier emitted on `InvalidationEvent.source.instance`.
-   * Defaults to a random 8-char hex generated once per construction.
-   * Plays the same role as Kubernetes pod / Cloud Run revision IDs in
-   * future shared-backing providers (per `design-logging.md`).
+   * When omitted, resolved from the environment (per
+   * `design-logging.md`):
+   *
+   *   1. `process.env.K_REVISION` — Cloud Run revision name. Per-
+   *      revision, NOT per-instance: pods scaled from the same
+   *      revision share this ID. Useful for revision-level log
+   *      filtering; for per-pod identity on Cloud Run, override
+   *      explicitly via this field from the metadata server.
+   *   2. `os.hostname()` — pod name on K8s (default config), machine
+   *      hostname elsewhere. Reliable across container runtimes
+   *      regardless of whether `process.env.HOSTNAME` is populated.
+   *   3. Random 8-char hex — only reached when hostname returns an
+   *      empty string (rare on real systems).
+   *
+   * Plugin authors writing shared-backing providers (Redis, Azure)
+   * should accept the same option and use the same resolution chain
+   * so log correlation across providers works uniformly.
    */
   instance?: string
+}
+
+/**
+ * Resolve the instance ID from the environment when the operator
+ * doesn't supply one. Exported for tests; callers should pass through
+ * `MemoryCacheOptions.instance`.
+ */
+export function resolveInstanceId(override?: string): string {
+  if (override) return override
+  const k = process.env.K_REVISION
+  if (k) return k
+  const h = hostname()
+  if (h) return h
+  return randomBytes(4).toString('hex')
 }
 
 /** Default cap when operator config doesn't override. */
@@ -83,7 +112,7 @@ interface CacheEntry {
 export function createMemoryCache(config: MemoryCacheOptions = {}): AdminCache {
   const maxEntries = config.maxEntries ?? DEFAULT_MAX_ENTRIES
   const maxBytes = config.maxBytes ?? DEFAULT_MAX_BYTES
-  const instance = config.instance ?? randomBytes(4).toString('hex')
+  const instance = resolveInstanceId(config.instance)
 
   // Map insertion order is the LRU order; access touches it via
   // delete+set on hit (Map.set on existing key preserves order, so
@@ -214,6 +243,7 @@ export function createMemoryCache(config: MemoryCacheOptions = {}): AdminCache {
         hits,
         misses,
         size: entries.size,
+        instance,
         evictions,
         bytesApproximate: totalBytes,
         lastInvalidation,

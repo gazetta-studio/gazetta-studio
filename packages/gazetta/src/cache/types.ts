@@ -100,6 +100,16 @@ export interface CacheStats {
   misses: number
   /** Entry count. */
   size: number
+  /**
+   * Identity of the reporting cache instance — same value as
+   * `InvalidationEvent.source.instance` for events emitted by this
+   * provider. Operators querying `/api/system/cache/stats` in
+   * multi-instance deployments use this to know which pod / revision
+   * answered (the load balancer's choice can vary between requests).
+   * Optional because some providers may not have a meaningful
+   * identity (e.g., a no-op stub).
+   */
+  instance?: string
   // Provider-specific extras allowed.
   errors?: number
   evictions?: number
