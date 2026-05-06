@@ -21,11 +21,10 @@
  *   - Cached values MUST be JSON-serializable (no functions, no
  *     Symbols, no top-level Maps/Sets) — required for L4 → L6
  *     handoff via IndexedDB / localStorage.
- *   - `subscribe()` delivers events from OTHER instances, not from
- *     local invalidations. Single-instance providers (MemoryCache
- *     in single-process deployments) register handlers but never
- *     fire events; multi-instance deployments wire the SSE bridge
- *     in Cut 4.
+ *   - `subscribe()` delivers invalidation events from any source
+ *     (local OR cross-instance — Cut 4 contract evolution). The
+ *     `event.source.instance` field discriminates origin so
+ *     subscribers can filter as needed.
  *   - `invalidatePrefix()` is best-effort with a time cap (~100ms
  *     default per design-cache.md PWA-responsiveness principle);
  *     un-cleared entries clear at TTL or on next invalidation.
@@ -49,12 +48,26 @@ export interface AdminCache {
   /** Invalidate all keys matching a prefix. Returns count cleared. */
   invalidatePrefix(prefix: string): Promise<number>
   /**
-   * Subscribe to invalidation events from other instances. Returns
-   * disposer.
+   * Subscribe to invalidation events from any source. Returns disposer.
    *
-   * Single-instance providers (MemoryCache in single-process)
-   * register handlers but no events fire — the cross-instance SSE
-   * bridge that drives this lands in Cut 4.
+   * Local invalidations (this instance's `invalidate` /
+   * `invalidatePrefix` calls) AND cross-instance invalidations
+   * (delivered via SSE bridge or shared backing service) both fire
+   * the handler. Discriminate via `event.source.instance` —
+   * subscribers that only care about cross-instance events can filter
+   * out their own.
+   *
+   * The L4→L6 server-to-browser cascade is the load-bearing consumer:
+   * server-side `invalidatePrefix('pages:')` fires to a subscribed
+   * SSE route, which forwards the event to connected browser admin
+   * clients, which invalidate their L6 caches. From the browser's
+   * POV the server IS another instance, so "events from any source"
+   * is the right contract.
+   *
+   * Event payloads carry the **consumer-facing** prefix (the form
+   * passed to the invalidate call). Provider-internal storage
+   * details (version prefix, overflow hash, per-site scope) don't
+   * leak into the event.
    */
   subscribe(handler: (event: InvalidationEvent) => void): () => void
   /** Stats for diagnostics. Optional — not every provider exposes. */

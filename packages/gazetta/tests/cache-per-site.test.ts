@@ -138,4 +138,36 @@ describe('forSite subscribe filtering', () => {
     expect(() => disposer()).not.toThrow()
     expect(() => disposer()).not.toThrow() // idempotent
   })
+
+  it('forwards consumer-facing prefix on real local invalidations (Cut 4)', async () => {
+    // End-to-end: an invalidatePrefix call through the wrapper reaches
+    // the inner MemoryCache (which now emits local events per Cut 4),
+    // bubbles back through forSite's subscribe (which strips the
+    // site:{name}: scope), and lands at the consumer subscriber with
+    // the consumer-facing prefix.
+    const inner = createMemoryCache()
+    const cache = forSite(inner, 'main')
+    const received: InvalidationEvent[] = []
+    cache.subscribe(e => received.push(e))
+    await cache.invalidatePrefix('pages:')
+    expect(received).toHaveLength(1)
+    expect(received[0]?.prefix).toBe('pages:')
+  })
+
+  it('invalidations on one site do not reach the other site', async () => {
+    // Two sites sharing the inner provider — each subscribes through
+    // its own forSite wrapper. Site A's invalidations must NOT fire
+    // site B's subscriber (the unwrap filter rejects events whose key
+    // doesn't carry site B's scope).
+    const inner = createMemoryCache()
+    const a = forSite(inner, 'site-a')
+    const b = forSite(inner, 'site-b')
+    const aEvents: InvalidationEvent[] = []
+    const bEvents: InvalidationEvent[] = []
+    a.subscribe(e => aEvents.push(e))
+    b.subscribe(e => bEvents.push(e))
+    await a.invalidatePrefix('pages:')
+    expect(aEvents).toHaveLength(1)
+    expect(bEvents).toHaveLength(0)
+  })
 })

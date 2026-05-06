@@ -15,25 +15,33 @@
  *     the contract test helper (Cut 10).
  *   - DIP: consumers depend on `AdminCache`, not `createMemoryCache`.
  *
- * # subscribe() in Cut 2 (no-op honest semantics)
+ * # subscribe() — local emission per Cut 4
  *
- * The contract is "events from other instances." Cut 2 ships
- * single-instance MemoryCache with no SSE bridge — there ARE no
- * other instances, so handlers register but no events fire. Cut 4
- * modifies this file to wire EventEmitter for the SSE bridge to
- * deliver cross-instance events.
+ * The contract evolved during Cut 4. The original framing was "events
+ * from other instances," with single-instance providers as honest
+ * no-ops. Real consumers (the L4→L6 server-to-browser cascade per
+ * `design-cache.md` "Offline composition") need server-side L4
+ * invalidations to reach browser-side L6 caches. From the browser's
+ * POV the server IS another instance, so the right contract is
+ * "events from any source" — including local ones.
  *
- * This is honest behavior, not a stub-throwing-not-implemented:
- *   - subscribe() returns a working disposer
- *   - handlers ARE in the registered set
- *   - events would fire if any source emitted them
- *   - it's just that v1 single-instance has no source
+ * `invalidate()` and `invalidatePrefix()` fire to subscribers with
+ * the **input** key/prefix (the consumer-facing form passed to the
+ * method). The `applyKeyPolicy` version prefix and overflow-hash are
+ * provider-internal storage details — they don't leak to event
+ * payloads.
+ *
+ * `forSite()` filters events whose prefix doesn't belong to the
+ * wrapping site (cross-site events from a future shared backing
+ * service); the SSE bridge subscribes to the forSite wrapper and
+ * sees consumer-facing prefixes.
  */
+import { randomBytes } from 'node:crypto'
 import { applyKeyPolicy, applyPrefixPolicy } from './keys.js'
 import type { AdminCache, CacheStats, InvalidationEvent } from './types.js'
 
 /**
- * Options for constructing an in-process `MemoryCache`. Both fields
+ * Options for constructing an in-process `MemoryCache`. All fields
  * optional; defaults are 10,000 entries and 50 MB approximate.
  *
  * Lives on the factory signature (rather than as a separate `*Config`
@@ -46,6 +54,13 @@ export interface MemoryCacheOptions {
   maxEntries?: number
   /** Approximate max bytes before LRU eviction kicks in. Default 50 MB. */
   maxBytes?: number
+  /**
+   * Stable identifier emitted on `InvalidationEvent.source.instance`.
+   * Defaults to a random 8-char hex generated once per construction.
+   * Plays the same role as Kubernetes pod / Cloud Run revision IDs in
+   * future shared-backing providers (per `design-logging.md`).
+   */
+  instance?: string
 }
 
 /** Default cap when operator config doesn't override. */
@@ -68,6 +83,7 @@ interface CacheEntry {
 export function createMemoryCache(config: MemoryCacheOptions = {}): AdminCache {
   const maxEntries = config.maxEntries ?? DEFAULT_MAX_ENTRIES
   const maxBytes = config.maxBytes ?? DEFAULT_MAX_BYTES
+  const instance = config.instance ?? randomBytes(4).toString('hex')
 
   // Map insertion order is the LRU order; access touches it via
   // delete+set on hit (Map.set on existing key preserves order, so
@@ -93,6 +109,33 @@ export function createMemoryCache(config: MemoryCacheOptions = {}): AdminCache {
       entries.delete(oldestKey)
       if (entry) totalBytes -= entry.bytes
       evictions++
+    }
+  }
+
+  /**
+   * Notify subscribers of an invalidation. `prefix` is the **input**
+   * form (what the consumer passed to invalidate / invalidatePrefix);
+   * the version-prefix + overflow-hash applied by `applyKeyPolicy` is
+   * a storage encoding detail and never reaches event payloads.
+   *
+   * Subscribers that throw shouldn't poison sibling subscribers —
+   * each notification is wrapped in a try/catch. The error is
+   * swallowed (subscribe is observational; failing-open keeps the
+   * invalidation honest from the caller's POV).
+   */
+  function emit(prefix: string): void {
+    if (subscribers.size === 0) return
+    const event: InvalidationEvent = {
+      prefix,
+      source: { instance, timestamp: new Date().toISOString() },
+    }
+    for (const handler of subscribers) {
+      try {
+        handler(event)
+      } catch {
+        // Subscriber faults must not interfere with the
+        // invalidation that triggered them. Silently swallow.
+      }
     }
   }
 
@@ -133,6 +176,7 @@ export function createMemoryCache(config: MemoryCacheOptions = {}): AdminCache {
       if (!entry) return
       entries.delete(wrapped)
       totalBytes -= entry.bytes
+      emit(key)
     },
 
     async invalidatePrefix(prefix: string): Promise<number> {
@@ -150,6 +194,11 @@ export function createMemoryCache(config: MemoryCacheOptions = {}): AdminCache {
         at: new Date().toISOString(),
         source: 'local',
       }
+      // Emit even when cleared === 0 — subscribers (notably the
+      // L4→L6 SSE bridge) want every invalidation intent, not just
+      // those that hit something locally. A consumer's L6 cache may
+      // hold an entry the server's L4 already evicted via LRU.
+      emit(prefix)
       return cleared
     },
 

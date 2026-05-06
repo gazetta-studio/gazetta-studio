@@ -70,14 +70,18 @@ This pushes the discipline to cache CONSUMERS (write deterministic functions of 
 
 **Generic dependency-aware invalidation rejected**: tracking dependencies in the cache layer requires reverse-dep graphs that must be coordinated across instances OR rebuilt per-instance (which defeats the cache). Sidecars already solve this at L5 — explicit per-feature invalidation at L4 reads sidecars to compute the affected set, no cache-layer dep graph needed.
 
-**SSE broadcast for cross-instance coordination (Q2 lock):**
+**Subscribe contract — events from any source (Q2 lock + Cut 4 evolution):**
 
-Each provider implements `subscribe(handler)` per its coordination mechanism:
-- `MemoryCache` — process-internal `EventEmitter`
-- `RedisCache` — Redis pub/sub
-- `AzureCache` — Azure Service Bus or Redis pub/sub
+`subscribe(handler)` fires on **every** invalidation regardless of origin: local invalidations on this provider AND cross-instance invalidations delivered via the provider's coordination mechanism. Subscribers discriminate via `event.source.instance` if they only care about cross-instance events.
 
-Save flow: write manifest → write sidecars → invalidate L4 entries → SSE broadcast → other instances invalidate L4 → connected browsers invalidate L6.
+The original Q2 framing was "events from OTHER instances" with single-instance providers as honest no-ops. Cut 4 implementation surfaced that the L4→L6 server-to-browser cascade is the load-bearing consumer: from the browser's POV the server IS another instance, so the right contract is "events from any source." Locking that as the contract avoids two coexisting subscribe semantics across providers.
+
+Per provider:
+- `MemoryCache` — emits on every local invalidation (Cut 4); cross-instance events arrive via SSE bridge when a peer subscriber exists (future Redis or browser admin)
+- `RedisCache` — Redis pub/sub fans out to all subscribers including the local one; same "any source" semantics
+- `AzureCache` — Azure Service Bus or Redis pub/sub; same shape
+
+Save flow: write manifest → write sidecars → invalidate L4 entries → subscribers fire (local SSE bridge forwards to browsers; future shared-backing providers fan out to peer instances) → connected browsers invalidate L6.
 
 **Best-effort invalidation atomicity** (Q2 lock):
 

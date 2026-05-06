@@ -115,7 +115,7 @@ describe('MemoryCache invalidatePrefix', () => {
   })
 })
 
-describe('MemoryCache subscribe (Cut 2 — no-op semantics)', () => {
+describe('MemoryCache subscribe (Cut 4 — local emission)', () => {
   it('registers handler and returns disposer', () => {
     const cache = createMemoryCache()
     const events: InvalidationEvent[] = []
@@ -124,17 +124,90 @@ describe('MemoryCache subscribe (Cut 2 — no-op semantics)', () => {
     disposer()
   })
 
-  it('does not fire events on local invalidate (cross-instance only)', async () => {
-    // Cut 2 ships subscribe() registering in a Set; Cut 4 wires the
-    // SSE bridge that delivers events. Local invalidations don't
-    // emit because the contract is "events from OTHER instances."
+  it('fires on local invalidate with the consumer-facing key', async () => {
     const cache = createMemoryCache()
     const events: InvalidationEvent[] = []
     cache.subscribe(e => events.push(e))
     await cache.set('k', 1)
     await cache.invalidate('k')
-    await cache.invalidatePrefix('p')
+    expect(events).toHaveLength(1)
+    expect(events[0]?.prefix).toBe('k')
+    // The version prefix and overflow-hash applied by applyKeyPolicy
+    // are storage encoding details — they don't leak into event
+    // payloads.
+    expect(events[0]?.prefix).not.toContain(':')
+  })
+
+  it('fires on invalidatePrefix with the consumer-facing prefix', async () => {
+    const cache = createMemoryCache()
+    const events: InvalidationEvent[] = []
+    cache.subscribe(e => events.push(e))
+    await cache.invalidatePrefix('pages:')
+    expect(events).toHaveLength(1)
+    expect(events[0]?.prefix).toBe('pages:')
+  })
+
+  it('fires on invalidatePrefix even when nothing matched', async () => {
+    // Subscribers (notably the L4→L6 SSE bridge) want every invalidation
+    // intent — a consumer's L6 cache may hold an entry the server's L4
+    // already evicted via LRU.
+    const cache = createMemoryCache()
+    const events: InvalidationEvent[] = []
+    cache.subscribe(e => events.push(e))
+    await cache.invalidatePrefix('never-set:')
+    expect(events).toHaveLength(1)
+  })
+
+  it('does not fire on get/set/miss (only invalidations are events)', async () => {
+    const cache = createMemoryCache()
+    const events: InvalidationEvent[] = []
+    cache.subscribe(e => events.push(e))
+    await cache.set('k', 1)
+    await cache.get('k')
+    await cache.get('missing')
     expect(events).toEqual([])
+  })
+
+  it('does not fire on invalidate(missing key) — nothing to invalidate', async () => {
+    // Distinct from invalidatePrefix's "always emit" rule: invalidate(key)
+    // is a single-key delete; if the key doesn't exist there's no state
+    // change worth notifying about. Browsers re-issuing the invalidate
+    // would just no-op anyway.
+    const cache = createMemoryCache()
+    const events: InvalidationEvent[] = []
+    cache.subscribe(e => events.push(e))
+    await cache.invalidate('never-set')
+    expect(events).toEqual([])
+  })
+
+  it('fires every event with the same instance id', async () => {
+    const cache = createMemoryCache()
+    const events: InvalidationEvent[] = []
+    cache.subscribe(e => events.push(e))
+    await cache.invalidatePrefix('a:')
+    await cache.invalidatePrefix('b:')
+    expect(events).toHaveLength(2)
+    expect(events[0]?.source.instance).toBe(events[1]?.source.instance)
+  })
+
+  it('honors operator-supplied instance id', async () => {
+    const cache = createMemoryCache({ instance: 'pod-abc' })
+    const events: InvalidationEvent[] = []
+    cache.subscribe(e => events.push(e))
+    await cache.invalidatePrefix('a:')
+    expect(events[0]?.source.instance).toBe('pod-abc')
+  })
+
+  it('isolates subscriber failures from sibling subscribers', async () => {
+    const cache = createMemoryCache()
+    const seen: string[] = []
+    cache.subscribe(() => {
+      throw new Error('first subscriber boom')
+    })
+    cache.subscribe(e => seen.push(`second:${e.prefix}`))
+    await cache.invalidatePrefix('k:')
+    // Sibling subscriber still fired even though the first threw.
+    expect(seen).toEqual(['second:k:'])
   })
 
   it('disposer removes handler from registered set', () => {
