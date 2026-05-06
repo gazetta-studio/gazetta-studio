@@ -68,6 +68,30 @@ describe('GET /api/site', () => {
   })
 })
 
+describe('GET /api/health', () => {
+  it('returns ok + ISO timestamp without auth', async () => {
+    const { status, body } = await get('/api/health')
+    expect(status).toBe(200)
+    expect(body.ok).toBe(true)
+    // ISO 8601 with Z; smoke check that timestamp parses back as the
+    // same instant. Pins the documented response shape from
+    // design-offline.md Q2.
+    expect(typeof body.timestamp).toBe('string')
+    const parsed = new Date(body.timestamp)
+    expect(Number.isFinite(parsed.getTime())).toBe(true)
+  })
+
+  it('produces a fresh timestamp on each call', async () => {
+    // Browser-side connection-detection cadence relies on each call
+    // getting a fresh response so a CDN-cached old response can't
+    // masquerade as a live heartbeat.
+    const a = (await get('/api/health')).body.timestamp as string
+    await new Promise(r => setTimeout(r, 5))
+    const b = (await get('/api/health')).body.timestamp as string
+    expect(b).not.toBe(a)
+  })
+})
+
 describe('GET /api/system/cache/stats', () => {
   it('returns the source cache snapshot', async () => {
     // Hit /api/pages first so the cache has something to report —
