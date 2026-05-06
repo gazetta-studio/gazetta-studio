@@ -21,12 +21,17 @@ function parseComponents(raw: unknown): ComponentEntry[] | undefined {
     if (typeof entry === 'string') return entry
     if (typeof entry === 'object' && entry !== null && typeof entry.template === 'string') {
       const comp = entry as Record<string, unknown>
-      return {
+      const parsed: import('./types.js').InlineComponent = {
         name: comp.name as string,
         template: comp.template as string,
         content: comp.content as Record<string, unknown> | undefined,
         components: parseComponents(comp.components),
       }
+      // Preserve component IDs (per design-collaboration.md Cut 1).
+      // IDs are written by the save handlers and must round-trip
+      // through read so inline anchors stay valid.
+      if (typeof comp.id === 'string') parsed.id = comp.id
+      return parsed
     }
     return entry as string
   })

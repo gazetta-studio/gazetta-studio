@@ -69,6 +69,17 @@ export interface TemplateModule {
 
 /** Inline component — nested within a page or fragment manifest */
 export interface InlineComponent {
+  /**
+   * Stable identifier for this component within its containing
+   * manifest. Auto-generated on save when absent (per
+   * `component-ids.ts`); preserved across reorders, edits, and
+   * template switches. Used as the anchor for inline comments
+   * (per `design-collaboration.md`) and per-component overrides
+   * (future, per i18n #192). Fragment-reference strings (e.g.
+   * `"@header"`) don't carry IDs — they point at a separate
+   * manifest whose components have their own IDs.
+   */
+  id?: string
   name: string
   template: string
   content?: Record<string, unknown>

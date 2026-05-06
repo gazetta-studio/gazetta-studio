@@ -546,6 +546,104 @@ describe('PUT /api/pages/:name', () => {
     expect(body.issues.some(i => i.validator === 'referenced-fragment-exists')).toBe(true)
     await rm(resolve(localTargetDir, 'pages/val-frag-test'), { recursive: true, force: true })
   })
+
+  // Component IDs (per design-collaboration.md Cut 1) — saves auto-
+  // generate stable IDs on InlineComponent entries lacking one;
+  // existing IDs are preserved across reorders.
+  // Templates must be real for the save-delta validator to pass —
+  // these tests use templates that exist in examples/starter/templates/
+  // (banner, counter, features-grid).
+  it('auto-generates IDs on ID-less InlineComponents', async () => {
+    await app.request('/api/pages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'cid-test', template: 'page-default' }),
+    })
+    const putRes = await app.request('/api/pages/cid-test', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        components: [
+          { name: 'a', template: 'banner', content: { heading: 'Hi', text: '', buttonText: '', buttonUrl: '' } },
+          { name: 'b', template: 'counter' },
+        ],
+      }),
+    })
+    expect(putRes.status).toBe(200)
+    const { body } = await get('/api/pages/cid-test')
+    expect(body.components).toHaveLength(2)
+    expect(body.components[0].id).toBeDefined()
+    expect(body.components[1].id).toBeDefined()
+    expect(body.components[0].id).not.toBe(body.components[1].id)
+    await rm(resolve(localTargetDir, 'pages/cid-test'), { recursive: true, force: true })
+  })
+
+  it('preserves existing IDs across saves (the load-bearing reorder invariant)', async () => {
+    await app.request('/api/pages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'cid-reorder', template: 'page-default' }),
+    })
+    // First save adds IDs
+    const first = await app.request('/api/pages/cid-reorder', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        components: [
+          { name: 'a', template: 'banner', content: { heading: 'A', text: '', buttonText: '', buttonUrl: '' } },
+          { name: 'b', template: 'counter' },
+        ],
+      }),
+    })
+    expect(first.status).toBe(200)
+    const firstBody = (await get('/api/pages/cid-reorder')).body
+    const aId = firstBody.components[0].id
+    const bId = firstBody.components[1].id
+    // Author reorders and re-saves with the existing IDs intact —
+    // simulating the admin's component-tree reorder flow.
+    const second = await app.request('/api/pages/cid-reorder', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        components: [
+          { id: bId, name: 'b', template: 'counter' },
+          {
+            id: aId,
+            name: 'a',
+            template: 'banner',
+            content: { heading: 'A', text: '', buttonText: '', buttonUrl: '' },
+          },
+        ],
+      }),
+    })
+    expect(second.status).toBe(200)
+    const after = (await get('/api/pages/cid-reorder')).body
+    expect(after.components[0].id).toBe(bId)
+    expect(after.components[1].id).toBe(aId)
+    await rm(resolve(localTargetDir, 'pages/cid-reorder'), { recursive: true, force: true })
+  })
+
+  it('does not assign IDs to fragment-reference strings', async () => {
+    await app.request('/api/pages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'cid-frags', template: 'page-default' }),
+    })
+    const res = await app.request('/api/pages/cid-frags', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        components: ['@header', { name: 'body', template: 'counter' }, '@footer'],
+      }),
+    })
+    expect(res.status).toBe(200)
+    const { body } = await get('/api/pages/cid-frags')
+    expect(body.components[0]).toBe('@header')
+    expect(body.components[2]).toBe('@footer')
+    expect(typeof body.components[1]).toBe('object')
+    expect(body.components[1].id).toBeDefined()
+    await rm(resolve(localTargetDir, 'pages/cid-frags'), { recursive: true, force: true })
+  })
 })
 
 describe('save-etag concurrency (design-offline.md Q3)', () => {
@@ -856,6 +954,37 @@ describe('POST /api/fragments (create)', () => {
       body: JSON.stringify({ name: 'x' }),
     })
     expect(res.status).toBe(400)
+  })
+})
+
+describe('PUT /api/fragments/:name component IDs', () => {
+  // Component IDs apply uniformly to pages and fragments. The pages
+  // suite covers full reorder semantics; here we just verify the
+  // save handler wires the generator on this route too.
+  afterAll(async () => {
+    await rm(resolve(localTargetDir, 'fragments/cid-frag-test'), { recursive: true, force: true })
+  })
+
+  it('auto-generates IDs on InlineComponents within fragments', async () => {
+    await app.request('/api/fragments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'cid-frag-test', template: 'footer-layout' }),
+    })
+    const res = await app.request('/api/fragments/cid-frag-test', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        components: [
+          { name: 'a', template: 'counter' },
+          { id: 'preserved', name: 'b', template: 'counter' },
+        ],
+      }),
+    })
+    expect(res.status).toBe(200)
+    const { body } = await get('/api/fragments/cid-frag-test')
+    expect(body.components[0].id).toBeDefined()
+    expect(body.components[1].id).toBe('preserved')
   })
 })
 
