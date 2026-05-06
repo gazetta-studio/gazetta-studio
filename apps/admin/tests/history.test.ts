@@ -60,6 +60,7 @@ describe('History on save', () => {
       templatesDir,
       targets: new Map([['local', storage]]),
       targetConfigs: { local: { storage: { type: 'filesystem' }, environment: 'local', editable: true } },
+      disableCacheStatsLogger: true,
     })
   })
 
@@ -157,7 +158,7 @@ describe('History disabled on save', () => {
     // No history provider → source.history is undefined → no revisions.
     const manifest = await getManifest()
     const source = createSourceContext({ storage, siteDir: '', projectSiteDir: starterSiteDir, manifest })
-    app = createAdminApp({ source, siteDir: starterSiteDir, templatesDir })
+    app = createAdminApp({ source, siteDir: starterSiteDir, templatesDir, disableCacheStatsLogger: true })
   })
 
   afterAll(async () => {
@@ -187,7 +188,7 @@ describe('Retention', () => {
     const history = createHistoryProvider({ storage, retention: 2 })
     const manifest = await getManifest()
     const source = createSourceContext({ storage, siteDir: '', projectSiteDir: starterSiteDir, history, manifest })
-    app = createAdminApp({ source, siteDir: starterSiteDir, templatesDir })
+    app = createAdminApp({ source, siteDir: starterSiteDir, templatesDir, disableCacheStatsLogger: true })
   })
 
   afterAll(async () => {
@@ -230,6 +231,7 @@ describe('History HTTP endpoints', () => {
       templatesDir,
       targets: new Map([['local', storage]]),
       targetConfigs: { local: { storage: { type: 'filesystem' }, environment: 'local', editable: true } },
+      disableCacheStatsLogger: true,
     })
   })
 
@@ -324,6 +326,7 @@ describe('History HTTP endpoints', () => {
         templatesDir,
         targets: new Map([['local', storage]]),
         targetConfigs: { local: { storage: { type: 'filesystem' }, environment: 'local', editable: true } },
+        disableCacheStatsLogger: true,
       })
       const res = await freshApp.request('/api/history/undo?target=local', { method: 'POST' })
       expect(res.status).toBe(409)

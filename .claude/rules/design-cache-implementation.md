@@ -24,7 +24,7 @@ Branch: `cache-v1` off `main`. **No backwards compatibility** — replaces exist
 | 4 | SSE invalidation broadcast + `subscribe()` method | ☐ | Medium | Cross-instance coordination primitive |
 | 5 | First real consumer (/api/pages summary) + paired save invalidation | ✓ | Medium | The contract works on real consumers; folds in the original Cut 6 (split shipped a regression). See "Per-cut scope" Cut 5 below for the audit findings on memos that don't migrate. |
 | 6 | _(folded into Cut 5 — see Per-cut scope)_ | ✓ | — | Save handler invalidation paired with read-side caching to avoid shipping a stale-cache regression. |
-| 7 | Stats: hit / miss / size / errors counters + structured log every 5 min + `GET /api/system/cache/stats` | ☐ | Low | Observability |
+| 7 | Stats: hit / miss / size / errors counters + structured log every 5 min + `GET /api/system/cache/stats` | ✓ | Low | Observability |
 | 8 | `CacheError` taxonomy: `CacheConfigurationError`, `CacheSchemaError` | ✓ | Low | Error contracts (shipped pre-Path-X-Phase-3) |
 | 9 | Per-site cache instance + per-site key auto-prefix | ✓ | Medium | Multi-site isolation |
 | 10 | `adminCacheContractTests` test helper exported from `gazetta/testing` | ☐ | Low | Plugin author validation surface |
