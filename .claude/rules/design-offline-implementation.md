@@ -31,7 +31,7 @@ Branch: `offline-v1` off `main`. Sequenced after AdminCache (depends on `AdminCa
 | 8b | Pending-edits store migration — `editorStash` + `editorContent` (closure-rebuild flow) | ☐ | Medium | Content edits survive reload (deferred from original Cut 8) |
 | 9 | Save-etag plumbing: server `ETag` + `If-Match` + 409 STALE + client `StaleSaveError` + `getPageWithEtag` / `updatePage(..., ifMatch)` | ✓ | High | Conflict-detection contract |
 | 9b | Save queue Pinia store: per-item chain projection + Vue Query mutation queue integration (deferred from Cut 9) | ☐ | High | Conflict-on-replay machinery |
-| 10 | Conflict UX: `StaleSaveError` → field-by-field semantic diff banner; Show / Discard actions | ☐ | High | Conflict resolution UX |
+| 10 | Conflict UX: useSaveConflictsStore + ConflictBanner.vue + ConflictDiffView.vue (Show / Discard actions; no overwrite per Krug lock) | ✓ | High | Conflict resolution UX |
 | 11 | Service worker via vite-plugin-pwa: app-shell precache | ☐ | Medium | Cold-load offline reliability |
 | 12 | UX indicators: cloud-with-slash icon + offline banner + "Send now" affordance + sync-state metadata | ☐ | Medium | Krug-aligned visibility |
 | 13 | Mid-save connection-loss handling: retry-with-If-Match; idempotency | ☐ | Medium | Edge case correctness |
