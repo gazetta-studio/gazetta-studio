@@ -38,12 +38,20 @@ function mockProvider(): StorageProvider {
 }
 
 describe('cache target-scope contract', () => {
-  it('two SourceContexts sharing one backing cache write to the SAME key without target dimension', async () => {
-    // This test pins the bug shape — confirms that without target in
-    // the key, a write via local is visible to production. If this
-    // test ever PASSES (returns null instead of local data), it means
-    // forSite or createSourceContext started doing per-target scoping
-    // at the wrapper level, which would indicate a contract change.
+  it('forSite isolates by site name only — NOT by target name', async () => {
+    // Pins the wrapper-level contract. Two SourceContexts in the
+    // same site (different targets) share scope under forSite —
+    // a key written without target dimension is visible across
+    // both wrappers when they share a backing.
+    //
+    // The right place for target-scoping is the consumer (key
+    // shape), not the wrapper. The other tests in this file
+    // demonstrate the consumer-level fix (`:target:{name}` suffix).
+    //
+    // If THIS test ever fails — production.get returning null — it
+    // means forSite or createSourceContext started doing per-target
+    // scoping at the wrapper level, indicating a contract change
+    // worth grilling.
     const sharedBacking = createMemoryCache({ instance: 'shared' })
     const manifest: SiteManifest = { name: 'main', cache: sharedBacking }
 
