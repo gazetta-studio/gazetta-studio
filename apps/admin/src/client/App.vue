@@ -14,6 +14,7 @@ import AssetLibrary from './components/AssetLibrary.vue'
 import AssetPicker from './components/AssetPicker.vue'
 import AssetDeleteConfirm from './components/AssetDeleteConfirm.vue'
 import OfflineBanner from './components/OfflineBanner.vue'
+import StorageQuotaBanner from './components/StorageQuotaBanner.vue'
 
 const site = useSiteStore()
 const theme = useThemeStore()
@@ -77,6 +78,7 @@ onMounted(() => {
   <div class="cms-app">
     <Toolbar />
     <OfflineBanner />
+    <StorageQuotaBanner />
     <div v-if="site.error" class="cms-error">{{ site.error }}</div>
     <!-- Only block on the first load. Subsequent reloads (e.g., on
          active-target switch) keep the router-view mounted so the
