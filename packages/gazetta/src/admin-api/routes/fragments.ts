@@ -18,8 +18,11 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
     const source = await resolve(c.req.query('target'))
     // Empty target → empty list. See pages.ts for rationale.
     try {
-      // Cache the summary list (see pages.ts for the same rationale).
-      const cached = await source.cache.get<FragmentSummary[]>('fragments:summary')
+      // Cache the summary list (see pages.ts for the rationale + the
+      // target-scoping invariant per design-cache.md Gap 6).
+      const targetKey = source.targetName ?? '__source__'
+      const cacheKey = `fragments:summary:target:${targetKey}`
+      const cached = await source.cache.get<FragmentSummary[]>(cacheKey)
       if (cached) return c.json(cached)
       const site = await loadSiteFromSource(source)
       const fragments: FragmentSummary[] = [...site.fragments.entries()].map(([name, frag]) => {
@@ -30,7 +33,7 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
           locales: localeEntry ? [...localeEntry.locales.keys()] : undefined,
         }
       })
-      await source.cache.set('fragments:summary', fragments)
+      await source.cache.set(cacheKey, fragments)
       return c.json(fragments)
     } catch (err) {
       const msg = (err as Error).message

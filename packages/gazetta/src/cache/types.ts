@@ -76,6 +76,14 @@ export interface AdminCache {
    * potentially stale and reset (re-fetch from source). The L6 admin
    * cache (`design-offline.md`) follows this rule via full reset on
    * reconnect.
+   *
+   * **Handlers should be synchronous.** Providers fire subscribers
+   * with `handler(event)` — without `await`. TypeScript's `void`
+   * return type accepts async handlers for ergonomic reasons, but
+   * the cache won't await them; rejections from a returned Promise
+   * become unhandled. Subscribers needing async work should enqueue
+   * synchronously and process asynchronously elsewhere (e.g., the
+   * SSE bridge pushes to a buffer + drains from a stream loop).
    */
   subscribe(handler: (event: InvalidationEvent) => void): () => void
   /** Stats for diagnostics. Optional — not every provider exposes. */
