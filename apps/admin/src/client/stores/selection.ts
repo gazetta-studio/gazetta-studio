@@ -5,6 +5,7 @@ import { useToastStore } from './toast.js'
 import { usePreviewStore } from './preview.js'
 import { useSiteStore } from './site.js'
 import { useLocaleStore } from './locale.js'
+import { manifestPath, useEditorEtagsStore } from './editorEtags.js'
 
 export type Selection =
   | { type: 'page'; name: string; detail: PageDetail }
@@ -53,7 +54,12 @@ export const useSelectionStore = defineStore('selection', () => {
     const { signal } = selectController
     try {
       const locale = useLocaleStore().effectiveLocale ?? undefined
-      const detail = await api.getPage(pageName, { signal, locale })
+      // getPageWithEtag captures the save-concurrency etag for the
+      // offline save flow per design-offline.md Q3. Stored under the
+      // manifest path so the save flow + conflict UX share one
+      // source of truth.
+      const { data: detail, etag } = await api.getPageWithEtag(pageName, { signal, locale })
+      if (etag) useEditorEtagsStore().set(manifestPath('page', pageName, locale), etag)
       selection.value = { type: 'page', name: pageName, detail }
       fragmentHostPage.value = null
       usePreviewStore().invalidate()
@@ -69,7 +75,8 @@ export const useSelectionStore = defineStore('selection', () => {
     const { signal } = selectController
     try {
       const locale = useLocaleStore().effectiveLocale ?? undefined
-      const detail = await api.getFragment(fragName, { signal, locale })
+      const { data: detail, etag } = await api.getFragmentWithEtag(fragName, { signal, locale })
+      if (etag) useEditorEtagsStore().set(manifestPath('fragment', fragName, locale), etag)
       selection.value = { type: 'fragment', name: fragName, detail }
       if (!fragmentHostPage.value) resolveDefaultHostPage()
       usePreviewStore().invalidate()
@@ -84,10 +91,12 @@ export const useSelectionStore = defineStore('selection', () => {
     if (!selection.value) return
     try {
       if (selection.value.type === 'page') {
-        const detail = await api.getPage(selection.value.name)
+        const { data: detail, etag } = await api.getPageWithEtag(selection.value.name)
+        if (etag) useEditorEtagsStore().set(manifestPath('page', selection.value.name), etag)
         selection.value = { type: 'page', name: selection.value.name, detail }
       } else {
-        const detail = await api.getFragment(selection.value.name)
+        const { data: detail, etag } = await api.getFragmentWithEtag(selection.value.name)
+        if (etag) useEditorEtagsStore().set(manifestPath('fragment', selection.value.name), etag)
         selection.value = { type: 'fragment', name: selection.value.name, detail }
       }
     } catch (err) {

@@ -17,8 +17,10 @@ import { useEditorPersistenceStore, type StructuralWrite } from '../stores/edito
 import { useEditorContentStore, type EditingTarget } from '../stores/editorContent.js'
 import { useValidationIssuesStore } from '../stores/validationIssues.js'
 import { type EditorSelection, selectionToStashKey, selectionToErrorLabel } from './editorSelection.js'
-import { api, ValidationFailedError } from '../api/client.js'
+import { api, StaleSaveError, ValidationFailedError } from '../api/client.js'
 import { useLocaleStore } from '../stores/locale.js'
+import { useEditorEtagsStore, manifestPath } from '../stores/editorEtags.js'
+import { useSaveConflictsStore } from '../stores/saveConflicts.js'
 
 const MAX_RETRY_ATTEMPTS = 3
 const BASE_RETRY_DELAY = 3000
@@ -102,6 +104,46 @@ export function useEditorActions() {
     return null
   }
 
+  /**
+   * Etag-aware update wrapper. Reads the current If-Match from
+   * `useEditorEtagsStore`, sends it on the PUT, updates the store
+   * from the response on success, pushes to `useSaveConflictsStore`
+   * on 409 STALE per design-offline.md Q3. Used by every save path
+   * (root content, component content, fragment edit, structural).
+   *
+   * Re-throws on conflict so callers can short-circuit; non-conflict
+   * errors propagate untouched.
+   */
+  async function updateManifest(
+    kind: 'page' | 'fragment',
+    name: string,
+    payload: Record<string, unknown>,
+    pendingForConflict: Record<string, unknown>,
+  ): Promise<void> {
+    const locale = useLocaleStore().effectiveLocale ?? undefined
+    const path = manifestPath(kind, name, locale)
+    const etags = useEditorEtagsStore()
+    const ifMatch = etags.get(path) ?? undefined
+    try {
+      const updateFn = kind === 'page' ? api.updatePage : api.updateFragment
+      const result = await updateFn(name, payload, { locale, ifMatch })
+      if (result.etag) etags.set(path, result.etag)
+    } catch (err) {
+      if (err instanceof StaleSaveError) {
+        useSaveConflictsStore().set({
+          itemPath: path,
+          current: err.current,
+          currentEtag: err.currentEtag,
+          pending: pendingForConflict,
+        })
+        // Update etag baseline so the next manual save (after the
+        // author rebases) chains correctly.
+        etags.set(path, err.currentEtag)
+      }
+      throw err
+    }
+  }
+
   function buildSaveFn(namePath: string): (content: Record<string, unknown>) => Promise<void> {
     return async (newContent: Record<string, unknown>) => {
       const sel = useSelectionStore()
@@ -130,12 +172,20 @@ export function useEditorActions() {
         }
       }
 
-      const localeOpts = { locale: useLocaleStore().effectiveLocale ?? undefined }
-      if (sel.selection.type === 'page') {
-        await api.updatePage(sel.selection.name, { components: updatedComponents }, localeOpts)
-      } else {
-        await api.updateFragment(sel.selection.name, { components: updatedComponents }, localeOpts)
+      const kind = sel.selection.type === 'page' ? 'page' : 'fragment'
+      // pendingForConflict is the manifest as the author tried to
+      // save it — used by the conflict diff view to show "yours."
+      const pending: Record<string, unknown> = {
+        template: detail.template,
+        content: detail.content,
+        components: updatedComponents,
       }
+      if (kind === 'page') {
+        const pageDetail = detail as { metadata?: Record<string, unknown>; route?: string }
+        if (pageDetail.metadata) pending.metadata = pageDetail.metadata
+        if (pageDetail.route) pending.route = pageDetail.route
+      }
+      await updateManifest(kind, sel.selection.name, { components: updatedComponents }, pending)
     }
   }
 
@@ -150,20 +200,22 @@ export function useEditorActions() {
         if (!d || !selection) throw new Error('No page/fragment selected')
         const pageContent = (d.content as Record<string, unknown>) ?? {}
         const { schema, hasEditor, editorUrl, fieldsBaseUrl } = await fetchSchema(d.template, signal)
-        const saveFn =
-          selection.type === 'page'
-            ? (c: Record<string, unknown>) =>
-                api
-                  .updatePage(selection.name, { content: c }, { locale: useLocaleStore().effectiveLocale ?? undefined })
-                  .then(() => {})
-            : (c: Record<string, unknown>) =>
-                api
-                  .updateFragment(
-                    selection.name,
-                    { content: c },
-                    { locale: useLocaleStore().effectiveLocale ?? undefined },
-                  )
-                  .then(() => {})
+        const kind = selection.type === 'page' ? ('page' as const) : ('fragment' as const)
+        const saveFn = (c: Record<string, unknown>) => {
+          // pending = the manifest the author tried to save — used
+          // by the conflict diff view to show "yours."
+          const pending: Record<string, unknown> = {
+            template: d.template,
+            content: c,
+            components: d.components,
+          }
+          if (kind === 'page') {
+            const pageDetail = d as { metadata?: Record<string, unknown>; route?: string }
+            if (pageDetail.metadata) pending.metadata = pageDetail.metadata
+            if (pageDetail.route) pending.route = pageDetail.route
+          }
+          return updateManifest(kind, selection.name, { content: c }, pending)
+        }
         return {
           template: d.template,
           path: '_root',
@@ -193,10 +245,13 @@ export function useEditorActions() {
         }
       }
       case 'fragmentEdit': {
-        const frag = await api.getFragment(sel.fragmentName, {
-          signal,
-          locale: useLocaleStore().effectiveLocale ?? undefined,
-        })
+        const locale = useLocaleStore().effectiveLocale ?? undefined
+        // getFragmentWithEtag captures the save-concurrency etag for
+        // the offline save flow per design-offline.md Q3. The
+        // selection store does the same on selectFragment; this path
+        // (direct fragment-edit URL) is the other entry point.
+        const { data: frag, etag } = await api.getFragmentWithEtag(sel.fragmentName, { signal, locale })
+        if (etag) useEditorEtagsStore().set(manifestPath('fragment', sel.fragmentName, locale), etag)
         const fragContent = (frag.content as Record<string, unknown>) ?? {}
         const { schema, hasEditor, editorUrl, fieldsBaseUrl } = await fetchSchema(frag.template, signal)
         return {
@@ -207,14 +262,14 @@ export function useEditorActions() {
           hasEditor,
           editorUrl,
           fieldsBaseUrl,
-          save: c =>
-            api
-              .updateFragment(
-                sel.fragmentName,
-                { content: c },
-                { locale: useLocaleStore().effectiveLocale ?? undefined },
-              )
-              .then(() => {}),
+          save: c => {
+            const pending: Record<string, unknown> = {
+              template: frag.template,
+              content: c,
+              components: frag.components,
+            }
+            return updateManifest('fragment', sel.fragmentName, { content: c }, pending)
+          },
         }
       }
       case 'fragmentLink':
@@ -408,15 +463,13 @@ export function useEditorActions() {
    */
   function buildStructuralWrite(keyString: string, components: unknown[]): StructuralWrite {
     const key = manifestKeyFromString(keyString)
-    const localeOpts = { locale: useLocaleStore().effectiveLocale ?? undefined }
     return {
       label: keyString,
       write: async () => {
-        if (key.kind === 'page') {
-          await api.updatePage(key.name, { components: components as never }, localeOpts)
-        } else {
-          await api.updateFragment(key.name, { components: components as never }, localeOpts)
-        }
+        // pending shape carries the structural change; if a conflict
+        // surfaces, the diff view shows the components count change.
+        const pending: Record<string, unknown> = { components }
+        await updateManifest(key.kind, key.name, { components: components as never }, pending)
       },
     }
   }
