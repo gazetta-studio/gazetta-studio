@@ -49,16 +49,44 @@ export default defineSite({
 
 ## Multi-instance deployments
 
-Each admin instance gets its own `MemoryCache` — eventual consistency
-across instances is acceptable because each handles its own writes
-and invalidations on its own cache. Authors editing on one instance
-see fresh data on the next read against THAT instance.
+Most v1 deployments are single-instance: `gazetta serve` on one VPS,
+one Cloud Run revision with min-instances=1, one container. With
+sticky sessions enabled (Cloud Run's default, Kubernetes
+`sessionAffinity: ClientIP`), a multi-instance setup is also fine —
+each author's browser sticks to one admin instance for the editing
+session, and that instance's cache stays consistent with their saves.
 
-If your deployment runs N admin instances behind a round-robin load
-balancer (Cloud Run, Kubernetes), the cache hit rate per instance is
-reduced because each warms independently. This is fine at the
-documented operating envelope (~5000 pages); shared providers (Redis,
-Azure Cache) reserved for v2 when concrete operator demand surfaces.
+### Without sticky sessions
+
+A round-robin load balancer in front of N admin instances creates a
+correctness gap. Concretely:
+
+1. Author saves a page. Request lands on instance A.
+2. A invalidates A's `MemoryCache` and broadcasts the invalidation
+   to browsers connected to A via SSE (see "Subscribing to
+   invalidations" below).
+3. Author refreshes. Request lands on instance B.
+4. B's `MemoryCache` still holds the stale `pages:summary`. B serves
+   stale.
+5. The stale entry stays until B's LRU evicts it (capacity pressure)
+   or B restarts.
+
+With v1 ('s `MemoryCache` provider), there's no server-to-server
+coordination — invalidations on A don't reach B's cache. **For low-
+write CMS workloads, that means hours of staleness on the silent
+instance is possible.** Mitigations, ranked by what operators
+typically do:
+
+| Mitigation | Tradeoff |
+|---|---|
+| **Configure sticky sessions** | Standard answer; supported by every major load balancer. The author always hits the same instance during their editing session. |
+| **Run a single instance** | Simplest. Works at the documented operating envelope (~5000 pages). |
+| **Disable the cache** | Pass `cache: memoryCache({ maxEntries: 0 })` to bypass — every read recomputes from disk. Correct, slower. Last resort. |
+
+A shared backing provider (RedisCache) reserved for v2. The
+`AdminCache.subscribe()` contract is already shaped for it — Redis
+pub/sub fans out invalidations across instances; consumers don't
+change. Ships when concrete operator demand surfaces.
 
 ## Per-site key isolation
 
@@ -88,6 +116,7 @@ different caches.
   "hits": 142,
   "misses": 17,
   "size": 8,
+  "instance": "pod-abc-123",
   "evictions": 0,
   "bytesApproximate": 1834,
   "lastInvalidation": {
@@ -99,7 +128,13 @@ different caches.
 ```
 
 `hits` / `misses` / `size` are guaranteed by the contract. Optional
-fields surface when the underlying provider tracks them.
+fields (including `instance`) surface when the underlying provider
+tracks them.
+
+The `instance` field is critical in multi-instance deployments: with
+a round-robin load balancer, two consecutive `curl` calls to this
+endpoint may hit different pods and return different counter values.
+Read `instance` to know which pod answered.
 
 ### Periodic structured log
 
@@ -110,10 +145,15 @@ The admin process emits a structured log entry every 5 minutes:
   "timestamp": "2026-05-06T11:45:00.000Z",
   "level": "info",
   "module": "cache.stats",
+  "instance": "pod-abc-123",
   "message": "cache stats",
-  "stats": { "hits": 142, "misses": 17, "size": 8, ... }
+  "stats": { "hits": 142, "misses": 17, "size": 8, "instance": "pod-abc-123", ... }
 }
 ```
+
+`instance` is hoisted to a top-level field so log aggregators can
+filter on `module:cache.* AND instance:pod-abc-123` to see one pod's
+behavior in isolation.
 
 Pipe stdout to your log aggregator (Datadog, Loki, journalctl) and
 filter on `module:cache.stats`. Cadence isn't tunable; operators with
@@ -122,6 +162,55 @@ stricter monitoring polls `/api/system/cache/stats` directly.
 To suppress the periodic log entirely (e.g., in development), pass
 `disableCacheStatsLogger: true` to `createAdminApp()`. The stats
 endpoint still works.
+
+## Subscribing to invalidations
+
+The admin server exposes a Server-Sent Events stream of cache
+invalidations:
+
+```
+GET /api/system/cache/invalidations
+```
+
+The stream sends one `event: ready` frame on connection, then one
+`event: invalidation` frame per cache invalidation thereafter.
+Browsers subscribe via `EventSource`; the canonical consumer is the
+browser-side L6 cache (when offline mode ships) which uses these
+events to invalidate its own IndexedDB-backed entries.
+
+Frame shape:
+
+```
+event: invalidation
+data: {"prefix":"pages:","source":{"instance":"pod-abc-123","timestamp":"2026-05-06T11:42:00.000Z"}}
+```
+
+`prefix` is consumer-facing (the form passed to `cache.invalidatePrefix`,
+not the internal storage form). `source.instance` identifies which
+admin pod fired the event.
+
+### Scope: server-to-browser only in v1
+
+The stream covers invalidations on whichever instance the browser is
+connected to. With v1's `MemoryCache` provider, there's no server-to-
+server fan-out: invalidations on instance A don't reach browsers
+connected to instance B. See "Without sticky sessions" above.
+
+When `RedisCache` (or any shared-backing provider) ships, its
+`subscribe()` delivers cross-instance events via Redis pub/sub. The
+SSE endpoint doesn't change; the provider handles fan-out.
+
+### Reconnect: clients must reset their cache
+
+The stream doesn't emit event IDs. If a client's connection drops
+and reconnects, the server has no way to replay missed events — the
+client must treat reconnect as "I may have missed any invalidation
+that happened during the gap" and reset its own cache state.
+
+Per [`design-offline.md`](../.claude/rules/design-offline.md)'s
+reconnect strategy: full local cache reset on reconnect. Cache
+divergence during disconnected windows is hard to detect surgically;
+full reset is the simplest correctness mechanism.
 
 ## Plugin-contributed providers
 
