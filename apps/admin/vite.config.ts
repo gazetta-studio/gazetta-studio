@@ -1,8 +1,63 @@
+import { fileURLToPath } from 'node:url'
+import { dirname, resolve } from 'node:path'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { VitePWA } from 'vite-plugin-pwa'
+
+// Anchor PWA plugin's `srcDir` to this config file's location, not
+// the runner's cwd. The gazetta package's `build:admin` script runs
+// vite from `packages/gazetta` with this config file as
+// `-c ../../apps/admin/vite.config.ts`; without an absolute path,
+// `srcDir: 'src/client'` resolves to packages/gazetta/src/client
+// and the SW source isn't found.
+//
+// We anchor ONLY the PWA srcDir, not Vite's `root` — overriding root
+// would also redirect `--outDir admin-dist` (relative to root) to
+// `apps/admin/admin-dist/` instead of the packaged location
+// `packages/gazetta/admin-dist/`.
+const configDir = dirname(fileURLToPath(import.meta.url))
+const swSrcDir = resolve(configDir, 'src/client')
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [
+    vue(),
+    // Service worker for app-shell precache per design-offline.md Cut 11.
+    // Scoped to "open admin offline → blank screen" — without the SW, a
+    // cold load offline can't fetch /admin/index.html. With the SW, the
+    // precached shell loads, the L6 IndexedDB cache hydrates state, and
+    // the app renders. The IDB cache (Cuts 2-4) handles data; this SW
+    // handles the app bundle.
+    //
+    // injectManifest strategy because v2 background sync (deferred) wants
+    // a custom SW source to drop into. generateSW would work for v1
+    // alone but would require a strategy migration when v2 lands;
+    // shipping injectManifest now means v2 adds handlers without
+    // touching the build wiring.
+    VitePWA({
+      strategies: 'injectManifest',
+      srcDir: swSrcDir,
+      filename: 'sw.ts',
+      // No PWA install prompt in v1 — `registerType: 'prompt'` ships the
+      // update-available toast (per design-offline.md "update detection
+      // UX"), but skips the install prompt + manifest.webmanifest.
+      registerType: 'prompt',
+      injectRegister: false, // we register manually from main.ts via virtual:pwa-register/vue
+      // Manifest stays minimal — we're not a PWA (yet); just precaching
+      // for offline reload reliability. The web manifest landing page
+      // and install prompt flow is a v2 feature.
+      manifest: false,
+      injectManifest: {
+        // Bumped from default 2 MB so the admin bundle (PrimeVue + rjsf
+        // + Tiptap clocks in around ~3 MB minified) precaches without
+        // warnings. Each chunk ships independently; this is the per-file
+        // cap, not total.
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+      },
+      // Don't enable in dev — Vite HMR + SW caching fight each other.
+      // SW only runs in production builds.
+      devOptions: { enabled: false },
+    }),
+  ],
   root: '.',
   build: {
     rolldownOptions: {

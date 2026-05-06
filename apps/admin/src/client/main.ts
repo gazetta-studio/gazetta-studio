@@ -10,6 +10,7 @@ import { createAdminQueryClient, createGazettaClientPersister } from './queries/
 import { createGazettaPersister } from './queries/persister.js'
 import { useConnectionState } from './stores/connectionState.js'
 import { attachPendingEditsPersistence } from './stores/_pendingEditsPersistence.js'
+import { useServiceWorkerUpdate } from './composables/useServiceWorkerUpdate.js'
 import './assets/tokens.css'
 
 // Async boot: provider selection probes IndexedDB before constructing
@@ -49,6 +50,11 @@ async function bootstrap(): Promise<void> {
   // + `editorContent` persistence land in Cut 8b.
   const pendingEditsPersistence = attachPendingEditsPersistence(provider.cache)
   await pendingEditsPersistence.hydrated
+
+  // Register the service worker (production builds only; dev no-op).
+  // Surfaces the "new version available" toast when an update lands.
+  // Per Cut 11; SW source lives at src/client/sw.ts.
+  useServiceWorkerUpdate()
 
   app.mount('#app')
 
