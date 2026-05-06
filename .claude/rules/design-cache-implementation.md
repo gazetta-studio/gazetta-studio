@@ -21,7 +21,7 @@ Branch: `cache-v1` off `main`. **No backwards compatibility** — replaces exist
 | 1 | `cache/` infrastructure: types, errors, key conventions | ✓ | Low | Type-only foundation (shipped pre-Path-X-Phase-3) |
 | 2 | `AdminCache` interface + `MemoryCache` provider with bounded LRU eviction | ✓ | Medium | The seam + v1 default (shipped pre-Path-X-Phase-3) |
 | 3 | Key conventions: colon-separated, automatic Gazetta-major-version prefix, 255-char overflow-hash | ✓ | Low | Key-handling utility |
-| 4 | SSE invalidation broadcast + `subscribe()` method | ☐ | Medium | Cross-instance coordination primitive |
+| 4 | SSE invalidation broadcast + `subscribe()` method | ✓ | Medium | Cross-instance coordination primitive |
 | 5 | First real consumer (/api/pages summary) + paired save invalidation | ✓ | Medium | The contract works on real consumers; folds in the original Cut 6 (split shipped a regression). See "Per-cut scope" Cut 5 below for the audit findings on memos that don't migrate. |
 | 6 | _(folded into Cut 5 — see Per-cut scope)_ | ✓ | — | Save handler invalidation paired with read-side caching to avoid shipping a stale-cache regression. |
 | 7 | Stats: hit / miss / size / errors counters + structured log every 5 min + `GET /api/system/cache/stats` | ✓ | Low | Observability |
@@ -64,14 +64,22 @@ Branch: `cache-v1` off `main`. **No backwards compatibility** — replaces exist
 
 ### Cut 4: SSE invalidation broadcast
 
-**Files added:**
-- `packages/gazetta/src/cache/sse.ts` — server-side broadcast on invalidate / invalidatePrefix
+**Contract evolution from the Q2 lock.** The original framing was "events from other instances" with single-instance providers as honest no-ops. Implementation surfaced that the L4→L6 server-to-browser cascade is the load-bearing consumer: from the browser's POV the server IS another instance, so the right contract is "events from any source." Updated `design-cache.md`'s subscribe section accordingly.
 
 **Files modified:**
-- `packages/gazetta/src/cache/memory.ts` — replace Cut 2's no-op `subscribe()` with Node EventEmitter wiring; SSE listener calls handler set via emit
-- SSE channel location TBD when Cut 4 starts. Existing dev-server reload SSE lives at [`cli/index.ts`](../../packages/gazetta/src/cli/index.ts) (`/__reload`, line 1536); Cut 4 either extends it or adds a new admin-api SSE route alongside the existing `streamSSE` use in `admin-api/routes/publish.ts:522`. No `admin-api/middleware/sse.ts` exists today.
+- `packages/gazetta/src/cache/memory.ts` — `MemoryCache` now fires `subscribers` on every local `invalidate` and `invalidatePrefix`. Event payload carries the consumer-facing prefix (the form passed to the method) — the `applyKeyPolicy` version prefix and overflow-hash are storage encoding details that don't leak into events. Subscriber faults isolated via try/catch; one failing subscriber doesn't prevent siblings from firing. New `instance?: string` option lets operators override the auto-generated 8-char hex ID (matches Kubernetes pod / Cloud Run revision conventions per `design-logging.md`).
+- `packages/gazetta/src/cache/types.ts` — JSDoc updated to document the "events from any source" contract and the consumer-facing-prefix invariant.
+- `packages/gazetta/src/admin-api/routes/system.ts` — `GET /api/system/cache/invalidations` SSE endpoint added next to `/stats`. Subscribes to the resolved source's cache; buffers events; writes them as SSE frames. `stream.onAbort` disposes the subscriber so we don't leak between connections.
 
-**Tests:** invalidation broadcasts + subscribers receive events + auto-reconnect with backoff (single-process; trivial case)
+**Tests:**
+- `cache-memory.test.ts` — local emission, prefix carries consumer form (no `:` leak from version prefix), invalidate(missing) no-fire, invalidatePrefix-no-match still emits (browser's L6 may hold what L4 evicted), instance ID stability + override, subscriber fault isolation
+- `cache-per-site.test.ts` — round-trip through forSite + MemoryCache delivers consumer prefix; cross-site events filtered (site A invalidations don't fire site B's subscriber)
+- `admin-api.test.ts` — SSE smoke: open connection, trigger save in background, assert `event: invalidation` arrives with `data: {"prefix":"pages:",...}`. Bounded with `setTimeout` race so a regression doesn't hang the suite.
+
+**Deferred from Cut 4:**
+- Auto-reconnect with backoff on the SSE consumer side — implementation lives in the browser-side `IndexedDBCache` provider when offline mode ships (`design-offline.md` Cut 4). v1 SSE endpoint just streams; clients reconnect on their own.
+- `subscribeReconnects` stat — same — populated by the browser-side cache when reconnect logic lands.
+- Strict-mode boot blocking on subscribe — Gap 4 reserved for compliance contexts; not v1.
 
 ### Cut 5: First real consumer + save invalidation (paired)
 

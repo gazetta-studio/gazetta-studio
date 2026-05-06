@@ -86,6 +86,66 @@ describe('GET /api/system/cache/stats', () => {
   })
 })
 
+describe('GET /api/system/cache/invalidations (SSE)', () => {
+  it('opens an SSE stream and emits an invalidation event on save', async () => {
+    // Use AbortController so we can cleanly close the long-lived
+    // stream after asserting. Without it the test runtime would
+    // hang waiting on a never-closing connection.
+    const ctrl = new AbortController()
+    const res = await app.request('/api/system/cache/invalidations', { signal: ctrl.signal })
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toMatch(/text\/event-stream/)
+    expect(res.body).toBeTruthy()
+
+    // Read the stream incrementally. After the initial 'ready' event,
+    // trigger a save via /api/pages and assert that an invalidation
+    // event arrives in a bounded window.
+    const reader = res.body!.getReader()
+    const decoder = new TextDecoder()
+    const collected: string[] = []
+    let saveTriggered = false
+
+    const readPromise = (async () => {
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) return
+        collected.push(decoder.decode(value, { stream: true }))
+        // After the first chunk lands ('ready' event) trigger a save.
+        if (!saveTriggered) {
+          saveTriggered = true
+          // Don't await — the save's response cycle is independent
+          // of this stream; we just want the invalidation it triggers.
+          void app.request('/api/pages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: 'sse-cache-test', template: 'page-default' }),
+          })
+        }
+        // Stop reading once an invalidation event arrives.
+        if (collected.join('').includes('event: invalidation')) return
+      }
+    })()
+
+    // Bound the wait so a regression doesn't hang the suite.
+    const timeoutPromise = new Promise<void>(resolve => setTimeout(resolve, 5000))
+    await Promise.race([readPromise, timeoutPromise])
+    ctrl.abort()
+    try {
+      reader.cancel()
+    } catch {
+      // already aborted
+    }
+
+    const text = collected.join('')
+    expect(text).toContain('event: ready')
+    expect(text).toContain('event: invalidation')
+    expect(text).toMatch(/data: \{[^}]*"prefix":"pages:"/)
+
+    // Cleanup the page we created.
+    await rm(resolve(localTargetDir, 'pages/sse-cache-test'), { recursive: true, force: true })
+  }, 15_000)
+})
+
 describe('GET /api/pages', () => {
   it('returns all pages', async () => {
     const { status, body } = await get('/api/pages')
