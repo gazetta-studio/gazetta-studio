@@ -11,6 +11,7 @@ import { hasBlockingIssues, runSaveDelta } from '../../validation/save-delta.js'
 import type { ValidatorRegistry } from '../../validation/registry.js'
 import type { FragmentManifest } from '../../types.js'
 import { computeSaveEtag } from '../../save-etag.js'
+import { ensureComponentIds } from '../../component-ids.js'
 
 export function fragmentRoutes(resolve: SourceContextResolver, validators: ValidatorRegistry, templatesDir?: string) {
   const app = new Hono()
@@ -165,10 +166,14 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
     }
 
     const body = await c.req.json()
+    // Auto-generate stable component IDs on every save (per
+    // `design-collaboration.md`'s component-ID anchor primitive).
+    // See pages.ts PUT handler for full rationale; same shape here.
+    const components = ensureComponentIds(body.components ?? fragment.components)
     const manifest = {
       template: body.template ?? fragment.template,
       content: body.content ?? fragment.content,
-      components: body.components ?? fragment.components,
+      components,
     }
 
     const filename = locale ? `fragment.${locale}.json` : 'fragment.json'

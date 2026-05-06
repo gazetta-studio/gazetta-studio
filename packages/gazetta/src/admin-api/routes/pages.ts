@@ -11,6 +11,7 @@ import { hasBlockingIssues, runSaveDelta } from '../../validation/save-delta.js'
 import type { ValidatorRegistry } from '../../validation/registry.js'
 import type { PageManifest } from '../../types.js'
 import { computeSaveEtag } from '../../save-etag.js'
+import { ensureComponentIds } from '../../component-ids.js'
 
 export function pageRoutes(resolve: SourceContextResolver, validators: ValidatorRegistry, templatesDir?: string) {
   const app = new Hono()
@@ -218,10 +219,18 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
     }
 
     const body = await c.req.json()
+    // Auto-generate stable component IDs on every save. Existing IDs
+    // are preserved; ID-less components get NanoIDs. Per
+    // `design-collaboration.md`, IDs are the load-bearing anchor for
+    // inline comments + future per-component overrides. Running this
+    // on every save (not just creation) means existing pages migrate
+    // to having IDs the first time the author saves them — no separate
+    // migration step required.
+    const components = ensureComponentIds(body.components ?? page.components)
     const manifest: Record<string, unknown> = {
       template: body.template ?? page.template,
       content: body.content ?? page.content,
-      components: body.components ?? page.components,
+      components,
     }
     if (body.metadata !== undefined) manifest.metadata = body.metadata
     else if (page.metadata) manifest.metadata = page.metadata
