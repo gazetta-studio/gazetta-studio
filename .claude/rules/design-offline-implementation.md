@@ -20,14 +20,15 @@ Branch: `offline-v1` off `main`. Sequenced after AdminCache (depends on `AdminCa
 
 | # | Cut | Status | Risk | Validates |
 |---|---|---|---|---|
-| 1 | npm dependencies + setup: `idb`, `@tanstack/vue-query`, `@tanstack/query-async-storage-persister`, `vite-plugin-pwa` | ☐ | Low | Tooling foundation |
-| 2 | `IndexedDBCache` provider (browser-side `AdminCache`) using `idb` | ☐ | Medium | The L6 cache primitive |
-| 3 | Provider selection: `IndexedDBCache` primary; `MemoryCache` fallback when IndexedDB unavailable | ☐ | Low | Graceful degradation |
-| 4 | BroadcastChannel cross-tab invalidation | ☐ | Low | Multi-tab coordination |
-| 5 | Vue Query setup + `IndexedDBPersister` bridge to L6 | ☐ | Medium | Query/mutation cache + offline queue |
-| 6 | Connection state Pinia store: hybrid `navigator.onLine` + heartbeat to `/api/health` | ☐ | Medium | 5-state model |
-| 7 | Health endpoint `GET /api/health` | ☐ | Low | Server-side support |
-| 8 | Pending-edits store migration: persist to IndexedDB; survive reload | ☐ | Medium | Editor state persistence |
+| 1 | npm dependencies + setup: `idb`, `@tanstack/vue-query`, `@tanstack/query-async-storage-persister`, `vite-plugin-pwa` | ✓ | Low | Tooling foundation |
+| 2 | `IndexedDBCache` provider (browser-side `AdminCache`) using `idb` | ✓ | Medium | The L6 cache primitive |
+| 3 | Provider selection: `IndexedDBCache` primary; `MemoryCache` fallback when IndexedDB unavailable | ✓ | Low | Graceful degradation |
+| 4 | BroadcastChannel cross-tab invalidation | ✓ | Low | Multi-tab coordination |
+| 5 | Vue Query setup + `IndexedDBPersister` bridge to L6 | ✓ | Medium | Query/mutation cache + offline queue |
+| 6 | Connection state Pinia store: hybrid `navigator.onLine` + heartbeat to `/api/health` | ✓ | Medium | 5-state model |
+| 7 | Health endpoint `GET /api/health` | ✓ | Low | Server-side support |
+| 8a | Pending-edits store migration — `editorStructural` only (pure-data subset) | ✓ | Medium | Structural edits survive reload |
+| 8b | Pending-edits store migration — `editorStash` + `editorContent` (closure-rebuild flow) | ☐ | Medium | Content edits survive reload (deferred from original Cut 8) |
 | 9 | Save queue: client-generated thread IDs + chained If-Match etag projections | ☐ | High | Conflict-on-replay machinery |
 | 10 | Conflict UX: 409 STALE handling; field-by-field semantic diff banner; Show / Discard actions | ☐ | High | Conflict resolution UX |
 | 11 | Service worker via vite-plugin-pwa: app-shell precache | ☐ | Medium | Cold-load offline reliability |
@@ -89,12 +90,29 @@ Branch: `offline-v1` off `main`. Sequenced after AdminCache (depends on `AdminCa
 
 **Tests:** returns `{ ok: true, timestamp }`
 
-### Cut 8: Pending-edits store migration
+### Cut 8a: Pending-edits store migration — structural only (shipped)
+
+**Files added:**
+- `apps/admin/src/client/stores/_pendingEditsPersistence.ts` — coordinator; deep-watches `editorStructural.entries`, debounce-writes a JSON-shaped snapshot to the cache, hydrates at boot
+- `apps/admin/tests/pendingEditsPersistence.test.ts` — coordinator contract tests
 
 **Files modified:**
-- `apps/admin/src/client/stores/editing.ts` — persist `editorContent`, `editorStash`, `editorStructural` to IndexedDB; hydrate on boot
+- `apps/admin/src/client/stores/editorStructural.ts` — adds internal `_hydrateFromSnapshot` method (leading underscore) so persistence can restore `original` + `pending` as-is without re-recording the discard baseline through the intent-named mutators
+- `apps/admin/src/client/main.ts` — attaches persistence after Pinia install + before mount; awaits initial hydration
 
-**Tests:** browser reload preserves pending edits across navigation
+**Tests:** hydration from a previously-persisted snapshot; debounced write on mutation (~300ms default); cache invalidation on empty store; debounce coalesces rapid mutations; preserves discard baseline across reload; wrong-version snapshots ignored; dispose() stops the watcher
+
+**Why structural-only:** pure data — no closures, no transient mounts. Reorders are also higher-friction for an author to redo than re-typing a field, making them the highest-value persistence target for this cut. `editorStash` + `editorContent` defer to Cut 8b because both stores carry an `EditingTarget` with a `save` closure bound to the page's selection state; the closure-rebuild flow on rehydration deserves its own focused cut.
+
+### Cut 8b: Pending-edits store migration — content + stash (deferred)
+
+**Files modified:**
+- `apps/admin/src/client/stores/_pendingEditsPersistence.ts` — extend with `attachStashPersistence` + `attachContentPersistence`
+- `apps/admin/src/client/composables/useEditorActions.ts` — navigate flow consults persisted content; `EditingTarget` rebuild on hydration
+
+**Tricky bit — closure rebuild on rehydration:** `EditingTarget.save` is `buildSaveFn(namePath)` (page selection state captured at navigate time). Persisted entries carry a "data-only snapshot" (no closure). On `navigate(path)`, the action checks the persisted entry and rebuilds the `save` closure from the freshly-fetched manifest's selection context.
+
+**Tests:** browser reload preserves stashed edits across pages; current-page dirty state restored on reload via navigate flow; stash restore picks up persisted dirty content during multi-page-edit scenario.
 
 ### Cut 9: Save queue (highest risk cut)
 
@@ -159,7 +177,7 @@ Branch: `offline-v1` off `main`. Sequenced after AdminCache (depends on `AdminCa
 
 ## Validation gate (definition of done)
 
-- [ ] All 16 cuts merged
+- [ ] All 17 cuts merged (1-7, 8a, 8b, 9-16)
 - [ ] Manual test: edit page offline → close laptop → reopen → edits persist → reconnect → sync invisibly
 - [ ] Conflict scenario test: edit offline + concurrent online edit → reconnect → conflict banner surfaces
 - [ ] Service worker test: cold-load admin offline → SPA loads from cache
@@ -191,7 +209,8 @@ Branch: `offline-v1` off `main`. Sequenced after AdminCache (depends on `AdminCa
 | 2-4 (IDB cache + selection + BroadcastChannel) | 2 days |
 | 5 (Vue Query) | 1.5 days |
 | 6-7 (Connection + health) | 1 day |
-| 8 (Pending-edits) | 1 day |
+| 8a (Structural pending-edits) | 0.5 day |
+| 8b (Stash + content pending-edits, with closure rebuild) | 1.5 days |
 | 9 (Save queue) | 2.5 days |
 | 10 (Conflict UX) | 2 days |
 | 11 (Service worker) | 1.5 days |
@@ -200,7 +219,7 @@ Branch: `offline-v1` off `main`. Sequenced after AdminCache (depends on `AdminCa
 | 15 (Audit) | 0.5 day |
 | 16 (Docs) | 1 day |
 
-**Total: ~16-17 days.** Highest cut count + highest risk pass; budget ~3-4 weeks with iteration.
+**Total: ~16-18 days** (8 split into 8a/8b). Highest cut count + highest risk pass; budget ~3-4 weeks with iteration.
 
 ## SOLID checks per cut
 

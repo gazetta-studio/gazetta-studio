@@ -180,6 +180,27 @@ describe('attachPendingEditsPersistence — editorStructural', () => {
     expect(store.pendingCount).toBe(0)
   })
 
+  it('hydration skips malformed keys but keeps valid entries', async () => {
+    // Defensive: a future schema migration or out-of-band storage
+    // corruption could write a key we can't parse. One bad entry
+    // shouldn't kill hydration for valid entries.
+    const cache = fakeAdminCache()
+    cache._store.set('pending-edits:structural', {
+      version: 1,
+      entries: [
+        ['malformed-no-colon', { original: ['x'], pending: ['y'] }],
+        ['page:home', { original: ['a'], pending: ['b'] }],
+      ],
+    })
+
+    handle = attachPendingEditsPersistence(cache, { structuralDebounceMs: 0 })
+    await handle.hydrated
+
+    const store = useEditorStructuralStore()
+    expect(store.pendingFor({ kind: 'page', name: 'home' })).toEqual(['b'])
+    expect(store.pendingCount).toBe(1)
+  })
+
   it('hydration ignores wrong-version snapshots', async () => {
     const cache = fakeAdminCache()
     cache._store.set('pending-edits:structural', {
