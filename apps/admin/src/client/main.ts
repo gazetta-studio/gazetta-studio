@@ -8,6 +8,7 @@ import { createRouter } from './router.js'
 import { selectBrowserCacheProvider } from './cache/provider-selector.js'
 import { createAdminQueryClient, createGazettaClientPersister } from './queries/client.js'
 import { createGazettaPersister } from './queries/persister.js'
+import { useConnectionState } from './stores/connectionState.js'
 import './assets/tokens.css'
 
 // Async boot: provider selection probes IndexedDB before constructing
@@ -33,6 +34,13 @@ async function bootstrap(): Promise<void> {
     clientPersister,
   })
   app.use(createRouter())
+
+  // Initialize the connection-state store so it auto-attaches
+  // `navigator.onLine` listeners and starts probing /api/health
+  // when degraded. Must run after Pinia install + before mount so
+  // the first render sees a populated state.
+  useConnectionState()
+
   app.mount('#app')
 
   if (provider.degraded) {
