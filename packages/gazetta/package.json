@@ -50,6 +50,10 @@
       "types": "./dist/schema/index.d.ts",
       "import": "./dist/schema/index.js"
     },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js"
+    },
     "./providers/azure-blob": {
       "types": "./dist/providers/azure-blob.d.ts",
       "import": "./dist/providers/azure-blob.js"
