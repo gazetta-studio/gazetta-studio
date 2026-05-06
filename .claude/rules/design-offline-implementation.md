@@ -37,7 +37,7 @@ Branch: `offline-v1` off `main`. Sequenced after AdminCache (depends on `AdminCa
 | 13 | Mid-save connection-loss reconcile: detect TypeError → GET-and-compare → silent success or surface StaleSaveError | ✓ | Medium | Edge case correctness |
 | 14 | useStorageQuota composable + StorageQuotaBanner (80% threshold; per-tab-session dismiss-once UX) | ✓ | Low | Operator UX |
 | 15 | Audit integration: `metadata.replayed: true` + `queuedAt` + `replayedAt` | ☐ | Low | Composes with audit foundation |
-| 16 | Docs + first-run author guide | ☐ | Low | User-facing |
+| 16 | docs/offline.md author + operator guide; CLAUDE.md listing updated | ✓ | Low | User-facing |
 
 ## Per-cut scope
 

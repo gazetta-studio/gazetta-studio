@@ -25,6 +25,8 @@ Stateless CMS that structures websites as composable fragments. All state lives 
 - `docs/content-assets.md` — Content author guide for the asset library
 - `docs/migration.md` — Migrating templates from `z.string()` URLs to `embeddedAsset()` references
 - `docs/transform-adapters.md` — Per-target image delivery strategies
+- `docs/cache.md` — Admin read-side cache configuration + monitoring
+- `docs/offline.md` — Offline mode (cold-load reliability, save conflicts, browser support)
 
 ## Design docs (auto-loaded by Claude)
 
