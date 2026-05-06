@@ -132,8 +132,18 @@ export function createSourceContext(opts: CreateSourceContextOptions): SourceCon
   // once, here, so every loadSiteFromSource() call shares it. Per the
   // single-Site-per-process invariant, the source's site name is
   // stable for the process lifetime.
+  //
+  // Fallback chain:
+  //   1. opts.cache  — caller owns lifetime explicitly (preferred)
+  //   2. opts.manifest.cache — operator's instance from gazetta.config
+  //      defaults.cache (hoisted into site.cache by applyGazettaDefaults
+  //      in the loader). Without this fallback the operator's tuned
+  //      cache is silently ignored on the registry / direct-loadSite
+  //      paths that pass `manifest` but not `cache`.
+  //   3. fresh memoryCache() — single-Site-per-process invariant means
+  //      each process gets its own; safe default.
   const siteName = opts.siteName ?? opts.manifest?.name ?? 'unnamed'
-  const cache = forSite(opts.cache ?? memoryCache(), siteName)
+  const cache = forSite(opts.cache ?? opts.manifest?.cache ?? memoryCache(), siteName)
   return {
     storage: opts.storage,
     siteDir: opts.siteDir,

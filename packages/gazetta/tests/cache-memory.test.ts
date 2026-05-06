@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { createMemoryCache } from '../src/cache/memory.js'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { createMemoryCache, resolveInstanceId } from '../src/cache/memory.js'
 import type { InvalidationEvent } from '../src/cache/types.js'
 
 describe('MemoryCache get/set/invalidate', () => {
@@ -286,5 +286,57 @@ describe('MemoryCache key policy (Cut 1)', () => {
     await cache.set(longKey, 'value')
     await cache.invalidate(longKey)
     expect(await cache.get(longKey)).toBeNull()
+  })
+})
+
+describe('resolveInstanceId chain (Gap 7)', () => {
+  let savedKRevision: string | undefined
+
+  beforeEach(() => {
+    savedKRevision = process.env.K_REVISION
+    delete process.env.K_REVISION
+  })
+
+  afterEach(() => {
+    if (savedKRevision === undefined) delete process.env.K_REVISION
+    else process.env.K_REVISION = savedKRevision
+  })
+
+  it('honors an explicit override above all env signals', () => {
+    process.env.K_REVISION = 'cloud-run-revision-1'
+    expect(resolveInstanceId('explicit-id')).toBe('explicit-id')
+  })
+
+  it('uses K_REVISION when set and no override given', () => {
+    process.env.K_REVISION = 'service-rev-7'
+    expect(resolveInstanceId()).toBe('service-rev-7')
+  })
+
+  it('falls back to a non-empty string when K_REVISION is unset', () => {
+    // os.hostname() varies across CI runners; we don't assert a
+    // specific value, only that the fallback returned something
+    // useful (non-empty). The random-hex tail of the chain only
+    // fires when os.hostname() returns empty, which doesn't happen
+    // on real systems.
+    const id = resolveInstanceId()
+    expect(typeof id).toBe('string')
+    expect(id.length).toBeGreaterThan(0)
+  })
+})
+
+describe('MemoryCache stats (Gap 1)', () => {
+  it('includes the instance field on stats output', async () => {
+    const cache = createMemoryCache({ instance: 'pod-stats-test' })
+    const stats = await cache.stats?.()
+    expect(stats?.instance).toBe('pod-stats-test')
+  })
+
+  it('stats.instance matches the source.instance on emitted events', async () => {
+    const cache = createMemoryCache({ instance: 'pod-event-test' })
+    const events: InvalidationEvent[] = []
+    cache.subscribe(e => events.push(e))
+    await cache.invalidatePrefix('a:')
+    const stats = await cache.stats?.()
+    expect(stats?.instance).toBe(events[0]?.source.instance)
   })
 })

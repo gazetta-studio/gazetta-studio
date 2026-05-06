@@ -122,7 +122,12 @@ export interface AdminCache {
   invalidate(key: string): Promise<void>
   /** Invalidate all keys matching a prefix. Returns count cleared. */
   invalidatePrefix(prefix: string): Promise<number>
-  /** Subscribe to invalidation events from other instances. Returns disposer. */
+  /**
+   * Subscribe to invalidation events from any source — local
+   * invalidations on this provider AND cross-instance invalidations
+   * delivered via the provider's coordination mechanism. Returns
+   * disposer. Discriminate via `event.source.instance`.
+   */
   subscribe(handler: (event: InvalidationEvent) => void): () => void
   /** Stats for diagnostics — hit rate, size, age distribution. Optional. */
   stats?(): Promise<CacheStats>
@@ -137,6 +142,8 @@ export interface CacheStats {
   hits: number
   misses: number
   size: number
+  /** Identity of the reporting instance — same value as InvalidationEvent.source.instance. */
+  instance?: string
   // Provider-specific extras allowed
 }
 ```
@@ -266,6 +273,7 @@ interface CacheStats {
   misses: number
   size: number               // entry count
   errors: number             // transport failures since last reset
+  instance?: string          // identity of the reporting instance
   // Optional richer fields (provider-supported)
   bytesApproximate?: number
   evictions?: number

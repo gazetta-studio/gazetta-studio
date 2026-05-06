@@ -55,6 +55,15 @@ export interface CacheStatsLogEntry {
   level: 'info'
   /** Module namespace per design-logging.md. */
   module: 'cache.stats'
+  /**
+   * Identity of the reporting cache instance — top-level for log-
+   * aggregator filtering (`module:cache.* AND instance:pod-abc`)
+   * per `design-logging.md` Multi-instance correlation. Also nested
+   * inside `stats.instance` for callers that consume the stats blob
+   * directly. Optional because providers may report stats without an
+   * identity field.
+   */
+  instance?: string
   message: string
   stats: CacheStats
 }
@@ -90,6 +99,7 @@ export function startCacheStatsLogger(opts: StartCacheStatsLoggerOptions): Cache
       timestamp: new Date().toISOString(),
       level: 'info',
       module: 'cache.stats',
+      instance: stats.instance,
       message: 'cache stats',
       stats,
     })

@@ -84,6 +84,16 @@ describe('GET /api/system/cache/stats', () => {
     // /api/pages writes to the cache on miss → at least one entry.
     expect(body.size).toBeGreaterThanOrEqual(1)
   })
+
+  it('includes the instance field for multi-instance correlation (Gap 1)', async () => {
+    const { body } = await get('/api/system/cache/stats')
+    // Instance is resolved from K_REVISION → os.hostname() → random hex.
+    // We don't pin a specific value — only that the field is present
+    // and non-empty. Operators in multi-instance deployments use this
+    // to know which pod / revision answered.
+    expect(typeof body.instance).toBe('string')
+    expect(body.instance.length).toBeGreaterThan(0)
+  })
 })
 
 describe('GET /api/system/cache/invalidations (SSE)', () => {

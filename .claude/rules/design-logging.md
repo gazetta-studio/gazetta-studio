@@ -129,9 +129,11 @@ Logs from multiple admin instances (Cloud Run / Kubernetes deployments) merge in
 Operators searching `module:cache.* AND instance:pod-abc-123` see one instance's cache behavior; without `instance` filter, see all instances merged.
 
 `instance` is set automatically from environment:
-- Cloud Run: `K_REVISION` env
-- Kubernetes: `HOSTNAME` env
-- Otherwise: `os.hostname()` fallback
+- Cloud Run: `K_REVISION` env (per-revision, NOT per-instance — pods scaled from the same revision share this ID; for per-pod identity, operators override the cache instance ID explicitly from the metadata server)
+- Otherwise: `os.hostname()` — returns the pod name on K8s default config, the machine hostname elsewhere
+- Last resort: a random 8-char hex (only when `os.hostname()` returns empty)
+
+`process.env.HOSTNAME` is NOT in the chain. Linux containers usually have it via the shell, but Node processes exec'd directly (e.g., `CMD ["node", "..."]` in a Dockerfile) don't inherit shell environment, so `HOSTNAME` may be undefined on K8s pods. `os.hostname()` calls `gethostname(2)` directly and is reliable across runtimes.
 
 ## Logger interface
 
