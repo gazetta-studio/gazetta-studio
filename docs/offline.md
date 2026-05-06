@@ -72,13 +72,23 @@ from accidentally clobbering each other's work.
 
 ### Pending edits across tabs and reload
 
-Component reorders / adds / removes (the structural lane) survive
-browser reload. If you reorder components on `/home`, then close the
-tab and reopen it, the reordered tree is still there waiting for save.
+Two kinds of edits both survive reload:
 
-Field-level edits (title text, content blocks) currently don't
-persist across reload — they're held in browser memory until you save
-or navigate. Persisting field edits across reload is in the roadmap.
+- **Structural** — component reorders / adds / removes. Reorder
+  components on `/home`, close the tab, reopen — tree comes back
+  the way you left it.
+- **Field-level** — title text, content blocks, anything you type
+  into the editor form. Edit a heading on `/home`, close the tab,
+  reopen `/home` — the heading you typed is back, dirty, waiting
+  to save.
+
+Both work across multiple pages. If you have unsaved edits on
+`/home/_root` AND on `/about/_root`, both come back when you
+navigate to those pages after reload. The saved baseline is
+fetched fresh from the server; your dirty edits overlay on top.
+
+Save clears the dirty state for the saved item; navigating to a
+different page doesn't lose the others.
 
 ### "Send now"
 
@@ -280,9 +290,6 @@ operator side.
 
 What's deferred in v1 with documented triggers to revisit:
 
-- **Persisted field edits across reload** — title / content text in
-  the editor doesn't survive browser close yet. Lands when the
-  closure-rebuild flow for the editor's save state ships.
 - **Replay while tab closed (Background Sync)** — see "What v1 does
   NOT do" above.
 - **Live multi-author concurrent editing** — Tier 3 strategic bet;
