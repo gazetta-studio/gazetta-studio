@@ -4,7 +4,7 @@
  * reload per `design-offline.md`'s "Pending edits persist across
  * browser reload" invariant.
  *
- * # Cut 8 scope (this module)
+ * # Cut 8a scope (this module)
  *
  * Persists `editorStructural` only. Structural edits (component
  * reorder / add / remove on a manifest) are pure data — no closures,
@@ -100,7 +100,17 @@ async function hydrateStructural(cache: AdminCache): Promise<void> {
   if (!persisted || persisted.version !== 1) return
   const store = useEditorStructuralStore()
   for (const [keyString, entry] of persisted.entries) {
-    const key = manifestKeyFromString(keyString)
+    let key
+    try {
+      key = manifestKeyFromString(keyString)
+    } catch {
+      // Malformed entry — could happen if a future schema change
+      // wrote a key shape we don't recognize, or storage was
+      // corrupted out-of-band. Skip the bad entry; restore the
+      // valid ones. Better than killing hydration for ALL entries
+      // because of one bad one.
+      continue
+    }
     // Restore via the store's hydration primitive so both `original`
     // (the discard baseline) and `pending` (the user's WIP) come
     // through as-is. The intent-named mutators would re-record
