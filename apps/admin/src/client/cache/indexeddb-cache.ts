@@ -262,10 +262,27 @@ export async function createIndexedDBCache(opts: IndexedDBCacheOptions = {}): Pr
       // TTL is part of the AdminCache contract but IndexedDBCache
       // ignores it — eviction is LRS-only. A future TTL pass would
       // add a `ttlAt` field and a periodic sweep.
+      //
+      // # Why we round-trip through JSON, not store the raw value
+      //
+      // `db.put` requires structured-cloneable values. Vue's
+      // reactive Proxies fail structured clone with:
+      //   "Failed to execute 'put' on 'IDBObjectStore':
+      //    #<Object> could not be cloned."
+      // Persistence callers commonly snapshot Pinia state (which
+      // wraps everything in Proxies). The cache provider sanitizes
+      // so any caller can pass any JSON-serializable value (the
+      // AdminCache contract requires values be JSON-serializable
+      // per `design-cache.md` "Offline composition") and storage
+      // works without each caller having to deep-clone first.
+      //
+      // Reuses the JSON we're already computing for byte
+      // accounting — single serialize, double duty.
       const serialized = JSON.stringify(value)
+      const cloneable = JSON.parse(serialized) as T
       const row: CacheRow = {
         key,
-        value,
+        value: cloneable,
         setAt: Date.now(),
         bytes: serialized.length,
       }
