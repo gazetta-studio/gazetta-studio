@@ -35,7 +35,7 @@ Branch: `offline-v1` off `main`. Sequenced after AdminCache (depends on `AdminCa
 | 11 | Service worker via vite-plugin-pwa (injectManifest): app-shell precache + skipWaiting handshake + Refresh-toast update flow | ✓ | Medium | Cold-load offline reliability |
 | 12 | OfflineBanner global visibility + Send now + reconnect toast (per-item cloud-slash icons defer to Cut 13's queue) | ✓ | Medium | Krug-aligned visibility |
 | 13 | Mid-save connection-loss reconcile: detect TypeError → GET-and-compare → silent success or surface StaleSaveError | ✓ | Medium | Edge case correctness |
-| 14 | Storage quota warning at 80% | ☐ | Low | Operator UX |
+| 14 | useStorageQuota composable + StorageQuotaBanner (80% threshold; per-tab-session dismiss-once UX) | ✓ | Low | Operator UX |
 | 15 | Audit integration: `metadata.replayed: true` + `queuedAt` + `replayedAt` | ☐ | Low | Composes with audit foundation |
 | 16 | Docs + first-run author guide | ☐ | Low | User-facing |
 
