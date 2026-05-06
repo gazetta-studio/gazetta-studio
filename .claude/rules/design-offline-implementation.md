@@ -28,7 +28,7 @@ Branch: `offline-v1` off `main`. Sequenced after AdminCache (depends on `AdminCa
 | 6 | Connection state Pinia store: hybrid `navigator.onLine` + heartbeat to `/api/health` | ✓ | Medium | 5-state model |
 | 7 | Health endpoint `GET /api/health` | ✓ | Low | Server-side support |
 | 8a | Pending-edits store migration — `editorStructural` only (pure-data subset) | ✓ | Medium | Structural edits survive reload |
-| 8b | Pending-edits store migration — `editorStash` + `editorContent` (closure-rebuild flow) | ☐ | Medium | Content edits survive reload (deferred from original Cut 8) |
+| 8b | usePersistedEditsStore (cross-page key) + auto-mirror on markDirty/stashCurrent + navigate seam rebuilds target via buildTarget + clear-on-save | ✓ | Medium | Content edits survive reload |
 | 9 | Save-etag plumbing: server `ETag` + `If-Match` + 409 STALE + client `StaleSaveError` + `getPageWithEtag` / `updatePage(..., ifMatch)` | ✓ | High | Conflict-detection contract |
 | 9b | useEditorEtags Pinia store + useEditorActions integration (selection.ts If-Match plumbing, updateManifest helper, EditorPanel ConflictBanner wiring) | ✓ | High | End-to-end save-conflict flow |
 | 10 | Conflict UX: useSaveConflictsStore + ConflictBanner.vue + ConflictDiffView.vue (Show / Discard actions; no overwrite per Krug lock) | ✓ | High | Conflict resolution UX |
