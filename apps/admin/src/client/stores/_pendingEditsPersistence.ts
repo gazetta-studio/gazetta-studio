@@ -4,43 +4,47 @@
  * reload per `design-offline.md`'s "Pending edits persist across
  * browser reload" invariant.
  *
- * # Cut 8a scope (this module)
+ * # Two coordinators, two stores
  *
- * Persists `editorStructural` only. Structural edits (component
- * reorder / add / remove on a manifest) are pure data — no closures,
- * no transient mounts. Reorders are also higher-friction for an
- * author to redo than re-typing a field, so they're the highest-
- * value persistence target for this cut.
+ * Cut 8a + Cut 8b together cover the three pending-edits stores:
  *
- * `editorStash` + `editorContent` persistence is **deferred to Cut
- * 8b**. Both stores carry an `EditingTarget` with a `save` closure
- * bound to the page's selection state. Persisting them naively
- * loses the closure; rehydration needs to rebuild it via the
- * navigate flow — a non-trivial seam that deserves its own focused
- * cut rather than being rushed alongside the structural pass.
+ *   `attachPendingEditsPersistence` (Cut 8a)
+ *     persists `editorStructural` (component reorder / add / remove)
+ *
+ *   `attachPersistedEditsPersistence` (Cut 8b)
+ *     persists `usePersistedEditsStore` — a cross-page-correct mirror
+ *     of `editorStash` + `editorContent` dirty state, keyed by
+ *     `(kind, name, locale, path)` tuples so two pages with a
+ *     `_root` or `hero` selection don't collide
+ *
+ * Both follow the same shape: hydrate at boot, deep-watch the
+ * source store, debounce-write a JSON snapshot to the cache.
  *
  * # SOLID lenses
  *
- *   - SRP: this module owns the persistence-coordinator concern.
- *     Stores stay store-shaped (state + mutations); the coordinator
- *     observes + serializes + hydrates externally.
- *   - DIP: takes any `AdminCache`. The selector picks IndexedDB or
- *     memory; this coordinator doesn't care which.
- *   - OCP: future per-store sub-modules (stash, content) plug in
- *     through additional `attach...()` calls without changing what's
+ *   - SRP: this module owns persistence-coordination. Stores stay
+ *     store-shaped (state + mutations); the coordinators observe +
+ *     serialize + hydrate externally.
+ *   - DIP: both `attach...` functions take any `AdminCache`. The
+ *     selector picks IndexedDB or memory; the coordinators don't
+ *     care which.
+ *   - OCP: a third store (e.g., a future per-asset upload-queue)
+ *     plugs in via another `attach...()` without changing what's
  *     here.
  *
  * # Cache key conventions
  *
  * Per `design-cache.md` Q1, reserved prefix is `pending-edits:`.
- * One key per persisted store: `pending-edits:structural`. Future
- * cuts add `pending-edits:stash` + `pending-edits:content`.
+ *
+ *   `pending-edits:structural`  — Cut 8a's editorStructural snapshot
+ *   `pending-edits:dirty`       — Cut 8b's usePersistedEdits snapshot
  */
 import { watch } from 'vue'
 import type { AdminCache } from 'gazetta'
 import type { ComponentEntry, ManifestKey } from 'gazetta/types'
 import { manifestKeyFromString } from 'gazetta/types'
 import { useEditorStructuralStore, type StructuralEntry } from './editorStructural.js'
+import { type PersistedEdit, usePersistedEditsStore } from './persistedEdits.js'
 
 /**
  * Cache key for `editorStructural` snapshots. v1 stores everything
@@ -185,6 +189,94 @@ export function attachPendingEditsPersistence(
         // Fire-and-forget — cache failures are logged by the
         // AdminCache provider, never propagate to the UI.
         void persistStructural(cache)
+      }, debounceMs)
+    },
+    { deep: true },
+  )
+
+  return {
+    hydrated,
+    dispose() {
+      stop()
+      if (writeTimer !== null) {
+        clearTimeout(writeTimer)
+        writeTimer = null
+      }
+    },
+  }
+}
+
+// === Cut 8b: persisted dirty + stashed edits ============================
+
+/** Cache key for the cross-page persisted-edits snapshot. */
+const PERSISTED_EDITS_KEY = 'pending-edits:dirty'
+
+/** Default debounce window — slightly slower than structural since
+ *  field edits fire on every keystroke; rapid coalescing avoids
+ *  IndexedDB write thrash during typing. */
+const PERSISTED_EDITS_WRITE_DEBOUNCE_MS = 500
+
+interface PersistedEditsSnapshot {
+  version: 1
+  entries: Array<[string, PersistedEdit]>
+}
+
+async function hydratePersistedEdits(cache: AdminCache): Promise<void> {
+  const persisted = await cache.get<PersistedEditsSnapshot>(PERSISTED_EDITS_KEY)
+  if (!persisted || persisted.version !== 1) return
+  const store = usePersistedEditsStore()
+  // Filter out malformed entries — same defensive posture as Cut 8a's
+  // structural hydration. One bad row shouldn't kill restoration of
+  // the rest.
+  const valid: Array<[string, PersistedEdit]> = []
+  for (const [key, entry] of persisted.entries) {
+    if (typeof key !== 'string' || !entry || typeof entry !== 'object') continue
+    if (typeof entry.editedContent !== 'object' || entry.editedContent === null) continue
+    valid.push([key, entry])
+  }
+  store._hydrateAll(valid)
+}
+
+async function persistPersistedEdits(cache: AdminCache): Promise<void> {
+  const store = usePersistedEditsStore()
+  const entries = [...store.entries.entries()]
+  if (entries.length === 0) {
+    await cache.invalidate(PERSISTED_EDITS_KEY)
+    return
+  }
+  const payload: PersistedEditsSnapshot = { version: 1, entries }
+  await cache.set(PERSISTED_EDITS_KEY, payload)
+}
+
+export interface PersistedEditsPersistenceOptions {
+  /** Override the debounce interval. Tests pass 0 to flush
+   *  synchronously without waiting for real time to pass. */
+  debounceMs?: number
+}
+
+/**
+ * Wire persistence for `usePersistedEditsStore` (the cross-page
+ * dirty + stashed mirror introduced by Cut 8b). Same shape as
+ * `attachPendingEditsPersistence` from Cut 8a; lives in this file
+ * because it's the same persistence-coordinator concern.
+ */
+export function attachPersistedEditsPersistence(
+  cache: AdminCache,
+  opts: PersistedEditsPersistenceOptions = {},
+): PendingEditsPersistenceHandle {
+  const debounceMs = opts.debounceMs ?? PERSISTED_EDITS_WRITE_DEBOUNCE_MS
+  const store = usePersistedEditsStore()
+
+  const hydrated = hydratePersistedEdits(cache)
+
+  let writeTimer: ReturnType<typeof setTimeout> | null = null
+  const stop = watch(
+    () => Array.from(store.entries.entries()),
+    () => {
+      if (writeTimer !== null) clearTimeout(writeTimer)
+      writeTimer = setTimeout(() => {
+        writeTimer = null
+        void persistPersistedEdits(cache)
       }, debounceMs)
     },
     { deep: true },

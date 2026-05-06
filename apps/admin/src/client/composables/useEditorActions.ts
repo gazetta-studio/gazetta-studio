@@ -21,6 +21,7 @@ import { api, StaleSaveError, ValidationFailedError } from '../api/client.js'
 import { useLocaleStore } from '../stores/locale.js'
 import { useEditorEtagsStore, manifestPath } from '../stores/editorEtags.js'
 import { useSaveConflictsStore } from '../stores/saveConflicts.js'
+import { persistedEditKey, persistedEditKeyForSelection, usePersistedEditsStore } from '../stores/persistedEdits.js'
 
 const MAX_RETRY_ATTEMPTS = 3
 const BASE_RETRY_DELAY = 3000
@@ -56,11 +57,41 @@ export function useEditorActions() {
     retryAttempt = 0
   }
 
+  // --- Cross-page persisted-edits key helper (Cut 8b) ---
+
+  /**
+   * Build the persisted-edits key for a (selection, target) pair.
+   * Returns null when the active context isn't a persistable target
+   * (no selection, no target, fragment-link host).
+   */
+  function persistedKeyForCurrent(): string | null {
+    const sel = useSelectionStore()
+    if (!sel.selection || !ec.target) return null
+    const kind = sel.selection.type === 'page' ? 'page' : 'fragment'
+    const locale = useLocaleStore().effectiveLocale ?? undefined
+    return persistedEditKey(kind, sel.selection.name, locale, ec.target.path)
+  }
+
+  /** Same shape, but for a stash entry's target.path. */
+  function persistedKeyForStashEntry(targetPath: string): string | null {
+    const sel = useSelectionStore()
+    if (!sel.selection) return null
+    const kind = sel.selection.type === 'page' ? 'page' : 'fragment'
+    const locale = useLocaleStore().effectiveLocale ?? undefined
+    return persistedEditKey(kind, sel.selection.name, locale, targetPath)
+  }
+
   // --- Stash ---
 
   function stashCurrent() {
     if (ec.dirty && ec.target && ec.content) {
       stash.stash(ec.target.path, ec.target, deepClone(ec.content))
+      // Mirror into the cross-page persisted store (Cut 8b) so the
+      // edit survives reload. The in-memory stash is keyed by
+      // target.path which collides across pages; persistedEdits uses
+      // the richer (kind, name, locale, path) tuple.
+      const key = persistedKeyForCurrent()
+      if (key) usePersistedEditsStore().set(key, deepClone(ec.content))
     }
   }
 
@@ -417,7 +448,10 @@ export function useEditorActions() {
       return
     }
 
-    // Check stash before fetching
+    // Check in-memory stash before fetching. The in-memory stash is
+    // intra-selection (keyed by target.path which collides across
+    // pages); it picks up where the author left off within the
+    // current page/fragment.
     const stashKey = selectionToStashKey(sel)
     if (stashKey) {
       const stashed = stash.restore(stashKey)
@@ -437,7 +471,28 @@ export function useEditorActions() {
       const target = await buildTarget(sel, signal)
       persistence.saving = false
       persistence.lastSaveError = null
-      await ec.open(target)
+      // Cut 8b: fall through to the cross-page persisted-edits store
+      // for dirty content that survived a reload. Keys are richer
+      // (kind, name, locale, path) so two pages with the same
+      // component path don't collide. We check AFTER buildTarget
+      // because the persisted entry has data only — the save closure
+      // gets rebuilt by buildTarget; ec.open then overlays the
+      // persisted dirty content onto the freshly-built target.
+      const sl = useSelectionStore()
+      const kind = sl.selection?.type === 'page' ? 'page' : sl.selection?.type === 'fragment' ? 'fragment' : null
+      const name = sl.selection?.name ?? null
+      const localeForKey = useLocaleStore().effectiveLocale ?? undefined
+      const persistedKey = persistedEditKeyForSelection(sel, kind, name, localeForKey)
+      const persisted = persistedKey ? usePersistedEditsStore().get(persistedKey) : null
+      if (persisted) {
+        await ec.open(target, persisted.editedContent)
+        // Promote: the entry is now live in the editor; remove from
+        // the persisted store so a subsequent navigate-away → stash
+        // → restore flow doesn't re-apply the same content twice.
+        usePersistedEditsStore().clear(persistedKey!)
+      } else {
+        await ec.open(target)
+      }
       usePreviewStore().invalidateDraft()
       retryAttempt = 0
     } catch (err) {
@@ -480,10 +535,20 @@ export function useEditorActions() {
   function markDirty(newContent: Record<string, unknown>) {
     ec.markDirty(newContent)
     usePreviewStore().invalidateDraft()
+    // Mirror into the cross-page persisted store (Cut 8b) so the
+    // live edit survives reload. The persistence coordinator
+    // debounces writes to IndexedDB; we just keep the store
+    // up-to-date on every keystroke.
+    const key = persistedKeyForCurrent()
+    if (key) usePersistedEditsStore().set(key, deepClone(newContent))
   }
 
   function revertStashed(componentPath: string) {
     stash.revert(componentPath)
+    // Cut 8b: drop the cross-page persisted mirror for this stash
+    // entry too — author explicitly chose to discard, not keep.
+    const k = persistedKeyForStashEntry(componentPath)
+    if (k) usePersistedEditsStore().clear(k)
     usePreviewStore().invalidateDraft()
   }
 
@@ -527,6 +592,12 @@ export function useEditorActions() {
   function clearEditorForRemovedPath(path: string) {
     if (ec.path === path) ec.clear()
     if (stash.has(path)) stash.revert(path)
+    // Cut 8b: also drop the cross-page persisted mirror for this
+    // path. The component is being removed from the manifest;
+    // re-applying its persisted dirty content after a reload would
+    // resurrect content that no longer has a home.
+    const k = persistedKeyForStashEntry(path)
+    if (k) usePersistedEditsStore().clear(k)
   }
 
   /**
@@ -543,6 +614,11 @@ export function useEditorActions() {
     ec.discard()
     const key = currentManifestKey()
     if (key) structural.discard(key)
+    // Cut 8b: drop the cross-page persisted mirror for the current
+    // edit. The author explicitly reverted; re-applying the dirty
+    // content on reload would undo their intent.
+    const persistedKey = persistedKeyForCurrent()
+    if (persistedKey) usePersistedEditsStore().clear(persistedKey)
     usePreviewStore().invalidateDraft()
   }
 
@@ -604,6 +680,17 @@ export function useEditorActions() {
     const result = await persistence.save(current, stashedEntries, structuralWrites)
     if (result.success) {
       ec.markSaved()
+      // Cut 8b: clear cross-page persisted entries for everything
+      // that just saved successfully. The current edit + all stashed
+      // entries are now on the server; the persisted-edits mirror
+      // for those keys would otherwise re-apply on the next reload.
+      const persistedStore = usePersistedEditsStore()
+      const currentKey = persistedKeyForCurrent()
+      if (currentKey) persistedStore.clear(currentKey)
+      for (const key of stashedKeys) {
+        const k = persistedKeyForStashEntry(key)
+        if (k) persistedStore.clear(k)
+      }
       for (const key of stashedKeys) stash.revert(key)
       structural.clearAll()
       validationStore.clear()
