@@ -34,6 +34,10 @@
       "types": "./dist/format.d.ts",
       "import": "./dist/format.js"
     },
+    "./save-etag": {
+      "types": "./dist/save-etag.d.ts",
+      "import": "./dist/save-etag.js"
+    },
     "./editor": {
       "types": "./dist/editor/mount.d.ts",
       "import": "./dist/editor/mount.js"
