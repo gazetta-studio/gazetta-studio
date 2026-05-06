@@ -29,6 +29,7 @@
  *   - events would fire if any source emitted them
  *   - it's just that v1 single-instance has no source
  */
+import { applyKeyPolicy, applyPrefixPolicy } from './keys.js'
 import type { AdminCache, CacheStats, InvalidationEvent } from './types.js'
 
 /**
@@ -97,14 +98,15 @@ export function createMemoryCache(config: MemoryCacheOptions = {}): AdminCache {
 
   return {
     async get<T>(key: string): Promise<T | null> {
-      const entry = entries.get(key)
+      const wrapped = applyKeyPolicy(key)
+      const entry = entries.get(wrapped)
       if (!entry) {
         misses++
         return null
       }
       // LRU touch — delete + re-insert moves to end (most recent).
-      entries.delete(key)
-      entries.set(key, entry)
+      entries.delete(wrapped)
+      entries.set(wrapped, entry)
       hits++
       return entry.value as T
     },
@@ -113,28 +115,31 @@ export function createMemoryCache(config: MemoryCacheOptions = {}): AdminCache {
       // TTL is part of the AdminCache contract but MemoryCache v1
       // doesn't honor it — eviction is LRU-only. A future TTL pass
       // (or a TTL-aware provider) handles expiry.
+      const wrapped = applyKeyPolicy(key)
       const bytes = JSON.stringify(value).length
-      const existing = entries.get(key)
+      const existing = entries.get(wrapped)
       if (existing) {
         totalBytes -= existing.bytes
-        entries.delete(key)
+        entries.delete(wrapped)
       }
-      entries.set(key, { value, bytes })
+      entries.set(wrapped, { value, bytes })
       totalBytes += bytes
       evictOldestIfOverCap()
     },
 
     async invalidate(key: string): Promise<void> {
-      const entry = entries.get(key)
+      const wrapped = applyKeyPolicy(key)
+      const entry = entries.get(wrapped)
       if (!entry) return
-      entries.delete(key)
+      entries.delete(wrapped)
       totalBytes -= entry.bytes
     },
 
     async invalidatePrefix(prefix: string): Promise<number> {
+      const wrapped = applyPrefixPolicy(prefix)
       let cleared = 0
       for (const [key, entry] of entries) {
-        if (key.startsWith(prefix)) {
+        if (key.startsWith(wrapped)) {
           entries.delete(key)
           totalBytes -= entry.bytes
           cleared++
