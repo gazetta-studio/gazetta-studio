@@ -33,8 +33,8 @@ Branch: `offline-v1` off `main`. Sequenced after AdminCache (depends on `AdminCa
 | 9b | useEditorEtags Pinia store + useEditorActions integration (selection.ts If-Match plumbing, updateManifest helper, EditorPanel ConflictBanner wiring) | ✓ | High | End-to-end save-conflict flow |
 | 10 | Conflict UX: useSaveConflictsStore + ConflictBanner.vue + ConflictDiffView.vue (Show / Discard actions; no overwrite per Krug lock) | ✓ | High | Conflict resolution UX |
 | 11 | Service worker via vite-plugin-pwa (injectManifest): app-shell precache + skipWaiting handshake + Refresh-toast update flow | ✓ | Medium | Cold-load offline reliability |
-| 12 | UX indicators: cloud-with-slash icon + offline banner + "Send now" affordance + sync-state metadata | ☐ | Medium | Krug-aligned visibility |
-| 13 | Mid-save connection-loss handling: retry-with-If-Match; idempotency | ☐ | Medium | Edge case correctness |
+| 12 | OfflineBanner global visibility + Send now + reconnect toast (per-item cloud-slash icons defer to Cut 13's queue) | ✓ | Medium | Krug-aligned visibility |
+| 13 | Mid-save connection-loss reconcile: detect TypeError → GET-and-compare → silent success or surface StaleSaveError | ✓ | Medium | Edge case correctness |
 | 14 | Storage quota warning at 80% | ☐ | Low | Operator UX |
 | 15 | Audit integration: `metadata.replayed: true` + `queuedAt` + `replayedAt` | ☐ | Low | Composes with audit foundation |
 | 16 | Docs + first-run author guide | ☐ | Low | User-facing |
