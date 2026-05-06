@@ -138,16 +138,16 @@ The 13-dimension foundational design corpus is complete. Implementation is now s
 
 Total horizon: ~7-11 months for Phase 0 + Phase 1 + Phase 2 + Phase 3. Tier 3 strategic bets (concurrent editing, etc.) deferred indefinitely.
 
-### Phase 0 — Implementation planning artifacts (1-2 weeks)
+### Phase 0 — Implementation planning artifacts (1 week)
 
-Write 7 missing `design-{feature}-implementation.md` docs:
-- `design-auth-rbac-implementation.md`
-- `design-audit-implementation.md`
-- `design-hooks-implementation.md`
-- `design-plugins-implementation.md`
-- `design-cache-implementation.md`
-- `design-offline-implementation.md`
-- `design-collaboration-implementation.md`
+Write the remaining `design-{feature}-implementation.md` docs. Already shipped: ai, audit, auth-rbac, cache, collaboration, config, hooks, media, offline, plugins, provider-config, validation.
+
+Still missing (5):
+- `design-scale-implementation.md`
+- `design-themes-implementation.md`
+- `design-i18n-implementation.md`
+- `design-rendering-implementation.md`
+- `design-review-workflow-implementation.md`
 
 Each defines cut sequence, per-cut scope, files added/modified, tests, integration consumer for validation, and SOLID checks. No migration sections needed (no backwards compat).
 
