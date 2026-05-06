@@ -30,7 +30,17 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
       // (and any future per-prefix entries) with one invalidatePrefix.
       // SourceContext owns the cache, so two requests against the same
       // target reuse the same instance.
-      const cached = await source.cache.get<PageSummary[]>('pages:summary')
+      //
+      // The `:target:{name}` suffix is target-scoping per design-cache.md
+      // Gap 6 ("Target is a first-class dimension in cache keys when
+      // value is target-scoped"). Pages can diverge between targets
+      // (per design-publishing.md "targets can diverge"), so summaries
+      // must too. Without the suffix, two SourceContexts sharing one
+      // backing cache (operator's `gazetta.config.ts defaults.cache`)
+      // would clobber each other's summaries.
+      const targetKey = source.targetName ?? '__source__'
+      const cacheKey = `pages:summary:target:${targetKey}`
+      const cached = await source.cache.get<PageSummary[]>(cacheKey)
       if (cached) return c.json(cached)
       const site = await loadSiteFromSource(source)
       const pages: PageSummary[] = [...site.pages.entries()].map(([name, page]) => {
@@ -42,7 +52,7 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
           locales: localeEntry ? [...localeEntry.locales.keys()] : undefined,
         }
       })
-      await source.cache.set('pages:summary', pages)
+      await source.cache.set(cacheKey, pages)
       return c.json(pages)
     } catch (err) {
       const msg = (err as Error).message
@@ -97,6 +107,16 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
     // The summary list is now stale — drop it so the next /api/pages
     // recomputes from disk. Cheap (single key) and explicit per
     // design-cache.md Q2 (no auto-invalidation; consumers enumerate).
+    //
+    // Note: `pages:` matches all `pages:summary:target:*` entries,
+    // so this over-invalidates other targets when a backing cache is
+    // shared (one cross-target recompute on next read per affected
+    // target). Acceptable trade vs. the alternative — per-target
+    // precision would require the save handler to scope its
+    // invalidation key, but `pages:summary:target:${this}` doesn't
+    // catch hypothetical future per-page entries (e.g.
+    // `pages:detail:home:target:${this}`) without a wildcard the
+    // cache contract doesn't support.
     await source.cache.invalidatePrefix('pages:')
     return c.json({ ok: true, name: body.name })
   })
