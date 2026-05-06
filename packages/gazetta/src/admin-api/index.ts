@@ -59,6 +59,18 @@ export interface AdminAppOptions {
 
 type AdminApp = Hono & {
   invalidateTemplatesCache(): void
+  /**
+   * Drop AdminCache entries for content (page + fragment summaries)
+   * across every SourceContext the resolver has built. Called by
+   * `gazetta dev`'s file watcher on out-of-band manifest changes
+   * (git pull, manual edit, e2e wipes) — those bypass the save
+   * handler that would normally invalidate the cache.
+   *
+   * Production (`gazetta serve`) doesn't have a file watcher;
+   * out-of-band changes there are vanishingly rare (manifests are
+   * deployed-once artifacts).
+   */
+  invalidateContentCache(): Promise<void>
 }
 
 /**
@@ -194,6 +206,11 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   // Hono Request interface — the CLI casts the return.
   const appWithInvalidate = app as AdminApp
   appWithInvalidate.invalidateTemplatesCache = () => cachedScan.invalidate()
+  appWithInvalidate.invalidateContentCache = async () => {
+    await resolveSource.forEachBuilt(async ctx => {
+      await Promise.all([ctx.cache.invalidatePrefix('pages:'), ctx.cache.invalidatePrefix('fragments:')])
+    })
+  }
   return appWithInvalidate
 }
 

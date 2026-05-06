@@ -1649,6 +1649,7 @@ async function runDev(siteDir: string, port: number) {
   let cmsApp:
     | (Hono & {
         invalidateTemplatesCache(): void
+        invalidateContentCache(): Promise<void>
       })
     | null = null
   if (isDevMode) {
@@ -1893,6 +1894,12 @@ async function runDev(siteDir: string, port: number) {
     if (filename.endsWith('.json') || filename.endsWith('.yaml')) {
       console.log(`  Manifest changed: ${filename}`)
       invalidateAllTemplates()
+      // Out-of-band manifest changes (git pull, manual edit, e2e
+      // test wipes) bypass the admin-api save handler that would
+      // otherwise invalidate the AdminCache. Drop content-summary
+      // entries so the next /api/pages or /api/fragments rebuilds
+      // from disk. Best-effort; the void promise is fire-and-forget.
+      void cmsApp?.invalidateContentCache()
       notifyReload()
     }
   })
@@ -1950,6 +1957,7 @@ async function setupCmsApi(
 ): Promise<
   Hono & {
     invalidateTemplatesCache(): void
+    invalidateContentCache(): Promise<void>
   }
 > {
   const cmsApp = createAdminApp({ source, siteDir, templatesDir, adminDir, targetConfigs })

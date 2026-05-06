@@ -486,6 +486,26 @@ export function publishRoutes(
         const result: PublishResult = { target: targetName, success: true, copiedFiles: totalFiles }
         results.push(result)
         console.log(`    ${targetName}: ${totalFiles} files`)
+
+        // Publish wrote new manifests to the target's storage. Any
+        // SourceContext for that target has a stale cached page /
+        // fragment summary. Resolve the target's SourceContext (if
+        // the resolver has built one) and invalidate. Cheap; covers
+        // the case where the admin UI's active target is the publish
+        // destination and the next /api/pages should reflect the
+        // newly-published items.
+        try {
+          const targetSource = await resolve(targetName)
+          await Promise.all([
+            targetSource.cache.invalidatePrefix('pages:'),
+            targetSource.cache.invalidatePrefix('fragments:'),
+          ])
+        } catch {
+          // Resolver may not know this target (registry not configured;
+          // legacy single-target setup). Cache invalidation is best-
+          // effort; ignore.
+        }
+
         yield { kind: 'target-result', result }
       } catch (err) {
         const error = (err as Error).message

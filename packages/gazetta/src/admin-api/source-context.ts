@@ -224,11 +224,25 @@ export function createSourceContextFromRegistry(opts: SourceContextFromRegistryO
  * The resolver is called once per handler invocation; implementations can
  * memoize where appropriate.
  */
-export type SourceContextResolver = (targetName: string | undefined) => SourceContext | Promise<SourceContext>
+export interface SourceContextResolver {
+  (targetName: string | undefined): SourceContext | Promise<SourceContext>
+  /**
+   * Walk every SourceContext the resolver has memoized. The static
+   * resolver yields its single context; the registry resolver yields
+   * every per-target context built on-demand. Used by `gazetta dev`'s
+   * file watcher to invalidate AdminCache entries on out-of-band
+   * manifest changes (git pull, manual edit, e2e test wipes).
+   */
+  forEachBuilt(fn: (source: SourceContext) => void | Promise<void>): Promise<void>
+}
 
 /** Static resolver — always returns the given SourceContext regardless of requested target. */
 export function staticSourceResolver(source: SourceContext): SourceContextResolver {
-  return () => source
+  const resolve = ((_targetName: string | undefined) => source) as SourceContextResolver
+  resolve.forEachBuilt = async fn => {
+    await fn(source)
+  }
+  return resolve
 }
 
 export interface RegistrySourceResolverOptions {
@@ -266,7 +280,7 @@ export interface RegistrySourceResolverOptions {
  */
 export function registrySourceResolver(opts: RegistrySourceResolverOptions): SourceContextResolver {
   const cache = new Map<string, SourceContext>()
-  return async (targetName: string | undefined) => {
+  const resolve = (async (targetName: string | undefined) => {
     const name = targetName ?? opts.registry.defaultEditable()
     const cached = cache.get(name)
     if (cached) return cached
@@ -294,5 +308,11 @@ export function registrySourceResolver(opts: RegistrySourceResolverOptions): Sou
     })
     cache.set(name, ctx)
     return ctx
+  }) as SourceContextResolver
+  resolve.forEachBuilt = async fn => {
+    for (const ctx of cache.values()) {
+      await fn(ctx)
+    }
   }
+  return resolve
 }
