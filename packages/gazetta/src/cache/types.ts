@@ -68,6 +68,14 @@ export interface AdminCache {
    * passed to the invalidate call). Provider-internal storage
    * details (version prefix, overflow hash, per-site scope) don't
    * leak into the event.
+   *
+   * **No replay on reconnect.** Subscribers (notably the SSE bridge
+   * forwarding to browsers) that lose their connection get no
+   * server-side replay of events they missed during the gap. The
+   * contract: on reconnect, treat your own cached state as
+   * potentially stale and reset (re-fetch from source). The L6 admin
+   * cache (`design-offline.md`) follows this rule via full reset on
+   * reconnect.
    */
   subscribe(handler: (event: InvalidationEvent) => void): () => void
   /** Stats for diagnostics. Optional — not every provider exposes. */

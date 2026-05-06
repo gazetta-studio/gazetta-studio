@@ -51,6 +51,24 @@ export function systemRoutes(resolve: SourceContextResolver) {
    * close, navigation, network drop). The subscribe disposer
    * detaches the handler from the cache so we don't leak between
    * connections.
+   *
+   * # Reconnect contract — clients must reset their cache
+   *
+   * The stream does NOT emit event IDs (`SSEMessage.id`), so the
+   * standard EventSource `Last-Event-ID` reconnect mechanism has
+   * nothing to anchor on. Servers can't replay missed events.
+   * Clients reconnecting must assume "I may have missed any
+   * invalidation that happened during the gap" and reset their own
+   * cache state. Per `design-offline.md`'s reconnect strategy: full
+   * local cache reset is the simplest correctness mechanism.
+   *
+   * # Multi-instance scope (v1)
+   *
+   * The stream forwards invalidations from THIS instance's cache
+   * only. With v1's `MemoryCache`, there's no cross-instance fan-out;
+   * when `RedisCache` ships, its `subscribe()` will deliver cross-
+   * instance events via Redis pub/sub and this route forwards them
+   * unchanged.
    */
   app.get('/api/system/cache/invalidations', async c => {
     const source = await resolve(c.req.query('target'))
