@@ -29,3 +29,13 @@ export type {
 } from './types.js'
 export type { ReadOnlyStorageProvider } from './storage.js'
 export { HookError, HookCancellation, HookTimeout, RegistrationAfterInitError } from './errors.js'
+export { HookRegistry } from './registry.js'
+export {
+  dispatchBeforeSave,
+  dispatchAfterSave,
+  dispatchAfterLoad,
+  dispatchBeforePublish,
+  dispatchAfterPublish,
+  dispatchBeforeUpload,
+  dispatchAfterUpload,
+} from './dispatch.js'
