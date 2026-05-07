@@ -29,6 +29,7 @@ Stateless CMS that structures websites as composable fragments. All state lives 
 - `docs/offline.md` — Offline mode (cold-load reliability, save conflicts, browser support)
 - `docs/auth.md` — Authentication + RBAC (trust modes, roles, capability gates)
 - `docs/audit.md` — Audit log (forensic event recording, privacy posture, retention, capability gating)
+- `docs/hooks.md` — Lifecycle hooks (save / publish / upload extension surface; site-local + npm-distributed factory contributions)
 
 ## Design docs (auto-loaded by Claude)
 
