@@ -39,6 +39,21 @@ export default defineSite({
   //   },
   // },
 
+  // Lifecycle hooks (optional). Hooks run code at well-defined
+  // moments in the save / publish / upload lifecycle. Same shape
+  // for site-local code (operator's own .ts file) and
+  // npm-distributed plugins. See docs/hooks.md.
+  //
+  // import { autoSlugify } from '../../admin/hooks/auto-slugify'
+  // import cdnPurge from '@example/cdn-purge'
+  //
+  // admin: {
+  //   hooks: [
+  //     autoSlugify(),
+  //     cdnPurge({ zone: process.env.CF_ZONE!, apiToken: process.env.CF_TOKEN! }),
+  //   ],
+  // },
+
   targets: {
     local: {
       // Relative paths are anchored to this config file's directory
