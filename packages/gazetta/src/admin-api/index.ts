@@ -1,5 +1,7 @@
 import { Hono } from 'hono'
 import { join } from 'node:path'
+import { hostname } from 'node:os'
+import { randomBytes } from 'node:crypto'
 import { logger } from 'hono/logger'
 import type { StorageProvider, TargetConfig } from '../types.js'
 import { scanTemplates } from '../templates-scan.js'
@@ -93,6 +95,32 @@ type AdminApp = Hono & {
    * deployed-once artifacts).
    */
   invalidateContentCache(): Promise<void>
+}
+
+/**
+ * Resolve a per-process instance id for audit JSONL file naming.
+ *
+ * Chain per `design-logging.md`'s "Multi-instance correlation":
+ *   1. `K_REVISION` env (Cloud Run; per-revision)
+ *   2. `os.hostname()` — returns the pod name on K8s default config,
+ *      machine hostname elsewhere
+ *   3. Random 8-char hex (only when hostname is empty / unavailable)
+ *
+ * `process.env.HOSTNAME` is NOT in the chain — Linux containers
+ * usually have it via the shell, but Node processes exec'd directly
+ * may not inherit shell env, so HOSTNAME can be undefined on K8s
+ * pods. `os.hostname()` calls gethostname(2) directly and is reliable
+ * across runtimes.
+ */
+function resolveInstanceId(): string {
+  if (process.env.K_REVISION) return process.env.K_REVISION
+  try {
+    const name = hostname()
+    if (name) return name
+  } catch {
+    // hostname() can throw on some Wintertc-style runtimes — fall through.
+  }
+  return randomBytes(4).toString('hex')
 }
 
 /**
@@ -278,7 +306,7 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
     auditProviders.push(
       createHistoryAuditProvider({
         storage: source.storage,
-        instance: process.env.K_REVISION ?? require('node:os').hostname() ?? 'gazetta-admin',
+        instance: resolveInstanceId(),
       }),
     )
   }
