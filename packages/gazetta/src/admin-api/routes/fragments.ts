@@ -14,9 +14,28 @@ import { computeSaveEtag } from '../../save-etag.js'
 import { ensureComponentIds } from '../../component-ids.js'
 import { requireCapability } from '../middleware/capability.js'
 import type { AuditEnv } from '../middleware/audit.js'
+import {
+  buildHookContext,
+  dispatchAfterLoad,
+  dispatchAfterSave,
+  dispatchBeforeSave,
+  HookCancellation,
+  HookTimeout,
+  type HookRegistry,
+} from '../../hooks/index.js'
 
-export function fragmentRoutes(resolve: SourceContextResolver, validators: ValidatorRegistry, templatesDir?: string) {
+export interface FragmentRoutesOptions {
+  hooks?: HookRegistry
+}
+
+export function fragmentRoutes(
+  resolve: SourceContextResolver,
+  validators: ValidatorRegistry,
+  templatesDir?: string,
+  opts: FragmentRoutesOptions = {},
+) {
   const app = new Hono<AuditEnv>()
+  const hooks = opts.hooks
 
   app.get('/api/fragments', requireCapability('read:fragments'), async c => {
     const source = await resolve(c.req.query('target'))
@@ -113,7 +132,7 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
       components: fragment.components,
     })
     c.header('ETag', `"${etag}"`)
-    return c.json({
+    let body: Record<string, unknown> = {
       name,
       template: fragment.template,
       content: fragment.content,
@@ -121,7 +140,20 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
       dir: fragment.dir,
       locale: locale ?? undefined,
       locales: localeEntry ? [...localeEntry.locales.keys()] : undefined,
-    })
+    }
+    // afterLoad hooks per design-hooks.md "Save flow with hooks":
+    // mutating chain at read time. See pages.ts for rationale.
+    if (hooks) {
+      const ctx = buildHookContext({
+        principal: c.var.principal,
+        storage: source.storage,
+        target: source.targetName,
+        requestId: c.req.header('x-request-id') ?? crypto.randomUUID(),
+        site: { name: source.manifest?.name },
+      })
+      body = await dispatchAfterLoad(hooks, { kind: 'fragment', name, locale: locale ?? undefined }, body, ctx)
+    }
+    return c.json(body)
   })
 
   app.put('/api/fragments/:name', requireCapability('edit:fragments'), async c => {
@@ -205,6 +237,42 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
       return c.json({ code: 'VALIDATION_FAILED' as const, issues }, 409)
     }
 
+    // beforeSave hooks per design-hooks.md "Save flow with hooks".
+    // See pages.ts PUT handler for rationale; same shape applied
+    // to fragments.
+    const hookCtx = hooks
+      ? buildHookContext({
+          principal: c.var.principal,
+          storage: source.storage,
+          target: source.targetName,
+          requestId: c.req.header('x-request-id') ?? crypto.randomUUID(),
+          site: { name: source.manifest?.name },
+        })
+      : null
+    const hookScope = { kind: 'fragment' as const, name, locale: locale ?? undefined }
+    let finalManifest: typeof manifest = manifest
+    if (hooks && hookCtx) {
+      try {
+        finalManifest = (await dispatchBeforeSave(hooks, hookScope, manifest, hookCtx)) as typeof manifest
+      } catch (err) {
+        if (err instanceof HookCancellation || err instanceof HookTimeout) {
+          await c.var.audit.record({
+            action: 'save',
+            outcome: 'validation-failed',
+            scope: { kind: 'fragment', name },
+            metadata: {
+              ...(locale ? { locale } : {}),
+              hookCancelled: err instanceof HookCancellation ? err.hookName : undefined,
+              hookTimeout: err instanceof HookTimeout ? err.hookName : undefined,
+            },
+          })
+          return c.json({ code: 'HOOK_CANCELLED' as const, hook: err.hookName, reason: err.message }, 409)
+        }
+        throw err
+      }
+    }
+    const serializedFinal = hooks === undefined ? serialized : JSON.stringify(finalManifest, null, 2) + '\n'
+
     // History first — see pages.ts PUT handler rationale (baseline must
     // capture pre-write state).
     if (source.history) {
@@ -212,19 +280,19 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
         history: source.history,
         contentRoot: source.contentRoot,
         operation: 'save',
-        items: [{ path: source.contentRoot.relative(manifestPath), content: serialized }],
+        items: [{ path: source.contentRoot.relative(manifestPath), content: serializedFinal }],
       })
     }
-    await storage.writeFile(manifestPath, serialized)
+    await storage.writeFile(manifestPath, serializedFinal)
     // Dep sidecars: diff old (in-memory `fragment`) vs new manifest for
     // both asset and fragment dep relations.
     const item: ItemRef = locale ? { source: 'fragment', name, locale } : { source: 'fragment', name }
     await Promise.all([
-      rebuildAssetRefs(source.contentRoot, item, fragment, manifest),
-      rebuildFragmentDeps(source.contentRoot, item, fragment, manifest),
+      rebuildAssetRefs(source.contentRoot, item, fragment, finalManifest),
+      rebuildFragmentDeps(source.contentRoot, item, fragment, finalManifest),
     ])
     await Promise.all([source.cache.invalidatePrefix('fragments:'), source.cache.invalidatePrefix('pages:')])
-    const newEtag = await computeSaveEtag(manifest)
+    const newEtag = await computeSaveEtag(finalManifest)
     c.header('ETag', `"${newEtag}"`)
     await c.var.audit.record({
       action: 'save',
@@ -232,6 +300,12 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
       scope: { kind: 'fragment', name },
       metadata: locale ? { locale } : undefined,
     })
+    // afterSave per design-hooks.md "Save flow" step 5. Observational;
+    // failures logged. Runs AFTER audit so the forensic record is
+    // committed first.
+    if (hooks && hookCtx) {
+      await dispatchAfterSave(hooks, hookScope, { payload: finalManifest, etag: newEtag }, hookCtx)
+    }
     return c.json({ ok: true, etag: newEtag })
   })
 

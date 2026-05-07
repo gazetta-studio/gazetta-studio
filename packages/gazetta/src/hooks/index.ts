@@ -40,3 +40,4 @@ export {
   dispatchAfterUpload,
 } from './dispatch.js'
 export { discoverSiteLocalHooks, type DiscoverOptions, type DiscoveryResult, type HookFileMeta } from './discovery.js'
+export { buildHookContext, type BuildHookContextOptions } from './context.js'

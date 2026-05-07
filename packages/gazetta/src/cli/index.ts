@@ -14,7 +14,7 @@ import { invalidateTemplate, invalidateAllTemplates } from '../template-loader.j
 // createTargetRegistry is used lazily by admin-api publish routes
 import type { SiteManifest } from '../types.js'
 import { getEnvironment, getType, isEditable } from '../types.js'
-import { createAdminApp } from '../admin-api/index.js'
+import { buildHooksRegistry, createAdminApp } from '../admin-api/index.js'
 
 // ANSI color helpers — no dependency, suppressed when NO_COLOR or CI
 const noColor = !!process.env.NO_COLOR || !process.stdout.isTTY
@@ -1960,7 +1960,11 @@ async function setupCmsApi(
     invalidateContentCache(): Promise<void>
   }
 > {
-  const cmsApp = createAdminApp({ source, siteDir, templatesDir, adminDir, targetConfigs })
+  // Discover + seal site-local hooks from admin/hooks/ before
+  // wiring the admin app. Hooks are an opt-in extension surface;
+  // sites without admin/hooks/ get an empty registry (no overhead).
+  const hooks = await buildHooksRegistry(adminDir)
+  const cmsApp = createAdminApp({ source, siteDir, templatesDir, adminDir, targetConfigs, hooks })
   mountUserThemeRoute(cmsApp, adminDir)
   app.route('/admin', cmsApp)
   return cmsApp
@@ -1976,8 +1980,19 @@ async function setupProductionMode(
   adminDir: string,
   targetConfigs: Record<string, import('../types.js').TargetConfig> | undefined,
 ) {
+  // Same hook discovery as dev mode — `gazetta serve` honors
+  // site-local hooks identically.
+  const hooks = await buildHooksRegistry(adminDir)
   // Mount CMS API inline at /admin (production mode — bundled editors/fields)
-  const cmsApp = createAdminApp({ source, siteDir, templatesDir, adminDir, production: true, targetConfigs })
+  const cmsApp = createAdminApp({
+    source,
+    siteDir,
+    templatesDir,
+    adminDir,
+    production: true,
+    targetConfigs,
+    hooks,
+  })
   mountUserThemeRoute(cmsApp, adminDir)
   app.route('/admin', cmsApp)
 

@@ -43,6 +43,28 @@ import { assetRoutes } from './routes/assets.js'
 import { systemRoutes } from './routes/system.js'
 import { auditRoutes } from './routes/audit.js'
 import { healthRoutes } from './routes/health.js'
+import { discoverSiteLocalHooks, HookRegistry } from '../hooks/index.js'
+
+/**
+ * Convenience boot helper: construct a HookRegistry, run site-local
+ * discovery from `{adminDir}/hooks`, seal the registry, return it.
+ * The CLI calls this before constructing the admin app; tests
+ * construct registries directly.
+ *
+ * Per design-hooks.md "Discovery (Q4 locked)" — once discovery
+ * resolves the registry seals; subsequent registrations throw
+ * RegistrationAfterInitError. Cut 9 will extend this with plugin-
+ * supplied registration BEFORE seal.
+ */
+export async function buildHooksRegistry(adminDir: string): Promise<HookRegistry> {
+  const registry = new HookRegistry()
+  await discoverSiteLocalHooks({
+    hooksDir: join(adminDir, 'hooks'),
+    registry,
+  })
+  registry.seal()
+  return registry
+}
 import { startCacheStatsLogger } from './cache-stats-logger.js'
 
 export interface AdminAppOptions {
@@ -71,6 +93,18 @@ export interface AdminAppOptions {
    * leaking into the test runtime.
    */
   disableCacheStatsLogger?: boolean
+  /**
+   * Pre-built hook registry. Construct with `new HookRegistry()`,
+   * populate via `discoverSiteLocalHooks(...)` and any plugin
+   * registrations, then seal with `registry.seal()` before passing
+   * here. When omitted, hook dispatch is a no-op (sites without
+   * hooks pay zero overhead).
+   *
+   * Discovery is async; the CLI awaits it before constructing the
+   * admin app. Tests pass an empty (or pre-populated) registry
+   * directly.
+   */
+  hooks?: HookRegistry
   /**
    * Disable the periodic audit retention pruner. Defaults to false
    * (pruner runs at boot + every 6 hours when audit retention is
@@ -325,8 +359,8 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   )
 
   app.route('/', siteRoutes(resolveSource))
-  app.route('/', pageRoutes(resolveSource, validators, templatesDir))
-  app.route('/', fragmentRoutes(resolveSource, validators, templatesDir))
+  app.route('/', pageRoutes(resolveSource, validators, templatesDir, { hooks: opts.hooks }))
+  app.route('/', fragmentRoutes(resolveSource, validators, templatesDir, { hooks: opts.hooks }))
   app.route('/', templateRoutes(resolveSource, templatesDir, adminDir, opts.production))
   app.route('/', previewRoutes(resolveSource, templatesDir))
   app.route('/', publishRoutes(resolveSource, opts.targets, opts.targetConfigs, templatesDir, scan))
