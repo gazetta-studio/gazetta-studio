@@ -16,4 +16,5 @@ export { AuthError, AuthConfigurationError, AuthenticationError, AuthorizationEr
 export { AuthConfigSchema, isReservedPrefix, type AuthConfig } from './config.js'
 export { noneAuthProvider, UNKNOWN_ACTOR_ID } from './providers/none.js'
 export { createForwardedUserAuthProvider, type ForwardedUserConfig } from './providers/forwarded-user.js'
+export { createCloudflareAccessAuthProvider, type CloudflareAccessConfig } from './providers/cloudflare-access.js'
 export { ipMatchesAny, parseRule, parseRules, type ParsedRule } from './ip-match.js'

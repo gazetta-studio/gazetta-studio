@@ -121,12 +121,50 @@ const forwardedUserAuthSchema = z
   })
 
 /**
- * Top-level discriminated union. Subsequent cuts add variants for
- * `cloudflare-access`, `azure-easy-auth`, `aws-cognito`, `tailscale`.
- * Each variant adds a literal-`trust` discriminator + its own
- * provider-specific fields.
+ * `cloudflare-access` trust mode — Cloudflare Zero Trust fronting
+ * the admin. The platform issues a signed JWT in
+ * `Cf-Access-Jwt-Assertion` (or `CF_Authorization` cookie); Gazetta
+ * verifies the signature against Cloudflare's published JWKS.
+ *
+ * # Why no source-IP check
+ *
+ * The signed JWT IS the trust. Source IP would be Cloudflare's edge
+ * regardless of the original client; verifying the signature is the
+ * security boundary.
+ *
+ * # `audience` claim verification
+ *
+ * Optional but strongly recommended. Cloudflare Access tokens carry
+ * an `aud` claim identifying the application; production deployments
+ * SHOULD set this to prevent token replay across other
+ * Access-protected apps in the same team.
  */
-export const AuthConfigSchema = z.discriminatedUnion('trust', [noneAuthSchema, forwardedUserAuthSchema])
+const cloudflareAccessAuthSchema = z
+  .object({
+    trust: z.literal('cloudflare-access'),
+    /**
+     * Cloudflare Zero Trust team domain (the part before
+     * `.cloudflareaccess.com`). Lowercase alphanumeric + hyphens.
+     */
+    teamDomain: z.string().regex(/^[a-z0-9][a-z0-9-]*$/, 'teamDomain must be lowercase alphanumeric + hyphens'),
+    /** Optional aud claim — recommended for production. */
+    audience: z.string().optional(),
+    roles: z.record(z.string(), roleSchema).optional(),
+    roleMapping: roleMappingSchema.optional(),
+    strict: z.boolean().optional(),
+  })
+  .strict()
+
+/**
+ * Top-level discriminated union. Subsequent cuts add variants for
+ * `azure-easy-auth`, `aws-cognito`, `tailscale`. Each variant adds
+ * a literal-`trust` discriminator + its own provider-specific fields.
+ */
+export const AuthConfigSchema = z.discriminatedUnion('trust', [
+  noneAuthSchema,
+  forwardedUserAuthSchema,
+  cloudflareAccessAuthSchema,
+])
 
 export type AuthConfig = z.infer<typeof AuthConfigSchema>
 
