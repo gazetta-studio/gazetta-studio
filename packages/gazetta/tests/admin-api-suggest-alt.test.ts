@@ -16,6 +16,7 @@ import { staticSourceResolver, createSourceContext } from '../src/admin-api/sour
 import { anthropicProvider } from '../src/alt/anthropic.js'
 import { ollamaProvider } from '../src/alt/ollama.js'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
+import { principalMiddleware } from '../src/admin-api/middleware/principal.js'
 import type { SiteManifest } from '../src/types.js'
 import { tempDir } from './_helpers/temp.js'
 
@@ -61,6 +62,10 @@ function buildApp(siteManifest?: SiteManifest) {
   })
   const resolve = staticSourceResolver(source)
   const app = new Hono()
+  // Wire the principal middleware (none-mode = admin role) so the
+  // capability gates on /api/assets routes are satisfied. Tests bypass
+  // createAdminApp; they need to wire what createAdminApp wires.
+  app.use('/api/*', principalMiddleware())
   app.route('/', assetRoutes(resolve))
   return { app, storage }
 }

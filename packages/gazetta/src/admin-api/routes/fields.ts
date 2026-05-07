@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { join } from 'node:path'
 import { createFilesystemProvider } from '../../providers/filesystem.js'
 import type { SourceContextResolver } from '../source-context.js'
+import { requireCapability } from '../middleware/capability.js'
 
 const FIELD_EXTENSIONS = ['.ts', '.tsx']
 
@@ -10,7 +11,7 @@ export function fieldRoutes(resolve: SourceContextResolver, adminDir?: string) {
   // Custom fields live at project level, outside target content storage.
   const storage = createFilesystemProvider()
 
-  app.get('/api/fields', async c => {
+  app.get('/api/fields', requireCapability('read:pages'), async c => {
     // projectSiteDir is target-invariant (it's the on-disk project path).
     // We still go through resolve() so the single source-lookup codepath
     // serves this route too — keeps the handler shape uniform.

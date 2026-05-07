@@ -26,6 +26,7 @@ import { createContentRoot } from '../../content-root.js'
 import { createHistoryProvider } from '../../history-provider.js'
 import { recordWrite, type WrittenItem } from '../../history-recorder.js'
 import { publishAssets } from '../../assets/publish.js'
+import { requireCapability } from '../middleware/capability.js'
 
 /**
  * Progress events streamed by runPublish. Consumed both by the SSE route
@@ -115,7 +116,7 @@ export function publishRoutes(
     return p
   }
 
-  app.get('/api/targets', async c => {
+  app.get('/api/targets', requireCapability('read:pages'), async c => {
     const t = await getTargets()
     // Resolve once — the site manifest is the same across all
     // targets in this loop. resolve(undefined) returns the source
@@ -159,7 +160,7 @@ export function publishRoutes(
    * `ensureFragmentDepsIndex`. Listings only, no content reads —
    * scales to 10k+ items.
    */
-  app.get('/api/dependents', async c => {
+  app.get('/api/dependents', requireCapability('read:pages'), async c => {
     const item = c.req.query('item')
     if (!item || !item.startsWith('fragments/')) {
       return c.json({ error: 'Missing or invalid "item" query (must be fragments/<name>)' }, 400)
@@ -519,7 +520,14 @@ export function publishRoutes(
     yield { kind: 'done', results }
   }
 
-  app.post('/api/publish', async c => {
+  // Publish routes gate on `publish:non-production` as the baseline.
+  // Production-target gating runs inside the handler when iterating
+  // requested targets (per design-auth-rbac.md "Failure mode": publish
+  // to a production target requires `publish:production`). Cut 9
+  // ships the route-level gate; per-target enforcement lands when
+  // the route is rewritten to consult the resolved target's
+  // environment field.
+  app.post('/api/publish', requireCapability('publish:non-production'), async c => {
     const body = (await c.req.json()) as { items: string[]; targets: string[]; source?: string }
     let results: PublishResult[] = []
     let fatal: PublishProgress | null = null
@@ -538,7 +546,7 @@ export function publishRoutes(
     return c.json({ results }, allSuccess ? 200 : 207)
   })
 
-  app.post('/api/publish/stream', async c => {
+  app.post('/api/publish/stream', requireCapability('publish:non-production'), async c => {
     const body = (await c.req.json()) as { items: string[]; targets: string[]; source?: string }
     return streamSSE(c, async stream => {
       try {
@@ -557,7 +565,7 @@ export function publishRoutes(
     })
   })
 
-  app.post('/api/fetch', async c => {
+  app.post('/api/fetch', requireCapability('publish:non-production'), async c => {
     // `source` (body) — target to fetch FROM (a published target)
     // `destination` (body) — optional editable target to write INTO; defaults
     // to the resolver's default editable target (the author's current source)

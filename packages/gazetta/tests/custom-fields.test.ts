@@ -2,9 +2,24 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { z } from 'zod'
+import { Hono } from 'hono'
 import { format } from '../src/formats.js'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
+import { principalMiddleware } from '../src/admin-api/middleware/principal.js'
 import { tempDir } from './_helpers/temp.js'
+
+/**
+ * Wrap a route module's Hono app with the principal middleware so
+ * the capability gates on /api/* routes are populated. createAdminApp
+ * does this in production; tests that wire routes directly need to
+ * mirror it.
+ */
+function withAuth(routesApp: Hono): Hono {
+  const wrapped = new Hono()
+  wrapped.use('/api/*', principalMiddleware())
+  wrapped.route('/', routesApp)
+  return wrapped
+}
 
 describe('format.field()', () => {
   it('returns meta object with field name', () => {
@@ -52,7 +67,7 @@ describe('fields API', () => {
     const { fieldRoutes } = await import('../src/admin-api/routes/fields.js')
     const storage = createFilesystemProvider()
     const { createSourceContext, staticSourceResolver } = await import('../src/admin-api/source-context.js')
-    const app = fieldRoutes(staticSourceResolver(createSourceContext({ storage, siteDir: testDir })))
+    const app = withAuth(fieldRoutes(staticSourceResolver(createSourceContext({ storage, siteDir: testDir }))))
     const res = await app.request('/api/fields')
     expect(res.status).toBe(200)
     const fields = (await res.json()) as { name: string; path: string }[]
@@ -66,7 +81,7 @@ describe('fields API', () => {
     const { fieldRoutes } = await import('../src/admin-api/routes/fields.js')
     const storage = createFilesystemProvider()
     const { createSourceContext, staticSourceResolver } = await import('../src/admin-api/source-context.js')
-    const app = fieldRoutes(staticSourceResolver(createSourceContext({ storage, siteDir: testDir })))
+    const app = withAuth(fieldRoutes(staticSourceResolver(createSourceContext({ storage, siteDir: testDir }))))
     const res = await app.request('/api/fields')
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual([])
@@ -80,7 +95,7 @@ describe('fields API', () => {
     const { fieldRoutes } = await import('../src/admin-api/routes/fields.js')
     const storage = createFilesystemProvider()
     const { createSourceContext, staticSourceResolver } = await import('../src/admin-api/source-context.js')
-    const app = fieldRoutes(staticSourceResolver(createSourceContext({ storage, siteDir: testDir })))
+    const app = withAuth(fieldRoutes(staticSourceResolver(createSourceContext({ storage, siteDir: testDir }))))
     const res = await app.request('/api/fields')
     const fields = (await res.json()) as { name: string }[]
     expect(fields).toHaveLength(1)
@@ -97,7 +112,9 @@ describe('templates API includes fieldsBaseUrl', () => {
     const { templateRoutes } = await import('../src/admin-api/routes/templates.js')
     const { createSourceContext, staticSourceResolver } = await import('../src/admin-api/source-context.js')
     const source = createSourceContext({ storage, siteDir })
-    const app = templateRoutes(staticSourceResolver(source), join(projectRoot, 'templates'), join(projectRoot, 'admin'))
+    const app = withAuth(
+      templateRoutes(staticSourceResolver(source), join(projectRoot, 'templates'), join(projectRoot, 'admin')),
+    )
 
     const res = await app.request('/api/templates/hero/schema')
     expect(res.status).toBe(200)
@@ -116,7 +133,9 @@ describe('templates API includes fieldsBaseUrl', () => {
     const { templateRoutes } = await import('../src/admin-api/routes/templates.js')
     const { createSourceContext, staticSourceResolver } = await import('../src/admin-api/source-context.js')
     const source = createSourceContext({ storage, siteDir })
-    const app = templateRoutes(staticSourceResolver(source), join(projectRoot, 'templates'), join(projectRoot, 'admin'))
+    const app = withAuth(
+      templateRoutes(staticSourceResolver(source), join(projectRoot, 'templates'), join(projectRoot, 'admin')),
+    )
 
     const res = await app.request('/api/templates/banner/schema')
     expect(res.status).toBe(200)

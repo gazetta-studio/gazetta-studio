@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { loadTemplate, hasEditorFile } from '../../template-loader.js'
 import { createFilesystemProvider } from '../../providers/filesystem.js'
 import type { SourceContextResolver } from '../source-context.js'
+import { requireCapability } from '../middleware/capability.js'
 
 const EDITOR_EXTENSIONS = ['.tsx', '.ts']
 
@@ -30,7 +31,7 @@ export function templateRoutes(
     return { tplDir, editorsDir, fieldsBaseUrl }
   }
 
-  app.get('/api/templates', async c => {
+  app.get('/api/templates', requireCapability('read:pages'), async c => {
     const { tplDir } = await dirs(c)
     if (!(await storage.exists(tplDir))) return c.json([])
 
@@ -39,7 +40,7 @@ export function templateRoutes(
     return c.json(templates)
   })
 
-  app.get('/api/templates/:name/schema', async c => {
+  app.get('/api/templates/:name/schema', requireCapability('read:pages'), async c => {
     const name = c.req.param('name')
     const { tplDir, editorsDir, fieldsBaseUrl } = await dirs(c)
 

@@ -27,6 +27,7 @@ import { isValidTheme } from '../../themes.js'
 import { suggestAltForAsset } from '../../alt/route-handler.js'
 import { respondWithAssetError } from '../error-response.js'
 import type { SourceContextResolver } from '../source-context.js'
+import { requireCapability } from '../middleware/capability.js'
 
 /**
  * Pull a Selector out of the request's query params, validating each
@@ -65,7 +66,7 @@ const ASSETS_ROOT = 'assets'
 export function assetRoutes(resolve: SourceContextResolver) {
   const app = new Hono()
 
-  app.get('/api/assets', async c => {
+  app.get('/api/assets', requireCapability('read:assets'), async c => {
     const source = await resolve(c.req.query('target'))
     try {
       const summaries = await listAssets({
@@ -80,7 +81,7 @@ export function assetRoutes(resolve: SourceContextResolver) {
     }
   })
 
-  app.get('/api/assets/:name', async c => {
+  app.get('/api/assets/:name', requireCapability('read:assets'), async c => {
     const name = c.req.param('name')
     const source = await resolve(c.req.query('target'))
     try {
@@ -124,7 +125,7 @@ export function assetRoutes(resolve: SourceContextResolver) {
    *   404 Not Found     — asset missing
    *   500 Storage       — underlying write failed
    */
-  app.patch('/api/assets/:name', async c => {
+  app.patch('/api/assets/:name', requireCapability('edit:assets'), async c => {
     const name = c.req.param('name')
     const source = await resolve(c.req.query('target'))
 
@@ -195,7 +196,7 @@ export function assetRoutes(resolve: SourceContextResolver) {
     }
   })
 
-  app.delete('/api/assets/:name', async c => {
+  app.delete('/api/assets/:name', requireCapability('delete:assets'), async c => {
     const name = c.req.param('name')
     const source = await resolve(c.req.query('target'))
     try {
@@ -244,7 +245,7 @@ export function assetRoutes(resolve: SourceContextResolver) {
    *   409 Name Collision    — new name already taken
    *   500 Storage Failure   — underlying read/write/rm failed mid-operation
    */
-  app.post('/api/assets/:name/rename-to/:newName', async c => {
+  app.post('/api/assets/:name/rename-to/:newName', requireCapability('edit:assets'), async c => {
     const oldName = c.req.param('name')
     const newName = c.req.param('newName')
     const source = await resolve(c.req.query('target'))
@@ -267,7 +268,7 @@ export function assetRoutes(resolve: SourceContextResolver) {
     }
   })
 
-  app.post('/api/assets/:name/replace-with/:newName', async c => {
+  app.post('/api/assets/:name/replace-with/:newName', requireCapability('edit:assets'), async c => {
     const oldName = c.req.param('name')
     const newName = c.req.param('newName')
     const source = await resolve(c.req.query('target'))
@@ -308,7 +309,7 @@ export function assetRoutes(resolve: SourceContextResolver) {
    *   502 Bad Gateway   — adapter call failed (network, auth, etc.)
    *   503 Unavailable   — no adapter configured / MIME unsupported
    */
-  app.post('/api/assets/:name/suggest-alt', async c => {
+  app.post('/api/assets/:name/suggest-alt', requireCapability('edit:assets'), async c => {
     const name = c.req.param('name')
     const localeRaw = c.req.query('locale')
     if (localeRaw !== undefined && !isValidLocale(localeRaw)) {
@@ -372,7 +373,7 @@ export function assetRoutes(resolve: SourceContextResolver) {
    *   409 Kind Mismatch     — override MIME category differs from default
    *   500 Storage Failure   — underlying write failed
    */
-  app.post('/api/assets/:name/locale-bytes', async c => {
+  app.post('/api/assets/:name/locale-bytes', requireCapability('edit:assets'), async c => {
     const name = c.req.param('name')
     const selectorOrErr = selectorFromQuery(c)
     if (selectorOrErr instanceof Response) return selectorOrErr
@@ -423,7 +424,7 @@ export function assetRoutes(resolve: SourceContextResolver) {
    *   404 Not Found         — asset or override doesn't exist
    *   500 Storage Failure   — underlying rm failed
    */
-  app.delete('/api/assets/:name/locale-bytes', async c => {
+  app.delete('/api/assets/:name/locale-bytes', requireCapability('edit:assets'), async c => {
     const name = c.req.param('name')
     const selectorOrErr = selectorFromQuery(c)
     if (selectorOrErr instanceof Response) return selectorOrErr
@@ -451,7 +452,7 @@ export function assetRoutes(resolve: SourceContextResolver) {
     }
   })
 
-  app.post('/api/assets', async c => {
+  app.post('/api/assets', requireCapability('edit:assets'), async c => {
     const source = await resolve(c.req.query('target'))
 
     // Hono's parseBody reads multipart into a { [field]: string | File } map.

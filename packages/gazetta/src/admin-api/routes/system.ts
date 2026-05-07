@@ -3,6 +3,7 @@ import { streamSSE } from 'hono/streaming'
 import type { CacheStats, InvalidationEvent } from '../../cache/types.js'
 import type { CacheStatsResponse } from '../schemas/system.js'
 import type { SourceContextResolver } from '../source-context.js'
+import { requireCapability } from '../middleware/capability.js'
 
 /**
  * System routes — operational diagnostics for the admin process.
@@ -26,7 +27,7 @@ import type { SourceContextResolver } from '../source-context.js'
 export function systemRoutes(resolve: SourceContextResolver) {
   const app = new Hono()
 
-  app.get('/api/system/cache/stats', async c => {
+  app.get('/api/system/cache/stats', requireCapability('configure:site'), async c => {
     const source = await resolve(c.req.query('target'))
     // `stats()` is optional on the AdminCache contract — providers
     // that don't expose it return a minimum-floor zero snapshot so
@@ -70,7 +71,7 @@ export function systemRoutes(resolve: SourceContextResolver) {
    * instance events via Redis pub/sub and this route forwards them
    * unchanged.
    */
-  app.get('/api/system/cache/invalidations', async c => {
+  app.get('/api/system/cache/invalidations', requireCapability('configure:site'), async c => {
     const source = await resolve(c.req.query('target'))
     return streamSSE(c, async stream => {
       // Buffer events between MemoryCache's synchronous emit and our

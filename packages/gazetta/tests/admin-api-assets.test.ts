@@ -12,6 +12,7 @@ import sharp from 'sharp'
 import { assetRoutes } from '../src/admin-api/routes/assets.js'
 import { staticSourceResolver, createSourceContext } from '../src/admin-api/source-context.js'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
+import { principalMiddleware } from '../src/admin-api/middleware/principal.js'
 import { tempDir } from './_helpers/temp.js'
 
 const testDir = tempDir('http-assets-test-' + Date.now())
@@ -31,6 +32,10 @@ function buildApp() {
   const source = createSourceContext({ storage, siteDir: '' })
   const resolve = staticSourceResolver(source)
   const app = new Hono()
+  // Wire the principal middleware (none-mode by default → admin role)
+  // so the capability gates on the routes are populated. Tests bypass
+  // createAdminApp; they need to wire what createAdminApp wires.
+  app.use('/api/*', principalMiddleware())
   app.route('/', assetRoutes(resolve))
   return { app, storage }
 }
