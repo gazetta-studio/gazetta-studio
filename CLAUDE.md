@@ -28,6 +28,7 @@ Stateless CMS that structures websites as composable fragments. All state lives 
 - `docs/cache.md` — Admin read-side cache configuration + monitoring
 - `docs/offline.md` — Offline mode (cold-load reliability, save conflicts, browser support)
 - `docs/auth.md` — Authentication + RBAC (trust modes, roles, capability gates)
+- `docs/audit.md` — Audit log (forensic event recording, privacy posture, retention, capability gating)
 
 ## Design docs (auto-loaded by Claude)
 

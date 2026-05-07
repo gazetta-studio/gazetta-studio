@@ -120,6 +120,14 @@ Per-page cache overrides work:
 }
 ```
 
+## Audit log
+
+Audit recording is on by default — every save / publish / delete / restore writes a structured event to the target's `.gazetta/audit/events-{instance}.jsonl`. With self-hosted admin processes, the per-instance file naming uses `os.hostname()` (Kubernetes pod name on K8s; machine hostname elsewhere). See [`audit.md`](audit.md) for the full reference.
+
+For multi-instance self-hosted deployments (Kubernetes, multi-replica VMs), per-instance JSONL files mean concurrent appenders never collide. Make sure `os.hostname()` returns a unique value per pod / VM — most platforms do this by default.
+
+Audit events live in the same target storage as content; they're picked up by your existing target backup. The `.gazetta/audit/` directory is gitignored — runtime state, not source.
+
 ## Docker
 
 ```dockerfile

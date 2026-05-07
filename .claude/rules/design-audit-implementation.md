@@ -19,16 +19,16 @@ Branch: `audit-v1` off `main` (after AuthIdentity ships per Phase 1 sequencing).
 
 | # | Cut | Status | Risk | Validates |
 |---|---|---|---|---|
-| 1 | `audit/` infrastructure: types, schemas, error taxonomy | ☐ | Low | Type-only foundation |
-| 2 | `AuditProvider` interface + `HistoryAuditProvider` (extends history-recorder with `actor` + `outcome` fields) | ☐ | Medium | The seam + v1 default |
-| 3 | Audit-recording middleware + sync fail-open + parallel fan-out | ☐ | Medium | The dispatch layer |
-| 4 | Pseudonymization (`actorPseudonym: 'sha256'` opt-in) + sourceIp / userAgent recording with trust-mode-driven extraction | ☐ | Medium | Privacy posture |
-| 5 | Wire all write handlers (save / publish / delete / restore / configure-roles) to emit audit events | ☐ | Low-medium | Mechanical integration |
-| 6 | Audit query endpoint `GET /api/audit` + admin drawer UI | ☐ | Medium | The visible feature |
-| 7 | `queryUrl()` deep-link UX (drawer behavior matrix when `query()` is null on external sinks — even though v1 ships only history) | ☐ | Low | Forward-compat for v2 sinks |
-| 8 | Retention pruner (audit retention separate from content retention) | ☐ | Medium | Background work |
-| 9 | Capability gating: `read:audit-log` on `/api/audit` | ☐ | Low | RBAC integration |
-| 10 | Docs + audit drawer operator guide | ☐ | Low | User-facing |
+| 1 | `audit/` infrastructure: types, schemas, error taxonomy | ✓ | Low | Type-only foundation |
+| 2 | `AuditProvider` interface + `HistoryAuditProvider` (extends history-recorder with `actor` + `outcome` fields) | ✓ | Medium | The seam + v1 default |
+| 3 | Audit-recording middleware + sync fail-open + parallel fan-out | ✓ | Medium | The dispatch layer |
+| 4 | Pseudonymization (`actorPseudonym: 'sha256'` opt-in) + sourceIp / userAgent recording with trust-mode-driven extraction | ✓ | Medium | Privacy posture |
+| 5 | Wire all write handlers (save / publish / delete / restore) to emit audit events | ✓ | Low-medium | Mechanical integration |
+| 6 | Audit query endpoint `GET /api/audit` + admin drawer UI | ✓ | Medium | The visible feature |
+| 7 | `queryUrl()` deep-link UX — folded into Cut 6's drawer (four UX states pinned in `apps/admin/tests/AuditDrawer.test.ts`) | ✓ | Low | Forward-compat for v2 sinks |
+| 8 | Retention pruner (audit retention separate from content retention) | ✓ | Medium | Background work |
+| 9 | Capability gating: `read:audit-log` wildcard-exempt (editor / viewer don't auto-grant via `read:*`) | ✓ | Low | RBAC integration |
+| 10 | Docs + audit drawer operator guide | ✓ | Low | User-facing |
 
 ## Per-cut scope
 
