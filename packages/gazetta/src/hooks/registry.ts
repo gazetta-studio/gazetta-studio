@@ -20,9 +20,11 @@
  * # Sealing semantics
  *
  * `seal()` flips a flag; any subsequent `register(...)` call
- * throws `RegistrationAfterInitError`. The plugin loader (Cut 9)
- * calls `seal()` after every plugin's `init()` has resolved.
- * Tests construct an unsealed registry directly.
+ * throws `RegistrationAfterInitError`. Per ADR-0009 +
+ * `design-plugins.md`, `buildHooksRegistry({ contributions })`
+ * walks `admin.hooks` factory contributions at boot, registers
+ * each entry, then calls `seal()`. Tests construct an unsealed
+ * registry directly.
  *
  * # SOLID lenses
  *

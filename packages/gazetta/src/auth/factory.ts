@@ -7,17 +7,21 @@
  * Operators write `admin.auth: { trust: 'cloudflare-access', teamDomain: 'acme' }`
  * in `site.config.ts`. The admin-api boot code receives this config
  * (typed as `AuthConfig`) and needs to dispatch to the right provider
- * factory. Centralizing the dispatch here keeps the trust-mode set
- * closed (per `design-auth-rbac.md` Q1) and gives us one place to
- * thread plugin-supplied trust modes when the plugin foundation
- * ships.
+ * factory. Centralizing the dispatch here keeps the built-in
+ * trust-mode set closed (per `design-auth-rbac.md` Q1) while
+ * leaving the operator-config field type open to any
+ * `AuthIdentityProvider` instance — including those returned by
+ * plugin-supplied factories.
  *
  * # Plugin promotion path
  *
- * Future plugin-supplied trust modes register via a `registerAuthIdentityProvider`
- * method on the `PluginAPI`. That call appends to a registry this
- * factory consults BEFORE its built-in switch. v1 ships the closed
- * set; the registry hook is reserved.
+ * Per ADR-0009 + `design-plugins.md`: external trust modes ship as
+ * npm packages exporting a factory function returning
+ * `AuthIdentityProvider`. The operator imports the factory and
+ * assigns its result to `admin.auth` directly (Pattern A factory-
+ * call-at-field). No runtime register method; no central registry
+ * for plugin-contributed providers — the type system accepts any
+ * conforming instance.
  *
  * # SOLID lenses
  *

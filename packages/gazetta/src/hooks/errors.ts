@@ -16,11 +16,12 @@
  *     hooks it's logged + counted but doesn't propagate.
  *
  *   - `RegistrationAfterInitError`: thrown when code tries to
- *     register a hook after the plugin loader has finished. v1's
- *     plugin lifecycle has a single "init" phase; once init resolves,
- *     the registry is sealed. Any subsequent `registerHook(...)` call
- *     surfaces this error so the operator knows their plugin's
- *     async setup leaked past `init()`.
+ *     register a hook after the boot-time registration phase has
+ *     finished. `buildHooksRegistry({ contributions })` registers
+ *     all factory contributions then calls `seal()`. Any subsequent
+ *     `register(...)` surfaces this error — a deferred Promise that
+ *     registers from inside a hook handler, for example, leaks past
+ *     the registration window.
  *
  * # SOLID lenses
  *
@@ -82,14 +83,16 @@ export class HookTimeout extends HookError {
 }
 
 /**
- * Thrown when `registerHook(...)` is called after the registry has
- * been sealed (post-init).
+ * Thrown when `register(...)` is called on a sealed `HookRegistry`
+ * (post-boot).
  *
- * v1 plugin lifecycle: every plugin's `init(api)` runs serially at
- * boot; once all plugins return, the registry is sealed.
- * `RegistrationAfterInitError` surfaces leaks (e.g., a plugin's
- * deferred Promise that calls `api.registerHook(...)` after init
- * resolved).
+ * Registration window per ADR-0009 + `design-plugins.md`:
+ * `buildHooksRegistry({ contributions })` walks `admin.hooks`
+ * factory contributions at boot, registers each entry, then calls
+ * `seal()`. Any subsequent `register(...)` surfaces this error —
+ * for instance a deferred Promise inside a factory that resolves
+ * after the registration window closed, or a hook handler that
+ * tries to register additional hooks at runtime.
  */
 export class RegistrationAfterInitError extends HookError {
   override readonly name = 'RegistrationAfterInitError'
