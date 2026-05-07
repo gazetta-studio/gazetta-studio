@@ -51,6 +51,7 @@
  */
 import type { Principal } from '../auth/types.js'
 import type { ReadOnlyStorageProvider } from './storage.js'
+import type { HookFiringEmitter } from './audit-emitter.js'
 
 /**
  * Closed union of v1 hook phases.
@@ -131,6 +132,16 @@ export interface HookContext {
   readonly site: ReadOnlySiteConfig
   /** Read-only access to storage. Hooks cannot write through ctx; writes go through the operation. */
   readonly storage: ReadOnlyStorageProvider
+  /**
+   * Optional audit emitter — when set, dispatch records one
+   * `action: 'hook-fired'` audit event per hook firing.
+   * Production wires this to the audit recorder; tests + the
+   * dispatch unit tests omit it for silent firing.
+   *
+   * Per design-hooks.md "Audit events" + design-audit.md's
+   * locked enum extensions.
+   */
+  readonly auditEmit?: HookFiringEmitter
 }
 
 /**

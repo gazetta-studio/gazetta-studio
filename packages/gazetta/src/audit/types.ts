@@ -37,7 +37,7 @@
  * site.config.ts. Future hook-firing audit events will extend with
  * 'hook-fired' (per design-hooks.md Cut 7's audit integration).
  */
-export type AuditAction = 'save' | 'publish' | 'delete' | 'restore' | 'configure-roles'
+export type AuditAction = 'save' | 'publish' | 'delete' | 'restore' | 'configure-roles' | 'hook-fired'
 
 /**
  * Closed enum of outcomes. Locked: every recording site supplies
@@ -45,7 +45,13 @@ export type AuditAction = 'save' | 'publish' | 'delete' | 'restore' | 'configure
  * v2 ambient-log expansion ('read', 'hook-cancelled') stays
  * closed-enum.
  */
-export type AuditOutcome = 'success' | 'forbidden' | 'validation-failed' | 'unauthenticated'
+export type AuditOutcome =
+  | 'success'
+  | 'forbidden'
+  | 'validation-failed'
+  | 'unauthenticated'
+  | 'hook-cancelled'
+  | 'timeout'
 
 /**
  * Snapshot of the principal at decision time — never a live

@@ -23,6 +23,7 @@ import {
   HookTimeout,
   type HookRegistry,
 } from '../../hooks/index.js'
+import { makeAuditFiringEmitter } from '../hook-audit-emitter.js'
 
 export interface PageRoutesOptions {
   /**
@@ -203,6 +204,7 @@ export function pageRoutes(
         target: source.targetName,
         requestId: c.req.header('x-request-id') ?? crypto.randomUUID(),
         site: { name: source.manifest?.name },
+        auditEmit: makeAuditFiringEmitter(c.var.audit),
       })
       body = await dispatchAfterLoad(hooks, { kind: 'page', name, locale: locale ?? undefined }, body, ctx)
     }
@@ -333,6 +335,7 @@ export function pageRoutes(
           target: source.targetName,
           requestId: c.req.header('x-request-id') ?? crypto.randomUUID(),
           site: { name: source.manifest?.name },
+          auditEmit: makeAuditFiringEmitter(c.var.audit),
         })
       : null
     const hookScope = { kind: 'page' as const, name, locale: locale ?? undefined }

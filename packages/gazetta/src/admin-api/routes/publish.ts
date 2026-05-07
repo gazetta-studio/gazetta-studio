@@ -38,6 +38,7 @@ import {
   type PublishHookResult,
   type PublishItem,
 } from '../../hooks/index.js'
+import { makeAuditFiringEmitter } from '../hook-audit-emitter.js'
 
 /**
  * Progress events streamed by runPublish. Consumed both by the SSE route
@@ -579,6 +580,7 @@ export function publishRoutes(
           storage: (await resolve(body.source)).storage,
           requestId: c.req.header('x-request-id') ?? crypto.randomUUID(),
           site: { name: undefined },
+          auditEmit: makeAuditFiringEmitter(c.var.audit),
         })
       : null
     let finalItems = body.items
@@ -666,6 +668,7 @@ export function publishRoutes(
           storage: (await resolve(body.source)).storage,
           requestId: c.req.header('x-request-id') ?? crypto.randomUUID(),
           site: { name: undefined },
+          auditEmit: makeAuditFiringEmitter(c.var.audit),
         })
       : null
     let finalItems = body.items

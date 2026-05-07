@@ -28,7 +28,7 @@ import { suggestAltForAsset } from '../../alt/route-handler.js'
 import { respondWithAssetError } from '../error-response.js'
 import type { SourceContextResolver } from '../source-context.js'
 import { requireCapability } from '../middleware/capability.js'
-import type { PrincipalEnv } from '../middleware/principal.js'
+import type { AuditEnv } from '../middleware/audit.js'
 import {
   buildHookContext,
   dispatchAfterUpload,
@@ -38,6 +38,7 @@ import {
   type HookRegistry,
   type UploadHookAsset,
 } from '../../hooks/index.js'
+import { makeAuditFiringEmitter } from '../hook-audit-emitter.js'
 
 export interface AssetRoutesOptions {
   hooks?: HookRegistry
@@ -78,7 +79,7 @@ function selectorFromQuery(c: { req: { query: (k: string) => string | undefined 
 const ASSETS_ROOT = 'assets'
 
 export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOptions = {}) {
-  const app = new Hono<PrincipalEnv>()
+  const app = new Hono<AuditEnv>()
   const hooks = opts.hooks
 
   app.get('/api/assets', requireCapability('read:assets'), async c => {
@@ -522,6 +523,7 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
           target: source.targetName,
           requestId: c.req.header('x-request-id') ?? crypto.randomUUID(),
           site: { name: source.manifest?.name },
+          auditEmit: makeAuditFiringEmitter(c.var.audit),
         })
       : null
     if (hooks && hookCtx) {
