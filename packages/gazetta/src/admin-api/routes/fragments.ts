@@ -12,11 +12,12 @@ import type { ValidatorRegistry } from '../../validation/registry.js'
 import type { FragmentManifest } from '../../types.js'
 import { computeSaveEtag } from '../../save-etag.js'
 import { ensureComponentIds } from '../../component-ids.js'
+import { requireCapability } from '../middleware/capability.js'
 
 export function fragmentRoutes(resolve: SourceContextResolver, validators: ValidatorRegistry, templatesDir?: string) {
   const app = new Hono()
 
-  app.get('/api/fragments', async c => {
+  app.get('/api/fragments', requireCapability('read:fragments'), async c => {
     const source = await resolve(c.req.query('target'))
     // Empty target → empty list. See pages.ts for rationale.
     try {
@@ -44,7 +45,7 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
     }
   })
 
-  app.post('/api/fragments', async c => {
+  app.post('/api/fragments', requireCapability('edit:fragments'), async c => {
     const source = await resolve(c.req.query('target'))
     const { storage } = source
     // Schema-validate the body — same rationale as pages.ts.
@@ -85,7 +86,7 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
     return c.json({ ok: true, name: body.name })
   })
 
-  app.get('/api/fragments/:name', async c => {
+  app.get('/api/fragments/:name', requireCapability('read:fragments'), async c => {
     const name = c.req.param('name')
     const rawLocale = c.req.query('locale')
     const locale = rawLocale && isValidLocale(rawLocale) ? rawLocale.toLowerCase() : undefined
@@ -122,7 +123,7 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
     })
   })
 
-  app.put('/api/fragments/:name', async c => {
+  app.put('/api/fragments/:name', requireCapability('edit:fragments'), async c => {
     const name = c.req.param('name')
     const rawLocale = c.req.query('locale')
     const locale = rawLocale && isValidLocale(rawLocale) ? rawLocale.toLowerCase() : undefined
@@ -221,7 +222,7 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
     return c.json({ ok: true, etag: newEtag })
   })
 
-  app.delete('/api/fragments/:name', async c => {
+  app.delete('/api/fragments/:name', requireCapability('delete:fragments'), async c => {
     const name = c.req.param('name')
     const source = await resolve(c.req.query('target'))
     const { storage } = source

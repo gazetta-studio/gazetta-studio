@@ -24,6 +24,7 @@ import { createHistoryProvider } from '../../history-provider.js'
 import { restoreRevision } from '../../history-restorer.js'
 import { createContentRoot } from '../../content-root.js'
 import type { SourceContextResolver } from '../source-context.js'
+import { requireCapability } from '../middleware/capability.js'
 
 export function historyRoutes(
   resolve: SourceContextResolver,
@@ -96,7 +97,7 @@ export function historyRoutes(
     return { kind: 'ok', storage, config, history, contentRoot }
   }
 
-  app.get('/api/history', async c => {
+  app.get('/api/history', requireCapability('read:pages'), async c => {
     const source = await resolve(c.req.query('source'))
     const targetName = c.req.query('target')
     if (!targetName) return c.json({ error: 'Missing "target" query parameter' }, 400)
@@ -107,7 +108,7 @@ export function historyRoutes(
     return c.json({ revisions })
   })
 
-  app.post('/api/history/undo', async c => {
+  app.post('/api/history/undo', requireCapability('restore:history'), async c => {
     const source = await resolve(c.req.query('source'))
     const targetName = c.req.query('target')
     if (!targetName) return c.json({ error: 'Missing "target" query parameter' }, 400)
@@ -137,7 +138,7 @@ export function historyRoutes(
     return c.json({ revision: restored, restoredFrom: list[1].id })
   })
 
-  app.post('/api/history/restore', async c => {
+  app.post('/api/history/restore', requireCapability('restore:history'), async c => {
     const source = await resolve(c.req.query('source'))
     const targetName = c.req.query('target')
     const revisionId = c.req.query('id')

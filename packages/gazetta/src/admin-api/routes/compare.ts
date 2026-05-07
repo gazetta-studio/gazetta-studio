@@ -5,6 +5,7 @@ import { getType } from '../../types.js'
 import { compareTargets } from '../../compare.js'
 import type { TemplateInfo } from '../../templates-scan.js'
 import type { SourceContextResolver } from '../source-context.js'
+import { requireCapability } from '../middleware/capability.js'
 
 export function compareRoutes(
   resolve: SourceContextResolver,
@@ -39,7 +40,7 @@ export function compareRoutes(
     return targetsInitPromise
   }
 
-  app.get('/api/compare', async c => {
+  app.get('/api/compare', requireCapability('read:pages'), async c => {
     // `target` = compare destination (what we're diffing against)
     // `source` = source of the compare (which editable target to read from);
     //           defaults to the resolver's default editable target

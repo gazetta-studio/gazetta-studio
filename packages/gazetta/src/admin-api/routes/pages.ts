@@ -12,11 +12,12 @@ import type { ValidatorRegistry } from '../../validation/registry.js'
 import type { PageManifest } from '../../types.js'
 import { computeSaveEtag } from '../../save-etag.js'
 import { ensureComponentIds } from '../../component-ids.js'
+import { requireCapability } from '../middleware/capability.js'
 
 export function pageRoutes(resolve: SourceContextResolver, validators: ValidatorRegistry, templatesDir?: string) {
   const app = new Hono()
 
-  app.get('/api/pages', async c => {
+  app.get('/api/pages', requireCapability('read:pages'), async c => {
     const source = await resolve(c.req.query('target'))
     // Empty target (e.g. a publish-target that's never received any
     // content) is valid per the stateless-CMS model — return an empty
@@ -63,7 +64,7 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
     }
   })
 
-  app.post('/api/pages', async c => {
+  app.post('/api/pages', requireCapability('edit:pages'), async c => {
     const source = await resolve(c.req.query('target'))
     const { storage } = source
     // Schema-validate the body so drift between client and server
@@ -123,7 +124,7 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
     return c.json({ ok: true, name: body.name })
   })
 
-  app.get('/api/pages/:name{.+}', async c => {
+  app.get('/api/pages/:name{.+}', requireCapability('read:pages'), async c => {
     const name = c.req.param('name')
     const rawLocale = c.req.query('locale')
     const locale = rawLocale && isValidLocale(rawLocale) ? rawLocale.toLowerCase() : undefined
@@ -167,7 +168,7 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
     })
   })
 
-  app.put('/api/pages/:name{.+}', async c => {
+  app.put('/api/pages/:name{.+}', requireCapability('edit:pages'), async c => {
     const name = c.req.param('name')
     const rawLocale = c.req.query('locale')
     const locale = rawLocale && isValidLocale(rawLocale) ? rawLocale.toLowerCase() : undefined
@@ -301,7 +302,7 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
     return c.json({ ok: true, etag: newEtag })
   })
 
-  app.delete('/api/pages/:name{.+}', async c => {
+  app.delete('/api/pages/:name{.+}', requireCapability('delete:pages'), async c => {
     const name = c.req.param('name')
     const source = await resolve(c.req.query('target'))
     const { storage } = source
