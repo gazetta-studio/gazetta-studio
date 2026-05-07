@@ -17,6 +17,7 @@
  *   - POST /api/fetch (cross-target copy)
  *   - DELETE /api/assets/:name (AssetRef + 409 AssetInUseResponse)
  *   - GET  /api/system/cache/stats (CacheStats snapshot)
+ *   - GET  /api/audit (forensic event query + external-sink links)
  *
  * Add new endpoint modules here as they move to schema-validated contracts.
  */
@@ -33,3 +34,4 @@ export * from './history.js'
 export * from './fetch.js'
 export * from './assets.js'
 export * from './system.js'
+export * from './audit.js'

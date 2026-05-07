@@ -187,6 +187,12 @@ import type {
   ListHistoryResponse as ListHistoryResponseShape,
   RestoreRevisionResponse as RestoreRevisionResponseShape,
   FetchResponse as FetchResponseShape,
+  AuditEventWire,
+  AuditExternalSinkWire,
+  AuditQueryResponseWire,
+  AuditActionWire,
+  AuditOutcomeWire,
+  AuditScopeKindWire,
 } from 'gazetta/admin-api/schemas'
 export type PageSummary = PageSummaryShape
 export type CreatePageRequest = CreatePageRequestShape
@@ -210,6 +216,24 @@ export type RevisionOperation = RevisionOperationShape
 export type ListHistoryResponse = ListHistoryResponseShape
 export type RestoreRevisionResponse = RestoreRevisionResponseShape
 export type FetchResponse = FetchResponseShape
+export type AuditEvent = AuditEventWire
+export type AuditExternalSink = AuditExternalSinkWire
+export type AuditQueryResponse = AuditQueryResponseWire
+export type AuditAction = AuditActionWire
+export type AuditOutcome = AuditOutcomeWire
+export type AuditScopeKind = AuditScopeKindWire
+
+/** Filter shape consumed by `GET /api/audit`. */
+export interface AuditQueryFilter {
+  action?: AuditAction
+  outcome?: AuditOutcome
+  scopeKind?: AuditScopeKind
+  scopeName?: string
+  actor?: string
+  since?: string
+  until?: string
+  limit?: number
+}
 
 export interface InlineComponent {
   name: string
@@ -355,4 +379,20 @@ export const api = {
   listAssets: () => request<AssetSummary[]>('/assets'),
   /** Fetch a single asset's summary by name. 404s when the asset doesn't exist. */
   getAsset: (name: string) => request<AssetSummary>(`/assets/${encodeURIComponent(name)}`),
+  /** Query the audit log. Returns inline events from queryable
+   *  providers + external-sink references for non-queryable
+   *  providers. Per design-audit.md "Audit drawer — query semantics". */
+  queryAudit: (filter: AuditQueryFilter = {}) => {
+    const params = new URLSearchParams()
+    if (filter.action) params.set('action', filter.action)
+    if (filter.outcome) params.set('outcome', filter.outcome)
+    if (filter.scopeKind) params.set('scopeKind', filter.scopeKind)
+    if (filter.scopeName) params.set('scopeName', filter.scopeName)
+    if (filter.actor) params.set('actor', filter.actor)
+    if (filter.since) params.set('since', filter.since)
+    if (filter.until) params.set('until', filter.until)
+    if (filter.limit !== undefined) params.set('limit', String(filter.limit))
+    const qs = params.toString()
+    return request<AuditQueryResponse>(`/audit${qs ? `?${qs}` : ''}`)
+  },
 }
