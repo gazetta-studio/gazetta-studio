@@ -1,14 +1,15 @@
 /**
- * Background validation API + SSE channel (Cut 2).
+ * Background validation API (Cut 2).
  *
  * - `GET /api/validation/issues` — current accumulated issues from the
  *   per-instance scanner. Reads from the in-memory store; doesn't trigger
  *   a scan.
- * - `GET /__validation` — SSE channel that emits `validation-issues-updated`
- *   events when the scanner finishes a pass. Dev-only by convention; in
- *   production (`gazetta serve`) the route is mounted but emits no events
- *   because the scanner only triggers on saves and the admin store fetches
- *   `/api/validation/issues` after each save.
+ *
+ * The peer SSE channel (`/__validation`) lives at the outer Hono app —
+ * see `mountValidationSse()` below. This mirrors `/__reload`'s placement:
+ * SSE channels sit at the outer app's root so dev-mode browsers reach them
+ * without going through Vite's middleware (which would 404 anything not
+ * matched by Vite's `proxy` config).
  *
  * Per `design-validation-implementation.md` Cut 2 + open question 5 (SSE
  * channel locked to its own path so cache invalidations + validation
@@ -24,7 +25,7 @@
  */
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
-import type { ValidationScanner, ScanEvent } from '../../validation/scanner.js'
+import type { ScanEvent, ValidationScanner } from '../../validation/scanner.js'
 
 export interface ValidationRoutesOptions {
   /** Scanner instance shared across all routes. May be null when validation isn't enabled. */
@@ -44,25 +45,29 @@ export function validationRoutes(opts: ValidationRoutesOptions) {
     return c.json({ issues, total: issues.length })
   })
 
-  /**
-   * GET /__validation — SSE stream of `validation-issues-updated` events
-   * when the scanner finishes a pass.
-   *
-   * The drawer subscribes once at admin boot. On every event, it re-fetches
-   * `/api/validation/issues` to pick up the latest set. Two-step (event +
-   * re-fetch) instead of pushing the full diff in the event payload because
-   * the issue set is small (~tens to hundreds of items at envelope) and a
-   * fresh GET is simpler than diff reconciliation client-side.
-   *
-   * When `scanner` is null, the route still mounts but never emits — keeps
-   * the client's EventSource open so it doesn't reconnect-spam.
-   */
+  return app
+}
+
+/**
+ * Mount `GET /__validation` SSE channel on the outer Hono app. The browser
+ * EventSource opens this URL at the root (not under `/admin/`), matching
+ * the pattern `/__reload` already follows. Production (`gazetta serve`)
+ * pass `null` for `scanner` to mount a stub that never emits events —
+ * keeps the client's EventSource open so it doesn't reconnect-spam.
+ *
+ * The drawer subscribes once at admin boot. On every event, it re-fetches
+ * `/api/validation/issues` to pick up the latest set. Two-step (event +
+ * re-fetch) instead of pushing the full diff in the event payload because
+ * the issue set is small (~tens to hundreds of items at envelope) and a
+ * fresh GET is simpler than diff reconciliation client-side.
+ */
+export function mountValidationSse(app: Hono, scanner: ValidationScanner | null): void {
   app.get('/__validation', async c => {
     return streamSSE(c, async stream => {
       const queue: ScanEvent[] = []
       let resolveWaiter: (() => void) | null = null
 
-      const dispose = opts.scanner?.subscribe(event => {
+      const dispose = scanner?.subscribe(event => {
         queue.push(event)
         if (resolveWaiter) {
           const r = resolveWaiter
@@ -98,6 +103,4 @@ export function validationRoutes(opts: ValidationRoutesOptions) {
       }
     })
   })
-
-  return app
 }

@@ -2044,6 +2044,13 @@ async function setupCmsApi(
   // registry (no overhead).
   const hooks = await buildHooksRegistry({ contributions })
   const validationScanner = await buildValidationScanner({ source, templatesDir, manifest })
+  // Mount SSE on the OUTER Hono app — matches `/__reload`'s placement so
+  // the browser EventSource (which connects without an `/admin/` prefix)
+  // bypasses Vite's middleware and reaches the route. Same in prod for
+  // consistency: a save from one tab updates the badge in every other
+  // tab without polling.
+  const { mountValidationSse } = await import('../admin-api/routes/validation.js')
+  mountValidationSse(app, validationScanner)
   const cmsApp = createAdminApp({
     source,
     siteDir,
@@ -2074,6 +2081,9 @@ async function setupProductionMode(
   // factory contributions from the same site config.
   const hooks = await buildHooksRegistry({ contributions })
   const validationScanner = await buildValidationScanner({ source, templatesDir, manifest })
+  // SSE channel at the outer app's root; see setupCmsApi for rationale.
+  const { mountValidationSse } = await import('../admin-api/routes/validation.js')
+  mountValidationSse(app, validationScanner)
   // Mount CMS API inline at /admin (production mode — bundled editors/fields)
   const cmsApp = createAdminApp({
     source,
