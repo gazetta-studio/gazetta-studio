@@ -15,6 +15,8 @@ import {
   type SourceContextResolver,
 } from './source-context.js'
 import { authMiddleware } from './middleware/auth.js'
+import { principalMiddleware } from './middleware/principal.js'
+import { AuthConfigSchema, AuthConfigurationError, buildAuthProvider } from '../auth/index.js'
 import { siteRoutes } from './routes/site.js'
 import { pageRoutes } from './routes/pages.js'
 import { fragmentRoutes } from './routes/fragments.js'
@@ -86,6 +88,9 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   const app = new Hono()
 
   app.use(logger())
+  // Bearer-token guard (legacy GAZETTA_TOKEN) — orthogonal to
+  // upstream-identity extraction. Principal middleware ships
+  // below once `source.manifest` is in scope.
   app.use('/api/*', authMiddleware())
 
   const templatesDir = opts.templatesDir ?? join(opts.siteDir, 'templates')
@@ -179,6 +184,35 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   // Validator registry built once per app — Cut 1 ships the 5 reference-
   // existence validators; Cut 2+ extend the default registry.
   const validators = defaultValidatorRegistry()
+
+  // Principal middleware — extracts upstream identity (Cloudflare
+  // Access JWT, X-Forwarded-User header, etc.) per the configured
+  // trust mode in `site.config.ts admin.auth`. Falls back to
+  // `none`-mode (anonymous + admin role) when no auth is configured.
+  // Must run before route registration so handlers see c.var.principal.
+  //
+  // The auth config sits under SiteManifest.admin.auth as a loose
+  // record (per the existing config schema's reserved-slot pattern);
+  // we strict-parse it here against the typed AuthConfigSchema and
+  // throw a clear AuthConfigurationError if the operator's block is
+  // malformed.
+  const rawAuthBlock = source.manifest?.admin?.auth as unknown
+  let authProvider
+  if (rawAuthBlock !== undefined) {
+    const parsed = AuthConfigSchema.safeParse(rawAuthBlock)
+    if (!parsed.success) {
+      throw new AuthConfigurationError(
+        `Invalid admin.auth block in site.config.ts: ${parsed.error.issues
+          .map(i => `${i.path.join('.')}: ${i.message}`)
+          .join('; ')}`,
+      )
+    }
+    authProvider = buildAuthProvider(parsed.data)
+  } else {
+    // No admin.auth block — none mode (single-author / dev).
+    authProvider = buildAuthProvider(undefined)
+  }
+  app.use('/api/*', principalMiddleware(authProvider))
 
   app.route('/', siteRoutes(resolveSource))
   app.route('/', pageRoutes(resolveSource, validators, templatesDir))
