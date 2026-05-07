@@ -35,6 +35,8 @@ import {
   type CompareResult,
   type RevisionSummary,
   type DependentsResponse,
+  type AuditQueryFilter,
+  type AuditQueryResponse,
 } from '../api/client.js'
 
 // ---- Pages -----------------------------------------------------------------
@@ -117,4 +119,14 @@ export interface HistoryApi {
 export const HISTORY_API: InjectionKey<HistoryApi> = Symbol('HistoryApi')
 export function useHistoryApi(): HistoryApi {
   return inject(HISTORY_API, api)
+}
+
+// ---- Audit ----------------------------------------------------------------
+
+export interface AuditApi {
+  queryAudit(filter?: AuditQueryFilter): Promise<AuditQueryResponse>
+}
+export const AUDIT_API: InjectionKey<AuditApi> = Symbol('AuditApi')
+export function useAuditApi(): AuditApi {
+  return inject(AUDIT_API, api)
 }

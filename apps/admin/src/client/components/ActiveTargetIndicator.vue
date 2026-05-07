@@ -25,6 +25,7 @@ import { groupedEntries } from '../composables/targetGrouping.js'
 import { usePagesApi, useFragmentsApi } from '../composables/api.js'
 import type { TargetInfo } from '../api/client.js'
 import HistoryPanel from './HistoryPanel.vue'
+import AuditDrawer from './AuditDrawer.vue'
 
 const pagesApi = usePagesApi()
 const fragmentsApi = useFragmentsApi()
@@ -83,10 +84,18 @@ const menuItems = computed(() => {
         showHistory.value = true
       },
     },
+    {
+      label: 'View audit log',
+      icon: 'pi pi-shield',
+      command: () => {
+        showAudit.value = true
+      },
+    },
   ]
 })
 
 const showHistory = ref(false)
+const showAudit = ref(false)
 
 function targetItem(t: TargetInfo) {
   return {
@@ -199,6 +208,7 @@ function onClick(event: Event) {
     <Menu v-if="interactive" ref="menu" :model="menuItems" :popup="true"
       data-testid="active-target-menu" />
     <HistoryPanel v-model:visible="showHistory" />
+    <AuditDrawer v-model:visible="showAudit" />
   </template>
 </template>
 

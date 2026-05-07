@@ -38,7 +38,7 @@ function mountWithGlobals(options?: ComponentMountingOptions<typeof ActiveTarget
   return mount(ActiveTargetIndicator, {
     global: {
       plugins: [PrimeVue, router],
-      stubs: { HistoryPanel: true },
+      stubs: { HistoryPanel: true, AuditDrawer: true },
       ...options?.global,
     },
     ...options,
@@ -342,7 +342,7 @@ describe('ActiveTargetIndicator', () => {
       expect(prodGroup!.items!.map(i => i.label)).toEqual(['prod-us', 'prod-eu'])
     })
 
-    it('always includes a View history action at the bottom', () => {
+    it('always includes View history + View audit log actions at the bottom', () => {
       const targets: TargetInfo[] = [
         {
           name: 'local',
@@ -356,8 +356,10 @@ describe('ActiveTargetIndicator', () => {
       const w = mountWithGlobals()
       const menu = w.findComponent({ name: 'Menu' })
       const model = menu.props('model') as Array<{ label?: string; separator?: boolean }>
-      expect(model.at(-1)?.label).toBe('View history')
-      expect(model.at(-2)?.separator).toBe(true)
+      // Tail is: separator, View history, View audit log
+      expect(model.at(-1)?.label).toBe('View audit log')
+      expect(model.at(-2)?.label).toBe('View history')
+      expect(model.at(-3)?.separator).toBe(true)
     })
   })
 })

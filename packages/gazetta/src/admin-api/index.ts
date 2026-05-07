@@ -38,6 +38,7 @@ import { fieldRoutes } from './routes/fields.js'
 import { historyRoutes } from './routes/history.js'
 import { assetRoutes } from './routes/assets.js'
 import { systemRoutes } from './routes/system.js'
+import { auditRoutes } from './routes/audit.js'
 import { healthRoutes } from './routes/health.js'
 import { startCacheStatsLogger } from './cache-stats-logger.js'
 
@@ -297,6 +298,7 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   app.route('/', historyRoutes(resolveSource, opts.targets, opts.targetConfigs))
   app.route('/', assetRoutes(resolveSource))
   app.route('/', systemRoutes(resolveSource))
+  app.route('/', auditRoutes({ providers: auditProviders }))
   app.route('/', healthRoutes())
 
   // Periodic cache stats log — fires every 5 minutes against the
