@@ -21,3 +21,5 @@ export { createAzureEasyAuthProvider, type AzureEasyAuthConfig } from './provide
 export { createAwsCognitoAuthProvider, type AwsCognitoConfig } from './providers/aws-cognito.js'
 export { createTailscaleAuthProvider, type TailscaleConfig } from './providers/tailscale.js'
 export { ipMatchesAny, parseRule, parseRules, type ParsedRule } from './ip-match.js'
+export { capabilityGrants, expandRole } from './capabilities.js'
+export { resolveRole, validateCustomRoles, type ResolveRoleArgs, type ResolvedRole } from './role-resolver.js'
