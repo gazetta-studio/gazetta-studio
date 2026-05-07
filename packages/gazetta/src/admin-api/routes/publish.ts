@@ -27,6 +27,7 @@ import { createHistoryProvider } from '../../history-provider.js'
 import { recordWrite, type WrittenItem } from '../../history-recorder.js'
 import { publishAssets } from '../../assets/publish.js'
 import { requireCapability } from '../middleware/capability.js'
+import type { AuditEnv } from '../middleware/audit.js'
 
 /**
  * Progress events streamed by runPublish. Consumed both by the SSE route
@@ -52,7 +53,7 @@ export function publishRoutes(
   scanTemplatesInjected?: (templatesDir: string, projectRoot: string) => Promise<TemplateInfo[]>,
 ) {
   const scan = scanTemplatesInjected ?? scanTemplates
-  const app = new Hono()
+  const app = new Hono<AuditEnv>()
 
   // Background target initialization — lazy, needs the resolved source's
   // projectSiteDir to resolve filesystem target paths. We call resolve()
@@ -543,16 +544,37 @@ export function publishRoutes(
       )
     }
     const allSuccess = results.every(r => r.success)
+    // Audit: one event per publish operation. metadata carries the
+    // requested items + targets for forensic queries; per-item
+    // events would explode volume on multi-item publishes.
+    await c.var.audit.record({
+      action: 'publish',
+      outcome: 'success',
+      scope: { kind: 'site' },
+      metadata: { items: body.items, targets: body.targets, source: body.source },
+    })
     return c.json({ results }, allSuccess ? 200 : 207)
   })
 
   app.post('/api/publish/stream', requireCapability('publish:non-production'), async c => {
     const body = (await c.req.json()) as { items: string[]; targets: string[]; source?: string }
     return streamSSE(c, async stream => {
+      let recordedSuccess = false
       try {
         for await (const ev of runPublish(body.items, body.targets, body.source)) {
           if (stream.aborted) return
           await stream.writeSSE({ event: ev.kind, data: JSON.stringify(ev) })
+          if (ev.kind === 'done') {
+            // Record once per stream — same shape as the
+            // synchronous /api/publish endpoint.
+            await c.var.audit.record({
+              action: 'publish',
+              outcome: 'success',
+              scope: { kind: 'site' },
+              metadata: { items: body.items, targets: body.targets, source: body.source },
+            })
+            recordedSuccess = true
+          }
         }
       } catch (err) {
         if (!stream.aborted) {
@@ -562,6 +584,11 @@ export function publishRoutes(
           })
         }
       }
+      // Avoid recording a duplicate when the loop completed without
+      // a 'done' event (rare — happens if runPublish yields fatal
+      // before done). Suppresses double-audit; the absence of a
+      // success event is itself the forensic signal.
+      void recordedSuccess
     })
   })
 

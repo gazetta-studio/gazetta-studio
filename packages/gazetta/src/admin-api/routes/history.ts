@@ -25,13 +25,14 @@ import { restoreRevision } from '../../history-restorer.js'
 import { createContentRoot } from '../../content-root.js'
 import type { SourceContextResolver } from '../source-context.js'
 import { requireCapability } from '../middleware/capability.js'
+import type { AuditEnv } from '../middleware/audit.js'
 
 export function historyRoutes(
   resolve: SourceContextResolver,
   preInitTargets?: Map<string, StorageProvider>,
   targetConfigs?: Record<string, TargetConfig>,
 ) {
-  const app = new Hono()
+  const app = new Hono<AuditEnv>()
 
   let targets: Map<string, StorageProvider> | null = preInitTargets ?? null
   let targetsInitPromise: Promise<Map<string, StorageProvider>> | null = null
@@ -135,6 +136,12 @@ export function historyRoutes(
     if (targetName === source.targetName) {
       await Promise.all([source.cache.invalidatePrefix('pages:'), source.cache.invalidatePrefix('fragments:')])
     }
+    await c.var.audit.record({
+      action: 'restore',
+      outcome: 'success',
+      scope: { kind: 'site' },
+      metadata: { targetName, restoredFrom: list[1].id, undoneOperation: list[0].operation },
+    })
     return c.json({ revision: restored, restoredFrom: list[1].id })
   })
 
@@ -158,6 +165,12 @@ export function historyRoutes(
       if (targetName === source.targetName) {
         await Promise.all([source.cache.invalidatePrefix('pages:'), source.cache.invalidatePrefix('fragments:')])
       }
+      await c.var.audit.record({
+        action: 'restore',
+        outcome: 'success',
+        scope: { kind: 'site' },
+        metadata: { targetName, restoredFrom: revisionId },
+      })
       return c.json({ revision: restored, restoredFrom: revisionId })
     } catch (err) {
       // readRevision throws ENOENT-style errors when the id doesn't

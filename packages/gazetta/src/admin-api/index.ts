@@ -16,7 +16,16 @@ import {
 } from './source-context.js'
 import { authMiddleware } from './middleware/auth.js'
 import { principalMiddleware } from './middleware/principal.js'
+import { auditMiddleware } from './middleware/audit.js'
 import { AuthConfigSchema, AuthConfigurationError, buildAuthProvider } from '../auth/index.js'
+import {
+  AuditConfigSchema,
+  AuditConfigurationError,
+  createHistoryAuditProvider,
+  DEFAULT_AUDIT_CONFIG,
+  type AuditConfig,
+  type AuditProvider,
+} from '../audit/index.js'
 import { siteRoutes } from './routes/site.js'
 import { pageRoutes } from './routes/pages.js'
 import { fragmentRoutes } from './routes/fragments.js'
@@ -213,6 +222,69 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
     authProvider = buildAuthProvider(undefined)
   }
   app.use('/api/*', principalMiddleware(authProvider))
+
+  // Audit middleware — per design-audit.md "Recording timing".
+  // Resolves admin.audit config; constructs the configured providers;
+  // injects c.var.audit so handlers can call `c.var.audit.record(...)`.
+  // Defaults to HistoryAuditProvider when admin.audit is absent
+  // (zero-config audit; events stored under target's
+  // .gazetta/audit/events-{instance}.jsonl).
+  const rawAuditBlock = source.manifest?.admin?.audit as unknown
+  let auditConfig: AuditConfig
+  if (rawAuditBlock !== undefined) {
+    const parsed = AuditConfigSchema.safeParse(rawAuditBlock)
+    if (!parsed.success) {
+      throw new AuditConfigurationError(
+        `Invalid admin.audit block in site.config.ts: ${parsed.error.issues
+          .map(i => `${i.path.join('.')}: ${i.message}`)
+          .join('; ')}`,
+      )
+    }
+    auditConfig = parsed.data
+  } else {
+    auditConfig = DEFAULT_AUDIT_CONFIG
+  }
+  // Salt env var resolution per design-audit.md "Salt management":
+  // GAZETTA_AUDIT_ACTOR_SALT for actor pseudonymization;
+  // GAZETTA_AUDIT_SOURCEIP_SALT for source-IP hashing.
+  const actorPseudonym = auditConfig.actorPseudonym ?? 'none'
+  const recordSourceIp = auditConfig.recordSourceIp ?? 'none'
+  const recordUserAgent = auditConfig.recordUserAgent ?? 'none'
+  if (actorPseudonym === 'sha256' && !process.env.GAZETTA_AUDIT_ACTOR_SALT) {
+    throw new AuditConfigurationError(
+      'admin.audit.actorPseudonym: sha256 requires the GAZETTA_AUDIT_ACTOR_SALT environment variable',
+    )
+  }
+  if (recordSourceIp === 'hashed' && !process.env.GAZETTA_AUDIT_SOURCEIP_SALT) {
+    throw new AuditConfigurationError(
+      'admin.audit.recordSourceIp: hashed requires the GAZETTA_AUDIT_SOURCEIP_SALT environment variable',
+    )
+  }
+  // Build the configured providers. v1 ships only HistoryAuditProvider;
+  // v2 sinks (webhook, file, OTel, CloudWatch, etc.) extend the build
+  // step here when they ship.
+  const auditProviders: AuditProvider[] = []
+  if (auditConfig.provider === 'history') {
+    auditProviders.push(
+      createHistoryAuditProvider({
+        storage: source.storage,
+        instance: process.env.K_REVISION ?? require('node:os').hostname() ?? 'gazetta-admin',
+      }),
+    )
+  }
+  app.use(
+    '/api/*',
+    auditMiddleware({
+      providers: auditProviders,
+      strict: auditConfig.strict ?? false,
+      actorPseudonym,
+      actorSalt: process.env.GAZETTA_AUDIT_ACTOR_SALT,
+      recordSourceIp,
+      sourceIpSalt: process.env.GAZETTA_AUDIT_SOURCEIP_SALT,
+      trustedProxyCount: auditConfig.trustedProxyCount,
+      recordUserAgent,
+    }),
+  )
 
   app.route('/', siteRoutes(resolveSource))
   app.route('/', pageRoutes(resolveSource, validators, templatesDir))

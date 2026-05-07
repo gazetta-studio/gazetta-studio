@@ -34,6 +34,11 @@ reports/
 # reverse-dep indices: only inside a target's `.gazetta/`.
 **/targets/**/.gazetta/history/
 
+# Per-target audit log — runtime state written by audit recorders.
+# Per-instance JSONL files (events-{instance}.jsonl). Same anchoring as
+# history; never committed.
+**/targets/**/.gazetta/audit/
+
 # Rendered output from `gazetta publish` to filesystem targets. The
 # editable source of truth (page.json, fragment.json, site.config.ts) stays
 # tracked; everything below is regenerated on every publish.
