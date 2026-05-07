@@ -21,10 +21,35 @@ describe('capabilityGrants (Cut 6)', () => {
     expect(capabilityGrants(['*'], '@my-org/search:rebuild-index')).toBe(true)
   })
 
-  it('prefix wildcard read:* grants any read capability', () => {
+  it('prefix wildcard read:* grants ordinary read capabilities', () => {
     expect(capabilityGrants(['read:*'], 'read:pages')).toBe(true)
     expect(capabilityGrants(['read:*'], 'read:fragments')).toBe(true)
-    expect(capabilityGrants(['read:*'], 'read:audit-log')).toBe(true)
+    expect(capabilityGrants(['read:*'], 'read:assets')).toBe(true)
+  })
+
+  // Wildcard-exempt capabilities — privacy-sensitive reads that
+  // don't auto-grant via prefix wildcards (Cut 9). Per
+  // design-auth-rbac.md "Audit-log read access is its own capability
+  // — viewers don't see audit by default" + design-audit.md's
+  // "read:audit-log capability gates the drawer entirely".
+  describe('wildcard-exempt capabilities (Cut 9)', () => {
+    it('read:* does NOT grant read:audit-log', () => {
+      expect(capabilityGrants(['read:*'], 'read:audit-log')).toBe(false)
+    })
+
+    it('exact grant of read:audit-log works', () => {
+      expect(capabilityGrants(['read:audit-log'], 'read:audit-log')).toBe(true)
+    })
+
+    it('combined read:* + read:audit-log grants both ordinary reads + audit', () => {
+      const granted = ['read:*', 'read:audit-log']
+      expect(capabilityGrants(granted, 'read:pages')).toBe(true)
+      expect(capabilityGrants(granted, 'read:audit-log')).toBe(true)
+    })
+
+    it('root wildcard * still grants read:audit-log (admin escape hatch)', () => {
+      expect(capabilityGrants(['*'], 'read:audit-log')).toBe(true)
+    })
   })
 
   it('prefix wildcard does NOT cross prefixes', () => {
@@ -62,19 +87,30 @@ describe('capabilityGrants (Cut 6)', () => {
     expect(capabilityGrants(BUILT_IN_ROLES.admin, 'publish:production')).toBe(true)
   })
 
-  it('editor role grants read + edit + non-prod publish but NOT prod publish', () => {
+  it('editor role grants read + edit + non-prod publish but NOT prod publish or audit', () => {
     expect(capabilityGrants(BUILT_IN_ROLES.editor, 'read:pages')).toBe(true)
     expect(capabilityGrants(BUILT_IN_ROLES.editor, 'edit:pages')).toBe(true)
     expect(capabilityGrants(BUILT_IN_ROLES.editor, 'publish:non-production')).toBe(true)
     expect(capabilityGrants(BUILT_IN_ROLES.editor, 'publish:production')).toBe(false)
     expect(capabilityGrants(BUILT_IN_ROLES.editor, 'delete:pages')).toBe(false)
     expect(capabilityGrants(BUILT_IN_ROLES.editor, 'configure:site')).toBe(false)
+    // Cut 9: read:* does not grant read:audit-log; editors don't see audit by default
+    expect(capabilityGrants(BUILT_IN_ROLES.editor, 'read:audit-log')).toBe(false)
   })
 
-  it('viewer role grants only reads', () => {
+  it('viewer role grants only ordinary reads (no audit)', () => {
     expect(capabilityGrants(BUILT_IN_ROLES.viewer, 'read:pages')).toBe(true)
     expect(capabilityGrants(BUILT_IN_ROLES.viewer, 'edit:pages')).toBe(false)
     expect(capabilityGrants(BUILT_IN_ROLES.viewer, 'publish:non-production')).toBe(false)
+    // Cut 9: viewers don't see audit by default
+    expect(capabilityGrants(BUILT_IN_ROLES.viewer, 'read:audit-log')).toBe(false)
+  })
+
+  it('admin role grants read:audit-log via root wildcard', () => {
+    // Sanity check the design-locked invariant: admin is the only
+    // built-in role with audit access; custom roles need explicit
+    // grant.
+    expect(capabilityGrants(BUILT_IN_ROLES.admin, 'read:audit-log')).toBe(true)
   })
 })
 

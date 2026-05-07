@@ -23,11 +23,38 @@
 import { BUILT_IN_ROLES, type BuiltInCapability } from './types.js'
 
 /**
+ * Privacy-sensitive capabilities that prefix wildcards do NOT
+ * grant. Per design-auth-rbac.md's "Audit-log read access is its
+ * own capability — viewers don't see audit by default", and the
+ * matching design-audit.md note that audit log is its own gate.
+ *
+ * These capabilities require either:
+ *   - explicit grant (the exact capability string in the granted
+ *     list), or
+ *   - root wildcard `*` (admin role)
+ *
+ * Prefix wildcards (`read:*`) DO NOT grant them. Built-in editor
+ * + viewer roles hold `read:*` — they get `read:pages`,
+ * `read:fragments`, `read:assets` but NOT `read:audit-log`.
+ * Operators wanting an "auditor" custom role declare
+ * `['read:*', 'read:audit-log']` explicitly.
+ *
+ * Plugin authors adding privacy-sensitive capabilities extend this
+ * set by exporting their own capability string in this set —
+ * future plugin foundation will likely move this to a registry.
+ * For v1 the set is closed to known built-ins.
+ */
+const WILDCARD_EXEMPT_CAPABILITIES: ReadonlySet<string> = new Set(['read:audit-log'])
+
+/**
  * Test whether a principal's capability set grants the required
  * capability. Implements wildcard expansion:
  *
- *   - `*` (root wildcard) grants everything
+ *   - `*` (root wildcard) grants everything (including
+ *     wildcard-exempt capabilities — admin role retains the
+ *     escape hatch)
  *   - `<prefix>:*` grants every capability under that prefix
+ *     EXCEPT capabilities in `WILDCARD_EXEMPT_CAPABILITIES`
  *   - exact match grants exactly that capability
  *
  * Plugin-supplied capabilities use scoped prefixes
@@ -36,10 +63,14 @@ import { BUILT_IN_ROLES, type BuiltInCapability } from './types.js'
  */
 export function capabilityGrants(granted: ReadonlyArray<string>, required: string): boolean {
   if (required.length === 0) return false
+  const isExempt = WILDCARD_EXEMPT_CAPABILITIES.has(required)
   for (const cap of granted) {
+    // Root wildcard always grants — admin retains the escape hatch
+    // even for wildcard-exempt capabilities.
     if (cap === '*') return true
     if (cap === required) return true
-    if (cap.endsWith(':*')) {
+    // Prefix wildcards skip wildcard-exempt capabilities.
+    if (!isExempt && cap.endsWith(':*')) {
       const prefix = cap.slice(0, -1) // 'read:*' → 'read:'
       if (required.startsWith(prefix)) return true
     }

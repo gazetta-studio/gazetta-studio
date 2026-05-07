@@ -84,6 +84,29 @@ function buildApp(providers: AuditProvider[]): Hono {
   return app
 }
 
+/**
+ * Build an app with a non-admin principal — for capability-gating
+ * tests. The fake provider returns whatever Principal the test
+ * asks for (editor / viewer / unknown).
+ */
+function buildAppWithRole(providers: AuditProvider[], role: string, capabilities: ReadonlyArray<string>): Hono {
+  const app = new Hono()
+  const fakeProvider = {
+    trustMode: 'forwarded-user',
+    async extractPrincipal() {
+      return {
+        id: role === 'unknown' ? 'unknown' : `${role}@example.com`,
+        role,
+        trustMode: 'forwarded-user',
+        capabilities,
+      }
+    },
+  }
+  app.use('/api/*', principalMiddleware(fakeProvider))
+  app.route('/', auditRoutes({ providers }))
+  return app
+}
+
 describe('Cut 6 — GET /api/audit', () => {
   it('returns events from a single queryable provider, newest-first', async () => {
     const provider = makeQueryableProvider('history', [
@@ -258,5 +281,39 @@ describe('Cut 6 — GET /api/audit', () => {
     const body = await res.json()
     expect(body.events).toEqual([])
     expect(body.externalSinks).toEqual([])
+  })
+
+  // Cut 9 — capability gating. read:audit-log is wildcard-exempt
+  // per design-auth-rbac.md "viewers don't see audit by default".
+  // Only admin (root wildcard *) or explicit grant of read:audit-log
+  // passes the gate; editor / viewer with `read:*` are blocked.
+  describe('Cut 9 — capability gating', () => {
+    it('admin role with `*` is allowed (200)', async () => {
+      const app = buildAppWithRole([makeQueryableProvider('history', [])], 'admin', ['*'])
+      const res = await app.request('/api/audit')
+      expect(res.status).toBe(200)
+    })
+
+    it('editor role with read:* + edit:* is forbidden (403)', async () => {
+      const app = buildAppWithRole([makeQueryableProvider('history', [])], 'editor', [
+        'read:*',
+        'edit:*',
+        'publish:non-production',
+      ])
+      const res = await app.request('/api/audit')
+      expect(res.status).toBe(403)
+    })
+
+    it('viewer role with read:* is forbidden (403)', async () => {
+      const app = buildAppWithRole([makeQueryableProvider('history', [])], 'viewer', ['read:*'])
+      const res = await app.request('/api/audit')
+      expect(res.status).toBe(403)
+    })
+
+    it('custom auditor role with explicit read:audit-log is allowed (200)', async () => {
+      const app = buildAppWithRole([makeQueryableProvider('history', [])], 'auditor', ['read:*', 'read:audit-log'])
+      const res = await app.request('/api/audit')
+      expect(res.status).toBe(200)
+    })
   })
 })
