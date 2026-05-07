@@ -40,6 +40,7 @@ import type { Principal } from '../types.js'
 import type { AuthIdentityProvider, AuthRequest } from '../provider.js'
 import { AuthenticationError, AuthConfigurationError } from '../errors.js'
 import { ipMatchesAny, type ParsedRule, parseRules } from '../ip-match.js'
+import { expandRole } from '../capabilities.js'
 
 export interface ForwardedUserConfig {
   /**
@@ -124,16 +125,19 @@ export function createForwardedUserAuthProvider(config: ForwardedUserConfig): Au
       }
 
       const email = req.headers.get('x-forwarded-email') ?? undefined
-      // Capabilities computed by Cut 6's role-resolver from
-      // (groups → role → capabilities). Until that lands, every
-      // forwarded-user gets the default role's built-in capability
-      // set. Cut 6 replaces this with the resolver call.
+      // Capabilities = the default role's built-in capability set.
+      // Group-claim → role mapping (via roleMapping config + the
+      // X-Forwarded-Groups header) is a follow-up. For v1 every
+      // authenticated forwarded-user gets the configured defaultRole's
+      // capabilities; operators wanting role-by-group set the
+      // roleMapping in admin.auth and override defaultRole.
+      const capabilities = expandRole(defaultRole) ?? []
       return {
         id: user,
         email,
         role: defaultRole,
         trustMode: 'forwarded-user',
-        capabilities: [], // resolver populates per Cut 6
+        capabilities,
       }
     },
   }

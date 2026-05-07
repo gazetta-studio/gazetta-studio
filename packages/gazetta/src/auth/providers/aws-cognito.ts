@@ -32,6 +32,7 @@ import { jwtVerify, type JWTPayload, type JWTVerifyGetKey } from 'jose'
 import type { Principal } from '../types.js'
 import type { AuthIdentityProvider, AuthRequest } from '../provider.js'
 import { AuthenticationError, AuthConfigurationError } from '../errors.js'
+import { expandRole } from '../capabilities.js'
 
 export interface AwsCognitoConfig {
   /**
@@ -149,7 +150,7 @@ export function createAwsCognitoAuthProvider(config: AwsCognitoConfig): AuthIden
         email: payload.email,
         role: defaultRole,
         trustMode: 'aws-cognito',
-        capabilities: [],
+        capabilities: expandRole(defaultRole) ?? [],
       }
     },
   }

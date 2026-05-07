@@ -47,6 +47,7 @@ import { jwtVerify, createRemoteJWKSet, type JWTPayload, type JWTVerifyGetKey } 
 import type { Principal } from '../types.js'
 import type { AuthIdentityProvider, AuthRequest } from '../provider.js'
 import { AuthenticationError, AuthConfigurationError } from '../errors.js'
+import { expandRole } from '../capabilities.js'
 
 export interface CloudflareAccessConfig {
   /**
@@ -142,7 +143,7 @@ export function createCloudflareAccessAuthProvider(config: CloudflareAccessConfi
         email: payload.email,
         role: defaultRole,
         trustMode: 'cloudflare-access',
-        capabilities: [], // Cut 6 populates via role-resolver
+        capabilities: expandRole(defaultRole) ?? [],
       }
     },
   }
