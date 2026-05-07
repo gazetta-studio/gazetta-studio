@@ -370,7 +370,7 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   app.route('/', compareRoutes(resolveSource, opts.targets, opts.targetConfigs, templatesDir, scan))
   app.route('/', fieldRoutes(resolveSource, adminDir))
   app.route('/', historyRoutes(resolveSource, opts.targets, opts.targetConfigs))
-  app.route('/', assetRoutes(resolveSource))
+  app.route('/', assetRoutes(resolveSource, { hooks: opts.hooks }))
   app.route('/', systemRoutes(resolveSource))
   app.route('/', auditRoutes({ providers: auditProviders }))
   app.route('/', healthRoutes())

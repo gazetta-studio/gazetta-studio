@@ -28,6 +28,20 @@ import { suggestAltForAsset } from '../../alt/route-handler.js'
 import { respondWithAssetError } from '../error-response.js'
 import type { SourceContextResolver } from '../source-context.js'
 import { requireCapability } from '../middleware/capability.js'
+import type { PrincipalEnv } from '../middleware/principal.js'
+import {
+  buildHookContext,
+  dispatchAfterUpload,
+  dispatchBeforeUpload,
+  HookCancellation,
+  HookTimeout,
+  type HookRegistry,
+  type UploadHookAsset,
+} from '../../hooks/index.js'
+
+export interface AssetRoutesOptions {
+  hooks?: HookRegistry
+}
 
 /**
  * Pull a Selector out of the request's query params, validating each
@@ -63,8 +77,9 @@ function selectorFromQuery(c: { req: { query: (k: string) => string | undefined 
 /** Where assets live, relative to the target storage root. */
 const ASSETS_ROOT = 'assets'
 
-export function assetRoutes(resolve: SourceContextResolver) {
-  const app = new Hono()
+export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOptions = {}) {
+  const app = new Hono<PrincipalEnv>()
+  const hooks = opts.hooks
 
   app.get('/api/assets', requireCapability('read:assets'), async c => {
     const source = await resolve(c.req.query('target'))
@@ -477,18 +492,86 @@ export function assetRoutes(resolve: SourceContextResolver) {
     const targetConfig = source.targetName ? source.manifest?.targets?.[source.targetName] : undefined
     const policy = targetConfig?.assets
 
+    // beforeUpload hooks per design-hooks.md "Asset lifecycle".
+    // Cut 6 wires hooks BEFORE the ingest pipeline (which runs the
+    // existing UploadPreprocessor + UploadAnalyzer internally).
+    // Hooks see raw bytes + initial metadata; their mutations flow
+    // into ingestAsset.
+    //
+    // Design's "hooks AFTER preprocessor/analyzer" goal would
+    // require ingestAsset to expose internal hook points; deferred
+    // until concrete operator demand for analyzer-extracted EXIF
+    // / dimensions in beforeUpload. Operators inspecting analyzer
+    // output today use afterUpload (sees the persisted manifest).
+    let uploadBytes: Uint8Array
+    try {
+      uploadBytes = new Uint8Array(await file.arrayBuffer())
+    } catch (err) {
+      return c.json({ code: 'BAD_REQUEST', message: `Failed to read file bytes: ${(err as Error).message}` }, 400)
+    }
+    let initialAsset: UploadHookAsset = {
+      name,
+      mime: file.type || 'application/octet-stream',
+      size: uploadBytes.byteLength,
+      ...(alt !== null ? { alt } : {}),
+    }
+    const hookCtx = hooks
+      ? buildHookContext({
+          principal: c.var.principal,
+          storage: source.storage,
+          target: source.targetName,
+          requestId: c.req.header('x-request-id') ?? crypto.randomUUID(),
+          site: { name: source.manifest?.name },
+        })
+      : null
+    if (hooks && hookCtx) {
+      try {
+        const mutated = await dispatchBeforeUpload(hooks, initialAsset, uploadBytes, hookCtx)
+        initialAsset = mutated.asset
+        uploadBytes = mutated.bytes
+      } catch (err) {
+        if (err instanceof HookCancellation || err instanceof HookTimeout) {
+          return c.json({ code: 'HOOK_CANCELLED' as const, hook: err.hookName, reason: err.message }, 409)
+        }
+        throw err
+      }
+    }
+
     try {
       const result = await ingestAsset({
         storage: source.storage,
         assetsRoot: ASSETS_ROOT,
-        bytes: file.stream(),
-        requestedName: name,
-        alt,
+        // Wrap the (possibly hook-mutated) bytes back into a stream
+        // for ingestAsset's stream-shaped contract. One chunk; the
+        // bytes are already in memory (we materialized above).
+        bytes: new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(uploadBytes)
+            controller.close()
+          },
+        }),
+        requestedName: initialAsset.name,
+        alt: initialAsset.alt ?? null,
         uploadedBy: '',
         policy,
         history: source.history,
         contentRoot: source.contentRoot,
       })
+      // afterUpload hooks per design-hooks.md "Asset lifecycle"
+      // step 5. Observational; failures logged. Sees the persisted
+      // hash + final manifest fields (via the asset shape).
+      if (hooks && hookCtx) {
+        await dispatchAfterUpload(
+          hooks,
+          {
+            ...initialAsset,
+            // Manifest's hash is the canonical post-ingest digest.
+            // initialAsset.size + name passed through unchanged.
+          },
+          { asset: initialAsset, hash: result.manifest.hash ?? '' },
+          hookCtx,
+        )
+      }
       return c.json({ manifest: result.manifest, bytesPath: result.bytesPath }, 201)
     } catch (err) {
       const res = respondWithAssetError(c, err)
