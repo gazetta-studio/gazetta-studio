@@ -25,9 +25,11 @@
  *
  * Trust modes are operator-configurable in `site.config.ts`. The
  * dispatcher reads `admin.auth.trust` and constructs the matching
- * provider. Plugin promotion (per design-auth-rbac.md Q1): a future
- * `registerAuthIdentityProvider(name, factory)` method on `PluginAPI`
- * extends the registry without changing this interface.
+ * provider. Plugin promotion (per ADR-0009 + `design-plugins.md`):
+ * external trust modes ship as npm packages exporting a factory
+ * function returning `AuthIdentityProvider`; operators import the
+ * factory and assign the result to `admin.auth` directly. No
+ * runtime register method.
  *
  * # SOLID lenses
  *

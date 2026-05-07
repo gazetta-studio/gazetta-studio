@@ -20,9 +20,11 @@
  *
  * # Plugin promotion path
  *
- * Future plugin-supplied providers register via a
- * `registerAuditProvider` method on the `PluginAPI`. v1 ships only
- * `HistoryAuditProvider`; the registry hook is reserved.
+ * Per ADR-0009 + `design-plugins.md`: external audit providers
+ * ship as npm packages exporting factory functions returning
+ * `AuditProvider`. Operators import + invoke at the audit config
+ * field (Pattern 3 — multi-provider fan-out via `auditChain([...])`
+ * when shipped). No runtime register method.
  *
  * # SOLID lenses
  *
