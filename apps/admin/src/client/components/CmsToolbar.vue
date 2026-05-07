@@ -9,11 +9,13 @@ import { useEditingStore } from '../stores/editing.js'
 import { useThemeStore } from '../stores/theme.js'
 import { useUiModeStore } from '../stores/uiMode.js'
 import { useActiveTargetStore } from '../stores/activeTarget.js'
+import { useValidationScannerStore } from '../stores/validationScanner.js'
 import { saveButtonLabel, saveButtonSeverity } from '../composables/saveButtonBinding.js'
 import PublishPanel from './PublishPanel.vue'
 import ActiveTargetIndicator from './ActiveTargetIndicator.vue'
 import SyncIndicators from './SyncIndicators.vue'
 import LocalePicker from './LocalePicker.vue'
+import SiteHealthDrawer from './SiteHealthDrawer.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -25,8 +27,25 @@ const editing = useEditingStore()
 const theme = useThemeStore()
 const uiMode = useUiModeStore()
 const activeTarget = useActiveTargetStore()
+const validationScanner = useValidationScannerStore()
 
 const showPublish = ref(false)
+const showSiteHealth = ref(false)
+const healthBadgeSeverity = computed(() => {
+  if (validationScanner.itemsWithErrors.size > 0) return 'danger'
+  if (validationScanner.itemsWithWarnings.size > 0) return 'warn'
+  return 'info'
+})
+const healthIconClass = computed(() => {
+  if (validationScanner.itemsWithErrors.size > 0) return 'pi pi-exclamation-circle'
+  if (validationScanner.itemsWithWarnings.size > 0) return 'pi pi-exclamation-triangle'
+  return 'pi pi-shield'
+})
+const healthTitle = computed(() => {
+  const total = validationScanner.total
+  if (total === 0) return 'Site health — no issues'
+  return `Site health — ${total} issue${total === 1 ? '' : 's'}`
+})
 /** Destination to preselect in the panel (set by sync chip clicks). */
 const publishInitialDestination = ref<string | undefined>(undefined)
 
@@ -101,6 +120,13 @@ function handleBack() {
         :title="theme.dark ? 'Switch to light mode' : 'Switch to dark mode'"
         :aria-label="theme.dark ? 'Switch to light mode' : 'Switch to dark mode'"
         data-testid="theme-toggle" @click="theme.toggle()" size="small" class="cms-btn" />
+      <Button v-if="validationScanner.total > 0"
+        :icon="healthIconClass" text rounded
+        :title="healthTitle" :aria-label="healthTitle"
+        :severity="healthBadgeSeverity"
+        data-testid="site-health-btn" @click="showSiteHealth = true" size="small"
+        :badge="String(validationScanner.total)"
+        class="cms-btn" />
       <Button v-if="uiMode.mode === 'edit'" :label="saveLabel" icon="pi pi-save" :severity="saveSeverity" :loading="editing.saving"
         data-testid="save-btn" :title="saveTitle" :disabled="!editing.hasPendingEdits" @click="editing.save()" size="small" class="cms-btn" />
       <Button label="Publish" icon="pi pi-cloud-upload" severity="success"
@@ -109,6 +135,7 @@ function handleBack() {
   </Toolbar>
 
   <PublishPanel v-model:visible="showPublish" :initialDestination="publishInitialDestination" />
+  <SiteHealthDrawer v-model:visible="showSiteHealth" />
 </template>
 
 <style scoped>

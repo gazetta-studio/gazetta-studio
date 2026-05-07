@@ -27,6 +27,12 @@ import { makeAuditFiringEmitter } from '../hook-audit-emitter.js'
 
 export interface FragmentRoutesOptions {
   hooks?: HookRegistry
+  /**
+   * Background validation scanner. Fragment saves notify the scanner to
+   * re-validate this fragment + every page/fragment that references it
+   * (transitively, via `findDependentsFromSidecars`).
+   */
+  scanner?: import('../../validation/scanner.js').ValidationScanner | null
 }
 
 export function fragmentRoutes(
@@ -308,6 +314,12 @@ export function fragmentRoutes(
     // committed first.
     if (hooks && hookCtx) {
       await dispatchAfterSave(hooks, hookScope, { payload: finalManifest, etag: newEtag }, hookCtx)
+    }
+    // Background validation scanner re-validates this fragment + every
+    // page/fragment that references it (transitively). Fire-and-forget;
+    // SSE event drives the admin UI re-fetch when complete.
+    if (opts.scanner) {
+      void opts.scanner.rescan({ kind: 'fragment', name })
     }
     return c.json({ ok: true, etag: newEtag })
   })

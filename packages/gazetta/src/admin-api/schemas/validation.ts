@@ -1,9 +1,8 @@
 /**
  * Zod schemas for the validation response. The save handlers return a 409
- * with this shape when save-delta validation finds error-severity issues.
- *
- * Cut 1: only the response shape ships. Cut 2 will add a separate
- * `/api/validation/issues` route shape; Cut 4 will add a publish-gate shape.
+ * with `ValidationFailedResponseSchema` when save-delta validation finds
+ * error-severity issues. Cut 2 adds the `/api/validation/issues` GET shape
+ * for the background scanner's accumulated state.
  */
 import { z } from 'zod'
 
@@ -31,3 +30,16 @@ export const ValidationFailedResponseSchema = z.object({
   issues: z.array(IssueSchema),
 })
 export type ValidationFailedResponse = z.infer<typeof ValidationFailedResponseSchema>
+
+/**
+ * GET /api/validation/issues — current accumulated issues from the background
+ * scanner (Cut 2). The drawer fetches this on admin load + on save SSE; it
+ * doesn't run scans itself.
+ */
+export const ValidationIssuesResponseSchema = z.object({
+  /** All current issues across the site, flat list. UI groups by `itemPath`. */
+  issues: z.array(IssueSchema),
+  /** Total count (== issues.length) — convenience field for the dot/badge. */
+  total: z.number().int().nonnegative(),
+})
+export type ValidationIssuesResponse = z.infer<typeof ValidationIssuesResponseSchema>

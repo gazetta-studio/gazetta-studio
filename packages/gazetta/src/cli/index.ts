@@ -1136,6 +1136,7 @@ async function runAdmin(siteDir: string, port: number) {
     adminDir,
     targetConfigs,
     hookContributions,
+    manifest,
   )
 
   // SPA fallback for non-API admin routes
@@ -1685,7 +1686,7 @@ async function runDev(siteDir: string, port: number) {
   const hookContributions = readHookContributions(manifest)
   if (isDevMode) {
     // Dev mode: mount CMS API inline (same process = shared template cache)
-    cmsApp = await setupCmsApi(app, source, siteDir, templatesDir, adminDir, targetConfigs, hookContributions)
+    cmsApp = await setupCmsApi(app, source, siteDir, templatesDir, adminDir, targetConfigs, hookContributions, manifest)
   } else if (cmsStaticDir) {
     // Production mode: inline CMS API + static files
     cmsApp = await setupProductionMode(
@@ -1697,6 +1698,7 @@ async function runDev(siteDir: string, port: number) {
       adminDir,
       targetConfigs,
       hookContributions,
+      manifest,
     )
   }
 
@@ -1987,6 +1989,40 @@ function mountUserThemeRoute(cmsApp: Hono, adminDir: string) {
   })
 }
 
+/**
+ * Build the background validation scanner (validation Cut 2). The scanner
+ * is constructed against the resolved source's storage + cache; the boot
+ * path kicks off an initial full-site scan in the background so admin
+ * responses don't block on it.
+ *
+ * Returns null when the manifest is unavailable (site lacks site.config.ts)
+ * — the admin app degrades gracefully (route returns empty issues; SSE
+ * channel idle).
+ */
+async function buildValidationScanner(opts: {
+  source: import('../admin-api/source-context.js').SourceContext
+  templatesDir: string
+  manifest: SiteManifest | null
+}): Promise<import('../validation/scanner.js').ValidationScanner | null> {
+  if (!opts.manifest) return null
+  const { createValidationScanner } = await import('../validation/scanner.js')
+  const { defaultValidatorRegistry } = await import('../validation/default-registry.js')
+  const scanner = createValidationScanner({
+    storage: opts.source.storage,
+    contentRoot: opts.source.contentRoot,
+    registry: defaultValidatorRegistry(),
+    cache: opts.source.cache,
+    siteOptions: { templatesDir: opts.templatesDir, manifest: opts.manifest },
+  })
+  // Boot warm: kick off the initial scan in the background. Errors are
+  // logged but don't block boot — broken validators surface as info-issues
+  // rather than failing the admin process.
+  void scanner.scanAll().catch(err => {
+    console.error('[validation] initial scan failed:', err)
+  })
+  return scanner
+}
+
 async function setupCmsApi(
   app: Hono,
   source: import('../admin-api/source-context.js').SourceContext,
@@ -1995,6 +2031,7 @@ async function setupCmsApi(
   adminDir: string,
   targetConfigs: Record<string, import('../types.js').TargetConfig> | undefined,
   contributions: ReadonlyArray<import('../hooks/index.js').HookContribution> | undefined,
+  manifest: SiteManifest | null,
 ): Promise<
   Hono & {
     invalidateTemplatesCache(): void
@@ -2006,7 +2043,16 @@ async function setupCmsApi(
   // extension surface; sites without `admin.hooks` get an empty
   // registry (no overhead).
   const hooks = await buildHooksRegistry({ contributions })
-  const cmsApp = createAdminApp({ source, siteDir, templatesDir, adminDir, targetConfigs, hooks })
+  const validationScanner = await buildValidationScanner({ source, templatesDir, manifest })
+  const cmsApp = createAdminApp({
+    source,
+    siteDir,
+    templatesDir,
+    adminDir,
+    targetConfigs,
+    hooks,
+    validationScanner,
+  })
   mountUserThemeRoute(cmsApp, adminDir)
   app.route('/admin', cmsApp)
   return cmsApp
@@ -2022,10 +2068,12 @@ async function setupProductionMode(
   adminDir: string,
   targetConfigs: Record<string, import('../types.js').TargetConfig> | undefined,
   contributions: ReadonlyArray<import('../hooks/index.js').HookContribution> | undefined,
+  manifest: SiteManifest | null,
 ) {
   // Same shape as dev mode — `gazetta serve` reads `admin.hooks`
   // factory contributions from the same site config.
   const hooks = await buildHooksRegistry({ contributions })
+  const validationScanner = await buildValidationScanner({ source, templatesDir, manifest })
   // Mount CMS API inline at /admin (production mode — bundled editors/fields)
   const cmsApp = createAdminApp({
     source,
@@ -2035,6 +2083,7 @@ async function setupProductionMode(
     production: true,
     targetConfigs,
     hooks,
+    validationScanner,
   })
   mountUserThemeRoute(cmsApp, adminDir)
   app.route('/admin', cmsApp)

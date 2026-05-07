@@ -11,6 +11,7 @@ import { join } from 'node:path'
  * checked against the templates directory for an `index.{ts,tsx,js}` entry.
  */
 export const referencedTemplateExists: Validator = {
+  source: 'gazetta',
   name: 'referenced-template-exists',
   stages: ['save-delta', 'background', 'pre-publish', 'cli'] as const,
 
@@ -21,8 +22,7 @@ export const referencedTemplateExists: Validator = {
   async validate(input: ValidatorInput): Promise<Issue[]> {
     const { scope, site } = input
     if (scope.kind !== 'save-delta' && scope.kind !== 'background') return []
-    const manifest = scope.kind === 'save-delta' ? scope.after : null
-    if (!manifest) return []
+    const manifest = scope.kind === 'save-delta' ? scope.after : scope.manifest
 
     const templatesDir = site.templatesDir
     if (!templatesDir) return [] // no templates configured — can't check

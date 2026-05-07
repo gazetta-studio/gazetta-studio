@@ -164,9 +164,35 @@ describe('defaultValidatorRegistry', () => {
     expect(names).toContain('dynamic-route-conflict')
   })
 
-  it('every default validator runs at save-delta', () => {
+  it('every Cut 1 ref-existence validator runs at save-delta', () => {
     const reg = defaultValidatorRegistry()
-    expect(reg.forStage('save-delta')).toHaveLength(reg.all().length)
+    const saveDeltaNames = reg
+      .forStage('save-delta')
+      .map(v => v.name)
+      .sort()
+    expect(saveDeltaNames).toEqual([
+      'circular-fragment',
+      'dynamic-route-conflict',
+      'referenced-asset-exists',
+      'referenced-fragment-exists',
+      'referenced-template-exists',
+    ])
+  })
+
+  it('Cut 2 background-only validators are present and tagged background+cli', () => {
+    const reg = defaultValidatorRegistry()
+    const backgroundNames = reg
+      .forStage('background')
+      .map(v => v.name)
+      .sort()
+    expect(backgroundNames).toContain('schema-conformance')
+    expect(backgroundNames).toContain('orphaned-locale-file')
+    expect(backgroundNames).toContain('unused-fragment')
+    // None of the background-only validators leak into save-delta
+    const saveDeltaNames = reg.forStage('save-delta').map(v => v.name)
+    expect(saveDeltaNames).not.toContain('schema-conformance')
+    expect(saveDeltaNames).not.toContain('orphaned-locale-file')
+    expect(saveDeltaNames).not.toContain('unused-fragment')
   })
 })
 

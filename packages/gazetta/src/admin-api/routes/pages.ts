@@ -33,6 +33,13 @@ export interface PageRoutesOptions {
    * `manifest.admin?.hooks` in the admin-api boot path.
    */
   hooks?: HookRegistry
+  /**
+   * Background validation scanner. When provided, save handlers notify
+   * the scanner on commit so background-stage validators re-run for the
+   * affected item. When omitted, save handlers run as today (save-delta
+   * only).
+   */
+  scanner?: import('../../validation/scanner.js').ValidationScanner | null
 }
 
 export function pageRoutes(
@@ -415,6 +422,14 @@ export function pageRoutes(
     // applies; one slow hook bounded by its timeout, not the total.
     if (hooks && hookCtx) {
       await dispatchAfterSave(hooks, hookScope, { payload: finalManifest, etag: newEtag }, hookCtx)
+    }
+    // Background validation scanner re-validates this item + dependents.
+    // Fire-and-forget — the save response shouldn't block on scanner work;
+    // the scanner emits its own SSE event when the pass completes and the
+    // admin UI store re-fetches `/api/validation/issues` on the event.
+    if (opts.scanner) {
+      const itemRef = { kind: 'page' as const, name, itemPath: manifestPath }
+      void opts.scanner.rescan({ kind: 'manifest', item: itemRef })
     }
     return c.json({ ok: true, etag: newEtag })
   })

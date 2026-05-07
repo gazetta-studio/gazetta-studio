@@ -17,6 +17,7 @@ import type { Issue, Validator, ValidatorInput } from '../types.js'
  * Only fires for pages.
  */
 export const dynamicRouteConflict: Validator = {
+  source: 'gazetta',
   name: 'dynamic-route-conflict',
   stages: ['save-delta', 'background', 'pre-publish', 'cli'] as const,
 
@@ -27,9 +28,8 @@ export const dynamicRouteConflict: Validator = {
   async validate(input: ValidatorInput): Promise<Issue[]> {
     const { scope, site } = input
     if (scope.kind !== 'save-delta' && scope.kind !== 'background') return []
-    const manifest = scope.kind === 'save-delta' ? scope.after : null
-    if (!manifest) return []
     if (scope.item.kind !== 'page') return []
+    const manifest = scope.kind === 'save-delta' ? scope.after : scope.manifest
 
     const newRoute = (manifest as PageManifest).route
     if (!newRoute) return []
