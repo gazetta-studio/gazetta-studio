@@ -76,7 +76,9 @@ export const useValidationScannerStore = defineStore('validationScanner', () => 
   /** Refresh from the server. Called on boot, on SSE event, on explicit retry. */
   async function refresh(): Promise<void> {
     try {
-      const res = await fetch(apiUrl('/api/validation/issues'), {
+      // `apiUrl()` already prefixes API_BASE (which contains `/api`); the path
+      // arg is relative to that base. Convention from sibling api modules.
+      const res = await fetch(apiUrl('/validation/issues'), {
         headers: authHeaders(),
       })
       if (!res.ok) {
@@ -100,10 +102,11 @@ export const useValidationScannerStore = defineStore('validationScanner', () => 
    */
   function subscribe(): void {
     if (eventSource) return
-    // /__validation lives at the admin root, not under /api. Strip the
-    // trailing /api segment from API_BASE to get the admin root.
-    const adminBase = API_BASE.replace(/\/api$/, '')
-    const url = `${adminBase}/__validation`
+    // /__validation is mounted on the OUTER Hono app at the site root
+    // (matching `/__reload`'s placement) so dev-mode browsers reach it
+    // without going through Vite's middleware. URL is the bare absolute
+    // path; no admin or api prefix.
+    const url = '/__validation'
     try {
       eventSource = new EventSource(url, { withCredentials: false })
       eventSource.addEventListener('validation-issues-updated', () => {
