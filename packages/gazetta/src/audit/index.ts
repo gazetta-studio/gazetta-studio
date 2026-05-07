@@ -5,3 +5,5 @@
 export type { AuditAction, AuditActor, AuditEvent, AuditOutcome, AuditQuery, AuditScope } from './types.js'
 export { AuditError, AuditConfigurationError, AuditTransportError } from './errors.js'
 export { AuditConfigSchema, DEFAULT_AUDIT_CONFIG, type AuditConfig } from './config.js'
+export type { AuditProvider } from './provider.js'
+export { createHistoryAuditProvider, type HistoryAuditProviderOptions } from './providers/history.js'
