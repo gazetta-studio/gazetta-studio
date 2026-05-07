@@ -79,6 +79,19 @@ export type HookPhase =
   // Asset lifecycle
   | 'beforeUpload'
   | 'afterUpload'
+  // Review lifecycle (forward-compat per design-review-workflow.md;
+  // the state machine that fires these ships in Phase 2 — see
+  // design-review-workflow-implementation.md Cut 14)
+  | 'beforeSubmitForReview'
+  | 'afterSubmitForReview'
+  | 'beforeApprove'
+  | 'afterApprove'
+  | 'beforeReject'
+  | 'afterReject'
+  | 'beforePublishRequest'
+  | 'afterPublishRequest'
+  | 'beforePublishApprove'
+  | 'afterPublishApprove'
 
 /**
  * Scope of the operation that fired the hook. Mirrors
@@ -272,9 +285,43 @@ export interface UploadHookResult {
 }
 
 /**
+ * Review-lifecycle hook payload. Forward-compat per
+ * `design-review-workflow.md` Cut 14. The state machine carries
+ * (scope, actor, optional comment for reject); hook handlers see
+ * the same.
+ *
+ * v1 ships the types only. The state machine that fires these
+ * transitions hasn't been implemented yet — site-local hooks
+ * registered for review phases sit dormant until the state
+ * machine ships.
+ */
+export interface ReviewTransition {
+  /** Scope of the transition (page/fragment/asset). */
+  readonly scope: HookScope
+  /** Reason / comment for reject + publish-reject; required by
+   *  state machine on those transitions, undefined elsewhere. */
+  readonly comment?: string
+  /** For publish-request / publish-approve: the destination target. */
+  readonly target?: string
+}
+
+export type BeforeReviewTransitionHook = (
+  transition: ReviewTransition,
+  ctx: HookContext,
+) => ReviewTransition | Promise<ReviewTransition>
+
+export type AfterReviewTransitionHook = (transition: ReviewTransition, ctx: HookContext) => void | Promise<void>
+
+/**
  * Erased-type union of all v1 handler signatures. The registry
  * stores `HookHandler<P>` keyed by `HookPhase`; dispatch reads them
  * back and re-narrows via the phase-specific signature types.
+ *
+ * Review-lifecycle phases all share the same signature shape per
+ * design-review-workflow.md — the transition object carries the
+ * per-phase semantic via its fields (`comment` for reject,
+ * `target` for publish-request). Phase identity in the registration
+ * tells dispatch + audit which hook fired.
  */
 export type HookHandler<P extends HookPhase = HookPhase> = P extends 'beforeSave'
   ? BeforeSaveHook
@@ -290,7 +337,21 @@ export type HookHandler<P extends HookPhase = HookPhase> = P extends 'beforeSave
             ? BeforeUploadHook
             : P extends 'afterUpload'
               ? AfterUploadHook
-              : never
+              : P extends
+                    | 'beforeSubmitForReview'
+                    | 'beforeApprove'
+                    | 'beforeReject'
+                    | 'beforePublishRequest'
+                    | 'beforePublishApprove'
+                ? BeforeReviewTransitionHook
+                : P extends
+                      | 'afterSubmitForReview'
+                      | 'afterApprove'
+                      | 'afterReject'
+                      | 'afterPublishRequest'
+                      | 'afterPublishApprove'
+                  ? AfterReviewTransitionHook
+                  : never
 
 /**
  * Optional per-registration metadata. Operators / plugin authors
