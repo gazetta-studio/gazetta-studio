@@ -29,8 +29,8 @@ export interface PageRoutesOptions {
   /**
    * Registered hooks. When omitted, dispatch is a no-op (sites
    * without hooks pay zero overhead). Construct via
-   * `new HookRegistry()` + `discoverSiteLocalHooks(...)` in the
-   * admin-api boot path.
+   * `buildHooksRegistry({ contributions })` from
+   * `manifest.admin?.hooks` in the admin-api boot path.
    */
   hooks?: HookRegistry
 }

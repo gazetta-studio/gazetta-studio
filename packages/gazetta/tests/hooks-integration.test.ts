@@ -1,14 +1,14 @@
 /**
  * Cut 4 tests: end-to-end hook firing via createAdminApp.
  *
- * Validates the full stack: HookRegistry → discoverSiteLocalHooks
- * (or programmatic registration) → admin app boot → PUT /api/pages
- * → dispatchBeforeSave + dispatchAfterSave → response includes
- * mutated payload + audit + afterSave hooks observed the result.
+ * Validates the full stack: HookRegistry → factory-contribution
+ * registration (or direct programmatic registration) → admin app
+ * boot → PUT /api/pages → dispatchBeforeSave + dispatchAfterSave
+ * → response includes mutated payload + audit + afterSave hooks
+ * observed the result.
  *
- * Strategy: programmatic registration (skips disk discovery) so
- * test handlers are inlined; the dispatch path through the route
- * handler is exercised end-to-end.
+ * Strategy: programmatic registration so test handlers are inlined;
+ * the dispatch path through the route handler is exercised end-to-end.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { rm, cp } from 'node:fs/promises'

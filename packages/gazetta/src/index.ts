@@ -205,4 +205,29 @@ export {
 } from './config/index.js'
 export type { DiscoveredSite, LoadedProjectConfig } from './config/index.js'
 
+// Hooks — operator-facing types for `admin.hooks` factory contributions
+// (per design-hooks.md "Registration"). Operators write site-local hook
+// factories or import npm-distributed plugins; both return a
+// HookContribution and wire identically through `admin.hooks` in
+// `site.config.ts`. See docs/hooks.md.
+export type {
+  HookContribution,
+  HookEntry,
+  HookHandler,
+  HookOptions,
+  HookPhase,
+  HookScope,
+  HookContext,
+  ReadOnlyStorageProvider,
+  BeforeSaveHook,
+  AfterSaveHook,
+  AfterLoadHook,
+  BeforePublishHook,
+  AfterPublishHook,
+  BeforeUploadHook,
+  AfterUploadHook,
+  BeforeReviewTransitionHook,
+  AfterReviewTransitionHook,
+} from './hooks/index.js'
+
 // Editor — import from 'gazetta/editor' (separate entry point to avoid pulling Tiptap into server builds)
