@@ -530,6 +530,24 @@ export interface SiteManifest {
    * `gazetta.config.ts` and gets its own fresh instance).
    */
   cache?: AdminCache
+  /**
+   * Reserved slot for foundational dimensions that ship behind config
+   * blocks under `admin.*`: auth (this Cut), audit, plugins, hooks,
+   * notifications, offline. Each block is loose-typed at the
+   * SiteManifest layer — the consuming foundation strict-parses its
+   * own block via the matching Zod schema (e.g., `AuthConfigSchema`)
+   * at use time. This keeps SiteManifest stable across foundation
+   * additions; foundations don't need to widen this type each time
+   * a new block ships.
+   */
+  admin?: {
+    auth?: unknown
+    plugins?: unknown
+    hooks?: unknown
+    audit?: unknown
+    notifications?: unknown
+    offline?: unknown
+  }
 }
 
 /**
