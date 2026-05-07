@@ -71,6 +71,19 @@ npx gazetta admin -p 3001
 
 Runs the production CMS admin for content editors. Requires `gazetta build` first.
 
+For team deployments, configure upstream auth in `site.config.ts`. Common self-hosted choice is `forwarded-user` behind oauth2-proxy / Authelia / Caddy `forward_auth`:
+
+```ts
+admin: {
+  auth: {
+    trust: 'forwarded-user',
+    trustedProxies: ['127.0.0.1', '10.0.0.0/8'], // your reverse proxy IPs
+  },
+}
+```
+
+See [`auth.md`](auth.md) for the full trust-mode reference (cloudflare-access, azure-easy-auth, aws-cognito, tailscale, etc.) and the role / capability vocabulary.
+
 ## Options
 
 ```bash
