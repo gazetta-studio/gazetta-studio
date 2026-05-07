@@ -42,6 +42,7 @@ import { historyRoutes } from './routes/history.js'
 import { assetRoutes } from './routes/assets.js'
 import { systemRoutes } from './routes/system.js'
 import { auditRoutes } from './routes/audit.js'
+import { validationRoutes } from './routes/validation.js'
 import { healthRoutes } from './routes/health.js'
 import { HookRegistry, type HookContribution } from '../hooks/index.js'
 
@@ -130,6 +131,14 @@ export interface AdminAppOptions {
    * Tests pass an empty (or pre-populated) registry directly.
    */
   hooks?: HookRegistry
+  /**
+   * Background validation scanner (Cut 2). Constructed by the boot path
+   * via `createValidationScanner({...})` against the resolved source. The
+   * admin app mounts the read-side route + SSE channel against this
+   * instance. When omitted, `/api/validation/issues` returns an empty list
+   * and the SSE channel emits no events.
+   */
+  validationScanner?: import('../validation/scanner.js').ValidationScanner | null
   /**
    * Disable the periodic audit retention pruner. Defaults to false
    * (pruner runs at boot + every 6 hours when audit retention is
@@ -384,8 +393,20 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   )
 
   app.route('/', siteRoutes(resolveSource))
-  app.route('/', pageRoutes(resolveSource, validators, templatesDir, { hooks: opts.hooks }))
-  app.route('/', fragmentRoutes(resolveSource, validators, templatesDir, { hooks: opts.hooks }))
+  app.route(
+    '/',
+    pageRoutes(resolveSource, validators, templatesDir, {
+      hooks: opts.hooks,
+      scanner: opts.validationScanner ?? null,
+    }),
+  )
+  app.route(
+    '/',
+    fragmentRoutes(resolveSource, validators, templatesDir, {
+      hooks: opts.hooks,
+      scanner: opts.validationScanner ?? null,
+    }),
+  )
   app.route('/', templateRoutes(resolveSource, templatesDir, adminDir, opts.production))
   app.route('/', previewRoutes(resolveSource, templatesDir))
   app.route(
@@ -398,6 +419,7 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   app.route('/', assetRoutes(resolveSource, { hooks: opts.hooks }))
   app.route('/', systemRoutes(resolveSource))
   app.route('/', auditRoutes({ providers: auditProviders }))
+  app.route('/', validationRoutes({ scanner: opts.validationScanner ?? null }))
   app.route('/', healthRoutes())
 
   // Periodic cache stats log — fires every 5 minutes against the

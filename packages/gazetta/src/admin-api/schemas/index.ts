@@ -18,6 +18,7 @@
  *   - DELETE /api/assets/:name (AssetRef + 409 AssetInUseResponse)
  *   - GET  /api/system/cache/stats (CacheStats snapshot)
  *   - GET  /api/audit (forensic event query + external-sink links)
+ *   - 409 VALIDATION_FAILED on save handlers + GET /api/validation/issues
  *
  * Add new endpoint modules here as they move to schema-validated contracts.
  */
@@ -35,3 +36,4 @@ export * from './fetch.js'
 export * from './assets.js'
 export * from './system.js'
 export * from './audit.js'
+export * from './validation.js'

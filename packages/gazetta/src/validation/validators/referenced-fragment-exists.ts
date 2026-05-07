@@ -9,6 +9,7 @@ import { manifestComponents } from '../types.js'
  * `"@name"`, checks `site.fragments` for the name. Flags missing.
  */
 export const referencedFragmentExists: Validator = {
+  source: 'gazetta',
   name: 'referenced-fragment-exists',
   stages: ['save-delta', 'background', 'pre-publish', 'cli'] as const,
 
@@ -19,8 +20,7 @@ export const referencedFragmentExists: Validator = {
   async validate(input: ValidatorInput): Promise<Issue[]> {
     const { scope, site } = input
     if (scope.kind !== 'save-delta' && scope.kind !== 'background') return []
-    const manifest = scope.kind === 'save-delta' ? scope.after : null
-    if (!manifest) return []
+    const manifest = scope.kind === 'save-delta' ? scope.after : scope.manifest
 
     const issues: Issue[] = []
     const refs = collectFragmentRefs(manifestComponents(manifest), '')

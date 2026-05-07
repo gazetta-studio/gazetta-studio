@@ -7,6 +7,7 @@ import { useSelectionStore } from '../stores/selection.js'
 import { useEditingStore } from '../stores/editing.js'
 import { useToastStore } from '../stores/toast.js'
 import { usePublishStatusStore } from '../stores/publishStatus.js'
+import { useValidationScannerStore } from '../stores/validationScanner.js'
 import { usePagesApi, useFragmentsApi } from '../composables/api.js'
 import CreatePageDialog from './CreatePageDialog.vue'
 import CreateFragmentDialog from './CreateFragmentDialog.vue'
@@ -27,6 +28,7 @@ const selection = useSelectionStore()
 const editing = useEditingStore()
 const toast = useToastStore()
 const publishStatus = usePublishStatusStore()
+const validationScanner = useValidationScannerStore()
 const pagesApi = usePagesApi()
 const fragmentsApi = useFragmentsApi()
 const selectedKey = ref<string | null>(null)
@@ -49,6 +51,24 @@ function dirtyTitle(): string {
   if (!publishStatus.target) return ''
   if (publishStatus.isFirstPublish) return `Not yet published to ${publishStatus.target}`
   return `Has unpublished changes (${publishStatus.target})`
+}
+
+/**
+ * Map a tree node to the scanner's `itemPath` to look up issue severity.
+ * Cut 2 keys off the default-locale manifest path; locale-variant issues
+ * surface separately when the editor opens a specific locale.
+ */
+function nodeItemPath(node: SiteNode): string {
+  return node.type === 'page' ? `pages/${node.name}/page.json` : `fragments/${node.name}/fragment.json`
+}
+function issueSeverity(node: SiteNode): 'error' | 'warn' | 'info' | null {
+  return validationScanner.severityFor(nodeItemPath(node))
+}
+function issueTitle(node: SiteNode): string {
+  const path = nodeItemPath(node)
+  const issues = validationScanner.issuesFor(path)
+  if (issues.length === 0) return ''
+  return `${issues.length} validation issue${issues.length === 1 ? '' : 's'} — open Site health for details`
 }
 
 // Sync selection when changed externally (e.g. preview link click)
@@ -138,6 +158,10 @@ async function handleDelete(node: SiteNode, e: Event) {
       </span>
       <span v-if="isDirty(node)" class="node-dirty-dot" :title="dirtyTitle()"
         :data-testid="`dirty-${node.type}-${node.name}`" />
+      <span v-if="issueSeverity(node)"
+        :class="['node-issue-dot', `node-issue-${issueSeverity(node)}`]"
+        :title="issueTitle(node)"
+        :data-testid="`issue-${node.type}-${node.name}`" />
       <Button icon="pi pi-trash" text rounded size="small" severity="danger"
         class="node-delete" :data-testid="`delete-${node.type}-${node.name}`"
         :aria-label="`Delete ${node.type} ${node.name}`"
@@ -173,6 +197,10 @@ async function handleDelete(node: SiteNode, e: Event) {
       <FragmentBlastRadius :fragmentName="node.name" compact />
       <span v-if="isDirty(node)" class="node-dirty-dot" :title="dirtyTitle()"
         :data-testid="`dirty-${node.type}-${node.name}`" />
+      <span v-if="issueSeverity(node)"
+        :class="['node-issue-dot', `node-issue-${issueSeverity(node)}`]"
+        :title="issueTitle(node)"
+        :data-testid="`issue-${node.type}-${node.name}`" />
       <Button icon="pi pi-trash" text rounded size="small" severity="danger"
         class="node-delete" :data-testid="`delete-${node.type}-${node.name}`"
         :aria-label="`Delete ${node.type} ${node.name}`"
@@ -211,6 +239,10 @@ async function handleDelete(node: SiteNode, e: Event) {
 .node-item.selected .node-label,
 .node-item:hover .node-label { color: var(--color-fg); }
 .node-dirty-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-warning-fg); flex-shrink: 0; margin-right: 2px; }
+.node-issue-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-right: 2px; }
+.node-issue-error { background: var(--p-red-500); }
+.node-issue-warn { background: var(--p-amber-500); }
+.node-issue-info { background: var(--p-blue-500); }
 .node-delete { opacity: 0; transition: opacity 0.1s; flex-shrink: 0; }
 .node-item:hover .node-delete { opacity: 1; }
 .new-btns { display: flex; gap: 0.5rem; margin-top: 8px; padding: 0 6px; }

@@ -13,6 +13,7 @@ import { manifestComponents } from '../types.js'
  * scope to introduced refs before invoking).
  */
 export const referencedAssetExists: Validator = {
+  source: 'gazetta',
   name: 'referenced-asset-exists',
   stages: ['save-delta', 'background', 'pre-publish', 'cli'] as const,
 
@@ -23,8 +24,7 @@ export const referencedAssetExists: Validator = {
   async validate(input: ValidatorInput): Promise<Issue[]> {
     const { scope, storage } = input
     if (scope.kind !== 'save-delta' && scope.kind !== 'background') return []
-    const manifest = scope.kind === 'save-delta' ? scope.after : null
-    if (!manifest) return []
+    const manifest = scope.kind === 'save-delta' ? scope.after : scope.manifest
 
     const issues: Issue[] = []
     const refs = collectAssetRefs(manifest.content as Record<string, unknown> | undefined, '')

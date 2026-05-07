@@ -15,6 +15,7 @@ import type { Issue, Validator, ValidatorInput } from '../types.js'
  * aren't reachable from each other through @ refs).
  */
 export const circularFragment: Validator = {
+  source: 'gazetta',
   name: 'circular-fragment',
   stages: ['save-delta', 'background', 'pre-publish', 'cli'] as const,
 
@@ -25,9 +26,8 @@ export const circularFragment: Validator = {
   async validate(input: ValidatorInput): Promise<Issue[]> {
     const { scope, site } = input
     if (scope.kind !== 'save-delta' && scope.kind !== 'background') return []
-    const manifest = scope.kind === 'save-delta' ? scope.after : null
-    if (!manifest) return []
     if (scope.item.kind !== 'fragment') return [] // only fragments form cycles
+    const manifest = scope.kind === 'save-delta' ? scope.after : scope.manifest
 
     const fragmentName = scope.item.name
     const fragmentsView = scope.kind === 'save-delta' ? withSubstituted(site, fragmentName, manifest) : site.fragments

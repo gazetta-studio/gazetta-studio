@@ -51,7 +51,16 @@ export type ValidatorScope =
       /** The incoming manifest being saved. */
       after: PageManifest | FragmentManifest
     }
-  | { kind: 'background'; item: SavedItem }
+  | {
+      kind: 'background'
+      item: SavedItem
+      /**
+       * The current manifest read by the scanner. Pre-loaded so validators
+       * stay pure functions over (manifest, site) — no per-validator storage
+       * reads.
+       */
+      manifest: PageManifest | FragmentManifest
+    }
   | { kind: 'pre-publish'; items: readonly SavedItem[] }
   | { kind: 'cli' }
 
@@ -93,6 +102,10 @@ export interface ValidatorInput {
 /**
  * The validator contract. One implementation per validation rule.
  *
+ * - `source` — package identity for diagnostics + audit + plugin-promotion.
+ *   In-tree validators use `'gazetta'`; npm-distributed validators use their
+ *   package name (`'@example/link-checker'`); site-local factories use
+ *   `'site-local:{name}'`. Per design-plugins.md "source convention" + ADR-0009.
  * - `name` — stable identifier referenced from issues and registry lookup.
  * - `stages` — which lifecycle stages this validator runs at. Save-delta-only
  *   validators (most ref-existence checks) declare `['save-delta', 'background', 'pre-publish', 'cli']`
@@ -104,6 +117,7 @@ export interface ValidatorInput {
  *   throws are reserved for infrastructure errors (storage failure, etc).
  */
 export interface Validator {
+  readonly source: string
   readonly name: string
   readonly stages: readonly ValidationStage[]
   defaultSeverity(stage: ValidationStage): Severity

@@ -5,6 +5,7 @@ import { useThemeStore } from './stores/theme.js'
 import { useToastStore } from './stores/toast.js'
 import { useActiveTargetStore } from './stores/activeTarget.js'
 import { useSyncStatusStore } from './stores/syncStatus.js'
+import { useValidationScannerStore } from './stores/validationScanner.js'
 import { setActiveTargetProvider } from './api/client.js'
 import { useWorkspaceChrome } from './composables/useWorkspaceChrome.js'
 import { useAssetLibraryShortcut } from './composables/useAssetLibraryShortcut.js'
@@ -21,6 +22,7 @@ const theme = useThemeStore()
 const toast = useToastStore()
 const activeTarget = useActiveTargetStore()
 const syncStatus = useSyncStatusStore()
+const validationScanner = useValidationScannerStore()
 
 // Apply workspace-wide chrome when the active target is an editable
 // production target. Kept out of App.vue's inline setup so the rule has
@@ -71,6 +73,11 @@ watch(
 onMounted(() => {
   theme.init()
   activeTarget.load()
+  // Background validation scanner: fetch current issues + subscribe to
+  // SSE updates so site-tree dots + Site Health drawer reflect the
+  // scanner's state without per-component polling.
+  void validationScanner.refresh()
+  validationScanner.subscribe()
 })
 </script>
 
