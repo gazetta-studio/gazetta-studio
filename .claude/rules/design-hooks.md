@@ -276,92 +276,160 @@ Site hooks run last (highest priority number) so they see the result of plugin h
 
 `action: 'hook-fired'` and `outcome: 'hook-cancelled'` are closed-enum extensions to the audit `action` and `outcome` enums respectively. Multiple hooks per operation = multiple events; correlation via `requestId`.
 
-## Discovery (Q4 locked)
+## Registration (Q4 locked — factory contributions only)
 
-Hook handlers come from two sources:
+Hooks register through one path: **factory functions returning `HookContribution`**, invoked in `site.config.ts`'s `admin.hooks` array. Both site-local hooks (operator's own code in the project) AND npm-distributed plugins use the same shape.
 
-1. **Site-local** — files in `admin/hooks/*.ts` (the common case for site-specific logic)
-2. **Plugin-supplied** — registered via the plugin contract (per `design-plugins.md`; for distributable cross-site logic)
+Locked per the grilling that produced this design:
 
-Both register against the same priority-sorted dispatch. Both run with the same lifecycle, same `HookContext`, same audit shape.
+- **No file-discovery walker.** Earlier drafts proposed `admin/hooks/*.ts` walked at boot via jiti. Removed: TypeScript imports + the typed `HookContribution` return shape do the work without conventions, magic file names, or a separate code path. One mental model.
+- **No plugin foundation runtime.** Earlier drafts proposed `api.registerHook(...)` registration via a plugin loader. Removed: the factory pattern (locked in `design-provider-config.md` for providers) generalizes to hooks; plugin authors export factories, operators import + invoke. Same shape in both directions.
+- **One blessed pattern for both site-local and npm-distributed.** Operators wanting a quick site-local hook write a function in any `.ts` file and import it. Plugin authors publish to npm. Both produce a `HookContribution`; both wire identically in `admin.hooks`.
 
-**Site-local layout**:
-
-```
-my-project/
-  admin/
-    hooks/                        # NEW
-      auto-slugify.ts             # one file per hook
-      cdn-purge.ts
-      audit-mirror.ts
-    editors/                      # existing
-    fields/                       # existing
-  templates/                      # existing
-  sites/
-    main/
-      site.config.ts
-      pages/
-      fragments/
-```
-
-**Hook file shape**:
+### `HookContribution` shape
 
 ```ts
-// admin/hooks/auto-slugify.ts
-import type { BeforeSaveHook } from 'gazetta/hooks'
+interface HookEntry {
+  phase: HookPhase                              // beforeSave, afterPublish, etc.
+  handler: HookHandler                          // the function that runs
+  options?: HookOptions                         // priority, name, timeout
+}
 
-export const beforeSave: BeforeSaveHook<PageManifest> = async (scope, payload, ctx) => {
-  if (scope.kind !== 'page') return payload
-  if (payload.metadata.slug) return payload
+interface HookContribution {
+  source: string                                // package identity, e.g. '@example/cdn-purge'
+                                                // or 'site-local:auto-slugify'
+  hooks: ReadonlyArray<HookEntry>               // one or more handlers contributed
+}
+```
+
+`source` is required — the audit log records it per firing; defaulting it to anything would lie when the contribution actually came from a named package. Plugin authors writing distributables always know their package name; declaring it is one line.
+
+`hooks` is an array because one package may contribute multiple handlers across phases (e.g., a CDN-purge plugin wires both `afterSave` and `afterPublish`). Bundling them in one factory call keeps shared closure state natural.
+
+### Site-local hook (operator's own code)
+
+```ts
+// my-project/admin/hooks/auto-slugify.ts
+// (path is operator preference; the system imports nothing automatically)
+import type { HookContribution } from 'gazetta'
+
+export function autoSlugify(): HookContribution {
   return {
-    ...payload,
-    metadata: { ...payload.metadata, slug: slugify(payload.metadata.title ?? '') }
+    source: 'site-local:auto-slugify',
+    hooks: [
+      {
+        phase: 'beforeSave',
+        handler: async (scope, payload, _ctx) => {
+          if (scope.kind !== 'page') return payload
+          const p = payload as { metadata?: { slug?: string; title?: string } }
+          if (p.metadata?.slug) return payload
+          const title = p.metadata?.title ?? ''
+          return { ...p, metadata: { ...(p.metadata ?? {}), slug: slugify(title) } }
+        },
+        options: { name: 'auto-slugify' },
+      },
+    ],
   }
 }
-
-// Optional metadata
-export const meta = {
-  name: 'auto-slugify',
-  priority: 1000,
-  timeout: 1000,
-}
 ```
 
-One file CAN export multiple phases (e.g., a CDN-purge hook exports `afterPublish` AND `afterSave`).
-
-**Discovery mechanism** (admin boot):
-1. Walk `admin/hooks/*.{ts,js}`
-2. Dynamic-import each file
-3. Extract named exports matching hook phase names
-4. Apply optional `meta` for name / priority / timeout
-5. Register against the appropriate phase
-
-**Plugin-supplied registration** (per pending `design-plugins.md`):
+Operator wires it in `site.config.ts`:
 
 ```ts
-// In a plugin
-import { registerHook } from 'gazetta/plugins'
+import { defineSite } from 'gazetta'
+import { autoSlugify } from './admin/hooks/auto-slugify'
 
-export default function plugin(api) {
-  api.registerHook('beforePublish', async (target, items, ctx) => {
-    // ...
-  }, { name: 'cdn-purge', priority: 200 })
+export default defineSite({
+  admin: {
+    hooks: [autoSlugify()],
+  },
+})
+```
+
+That's the whole pattern — write the function, import it, include in the array.
+
+### npm-distributed plugin
+
+```ts
+// node_modules/@example/cdn-purge/index.ts
+import type { HookContribution } from 'gazetta'
+
+interface CdnPurgeOptions { zone: string; apiToken: string }
+
+export default function cdnPurge(opts: CdnPurgeOptions): HookContribution {
+  return {
+    source: '@example/cdn-purge',
+    hooks: [
+      {
+        phase: 'afterSave',
+        handler: async (scope, _result, _ctx) => { /* invalidate one item */ },
+        options: { name: 'cdn-purge-on-save' },
+      },
+      {
+        phase: 'afterPublish',
+        handler: async (target, result, _ctx) => { /* bulk-purge published */ },
+        options: { name: 'cdn-purge-on-publish' },
+      },
+    ],
+  }
 }
 ```
 
-The exact plugin API surface is `design-plugins.md`'s concern. Hooks design pass commits: plugin-registered hooks land in the same dispatch as site-local hooks (priority-sorted, same lifecycle, same audit).
+Operator imports + invokes in `site.config.ts` exactly like the site-local case:
 
-**Naming + namespacing**:
-- Site-local hooks: name = file basename or `meta.name` (e.g., `'auto-slugify'`)
-- Plugin-supplied hooks: name = `@plugin-name:hookName` (e.g., `'@gazetta/cdn-purge:purge'`)
+```ts
+import { defineSite } from 'gazetta'
+import cdnPurge from '@example/cdn-purge'
+import { autoSlugify } from './admin/hooks/auto-slugify'
 
-Audit `metadata.hookName` carries the namespaced form. Forensic queries can filter by namespace pattern. No name collisions because namespacing structurally differs.
+export default defineSite({
+  admin: {
+    hooks: [
+      autoSlugify(),
+      cdnPurge({ zone: process.env.CF_ZONE!, apiToken: process.env.CF_TOKEN! }),
+    ],
+  },
+})
+```
 
-**Trust posture**:
-- Site-local hooks: operator's own code; trusted as the operator
-- Plugin-supplied hooks: third-party npm code; full Node access per `design-plugins.md` stub locks ("npm packages have no sandbox — accept and document")
-- Both run with the triggering principal's capabilities by default
-- Plugin-supplied hooks needing elevated access declare `serviceAccount` capabilities (operator-approved per-plugin in `site.config.ts`); deferred to `design-plugins.md`
+### Boot wiring
+
+```ts
+const registry = await buildHooksRegistry({
+  contributions: manifest.admin?.hooks ?? [],
+})
+```
+
+Internal flow:
+1. `new HookRegistry()`
+2. For each contribution → for each `hooks[i]` entry → `registry.register(entry.phase, entry.handler, entry.options, contribution.source)`
+3. `registry.seal()`
+
+That's it.
+
+### Naming + audit metadata
+
+Per-handler `options.name` is the diagnostic identifier (defaults to the contribution's `source` when omitted). Audit `metadata.hookName` carries the name; `metadata.source` carries the package identity. Forensic queries filter by either.
+
+### Trust posture
+
+- All hooks run as operator-authored code: site-local hooks ARE operator code; npm packages run with full Node access per the locked plugins-deferred-indefinitely posture in `design-provider-config.md` ("npm packages have no sandbox — accept and document").
+- Hooks run with the triggering principal's capabilities by default. Service-account elevation is reserved for a future plugin foundation if/when it ships.
+
+### Duplicate sources allowed
+
+Operators can invoke the same factory twice with different config:
+
+```ts
+admin: {
+  hooks: [
+    cdnPurge({ region: 'us', ... }),
+    cdnPurge({ region: 'eu', ... }),
+  ],
+}
+```
+
+Both register; both produce `source: '@example/cdn-purge'` audit events. Per-handler `options.name` (e.g., `'cdn-purge-us'` vs `'cdn-purge-eu'`) distinguishes them in diagnostics.
 
 **Hot-reload (deferred)**: v1 hook changes require admin restart. Site-local file watcher hot-reload reserved when v2 plugin hot-reload lands.
 
@@ -392,7 +460,7 @@ How hooks compose with each of the other 12 foundational dimensions plus the mul
 - Hook state: handlers MUST NOT keep state between firings within a process (state would diverge across instances). State that persists goes through storage like any other write.
 - `ctx.storage` is `ReadOnlyStorageProvider` — hooks can read from storage but cannot write. Writes happen via the operation that fired the hook (mutating returned payload).
 - Plugin-supplied hooks inherit these rules.
-- Discovery is per-instance: each instance walks `admin/hooks/` at boot; same files = same hooks across all instances. Plugin packages in `node_modules` deployed identically.
+- Registration is per-instance: each instance evaluates `site.config.ts` at boot, invoking the same factory contributions in `admin.hooks`. Same config = same hooks across all instances. npm packages in `node_modules` deployed identically.
 
 ### Scale (#1)
 - Per-hook timeout default 5s caps individual hook latency.
@@ -433,9 +501,9 @@ How hooks compose with each of the other 12 foundational dimensions plus the mul
 - Validators are pure functions per `design-validation.md`; hooks are observers/transformers. Distinct extension surfaces.
 
 ### Plugin (#10)
-- Hooks are an extension surface registered via the plugin contract (per `design-plugins.md`'s upcoming pass).
-- Plugin-supplied hooks land in the same priority-sorted dispatch as site-local hooks.
-- Plugin-promotion path: site-local hook (file in `admin/hooks/`) → npm package + plugin registration. Same handler signature; only registration differs.
+- Hooks register through factory contributions (the same pattern locked in `design-provider-config.md` for providers). Plugin authors export a factory that returns `HookContribution`; site-local hooks export the same shape from operator-owned files.
+- Plugin-supplied and site-local hooks land in the same priority-sorted dispatch — `source` discriminates audit metadata, not dispatch.
+- Plugin-promotion path: site-local factory (operator's own `.ts` file) → npm package exporting the same factory. Operator changes the import path; nothing else.
 
 ### Cache (#11)
 - Hook results not cached. Each operation fires hooks fresh.

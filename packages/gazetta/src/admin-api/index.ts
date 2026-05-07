@@ -43,25 +43,52 @@ import { assetRoutes } from './routes/assets.js'
 import { systemRoutes } from './routes/system.js'
 import { auditRoutes } from './routes/audit.js'
 import { healthRoutes } from './routes/health.js'
-import { discoverSiteLocalHooks, HookRegistry } from '../hooks/index.js'
+import { HookRegistry, type HookContribution } from '../hooks/index.js'
+
+export interface BuildHooksRegistryOptions {
+  /**
+   * Factory contributions from `site.config.ts admin.hooks`.
+   * Each contribution carries a `source` + array of phase /
+   * handler / options entries.
+   *
+   * Default per-handler priority is **100** (factory band) when
+   * the contribution doesn't specify one explicitly. Site-local
+   * factories that want to run last can pass `priority: 1000`
+   * via per-entry options.
+   */
+  contributions?: ReadonlyArray<HookContribution>
+}
 
 /**
- * Convenience boot helper: construct a HookRegistry, run site-local
- * discovery from `{adminDir}/hooks`, seal the registry, return it.
- * The CLI calls this before constructing the admin app; tests
- * construct registries directly.
+ * Convenience boot helper: construct a HookRegistry, populate it
+ * from `admin.hooks` factory contributions, seal it, return it.
  *
- * Per design-hooks.md "Discovery (Q4 locked)" — once discovery
- * resolves the registry seals; subsequent registrations throw
- * RegistrationAfterInitError. Cut 9 will extend this with plugin-
- * supplied registration BEFORE seal.
+ * Per design-hooks.md "Registration (Q4 locked — factory
+ * contributions only)". Site-local hooks AND npm-distributed
+ * plugins both produce `HookContribution` from a factory call;
+ * both wire identically through `admin.hooks` in `site.config.ts`.
+ *
+ * Sequence:
+ *   1. For each contribution → for each `hooks[i]` entry →
+ *      register with the contribution's source identity.
+ *   2. Seal — subsequent registrations throw
+ *      RegistrationAfterInitError.
+ *
+ * `contributions` is optional; an empty registry is a valid
+ * result for sites without hooks.
  */
-export async function buildHooksRegistry(adminDir: string): Promise<HookRegistry> {
+export async function buildHooksRegistry(opts: BuildHooksRegistryOptions = {}): Promise<HookRegistry> {
   const registry = new HookRegistry()
-  await discoverSiteLocalHooks({
-    hooksDir: join(adminDir, 'hooks'),
-    registry,
-  })
+  if (opts.contributions) {
+    for (const contribution of opts.contributions) {
+      for (const entry of contribution.hooks) {
+        // Default factory-supplied hook priority to the factory
+        // band (100). Per-entry options.priority overrides.
+        const options = { priority: 100, ...(entry.options ?? {}) }
+        registry.register(entry.phase, entry.handler, options, contribution.source)
+      }
+    }
+  }
   registry.seal()
   return registry
 }
@@ -94,15 +121,13 @@ export interface AdminAppOptions {
    */
   disableCacheStatsLogger?: boolean
   /**
-   * Pre-built hook registry. Construct with `new HookRegistry()`,
-   * populate via `discoverSiteLocalHooks(...)` and any plugin
-   * registrations, then seal with `registry.seal()` before passing
-   * here. When omitted, hook dispatch is a no-op (sites without
-   * hooks pay zero overhead).
+   * Pre-built hook registry. Construct via
+   * `buildHooksRegistry({ contributions })` against
+   * `manifest.admin?.hooks` from the loaded site config, then pass
+   * the sealed registry here. When omitted, hook dispatch is a
+   * no-op (sites without hooks pay zero overhead).
    *
-   * Discovery is async; the CLI awaits it before constructing the
-   * admin app. Tests pass an empty (or pre-populated) registry
-   * directly.
+   * Tests pass an empty (or pre-populated) registry directly.
    */
   hooks?: HookRegistry
   /**

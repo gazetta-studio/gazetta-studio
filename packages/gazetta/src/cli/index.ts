@@ -47,6 +47,25 @@ async function loadSiteManifestForCli(siteDir: string): Promise<SiteManifest | n
   return siteConfigToManifest(loaded.config)
 }
 
+/**
+ * Read `admin.hooks` factory contributions from a site manifest.
+ *
+ * The manifest types `admin?` as a loose record (`Record<string, unknown>`)
+ * to keep `SiteManifest` stable across foundation additions; each foundation
+ * narrow-types its own block at the consumption site. For hooks the runtime
+ * shape is `ReadonlyArray<HookContribution>` (per design-hooks.md
+ * "Registration"); we accept it as `unknown` here and cast at the boundary.
+ *
+ * Returns undefined when the field is absent or empty.
+ */
+function readHookContributions(
+  manifest: SiteManifest | null,
+): ReadonlyArray<import('../hooks/index.js').HookContribution> | undefined {
+  const hooks = manifest?.admin?.hooks
+  if (!Array.isArray(hooks) || hooks.length === 0) return undefined
+  return hooks as ReadonlyArray<import('../hooks/index.js').HookContribution>
+}
+
 // Served to /admin/* requests during dev-server startup before Vite middleware
 // is attached. Polls /admin/ping every 500ms and reloads when the admin becomes
 // reachable. See #132 and cli/index.ts for why this is needed.
@@ -1106,7 +1125,18 @@ async function runAdmin(siteDir: string, port: number) {
 
   const { buildSourceContext } = await import('./bootstrap.js')
   const { source, targetConfigs } = await buildSourceContext({ projectSiteDir: siteDir })
-  await setupProductionMode(app, source, siteDir, builtAdminDir, templatesDir, adminDir, targetConfigs)
+  const manifest = await loadSiteManifestForCli(siteDir)
+  const hookContributions = readHookContributions(manifest)
+  await setupProductionMode(
+    app,
+    source,
+    siteDir,
+    builtAdminDir,
+    templatesDir,
+    adminDir,
+    targetConfigs,
+    hookContributions,
+  )
 
   // SPA fallback for non-API admin routes
   app.get('*', ctx => {
@@ -1652,12 +1682,22 @@ async function runDev(siteDir: string, port: number) {
         invalidateContentCache(): Promise<void>
       })
     | null = null
+  const hookContributions = readHookContributions(manifest)
   if (isDevMode) {
     // Dev mode: mount CMS API inline (same process = shared template cache)
-    cmsApp = await setupCmsApi(app, source, siteDir, templatesDir, adminDir, targetConfigs)
+    cmsApp = await setupCmsApi(app, source, siteDir, templatesDir, adminDir, targetConfigs, hookContributions)
   } else if (cmsStaticDir) {
     // Production mode: inline CMS API + static files
-    cmsApp = await setupProductionMode(app, source, siteDir, cmsStaticDir, templatesDir, adminDir, targetConfigs)
+    cmsApp = await setupProductionMode(
+      app,
+      source,
+      siteDir,
+      cmsStaticDir,
+      templatesDir,
+      adminDir,
+      targetConfigs,
+      hookContributions,
+    )
   }
 
   // ---- 404 ----
@@ -1954,16 +1994,18 @@ async function setupCmsApi(
   templatesDir: string,
   adminDir: string,
   targetConfigs: Record<string, import('../types.js').TargetConfig> | undefined,
+  contributions: ReadonlyArray<import('../hooks/index.js').HookContribution> | undefined,
 ): Promise<
   Hono & {
     invalidateTemplatesCache(): void
     invalidateContentCache(): Promise<void>
   }
 > {
-  // Discover + seal site-local hooks from admin/hooks/ before
-  // wiring the admin app. Hooks are an opt-in extension surface;
-  // sites without admin/hooks/ get an empty registry (no overhead).
-  const hooks = await buildHooksRegistry(adminDir)
+  // Build + seal the hook registry from `admin.hooks` factory
+  // contributions before wiring the admin app. Hooks are an opt-in
+  // extension surface; sites without `admin.hooks` get an empty
+  // registry (no overhead).
+  const hooks = await buildHooksRegistry({ contributions })
   const cmsApp = createAdminApp({ source, siteDir, templatesDir, adminDir, targetConfigs, hooks })
   mountUserThemeRoute(cmsApp, adminDir)
   app.route('/admin', cmsApp)
@@ -1979,10 +2021,11 @@ async function setupProductionMode(
   templatesDir: string,
   adminDir: string,
   targetConfigs: Record<string, import('../types.js').TargetConfig> | undefined,
+  contributions: ReadonlyArray<import('../hooks/index.js').HookContribution> | undefined,
 ) {
-  // Same hook discovery as dev mode — `gazetta serve` honors
-  // site-local hooks identically.
-  const hooks = await buildHooksRegistry(adminDir)
+  // Same shape as dev mode — `gazetta serve` reads `admin.hooks`
+  // factory contributions from the same site config.
+  const hooks = await buildHooksRegistry({ contributions })
   // Mount CMS API inline at /admin (production mode — bundled editors/fields)
   const cmsApp = createAdminApp({
     source,
