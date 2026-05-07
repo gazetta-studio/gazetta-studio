@@ -196,16 +196,19 @@ The function or module that performs Composition. `resolveComponent` and `resolv
 ### Extension surfaces and providers
 
 **Extension surface**:
-A typed interface defining a category of pluggable functionality. Gazetta has 12: Storage, Cache, Audit, AltText (AI), Transform Adapter, Deploy Adapter, Validator, AuthIdentity, Hook, Admin Editor, Admin Field, Notification. Each surface has its own interface and per-surface conventions.
+A typed interface defining a category of pluggable functionality. Gazetta has 12: Storage, Cache, Audit, AltText (AI), Transform Adapter, Deploy Adapter, Validator, AuthIdentity, Hook, Admin Editor, Admin Field, Notification. Each surface has its own interface and per-surface conventions; operators reach a surface either by assigning a constructed Provider instance to a config field (Storage, Cache, AltText, Transform, etc., per ADR-0008) or by adding a Contribution to a typed array under `admin.{surface}` (`admin.hooks`, `admin.validators`, `admin.routes`, per ADR-0009).
 _Avoid_: Plugin slot, Extension point, Hook (collides — Hook is one specific surface).
 
 **Provider**:
-A single implementation of an Extension Surface. `MemoryCache` and `RedisCache` are Providers of the Cache surface; `R2Storage` and `AzureBlobStorage` are Providers of the Storage surface. Operators select Providers via `site.config.ts`; v1 ships reference Providers in-tree.
-_Avoid_: Plugin (overloaded — a Plugin contains Providers), Backend (too generic), Adapter (use only when matching the term-of-art for the surface, e.g., Transform Adapter, Deploy Adapter).
+A single implementation of an Extension Surface. `MemoryCache` and `RedisCache` are Providers of the Cache surface; `R2Storage` and `AzureBlobStorage` are Providers of the Storage surface. Operators select Providers via factory calls in `site.config.ts` (e.g., `cache: memoryCache({...})`); v1 ships reference Providers in-tree. Provider authors satisfy the eight Universal Provider Requirements from ADR-0004 (preserved across ADR-0008 and ADR-0009 supersessions).
+_Avoid_: Plugin (the npm distribution unit, not the runtime construct), Backend (too generic), Adapter (use only when matching the term-of-art for the surface, e.g., Transform Adapter, Deploy Adapter).
+
+**Contribution**:
+What a factory function returns when its target surface registers via array (rather than via a Provider field). Each surface has its own contribution shape: `HookContribution` (for `admin.hooks`), `Validator` (for `admin.validators` — the `Validator` interface IS its own contribution shape), `RouteContribution` (for `admin.routes`). All contribution shapes carry a `source: string` field for diagnostics + audit. Per ADR-0009, contributions replace the locked-design's `PluginAPI` register methods.
 
 **Plugin**:
-The unifying contract for discovery, loading, lifecycle, and composition of Providers. Plugins implement one or more Extension Surfaces. v1 plugins are in-tree implementations; v2 supports npm-packaged Providers via the plugin discovery mechanism. The Plugin contract lives in `design-plugins.md`.
-_Avoid_: Provider (narrower — a Plugin contains Providers), Extension (too generic).
+An npm package distributing one or more factory functions that return contributions for Gazetta extension surfaces. A plugin can ship hook factories (returning `HookContribution`), validator factories (returning `Validator`), route factories (returning `RouteContribution`), provider factories (returning `StorageProvider` / `AdminCache` / `AltTextAdapter` / etc.), or any combination. The operator imports each factory and invokes it inline in `site.config.ts`. Per ADR-0009, plugins have no runtime shape — there is no `Plugin` interface, no `init(api)` lifecycle, no `dispose()`. Each factory's output composes via its surface's contribution-array semantics (priority for hooks, registry-merge for validators, Hono-mount for routes) or by direct field assignment (Provider instances).
+_Avoid_: Provider (narrower — one factory's output, not the whole package), Extension (too generic), runtime contract (there isn't one).
 
 ### Identity, capabilities, and trust
 
