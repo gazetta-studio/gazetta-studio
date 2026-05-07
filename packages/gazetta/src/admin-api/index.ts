@@ -363,7 +363,10 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   app.route('/', fragmentRoutes(resolveSource, validators, templatesDir, { hooks: opts.hooks }))
   app.route('/', templateRoutes(resolveSource, templatesDir, adminDir, opts.production))
   app.route('/', previewRoutes(resolveSource, templatesDir))
-  app.route('/', publishRoutes(resolveSource, opts.targets, opts.targetConfigs, templatesDir, scan))
+  app.route(
+    '/',
+    publishRoutes(resolveSource, opts.targets, opts.targetConfigs, templatesDir, scan, { hooks: opts.hooks }),
+  )
   app.route('/', compareRoutes(resolveSource, opts.targets, opts.targetConfigs, templatesDir, scan))
   app.route('/', fieldRoutes(resolveSource, adminDir))
   app.route('/', historyRoutes(resolveSource, opts.targets, opts.targetConfigs))
