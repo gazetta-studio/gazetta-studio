@@ -28,6 +28,16 @@ import { recordWrite, type WrittenItem } from '../../history-recorder.js'
 import { publishAssets } from '../../assets/publish.js'
 import { requireCapability } from '../middleware/capability.js'
 import type { AuditEnv } from '../middleware/audit.js'
+import {
+  buildHookContext,
+  dispatchAfterPublish,
+  dispatchBeforePublish,
+  HookCancellation,
+  HookTimeout,
+  type HookRegistry,
+  type PublishHookResult,
+  type PublishItem,
+} from '../../hooks/index.js'
 
 /**
  * Progress events streamed by runPublish. Consumed both by the SSE route
@@ -42,6 +52,10 @@ export type PublishProgress =
   | { kind: 'done'; results: PublishResult[] }
   | { kind: 'fatal'; error: string; invalidTemplates?: { name: string; errors: string[] }[] }
 
+export interface PublishRoutesOptions {
+  hooks?: HookRegistry
+}
+
 export function publishRoutes(
   resolve: SourceContextResolver,
   preInitTargets?: Map<string, StorageProvider>,
@@ -51,9 +65,31 @@ export function publishRoutes(
   // clears the cache via its template file watcher. Default: fresh scan
   // on every call (used by the CLI and tests).
   scanTemplatesInjected?: (templatesDir: string, projectRoot: string) => Promise<TemplateInfo[]>,
+  opts: PublishRoutesOptions = {},
 ) {
   const scan = scanTemplatesInjected ?? scanTemplates
+  const hooks = opts.hooks
   const app = new Hono<AuditEnv>()
+
+  /**
+   * Categorize an item path into the hook payload shape.
+   * Items arrive as e.g. `pages/home`, `fragments/header`,
+   * `assets/hero`. Hooks see kind + name + path; if the prefix
+   * doesn't match, default to 'asset' (covers loose path forms).
+   */
+  function toPublishItem(itemPath: string): PublishItem {
+    if (itemPath.startsWith('pages/')) {
+      return { kind: 'page', name: itemPath.slice('pages/'.length), path: itemPath }
+    }
+    if (itemPath.startsWith('fragments/')) {
+      return { kind: 'fragment', name: itemPath.slice('fragments/'.length), path: itemPath }
+    }
+    return {
+      kind: 'asset',
+      name: itemPath.startsWith('assets/') ? itemPath.slice('assets/'.length) : itemPath,
+      path: itemPath,
+    }
+  }
 
   // Background target initialization — lazy, needs the resolved source's
   // projectSiteDir to resolve filesystem target paths. We call resolve()
@@ -530,9 +566,55 @@ export function publishRoutes(
   // environment field.
   app.post('/api/publish', requireCapability('publish:non-production'), async c => {
     const body = (await c.req.json()) as { items: string[]; targets: string[]; source?: string }
+
+    // beforePublish hooks per design-hooks.md "Publish lifecycle".
+    // Hooks see the requested items + active target; can mutate
+    // the item set (drop / reorder / extend) or throw to cancel
+    // the operation. One dispatch per target — operators wanting
+    // per-target item filtering branch on `target` inside their
+    // handler.
+    const hookCtx = hooks
+      ? buildHookContext({
+          principal: c.var.principal,
+          storage: (await resolve(body.source)).storage,
+          requestId: c.req.header('x-request-id') ?? crypto.randomUUID(),
+          site: { name: undefined },
+        })
+      : null
+    let finalItems = body.items
+    if (hooks && hookCtx) {
+      try {
+        const inputItems = body.items.map(toPublishItem)
+        // Dispatch once per target. Cancellation by any handler
+        // aborts the entire publish (multi-target).
+        let mutated: ReadonlyArray<PublishItem> = inputItems
+        for (const target of body.targets) {
+          mutated = await dispatchBeforePublish(hooks, target, mutated, hookCtx)
+        }
+        finalItems = mutated.map(i => i.path)
+      } catch (err) {
+        if (err instanceof HookCancellation || err instanceof HookTimeout) {
+          await c.var.audit.record({
+            action: 'publish',
+            outcome: 'forbidden',
+            scope: { kind: 'site' },
+            metadata: {
+              items: body.items,
+              targets: body.targets,
+              source: body.source,
+              hookCancelled: err instanceof HookCancellation ? err.hookName : undefined,
+              hookTimeout: err instanceof HookTimeout ? err.hookName : undefined,
+            },
+          })
+          return c.json({ code: 'HOOK_CANCELLED' as const, hook: err.hookName, reason: err.message }, 409)
+        }
+        throw err
+      }
+    }
+
     let results: PublishResult[] = []
     let fatal: PublishProgress | null = null
-    for await (const ev of runPublish(body.items, body.targets, body.source)) {
+    for await (const ev of runPublish(finalItems, body.targets, body.source)) {
       if (ev.kind === 'fatal') fatal = ev
       else if (ev.kind === 'done') results = ev.results
     }
@@ -551,17 +633,74 @@ export function publishRoutes(
       action: 'publish',
       outcome: 'success',
       scope: { kind: 'site' },
-      metadata: { items: body.items, targets: body.targets, source: body.source },
+      metadata: { items: finalItems, targets: body.targets, source: body.source },
     })
+
+    // afterPublish hooks per design-hooks.md "Publish lifecycle"
+    // step 5. Observational; failures logged. One dispatch per
+    // target with that target's per-target result.
+    if (hooks && hookCtx) {
+      const finalPublishItems = finalItems.map(toPublishItem)
+      for (const r of results) {
+        const hookResult: PublishHookResult = {
+          target: r.target,
+          itemsPublished: r.success ? finalPublishItems : [],
+          itemsFailed: r.success ? [] : finalPublishItems.map(item => ({ item, reason: r.error ?? 'unknown' })),
+        }
+        await dispatchAfterPublish(hooks, r.target, hookResult, hookCtx)
+      }
+    }
+
     return c.json({ results }, allSuccess ? 200 : 207)
   })
 
   app.post('/api/publish/stream', requireCapability('publish:non-production'), async c => {
     const body = (await c.req.json()) as { items: string[]; targets: string[]; source?: string }
+
+    // beforePublish hooks fire BEFORE the SSE stream opens — a
+    // cancellation surfaces as a 409 (synchronous) rather than as
+    // an SSE 'fatal' event, matching the sync /api/publish path.
+    const hookCtx = hooks
+      ? buildHookContext({
+          principal: c.var.principal,
+          storage: (await resolve(body.source)).storage,
+          requestId: c.req.header('x-request-id') ?? crypto.randomUUID(),
+          site: { name: undefined },
+        })
+      : null
+    let finalItems = body.items
+    if (hooks && hookCtx) {
+      try {
+        let mutated: ReadonlyArray<PublishItem> = body.items.map(toPublishItem)
+        for (const target of body.targets) {
+          mutated = await dispatchBeforePublish(hooks, target, mutated, hookCtx)
+        }
+        finalItems = mutated.map(i => i.path)
+      } catch (err) {
+        if (err instanceof HookCancellation || err instanceof HookTimeout) {
+          await c.var.audit.record({
+            action: 'publish',
+            outcome: 'forbidden',
+            scope: { kind: 'site' },
+            metadata: {
+              items: body.items,
+              targets: body.targets,
+              source: body.source,
+              hookCancelled: err instanceof HookCancellation ? err.hookName : undefined,
+              hookTimeout: err instanceof HookTimeout ? err.hookName : undefined,
+            },
+          })
+          return c.json({ code: 'HOOK_CANCELLED' as const, hook: err.hookName, reason: err.message }, 409)
+        }
+        throw err
+      }
+    }
+
     return streamSSE(c, async stream => {
       let recordedSuccess = false
+      const collectedResults: PublishResult[] = []
       try {
-        for await (const ev of runPublish(body.items, body.targets, body.source)) {
+        for await (const ev of runPublish(finalItems, body.targets, body.source)) {
           if (stream.aborted) return
           await stream.writeSSE({ event: ev.kind, data: JSON.stringify(ev) })
           if (ev.kind === 'done') {
@@ -571,9 +710,10 @@ export function publishRoutes(
               action: 'publish',
               outcome: 'success',
               scope: { kind: 'site' },
-              metadata: { items: body.items, targets: body.targets, source: body.source },
+              metadata: { items: finalItems, targets: body.targets, source: body.source },
             })
             recordedSuccess = true
+            collectedResults.push(...ev.results)
           }
         }
       } catch (err) {
@@ -582,6 +722,20 @@ export function publishRoutes(
             event: 'fatal',
             data: JSON.stringify({ kind: 'fatal', error: (err as Error).message }),
           })
+        }
+      }
+      // afterPublish hooks fire after the stream's `done` event —
+      // observational; failures logged via ctx.log without
+      // affecting the already-streamed response.
+      if (hooks && hookCtx && recordedSuccess) {
+        const finalPublishItems = finalItems.map(toPublishItem)
+        for (const r of collectedResults) {
+          const hookResult: PublishHookResult = {
+            target: r.target,
+            itemsPublished: r.success ? finalPublishItems : [],
+            itemsFailed: r.success ? [] : finalPublishItems.map(item => ({ item, reason: r.error ?? 'unknown' })),
+          }
+          await dispatchAfterPublish(hooks, r.target, hookResult, hookCtx)
         }
       }
       // Avoid recording a duplicate when the loop completed without
