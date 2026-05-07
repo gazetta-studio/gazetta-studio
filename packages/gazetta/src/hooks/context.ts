@@ -46,6 +46,7 @@
 import type { Principal } from '../auth/types.js'
 import type { StorageProvider } from '../types.js'
 import type { ReadOnlyStorageProvider } from './storage.js'
+import type { HookFiringEmitter } from './audit-emitter.js'
 import type { HookContext, HookLogger, ReadOnlySiteConfig } from './types.js'
 
 const NOOP_LOGGER: HookLogger = {
@@ -68,6 +69,13 @@ export interface BuildHookContextOptions {
   log?: HookLogger
   /** Read-only site config. */
   site: ReadOnlySiteConfig
+  /**
+   * Optional audit firing emitter. When set, dispatch records
+   * one `action: 'hook-fired'` audit event per hook firing per
+   * design-hooks.md "Audit events". Production wires this to
+   * `c.var.audit`; tests omit for silent firing.
+   */
+  auditEmit?: HookFiringEmitter
 }
 
 /**
@@ -81,6 +89,7 @@ export function buildHookContext(opts: BuildHookContextOptions): HookContext {
     principal: opts.principal,
     target: opts.target,
     requestId: opts.requestId,
+    auditEmit: opts.auditEmit,
     now: opts.now ?? new Date(),
     log: opts.log ?? NOOP_LOGGER,
     site: opts.site,

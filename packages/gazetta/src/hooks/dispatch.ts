@@ -51,6 +51,7 @@
  */
 import { HookCancellation, HookTimeout } from './errors.js'
 import type { HookRegistry } from './registry.js'
+import { eventFromRegistration } from './audit-emitter.js'
 import type {
   AfterLoadHook,
   AfterPublishHook,
@@ -85,7 +86,7 @@ export async function dispatchBeforeSave<T>(
   const handlers = registry.getByPhase('beforeSave')
   let current = payload
   for (const reg of handlers) {
-    current = await runWithTimeout('beforeSave', reg as HookRegistration<'beforeSave'>, async () =>
+    current = await runWithTimeout('beforeSave', reg as HookRegistration<'beforeSave'>, ctx, async () =>
       (reg.handler as BeforeSaveHook<T>)(scope, current, ctx),
     )
   }
@@ -120,7 +121,7 @@ export async function dispatchAfterLoad<T>(
   const handlers = registry.getByPhase('afterLoad')
   let current = payload
   for (const reg of handlers) {
-    current = await runWithTimeout('afterLoad', reg as HookRegistration<'afterLoad'>, async () =>
+    current = await runWithTimeout('afterLoad', reg as HookRegistration<'afterLoad'>, ctx, async () =>
       (reg.handler as AfterLoadHook<T>)(scope, current, ctx),
     )
   }
@@ -139,7 +140,7 @@ export async function dispatchBeforePublish(
   const handlers = registry.getByPhase('beforePublish')
   let current = items
   for (const reg of handlers) {
-    current = await runWithTimeout('beforePublish', reg as HookRegistration<'beforePublish'>, async () =>
+    current = await runWithTimeout('beforePublish', reg as HookRegistration<'beforePublish'>, ctx, async () =>
       (reg.handler as BeforePublishHook)(target, current, ctx),
     )
   }
@@ -167,7 +168,7 @@ export async function dispatchBeforeUpload(
   const handlers = registry.getByPhase('beforeUpload')
   let current: UploadHookPayload = { asset, bytes }
   for (const reg of handlers) {
-    current = await runWithTimeout('beforeUpload', reg as HookRegistration<'beforeUpload'>, async () =>
+    current = await runWithTimeout('beforeUpload', reg as HookRegistration<'beforeUpload'>, ctx, async () =>
       (reg.handler as BeforeUploadHook)(current.asset, current.bytes, ctx),
     )
   }
@@ -195,9 +196,11 @@ export async function dispatchAfterUpload(
 async function runWithTimeout<P extends HookPhase, R>(
   phase: P,
   reg: HookRegistration<P>,
+  ctx: HookContext,
   handler: () => Promise<R>,
 ): Promise<R> {
   let timer: ReturnType<typeof setTimeout> | undefined
+  const start = Date.now()
   try {
     const handlerPromise = handler()
     const timeoutPromise = new Promise<never>((_, reject) => {
@@ -209,14 +212,25 @@ async function runWithTimeout<P extends HookPhase, R>(
       const t = timer as { unref?: () => void }
       t.unref?.()
     })
-    return await Promise.race([handlerPromise, timeoutPromise])
+    const result = await Promise.race([handlerPromise, timeoutPromise])
+    // Audit: success firing. Per design-hooks.md "Audit events".
+    await safeEmit(ctx, reg, 'success', Date.now() - start)
+    return result
   } catch (err) {
     // HookTimeout and HookCancellation already carry the right
     // shape; rewrap anything else as a HookCancellation so
     // `instanceof HookCancellation` covers both "explicit cancel"
     // and "handler crashed."
-    if (err instanceof HookTimeout) throw err
-    if (err instanceof HookCancellation) throw err
+    const durationMs = Date.now() - start
+    if (err instanceof HookTimeout) {
+      await safeEmit(ctx, reg, 'timeout', durationMs)
+      throw err
+    }
+    if (err instanceof HookCancellation) {
+      await safeEmit(ctx, reg, 'hook-cancelled', durationMs)
+      throw err
+    }
+    await safeEmit(ctx, reg, 'hook-cancelled', durationMs)
     throw new HookCancellation({
       hookName: reg.name,
       phase,
@@ -225,6 +239,27 @@ async function runWithTimeout<P extends HookPhase, R>(
     })
   } finally {
     if (timer !== undefined) clearTimeout(timer)
+  }
+}
+
+/**
+ * Forward a hook firing event to ctx.auditEmit. Wrapped in
+ * try/catch so emitter failures don't break dispatch.
+ */
+async function safeEmit<P extends HookPhase>(
+  ctx: HookContext,
+  reg: HookRegistration<P>,
+  outcome: 'success' | 'hook-cancelled' | 'timeout',
+  durationMs: number,
+): Promise<void> {
+  if (!ctx.auditEmit) return
+  try {
+    await ctx.auditEmit(eventFromRegistration(reg, ctx, outcome, durationMs))
+  } catch {
+    // Emitter failures isolate to the dispatcher; we don't want
+    // a crashing audit recorder to cancel an operation. Failure
+    // is silently ignored; audit pipeline has its own structured
+    // log surface for emitter problems.
   }
 }
 
@@ -239,7 +274,7 @@ async function runAfterChain<P extends HookPhase>(
   invoke: (reg: HookRegistration<P>) => Promise<void>,
 ): Promise<void> {
   if (handlers.length === 0) return
-  const results = await Promise.allSettled(handlers.map(reg => runWithTimeoutAfter(reg, () => invoke(reg))))
+  const results = await Promise.allSettled(handlers.map(reg => runWithTimeoutAfter(reg, ctx, () => invoke(reg))))
   for (const [i, r] of results.entries()) {
     if (r.status === 'rejected') {
       const reg = handlers[i]
@@ -263,12 +298,19 @@ async function runAfterChain<P extends HookPhase>(
  * Variant of `runWithTimeout` for `after*` handlers — preserves
  * `HookTimeout` for the logger to discriminate, but doesn't wrap
  * crashes as `HookCancellation` (after-handlers can't cancel).
+ *
+ * Audit emit fires the same way as `runWithTimeout`; outcome
+ * `'timeout'` distinguishes per-handler timeouts; non-timeout
+ * crashes record as `'hook-cancelled'` (closest semantic — handler
+ * threw, even if the operation didn't cancel).
  */
 async function runWithTimeoutAfter<P extends HookPhase>(
   reg: HookRegistration<P>,
+  ctx: HookContext,
   handler: () => Promise<void>,
 ): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined
+  const start = Date.now()
   try {
     const handlerPromise = handler()
     const timeoutPromise = new Promise<never>((_, reject) => {
@@ -279,6 +321,15 @@ async function runWithTimeoutAfter<P extends HookPhase>(
       t.unref?.()
     })
     await Promise.race([handlerPromise, timeoutPromise])
+    await safeEmit(ctx, reg, 'success', Date.now() - start)
+  } catch (err) {
+    const durationMs = Date.now() - start
+    if (err instanceof HookTimeout) {
+      await safeEmit(ctx, reg, 'timeout', durationMs)
+    } else {
+      await safeEmit(ctx, reg, 'hook-cancelled', durationMs)
+    }
+    throw err
   } finally {
     if (timer !== undefined) clearTimeout(timer)
   }

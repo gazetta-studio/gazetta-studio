@@ -23,6 +23,7 @@ import {
   HookTimeout,
   type HookRegistry,
 } from '../../hooks/index.js'
+import { makeAuditFiringEmitter } from '../hook-audit-emitter.js'
 
 export interface FragmentRoutesOptions {
   hooks?: HookRegistry
@@ -150,6 +151,7 @@ export function fragmentRoutes(
         target: source.targetName,
         requestId: c.req.header('x-request-id') ?? crypto.randomUUID(),
         site: { name: source.manifest?.name },
+        auditEmit: makeAuditFiringEmitter(c.var.audit),
       })
       body = await dispatchAfterLoad(hooks, { kind: 'fragment', name, locale: locale ?? undefined }, body, ctx)
     }
@@ -247,6 +249,7 @@ export function fragmentRoutes(
           target: source.targetName,
           requestId: c.req.header('x-request-id') ?? crypto.randomUUID(),
           site: { name: source.manifest?.name },
+          auditEmit: makeAuditFiringEmitter(c.var.audit),
         })
       : null
     const hookScope = { kind: 'fragment' as const, name, locale: locale ?? undefined }

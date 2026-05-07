@@ -19,10 +19,17 @@
  */
 import { z } from 'zod'
 
-export const AuditActionSchema = z.enum(['save', 'publish', 'delete', 'restore', 'configure-roles'])
+export const AuditActionSchema = z.enum(['save', 'publish', 'delete', 'restore', 'configure-roles', 'hook-fired'])
 export type AuditActionWire = z.infer<typeof AuditActionSchema>
 
-export const AuditOutcomeSchema = z.enum(['success', 'forbidden', 'validation-failed', 'unauthenticated'])
+export const AuditOutcomeSchema = z.enum([
+  'success',
+  'forbidden',
+  'validation-failed',
+  'unauthenticated',
+  'hook-cancelled',
+  'timeout',
+])
 export type AuditOutcomeWire = z.infer<typeof AuditOutcomeSchema>
 
 export const AuditScopeKindSchema = z.enum(['page', 'fragment', 'asset', 'site'])
