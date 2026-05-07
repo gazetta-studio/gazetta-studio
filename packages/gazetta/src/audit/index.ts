@@ -14,3 +14,11 @@ export {
   type RecordResult,
   type RecordToAllOptions,
 } from './recorder.js'
+export { computePseudonymizedId, pseudonymizeActor, type ActorPseudonymMode } from './pseudonymize.js'
+export {
+  extractSourceIp,
+  processSourceIp,
+  type SourceIpExtractionContext,
+  type SourceIpMode,
+} from './source-ip.js'
+export { processUserAgent, type UserAgentMode } from './user-agent.js'
