@@ -17,4 +17,7 @@ export { AuthConfigSchema, isReservedPrefix, type AuthConfig } from './config.js
 export { noneAuthProvider, UNKNOWN_ACTOR_ID } from './providers/none.js'
 export { createForwardedUserAuthProvider, type ForwardedUserConfig } from './providers/forwarded-user.js'
 export { createCloudflareAccessAuthProvider, type CloudflareAccessConfig } from './providers/cloudflare-access.js'
+export { createAzureEasyAuthProvider, type AzureEasyAuthConfig } from './providers/azure-easy-auth.js'
+export { createAwsCognitoAuthProvider, type AwsCognitoConfig } from './providers/aws-cognito.js'
+export { createTailscaleAuthProvider, type TailscaleConfig } from './providers/tailscale.js'
 export { ipMatchesAny, parseRule, parseRules, type ParsedRule } from './ip-match.js'

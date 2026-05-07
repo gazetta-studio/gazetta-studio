@@ -156,14 +156,64 @@ const cloudflareAccessAuthSchema = z
   .strict()
 
 /**
- * Top-level discriminated union. Subsequent cuts add variants for
- * `azure-easy-auth`, `aws-cognito`, `tailscale`. Each variant adds
- * a literal-`trust` discriminator + its own provider-specific fields.
+ * `azure-easy-auth` trust mode — Azure App Service Easy Auth.
+ * Trust boundary is the App Service sandbox; Gazetta just decodes
+ * the X-MS-CLIENT-PRINCIPAL header. No provider-specific config
+ * fields — the platform handles auth.
+ */
+const azureEasyAuthSchema = z
+  .object({
+    trust: z.literal('azure-easy-auth'),
+    roles: z.record(z.string(), roleSchema).optional(),
+    roleMapping: roleMappingSchema.optional(),
+    strict: z.boolean().optional(),
+  })
+  .strict()
+
+/**
+ * `aws-cognito` trust mode — AWS ALB + Cognito user pool. JWT
+ * verification against per-region public keys.
+ */
+const awsCognitoAuthSchema = z
+  .object({
+    trust: z.literal('aws-cognito'),
+    /** AWS region (e.g. "us-east-1"). Required for the JWKS URL. */
+    region: z.string().regex(/^[a-z]{2}-[a-z]+-\d+$/, 'region must be an AWS region like "us-east-1"'),
+    /** Optional aud claim — Cognito user-pool app client id. */
+    audience: z.string().optional(),
+    roles: z.record(z.string(), roleSchema).optional(),
+    roleMapping: roleMappingSchema.optional(),
+    strict: z.boolean().optional(),
+  })
+  .strict()
+
+/**
+ * `tailscale` trust mode — Tailscale Funnel / serve. Trust comes
+ * from the tailnet itself (only authenticated members can reach
+ * the listener). No provider-specific config.
+ */
+const tailscaleAuthSchema = z
+  .object({
+    trust: z.literal('tailscale'),
+    roles: z.record(z.string(), roleSchema).optional(),
+    roleMapping: roleMappingSchema.optional(),
+    strict: z.boolean().optional(),
+  })
+  .strict()
+
+/**
+ * Top-level discriminated union. All v1 trust modes locked.
+ * Future plugin-supplied modes (per design-auth-rbac.md Q1's plugin
+ * promotion trigger) extend the union via the plugin contract — not
+ * by editing this file.
  */
 export const AuthConfigSchema = z.discriminatedUnion('trust', [
   noneAuthSchema,
   forwardedUserAuthSchema,
   cloudflareAccessAuthSchema,
+  azureEasyAuthSchema,
+  awsCognitoAuthSchema,
+  tailscaleAuthSchema,
 ])
 
 export type AuthConfig = z.infer<typeof AuthConfigSchema>
