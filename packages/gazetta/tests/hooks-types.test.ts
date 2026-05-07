@@ -43,7 +43,11 @@ describe('Cut 1 — type vocabulary', () => {
     // Type-level check: every v1 phase is in the union. The
     // assertion compiles only when each name matches the union;
     // adding/removing phases changes this list intentionally.
-    const phases: HookPhase[] = [
+    //
+    // Cut 8 added 10 review-lifecycle phases (forward-compat for
+    // design-review-workflow.md's state machine, which ships in
+    // Phase 2). Total: 7 v1 lifecycle + 10 review = 17.
+    const v1Phases: HookPhase[] = [
       'beforeSave',
       'afterSave',
       'afterLoad',
@@ -52,7 +56,20 @@ describe('Cut 1 — type vocabulary', () => {
       'beforeUpload',
       'afterUpload',
     ]
-    expect(phases).toHaveLength(7)
+    const reviewPhases: HookPhase[] = [
+      'beforeSubmitForReview',
+      'afterSubmitForReview',
+      'beforeApprove',
+      'afterApprove',
+      'beforeReject',
+      'afterReject',
+      'beforePublishRequest',
+      'afterPublishRequest',
+      'beforePublishApprove',
+      'afterPublishApprove',
+    ]
+    expect(v1Phases).toHaveLength(7)
+    expect(reviewPhases).toHaveLength(10)
   })
 
   it('HookHandler<P> re-narrows to phase-specific signatures', () => {

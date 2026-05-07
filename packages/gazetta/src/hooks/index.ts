@@ -26,6 +26,9 @@ export type {
   UploadHookAsset,
   UploadHookPayload,
   UploadHookResult,
+  ReviewTransition,
+  BeforeReviewTransitionHook,
+  AfterReviewTransitionHook,
 } from './types.js'
 export type { ReadOnlyStorageProvider } from './storage.js'
 export { HookError, HookCancellation, HookTimeout, RegistrationAfterInitError } from './errors.js'
