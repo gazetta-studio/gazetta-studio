@@ -27,6 +27,7 @@ Stateless CMS that structures websites as composable fragments. All state lives 
 - `docs/transform-adapters.md` — Per-target image delivery strategies
 - `docs/cache.md` — Admin read-side cache configuration + monitoring
 - `docs/offline.md` — Offline mode (cold-load reliability, save conflicts, browser support)
+- `docs/auth.md` — Authentication + RBAC (trust modes, roles, capability gates)
 
 ## Design docs (auto-loaded by Claude)
 

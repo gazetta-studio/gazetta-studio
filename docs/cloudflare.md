@@ -73,6 +73,8 @@ npx gazetta publish production
 
 ## Authentication
 
+This section covers **storage credentials** (R2 token) and **deploy credentials** (Worker deploy). For **admin user authentication** (Cloudflare Access protecting the admin panel) see [`auth.md`](auth.md) — the `cloudflare-access` trust mode handles JWT verification against your team's published JWKS automatically.
+
 R2 uses S3-compatible API tokens — same path for local dev and CI.
 
 ### R2 API token (storage credentials)
