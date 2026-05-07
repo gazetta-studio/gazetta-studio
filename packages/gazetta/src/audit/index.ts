@@ -7,3 +7,10 @@ export { AuditError, AuditConfigurationError, AuditTransportError } from './erro
 export { AuditConfigSchema, DEFAULT_AUDIT_CONFIG, type AuditConfig } from './config.js'
 export type { AuditProvider } from './provider.js'
 export { createHistoryAuditProvider, type HistoryAuditProviderOptions } from './providers/history.js'
+export {
+  recordToAll,
+  type AuditFailureLog,
+  type AuditFailureLogger,
+  type RecordResult,
+  type RecordToAllOptions,
+} from './recorder.js'
