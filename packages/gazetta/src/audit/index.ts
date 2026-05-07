@@ -22,3 +22,9 @@ export {
   type SourceIpMode,
 } from './source-ip.js'
 export { processUserAgent, type UserAgentMode } from './user-agent.js'
+export {
+  createAuditContext,
+  type AuditContext,
+  type AuditContextOptions,
+  type RecordEventInput,
+} from './context.js'

@@ -13,9 +13,10 @@ import type { FragmentManifest } from '../../types.js'
 import { computeSaveEtag } from '../../save-etag.js'
 import { ensureComponentIds } from '../../component-ids.js'
 import { requireCapability } from '../middleware/capability.js'
+import type { AuditEnv } from '../middleware/audit.js'
 
 export function fragmentRoutes(resolve: SourceContextResolver, validators: ValidatorRegistry, templatesDir?: string) {
-  const app = new Hono()
+  const app = new Hono<AuditEnv>()
 
   app.get('/api/fragments', requireCapability('read:fragments'), async c => {
     const source = await resolve(c.req.query('target'))
@@ -195,6 +196,12 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
       validators,
     )
     if (hasBlockingIssues(issues)) {
+      await c.var.audit.record({
+        action: 'save',
+        outcome: 'validation-failed',
+        scope: { kind: 'fragment', name },
+        metadata: locale ? { locale } : undefined,
+      })
       return c.json({ code: 'VALIDATION_FAILED' as const, issues }, 409)
     }
 
@@ -219,6 +226,12 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
     await Promise.all([source.cache.invalidatePrefix('fragments:'), source.cache.invalidatePrefix('pages:')])
     const newEtag = await computeSaveEtag(manifest)
     c.header('ETag', `"${newEtag}"`)
+    await c.var.audit.record({
+      action: 'save',
+      outcome: 'success',
+      scope: { kind: 'fragment', name },
+      metadata: locale ? { locale } : undefined,
+    })
     return c.json({ ok: true, etag: newEtag })
   })
 
@@ -256,6 +269,11 @@ export function fragmentRoutes(resolve: SourceContextResolver, validators: Valid
     }
     await Promise.all(teardowns)
     await Promise.all([source.cache.invalidatePrefix('fragments:'), source.cache.invalidatePrefix('pages:')])
+    await c.var.audit.record({
+      action: 'delete',
+      outcome: 'success',
+      scope: { kind: 'fragment', name },
+    })
     return c.json({ ok: true })
   })
 

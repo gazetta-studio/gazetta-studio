@@ -13,9 +13,10 @@ import type { PageManifest } from '../../types.js'
 import { computeSaveEtag } from '../../save-etag.js'
 import { ensureComponentIds } from '../../component-ids.js'
 import { requireCapability } from '../middleware/capability.js'
+import type { AuditEnv } from '../middleware/audit.js'
 
 export function pageRoutes(resolve: SourceContextResolver, validators: ValidatorRegistry, templatesDir?: string) {
-  const app = new Hono()
+  const app = new Hono<AuditEnv>()
 
   app.get('/api/pages', requireCapability('read:pages'), async c => {
     const source = await resolve(c.req.query('target'))
@@ -260,6 +261,17 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
       validators,
     )
     if (hasBlockingIssues(issues)) {
+      // Audit: validation-failed save. Per design-audit.md "Recording
+      // sites": this layer produced the outcome (validators ran first,
+      // returned blocking issues); record once before returning the
+      // 409. The audit record never blocks the response (fail-open
+      // unless strict mode).
+      await c.var.audit.record({
+        action: 'save',
+        outcome: 'validation-failed',
+        scope: { kind: 'page', name },
+        metadata: locale ? { locale } : undefined,
+      })
       return c.json({ code: 'VALIDATION_FAILED' as const, issues }, 409)
     }
 
@@ -299,6 +311,15 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
     if (page.route !== undefined) echoShape.route = page.route
     const newEtag = await computeSaveEtag(echoShape)
     c.header('ETag', `"${newEtag}"`)
+    // Audit: successful save. Records actor + scope + locale (when
+    // locale variant). Strict-mode operators check the result.failed
+    // count; fail-open default ignores. Recorder never throws.
+    await c.var.audit.record({
+      action: 'save',
+      outcome: 'success',
+      scope: { kind: 'page', name },
+      metadata: locale ? { locale } : undefined,
+    })
     return c.json({ ok: true, etag: newEtag })
   })
 
@@ -340,6 +361,12 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
     }
     await Promise.all(teardowns)
     await source.cache.invalidatePrefix('pages:')
+    // Audit: successful delete.
+    await c.var.audit.record({
+      action: 'delete',
+      outcome: 'success',
+      scope: { kind: 'page', name },
+    })
     return c.json({ ok: true })
   })
 
