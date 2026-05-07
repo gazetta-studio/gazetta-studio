@@ -23,6 +23,7 @@ import {
   AuditConfigurationError,
   createHistoryAuditProvider,
   DEFAULT_AUDIT_CONFIG,
+  pruneAuditEvents,
   type AuditConfig,
   type AuditProvider,
 } from '../audit/index.js'
@@ -68,6 +69,14 @@ export interface AdminAppOptions {
    * leaking into the test runtime.
    */
   disableCacheStatsLogger?: boolean
+  /**
+   * Disable the periodic audit retention pruner. Defaults to false
+   * (pruner runs at boot + every 6 hours when audit retention is
+   * configured). Tests pass true to avoid background timers leaking
+   * into the test runtime; the boot pass and the interval both gate
+   * on this flag.
+   */
+  disableAuditRetentionPruner?: boolean
 }
 
 type AdminApp = Hono & {
@@ -309,6 +318,42 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   // snapshots either way.
   if (!opts.disableCacheStatsLogger) {
     startCacheStatsLogger({ cache: source.cache })
+  }
+
+  // Audit retention pruner — when admin.audit.retention is configured
+  // (events cap and/or maxAgeMonths), evict old / overflow events at
+  // boot + every 6 hours per design-audit.md "Retention". No-op when
+  // retention isn't configured (operator opted out / never opted in).
+  // Same pattern as the cache stats logger: timer.unref() so it never
+  // blocks process exit; tests pass `disableAuditRetentionPruner:
+  // true` to keep background work out of the test runtime.
+  if (
+    !opts.disableAuditRetentionPruner &&
+    auditConfig.provider === 'history' &&
+    auditConfig.retention &&
+    (auditConfig.retention.events !== undefined || auditConfig.retention.maxAgeMonths)
+  ) {
+    const retentionConfig = auditConfig.retention
+    const runPrune = async () => {
+      try {
+        await pruneAuditEvents(source.storage, {
+          events: retentionConfig.events,
+          maxAgeMonths: retentionConfig.maxAgeMonths ?? null,
+        })
+      } catch {
+        // Pruner failures fail-open per Universal Provider Requirement
+        // #5 — audit accumulates until next successful prune. Operator
+        // monitoring sees the failure via structured log (TODO when
+        // logging foundation lands; v1 swallows silently).
+      }
+    }
+    // Boot pass.
+    void runPrune()
+    // 6-hour interval (21_600_000 ms). unref() so the process can exit
+    // independently of this timer.
+    const PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000
+    const timer = setInterval(runPrune, PRUNE_INTERVAL_MS)
+    timer.unref()
   }
 
   // Exposed for the CLI's template file watcher: clears the memoized scan
