@@ -11,441 +11,406 @@ paths:
 
 # Plugin / extensibility
 
-Foundational dimension #10 of 13. Unifying contract for the existing extension surfaces — discovery, loading, lifecycle, composition.
+Reference doc, not a foundational dimension. Captures the operator-facing patterns for installing extensions; the format is set once via [ADR-0008](../../docs/adr/0008-provider-factory-returns-instance.md) and [ADR-0009](../../docs/adr/0009-no-plugin-runtime-factory-contributions.md).
 
-**Status**: design pass complete (2026-05). Implementation phases sit in Tier 3.
+**Status**: design pass complete (2026-05). Pre-cutover design (Plugin runtime + PluginAPI) superseded by ADR-0009 — this doc replaces it. Implementation is per-surface as those surfaces ship.
 
 **Companion docs**:
-- [`feature-design-process.md`](feature-design-process.md) — defines the **Plugin check** every new extension surface must answer
-- [`design-config.md`](design-config.md) — plugins are imported and invoked inline in `defineSite()`; config is the discovery surface
-- [`design-hooks.md`](design-hooks.md) — hooks are an extension surface; plugins register hooks via `PluginAPI.registerHook`
-- [`docs/adr/0004-pluggable-provider-pattern.md`](../../docs/adr/0004-pluggable-provider-pattern.md) — Universal Provider requirements for the 11 extension surfaces
+- [`feature-design-process.md`](feature-design-process.md) — the **Plugin check** every new extension surface answers
+- [`design-config.md`](design-config.md) — `site.config.ts` is the discovery surface; plugins import inline
+- [`design-provider-config.md`](design-provider-config.md) — operator-facing factory shape for Provider surfaces (Path X)
+- [`design-hooks.md`](design-hooks.md) — `admin.hooks` factory contributions (already shipped)
+- [ADR-0004](../../docs/adr/0004-pluggable-provider-pattern.md) — Universal Provider Requirements (preserved across ADR-0008 + ADR-0009 supersessions)
+- [ADR-0008](../../docs/adr/0008-provider-factory-returns-instance.md) — Provider factory returns instance
+- [ADR-0009](../../docs/adr/0009-no-plugin-runtime-factory-contributions.md) — No plugin runtime; factory contributions only
 
-## Why this is foundational
+## Why this is reference, not foundational (anymore)
 
-Today, nine extension surfaces exist (storage providers, templates, custom editors, custom field widgets, transform adapters, deploy adapters, AI providers, validators, cache providers) plus hooks (incoming). Each has its own interface contract. Without a unifying plugin contract, future surfaces (whatever 11th or 12th surface gets added) drift toward their own ad-hoc plug-in pattern. Unifying later is structural rework.
+The locked design pre-2026-05 framed plugins as a runtime: `Plugin` + `PluginAPI` + `init(api)` + `dispose()` + eleven register methods. ADR-0008 (Path X) collapsed six provider surfaces into factory-call-at-field; Hooks Cut 9 collapsed `registerHook` into `admin.hooks` factory contributions. With both shipped, the unifying runtime contract has no surviving use case. ADR-0009 captures the decision; this doc captures what operators and plugin authors actually do under it.
 
-Strategic commitment locked: **plugins are foundational** (resolved from "open question"). The named surfaces ARE the plugin system. The unifying contract formalizes how they compose.
+Plugins are now an **operator-facing distribution pattern**, not a runtime concern that recurs in feature design. New extension surfaces follow either Pattern X (factory-call-at-field for Provider surfaces) or contribution-array (factory-returns-contribution for surfaces that aggregate). They don't have to design "how the plugin runtime composes."
 
-## Locked invariants (already decided)
+## Operator's mental model
 
-- **Existing surfaces stay distinct interfaces** — `StorageProvider`, `EditorMount`, `FieldMount`, `AltTextAdapter`, `TransformAdapter`, etc. The plugin contract doesn't replace them; it provides discovery + loading + composition rules on top.
-- **MCP schema discipline** — new admin-API routes use the existing Zod schema pattern. MCP tooling auto-generates from these. Plugin contract respects this — plugins that add admin-API routes follow the schema pattern.
-- **Real-time event-source discipline** — plugins that observe save/publish do so via audit log, not by patching handlers. Per `feature-design-process.md` non-foundational disciplines.
-- **Pluggable provider pattern** — per [`docs/adr/0004-pluggable-provider-pattern.md`](../../docs/adr/0004-pluggable-provider-pattern.md), Storage, Cache, Audit, AltText (AI), Transform Adapter, Deploy Adapter, Validator, AuthIdentity, Hook, Admin Editor, Admin Field follow the universal Provider requirements below.
+> "Extensions come from npm packages or from my own files. Each export is a factory function. I import each factory and invoke it where it goes. Provider factories go at config fields; hook / validator / route factories go in their `admin.{surface}` arrays."
+
+There is no `Plugin` interface, no `init(api)` lifecycle, no `PluginAPI` god-object. The composition IS the configuration.
 
 ## Universal Provider requirements
 
-Every Provider — regardless of which Extension Surface it implements — must satisfy these requirements. Per-surface contracts (in each surface's design doc) specialize on top of these.
+Every Provider — regardless of which Extension Surface it implements — must satisfy these eight requirements from ADR-0004. They describe Provider internals; they apply per-surface; they're preserved unchanged across ADR-0008 + ADR-0009 supersessions.
 
 **1. Multi-instance correctness.** Either:
 - Per-instance scope (multi-instance-correct via independence — `MemoryCache`, `HistoryAuditProvider`); OR
 - Storage-coordinated via the provider's own atomicity primitives (per-edge sidecars, content-addressed blobs, atomic compare-and-swap, etag-based conditional writes).
-- In-process state shared across operations is forbidden per the multi-instance discipline ([`feature-design-process.md`](feature-design-process.md) "Non-foundational disciplines").
 
-**2. Stateless interface.** Provider methods are idempotent OR document where they aren't. Two instances calling the same method converge to the same result (or document the divergence and the expected reconciliation).
+In-process state shared across operations is forbidden per the multi-instance discipline ([`feature-design-process.md`](feature-design-process.md) "Non-foundational disciplines").
 
-**3. Configuration via env vars for credentials.** Credentials never appear in `site.config.ts` literals; they're injected via `process.env.X!`. Provider reads its own env vars matching the upstream SDK's conventions (`AWS_*`, `AZURE_*`, `R2_*`, `ANTHROPIC_API_KEY`, etc.). Site config names the Provider + non-secret options only.
+**2. Stateless interface.** Provider methods are idempotent OR document where they aren't. Two instances calling the same method converge to the same result (or document the divergence + reconciliation).
 
-**4. Sensible defaults.** Provider works with minimal config. Operator overrides defaults only when defaults don't fit. Defaults documented per-Provider in the surface's design doc.
+**3. Configuration via env vars for credentials.** Credentials never appear in `site.config.ts` literals; they're injected via `process.env.X!`. Provider reads its own env vars matching upstream SDK conventions (`AWS_*`, `AZURE_*`, `R2_*`, `ANTHROPIC_API_KEY`, etc.).
+
+**4. Sensible defaults.** Provider works with minimal config. Operator overrides defaults only when defaults don't fit.
 
 **5. Fail-mode declared per surface.** Each surface declares its discipline:
 - Audit fails open (audit failure must never block writes).
 - Storage fails closed (storage write failure must abort the operation).
 - Cache fails open (cache miss returns null; cache failure logs + falls through to source-of-truth).
-- AltText fails open with refusal flag (provider failure surfaces as null suggestion + structured error event).
+- AltText fails open with refusal flag.
 
-**6. Never throws on transport errors at the recording / observation layer.** Network errors, rate limits, transient failures are caught and logged. Throws reserved for unrecoverable infrastructure errors (configuration error, schema mismatch, init failure).
+**6. Never throws on transport errors at the recording / observation layer.** Network errors, rate limits, transient failures are caught and logged. Throws reserved for unrecoverable infrastructure errors (configuration error, schema mismatch).
 
 **7. Stable typed contract.** Provider interface is a TypeScript interface; consumers depend on the abstraction, not concrete classes. Adding required methods is a breaking change requiring a version bump; new optional methods are additive.
 
-**8. Independent error taxonomy.** Each surface declares its Gazetta-side error type (`StorageError`, `CacheError`, `AuditError`, `AltAdapterError`, etc.). Provider implementations translate provider-specific errors (AWS SDK errors, Redis connection errors, etc.) into the surface's error type. Consumers handle the Gazetta error type, not the upstream SDK error.
+**8. Independent error taxonomy.** Each surface declares its Gazetta-side error type (`StorageError`, `CacheError`, `AuditError`, `AltAdapterError`, etc.). Provider implementations translate provider-specific errors into the surface's error type.
 
-**9. Operator config consistency.** Across surfaces, operator config follows the same pattern: `provider: name` (or `providers: [...]` for multi-Provider surfaces) + minimal yaml + env-var credentials. Operators learn the pattern once.
+## How operators install extensions
 
-**10. Forward-compatible plugin promotion.** v1 ships in-tree Providers. Future plugin-packaged Providers slot in via the same interface — additive, never breaking. The internal `Provider` interface and the plugin contract converge.
+Two distinct patterns based on what kind of surface a factory targets:
 
-## Discovery (Q1 locked)
+### Pattern A — Provider field (Storage, Cache, Transform, AI, AuthIdentity, Audit, future Notification / Deploy)
 
-**Plugins are imported into `site.config.ts` and invoked inline within the `admin.plugins` array.** No auto-discovery.
+Operator imports a factory and assigns the result to a typed config field. Field type is the runtime Provider interface; per ADR-0008.
 
 ```ts
-import slackNotify from '@gazetta/slack-notify'
-import autoSlugify from './admin/plugins/auto-slugify'
+import { defineSite, r2Storage, sharpAdapter, memoryCache, anthropicProvider } from 'gazetta'
 
 export default defineSite({
-  admin: {
-    plugins: [
-      slackNotify({ webhookUrl: process.env.SLACK_WEBHOOK_URL! }),
-      autoSlugify(),
-    ],
+  cache: memoryCache({ maxEntries: 5000 }),
+  ai: { provider: anthropicProvider({ apiKey: process.env.ANTHROPIC_API_KEY! }), model: 'claude-haiku-4-5' },
+
+  targets: {
+    production: {
+      storage: r2Storage({ /* ... */ }),
+      transforms: sharpAdapter(),
+    },
   },
 })
 ```
 
-**Two sources, both via TypeScript imports**:
+Factory throws at config-eval on bad input (missing required fields, malformed env-var sentinels). SDK side effects deferred to first method call per [design-provider-config.md](design-provider-config.md) construction-timing convention.
 
-| Source | How operator references it |
-|---|---|
-| **npm package** | `import slackNotify from '@gazetta/slack-notify'` (must be in `package.json`) |
-| **Site-local** | `import autoSlugify from './admin/plugins/auto-slugify'` (relative path from config file) |
+### Pattern B — Contribution array (Hooks, Validators, Routes)
 
-Both produce a `Plugin` object that goes into `admin.plugins`. Same registration; only the import path differs.
-
-**Discovery rules**:
-- No `package.json` `gazetta` field required at load time (optional metadata for tooling/marketplace UX, future)
-- No `gazetta-plugin-*` naming convention required
-- Order in `admin.plugins` array is registration order; per-surface dispatch order is governed by surface semantics (e.g., hooks priority bands per `design-hooks.md` Q3)
-
-This is the same pattern as Vite plugins, Astro integrations, Tailwind plugins, ESLint plugins-as-imports.
-
-## Loading lifecycle (Q2 locked)
-
-**Phases**:
-1. Config evaluation (`site.config.ts` runs; factory invocations return `Plugin` objects)
-2. Zod validation of full config
-3. **Plugin init** — Gazetta calls `plugin.init(api)` for each, in array order, awaiting each
-4. Admin server starts accepting requests
-5. (operations dispatch hooks, providers, routes registered by plugins)
-6. **Plugin dispose** on dev reload OR shutdown — `plugin.dispose?()` called
-
-**Init order**: serial, in `admin.plugins` array order. Predictable; no parallel-init races.
-
-**Async init**: `init()` returns `void | Promise<void>`. Use cases:
-- Credential validation (test connection to external service)
-- Capability discovery (query upstream for allowed features)
-- State pre-loading (warm internal cache)
-- Schema fetching (download external schema)
-- Lazy resource setup (long-lived connections held for plugin lifetime)
-
-**Registration window**: `PluginAPI` registration methods are valid only during init's lifetime. After init resolves, registration calls throw `RegistrationAfterInitError`. Pins plugin contributions deterministically per boot.
-
-**Failure mode**:
-- **Default**: `init()` throwing fails admin boot. Operator sees error, fixes config, retries.
-- **Optional plugins**: wrap with `optional()`:
-  ```ts
-  import { optional } from 'gazetta'
-  import devOnlyTool from '@my-org/dev-only-tool'
-
-  plugins: [
-    slackNotify({ /* ... */ }),
-    optional(devOnlyTool({ /* ... */ })),  // failure → log + continue
-  ]
-  ```
-
-`optional()` is a typed wrapper returning `PluginRegistration` with `optional: true`. Direct `Plugin` instances are implicitly `optional: false`. The `admin.plugins` array accepts both shapes.
-
-**Dispose** (per `design-config.md` lock):
-- Called on dev reload before reinit
-- Production never calls dispose (process restart releases everything)
-- All registrations (hooks, providers, routes) cleanly unregistered
-
-## Plugin payload + PluginAPI (Q3 locked)
-
-**Plugin shape**:
+Operator imports a factory and adds the result to a typed array under `admin.{surface}`.
 
 ```ts
-interface Plugin {
-  /** Stable identifier; used in audit, error messages, config disable lists.
-   *  Convention: '@scope/package' for npm; bare name for site-local. */
-  name: string
-  /** Plugin version; pulled from package.json or declared inline. Used for
-   *  diagnostics + telemetry; not used for compatibility checks. */
-  version?: string
-  /** Optional advisory metadata about what the plugin does. Not enforced;
-   *  surfaces in admin UI for operator inspection (v1.5 ergonomic). */
-  requires?: {
-    network?: string[]              // documented network endpoints
-    capabilities?: Capability[]      // Gazetta capabilities needed (service account)
-    hooks?: HookPhase[]              // informational
-  }
-  /** Initialization. Called once after config validation, before admin
-   *  starts accepting requests. Async supported. Throws to fail boot
-   *  (or log+continue if wrapped in optional()). */
-  init(api: PluginAPI): void | Promise<void>
-  /** Cleanup. Called on dev reload before reinit. Production never calls
-   *  dispose — process restart releases resources. */
-  dispose?(): void | Promise<void>
+import { defineSite } from 'gazetta'
+import { autoSlugify } from './admin/hooks/auto-slugify'
+import { slackHook, slackRoute } from '@example/slack-notify'
+import linkChecker from '@example/link-checker'
+
+export default defineSite({
+  admin: {
+    hooks:      [autoSlugify(), slackHook({ webhookUrl: process.env.SLACK_WEBHOOK! })],
+    validators: [linkChecker({ excludePatterns: ['/admin/*'] })],
+    routes:     [slackRoute({ webhookUrl: process.env.SLACK_WEBHOOK! })],
+  },
+})
+```
+
+Each array's element type is the matching contribution shape. Per-surface dispatch order is governed by surface semantics (priority for hooks per `design-hooks.md`; insertion order for validators; one handler per `(method, path)` for routes with collisions throwing).
+
+### Patterns that DON'T need either
+
+Templates, custom editors, custom fields use **file-based discovery** per [`custom-editors.md`](custom-editors.md). Operator places `.tsx` files in `templates/`, `admin/editors/`, `admin/fields/`. No factory; no contribution shape; the file IS the contribution. An npm package shipping a custom editor exports the mount function; the operator copies / imports / re-exports it from their `admin/editors/` directory.
+
+## Contribution shapes
+
+### `HookContribution` (per [design-hooks.md](design-hooks.md))
+
+Already shipped in hooks v1 (Cut 9).
+
+```ts
+interface HookContribution {
+  readonly source: string                                     // '@example/cdn-purge' | 'site-local:auto-slugify'
+  readonly hooks: ReadonlyArray<HookEntry>
+  readonly serviceAccount?: readonly Capability[]             // opt-in elevation; declared by author, approved by operator import
+}
+
+interface HookEntry {
+  readonly phase: HookPhase
+  readonly handler: HookHandler
+  readonly options?: HookOptions                              // { name?, priority?, timeout? }
 }
 ```
 
-**Plugin authors export factory functions** returning `Plugin`:
+Wires into `admin.hooks: HookContribution[]`. Multiple handlers per contribution allowed (one factory contributing both `afterSave` + `afterPublish` shares closure state). Composition by priority bands (built-in 0-99 / factory 100-999 / site-local 1000+).
+
+### `Validator` IS the contribution (per [design-validation.md](design-validation.md) + this design pass)
+
+The `Validator` interface from validation Cut 1 extends with a `source` field. No wrapper.
 
 ```ts
-// In @gazetta/slack-notify
-import type { Plugin, PluginAPI } from 'gazetta'
+interface Validator {
+  readonly source: string                                     // '@example/link-checker' | 'site-local:custom-rule'
+  readonly name: string
+  readonly stages: readonly ValidationStage[]
+  defaultSeverity(stage: ValidationStage): Severity
+  validate(input: ValidatorInput): Promise<Issue[]>
+}
+```
+
+Wires into `admin.validators: Validator[]`. Each factory returns one `Validator` (validators don't bundle phases the way hooks do; one validator = one concern). Operator config flows through the factory closure.
+
+The validator runtime registry merges `admin.validators` entries with built-in validators (the five ref-existence ones from validation Cut 1) into one registry. Same dispatch path; same stage dispatch (save-delta / background / pre-publish / cli) per the validator's declared `stages`.
+
+### `RouteContribution`
+
+```ts
+interface RouteContribution {
+  readonly source: string                                     // '@example/slack' | 'site-local:custom-route'
+  readonly method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+  readonly path: string                                       // '/test' (system mounts at /api/plugins/{source}/test)
+  readonly capability: Capability
+  readonly schema: { request?: ZodSchema; response: ZodSchema }
+  readonly handler: (c: HonoContext) => Promise<Response>
+}
+```
+
+Wires into `admin.routes: RouteContribution[]`. The system auto-prefixes paths with `/api/plugins/{source}/` to namespace by package and prevent collisions across plugins. Required Zod `schema` per the existing MCP-discipline rule (admin-API routes are MCP-discoverable via Zod schemas).
+
+One contribution per route; multi-route packages export multiple factories (`slackRouteTest`, `slackRoutePing`, etc.).
+
+Capability gates use the standard Hono middleware contract from `design-auth-rbac.md`. Plugin-contributed capabilities use a plugin-specific prefix (`search:rebuild-index`, `webhook:test`); built-in prefixes (`read:`, `edit:`, `delete:`, `publish:`, `configure:`, `review:`, `restore:`, `comment:`, `mention:`, `subscribe:`, `audit:`) are reserved.
+
+## `source` convention (locked across surfaces)
+
+Every contribution carries a `source: string`. Convention:
+
+| Source pattern | Use |
+|---|---|
+| `'@scope/package-name'` | npm-distributed package |
+| `'github.com/org/repo'` | git-distributed package |
+| `'site-local:{name}'` | operator-authored factory in their own project |
+| any other unambiguous string | plugin author's preference |
+
+The reserved value `'site-local'` (without colon-suffix) is auto-applied where a system path would otherwise be ambiguous. Plugin authors writing distributables always know their package name; declaring it is one line.
+
+Audit log records `source` as a separate metadata field (per ADR-0009 + this design pass): `metadata.source: '@example/cdn-purge'`, `metadata.hookName: 'cdn-purge-on-save'` (or `metadata.routePath: '/test'` for routes). Two fields, not one composed string. Forensic queries filter on `source` alone or `source` + name.
+
+Duplicate sources allowed — operators legitimately invoke the same factory twice with different config (two CDN-purge instances for different regions). Both register; both fire; per-handler `name` distinguishes them in audit.
+
+## Service-account capability elevation
+
+A factory whose contribution fires with a `Principal` (hooks, future review-transition contributions) may need elevated capabilities. Plugin authors declare the requirement via the contribution's `serviceAccount?: readonly Capability[]` field; operators approve by leaving it in their factory invocation.
+
+```ts
+// Plugin author
+export function cdnPurge(opts: CdnPurgeOptions): HookContribution {
+  return {
+    source: '@example/cdn-purge',
+    serviceAccount: ['read:audit-log'],          // declared — needed to read audit during purge
+    hooks: [
+      { phase: 'afterPublish', handler: ..., options: { name: 'cdn-purge-on-publish' } },
+    ],
+  }
+}
+
+// Operator approves implicitly by importing + invoking
+admin: {
+  hooks: [cdnPurge({ zone: '...', apiToken: process.env.CF_TOKEN! })],
+}
+```
+
+When the hook fires, the principal's effective capabilities are unioned with the declared `serviceAccount` for the duration of the firing. Audit records the elevation: `metadata.serviceAccount: ['read:audit-log']`.
+
+`RouteContribution` doesn't carry `serviceAccount` — route handlers run with the request's `Principal` directly; capability gates handle the auth path differently. `Validator` doesn't carry it — validators are pure functions; no `Principal` context. Only contribution shapes that fire with a `Principal` carry the field.
+
+The locked-design `withServiceAccount(...)` operator-side wrapper rejected — declarations live with the package author who knows what their code does; operators approve by config invocation, not by wrapping.
+
+## `optional()` lazy wrapper
+
+By default, factory throws at config-eval = admin boot fails. For dev-only / environment-conditional plugins where failure should be tolerated, wrap with `optional()`:
+
+```ts
+import { optional } from 'gazetta'
+
+admin: {
+  hooks: [
+    autoSlugify(),
+    optional(() => devOnlyTool({ apiKey: process.env.MAYBE_KEY! })),  // factory throw → log + skip
+  ],
+}
+```
+
+Lazy thunk required (`() => factory(...)`) — by the time `optional(factory(...))` would evaluate, the inner factory has already thrown; lazy form lets `optional()` control when the work happens.
+
+The loader filters skip markers from the contribution arrays before passing them to consumers (registry, route mounter, validator runner). Failure logs structured info (factory source, error category) so operators can investigate.
+
+Alternative TS pattern (no `optional()`): conditional inclusion via array spread.
+
+```ts
+admin: {
+  hooks: [
+    autoSlugify(),
+    ...(process.env.NODE_ENV === 'development' ? [devOnlyTool({...})] : []),
+  ],
+}
+```
+
+Use `optional()` for "the plugin might fail at boot, that's OK"; use array-spread for "the plugin is conditional on env."
+
+## Multi-concern packages
+
+A plugin that contributes to multiple surfaces exports multiple named factories. One factory per surface contribution; one return type per factory; one extension surface targeted per call.
+
+```ts
+// In @example/slack-notify
+import type { HookContribution, RouteContribution } from 'gazetta'
 
 interface SlackOptions {
   webhookUrl: string
   channel?: string
 }
 
-export default function slackNotify(options: SlackOptions): Plugin {
+export function slackHook(options: SlackOptions): HookContribution {
   return {
-    name: '@gazetta/slack-notify',
-    version: '1.0.0',
-    init(api: PluginAPI) {
-      api.registerHook('afterPublish', async (target, result, ctx) => {
-        await fetch(options.webhookUrl, { /* ... */ })
-      })
-    },
+    source: '@example/slack-notify',
+    hooks: [{ phase: 'afterPublish', handler: ..., options: { name: 'slack-on-publish' } }],
   }
 }
-```
 
-**`PluginAPI` shape** — per-surface methods (not unified `register()`); preserves type safety + IDE autocomplete:
+export function slackRoute(options: SlackOptions): RouteContribution {
+  return {
+    source: '@example/slack-notify',
+    method: 'POST', path: '/test',
+    capability: 'configure:site',
+    schema: { request: TestRequestSchema, response: TestResponseSchema },
+    handler: async (c) => { /* ... */ },
+  }
+}
 
-```ts
-interface PluginAPI {
-  readonly self: { name: string; version?: string }
-
-  // Hooks (per design-hooks.md)
-  registerHook<TPhase extends HookPhase>(
-    phase: TPhase,
-    handler: HookHandler<TPhase>,
-    options?: HookOptions
-  ): void
-
-  // Provider surfaces
-  registerStorageProvider(name: string, factory: StorageProviderFactory): void
-  registerCacheProvider(name: string, factory: CacheProviderFactory): void
-  registerAuditProvider(name: string, factory: AuditProviderFactory): void
-  registerAuthIdentityProvider(name: string, factory: AuthIdentityProviderFactory): void
-  registerAltTextAdapter(name: string, factory: AltTextAdapterFactory): void
-  registerTransformAdapter(name: string, factory: TransformAdapterFactory): void
-  registerDeployAdapter(name: string, factory: DeployAdapterFactory): void
-  registerValidator(validator: Validator): void
-
-  // Admin UI extensions
-  registerEditor(name: string, mount: EditorMount): void
-  registerField(name: string, mount: FieldMount): void
-
-  // Admin-API routes (Q3b lock)
-  registerRoute(definition: RouteDefinition): void
-
-  // Read-only access
-  readonly storage: ReadOnlyStorageProvider     // Q3d: read-only
-  readonly site: ReadOnlySiteConfig
-  readonly gazetta: ReadOnlyGazettaConfig
-  readonly log: PluginLogger
+// Optional shared-config bundling factory
+export default function slackNotify(options: SlackOptions) {
+  return { slackHook: slackHook(options), slackRoute: slackRoute(options) }
 }
 ```
 
-**Route definition** (Q3b):
+Operator imports the inner factories directly (sharper TS inference, opt-in per surface) OR uses the bundling factory (one import for shared config across surfaces). Either works.
 
-```ts
-interface RouteDefinition {
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
-  path: string                                   // e.g., '/api/plugins/slack-notify/test'
-  capability: Capability                         // e.g., 'configure:site'
-  schema: { request?: ZodSchema; response: ZodSchema }
-  handler: (c: HonoContext) => Promise<Response>
-}
-```
+## Versioning
 
-Routes namespace under `/api/plugins/{plugin-name}/...` by convention. Path collisions caught at registration time.
-
-**Reserved capability prefixes** (Q3c):
-
-| Prefix | Reserved for |
-|---|---|
-| `read:*`, `edit:*`, `delete:*`, `publish:*`, `configure:*` | Built-in Gazetta capabilities |
-| `review:*`, `restore:*` | Built-in (review workflow + history) |
-| Any other prefix | Plugin-contributed (e.g., `search:rebuild-index`, `webhook:test`) |
-
-Plugin-contributed capabilities use a plugin-specific prefix (typically derived from purpose, not name — `search:` rather than `gazetta-plugin-search:`). Site config lists them in role definitions like any built-in capability.
-
-**Read-only storage in PluginAPI** (Q3d): plugins can read storage during init but cannot write. Writes during init would race across instances and create non-deterministic boot state. State persistence happens via storage during operation (e.g., from inside hook handlers using their `ctx.storage`), not init.
-
-**Plugin author types** exported from `gazetta`:
-
-```ts
-export type { Plugin, PluginAPI, HookPhase, HookHandler, Capability, /* ... */ } from 'gazetta'
-export { optional, defineSite, defineGazetta } from 'gazetta'
-```
-
-## Composition (Q4 locked)
-
-**Multi-plugin per surface**: each surface's existing semantics govern. No central rule at the plugin layer.
-
-| Surface | Multi-plugin behavior |
-|---|---|
-| Hooks | Priority-based composition per `design-hooks.md` Q3; all run in priority order |
-| Storage providers | Operator picks one per target; plugins extend the catalog |
-| Cache providers | Operator picks one per `admin.cache`; plugins extend the catalog |
-| Audit providers | Multi-provider supported per `design-audit.md`; plugins extend the catalog |
-| AuthIdentity | Operator picks one per `admin.auth.trust`; plugins extend the catalog |
-| Alt-text adapters | Operator picks one per `admin.altText.provider`; plugins extend the catalog |
-| Transform adapters | Operator picks one per `target.transforms.adapter`; plugins extend the catalog |
-| Deploy adapters | Operator picks one per target's deploy config; plugins extend the catalog |
-| Validators | All run; results aggregated per `design-validation.md`; plugins add to the registry |
-| Editors / Fields | Templates declare which they want; plugins extend the catalog |
-| Routes | One handler per (method, path); collisions throw at registration time |
-
-**Provider name collisions** (two plugins both registering the same provider name): error at registration time. Error message names both plugins so the operator can pick one:
-
-```
-Provider name 's3' already registered by plugin '@gazetta/r2-storage';
-'@my-org/custom-storage' cannot register the same name.
-```
-
-**Plugins adding new surfaces** (e.g., a plugin defining `SearchProvider` as a new extension surface other plugins target): **out of v1**. Meta-extensibility is too complex for v1. v1 ships with the 11 named extension surfaces per ADR-0004; plugins extend these catalogs and add admin routes via `registerRoute`.
-
-When plugins genuinely need a new surface (search-backend example), trigger pattern matches plugin-promotion convention: 3+ operator requests for the same kind of new surface within 6 months → Gazetta adds it as a first-class extension surface in-tree, with documented contract. Plugins then implement the new surface like any other.
-
-**Plugins adding admin routes via `registerRoute`** is in v1 — covers most "I want to add a feature" cases.
-
-## Versioning (Q5 locked)
-
-**Peer dependency on `gazetta`** is the primary compatibility mechanism:
+Peer dependency on `gazetta` is the primary compatibility mechanism:
 
 ```json
 {
-  "name": "@gazetta/slack-notify",
+  "name": "@example/slack-notify",
   "version": "1.0.0",
-  "peerDependencies": {
-    "gazetta": "^1.0.0"
-  }
+  "peerDependencies": { "gazetta": "^1.0.0" }
 }
 ```
 
-npm/yarn/pnpm warn (or error) at install time on peerDep mismatch. Same pattern as ESLint plugins, Vite plugins, etc.
+npm/yarn/pnpm warn at install time on peerDep mismatch. Same pattern as ESLint plugins, Vite plugins, Astro integrations.
 
-**Load-time check** (Gazetta-side, additive to npm enforcement):
-1. Read plugin's `package.json` (resolvable via `import.meta.resolve` or filesystem walk for site-local)
-2. Extract `peerDependencies.gazetta`
-3. Compare against running Gazetta version using semver
-4. If mismatch → log warning naming plugin, declared range, actual version. Does NOT refuse to load.
+Gazetta SemVer policy for contribution-shape interfaces:
+- **Patch**: bug fixes only; no contribution-shape changes
+- **Minor**: additive changes (new optional fields, new contribution shapes); existing factories remain compatible
+- **Major**: breaking changes (removed/renamed fields, changed signatures); plugins update peerDep range
 
-Site-local plugins (no `package.json`) skip the version check — operator's own code; assumed compatible.
+Per Universal Provider Requirement #7. Adding required methods to a Provider interface is breaking; new optional methods are additive. Same rule for contribution shape fields.
 
-**Gazetta SemVer policy for `PluginAPI`**:
-- **Patch (1.0.0 → 1.0.1)**: bug fixes only; no `PluginAPI` changes
-- **Minor (1.0.x → 1.1.0)**: additive changes (new methods, new optional fields); existing plugins remain compatible
-- **Major (1.x.x → 2.0.0)**: breaking changes (removed/renamed methods, changed signatures, changed semantics); plugins update peerDep range
+Site-local factories (no `package.json`) skip the version check — operator's own code; assumed compatible.
 
-Per Universal Provider Requirement #7: "Adding required methods is a breaking change requiring a version bump; new optional methods are additive."
+## Trust posture
 
-**Multiple installed Gazetta versions in one project**: out of v1 scope.
+Plugins run with full Node access. No sandbox. Sandboxing Node code in production-grade ways isn't feasible at acceptable cost — VM contexts leak, worker threads break the registration model, subprocess isolation has high overhead, Realm/ShadowRealm are experimental. Accept the trust model.
 
-## Sandbox / trust (Q6 locked)
+Operators evaluate plugins like any npm dependency. Plugins can read filesystem, make network calls, execute child processes. Supply chain attacks are real but already a general npm ecosystem concern.
 
-**Plugins run with full Node access. No sandbox.**
+Documentation responsibility: trust posture documented prominently in operator-facing docs. "Plugins run with full Node access — install only from sources you trust, pin versions, audit dependencies."
 
-Sandboxing Node code in production-grade ways isn't feasible at acceptable cost — VM contexts leak, worker threads break the registration model, subprocess isolation has high overhead, Realm/ShadowRealm are experimental. Accept the trust model.
-
-**Trust posture**: operators evaluate plugins like any npm dependency. Plugins can read filesystem, make network calls, execute child processes. Supply chain attacks are real but already a general npm ecosystem concern.
-
-**Service-account capabilities** (opt-in, operator-approved):
-
-A plugin's hook may need elevated access (e.g., write to a sidecar that requires `configure:targets` even though the publishing principal lacks it). The plugin declares the requirement; operator approves at site config:
-
-```ts
-import slackNotify from '@gazetta/slack-notify'
-
-export default defineSite({
-  admin: {
-    plugins: [
-      slackNotify({
-        webhookUrl: process.env.SLACK_WEBHOOK_URL!,
-        serviceAccount: { capabilities: ['read:audit-log'] },  // operator approves
-      }),
-    ],
-  },
-})
-```
-
-When the plugin's hook fires, the principal's capabilities are unioned with the service account's for the duration of the hook. Audit records the elevation:
-
-```ts
-{
-  action: 'hook-fired',
-  outcome: 'success',
-  actor: { /* triggering principal */ },
-  metadata: {
-    hookName: '@gazetta/slack-notify:notify',
-    serviceAccount: ['read:audit-log'],   // declared elevation
-  }
-}
-```
-
-**Plugin marketplace + curation**: out of v1. Plugins distributed via standard npm registry. Operator's responsibility (or their org's security policy) to review plugins.
-
-**Documentation responsibility**: trust posture documented prominently in `docs/` (operator guide). "Plugins run with full Node access — install only from sources you trust, pin versions, audit dependencies."
+Plugin marketplace + curation: out of v1. Plugins distributed via standard npm registry. Operator's responsibility (or their org's security policy) to review.
 
 ## Foundational checks
 
 How plugins compose with each of the other 12 foundational dimensions plus the multi-instance discipline.
 
 ### Multi-instance discipline
-- Plugins are file-based (npm packages or site-local TS files). Every instance imports the same plugins via `site.config.ts` deployed identically.
-- Plugin discovery + loading happens at admin boot; each instance loads its own plugin set independently.
-- **Plugins MUST NOT hold state in process across operations.** Any state goes through storage (using the same multi-instance-safe patterns the core uses: per-edge sidecars, content-addressed blobs, atomic writes).
-- Plugin-contributed extensions (storage providers, AI adapters, validators, etc.) inherit the multi-instance discipline of their host surface — a plugin-supplied storage provider must be as multi-instance-safe as in-tree providers (per Universal Provider Requirement #1).
-- Hot-deployed plugin (added without admin restart): out of v1 scope. v1 plugins require admin restart on each instance to pick up changes.
+- Contribution arrays are static config; same across instances. Each instance evaluates `site.config.ts`, builds the same contributions, registers them against per-instance registries (hooks registry, validator registry, route mounter).
+- Plugin-supplied Providers inherit Universal Provider Requirement #1 (multi-instance correctness via per-instance scope OR storage-coordinated atomicity).
+- Plugin contributions MUST NOT hold cross-operation state in process; per-build / per-request scopes only. Hook handlers using `ctx.storage` for derived state follow the same multi-instance-safe patterns the core uses (per-edge sidecars, content-addressed blobs, etag-based writes).
 
 ### Scale (#1)
-- Plugin init runs serially at boot; total boot time = sum of init times. Per-plugin async init can be slow (network calls); operators with many plugins see proportional boot delay.
-- Per-plugin timeout NOT in v1 (init failures fail boot loudly; operators investigate). Reserved if observed pain surfaces.
-- Heavy plugins (e.g., one that warms a 10k-page cache at boot) flagged in plugin docs; operators evaluate fit for their scale.
+- Contribution arrays are evaluated once per process boot. At envelope, evaluation is microseconds — factory closures bind config and return shape.
+- Per-handler timeouts apply per surface (hooks per `design-hooks.md`); validators run with stage-appropriate budgets per `design-validation.md`; routes have request-time cost like any Hono route.
+- Heavy plugins (warm-cache-at-construction, network probe at construction) flagged in plugin author docs; operator evaluates fit for their scale.
 
 ### Locale (#2) + Themes (#3)
-- Plugins that touch render output (rare in v1 — render hooks deferred per `design-hooks.md`) respect locale/theme dimensions via `RenderContext` (per `design-rendering.md`).
-- Most plugins compose with locale/theme transparently — they receive `ctx` with locale/theme set; can branch on them if needed.
+- Plugins that touch render output respect locale/theme via `RenderContext` (when render hooks ship per `design-rendering.md` future).
+- Most plugins compose transparently — they receive `ctx` with locale/theme set.
 
 ### Auth + RBAC (#4)
-- Plugin-added admin routes gate on capabilities via `RouteDefinition.capability`.
-- Plugin-contributed capabilities use a plugin-specific prefix (`search:`, `webhook:`, etc.); built-in prefixes reserved.
-- Service-account capabilities (Q6 lock) provide opt-in elevation for plugin hooks needing access beyond the triggering principal's.
+- `RouteContribution.capability` gates each route via the standard Hono middleware contract.
+- Plugin-contributed capabilities use a plugin-specific prefix; built-in prefixes reserved per `design-auth-rbac.md`.
+- Service-account elevation (`HookContribution.serviceAccount`) provides opt-in capability union for hook firings; declared by package author, approved by operator import.
 
 ### Audit (#5)
-- Plugin actions audit per the existing audit shape. Hooks emit `action: 'hook-fired'` with `metadata.hookName: '@plugin-name:hookName'`.
-- Plugin route invocations audit as `action: 'plugin-route'` with `metadata.pluginName + path`.
-- Service-account elevations recorded in audit metadata (per Q6 lock).
+- Hook firings audit per `design-hooks.md` Cut 7 with `metadata.source` + `metadata.hookName` separate (per ADR-0009 + this design pass).
+- Route invocations audit as `action: 'plugin-route'` with `metadata.source + metadata.routePath`.
+- Service-account elevations recorded in `metadata.serviceAccount`.
 - Audit-fail-open posture preserved: plugin-action audit-record failure never propagates to caller.
 
 ### Review (#6)
-- Plugin-supplied review workflow integrations (e.g., GitHub PR-as-review): reserved per `design-review-workflow.md` future directions. v1 uses hooks for external integration; provider surface deferred.
+- Plugin-supplied review workflow integrations (e.g., GitHub PR-as-review): reserved per `design-review-workflow.md`. v1 uses hooks for external integration.
 
 ### Hooks (#7)
-- Plugins are the primary distribution mechanism for hooks (per `design-hooks.md` Q4 locking dual discovery: site-local + plugin-supplied).
-- Plugin hooks land in priority band 100-999 (per `design-hooks.md` Q3); built-in 0-99; site-local 1000+.
-- Plugin-supplied hooks register via `api.registerHook(phase, handler, options)` during init.
+- `admin.hooks` factory contributions are the primary distribution mechanism (hooks v1 Cut 9).
+- Plugin hooks land in priority band 100-999 by default; built-in 0-99; site-local 1000+.
 
 ### Render (#8)
-- Render-lifecycle hooks deferred per `design-rendering.md`; not v1.
-- Plugins that affect rendering today do so via static + island components or by registering custom editors/fields/templates.
+- Render-lifecycle hooks deferred per `design-rendering.md`.
+- Plugins affecting rendering today do so via custom editors/fields/templates (file discovery) or via static contributions that hooks transform.
 
 ### Validation (#9)
-- Plugin-supplied validators register via `api.registerValidator(validator)` during init.
-- Validators are pure functions; plugin-contributed validators inherit the same purity contract per `design-validation.md`.
-- Validator stages (save-delta / background / pre-publish / cli) per the registered validator's `stages` declaration.
+- `admin.validators: Validator[]` ships with validation Cut 1.
+- `Validator.source` field added in this design pass.
+- Validators are pure functions per `design-validation.md`; plugin-contributed validators inherit the same purity contract.
 
 ### Cache (#11)
-- Plugin-supplied cache providers register via `api.registerCacheProvider(name, factory)` during init.
-- Plugin-contributed cache providers must inherit Universal Provider Requirement #1 (multi-instance correctness via per-instance scope OR storage-coordinated atomicity).
+- Plugin-supplied cache providers register via `cache: customCache({...})` per ADR-0008. No `registerCacheProvider` runtime — the field accepts any `AdminCache` instance.
 
 ### Offline (#12)
-- Plugin behavior during offline matches the host surface's offline contract (per `design-offline.md`'s upcoming pass).
-- Plugin-supplied offline-aware behavior follows the same patterns as in-tree code: write paths queue + replay; read paths degrade to cache.
+- Plugin behavior during offline matches the host surface's offline contract per `design-offline.md`.
+- Browser-side plugins (custom editors / fields) follow the offline-aware patterns in `design-offline.md`.
 
 ### Collaboration (#13)
-- Plugin-supplied notification providers (Slack, Discord, email) register as Notification Providers — reserved Extension Surface candidate per `design-collaboration.md`'s upcoming pass.
-- Plugin hooks for `afterCommentPosted`, `afterMention` register via the standard hook contract once collaboration ships.
+- Plugin-supplied notification providers register at the `admin.notifications` field per the future `NotificationProvider` extension surface (per `design-collaboration.md`).
+- Plugin hooks for `afterCommentPosted`, `afterMention` register via `admin.hooks` once collaboration ships.
 
-### Site config (`design-config.md`)
-- Plugins are imported and invoked inline in `site.config.ts` via factory functions. Discovery surface is the config file itself.
+### Site config ([`design-config.md`](design-config.md))
+- Plugins are imported and invoked inline in `site.config.ts` via factory functions. Discovery surface is the config file.
 - Plugin options are typed; TS inference at the call site catches misconfiguration at edit time. Runtime Zod still validates at load.
 - `optional()` wrapper supports dev-only / environment-conditional plugins.
 
+## Comparison to the locked design
+
+The locked design pre-2026-05 specified:
+
+| Locked design | What we have now |
+|---|---|
+| `Plugin` interface with `name`, `version`, `init(api)`, `dispose?()` | No `Plugin` interface. Packages export factories; that's the contract. |
+| `PluginAPI` god-object with 11 register methods | No `PluginAPI`. Each surface has its own contribution mechanism (factory-call-at-field for Providers; typed arrays for Hooks/Validators/Routes). |
+| Discovery via `admin.plugins: Plugin[]` array, serial async init | Discovery via per-surface arrays + provider fields. No init phase — factories construct at config-eval. |
+| `RegistrationAfterInitError` | Not needed — registration is implicit at config-eval; no window to violate. |
+| `Plugin.requires` advisory metadata | Dropped. Operators read package READMEs. Future admin UI inventory uses npm `package.json gazetta` field. |
+| `withServiceAccount(plugin, capabilities)` operator-side wrapper | `serviceAccount` field on the contribution; declared by author, approved by import. |
+
+None of the locked design's runtime constructs were ever implemented — only documented in shipped code as JSDoc references to its intent. The transition is documentation-only.
+
 ## Migration
 
-Existing surfaces continue to work — plugin contract is additive on top. The migration is per-surface as the contract is applied:
-- Built-in storage providers (filesystem, R2, S3, Azure) become "in-tree plugins" registered the same way external plugins would be
-- Templates / custom editors / custom fields stay where they are; the contract applies to npm-packaged versions
+Existing surfaces continue to work — the design pass is documentation-only on the user-facing side. Per-surface implementation work lands as those surfaces ship:
+- Hook audit `source` field — ✓ already shipped (hooks v1 Cut 7 + Cut 9). Locked here so the contract is durable.
+- `admin.validators` with validation Cut 1
+- Service-account elevation with auth/RBAC's service-account primitive
+- `admin.routes` standalone when first concrete demand surfaces
+
+No `gazetta migrate-plugins` CLI; nothing to migrate (the locked plugin runtime never shipped).
 
 ## Future directions
 
-- Plugin marketplace — npm registry filter, curated listings — out of scope for v1
-- Custom routes / custom CLI as plugin surface — strategic non-fit per ROADMAP non-goals (waits for concrete demand)
-- Plugin hot-reload — out of scope; reload requires admin restart
+- **Plugin marketplace** — npm registry filter, curated listings — out of scope for v1
+- **Plugin hot-reload** — out of scope; reload requires admin restart
+- **Plugin-defined surfaces** (a plugin defining a new extension surface other plugins target) — out of v1; trigger pattern: 3+ operator requests for the same kind of new surface within 6 months → Gazetta adds it as a first-class extension surface in-tree
+- **Admin UI plugin inventory** — when shipped, plugin metadata reaches it via npm `package.json gazetta` field rather than contribution-shape fields
