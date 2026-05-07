@@ -214,6 +214,12 @@ Override target-level cache in a page manifest:
 | Page changed | Purge that page's URL only |
 | CLI publish | Purge all at the end |
 
+## Audit log
+
+Audit recording is on by default — every save / publish / delete / restore writes a structured event to the target's `.gazetta/audit/events-{instance}.jsonl`. With Cloudflare Workers admin instances, the per-instance file naming uses the worker's revision identity. See [`audit.md`](audit.md) for the full reference (privacy posture, retention, capability gating).
+
+R2-backed admin processes work the same as filesystem-backed: per-instance JSONL files mean concurrent appenders never collide on object writes. The `read:audit-log` capability gates the admin drawer; built-in `editor` and `viewer` roles do NOT grant it (wildcard-exempt). Operators wanting non-admin audit access declare a custom role with `['read:*', 'read:audit-log']`.
+
 ## Worker
 
 The worker is a thin Hono app that:

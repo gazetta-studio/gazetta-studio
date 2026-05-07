@@ -23,6 +23,22 @@ export default defineSite({
   //   maxTokens: 300,                                       // optional generation cap
   // },
 
+  // Audit log (optional). Audit is on by default with sensible
+  // privacy defaults — events stored in each target's
+  // `.gazetta/audit/events-{instance}.jsonl`. See docs/audit.md for
+  // the full reference: privacy modes, retention windows,
+  // capability gating, deployment patterns.
+  //
+  // admin: {
+  //   audit: {
+  //     // strict: false,            // default — fail-open. true = block writes on audit failure (HIPAA / SOC 2)
+  //     // actorPseudonym: 'none',   // 'none' | 'sha256' (requires GAZETTA_AUDIT_ACTOR_SALT env var)
+  //     // recordSourceIp: 'none',   // 'none' | 'raw' | 'hashed' | 'truncated'
+  //     // recordUserAgent: 'none',  // 'none' | 'raw' | 'truncated'
+  //     // retention: { events: 10000, maxAgeMonths: 12 },  // optional caps
+  //   },
+  // },
+
   targets: {
     local: {
       // Relative paths are anchored to this config file's directory
