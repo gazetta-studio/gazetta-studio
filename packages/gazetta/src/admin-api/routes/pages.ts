@@ -14,9 +14,34 @@ import { computeSaveEtag } from '../../save-etag.js'
 import { ensureComponentIds } from '../../component-ids.js'
 import { requireCapability } from '../middleware/capability.js'
 import type { AuditEnv } from '../middleware/audit.js'
+import {
+  buildHookContext,
+  dispatchAfterLoad,
+  dispatchAfterSave,
+  dispatchBeforeSave,
+  HookCancellation,
+  HookTimeout,
+  type HookRegistry,
+} from '../../hooks/index.js'
 
-export function pageRoutes(resolve: SourceContextResolver, validators: ValidatorRegistry, templatesDir?: string) {
+export interface PageRoutesOptions {
+  /**
+   * Registered hooks. When omitted, dispatch is a no-op (sites
+   * without hooks pay zero overhead). Construct via
+   * `new HookRegistry()` + `discoverSiteLocalHooks(...)` in the
+   * admin-api boot path.
+   */
+  hooks?: HookRegistry
+}
+
+export function pageRoutes(
+  resolve: SourceContextResolver,
+  validators: ValidatorRegistry,
+  templatesDir?: string,
+  opts: PageRoutesOptions = {},
+) {
   const app = new Hono<AuditEnv>()
+  const hooks = opts.hooks
 
   app.get('/api/pages', requireCapability('read:pages'), async c => {
     const source = await resolve(c.req.query('target'))
@@ -156,7 +181,7 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
       route: page.route,
     })
     c.header('ETag', `"${etag}"`)
-    return c.json({
+    let body: Record<string, unknown> = {
       name,
       route: page.route,
       template: page.template,
@@ -166,7 +191,22 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
       dir: page.dir,
       locale: locale ?? undefined,
       locales: localeEntry ? [...localeEntry.locales.keys()] : undefined,
-    })
+    }
+    // afterLoad hooks per design-hooks.md "Save flow with hooks":
+    // mutating chain at read time. Hooks may transform the loaded
+    // payload (e.g., resolve denormalized references, inject
+    // synthetic fields). Output flows to the client.
+    if (hooks) {
+      const ctx = buildHookContext({
+        principal: c.var.principal,
+        storage: source.storage,
+        target: source.targetName,
+        requestId: c.req.header('x-request-id') ?? crypto.randomUUID(),
+        site: { name: source.manifest?.name },
+      })
+      body = await dispatchAfterLoad(hooks, { kind: 'page', name, locale: locale ?? undefined }, body, ctx)
+    }
+    return c.json(body)
   })
 
   app.put('/api/pages/:name{.+}', requireCapability('edit:pages'), async c => {
@@ -275,6 +315,51 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
       return c.json({ code: 'VALIDATION_FAILED' as const, issues }, 409)
     }
 
+    // beforeSave hooks per design-hooks.md "Save flow with hooks":
+    // validators run → beforeSave fires → storage write → afterSave
+    // → response. Hooks see the post-validation manifest; their
+    // returned payload proceeds to disk. A handler that throws
+    // cancels the operation (HookCancellation) — surface as a
+    // 409 with HOOK_CANCELLED so clients can discriminate.
+    //
+    // Build the HookContext ONCE per request — design-hooks.md
+    // "HookContext shape" locks `now` + `requestId` as deterministic
+    // for all hooks in a request. Reused for the afterSave dispatch
+    // below.
+    const hookCtx = hooks
+      ? buildHookContext({
+          principal: c.var.principal,
+          storage: source.storage,
+          target: source.targetName,
+          requestId: c.req.header('x-request-id') ?? crypto.randomUUID(),
+          site: { name: source.manifest?.name },
+        })
+      : null
+    const hookScope = { kind: 'page' as const, name, locale: locale ?? undefined }
+    let finalManifest: Record<string, unknown> = manifest
+    if (hooks && hookCtx) {
+      try {
+        finalManifest = await dispatchBeforeSave(hooks, hookScope, manifest, hookCtx)
+      } catch (err) {
+        if (err instanceof HookCancellation || err instanceof HookTimeout) {
+          await c.var.audit.record({
+            action: 'save',
+            outcome: 'validation-failed',
+            scope: { kind: 'page', name },
+            metadata: {
+              ...(locale ? { locale } : {}),
+              hookCancelled: err instanceof HookCancellation ? err.hookName : undefined,
+              hookTimeout: err instanceof HookTimeout ? err.hookName : undefined,
+            },
+          })
+          return c.json({ code: 'HOOK_CANCELLED' as const, hook: err.hookName, reason: err.message }, 409)
+        }
+        throw err
+      }
+    }
+    // Re-serialize the (potentially mutated) manifest.
+    const serializedFinal = hooks === undefined ? serialized : JSON.stringify(finalManifest, null, 2) + '\n'
+
     // Record the history revision BEFORE the disk write. recordWrite's
     // first call scans the content tree to produce a pre-save baseline
     // — if we wrote to disk first, the baseline would capture the
@@ -287,18 +372,18 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
         history: source.history,
         contentRoot: source.contentRoot,
         operation: 'save',
-        items: [{ path: source.contentRoot.relative(manifestPath), content: serialized }],
+        items: [{ path: source.contentRoot.relative(manifestPath), content: serializedFinal }],
       })
     }
-    await storage.writeFile(manifestPath, serialized)
+    await storage.writeFile(manifestPath, serializedFinal)
     // Dep sidecars: diff old vs new manifest for both asset and fragment
     // references. Each affected target gets its sidecar written/removed
     // accordingly. The pre-save manifest is already in memory as `page`
     // (via loadSiteFromSource).
     const item: ItemRef = locale ? { source: 'page', name, locale } : { source: 'page', name }
     await Promise.all([
-      rebuildAssetRefs(source.contentRoot, item, page, manifest),
-      rebuildFragmentDeps(source.contentRoot, item, page, manifest),
+      rebuildAssetRefs(source.contentRoot, item, page, finalManifest),
+      rebuildFragmentDeps(source.contentRoot, item, page, finalManifest),
     ])
     await source.cache.invalidatePrefix('pages:')
     // Echo the new save-etag so the client updates its baseline
@@ -307,7 +392,7 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
     // in the file, but the in-memory entry carries it. Carry it
     // here so the projection chain works for offline replay
     // sequences (design-offline.md Q3).
-    const echoShape: Record<string, unknown> = { ...manifest }
+    const echoShape: Record<string, unknown> = { ...finalManifest }
     if (page.route !== undefined) echoShape.route = page.route
     const newEtag = await computeSaveEtag(echoShape)
     c.header('ETag', `"${newEtag}"`)
@@ -320,6 +405,14 @@ export function pageRoutes(resolve: SourceContextResolver, validators: Validator
       scope: { kind: 'page', name },
       metadata: locale ? { locale } : undefined,
     })
+    // afterSave hooks per design-hooks.md "Save flow" step 5.
+    // Observational; failures logged but never propagated. Runs
+    // AFTER the audit record so the forensic record is durably
+    // committed before observational hooks fire. Per-hook timeout
+    // applies; one slow hook bounded by its timeout, not the total.
+    if (hooks && hookCtx) {
+      await dispatchAfterSave(hooks, hookScope, { payload: finalManifest, etag: newEtag }, hookCtx)
+    }
     return c.json({ ok: true, etag: newEtag })
   })
 
