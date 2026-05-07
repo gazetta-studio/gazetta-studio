@@ -26,11 +26,13 @@
  * # Capability gating
  *
  * `read:audit-log` per design-audit.md and design-auth-rbac.md.
- * Built-in roles `admin` (`*`) and `editor` / `viewer` (`read:*`)
- * grant via wildcard; custom roles declare it explicitly. Cut 9
- * may revisit whether `read:*` should exclude `read:audit-log`
- * (per the design's "viewers don't see audit by default" rule);
- * for v1, wildcard match is the path.
+ * Built-in role `admin` grants via root wildcard `*`. Built-in
+ * `editor` and `viewer` roles do NOT grant `read:audit-log` —
+ * the prefix wildcard `read:*` they hold is wildcard-exempt for
+ * audit (Cut 9). Operators wanting non-admin audit access declare
+ * a custom role with `['read:*', 'read:audit-log']` explicitly.
+ * Per design-auth-rbac.md "Audit-log read access is its own
+ * capability — viewers don't see audit by default."
  *
  * # Response merging
  *
