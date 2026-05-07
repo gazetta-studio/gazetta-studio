@@ -28,6 +28,7 @@
  */
 import type { Principal } from '../types.js'
 import type { AuthIdentityProvider, AuthRequest } from '../provider.js'
+import { expandRole } from '../capabilities.js'
 
 export interface TailscaleConfig {
   /** Optional default role until Cut 6's role-resolver wires up. */
@@ -58,7 +59,7 @@ export function createTailscaleAuthProvider(config: TailscaleConfig = {}): AuthI
         email: login,
         role: defaultRole,
         trustMode: 'tailscale',
-        capabilities: [],
+        capabilities: expandRole(defaultRole) ?? [],
       }
     },
   }

@@ -53,6 +53,7 @@
 import type { Principal } from '../types.js'
 import type { AuthIdentityProvider, AuthRequest } from '../provider.js'
 import { AuthenticationError } from '../errors.js'
+import { expandRole } from '../capabilities.js'
 
 export interface AzureEasyAuthConfig {
   /** Optional default role until Cut 6's role-resolver wires up. */
@@ -118,7 +119,7 @@ export function createAzureEasyAuthProvider(config: AzureEasyAuthConfig = {}): A
         email,
         role: defaultRole,
         trustMode: 'azure-easy-auth',
-        capabilities: [], // Cut 6 populates via role-resolver
+        capabilities: expandRole(defaultRole) ?? [],
       }
     },
   }
