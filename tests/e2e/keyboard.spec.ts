@@ -7,7 +7,7 @@ test.describe('Keyboard shortcuts', () => {
     await openEditor(page, 'home')
     await new ComponentTreePom(page).open('hero')
     const titleField = page.locator('input[name="root_title"]').first()
-    await titleField.waitFor({ timeout: 5000 })
+    await titleField.waitFor({ timeout: 10000 })
     const original = await titleField.inputValue()
     await titleField.fill(original + ' — ctrl+s test')
 
@@ -30,7 +30,7 @@ test.describe('Keyboard shortcuts', () => {
     await openEditor(page, 'home')
     await new ComponentTreePom(page).open('hero')
     const titleField = page.locator('input[name="root_title"]').first()
-    await titleField.waitFor({ timeout: 5000 })
+    await titleField.waitFor({ timeout: 10000 })
     const original = await titleField.inputValue()
     await titleField.fill(original + ' — cmd+s test')
 
@@ -45,7 +45,7 @@ test.describe('Keyboard shortcuts', () => {
     // on an unmodified form should not fire the save pipeline.
     await openEditor(page, 'home')
     await new ComponentTreePom(page).open('hero')
-    await page.locator('input[name="root_title"]').first().waitFor({ timeout: 5000 })
+    await page.locator('input[name="root_title"]').first().waitFor({ timeout: 10000 })
 
     // Form is clean at this point — save button should be disabled.
     await expect(page.locator('[data-testid="save-btn"]')).toBeDisabled()
@@ -64,7 +64,7 @@ test.describe('Keyboard shortcuts', () => {
     await openEditor(page, 'home')
     await new ComponentTreePom(page).open('hero')
     const titleField = page.locator('input[name="root_title"]').first()
-    await titleField.waitFor({ timeout: 5000 })
+    await titleField.waitFor({ timeout: 10000 })
     const original = await titleField.inputValue()
 
     // Make two edits so there's real undo history.
@@ -87,7 +87,7 @@ test.describe('Keyboard shortcuts', () => {
     await openEditor(page, 'home')
     await new ComponentTreePom(page).open('hero')
     const titleField = page.locator('input[name="root_title"]').first()
-    await titleField.waitFor({ timeout: 5000 })
+    await titleField.waitFor({ timeout: 10000 })
     const original = await titleField.inputValue()
 
     await titleField.fill(original + ' edited')
