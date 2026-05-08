@@ -363,3 +363,139 @@ describe('ComponentTree', () => {
     expect(w.find('[data-testid="component-nav"]').exists()).toBe(true)
   })
 })
+
+describe('ComponentTree — drag handle + Alt+arrow reorder (#105)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  function selectStarterHome() {
+    setPageSelection({
+      name: 'home',
+      route: '/',
+      template: 'page-default',
+      dir: 'pages/home',
+      components: [
+        { name: 'hero', template: 'hero', content: { title: 'A' } },
+        { name: 'features', template: 'features', content: {} },
+        { name: 'banner', template: 'banner', content: {} },
+      ],
+    })
+  }
+
+  it('renders a drag handle on every top-level component row', async () => {
+    selectStarterHome()
+    const w = mountTree(fakeFragmentsApi())
+    await flushMicrotasks()
+    expect(w.find('[data-testid="drag-handle-hero"]').exists()).toBe(true)
+    expect(w.find('[data-testid="drag-handle-features"]').exists()).toBe(true)
+    expect(w.find('[data-testid="drag-handle-banner"]').exists()).toBe(true)
+  })
+
+  it('drag handle is a focusable button with an aria-label', async () => {
+    selectStarterHome()
+    const w = mountTree(fakeFragmentsApi())
+    await flushMicrotasks()
+    const handle = w.find('[data-testid="drag-handle-hero"]')
+    expect(handle.element.tagName).toBe('BUTTON')
+    expect(handle.attributes('aria-label')).toContain('Drag hero to reorder')
+    expect(handle.attributes('tabindex')).toBe('0')
+  })
+
+  it('replaces the legacy move-up / move-down arrow buttons (Q3 lock)', async () => {
+    selectStarterHome()
+    const w = mountTree(fakeFragmentsApi())
+    await flushMicrotasks()
+    expect(w.find('[data-testid="move-up-hero"]').exists()).toBe(false)
+    expect(w.find('[data-testid="move-down-hero"]').exists()).toBe(false)
+    // Trash button stays — delete is a different action.
+    expect(w.find('[data-testid="remove-hero"]').exists()).toBe(true)
+  })
+
+  it('Alt+ArrowDown moves the focused row one position down', async () => {
+    selectStarterHome()
+    const w = mountTree(fakeFragmentsApi())
+    await flushMicrotasks()
+    const editing = useEditingStore()
+    const moveSpy = vi.spyOn(editing, 'moveComponentStructural')
+    // Trigger keydown on the first top-level block (hero, index 0).
+    const blocks = w.findAll('.top-level-block')
+    expect(blocks).toHaveLength(3)
+    await blocks[0].trigger('keydown', { key: 'ArrowDown', altKey: true })
+    expect(moveSpy).toHaveBeenCalledTimes(1)
+    const args = moveSpy.mock.calls[0]
+    expect(args[2]).toBe(0) // fromIndex
+    expect(args[3]).toBe(1) // toIndex
+  })
+
+  it('Alt+ArrowUp moves the focused row one position up', async () => {
+    selectStarterHome()
+    const w = mountTree(fakeFragmentsApi())
+    await flushMicrotasks()
+    const editing = useEditingStore()
+    const moveSpy = vi.spyOn(editing, 'moveComponentStructural')
+    const blocks = w.findAll('.top-level-block')
+    await blocks[2].trigger('keydown', { key: 'ArrowUp', altKey: true })
+    expect(moveSpy).toHaveBeenCalledTimes(1)
+    const args = moveSpy.mock.calls[0]
+    expect(args[2]).toBe(2) // fromIndex
+    expect(args[3]).toBe(1) // toIndex
+  })
+
+  it('Alt+ArrowUp at the top is a no-op (no store call)', async () => {
+    selectStarterHome()
+    const w = mountTree(fakeFragmentsApi())
+    await flushMicrotasks()
+    const editing = useEditingStore()
+    const moveSpy = vi.spyOn(editing, 'moveComponentStructural')
+    const blocks = w.findAll('.top-level-block')
+    await blocks[0].trigger('keydown', { key: 'ArrowUp', altKey: true })
+    expect(moveSpy).not.toHaveBeenCalled()
+  })
+
+  it('Alt+ArrowDown at the bottom is a no-op (no store call)', async () => {
+    selectStarterHome()
+    const w = mountTree(fakeFragmentsApi())
+    await flushMicrotasks()
+    const editing = useEditingStore()
+    const moveSpy = vi.spyOn(editing, 'moveComponentStructural')
+    const blocks = w.findAll('.top-level-block')
+    await blocks[2].trigger('keydown', { key: 'ArrowDown', altKey: true })
+    expect(moveSpy).not.toHaveBeenCalled()
+  })
+
+  it('plain ArrowUp / ArrowDown without Alt is ignored (no store call)', async () => {
+    selectStarterHome()
+    const w = mountTree(fakeFragmentsApi())
+    await flushMicrotasks()
+    const editing = useEditingStore()
+    const moveSpy = vi.spyOn(editing, 'moveComponentStructural')
+    const blocks = w.findAll('.top-level-block')
+    await blocks[0].trigger('keydown', { key: 'ArrowDown' })
+    await blocks[2].trigger('keydown', { key: 'ArrowUp' })
+    expect(moveSpy).not.toHaveBeenCalled()
+  })
+
+  it('Alt+Shift+ArrowDown is ignored — modifier-only check (no platform-shortcut collisions)', async () => {
+    selectStarterHome()
+    const w = mountTree(fakeFragmentsApi())
+    await flushMicrotasks()
+    const editing = useEditingStore()
+    const moveSpy = vi.spyOn(editing, 'moveComponentStructural')
+    const blocks = w.findAll('.top-level-block')
+    await blocks[0].trigger('keydown', { key: 'ArrowDown', altKey: true, shiftKey: true })
+    expect(moveSpy).not.toHaveBeenCalled()
+  })
+
+  it('the draggable parent is rendered with the test id (DnD library hook target)', async () => {
+    selectStarterHome()
+    const w = mountTree(fakeFragmentsApi())
+    await flushMicrotasks()
+    expect(w.find('[data-testid="component-tree-draggable"]').exists()).toBe(true)
+  })
+
+  // Suppress unused-import lint for stash + content stores (used in
+  // dirty-edit existing tests; the new block doesn't touch them).
+  void useEditorStashStore
+  void useEditorContentStore
+})

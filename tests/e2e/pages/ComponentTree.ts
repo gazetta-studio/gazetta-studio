@@ -86,16 +86,24 @@ export class ComponentTreePom {
     await this.page.click(`[data-testid="remove-${name}"]`)
   }
 
-  /** Hover then click move-up. */
+  /**
+   * Move a top-level row one position up. Uses the Alt+ArrowUp keyboard
+   * shortcut (#105 — replaces the legacy move-up button); simulating a
+   * pointer drag in Playwright is brittle across browsers and the
+   * keyboard path exercises the same store action via a deterministic
+   * code path.
+   */
   async moveUp(name: string): Promise<void> {
-    await this.row(name).hover()
-    await this.page.click(`[data-testid="move-up-${name}"]`)
+    const handle = this.page.locator(`[data-testid="drag-handle-${name}"]`)
+    await handle.focus()
+    await this.page.keyboard.press('Alt+ArrowUp')
   }
 
-  /** Hover then click move-down. */
+  /** Move a top-level row one position down (Alt+ArrowDown shortcut). */
   async moveDown(name: string): Promise<void> {
-    await this.row(name).hover()
-    await this.page.click(`[data-testid="move-down-${name}"]`)
+    const handle = this.page.locator(`[data-testid="drag-handle-${name}"]`)
+    await handle.focus()
+    await this.page.keyboard.press('Alt+ArrowDown')
   }
 
   // ---- Dialog surfaces (for assertions about the add flow) ----------
