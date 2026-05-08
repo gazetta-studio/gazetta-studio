@@ -14,6 +14,7 @@ import FragmentBlastRadius from './FragmentBlastRadius.vue'
 import PageMetadataEditor from './PageMetadataEditor.vue'
 import ValidationBanner from './ValidationBanner.vue'
 import ConflictBanner from './ConflictBanner.vue'
+import EditorBreadcrumb from './EditorBreadcrumb.vue'
 import { useLocaleStore } from '../stores/locale.js'
 import { manifestPath } from '../stores/editorEtags.js'
 import { useConflictDiscard } from '../composables/useConflictDiscard.js'
@@ -140,8 +141,12 @@ async function handleConflictDiscard() {
       <p>Select a component to edit</p>
     </div>
     <div v-else class="editor-active">
+      <!-- #82 — breadcrumb shows the user-set component name path
+           ("home > features > fast") instead of the template-name
+           jargon ("feature-card") that authors don't understand.
+           Each non-current segment is clickable to navigate up. -->
       <div class="editor-header">
-        <h3>{{ editing.template }}</h3>
+        <EditorBreadcrumb />
         <FragmentBlastRadius v-if="fragmentName" :fragmentName="fragmentName" />
       </div>
       <div v-if="hasProperties" ref="containerRef" class="editor-container" data-testid="editor-container" :key="editing.path" />
@@ -152,7 +157,6 @@ async function handleConflictDiscard() {
 </template>
 
 <style scoped>
-.editor-panel h3 { font-size: 0.75rem; text-transform: uppercase; color: var(--color-muted); letter-spacing: 0.05em; margin: 0; }
 .editor-header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
 .editor-error { color: var(--color-danger-fg); font-size: 0.875rem; display: flex; flex-direction: column; align-items: center; padding-top: 3rem; gap: 0.5rem; text-align: center; }
 .editor-error .pi { font-size: 2rem; }

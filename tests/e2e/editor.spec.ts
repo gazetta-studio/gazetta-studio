@@ -85,6 +85,37 @@ test.describe('Custom field', () => {
   })
 })
 
+test.describe('Editor breadcrumb (#82)', () => {
+  test('shows page-name > component-name when editing a top-level component', async ({ page }) => {
+    await openEditor(page, 'home')
+    const tree = new ComponentTreePom(page)
+    await tree.open('hero')
+    await page.waitForSelector('[data-testid="editor-breadcrumb"]', { timeout: 10000 })
+
+    const breadcrumb = page.locator('[data-testid="editor-breadcrumb"]')
+    await expect(breadcrumb.locator('[data-testid="breadcrumb-segment-home"]')).toBeVisible()
+    await expect(breadcrumb.locator('[data-testid="breadcrumb-segment-hero"]')).toBeVisible()
+
+    // page-name segment is a button (clickable); current segment is a span.
+    const homeSeg = breadcrumb.locator('[data-testid="breadcrumb-segment-home"]')
+    const heroSeg = breadcrumb.locator('[data-testid="breadcrumb-segment-hero"]')
+    await expect(homeSeg).toHaveJSProperty('tagName', 'BUTTON')
+    await expect(heroSeg).toHaveJSProperty('tagName', 'SPAN')
+  })
+
+  test('clicking the page-name segment navigates back to root (clears the hash)', async ({ page }) => {
+    await openEditor(page, 'home')
+    const tree = new ComponentTreePom(page)
+    await tree.open('hero')
+    await page.waitForSelector('[data-testid="editor-breadcrumb"]', { timeout: 10000 })
+
+    // We're on /pages/home/edit#hero; click home segment.
+    expect(new URL(page.url()).hash).toBe('#hero')
+    await page.locator('[data-testid="breadcrumb-segment-home"]').click()
+    await expect.poll(() => new URL(page.url()).hash).toBe('')
+  })
+})
+
 test.describe('Rapid selection', () => {
   test('last click wins when rapidly switching pages', { retry: 1 }, async ({ page }) => {
     await page.goto('/admin')
