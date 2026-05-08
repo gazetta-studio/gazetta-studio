@@ -1861,7 +1861,15 @@ async function runDev(siteDir: string, port: number) {
             // written into the source, so the scanner misses it. Include it
             // explicitly to avoid a mid-session page reload when a TSX editor
             // is first loaded (#122).
-            include: ['react/jsx-dev-runtime', 'react/jsx-runtime'],
+            //
+            // @formkit/drag-and-drop/vue is the ComponentTree's reorder lib
+            // (#105). The package's main entry is CJS; the Vue subpath is
+            // ESM. Vite's auto-scanner doesn't always pre-bundle subpath
+            // ESM imports with mixed CJS-main packages on first load,
+            // which triggers a runtime "Re-optimizing dependencies"
+            // page reload mid-test on CI cold start. Explicit include
+            // pins the subpath in the boot-time pre-bundle.
+            include: ['react/jsx-dev-runtime', 'react/jsx-runtime', '@formkit/drag-and-drop/vue'],
           },
           server: {
             middlewareMode: true,
