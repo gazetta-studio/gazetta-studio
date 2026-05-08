@@ -217,6 +217,7 @@ Per [team-preferences.md rule 17](team-preferences.md): "Build and validate, don
 | Performance budget gates (LCP, CLS) | Lighthouse covers this once configured |
 | Cross-content validation (e.g., "every page has a meta description") | Authors ask |
 | `template-deps` reverse-dep sidecar relation (peer to `fragment-deps` / `asset-refs`) | Concrete demand for incremental invalidation on template edits — from validation scanner OR publish flow's "items affected by template change". v1 falls back to full-site rescan; template edits are rare relative to content edits. Mechanical to add when needed (one new `DepRelation` binding + save/publish writers + reindex CLI handler). |
+| **Target-side validation** (validate published HTML on a target, not just source) | Concrete operator demand from drift scenarios — direct-to-prod edits via `editable: true`, multi-region targets diverging, "is what's actually live OK?" dashboards. v1 validates source: render-for-analysis re-renders source content + scans the result. Target-side validation is a different surface (forensic, operator-facing, not author-facing). Trigger: 3+ operator reports of drift surprise OR a compliance ask for "validate live content." Likely shape: peer scanner reading published HTML directly from target storage, surfaced in a separate "Target health" drawer alongside source's "Site health". Cut 4's publish gate already provides pre-publish coverage at the most common moment authors want it. |
 
 ## Open implementation questions
 
