@@ -128,4 +128,69 @@ test.describe('Component operations', () => {
     // PR / changelog.
     testInfo.annotations.push({ type: 'regression', description: 'github#106' })
   })
+
+  // #105 — drag-handle UX, replaces the legacy move-up/move-down buttons.
+  // Tests below cover the things existing move-up/down tests don't:
+  //   - The drag handle is rendered + accessible
+  //   - Legacy move-up/move-down test ids no longer exist
+  //   - Alt+Arrow shortcut works against the focused handle (the POM's
+  //     moveUp / moveDown use this shortcut now; this test pins the
+  //     direct keyboard interaction so a future change to the POM
+  //     doesn't silently break the keyboard path)
+  test('drag handles are rendered with accessible labels (#105)', async ({ page }) => {
+    await openEditor(page, 'home')
+    const tree = new ComponentTreePom(page)
+    await expect(tree.row('hero')).toBeVisible({ timeout: 10000 })
+
+    const heroHandle = page.locator('[data-testid="drag-handle-hero"]')
+    await expect(heroHandle).toBeVisible()
+    await expect(heroHandle).toHaveAttribute('aria-label', /drag hero to reorder/i)
+
+    // Legacy buttons should NOT be present anywhere.
+    await expect(page.locator('[data-testid="move-up-hero"]')).toHaveCount(0)
+    await expect(page.locator('[data-testid="move-down-hero"]')).toHaveCount(0)
+
+    // Trash button stays — delete is a different action.
+    const heroRow = tree.row('hero')
+    await heroRow.hover()
+    await expect(page.locator('[data-testid="remove-hero"]')).toBeVisible()
+  })
+
+  test('Alt+ArrowDown on the focused handle moves the row one position (#105)', async ({ page, testSite }) => {
+    await openEditor(page, 'home')
+    const tree = new ComponentTreePom(page)
+    await expect(tree.row('hero')).toBeVisible({ timeout: 10000 })
+
+    // Focus hero's drag handle and press Alt+ArrowDown — should move hero
+    // below features (its sibling at index 2 in the starter).
+    const heroBefore = await tree.row('hero').boundingBox()
+    const featuresBefore = await tree.row('features').boundingBox()
+    expect(heroBefore!.y).toBeLessThan(featuresBefore!.y)
+
+    await page.locator('[data-testid="drag-handle-hero"]').focus()
+    await page.keyboard.press('Alt+ArrowDown')
+
+    await expect(async () => {
+      const heroAfter = await tree.row('hero').boundingBox()
+      const featuresAfter = await tree.row('features').boundingBox()
+      expect(featuresAfter!.y).toBeLessThan(heroAfter!.y)
+    }).toPass({ timeout: 10000 })
+
+    // Save + restore so the test is idempotent for the file.
+    const pageJsonPath = join(testSite.projectDir, 'sites/main/targets/local/pages/home/page.json')
+    await page.click('[data-testid="save-btn"]')
+    await expect(page.locator('[data-testid="save-btn"]')).toBeDisabled({ timeout: 10000 })
+
+    const afterJson = JSON.parse(readFileSync(pageJsonPath, 'utf8'))
+    const afterNames = (afterJson.components as Array<string | { name: string }>).map(c =>
+      typeof c === 'string' ? c : c.name,
+    )
+    expect(afterNames.indexOf('features')).toBeLessThan(afterNames.indexOf('hero'))
+
+    // Restore order.
+    await page.locator('[data-testid="drag-handle-hero"]').focus()
+    await page.keyboard.press('Alt+ArrowUp')
+    await page.click('[data-testid="save-btn"]')
+    await expect(page.locator('[data-testid="save-btn"]')).toBeDisabled({ timeout: 10000 })
+  })
 })

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { dragAndDrop } from '@formkit/drag-and-drop/vue'
 import Button from 'primevue/button'
 import { useSelectionStore } from '../stores/selection.js'
 import { useEditingStore } from '../stores/editing.js'
@@ -266,7 +267,12 @@ watch(
   },
 )
 
-// Flat list for rendering — walk tree and produce { node, depth } pairs
+// Flat list for rendering — walk tree and produce { node, depth } pairs.
+// Used by the existing test helpers that walk by-index; v1 of #105
+// (component-reorder DnD) restructures the template into a root row +
+// per-top-level draggable blocks (each block carries its own nested
+// rows). flatNodes stays for backward compatibility with anything that
+// still walks the full flattened ordering.
 const flatNodes = computed(() => {
   const result: { node: ComponentNode; depth: number }[] = []
   function walk(nodes: ComponentNode[], depth: number) {
@@ -281,6 +287,30 @@ const flatNodes = computed(() => {
   }
   return result
 })
+
+// The root node (the page or fragment itself). Rendered separately
+// from the draggable list so it isn't a drop target.
+const rootNode = computed<ComponentNode | null>(() => componentNodes.value[0] ?? null)
+
+// Top-level draggable children of the root, in their declared order.
+// This is the array the DnD library reorders. Per design-component-
+// ordering.md Q5, drag scope is top-level only at v1.
+const topLevelNodes = computed<ComponentNode[]>(() => rootNode.value?.children ?? [])
+
+// Per-top-level node, the flattened nested rows (depth-first, as in
+// `flatNodes`). Each top-level block renders its own nested rows
+// inside it so they ride along when the block is dragged.
+function flattenNested(node: ComponentNode): { node: ComponentNode; depth: number }[] {
+  const out: { node: ComponentNode; depth: number }[] = []
+  function walk(children: ComponentNode[], depth: number) {
+    for (const child of children) {
+      out.push({ node: child, depth })
+      if (child.children.length) walk(child.children, depth + 1)
+    }
+  }
+  walk(node.children, 1)
+  return out
+}
 
 function nodeIcon(node: ComponentNode, depth: number): string {
   if (depth === -1) return selection.type === 'page' ? 'pi pi-file' : 'pi pi-share-alt'
@@ -437,6 +467,13 @@ function currentManifestKey(): import('gazetta/types').ManifestKey | null {
   return { kind: sel.type, name: sel.name }
 }
 
+/**
+ * Move a top-level component by `direction` (one position up or down).
+ * Bounded — no-op when already at the top/bottom. Used by:
+ *   - the legacy buttons (now only in screen-reader-fallback mode; visual
+ *     buttons replaced by the grip handle in #105)
+ *   - the Alt+ArrowUp / Alt+ArrowDown keyboard shortcut (Q6)
+ */
 function moveComponent(index: number, direction: -1 | 1) {
   const comps = effectiveComponents.value
   if (!comps) return
@@ -445,6 +482,96 @@ function moveComponent(index: number, direction: -1 | 1) {
   const key = currentManifestKey()
   if (!key) return
   editing.moveComponentStructural(key, comps, index, newIndex)
+}
+
+// --- Drag-and-drop reorder (#105) ---
+//
+// `@formkit/drag-and-drop` operates on a ref of values; on a successful
+// drop it mutates the ref to the new order and fires `onSort`. We sync
+// `dragValues` from `effectiveComponents` so the lib's view tracks the
+// store; on `onSort` we dispatch to `editing.moveComponentStructural`.
+//
+// One drag = one position move (same model as the legacy buttons), so
+// we extract `previousPosition` + `position` from the SortEventData and
+// forward to the store action. The store update propagates back through
+// `effectiveComponents` → `dragValues` watcher; the lib's mutated state
+// converges with the store's authoritative state.
+//
+// `dragHandle: '.drag-handle'` restricts pointer drag to clicks on the
+// grip element (not the row body — preserves click-to-select). Keyboard
+// reorder is the library's default (Space-to-lift + arrows + Space-to-
+// drop) and works against the focused row regardless of handle.
+
+const dragParentRef = ref<HTMLElement | null>(null)
+const dragValues = ref<import('../api/client.js').ComponentEntry[]>([])
+
+watch(
+  effectiveComponents,
+  comps => {
+    dragValues.value = comps ? [...comps] : []
+  },
+  { immediate: true },
+)
+
+function onDragSort(data: { previousPosition: number; position: number }): void {
+  const { previousPosition, position } = data
+  if (previousPosition === position) return
+  const key = currentManifestKey()
+  if (!key) return
+  const comps = effectiveComponents.value
+  if (!comps) return
+  // The library has already mutated dragValues to the new order. Dispatch
+  // the canonical move to the structural-pending store; the watcher above
+  // re-syncs dragValues from effectiveComponents on the next tick (no-op
+  // when orders match).
+  editing.moveComponentStructural(key, comps, previousPosition, position)
+}
+
+let dragInitialized = false
+
+function setupDrag(el: HTMLElement | null) {
+  if (!el || dragInitialized) return
+  dragInitialized = true
+  dragAndDrop({
+    parent: el,
+    values: dragValues,
+    dragHandle: '.drag-handle',
+    onSort: data => onDragSort(data as { previousPosition: number; position: number }),
+  })
+}
+
+watch(dragParentRef, el => setupDrag(el))
+
+onBeforeUnmount(() => {
+  // Library cleanup is implicit — the parent element going out of the
+  // DOM detaches its event listeners. Local guard reset for HMR.
+  dragInitialized = false
+})
+
+/**
+ * Power-user keyboard shortcut: Alt+ArrowUp / Alt+ArrowDown moves the
+ * focused row one position. Per design-component-ordering.md Q6 — works
+ * alongside the library's Space-to-lift WAI-ARIA pattern. The library
+ * handles Space/Arrow/Esc against the focused drag-handle; this handler
+ * matches against the entire top-level block so the shortcut works
+ * whether focus is on the handle, the row body, or any descendant.
+ *
+ * Modifier-only check (no Shift / Ctrl / Meta) avoids collisions with
+ * platform shortcuts. Browser-shortcut check: Alt+ArrowUp is bound to
+ * "Up one folder" only in Firefox file pickers (not in apps); Safari/
+ * Chrome don't bind it at all.
+ */
+function onTopLevelKeydown(ev: KeyboardEvent, index: number): void {
+  if (!ev.altKey || ev.shiftKey || ev.ctrlKey || ev.metaKey) return
+  if (ev.key === 'ArrowUp') {
+    if (index === 0) return
+    ev.preventDefault()
+    moveComponent(index, -1)
+  } else if (ev.key === 'ArrowDown') {
+    if (index >= topLevelNodes.value.length - 1) return
+    ev.preventDefault()
+    moveComponent(index, 1)
+  }
 }
 
 function removeComponent(index: number) {
@@ -478,40 +605,89 @@ function addComponent(name: string, template: string) {
 
 <template>
   <div v-if="detail" class="component-tree">
-    <template v-if="flatNodes.length">
-      <div v-for="{ node, depth } in flatNodes" :key="node.key"
-        :class="['node-item', { 'node-root': depth === -1, selected: selectedNodeKey === node.key, hovered: hoveredNodeKey === node.key }]"
-        :style="nodeStyle(depth)"
-        :data-testid="`component-${node.data?.isFragment ? node.data.fragName : node.label}`"
-        @click="onSelect(node)"
-        @mouseenter="onHover(node)"
-        @mouseleave="onHoverEnd()">
-        <i v-if="node.data?.error" class="pi pi-exclamation-triangle node-icon node-error-icon"
-          :title="node.data.error" />
-        <i v-else :class="nodeIcon(node, depth)" class="node-icon" />
-        <span v-if="node.data?.path && (editing.hasPendingEdit(node.data.path) || (editing.dirty && editing.path === node.data.path))" class="node-dirty-dot" />
-        <span class="node-label">{{ node.label }}</span>
-        <Button v-if="node.data?.path && (editing.hasPendingEdit(node.data.path) || (editing.dirty && editing.path === node.data.path))"
-          icon="pi pi-undo" text rounded size="small" class="node-revert"
-          title="Discard changes" @click.stop="revertComponent(node.data.path!)" />
-        <span v-if="node.data?.isTopLevel && depth !== -1" class="node-actions">
-          <Button icon="pi pi-arrow-up" text rounded size="small"
-            :data-testid="`move-up-${node.label}`"
-            :aria-label="`Move ${node.label} up`"
-            :disabled="(node.data.index as number) === 0"
-            @click.stop="moveComponent(node.data.index as number, -1)" />
-          <Button icon="pi pi-arrow-down" text rounded size="small"
-            :data-testid="`move-down-${node.label}`"
-            :aria-label="`Move ${node.label} down`"
-            :disabled="(node.data.index as number) === componentCount - 1"
-            @click.stop="moveComponent(node.data.index as number, 1)" />
-          <Button icon="pi pi-trash" text rounded size="small" severity="danger"
-            :data-testid="`remove-${node.label}`"
-            :aria-label="`Remove ${node.label}`"
-            @click.stop="removeComponent(node.data.index as number)" />
-        </span>
+    <!-- Root row (the page or fragment itself). Rendered outside the
+         draggable list so it isn't a drop target. -->
+    <div v-if="rootNode"
+      :class="['node-item', 'node-root', { selected: selectedNodeKey === rootNode.key, hovered: hoveredNodeKey === rootNode.key }]"
+      :data-testid="`component-${rootNode.label}`"
+      @click="onSelect(rootNode)"
+      @mouseenter="onHover(rootNode)"
+      @mouseleave="onHoverEnd()">
+      <i :class="nodeIcon(rootNode, -1)" class="node-icon" />
+      <span v-if="rootNode.data?.path && (editing.hasPendingEdit(rootNode.data.path) || (editing.dirty && editing.path === rootNode.data.path))" class="node-dirty-dot" />
+      <span class="node-label">{{ rootNode.label }}</span>
+      <Button v-if="rootNode.data?.path && (editing.hasPendingEdit(rootNode.data.path) || (editing.dirty && editing.path === rootNode.data.path))"
+        icon="pi pi-undo" text rounded size="small" class="node-revert"
+        title="Discard changes" @click.stop="revertComponent(rootNode.data.path!)" />
+    </div>
+
+    <!-- Draggable list of top-level components. Each block contains the
+         top-level row (with grip handle) + its flattened nested rows.
+         The library reorders these blocks; nested rows ride along.
+         Per design-component-ordering.md Q5, drag scope is top-level
+         only at v1; nested rows render as static (non-draggable) inside
+         the block. -->
+    <div v-if="topLevelNodes.length" ref="dragParentRef" class="top-level-list" data-testid="component-tree-draggable">
+      <div v-for="(topNode, topIndex) in topLevelNodes"
+        :key="topNode.key"
+        :data-component-name="topNode.label"
+        class="top-level-block"
+        @keydown="onTopLevelKeydown($event, topIndex)">
+        <!-- The top-level row itself — draggable via the grip handle. -->
+        <div
+          :class="['node-item', 'top-level-row', { selected: selectedNodeKey === topNode.key, hovered: hoveredNodeKey === topNode.key }]"
+          :data-testid="`component-${topNode.data?.isFragment ? topNode.data.fragName : topNode.label}`"
+          @click="onSelect(topNode)"
+          @mouseenter="onHover(topNode)"
+          @mouseleave="onHoverEnd()">
+          <button
+            type="button"
+            class="drag-handle"
+            :data-testid="`drag-handle-${topNode.label}`"
+            :aria-label="`Drag ${topNode.label} to reorder, or press Alt+Arrow Up/Down`"
+            :title="`Drag to reorder, or press Alt+Up/Alt+Down`"
+            tabindex="0"
+            @click.stop>
+            <i class="pi pi-bars" aria-hidden="true" />
+          </button>
+          <i v-if="topNode.data?.error" class="pi pi-exclamation-triangle node-icon node-error-icon"
+            :title="topNode.data.error" />
+          <i v-else :class="nodeIcon(topNode, 0)" class="node-icon" />
+          <span v-if="topNode.data?.path && (editing.hasPendingEdit(topNode.data.path) || (editing.dirty && editing.path === topNode.data.path))" class="node-dirty-dot" />
+          <span class="node-label">{{ topNode.label }}</span>
+          <Button v-if="topNode.data?.path && (editing.hasPendingEdit(topNode.data.path) || (editing.dirty && editing.path === topNode.data.path))"
+            icon="pi pi-undo" text rounded size="small" class="node-revert"
+            title="Discard changes" @click.stop="revertComponent(topNode.data.path!)" />
+          <span class="node-actions">
+            <Button icon="pi pi-trash" text rounded size="small" severity="danger"
+              :data-testid="`remove-${topNode.label}`"
+              :aria-label="`Remove ${topNode.label}`"
+              @click.stop="removeComponent(topIndex)" />
+          </span>
+        </div>
+
+        <!-- Nested rows belonging to this top-level block. Rendered
+             inside the block so they ride along on drag. Not
+             individually draggable (no drag-handle). -->
+        <div v-for="{ node: nestedNode, depth } in flattenNested(topNode)"
+          :key="nestedNode.key"
+          :class="['node-item', 'nested-row', { selected: selectedNodeKey === nestedNode.key, hovered: hoveredNodeKey === nestedNode.key }]"
+          :style="nodeStyle(depth)"
+          :data-testid="`component-${nestedNode.data?.isFragment ? nestedNode.data.fragName : nestedNode.label}`"
+          @click="onSelect(nestedNode)"
+          @mouseenter="onHover(nestedNode)"
+          @mouseleave="onHoverEnd()">
+          <i v-if="nestedNode.data?.error" class="pi pi-exclamation-triangle node-icon node-error-icon"
+            :title="nestedNode.data.error" />
+          <i v-else :class="nodeIcon(nestedNode, depth)" class="node-icon" />
+          <span v-if="nestedNode.data?.path && (editing.hasPendingEdit(nestedNode.data.path) || (editing.dirty && editing.path === nestedNode.data.path))" class="node-dirty-dot" />
+          <span class="node-label">{{ nestedNode.label }}</span>
+          <Button v-if="nestedNode.data?.path && (editing.hasPendingEdit(nestedNode.data.path) || (editing.dirty && editing.path === nestedNode.data.path))"
+            icon="pi pi-undo" text rounded size="small" class="node-revert"
+            title="Discard changes" @click.stop="revertComponent(nestedNode.data.path!)" />
+        </div>
       </div>
-    </template>
+    </div>
     <p v-else class="empty">No components</p>
 
     <Button icon="pi pi-plus" label="Add component" text size="small" class="add-btn"
@@ -543,4 +719,48 @@ function addComponent(name: string, template: string) {
 .node-actions { display: flex; gap: 0; opacity: 0; transition: opacity 0.1s; flex-shrink: 0; }
 .node-item:hover .node-actions { opacity: 1; }
 .add-btn { margin-top: 6px; }
+
+/* #105 — DnD reorder. The grip handle is always visible (not hover-
+   gated) per design-component-ordering.md Q2. The handle is a button
+   so it's keyboard-focusable and screen-reader-discoverable. */
+.top-level-list { display: flex; flex-direction: column; gap: 0; }
+.top-level-block { display: flex; flex-direction: column; }
+.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: var(--color-muted);
+  cursor: grab;
+  flex-shrink: 0;
+}
+.drag-handle:hover {
+  color: var(--color-fg);
+  background: var(--color-hover-bg);
+}
+.drag-handle:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 1px;
+}
+.drag-handle .pi-bars {
+  font-size: 10px;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/* The dragged row gets a subtle lift (FormKit DnD adds a class to the
+   dragged element by default; we style it conservatively to match
+   the existing selection chrome). */
+.top-level-row[draggable='true'] {
+  /* Pointer drag attribute — set by FormKit DnD. */
+}
+.top-level-block.dragging .top-level-row {
+  opacity: 0.5;
+}
 </style>
