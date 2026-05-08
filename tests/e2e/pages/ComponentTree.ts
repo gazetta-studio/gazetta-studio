@@ -87,6 +87,16 @@ export class ComponentTreePom {
   }
 
   /**
+   * Hover then click the per-row Duplicate button (#45). The duplicate
+   * lands at the source's index + 1 with name `${source}-copy[-N]`;
+   * pending until save like every other structural change.
+   */
+  async duplicate(name: string): Promise<void> {
+    await this.row(name).hover()
+    await this.page.click(`[data-testid="duplicate-${name}"]`)
+  }
+
+  /**
    * Move a top-level row one position up. Uses the Alt+ArrowUp keyboard
    * shortcut (#105 — replaces the legacy move-up button); simulating a
    * pointer drag in Playwright is brittle across browsers and the

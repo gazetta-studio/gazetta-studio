@@ -549,19 +549,28 @@ onBeforeUnmount(() => {
 })
 
 /**
- * Power-user keyboard shortcut: Alt+ArrowUp / Alt+ArrowDown moves the
- * focused row one position. Per design-component-ordering.md Q6 — works
- * alongside the library's Space-to-lift WAI-ARIA pattern. The library
- * handles Space/Arrow/Esc against the focused drag-handle; this handler
- * matches against the entire top-level block so the shortcut works
- * whether focus is on the handle, the row body, or any descendant.
+ * Keyboard shortcuts on a focused top-level row:
+ *   - Alt+ArrowUp / Alt+ArrowDown — move the row one position (#105 Q6).
+ *   - Cmd+D (Mac) / Ctrl+D — duplicate the row (#45). Same modifier
+ *     pattern as Notion / Figma / Pages.
  *
- * Modifier-only check (no Shift / Ctrl / Meta) avoids collisions with
- * platform shortcuts. Browser-shortcut check: Alt+ArrowUp is bound to
- * "Up one folder" only in Firefox file pickers (not in apps); Safari/
- * Chrome don't bind it at all.
+ * Shortcut-collision check:
+ *   - Alt+ArrowUp is bound to "Up one folder" only in Firefox file
+ *     pickers (not in apps); Safari/Chrome don't bind it at all.
+ *   - Cmd+D is bound to "Bookmark this page" in browsers; we
+ *     `preventDefault()` to suppress the bookmark prompt.
  */
 function onTopLevelKeydown(ev: KeyboardEvent, index: number): void {
+  // Cmd+D (mac) / Ctrl+D — duplicate. Modifier-only check: only the
+  // primary modifier may be set (no Shift / Alt) so we don't shadow
+  // platform shortcuts like Cmd+Shift+D.
+  const primaryMod = ev.metaKey || ev.ctrlKey
+  if (primaryMod && !ev.altKey && !ev.shiftKey && (ev.key === 'd' || ev.key === 'D')) {
+    ev.preventDefault()
+    duplicateComponent(index)
+    return
+  }
+  // Alt+ArrowUp / Alt+ArrowDown — move. Modifier-only check (Alt only).
   if (!ev.altKey || ev.shiftKey || ev.ctrlKey || ev.metaKey) return
   if (ev.key === 'ArrowUp') {
     if (index === 0) return
@@ -600,6 +609,81 @@ function addComponent(name: string, template: string) {
   const entry: import('../api/client.js').InlineComponent = { name, template, content: {} }
   editing.addComponentStructural(key, comps, entry)
   toast.show(`Added "${name}"`)
+}
+
+/**
+ * Duplicate a top-level component (#45). Clones the entry — including
+ * nested children for inline composites — generates a unique name in
+ * the `<original>-copy[-N]` shape, and inserts it at index+1 so the
+ * duplicate sits right after the source.
+ *
+ * Fragment refs (e.g., `@header`) duplicate as another reference to
+ * the same fragment; the fragment's content is shared. Inline
+ * components clone deeply; the duplicate's edits are independent.
+ *
+ * Insert pre-pending: the duplicate goes through editorStructural,
+ * just like Add and Move — explicit save commits to disk.
+ */
+function duplicateComponent(index: number) {
+  const comps = effectiveComponents.value
+  if (!comps) return
+  const key = currentManifestKey()
+  if (!key) return
+  const source = comps[index]
+  if (source === undefined) return
+
+  let newEntry: import('../api/client.js').ComponentEntry
+  let displayName: string
+  if (typeof source === 'string') {
+    // Fragment ref — same `@name` pointer. Two refs to one fragment is
+    // valid; the renderer composes the fragment twice.
+    newEntry = source
+    displayName = source
+  } else {
+    // Inline component — deep clone so the duplicate's content edits
+    // don't bleed back into the source. JSON round-trip is sufficient
+    // (manifests are JSON-shaped per design-publishing.md).
+    const cloned = JSON.parse(JSON.stringify(source)) as import('../api/client.js').InlineComponent
+    cloned.name = nextDuplicateName(source.name, comps)
+    newEntry = cloned
+    displayName = cloned.name
+  }
+
+  editing.addComponentStructural(key, comps, newEntry, index + 1)
+  toast.show(`Duplicated "${displayName}"`)
+}
+
+/**
+ * Pick a unique name for a duplicate of `originalName` against the
+ * existing siblings. `<original>-copy` if available; else
+ * `<original>-copy-2`, `<original>-copy-3`, ... matches the Notion /
+ * Figma / macOS Finder convention.
+ *
+ * Sibling check considers BOTH inline components (by `.name`) and
+ * fragment refs (by string after stripping `@`) so collisions across
+ * the two shapes are caught.
+ */
+function nextDuplicateName(
+  originalName: string,
+  siblings: readonly import('../api/client.js').ComponentEntry[],
+): string {
+  const taken = new Set<string>()
+  for (const entry of siblings) {
+    if (typeof entry === 'string') taken.add(entry.replace(/^@/, ''))
+    else taken.add(entry.name)
+  }
+  // Strip an existing `-copy[-N]` suffix from the original so duplicating
+  // a duplicate produces `hero-copy-2`, not `hero-copy-copy`.
+  const base = originalName.replace(/-copy(-\d+)?$/, '')
+  const candidate = `${base}-copy`
+  if (!taken.has(candidate)) return candidate
+  for (let n = 2; n < 1000; n++) {
+    const next = `${candidate}-${n}`
+    if (!taken.has(next)) return next
+  }
+  // Pathological — a thousand duplicates already exist. Fall back to
+  // a timestamp suffix; user can rename.
+  return `${candidate}-${Date.now()}`
 }
 </script>
 
@@ -659,6 +743,11 @@ function addComponent(name: string, template: string) {
             icon="pi pi-undo" text rounded size="small" class="node-revert"
             title="Discard changes" @click.stop="revertComponent(topNode.data.path!)" />
           <span class="node-actions">
+            <Button icon="pi pi-clone" text rounded size="small"
+              :data-testid="`duplicate-${topNode.label}`"
+              :aria-label="`Duplicate ${topNode.label}`"
+              :title="`Duplicate (Cmd/Ctrl+D)`"
+              @click.stop="duplicateComponent(topIndex)" />
             <Button icon="pi pi-trash" text rounded size="small" severity="danger"
               :data-testid="`remove-${topNode.label}`"
               :aria-label="`Remove ${topNode.label}`"
