@@ -112,9 +112,9 @@ test.describe('Deep linking - component hash', () => {
   test('hash #hero opens hero editor on page load', async ({ page }) => {
     await page.goto('/admin/pages/home/edit#hero')
     await page.waitForSelector('[data-testid="editor-container"]', { timeout: 10000 })
-    // Hero template header should be visible
-    const header = page.locator('[data-testid="editor-panel"] h3')
-    await expect(header).toContainText('hero', { ignoreCase: true })
+    // Breadcrumb's current segment shows the component name (#82
+    // replaced the template-name jargon h3 with a user-set-name path).
+    await expect(page.locator('[data-testid="breadcrumb-segment-hero"]')).toBeVisible()
     // Hero should be selected in tree
     await expect(page.locator('[data-testid="component-hero"].selected')).toBeVisible()
   })
@@ -131,8 +131,7 @@ test.describe('Deep linking - component hash', () => {
     await page.reload()
     // After reload, hero editor should still be open
     await page.waitForSelector('[data-testid="editor-container"]', { timeout: 10000 })
-    const header = page.locator('[data-testid="editor-panel"] h3')
-    await expect(header).toContainText('hero', { ignoreCase: true })
+    await expect(page.locator('[data-testid="breadcrumb-segment-hero"]')).toBeVisible()
   })
 
   test('fragment link hash #@header/logo shows fragment link with logo selected', async ({ page }) => {
@@ -146,17 +145,17 @@ test.describe('Deep linking - component hash', () => {
   test('hash on fragment page #logo opens logo editor', async ({ page }) => {
     await page.goto('/admin/fragments/header/edit#logo')
     await page.waitForSelector('[data-testid="editor-container"]', { timeout: 10000 })
-    const header = page.locator('[data-testid="editor-panel"] h3')
-    await expect(header).toContainText('logo', { ignoreCase: true })
+    await expect(page.locator('[data-testid="breadcrumb-segment-logo"]')).toBeVisible()
     await expect(page.locator('[data-testid="component-logo"].selected')).toBeVisible()
   })
 
   test('no hash opens root editor by default', async ({ page }) => {
     await page.goto('/admin/pages/home/edit')
     await page.waitForSelector('[data-testid^="component-"]', { timeout: 10000 })
-    // Root should be selected — page-default template header + SEO metadata editor
-    const header = page.locator('[data-testid="editor-panel"] h3').first()
-    await expect(header).toContainText('page-default', { ignoreCase: true })
+    // Root selected — breadcrumb shows just the page name `home`
+    // (#82 replaced the template-name jargon h3 with the user-set
+    // page name; the SEO metadata editor still renders below).
+    await expect(page.locator('[data-testid="breadcrumb-segment-home"]')).toBeVisible()
   })
 })
 
