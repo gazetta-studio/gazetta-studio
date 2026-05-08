@@ -285,6 +285,35 @@ export interface TargetConfig {
    * review-first publishing workflows.
    */
   altText?: AltTextTargetConfig
+  /**
+   * Per-target publish-audit gate (Validation Cut 4). Drives the
+   * pre-publish modal in the admin and the server-side publish gate.
+   *
+   * Default behavior (no `publishAudit` set):
+   *   - errors block the publish
+   *   - warns surface in the modal but don't block
+   *   - infos are hidden by default
+   *
+   * `strict: true` promotes warns to errors at the publish gate —
+   * useful for production targets where any quality issue should
+   * stop the ship.
+   */
+  publishAudit?: PublishAuditConfig
+}
+
+/**
+ * Per-target publish-audit configuration. Set on `targets.{name}.publishAudit`.
+ * Currently a single boolean — design-validation.md flags per-validator
+ * severity overrides as deferred until concrete operator demand surfaces.
+ */
+export interface PublishAuditConfig {
+  /**
+   * When true, all warns at the publish gate are promoted to errors
+   * (and therefore block the publish). Default: false. Operator opts
+   * in for compliance-grade workflows where any quality issue should
+   * stop production deployments.
+   */
+  strict?: boolean
 }
 
 /**

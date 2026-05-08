@@ -34,6 +34,23 @@ export class ValidationFailedError extends Error {
 }
 
 /**
+ * Thrown when POST /api/publish (or /api/publish/stream) returns 409 with
+ * code PUBLISH_AUDIT_FAILED — the server-side publish gate ran the same
+ * pre-publish audit the dialog uses and refused on remaining error-
+ * severity issues. Carries the per-target `blocked` list so the UI can
+ * surface the same audit-review UX a determined client tried to bypass.
+ */
+export class PublishAuditFailedError extends Error {
+  readonly code = 'PUBLISH_AUDIT_FAILED' as const
+  readonly blocked: ReadonlyArray<{ target: string; issues: ValidationIssue[] }>
+  constructor(blocked: ReadonlyArray<{ target: string; issues: ValidationIssue[] }>) {
+    super(`Publish blocked: ${blocked.length} target${blocked.length === 1 ? '' : 's'} have validation errors`)
+    this.name = 'PublishAuditFailedError'
+    this.blocked = blocked
+  }
+}
+
+/**
  * Thrown when a save / fragment-update returns 409 with code STALE — the
  * server's etag changed between the client's read and write per
  * `design-offline.md` Q3. Carries the server's CURRENT manifest so the
@@ -123,6 +140,16 @@ async function publishStream(
   })
   if (!res.ok || !res.body) {
     const body = await res.json().catch(() => ({ error: res.statusText }))
+    if (
+      res.status === 409 &&
+      body &&
+      typeof body === 'object' &&
+      (body as { code?: string }).code === 'PUBLISH_AUDIT_FAILED'
+    ) {
+      throw new PublishAuditFailedError(
+        (body as { blocked?: Array<{ target: string; issues: ValidationIssue[] }> }).blocked ?? [],
+      )
+    }
     throw new Error(body.error ?? `Stream failed: ${res.status}`)
   }
 
@@ -344,6 +371,18 @@ export const api = {
   publish: (items: string[], targets: string[]) =>
     request<{ results: PublishResult[] }>('/publish', { method: 'POST', body: JSON.stringify({ items, targets }) }),
   publishStream,
+  /**
+   * Pre-publish audit (Validation Cut 4). Runs `pre-publish`-stage
+   * validators against the items operator is about to publish, applies
+   * `publishAudit.strict` promotion, and returns the consolidated
+   * issues. The publish dialog calls this before launching the publish
+   * stream so authors can fix / ignore-once / abort.
+   */
+  publishAudit: (target: string, items: ReadonlyArray<{ kind: 'page' | 'fragment'; name: string }>) =>
+    request<{ issues: ValidationIssue[]; strict: boolean }>('/publish/audit', {
+      method: 'POST',
+      body: JSON.stringify({ target, items }),
+    }),
   compare: (target: string, options?: RequestInit & { source?: string }) => {
     // `source` explicit wins. Otherwise fall back to the active-target
     // provider (server resolves its own default if neither is set).

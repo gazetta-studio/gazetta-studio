@@ -140,6 +140,13 @@ export interface AdminAppOptions {
    */
   validationScanner?: import('../validation/scanner.js').ValidationScanner | null
   /**
+   * Validator registry override. Defaults to `defaultValidatorRegistry()`
+   * which ships every Cut 1-4 validator. Tests pass a custom registry to
+   * exercise the publish-audit + publish-gate paths with synthetic
+   * pre-publish-stage validators.
+   */
+  validators?: import('../validation/registry.js').ValidatorRegistry
+  /**
    * Disable the periodic audit retention pruner. Defaults to false
    * (pruner runs at boot + every 6 hours when audit retention is
    * configured). Tests pass true to avoid background timers leaking
@@ -297,8 +304,9 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   }
 
   // Validator registry built once per app — Cut 1 ships the 5 reference-
-  // existence validators; Cut 2+ extend the default registry.
-  const validators = defaultValidatorRegistry()
+  // existence validators; Cut 2+ extend the default registry. Tests can
+  // override via opts.validators.
+  const validators = opts.validators ?? defaultValidatorRegistry()
 
   // Principal middleware — extracts upstream identity (Cloudflare
   // Access JWT, X-Forwarded-User header, etc.) per the configured
@@ -411,7 +419,10 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   app.route('/', previewRoutes(resolveSource, templatesDir))
   app.route(
     '/',
-    publishRoutes(resolveSource, opts.targets, opts.targetConfigs, templatesDir, scan, { hooks: opts.hooks }),
+    publishRoutes(resolveSource, opts.targets, opts.targetConfigs, templatesDir, scan, {
+      hooks: opts.hooks,
+      validators,
+    }),
   )
   app.route('/', compareRoutes(resolveSource, opts.targets, opts.targetConfigs, templatesDir, scan))
   app.route('/', fieldRoutes(resolveSource, adminDir))
