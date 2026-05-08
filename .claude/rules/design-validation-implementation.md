@@ -191,20 +191,75 @@ Per [team-preferences.md rule 17](team-preferences.md): "Build and validate, don
 
 ### Cut 6 — Template-developer surfaces (3 days)
 
+Per `design-validation.md`'s "DevPlayground Impact tab + transient
+banner" surface — paired with the existing site-health drawer; this
+cut adds the template-developer audience.
+
 **What ships:**
-- When a template's schema changes (file watcher), run `schema-conformance` against all content using that template
-- New admin UI panel: "Template impact" — shows which content items are affected by the template change
-- Per-item: green ✓ (still conforms), amber ⚠ (warning), red ✗ (errors)
-- One-click "Migrate" action per item (opens the editor with the affected fields highlighted)
+
+Backend:
+- CLI template watcher → `validationScanner.rescan({ kind: 'template', name })`
+  on every `.ts/.tsx` change in `templates/{name}/`. The scanner already
+  supports the `template` rescan cause (full-site rescan fallback per
+  Cut 2's deferred items table); this cut wires the trigger.
+- New admin API `GET /api/templates/:name/impact` returning items
+  using the template (recursive walk: top-level + inline components in
+  page/fragment manifests) plus their issues from the scanner store.
+  Shape: `{ items: [{ kind, name, itemPath, issues }] }`.
+- New SSE event `template-changed { name, affectedItemCount }` on the
+  existing `/__validation` channel after a template-edit rescan
+  completes. Banner consumes this.
+
+Frontend:
+- Pinia store `useTemplateImpactStore`: subscribes to `/__validation`,
+  tracks the latest template-change event with auto-clear (60s timer
+  + zero-impact-from-scanner clear).
+- `TemplateChangedBanner.vue` in the admin shell toolbar — shows the
+  banner when the store has an active event. Click → routes to
+  `/admin/dev/editor/{name}` with the Impact tab pre-selected.
+- DevPlayground gains an "Impact" tab in the right detail pane
+  alongside the existing schema/preview view. Tab lists items using
+  the selected template with ✓/⚠/✗ severity icons. Click-to-edit
+  reuses the existing ValidationBanner field-focus.
+
+**Migrate affordance — deferred:**
+
+Per the design's "Migrate" reservation: the impact panel does NOT ship
+a "Migrate" button in v1. Schema migrations are too feature-specific
+to automate generically (every schema change has its own translation
+rule: rename, default-fill, type-widen, restructure). Future direction
+per `design-ai.md`'s extension surface — schema migrations are a
+natural AI-task ("translate this content to match the new schema") and
+land when the AI infrastructure has its second consumer beyond
+alt-text. Reserved seam: the impact panel's row buttons today say
+"Edit" (which navigates to the page); a future "Migrate with AI"
+button slots in adjacent without redesigning the panel.
 
 **Tests:**
-- Template schema change triggers re-validation of dependent content
-- Panel surfaces the impact
-- Migrate action focuses the right field
 
-**Risk:** low-medium. The infrastructure exists by Cut 6; this is mostly UI work.
+Backend:
+- Template-edit triggers scanner rescan with `kind: 'template'`
+- `GET /api/templates/:name/impact` returns the right items + their
+  issues; recursive component walk catches nested inline templates
+- SSE event fires after template-edit rescan completes
 
-**Why this is last:** it's a power-user feature for template developers, not a daily-author concern. Most daily author workflows don't trigger it.
+Frontend:
+- Store handles SSE event; auto-clears at 60s; auto-clears when
+  scanner reports zero impact
+- Banner renders + dismisses; click navigates correctly
+- Impact tab fetches + renders the list with severity icons
+- Click-to-edit on an issue row navigates to the affected item
+
+**Risk:** low-medium. The infrastructure exists by Cut 6; this is
+mostly UI work + one new API. The DevPlayground integration is the
+load-bearing change — the existing playground is template-developer
+turf, so adding to it is structurally cheaper than building a
+parallel `/admin/templates` surface.
+
+**Why this is last:** it's a power-user feature for template
+developers, not a daily-author concern. Most daily author workflows
+don't trigger it. Daily authors see schema-conformance issues via
+the existing site-health drawer (no Cut 6 dependency).
 
 ## What's deferred from this plan
 

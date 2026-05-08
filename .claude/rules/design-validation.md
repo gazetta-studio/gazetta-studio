@@ -165,7 +165,7 @@ export interface Issue {
 
 ## Surfaces
 
-Three distinct UI surfaces, each tied to a phase:
+Four distinct UI surfaces, each tied to a phase or audience:
 
 ### Banner (save-time integrity)
 
@@ -197,6 +197,52 @@ Operator-configurable per target: `targets.production.publishAudit: { strict: tr
 **Visual weight:** modal — operator is committing.
 
 **Scope:** items being published × their issues × target config.
+
+### DevPlayground Impact tab + transient banner (template-developer)
+
+For template developers (the ones editing `templates/{name}/index.tsx`),
+neither the save-banner nor the site-health drawer is the right surface.
+Their workflow lives in their IDE, not the admin form. They edit a
+template's schema, hot-reload fires, and they want to know: did I break
+any content?
+
+Two paired surfaces give them the answer:
+
+- **Transient toolbar banner** — when the dev server's template watcher
+  fires, the scanner rescans (template-edit invalidation) and the
+  admin pushes an SSE `template-changed { name, affectedItemCount }`
+  event. The toolbar shows: "Template `hero` changed — 2 items
+  affected. View impact →." Click navigates to the DevPlayground for
+  that template. Auto-clears after 60s OR when scanner reports zero
+  affected items, whichever first. Single-slot — newer template
+  changes overwrite older ones; the older items' impact is still
+  available via the site-health drawer's accumulated issues.
+
+- **DevPlayground Impact tab** — the existing dev playground (which
+  already lists templates + custom editors + fields, Storybook-style)
+  gains an "Impact" tab in the right detail pane alongside the
+  schema/preview view. The tab lists all items that use the selected
+  template — pages first, then fragments, then nested inline
+  components — with per-item ✓/⚠/✗ severity icons. Click-to-edit
+  navigates to the affected item; the existing site-health drawer's
+  field-focus mechanism (Cut 1's `ValidationBanner`) takes over from
+  there. "Migrate" affordance per item is reserved for a future
+  AI-task surface (per `design-ai.md`'s extension model — schema
+  migrations are too feature-specific to automate generically; the
+  AI seam is the right home when concrete demand surfaces).
+
+**Visual weight:** ambient banner + on-demand tab. Banner only
+appears in response to template edits; tab only matters when a
+developer is in the DevPlayground.
+
+**Scope:** one template at a time × all items that use it × their
+issues. Banner shows the count; tab shows the list.
+
+**Why this surface earns its place:** template developers are a
+distinct audience from content authors. Folding their needs into the
+site-health drawer would force them to filter by template manually
+on every edit; folding the impact view into the editor would put
+template-developer concerns in the daily-author chrome.
 
 ## Severity
 

@@ -278,6 +278,41 @@ describe('GET /api/templates/:name/schema', () => {
   })
 })
 
+describe('GET /api/templates/:name/impact (Validation Cut 6)', () => {
+  it('lists pages + fragments using the template, with empty issues when no scanner', async () => {
+    // The starter's `home` page top-level-uses `page-default` and
+    // contains nested inline components (hero, features-grid, etc.).
+    // Without a scanner injected (this admin app's setup), every item
+    // reports empty issues — accurate, since validation didn't run.
+    const { status, body } = await get('/api/templates/page-default/impact')
+    expect(status).toBe(200)
+    expect(body.template).toBe('page-default')
+    expect(Array.isArray(body.items)).toBe(true)
+    // home, about, blog/[slug] all use page-default in starter
+    const names = body.items.map((i: { name: string }) => i.name)
+    expect(names).toContain('home')
+    // Every item has issues: [] without a scanner
+    for (const item of body.items) expect(item.issues).toEqual([])
+    expect(body.affectedItemCount).toBe(0)
+  })
+
+  it('finds nested inline components recursively (hero is inline-only on home)', async () => {
+    // `hero` doesn't appear at any page's top level — it's an inline
+    // component inside home/page.json. The recursive walk must catch it.
+    const { status, body } = await get('/api/templates/hero/impact')
+    expect(status).toBe(200)
+    const names = body.items.map((i: { name: string }) => i.name)
+    expect(names).toContain('home')
+  })
+
+  it('returns an empty list for a template that no item references', async () => {
+    const { status, body } = await get('/api/templates/no-such-template/impact')
+    expect(status).toBe(200)
+    expect(body.items).toEqual([])
+    expect(body.affectedItemCount).toBe(0)
+  })
+})
+
 describe('component data via page API', () => {
   it('page detail includes inline component content', async () => {
     const { status, body } = await get('/api/pages/home')

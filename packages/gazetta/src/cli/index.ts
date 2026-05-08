@@ -1686,10 +1686,13 @@ async function runDev(siteDir: string, port: number) {
 
   // Admin Hono instance — captured so the template file watcher can
   // invalidate its memoized template-scan cache on .ts/.tsx changes.
+  // `rescanForTemplate` is optional: only the dev-mode setup decorates
+  // it (production has no file watcher). Watcher uses optional-chaining.
   let cmsApp:
     | (Hono & {
         invalidateTemplatesCache(): void
         invalidateContentCache(): Promise<void>
+        rescanForTemplate?(name: string): Promise<void>
       })
     | null = null
   const hookContributions = readHookContributions(manifest)
@@ -1963,11 +1966,21 @@ async function runDev(siteDir: string, port: number) {
       if (filename.endsWith('.ts') || filename.endsWith('.tsx')) {
         const parts = filename.split('/')
         if (parts.length >= 1) {
-          console.log(`  Template changed: ${parts[0]}`)
-          invalidateTemplate(parts[0])
+          const templateName = parts[0]
+          console.log(`  Template changed: ${templateName}`)
+          invalidateTemplate(templateName)
           // Drop the admin-api's cached scan so next compare/publish
           // rehashes. Cheap (the scan is what's slow, not invalidation).
           cmsApp?.invalidateTemplatesCache()
+          // Cut 6 — fire a validation rescan with the template-edit
+          // cause so the scanner re-runs schema-conformance against
+          // every page+fragment using this template. The ScanEvent
+          // emits on the /__validation SSE channel; the admin's
+          // TemplateChangedBanner consumes it to show the
+          // template-developer's "did I break anything?" surface.
+          // Fire-and-forget — the scan runs in the background and
+          // the SSE event is the signal that it finished.
+          void cmsApp?.rescanForTemplate?.(templateName)
           notifyReload()
         }
       }
@@ -2045,6 +2058,12 @@ async function setupCmsApi(
   Hono & {
     invalidateTemplatesCache(): void
     invalidateContentCache(): Promise<void>
+    /** Cut 6 — fired by the dev template watcher when a template's source
+     *  changes. Triggers a full-site rescan with `kind: 'template'` cause
+     *  so the validation scanner emits a ScanEvent that the admin's
+     *  TemplateChangedBanner consumes. No-op when the scanner isn't built
+     *  (production / scanner-disabled). */
+    rescanForTemplate(name: string): Promise<void>
   }
 > {
   // Build + seal the hook registry from `admin.hooks` factory
@@ -2069,9 +2088,24 @@ async function setupCmsApi(
     hooks,
     validationScanner,
   })
+  // Decorate cmsApp with the template-rescan hook before returning. The
+  // file watcher in startServer() invokes this on `.ts/.tsx` changes
+  // under `templates/{name}/`. Failure is fail-open (logged + dropped)
+  // — a scan failure shouldn't break dev-mode hot reload.
+  const decoratedApp = cmsApp as typeof cmsApp & {
+    rescanForTemplate(name: string): Promise<void>
+  }
+  decoratedApp.rescanForTemplate = async (name: string) => {
+    if (!validationScanner) return
+    try {
+      await validationScanner.rescan({ kind: 'template', name })
+    } catch (err) {
+      console.warn(`  Validation scanner: template rescan failed for "${name}": ${(err as Error).message}`)
+    }
+  }
   mountUserThemeRoute(cmsApp, adminDir)
   app.route('/admin', cmsApp)
-  return cmsApp
+  return decoratedApp
 }
 
 // ---- Production mode: inline CMS API + static files from admin-dist/ ----

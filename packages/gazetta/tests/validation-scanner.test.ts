@@ -297,4 +297,71 @@ describe('validation scanner', () => {
     await scanner.scanAll()
     expect(events).toEqual([1]) // second scan didn't fire
   })
+
+  it('rescan with template cause emits ScanEvent carrying cause + affectedItemCount (Cut 6)', async () => {
+    // Two pages both use `hero` (one top-level, one nested inline).
+    // The validator emits one issue per page; rescan({kind:'template'})
+    // walks the whole site, then computeTemplateImpact counts items with
+    // issues that reference `hero`. Both pages match → affectedItemCount=2.
+    const site = buildSite({
+      pages: {
+        home: { template: 'hero', content: {} },
+        about: {
+          template: 'page-default',
+          content: {},
+          components: [{ name: 'banner', template: 'hero', content: {} }],
+        },
+        blog: { template: 'page-default', content: {} }, // doesn't reference hero
+      },
+    })
+    const tracker = trackingValidator('test-validator')
+    const scanner = createValidationScanner({
+      storage: memoryStorage(),
+      contentRoot: createContentRoot(memoryStorage()),
+      registry: createValidatorRegistry([tracker.validator]),
+      cache: createMemoryCache(),
+      siteOptions: { templatesDir: '/dev/null', manifest: site.manifest },
+      loadSiteImpl: async () => site,
+    })
+
+    type AnyCause = { kind: string; name?: string; affectedItemCount?: number } | undefined
+    const events: AnyCause[] = []
+    scanner.subscribe(e => events.push(e.cause as AnyCause))
+
+    await scanner.rescan({ kind: 'template', name: 'hero' })
+
+    expect(events).toHaveLength(1)
+    const cause = events[0]!
+    expect(cause.kind).toBe('template')
+    expect(cause.name).toBe('hero')
+    // home + about both reference hero AND have validator-emitted issues.
+    // blog doesn't reference hero so it's not counted.
+    expect(cause.affectedItemCount).toBe(2)
+  })
+
+  it('rescan with template cause for an unused template reports affectedItemCount=0', async () => {
+    const site = buildSite({
+      pages: { home: { template: 'page-default', content: {} } },
+    })
+    const tracker = trackingValidator('test-validator')
+    const scanner = createValidationScanner({
+      storage: memoryStorage(),
+      contentRoot: createContentRoot(memoryStorage()),
+      registry: createValidatorRegistry([tracker.validator]),
+      cache: createMemoryCache(),
+      siteOptions: { templatesDir: '/dev/null', manifest: site.manifest },
+      loadSiteImpl: async () => site,
+    })
+
+    const events: { affectedItemCount?: number }[] = []
+    scanner.subscribe(e => {
+      const c = e.cause
+      if (c?.kind === 'template') events.push({ affectedItemCount: c.affectedItemCount })
+    })
+
+    await scanner.rescan({ kind: 'template', name: 'nonexistent' })
+
+    expect(events).toHaveLength(1)
+    expect(events[0].affectedItemCount).toBe(0)
+  })
 })
