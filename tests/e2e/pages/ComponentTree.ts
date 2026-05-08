@@ -92,9 +92,16 @@ export class ComponentTreePom {
    * pointer drag in Playwright is brittle across browsers and the
    * keyboard path exercises the same store action via a deterministic
    * code path.
+   *
+   * Wait-for-handle-stable before focus + key dispatch — after a save
+   * cycle the v-for can rerender and Playwright's auto-wait won't
+   * always catch the new handle node before `focus()` resolves
+   * against a stale reference. Two-step locator resolution (waitFor
+   * → focus) is the robust shape on CI cold-start.
    */
   async moveUp(name: string): Promise<void> {
     const handle = this.page.locator(`[data-testid="drag-handle-${name}"]`)
+    await handle.waitFor({ state: 'visible', timeout: 10000 })
     await handle.focus()
     await this.page.keyboard.press('Alt+ArrowUp')
   }
@@ -102,6 +109,7 @@ export class ComponentTreePom {
   /** Move a top-level row one position down (Alt+ArrowDown shortcut). */
   async moveDown(name: string): Promise<void> {
     const handle = this.page.locator(`[data-testid="drag-handle-${name}"]`)
+    await handle.waitFor({ state: 'visible', timeout: 10000 })
     await handle.focus()
     await this.page.keyboard.press('Alt+ArrowDown')
   }
