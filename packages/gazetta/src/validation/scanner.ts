@@ -39,11 +39,12 @@ import { createHash } from 'node:crypto'
 import type { AdminCache } from '../cache/types.js'
 import type { ContentRoot } from '../content-root.js'
 import { findDependentsFromSidecars } from '../publish.js'
+import { renderPageForAnalysis } from '../render-for-analysis.js'
 import type { Site, LoadSiteOptions } from '../site-loader.js'
 import { allFragmentEntries, allPageEntries, loadSite } from '../site-loader.js'
 import type { FragmentManifest, PageManifest, StorageProvider } from '../types.js'
 import type { ValidatorRegistry } from './registry.js'
-import type { Issue, SavedItem } from './types.js'
+import type { Issue, RenderedOutputAccess, SavedItem } from './types.js'
 
 /**
  * Source of an incremental rescan. Drives which dependents the scanner
@@ -149,6 +150,7 @@ export function createValidationScanner(opts: CreateScannerOptions): ValidationS
       return cached
     }
     const validators = registry.forStage('background')
+    const renderedOutput = makeRenderedOutputAccess(site)
     const issues: Issue[] = []
     for (const v of validators) {
       try {
@@ -158,6 +160,7 @@ export function createValidationScanner(opts: CreateScannerOptions): ValidationS
           contentRoot,
           storage,
           scope: { kind: 'background', item, manifest },
+          renderedOutput,
         })
         issues.push(...out)
       } catch (err) {
@@ -173,6 +176,35 @@ export function createValidationScanner(opts: CreateScannerOptions): ValidationS
     await cache.set(key, issues)
     setIssues(item.itemPath, issues)
     return issues
+  }
+
+  /**
+   * Build a `RenderedOutputAccess` adapter for this scan pass. Validators
+   * that need rendered HTML (a11y, html-validity) opt in via the
+   * `renderedOutput` field of their input. Validators that don't need it
+   * (the 5 ref-existence validators, schema-conformance, altRequired) can
+   * ignore the field — they don't trigger a render.
+   *
+   * The render is itself cached via render-for-analysis's own AdminCache
+   * key (content + template + dependency hash), separate from the scanner's
+   * issues cache. Same content = same HTML across scans.
+   *
+   * Fragments aren't rendered as full pages; `htmlFor` returns null for
+   * fragment items. Validators that consume rendered output guard on null.
+   */
+  function makeRenderedOutputAccess(site: Site): RenderedOutputAccess {
+    return {
+      async htmlFor(item: SavedItem) {
+        if (item.kind !== 'page') return null
+        if (!siteOptions.templatesDir) return null
+        const out = await renderPageForAnalysis(item.name, {
+          site,
+          cache,
+          templatesDir: siteOptions.templatesDir,
+        })
+        return out?.html ?? null
+      },
+    }
   }
 
   async function scanAll(): Promise<void> {

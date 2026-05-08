@@ -164,13 +164,14 @@ describe('defaultValidatorRegistry', () => {
     expect(names).toContain('dynamic-route-conflict')
   })
 
-  it('every Cut 1 ref-existence validator runs at save-delta', () => {
+  it('every Cut 1 ref-existence validator + Cut 3 altRequired runs at save-delta', () => {
     const reg = defaultValidatorRegistry()
     const saveDeltaNames = reg
       .forStage('save-delta')
       .map(v => v.name)
       .sort()
     expect(saveDeltaNames).toEqual([
+      'altRequired',
       'circular-fragment',
       'dynamic-route-conflict',
       'referenced-asset-exists',
