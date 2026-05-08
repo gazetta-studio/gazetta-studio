@@ -139,7 +139,11 @@ describe('broken-links validator', () => {
     expect(issues).toEqual([])
   })
 
-  it('promotes severity to error at pre-publish', async () => {
+  it('emits warn at pre-publish (operator promotes via publishAudit.strict)', async () => {
+    // Per design-validation.md "Stage × validator matrix" + the
+    // publish-audit's strict-promotion flow: validators stay warn at
+    // every stage, and the orchestrator turns warns into errors at
+    // the publish gate when the destination target opts into strict.
     const site = buildSite({ home: '/' })
     const html = `<a href="/missing">broken</a>`
     const issues = await brokenLinks.validate({
@@ -151,7 +155,7 @@ describe('broken-links validator', () => {
       renderedOutput: renderedAs(html),
     })
     expect(issues).toHaveLength(1)
-    expect(issues[0].severity).toBe('error')
+    expect(issues[0].severity).toBe('warn')
   })
 
   it('does not run on save-delta scope', async () => {

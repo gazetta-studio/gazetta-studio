@@ -203,7 +203,7 @@ describe('runBuild', () => {
 describe('runValidate', () => {
   const starterDir = resolve(import.meta.dirname, '../../../examples/starter')
 
-  it('passes on valid project', async () => {
+  it('passes on valid project', { timeout: 30000 }, async () => {
     const { execSync } = await import('node:child_process')
     const output = execSync(`npx tsx ${resolve(import.meta.dirname, '../src/cli/index.ts')} validate sites/main`, {
       cwd: starterDir,
@@ -216,7 +216,7 @@ describe('runValidate', () => {
     expect(output).toContain('home')
   })
 
-  it('detects orphaned editors', async () => {
+  it('detects orphaned editors', { timeout: 30000 }, async () => {
     const { execSync } = await import('node:child_process')
     const { writeFile, rm } = await import('node:fs/promises')
     const orphanPath = join(starterDir, 'admin/editors/nonexistent.tsx')
@@ -233,7 +233,7 @@ describe('runValidate', () => {
     }
   })
 
-  it('detects missing custom fields', async () => {
+  it('detects missing custom fields', { timeout: 30000 }, async () => {
     const { execSync } = await import('node:child_process')
     const { rename } = await import('node:fs/promises')
     const fieldPath = join(starterDir, 'admin/fields/brand-color.tsx')

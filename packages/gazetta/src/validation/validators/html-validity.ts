@@ -71,8 +71,14 @@ export const htmlValidity: Validator = {
       for (const result of report.results) {
         for (const msg of result.messages) {
           issues.push({
+            // Per design-validation.md "Stage × validator matrix":
+            // html-validity is warn at every stage (including pre-publish).
+            // Operators who want it to block publish opt into
+            // publishAudit.strict on the destination target — strict
+            // promotion in the publish-audit orchestrator turns warns
+            // into errors. The validator itself stays uniformly warn.
             validator: 'html-validity',
-            severity: msg.severity === 2 ? (scope.kind === 'pre-publish' ? 'error' : 'warn') : 'info',
+            severity: msg.severity === 2 ? 'warn' : 'info',
             message: `${msg.ruleId}: ${msg.message} (line ${msg.line}, col ${msg.column})`,
             itemPath: item.itemPath,
           })
