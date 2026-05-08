@@ -62,6 +62,17 @@ test.describe('Component operations', () => {
     await page.click('[data-testid="save-btn"]')
     await expect(page.locator('[data-testid="save-btn"]')).toBeDisabled({ timeout: 10000 })
 
+    // After save, selection.reload() asynchronously re-fetches the page
+    // detail; the v-for then re-renders with the saved order. Save-btn-
+    // disabled doesn't signal that completion. Wait for the rendered
+    // state to match disk before issuing the next move so the new
+    // moveDown captures a fresh `topIndex` closure.
+    await expect(async () => {
+      const heroAfter = await tree.row('hero').boundingBox()
+      const featuresAfter = await tree.row('features').boundingBox()
+      expect(featuresAfter!.y).toBeLessThan(heroAfter!.y)
+    }).toPass({ timeout: 10000 })
+
     // Restore order so subsequent tests see hero above features
     await tree.moveDown('features')
     await page.click('[data-testid="save-btn"]')
@@ -118,6 +129,15 @@ test.describe('Component operations', () => {
       typeof c === 'string' ? c : c.name,
     )
     expect(afterNames.indexOf('features')).toBeLessThan(afterNames.indexOf('hero'))
+
+    // Wait for the post-save reload to fully render before the cleanup
+    // moveDown captures a stale `topIndex` closure. See sibling test
+    // for the full rationale.
+    await expect(async () => {
+      const heroAfter = await tree.row('hero').boundingBox()
+      const featuresAfter = await tree.row('features').boundingBox()
+      expect(featuresAfter!.y).toBeLessThan(heroAfter!.y)
+    }).toPass({ timeout: 10000 })
 
     // Cleanup so subsequent tests in this file see the original order.
     await tree.moveDown('features')
@@ -225,6 +245,17 @@ test.describe('Component operations', () => {
       typeof c === 'string' ? c : c.name,
     )
     expect(afterNames.indexOf('features')).toBeLessThan(afterNames.indexOf('hero'))
+
+    // Wait for post-save reload to fully render before issuing the
+    // restore. saveBtn-disabled is not the same signal as
+    // selection.reload()-complete; the v-for needs to re-render with
+    // the saved order so the next focus + key press captures a fresh
+    // `topIndex` closure on the right block.
+    await expect(async () => {
+      const heroAfter = await tree.row('hero').boundingBox()
+      const featuresAfter = await tree.row('features').boundingBox()
+      expect(featuresAfter!.y).toBeLessThan(heroAfter!.y)
+    }).toPass({ timeout: 10000 })
 
     // Restore order.
     await page.locator('[data-testid="drag-handle-hero"]').focus()
