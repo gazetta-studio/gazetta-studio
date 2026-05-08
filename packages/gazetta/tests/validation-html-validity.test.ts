@@ -100,7 +100,15 @@ describe('html-validity validator', () => {
     expect(issues).toEqual([])
   })
 
-  it('promotes severity to error at pre-publish stage', async () => {
+  it('emits warn at pre-publish (operator promotes via publishAudit.strict)', async () => {
+    // Per design-validation.md "Stage × validator matrix" + the
+    // publish-audit's strict-promotion flow: html-validity stays warn
+    // at every stage. Operators who want HTML errors to block publish
+    // opt into publishAudit.strict on the destination — strict
+    // promotion in the orchestrator turns warns into errors at the
+    // gate. The validator stays uniformly warn so the same severity
+    // surfaces in the background-scanner drawer and the publish-audit
+    // dialog.
     const html = `<!DOCTYPE html><html lang="en"><head><title>x</title></head><body><img src="a"></body></html>`
     const issues = await htmlValidity.validate({
       stage: 'pre-publish',
@@ -111,6 +119,6 @@ describe('html-validity validator', () => {
       renderedOutput: renderedAs(html),
     })
     expect(issues.length).toBeGreaterThan(0)
-    expect(issues[0].severity).toBe('error')
+    expect(issues[0].severity).toBe('warn')
   })
 })

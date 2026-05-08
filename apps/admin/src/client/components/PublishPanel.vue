@@ -275,14 +275,21 @@ async function handlePublishClick() {
     await runPublish({ skipAudit: true })
     return
   }
-  // First click: run the audit pre-flight. If it surfaces issues, we
-  // hold the user in the audit-review state; otherwise proceed.
+  // First click: run the audit pre-flight. If it surfaces error-severity
+  // issues (or strict-promoted warns), we hold the user in the audit-
+  // review state. Warn-only issues from a non-strict target are
+  // informational — the design ships warns as background-scanner
+  // concerns, not publish-time gates — so we auto-proceed to keep the
+  // common-case publish flow one click. The server-side gate at
+  // /api/publish still re-runs the audit and 409s on remaining errors,
+  // so a stale audit response can't slip past.
   const dests = [...selectedDestinations.value]
   const items = [...selectedItems.value]
   auditing.value = true
   try {
     const state = await runPrePublishAudit(items, dests)
-    if (state.length > 0) {
+    const hasBlockingIssues = state.some(t => t.issues.some(i => i.severity === 'error'))
+    if (hasBlockingIssues) {
       auditState.value = state
       return
     }

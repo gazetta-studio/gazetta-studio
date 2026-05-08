@@ -719,11 +719,42 @@ describe('PublishPanel', () => {
       expect(qText('publish-panel-confirm')).toContain('Fix 1 issue to publish')
     })
 
-    it('lets the user proceed when audit issues are all warns ("ignore once")', async () => {
+    it('auto-proceeds when audit issues are warn-only on a non-strict target', async () => {
+      // Warns alone don't surface the audit block — they're background-
+      // scanner concerns (a11y, html-validity), not publish-time gates.
+      // Authors who treat warns as blocking opt into publishAudit.strict.
       setupTwoTargets()
       const publishAudit = vi.fn(async () => ({
         issues: [buildIssue('pages/home/page.json', 'warn')],
         strict: false,
+      }))
+      const publishStream = vi.fn(
+        async (): Promise<PublishResult[]> => [{ target: 'staging', success: true, copiedFiles: 1 }],
+      )
+      const w = await mountPanel({
+        publishApi: fakePublishApi({ publishAudit, publishStream }),
+        initialDestination: 'staging',
+      })
+      await flushMicrotasks()
+      await pickItems(w, ['pages/home'])
+      ;(q('[data-testid="publish-panel-confirm"]') as HTMLElement).click()
+      await flushMicrotasks()
+      await flushMicrotasks()
+
+      expect(publishAudit).toHaveBeenCalledTimes(1)
+      expect(publishStream).toHaveBeenCalledTimes(1)
+      // No audit block surfaced — straight to publish.
+      expect(qExists('publish-audit')).toBe(false)
+    })
+
+    it('blocks and supports "Ignore once" when strict promotion turns warns into errors', async () => {
+      setupTwoTargets()
+      // Server applied strict promotion: returns warns as error severity
+      // (matches the runPublishAudit contract — warns become errors when
+      // publishAudit.strict is set on the destination target).
+      const publishAudit = vi.fn(async () => ({
+        issues: [buildIssue('pages/home/page.json', 'error')],
+        strict: true,
       }))
       const publishStream = vi.fn(async (): Promise<PublishResult[]> => [])
       const w = await mountPanel({
@@ -732,26 +763,12 @@ describe('PublishPanel', () => {
       })
       await flushMicrotasks()
       await pickItems(w, ['pages/home'])
-
-      // First click — audit surfaces a warn and shows the audit block.
       ;(q('[data-testid="publish-panel-confirm"]') as HTMLElement).click()
       await flushMicrotasks()
+      // Block shows; publish hasn't run yet.
       expect(qExists('publish-audit-target-staging')).toBe(true)
-      // With one un-acknowledged warn, the button still says "Fix"
+      expect(publishStream).not.toHaveBeenCalled()
       expect(qText('publish-panel-confirm')).toContain('Fix 1 issue to publish')
-
-      // Tick "Ignore once" on the warn — clears the blocker.
-      const ignoreCb = q('[data-testid="publish-audit-ignore-staging-broken-links"] input') as HTMLInputElement | null
-      expect(ignoreCb).not.toBeNull()
-      ignoreCb!.click()
-      await flushMicrotasks()
-      expect(qText('publish-panel-confirm')).toContain('Continue to publish')
-
-      // Second click — no second audit fetch; runs publish directly.
-      ;(q('[data-testid="publish-panel-confirm"]') as HTMLElement).click()
-      await flushMicrotasks()
-      expect(publishAudit).toHaveBeenCalledTimes(1)
-      expect(publishStream).toHaveBeenCalledTimes(1)
     })
 
     it('handles the server-side 409 PUBLISH_AUDIT_FAILED by surfacing the same audit UX', async () => {

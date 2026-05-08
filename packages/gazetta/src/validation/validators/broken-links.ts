@@ -11,9 +11,11 @@
  * stale independent of publish; a publish gate isn't the right place for
  * URL-rot detection (that's a periodic background concern, deferred).
  *
- * Stages: background + pre-publish. Background surfaces broken links as
- * `warn`; pre-publish promotes to `error` (operator opts into stricter
- * gating via `publishAudit.strict`).
+ * Stages: background + pre-publish. Severity is uniformly `warn`;
+ * operators who want broken links to block publish opt into
+ * `publishAudit.strict` on the destination target — strict promotion
+ * in the publish-audit orchestrator turns warns into errors at the
+ * gate (matches the validator matrix in `design-validation.md`).
  *
  * Rendered output is supplied via `input.renderedOutput` (Cut 3 contract).
  *
@@ -35,8 +37,13 @@ export const brokenLinks: Validator = {
   name: 'broken-links',
   stages: ['background', 'pre-publish', 'cli'] as const,
 
-  defaultSeverity(stage) {
-    return stage === 'pre-publish' ? 'error' : 'warn'
+  defaultSeverity() {
+    // Per design-validation.md "Stage × validator matrix": broken-links
+    // is warn at every stage. Operators who want it to block publish
+    // opt into publishAudit.strict on the destination target — strict
+    // promotion in the publish-audit orchestrator turns warns into
+    // errors. The validator itself stays uniformly warn.
+    return 'warn'
   },
 
   async validate(input: ValidatorInput): Promise<Issue[]> {
@@ -57,7 +64,7 @@ export const brokenLinks: Validator = {
         if (reason) {
           issues.push({
             validator: 'broken-links',
-            severity: scope.kind === 'pre-publish' ? 'error' : 'warn',
+            severity: 'warn',
             message: `${ref}: ${reason}`,
             itemPath: item.itemPath,
           })

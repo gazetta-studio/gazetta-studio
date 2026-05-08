@@ -1292,7 +1292,7 @@ async function runDeploy(siteDir: string, targetName?: string) {
   )
 }
 
-const QUALITY_VALIDATORS = new Set(['accessibility', 'html-validity'])
+const QUALITY_VALIDATORS = new Set(['accessibility', 'html-validity', 'broken-links'])
 
 async function runValidate(siteDir: string, rawArgs: readonly string[] = []) {
   const projectRoot = detectProjectRoot(siteDir)
