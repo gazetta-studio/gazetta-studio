@@ -16,6 +16,8 @@ import AssetPicker from './components/AssetPicker.vue'
 import AssetDeleteConfirm from './components/AssetDeleteConfirm.vue'
 import OfflineBanner from './components/OfflineBanner.vue'
 import StorageQuotaBanner from './components/StorageQuotaBanner.vue'
+import TemplateChangedBanner from './components/TemplateChangedBanner.vue'
+import { useTemplateImpactStore } from './stores/templateImpact.js'
 
 const site = useSiteStore()
 const theme = useThemeStore()
@@ -23,6 +25,7 @@ const toast = useToastStore()
 const activeTarget = useActiveTargetStore()
 const syncStatus = useSyncStatusStore()
 const validationScanner = useValidationScannerStore()
+const templateImpact = useTemplateImpactStore()
 
 // Apply workspace-wide chrome when the active target is an editable
 // production target. Kept out of App.vue's inline setup so the rule has
@@ -78,6 +81,12 @@ onMounted(() => {
   // scanner's state without per-component polling.
   void validationScanner.refresh()
   validationScanner.subscribe()
+  // Cut 6 — the template-changed banner consumes a separate SSE event
+  // type on the same /__validation channel. Subscribing here keeps the
+  // banner reactive to dev-mode template hot reloads without per-route
+  // wiring. Production has no template watcher so the channel stays
+  // silent for this event type — no harm, no overhead.
+  templateImpact.subscribe()
 })
 </script>
 
@@ -86,6 +95,7 @@ onMounted(() => {
     <Toolbar />
     <OfflineBanner />
     <StorageQuotaBanner />
+    <TemplateChangedBanner />
     <div v-if="site.error" class="cms-error">{{ site.error }}</div>
     <!-- Only block on the first load. Subsequent reloads (e.g., on
          active-target switch) keep the router-view mounted so the

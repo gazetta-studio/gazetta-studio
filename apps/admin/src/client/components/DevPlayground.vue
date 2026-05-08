@@ -6,6 +6,7 @@ import { useThemeStore } from '../stores/theme.js'
 import { usePagesApi, useFragmentsApi, useTemplatesApi } from '../composables/api.js'
 import type { EditorMount, FieldMount } from 'gazetta/types'
 import { createEditorMount } from 'gazetta/editor'
+import TemplateImpactPanel from './TemplateImpactPanel.vue'
 
 const theme = useThemeStore()
 const router = useRouter()
@@ -58,6 +59,37 @@ const selected = ref<Selected | null>(null)
 const schemaLoading = ref(false)
 const mountError = ref<string | null>(null)
 const showAllTemplates = ref(false)
+
+// Cut 6 — Impact tab. Two tabs only when an editor (template) is
+// selected: Preview (existing form + value inspector) and Impact
+// (items using this template + their issues). Field selections skip
+// tabs entirely (no impact concept for fields). Tab state persists
+// via the `?tab=impact` query param so the toolbar banner's deep-link
+// can land directly on the Impact view.
+type DevTab = 'preview' | 'impact'
+const activeTab = ref<DevTab>((route.query.tab as DevTab | undefined) === 'impact' ? 'impact' : 'preview')
+
+function selectTab(t: DevTab) {
+  if (activeTab.value === t) return
+  activeTab.value = t
+  // Reflect into the URL so reload + share preserve the tab.
+  router.replace({
+    path: route.path,
+    query: { ...route.query, tab: t === 'preview' ? undefined : 'impact' },
+  })
+}
+
+// Reset to Preview when switching to a different editor (a fresh
+// selection shouldn't preserve a stale tab from a different template).
+// Banner deep-links go through router.push BEFORE selectEditor runs,
+// so the route's `?tab=impact` is already set; honor it on the next
+// editor selection by re-reading the query.
+watch(
+  () => route.query.tab,
+  q => {
+    activeTab.value = q === 'impact' ? 'impact' : 'preview'
+  },
+)
 
 // Value inspector
 const currentValue = ref<unknown>(null)
@@ -159,7 +191,13 @@ async function selectEditor(name: string) {
     const realContent = await findRealContent(name)
 
     selected.value = { type: 'editor', name, hasEditor: !!hasEditor, editorUrl, fieldsBaseUrl, schema, realContent }
-    router.replace(`/dev/editor/${name}`)
+    // Preserve the tab query — banner deep-link comes in with
+    // `?tab=impact`; sidebar clicks come in without and stay on Preview.
+    const currentTab = route.query.tab as string | undefined
+    router.replace({
+      path: `/dev/editor/${name}`,
+      query: currentTab === 'impact' ? { tab: 'impact' } : {},
+    })
   } catch (err) {
     mountError.value = `Failed to load schema for "${name}": ${(err as Error).message}`
     selected.value = null
@@ -416,16 +454,38 @@ function generateMockContent(schema: Record<string, unknown>): Record<string, un
             <strong>{{ selected.name }}</strong>
             <span v-if="selected.type === 'editor' && selected.realContent" class="toolbar-hint">using real content</span>
           </span>
-          <button class="toolbar-btn" data-testid="playground-reset" @click="reset" title="Reset to initial state">
+          <button v-if="activeTab === 'preview'" class="toolbar-btn" data-testid="playground-reset" @click="reset" title="Reset to initial state">
             <i class="pi pi-refresh" /> Reset
           </button>
-          <button class="toolbar-btn" data-testid="playground-toggle-inspector" @click="showInspector = !showInspector">
+          <button v-if="activeTab === 'preview'" class="toolbar-btn" data-testid="playground-toggle-inspector" @click="showInspector = !showInspector">
             <i class="pi pi-code" /> {{ showInspector ? 'Hide' : 'Show' }} Value
           </button>
         </div>
 
-        <!-- Content: editor + optional inspector side by side -->
-        <div class="main-body">
+        <!-- Tab strip — only for editors (templates). Fields skip tabs.
+             Cut 6 — Impact tab is template-developer turf, not relevant
+             to field-only previews. -->
+        <div v-if="selected.type === 'editor'" class="playground-tabs" data-testid="playground-tabs">
+          <button
+            type="button"
+            :class="['playground-tab', activeTab === 'preview' ? 'active' : '']"
+            data-testid="playground-tab-preview"
+            @click="selectTab('preview')">
+            Preview
+          </button>
+          <button
+            type="button"
+            :class="['playground-tab', activeTab === 'impact' ? 'active' : '']"
+            data-testid="playground-tab-impact"
+            @click="selectTab('impact')">
+            Impact
+          </button>
+        </div>
+
+        <!-- Content: editor + optional inspector side by side, OR
+             impact panel when tab=impact. Fields always render preview
+             (no tab strip; the tab state is irrelevant to them). -->
+        <div v-if="activeTab === 'preview' || selected.type === 'field'" class="main-body" data-testid="playground-body-preview">
           <div class="main-content">
             <div v-if="mountError" class="mount-error">{{ mountError }}</div>
             <div ref="mountRef" class="mount-container" data-testid="playground-mount" />
@@ -436,6 +496,13 @@ function generateMockContent(schema: Record<string, unknown>): Record<string, un
             <div class="inspector-header">Value</div>
             <pre class="inspector-value" v-html="valueHtml" />
           </div>
+        </div>
+
+        <!-- Impact tab body. Lazy by tab activation — the panel only
+             fetches when shown, so opening the playground at the
+             default Preview tab pays no Impact cost. -->
+        <div v-else-if="activeTab === 'impact' && selected.type === 'editor'" class="main-body main-body-impact" data-testid="playground-body-impact">
+          <TemplateImpactPanel :template="selected.name" />
         </div>
       </template>
     </div>
@@ -474,8 +541,16 @@ function generateMockContent(schema: Record<string, unknown>): Record<string, un
 .toolbar-btn { display: flex; align-items: center; gap: 0.375rem; padding: 0.25rem 0.625rem; border: 1px solid #e5e7eb; border-radius: 6px; background: transparent; color: #6b7280; font-size: 0.75rem; cursor: pointer; white-space: nowrap; }
 .toolbar-btn:hover { background: rgba(128, 128, 128, 0.08); color: #374151; }
 
+/* Tabs (Cut 6) — Preview / Impact strip below the main toolbar.
+   Storybook-style tab pattern; one selected at a time. */
+.playground-tabs { display: flex; gap: 0; padding: 0 1rem; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; }
+.playground-tab { background: transparent; border: none; border-bottom: 2px solid transparent; padding: 0.5rem 0.75rem; font-size: 0.75rem; color: #6b7280; cursor: pointer; }
+.playground-tab:hover { color: #374151; }
+.playground-tab.active { color: #667eea; border-bottom-color: #667eea; font-weight: 600; }
+
 /* Body — side by side, equal width */
 .main-body { flex: 1; display: flex; overflow: hidden; }
+.main-body-impact { display: block; overflow-y: auto; }
 .main-content { flex: 1; overflow-y: auto; padding: 1.5rem; min-width: 0; }
 .mount-container { max-width: 600px; }
 .mount-error { color: #dc2626; font-size: 0.8125rem; margin-bottom: 1rem; padding: 0.75rem; background: rgba(220, 38, 38, 0.08); border-radius: 6px; }

@@ -200,6 +200,8 @@ import type {
   CreateFragmentRequest as CreateFragmentRequestShape,
   CreateFragmentResponse as CreateFragmentResponseShape,
   TemplateSummary as TemplateSummaryShape,
+  TemplateImpactItem as TemplateImpactItemShape,
+  TemplateImpactResponse as TemplateImpactResponseShape,
   FieldSummary as FieldSummaryShape,
   TargetInfo as TargetInfoShape,
   TargetEnvironment as TargetEnvironmentShape,
@@ -229,6 +231,8 @@ export type FragmentSummary = FragmentSummaryShape
 export type CreateFragmentRequest = CreateFragmentRequestShape
 export type CreateFragmentResponse = CreateFragmentResponseShape
 export type TemplateSummary = TemplateSummaryShape
+export type TemplateImpactItem = TemplateImpactItemShape
+export type TemplateImpactResponse = TemplateImpactResponseShape
 export type FieldSummary = FieldSummaryShape
 export type TargetInfo = TargetInfoShape
 export type TargetEnvironment = TargetEnvironmentShape
@@ -364,6 +368,13 @@ export const api = {
     })
   },
   getTemplates: () => request<TemplateSummary[]>('/templates'),
+  /**
+   * Validation Cut 6 — items using a template + their issues from the
+   * background scanner. Powers the DevPlayground "Impact" tab + the
+   * toolbar banner's "View impact" link.
+   */
+  getTemplateImpact: (name: string, options?: RequestInit) =>
+    request<TemplateImpactResponse>(`/templates/${name}/impact`, options),
   getTemplateSchema: (name: string, options?: RequestInit) =>
     request<Record<string, unknown>>(`/templates/${name}/schema`, options),
   getFields: () => request<FieldSummary[]>('/fields'),

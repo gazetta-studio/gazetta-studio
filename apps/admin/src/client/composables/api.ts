@@ -27,6 +27,7 @@ import {
   type FragmentSummary,
   type FragmentDetail,
   type TemplateSummary,
+  type TemplateImpactResponse,
   type FieldSummary,
   type TargetInfo,
   type SiteManifest,
@@ -74,6 +75,12 @@ export function useFragmentsApi(): FragmentsApi {
 export interface TemplatesApi {
   getTemplates(): Promise<TemplateSummary[]>
   getTemplateSchema(name: string): Promise<Record<string, unknown>>
+  /**
+   * Validation Cut 6 — items using a template + their issues from the
+   * scanner. Used by the DevPlayground "Impact" tab + the
+   * TemplateImpactStore for the toolbar banner's deep link.
+   */
+  getTemplateImpact(name: string): Promise<TemplateImpactResponse>
   getFields(): Promise<FieldSummary[]>
 }
 export const TEMPLATES_API: InjectionKey<TemplatesApi> = Symbol('TemplatesApi')

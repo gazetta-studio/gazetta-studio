@@ -57,13 +57,26 @@ export type RescanCause =
   | { kind: 'fragment'; name: string }
   /** Asset edited — the scanner walks the asset's referrers. */
   | { kind: 'asset'; name: string }
-  /** Template source changed — full-site rescan is the fallback. */
-  | { kind: 'template'; name: string }
+  /**
+   * Template source changed — full-site rescan is the fallback.
+   * After the rescan, the scanner populates `affectedItemCount` on the
+   * emitted `ScanEvent.cause` (count of items using the template that
+   * have any issue after the pass). The TemplateChangedBanner reads
+   * this for its "N items affected" message.
+   */
+  | { kind: 'template'; name: string; affectedItemCount?: number }
   /** Out-of-band change detected by file watcher; full-site rescan. */
   | { kind: 'full' }
 
 /**
  * Event published when a scan pass finishes. SSE consumers receive these.
+ *
+ * `cause` carries the rescan trigger when known. The initial `scanAll()`
+ * pass at boot omits it (full-site scan with no specific trigger). The
+ * file watcher's incremental rescans pass through their `RescanCause`
+ * so consumers can react differently per kind — e.g., the
+ * template-developer banner (Cut 6) only surfaces when
+ * `cause.kind === 'template'`.
  */
 export interface ScanEvent {
   /** Wall-clock duration of the scan, ms. */
@@ -72,6 +85,8 @@ export interface ScanEvent {
   scanned: number
   /** Total number of issues across the site after this scan. */
   totalIssues: number
+  /** Trigger that caused the rescan, when known. Omitted for boot scans. */
+  cause?: RescanCause
 }
 
 export type ScanSubscriber = (event: ScanEvent) => void
@@ -207,7 +222,12 @@ export function createValidationScanner(opts: CreateScannerOptions): ValidationS
     }
   }
 
-  async function scanAll(): Promise<void> {
+  // Shared full-site walk — extracted so scanAll(), rescan({template}),
+  // and rescan({full}) share the body. Returns the loaded `site` +
+  // wall-clock + count so the caller can decide what the ScanEvent
+  // carries (e.g., template rescan adds affectedItemCount to the cause
+  // before emitting).
+  async function fullScanWalk(): Promise<{ site: Site; durationMs: number; scanned: number }> {
     const start = Date.now()
     const site = await loadFreshSite()
     let scanned = 0
@@ -241,12 +261,50 @@ export function createValidationScanner(opts: CreateScannerOptions): ValidationS
       if (!seen.has(path)) issuesByItem.delete(path)
     }
 
-    emit({ durationMs: Date.now() - start, scanned, totalIssues: totalIssues() })
+    return { site, durationMs: Date.now() - start, scanned }
+  }
+
+  async function scanAll(): Promise<void> {
+    const { durationMs, scanned } = await fullScanWalk()
+    emit({ durationMs, scanned, totalIssues: totalIssues() })
   }
 
   async function rescan(cause: RescanCause): Promise<void> {
-    if (cause.kind === 'template' || cause.kind === 'full') {
-      await scanAll()
+    if (cause.kind === 'template') {
+      // Template rescan = full-site walk. Compute affectedItemCount
+      // post-walk so the emitted ScanEvent (and downstream SSE
+      // template-changed event) carries the banner's "N items
+      // affected" number in one go — no double emit, no client-side
+      // re-walk. Affected = items using the template that have any
+      // issue post-scan; issuesByItem is up to date by this point.
+      const { site, durationMs, scanned } = await fullScanWalk()
+      let affectedItemCount: number | undefined
+      try {
+        const { computeTemplateImpact } = await import('./template-impact.js')
+        affectedItemCount = computeTemplateImpact(
+          site,
+          cause.name,
+          path => issuesByItem.get(path) ?? [],
+        ).affectedItemCount
+      } catch (err) {
+        // Best-effort — banner just shows the template name without a
+        // count when this fails. The walk's per-item issues already
+        // surfaced via the regular store, which feeds dots + drawer.
+        console.warn(
+          `  Validation scanner: template-impact count failed for "${cause.name}": ${(err as Error).message}`,
+        )
+      }
+      emit({
+        durationMs,
+        scanned,
+        totalIssues: totalIssues(),
+        cause: { ...cause, affectedItemCount },
+      })
+      return
+    }
+    if (cause.kind === 'full') {
+      const { durationMs, scanned } = await fullScanWalk()
+      emit({ durationMs, scanned, totalIssues: totalIssues(), cause })
       return
     }
     const start = Date.now()
@@ -261,7 +319,7 @@ export function createValidationScanner(opts: CreateScannerOptions): ValidationS
       scanned++
     }
 
-    emit({ durationMs: Date.now() - start, scanned, totalIssues: totalIssues() })
+    emit({ durationMs: Date.now() - start, scanned, totalIssues: totalIssues(), cause })
   }
 
   function allIssues(): readonly Issue[] {

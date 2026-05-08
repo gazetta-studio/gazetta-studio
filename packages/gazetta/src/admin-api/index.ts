@@ -415,7 +415,12 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
       scanner: opts.validationScanner ?? null,
     }),
   )
-  app.route('/', templateRoutes(resolveSource, templatesDir, adminDir, opts.production))
+  app.route(
+    '/',
+    templateRoutes(resolveSource, templatesDir, adminDir, opts.production, {
+      scanner: opts.validationScanner ?? null,
+    }),
+  )
   app.route('/', previewRoutes(resolveSource, templatesDir))
   app.route(
     '/',

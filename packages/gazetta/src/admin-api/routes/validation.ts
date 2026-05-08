@@ -96,10 +96,36 @@ export function mountValidationSse(app: Hono, scanner: ValidationScanner | null)
           continue
         }
         const event = queue.shift()!
+        // Always emit the generic "issues updated" event so the
+        // site-health drawer + tree dots stay current regardless
+        // of the trigger.
         await stream.writeSSE({
           event: 'validation-issues-updated',
           data: JSON.stringify(event),
         })
+        // Cut 6 — emit a distinct `template-changed` event in
+        // addition when the rescan was triggered by a template
+        // edit. The TemplateChangedBanner consumes this to surface
+        // the developer-focused "did I break anything?" UI without
+        // forcing every SSE listener to filter by cause.kind.
+        if (event.cause?.kind === 'template') {
+          // Surface the affected-item count alongside the name.
+          // "Affected" = items where the post-rescan state has at
+          // least one issue from `schema-conformance` (the
+          // validator that's sensitive to template-shape changes).
+          // Computed by the scanner state via the optional
+          // `affectedCount` field — when undefined (older callers),
+          // banner shows the name without a count.
+          const affectedItemCount = event.cause.affectedItemCount
+          await stream.writeSSE({
+            event: 'template-changed',
+            data: JSON.stringify({
+              name: event.cause.name,
+              affectedItemCount,
+              durationMs: event.durationMs,
+            }),
+          })
+        }
       }
     })
   })
