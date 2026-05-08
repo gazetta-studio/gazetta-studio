@@ -156,6 +156,45 @@ test.describe('Component operations', () => {
     await expect(page.locator('[data-testid="remove-hero"]')).toBeVisible()
   })
 
+  // #45 — component duplication. Two paths: per-row Duplicate button + Cmd/Ctrl+D
+  // keyboard shortcut. Both share the same store action (addComponentStructural
+  // with insertIndex), so we exercise the button path here as the primary
+  // surface and the keyboard path in the unit suite.
+  test('duplicate component creates a copy with -copy suffix at index+1 (#45)', async ({
+    page,
+    testSite,
+  }, testInfo) => {
+    await openEditor(page, 'home')
+    const tree = new ComponentTreePom(page)
+    const name = `dup-source-${testInfo.testId}`
+    // Add a fresh component so the test owns a clean source — avoids
+    // collisions with other tests in this file that mutate `home`.
+    await tree.add(name, 'text-block')
+    await expect(tree.row(name)).toBeVisible({ timeout: 10000 })
+
+    await tree.duplicate(name)
+    await expect(tree.row(`${name}-copy`)).toBeVisible({ timeout: 10000 })
+
+    // Save flushes both Add + Duplicate. After save, the disk manifest
+    // has both entries with the duplicate sitting right after the source.
+    await page.click('[data-testid="save-btn"]')
+    await expect(page.locator('[data-testid="save-btn"]')).toBeDisabled({ timeout: 10000 })
+
+    const pageJsonPath = join(testSite.projectDir, 'sites/main/targets/local/pages/home/page.json')
+    const json = JSON.parse(readFileSync(pageJsonPath, 'utf8'))
+    const names = (json.components as Array<string | { name: string }>).map(c => (typeof c === 'string' ? c : c.name))
+    const sourceIdx = names.indexOf(name)
+    const copyIdx = names.indexOf(`${name}-copy`)
+    expect(sourceIdx).toBeGreaterThan(-1)
+    expect(copyIdx).toBe(sourceIdx + 1)
+
+    // Cleanup: remove both so the file ends in a stable state.
+    await tree.remove(`${name}-copy`)
+    await tree.remove(name)
+    await page.click('[data-testid="save-btn"]')
+    await expect(page.locator('[data-testid="save-btn"]')).toBeDisabled({ timeout: 10000 })
+  })
+
   test('Alt+ArrowDown on the focused handle moves the row one position (#105)', async ({ page, testSite }) => {
     await openEditor(page, 'home')
     const tree = new ComponentTreePom(page)
