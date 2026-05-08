@@ -39,6 +39,8 @@ import {
   type PublishItem,
 } from '../../hooks/index.js'
 import { makeAuditFiringEmitter } from '../hook-audit-emitter.js'
+import { runPublishAudit } from '../../validation/publish-audit.js'
+import type { Issue } from '../../validation/types.js'
 
 /**
  * Progress events streamed by runPublish. Consumed both by the SSE route
@@ -55,6 +57,19 @@ export type PublishProgress =
 
 export interface PublishRoutesOptions {
   hooks?: HookRegistry
+  /**
+   * Validator registry — used by `POST /api/publish/audit` to run
+   * pre-publish-stage validators against items being published.
+   * When omitted, the audit endpoint reports an empty issue list
+   * (sites without validation infrastructure pay zero overhead).
+   */
+  validators?: import('../../validation/registry.js').ValidatorRegistry
+  /**
+   * Validation cache — passed to render-for-analysis under the audit
+   * endpoint. Reuses the scanner's render-for-analysis cache so the
+   * audit doesn't re-render pages already seen in the background scan.
+   */
+  cache?: import('../../cache/types.js').AdminCache
 }
 
 export function publishRoutes(
@@ -90,6 +105,52 @@ export function publishRoutes(
       name: itemPath.startsWith('assets/') ? itemPath.slice('assets/'.length) : itemPath,
       path: itemPath,
     }
+  }
+
+  /**
+   * Server-side publish gate (Validation Cut 4).
+   *
+   * Runs `runPublishAudit` for every (target × items) pair the request is
+   * asking to publish, applies the per-target `publishAudit.strict`
+   * promotion, and returns any error-severity issues. The publish
+   * handlers refuse with 409 when this returns non-empty results — the
+   * client-side audit modal is the polite UX, this gate is the
+   * enforcement layer so a determined client can't bypass.
+   *
+   * Returns `{ target, issues }` per target that produced errors. Targets
+   * with only warns/infos are omitted (errors-only gate).
+   */
+  async function evaluatePublishGate(
+    source: import('../source-context.js').SourceContext,
+    targetNames: ReadonlyArray<string>,
+    itemPaths: ReadonlyArray<string>,
+  ): Promise<Array<{ target: string; issues: Issue[] }>> {
+    if (!opts.validators) return []
+    const items: Array<{ kind: 'page' | 'fragment'; name: string }> = []
+    for (const p of itemPaths) {
+      const i = toPublishItem(p)
+      if (i.kind === 'page' || i.kind === 'fragment') items.push({ kind: i.kind, name: i.name })
+    }
+    if (items.length === 0) return []
+    const site = await loadSiteFromSource(source)
+    const blocked: Array<{ target: string; issues: Issue[] }> = []
+    for (const targetName of targetNames) {
+      const targetCfg = source.manifest?.targets?.[targetName]
+      const strict = !!targetCfg?.publishAudit?.strict
+      const issues = await runPublishAudit({
+        items,
+        site,
+        contentRoot: source.contentRoot,
+        storage: source.storage,
+        registry: opts.validators,
+        cache: source.cache,
+        strict,
+        templatesDir: site.templatesDir,
+      })
+      const errors = issues.filter(i => i.severity === 'error')
+      if (errors.length > 0) blocked.push({ target: targetName, issues: errors })
+    }
+    return blocked
   }
 
   // Background target initialization — lazy, needs the resolved source's
@@ -614,6 +675,27 @@ export function publishRoutes(
       }
     }
 
+    // Server-side publish gate per design-validation.md Cut 4. Runs the
+    // same `runPublishAudit` the client-side modal calls; refuses on
+    // remaining error-severity issues so a determined client can't
+    // bypass the dialog. `publishAudit.strict` is applied per-target.
+    const sourceForGate = await resolve(body.source)
+    const blocked = await evaluatePublishGate(sourceForGate, body.targets, finalItems)
+    if (blocked.length > 0) {
+      await c.var.audit.record({
+        action: 'publish',
+        outcome: 'validation-failed',
+        scope: { kind: 'site' },
+        metadata: {
+          items: finalItems,
+          targets: body.targets,
+          source: body.source,
+          blockedTargets: blocked.map(b => b.target),
+        },
+      })
+      return c.json({ code: 'PUBLISH_AUDIT_FAILED' as const, blocked }, 409)
+    }
+
     let results: PublishResult[] = []
     let fatal: PublishProgress | null = null
     for await (const ev of runPublish(finalItems, body.targets, body.source)) {
@@ -697,6 +779,26 @@ export function publishRoutes(
         }
         throw err
       }
+    }
+
+    // Server-side publish gate (mirrors /api/publish). Surfaces as a
+    // synchronous 409 before the SSE stream opens, so the client can
+    // treat audit-failure identically across the two endpoints.
+    const sourceForGate = await resolve(body.source)
+    const blocked = await evaluatePublishGate(sourceForGate, body.targets, finalItems)
+    if (blocked.length > 0) {
+      await c.var.audit.record({
+        action: 'publish',
+        outcome: 'validation-failed',
+        scope: { kind: 'site' },
+        metadata: {
+          items: finalItems,
+          targets: body.targets,
+          source: body.source,
+          blockedTargets: blocked.map(b => b.target),
+        },
+      })
+      return c.json({ code: 'PUBLISH_AUDIT_FAILED' as const, blocked }, 409)
     }
 
     return streamSSE(c, async stream => {
@@ -812,6 +914,56 @@ export function publishRoutes(
       console.error(`    FAILED — ${error}`)
       return c.json({ error }, 500)
     }
+  })
+
+  /**
+   * POST /api/publish/audit — runs pre-publish-stage validators against the
+   * items operator is about to publish. Returns the consolidated `Issue[]`,
+   * with `publishAudit.strict` promotion already applied (warns → errors)
+   * for the destination target.
+   *
+   * The audit is read-only: it doesn't write to storage, doesn't fire hooks,
+   * doesn't trigger publish. It's the pre-flight check the publish dialog
+   * surfaces before the user clicks "Publish."
+   *
+   * Server-side enforcement of the audit happens at `POST /api/publish` —
+   * this endpoint is the read surface; the gate is the publish handler
+   * itself. Defense in depth: client-side dialog uses this endpoint for
+   * display; server-side publish re-runs the same audit and refuses on
+   * errors, so a determined client can't bypass.
+   */
+  app.post('/api/publish/audit', requireCapability('publish:non-production'), async c => {
+    const body = await c.req.json().catch(() => null)
+    if (!body || typeof body !== 'object') {
+      return c.json({ error: 'invalid request body' }, 400)
+    }
+    const targetName = (body as { target?: unknown }).target
+    const items = (body as { items?: unknown }).items
+    if (typeof targetName !== 'string' || !Array.isArray(items)) {
+      return c.json({ error: 'expected { target: string, items: SavedItem[] }' }, 400)
+    }
+
+    const source = await resolve(c.req.query('target'))
+    const site = await loadSiteFromSource(source)
+    const targetCfg = source.manifest?.targets?.[targetName]
+    const strict = !!targetCfg?.publishAudit?.strict
+
+    if (!opts.validators) {
+      // No validator registry wired; return empty issues.
+      return c.json({ issues: [], strict })
+    }
+
+    const issues = await runPublishAudit({
+      items: items as Array<{ kind: 'page' | 'fragment'; name: string }>,
+      site,
+      contentRoot: source.contentRoot,
+      storage: source.storage,
+      registry: opts.validators,
+      cache: source.cache,
+      strict,
+      templatesDir: site.templatesDir,
+    })
+    return c.json({ issues, strict })
   })
 
   return app

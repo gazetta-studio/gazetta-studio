@@ -23,7 +23,8 @@ import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
 import Select from 'primevue/select'
-import type { PublishResult } from '../api/client.js'
+import type { PublishResult, ValidationIssue } from '../api/client.js'
+import { PublishAuditFailedError } from '../api/client.js'
 import { usePublishApi, useHistoryApi } from '../composables/api.js'
 import { useActiveTargetStore } from '../stores/activeTarget.js'
 import { useSyncStatusStore } from '../stores/syncStatus.js'
@@ -129,6 +130,96 @@ const invalidTemplates = ref<{ name: string; errors: string[] }[]>([])
  *  disabled so the user can't accidentally double-rollback. */
 const undoneTargets = ref(new Set<string>())
 
+// --- Pre-publish audit (Validation Cut 4) -----------------------------
+//
+// When the user clicks Publish, we first call POST /api/publish/audit
+// per destination to surface any pre-publish-stage validator issues.
+// Errors always block the publish; warns can be "Ignored once" (per-
+// publish-dialog state, not persisted — author opts out for THIS
+// publish only). If a determined client bypasses the dialog the
+// server-side gate at POST /api/publish refuses with the same
+// PUBLISH_AUDIT_FAILED 409 (defense in depth).
+
+interface AuditPerTarget {
+  /** Destination this issue set applies to. */
+  target: string
+  /** True when the destination's publishAudit.strict is on (warns become errors). */
+  strict: boolean
+  /** Issues from runPublishAudit for this destination, in server order. */
+  issues: ValidationIssue[]
+}
+
+const auditing = ref(false)
+const auditState = ref<AuditPerTarget[] | null>(null)
+/** Set of `${target}::${itemPath}::${validator}` keys the user opted to ignore. */
+const ignoredWarns = ref<Set<string>>(new Set())
+
+function auditIssueKey(target: string, issue: ValidationIssue): string {
+  return `${target}::${issue.itemPath}::${issue.validator}::${issue.message}`
+}
+
+/** Convert publish-item-list paths (`pages/home`) to the kind+name shape
+ *  the audit endpoint expects. Asset paths and unknown shapes are dropped
+ *  (the audit only inspects pages + fragments). */
+function pathsToAuditItems(paths: ReadonlyArray<string>): Array<{ kind: 'page' | 'fragment'; name: string }> {
+  const out: Array<{ kind: 'page' | 'fragment'; name: string }> = []
+  for (const p of paths) {
+    if (p.startsWith('pages/')) out.push({ kind: 'page', name: p.slice('pages/'.length) })
+    else if (p.startsWith('fragments/')) out.push({ kind: 'fragment', name: p.slice('fragments/'.length) })
+  }
+  return out
+}
+
+/** Errors always block; warns block only when user hasn't ticked "Ignore". */
+function blockingIssueCount(state: ReadonlyArray<AuditPerTarget>): number {
+  let n = 0
+  for (const perTarget of state) {
+    for (const issue of perTarget.issues) {
+      if (issue.severity === 'error') n++
+      else if (issue.severity === 'warn' && !ignoredWarns.value.has(auditIssueKey(perTarget.target, issue))) n++
+    }
+  }
+  return n
+}
+
+const blockingIssueTotal = computed(() => (auditState.value ? blockingIssueCount(auditState.value) : 0))
+const auditHasIssues = computed(() => !!auditState.value && auditState.value.some(t => t.issues.length > 0))
+
+function toggleIgnoreWarn(target: string, issue: ValidationIssue) {
+  if (issue.severity !== 'warn') return
+  const key = auditIssueKey(target, issue)
+  const next = new Set(ignoredWarns.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  ignoredWarns.value = next
+}
+
+function isWarnIgnored(target: string, issue: ValidationIssue): boolean {
+  return ignoredWarns.value.has(auditIssueKey(target, issue))
+}
+
+/** Build the audit response into the AuditPerTarget[] state, dropping
+ *  destinations that returned zero issues (clean targets don't gate). */
+async function runPrePublishAudit(items: string[], dests: string[]): Promise<AuditPerTarget[]> {
+  const auditItems = pathsToAuditItems(items)
+  if (auditItems.length === 0) return []
+  const out: AuditPerTarget[] = []
+  for (const target of dests) {
+    try {
+      const res = await publishApi.publishAudit(target, auditItems)
+      if (res.issues.length > 0) {
+        out.push({ target, strict: res.strict, issues: res.issues })
+      }
+    } catch (err) {
+      // Audit failures fail-open at the dialog — the server-side gate
+      // remains. We surface a small toast so the author knows the
+      // pre-flight check didn't run, but don't block.
+      toast.showError(err, `Audit failed on ${target}`)
+    }
+  }
+  return out
+}
+
 // Production destinations require explicit confirmation to avoid accidental
 // pushes to live content — same pattern as the old PublishDialog.
 const productionDestinations = computed(() =>
@@ -139,6 +230,9 @@ const needsConfirm = computed(() => productionDestinations.value.length > 0)
 function resetPublishState() {
   publishing.value = false
   confirming.value = false
+  auditing.value = false
+  auditState.value = null
+  ignoredWarns.value = new Set()
   progress.value = new Map()
   results.value = null
   publishError.value = null
@@ -167,15 +261,38 @@ async function undoPublish(targetName: string) {
 }
 
 async function handlePublishClick() {
-  if (!canPublish.value || publishing.value) return
+  if (!canPublish.value || publishing.value || auditing.value) return
+  // Production confirmation: same as before, runs before audit.
   if (needsConfirm.value && !confirming.value) {
     confirming.value = true
     return
   }
-  await runPublish()
+  // If we're currently displaying audit issues, the click is the
+  // "Continue" affordance — proceed directly to the publish stream
+  // with whatever warns the user has acknowledged.
+  if (auditState.value) {
+    if (blockingIssueTotal.value > 0) return
+    await runPublish({ skipAudit: true })
+    return
+  }
+  // First click: run the audit pre-flight. If it surfaces issues, we
+  // hold the user in the audit-review state; otherwise proceed.
+  const dests = [...selectedDestinations.value]
+  const items = [...selectedItems.value]
+  auditing.value = true
+  try {
+    const state = await runPrePublishAudit(items, dests)
+    if (state.length > 0) {
+      auditState.value = state
+      return
+    }
+  } finally {
+    auditing.value = false
+  }
+  await runPublish({ skipAudit: true })
 }
 
-async function runPublish() {
+async function runPublish(opts: { skipAudit?: boolean } = {}) {
   const src = sourceName.value
   if (!src) return
   const dests = [...selectedDestinations.value]
@@ -186,6 +303,10 @@ async function runPublish() {
   publishError.value = null
   invalidTemplates.value = []
   progress.value = new Map(dests.map(d => [d, { current: 0, total: 0, label: 'pending…', status: 'pending' as const }]))
+  // skipAudit lets the caller bypass — used after the audit modal already
+  // ran. The server-side gate at POST /api/publish remains; if a
+  // PUBLISH_AUDIT_FAILED 409 lands we surface the same audit-review UX.
+  void opts.skipAudit
   try {
     const finalResults = await publishApi.publishStream(
       items,
@@ -226,9 +347,20 @@ async function runPublish() {
     for (const d of dests) syncStatus.invalidate(d)
     syncStatus.refreshAll()
   } catch (err) {
-    const e = err as Error & { invalidTemplates?: { name: string; errors: string[] }[] }
-    publishError.value = e.message
-    if (e.invalidTemplates) invalidTemplates.value = e.invalidTemplates
+    if (err instanceof PublishAuditFailedError) {
+      // Server-side gate caught what the client-side dialog didn't —
+      // either a race (validators changed mid-flight) or a determined
+      // client. Surface the same audit-review UX so the author sees
+      // the issues and can fix or abort.
+      auditState.value = err.blocked.map(b => ({ target: b.target, strict: false, issues: b.issues }))
+      // Re-evaluate ignoredWarns against the new issue set — server
+      // 409s only on errors, so any prior warn-ignore is irrelevant
+      // but harmless to keep around.
+    } else {
+      const e = err as Error & { invalidTemplates?: { name: string; errors: string[] }[] }
+      publishError.value = e.message
+      if (e.invalidTemplates) invalidTemplates.value = e.invalidTemplates
+    }
   } finally {
     publishing.value = false
   }
@@ -289,6 +421,13 @@ const canPublish = computed(
 )
 
 const publishLabel = computed(() => {
+  if (auditing.value) return 'Running audit…'
+  if (auditState.value) {
+    if (blockingIssueTotal.value > 0) {
+      return `Fix ${blockingIssueTotal.value} ${blockingIssueTotal.value === 1 ? 'issue' : 'issues'} to publish`
+    }
+    return 'Continue to publish'
+  }
   const items = selectedItems.value.size
   const dests = selectedDestinations.value.size
   if (items === 0 || dests === 0) return 'Publish'
@@ -296,6 +435,9 @@ const publishLabel = computed(() => {
 })
 
 const publishTitle = computed(() => {
+  if (auditState.value && blockingIssueTotal.value > 0) {
+    return 'Resolve all errors to publish'
+  }
   if (!sourceName.value) return 'Pick a source'
   if (selectedDestinations.value.size === 0) return 'Pick at least one destination'
   if (selectedItems.value.size === 0) return 'Pick at least one item'
@@ -428,6 +570,51 @@ function envClass(env: string | undefined): string {
         </span>
       </div>
 
+      <!-- Pre-publish audit results (Validation Cut 4) -->
+      <div v-if="auditState && auditHasIssues" class="publish-audit" data-testid="publish-audit">
+        <div class="publish-audit-header">
+          <i class="pi pi-shield" />
+          <span>
+            <strong>Pre-publish audit:</strong>
+            {{ blockingIssueTotal === 0
+              ? 'all errors resolved — ready to publish.'
+              : `${blockingIssueTotal} ${blockingIssueTotal === 1 ? 'issue blocks' : 'issues block'} this publish.` }}
+          </span>
+        </div>
+        <div v-for="perTarget in auditState" :key="perTarget.target" class="publish-audit-target"
+          :data-testid="`publish-audit-target-${perTarget.target}`">
+          <div class="publish-audit-target-header">
+            <span class="audit-target-name">{{ perTarget.target }}</span>
+            <span v-if="perTarget.strict" class="audit-strict-badge">strict</span>
+            <span class="audit-target-count">
+              {{ perTarget.issues.length }}
+              {{ perTarget.issues.length === 1 ? 'issue' : 'issues' }}
+            </span>
+          </div>
+          <ul class="publish-audit-issues">
+            <li v-for="issue in perTarget.issues" :key="auditIssueKey(perTarget.target, issue)"
+              :class="['publish-audit-issue', `severity-${issue.severity}`,
+                       issue.severity === 'warn' && isWarnIgnored(perTarget.target, issue) ? 'ignored' : '']"
+              :data-testid="`publish-audit-issue-${perTarget.target}-${issue.validator}`">
+              <span class="audit-severity">{{ issue.severity }}</span>
+              <span class="audit-validator">{{ issue.validator }}</span>
+              <span class="audit-message">{{ issue.message }}</span>
+              <span class="audit-itempath">{{ issue.itemPath }}</span>
+              <label v-if="issue.severity === 'warn'" class="audit-ignore">
+                <Checkbox
+                  :modelValue="isWarnIgnored(perTarget.target, issue)"
+                  :binary="true"
+                  @update:modelValue="() => toggleIgnoreWarn(perTarget.target, issue)"
+                  :inputId="`ignore-${auditIssueKey(perTarget.target, issue)}`"
+                  :data-testid="`publish-audit-ignore-${perTarget.target}-${issue.validator}`"
+                />
+                <span>Ignore once</span>
+              </label>
+            </li>
+          </ul>
+        </div>
+      </div>
+
       <!-- Invalid templates (fatal) -->
       <div v-if="invalidTemplates.length > 0" class="publish-error" data-testid="publish-invalid-templates">
         <i class="pi pi-exclamation-triangle" />
@@ -500,10 +687,10 @@ function envClass(env: string | undefined): string {
           data-testid="publish-panel-cancel" />
         <Button v-if="!confirming"
           :label="publishLabel"
-          :icon="publishing ? undefined : 'pi pi-cloud-upload'"
+          :icon="publishing || auditing ? undefined : 'pi pi-cloud-upload'"
           severity="success"
-          :loading="publishing"
-          :disabled="!canPublish || publishing"
+          :loading="publishing || auditing"
+          :disabled="!canPublish || publishing || auditing || (auditState ? blockingIssueTotal > 0 : false)"
           :title="publishTitle"
           data-testid="publish-panel-confirm"
           @click="handlePublishClick"
@@ -701,6 +888,55 @@ function envClass(env: string | undefined): string {
 .publish-invalid-list li { display: flex; flex-direction: column; gap: 0.125rem; font-size: 0.8125rem; }
 .publish-invalid-name { font-family: ui-monospace, monospace; font-weight: 600; }
 .publish-invalid-error { opacity: 0.85; font-size: 0.75rem; }
+
+.publish-audit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: var(--p-border-radius-md);
+  background: var(--color-warning-bg);
+  color: var(--color-warning-fg);
+  font-size: 0.875rem;
+}
+.publish-audit-header { display: flex; align-items: center; gap: 0.5rem; }
+.publish-audit-target { display: flex; flex-direction: column; gap: 0.375rem; }
+.publish-audit-target-header { display: flex; align-items: baseline; gap: 0.5rem; font-size: 0.8125rem; }
+.audit-target-name { font-weight: 600; }
+.audit-strict-badge {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  padding: 0.0625rem 0.375rem;
+  border-radius: var(--p-border-radius-sm);
+  background: var(--color-danger-bg);
+  color: var(--color-danger-fg);
+}
+.audit-target-count { color: var(--color-muted); font-size: 0.75rem; }
+.publish-audit-issues { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.publish-audit-issue {
+  display: grid;
+  grid-template-columns: minmax(3rem, auto) auto 1fr auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: var(--p-border-radius-sm);
+  background: var(--color-bg);
+  font-size: 0.8125rem;
+}
+.publish-audit-issue.severity-error { border-left: 3px solid var(--color-danger-fg); }
+.publish-audit-issue.severity-warn { border-left: 3px solid var(--color-warning-fg); }
+.publish-audit-issue.severity-info { border-left: 3px solid var(--color-info-fg); }
+.publish-audit-issue.ignored { opacity: 0.55; }
+.audit-severity {
+  text-transform: uppercase;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.audit-validator { font-family: ui-monospace, monospace; font-size: 0.75rem; color: var(--color-muted); }
+.audit-message { color: var(--color-fg); }
+.audit-itempath { font-family: ui-monospace, monospace; font-size: 0.75rem; color: var(--color-muted); }
+.audit-ignore { display: flex; align-items: center; gap: 0.375rem; cursor: pointer; font-size: 0.75rem; }
 
 .publish-progress { display: flex; flex-direction: column; gap: 0.75rem; }
 .progress-row { display: flex; flex-direction: column; gap: 0.25rem; }

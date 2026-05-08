@@ -48,6 +48,10 @@ function fakePublishApi(partial: Partial<PublishApi> = {}): PublishApi {
   return {
     publish: notImplemented('publish'),
     publishStream: notImplemented('publishStream'),
+    // Default to a clean audit (no issues) so tests that don't care
+    // about the pre-publish audit step proceed straight to publish.
+    // Tests covering audit UX override this stub explicitly.
+    publishAudit: async () => ({ issues: [], strict: false }),
     compare: notImplemented('compare'),
     fetchFromTarget: notImplemented('fetchFromTarget'),
     ...partial,
@@ -655,6 +659,145 @@ describe('PublishPanel', () => {
       const btn = q('[data-testid="publish-result-undo-staging"]') as HTMLButtonElement
       expect(btn.textContent?.trim()).toBe('Undone')
       expect(btn.disabled).toBe(true)
+    })
+  })
+
+  describe('pre-publish audit (Validation Cut 4)', () => {
+    function buildIssue(itemPath: string, severity: 'error' | 'warn', validator = 'broken-links') {
+      return {
+        validator,
+        severity,
+        message: `synthetic ${severity} issue`,
+        itemPath,
+      }
+    }
+
+    function setupTwoTargets() {
+      installTargets(
+        [
+          {
+            name: 'local',
+            environment: 'local',
+            type: 'static',
+            editable: true,
+            altText: { available: false, auto: false },
+          },
+          {
+            name: 'staging',
+            environment: 'staging',
+            type: 'static',
+            editable: false,
+            altText: { available: false, auto: false },
+          },
+        ],
+        'local',
+      )
+    }
+
+    it('blocks publish when the audit returns error-severity issues', async () => {
+      setupTwoTargets()
+      const publishAudit = vi.fn(async () => ({
+        issues: [buildIssue('pages/home/page.json', 'error')],
+        strict: false,
+      }))
+      const publishStream = vi.fn(async (): Promise<PublishResult[]> => [])
+      const w = await mountPanel({
+        publishApi: fakePublishApi({ publishAudit, publishStream }),
+        initialDestination: 'staging',
+      })
+      await flushMicrotasks()
+      await pickItems(w, ['pages/home'])
+      ;(q('[data-testid="publish-panel-confirm"]') as HTMLElement).click()
+      await flushMicrotasks()
+
+      expect(publishAudit).toHaveBeenCalledWith('staging', [{ kind: 'page', name: 'home' }])
+      expect(qExists('publish-audit')).toBe(true)
+      expect(qExists('publish-audit-target-staging')).toBe(true)
+      // Errors block — publish stream NOT yet called
+      expect(publishStream).not.toHaveBeenCalled()
+      // Confirm button label reflects the blocking state
+      expect(qText('publish-panel-confirm')).toContain('Fix 1 issue to publish')
+    })
+
+    it('lets the user proceed when audit issues are all warns ("ignore once")', async () => {
+      setupTwoTargets()
+      const publishAudit = vi.fn(async () => ({
+        issues: [buildIssue('pages/home/page.json', 'warn')],
+        strict: false,
+      }))
+      const publishStream = vi.fn(async (): Promise<PublishResult[]> => [])
+      const w = await mountPanel({
+        publishApi: fakePublishApi({ publishAudit, publishStream }),
+        initialDestination: 'staging',
+      })
+      await flushMicrotasks()
+      await pickItems(w, ['pages/home'])
+
+      // First click — audit surfaces a warn and shows the audit block.
+      ;(q('[data-testid="publish-panel-confirm"]') as HTMLElement).click()
+      await flushMicrotasks()
+      expect(qExists('publish-audit-target-staging')).toBe(true)
+      // With one un-acknowledged warn, the button still says "Fix"
+      expect(qText('publish-panel-confirm')).toContain('Fix 1 issue to publish')
+
+      // Tick "Ignore once" on the warn — clears the blocker.
+      const ignoreCb = q('[data-testid="publish-audit-ignore-staging-broken-links"] input') as HTMLInputElement | null
+      expect(ignoreCb).not.toBeNull()
+      ignoreCb!.click()
+      await flushMicrotasks()
+      expect(qText('publish-panel-confirm')).toContain('Continue to publish')
+
+      // Second click — no second audit fetch; runs publish directly.
+      ;(q('[data-testid="publish-panel-confirm"]') as HTMLElement).click()
+      await flushMicrotasks()
+      expect(publishAudit).toHaveBeenCalledTimes(1)
+      expect(publishStream).toHaveBeenCalledTimes(1)
+    })
+
+    it('handles the server-side 409 PUBLISH_AUDIT_FAILED by surfacing the same audit UX', async () => {
+      setupTwoTargets()
+      const { PublishAuditFailedError } = await import('../src/client/api/client.js')
+      const publishAudit = vi.fn(async () => ({ issues: [], strict: false }))
+      const publishStream = vi.fn(async (): Promise<PublishResult[]> => {
+        throw new PublishAuditFailedError([
+          { target: 'staging', issues: [buildIssue('pages/home/page.json', 'error')] },
+        ])
+      })
+      const w = await mountPanel({
+        publishApi: fakePublishApi({ publishAudit, publishStream }),
+        initialDestination: 'staging',
+      })
+      await flushMicrotasks()
+      await pickItems(w, ['pages/home'])
+      ;(q('[data-testid="publish-panel-confirm"]') as HTMLElement).click()
+      await flushMicrotasks()
+      await flushMicrotasks()
+
+      expect(publishStream).toHaveBeenCalledTimes(1)
+      // The server's 409 surfaces as the same audit-review block
+      expect(qExists('publish-audit')).toBe(true)
+      expect(qExists('publish-audit-target-staging')).toBe(true)
+    })
+
+    it('proceeds straight to publish when the audit returns no issues', async () => {
+      setupTwoTargets()
+      const publishAudit = vi.fn(async () => ({ issues: [], strict: false }))
+      const publishStream = vi.fn(
+        async (): Promise<PublishResult[]> => [{ target: 'staging', success: true, copiedFiles: 1 }],
+      )
+      const w = await mountPanel({
+        publishApi: fakePublishApi({ publishAudit, publishStream }),
+        initialDestination: 'staging',
+      })
+      await flushMicrotasks()
+      await pickItems(w, ['pages/home'])
+      ;(q('[data-testid="publish-panel-confirm"]') as HTMLElement).click()
+      await flushMicrotasks()
+      await flushMicrotasks()
+
+      expect(publishAudit).toHaveBeenCalledTimes(1)
+      expect(publishStream).toHaveBeenCalledTimes(1)
+      expect(qExists('publish-audit')).toBe(false)
     })
   })
 })

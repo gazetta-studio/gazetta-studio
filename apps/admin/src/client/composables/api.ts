@@ -37,6 +37,7 @@ import {
   type DependentsResponse,
   type AuditQueryFilter,
   type AuditQueryResponse,
+  type ValidationIssue,
 } from '../api/client.js'
 
 // ---- Pages -----------------------------------------------------------------
@@ -101,6 +102,10 @@ export interface PublishApi {
     onProgress: (ev: PublishProgress) => void,
     options?: { source?: string; signal?: AbortSignal },
   ): Promise<PublishResult[]>
+  publishAudit(
+    target: string,
+    items: ReadonlyArray<{ kind: 'page' | 'fragment'; name: string }>,
+  ): Promise<{ issues: ValidationIssue[]; strict: boolean }>
   compare(target: string, options?: RequestInit & { source?: string }): Promise<CompareResult>
   fetchFromTarget(source: string, items?: string[]): Promise<{ success: boolean; copiedFiles: number; items: string[] }>
 }

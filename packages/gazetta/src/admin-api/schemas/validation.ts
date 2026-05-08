@@ -43,3 +43,28 @@ export const ValidationIssuesResponseSchema = z.object({
   total: z.number().int().nonnegative(),
 })
 export type ValidationIssuesResponse = z.infer<typeof ValidationIssuesResponseSchema>
+
+/**
+ * POST /api/publish/audit — run pre-publish-stage validators against the
+ * items operator is about to publish. Cut 4.
+ */
+export const PublishAuditRequestSchema = z.object({
+  /** Destination target name. Drives `publishAudit.strict` lookup. */
+  target: z.string(),
+  /** Items being published — mirrors the publish request shape. */
+  items: z.array(
+    z.object({
+      kind: z.enum(['page', 'fragment']),
+      name: z.string(),
+    }),
+  ),
+})
+export type PublishAuditRequest = z.infer<typeof PublishAuditRequestSchema>
+
+export const PublishAuditResponseSchema = z.object({
+  /** All issues found at pre-publish stage, with strict promotion already applied. */
+  issues: z.array(IssueSchema),
+  /** True when target's `publishAudit.strict` is set — surfaced for the UI. */
+  strict: z.boolean(),
+})
+export type PublishAuditResponse = z.infer<typeof PublishAuditResponseSchema>
