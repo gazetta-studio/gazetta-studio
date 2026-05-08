@@ -15,6 +15,7 @@ import { invalidateTemplate, invalidateAllTemplates } from '../template-loader.j
 import type { SiteManifest } from '../types.js'
 import { getEnvironment, getType, isEditable } from '../types.js'
 import { buildHooksRegistry, createAdminApp } from '../admin-api/index.js'
+import { parseValidateFlags } from './validate-flags.js'
 
 // ANSI color helpers — no dependency, suppressed when NO_COLOR or CI
 const noColor = !!process.env.NO_COLOR || !process.stdout.isTTY
@@ -1291,93 +1292,151 @@ async function runDeploy(siteDir: string, targetName?: string) {
   )
 }
 
-async function runValidate(siteDir: string) {
+const QUALITY_VALIDATORS = new Set(['accessibility', 'html-validity'])
+
+async function runValidate(siteDir: string, rawArgs: readonly string[] = []) {
   const projectRoot = detectProjectRoot(siteDir)
   const templatesDir = join(projectRoot, 'templates')
+  const opts = parseValidateFlags(rawArgs)
 
   console.log()
   console.log(`  ${c.bgGreen(c.bold(' gazetta '))} ${c.green('validate')} ${c.dim(siteDir)}`)
   console.log()
 
-  // 1. Check site config + load default editable target's content
+  // 1. Load site
   const configLabel = existsSync(join(siteDir, 'site.config.ts'))
     ? 'site.config.ts'
     : existsSync(join(siteDir, 'site.config.js'))
       ? 'site.config.js'
       : 'site.config.mjs'
+  const { buildSourceContext } = await import('./bootstrap.js')
   let site: Awaited<ReturnType<typeof loadSite>>
+  let source: Awaited<ReturnType<typeof buildSourceContext>>['source']
   try {
-    const { buildSourceContext } = await import('./bootstrap.js')
-    const { source, manifest } = await buildSourceContext({ projectSiteDir: siteDir })
-    site = await loadSite({ contentRoot: source.contentRoot, templatesDir, manifest })
+    const built = await buildSourceContext({ projectSiteDir: siteDir })
+    source = built.source
+    site = await loadSite({ contentRoot: source.contentRoot, templatesDir, manifest: built.manifest })
     console.log(`  ${c.green('✓')} ${configLabel} ${c.dim(`— ${site.manifest.name}`)}`)
   } catch (err) {
     console.error(`  ${c.red('✗')} ${configLabel} ${c.dim(`— ${(err as Error).message}`)}`)
     process.exit(1)
   }
 
-  let errors = 0
+  // 2. Build the registry. Skip quality validators (a11y, html-validity)
+  //    unless `--include-quality` — they trigger rendering and add seconds
+  //    per page; default keeps the CLI snappy for CI ref-existence gating.
+  const { defaultValidatorRegistry } = await import('../validation/default-registry.js')
+  const { createValidatorRegistry } = await import('../validation/registry.js')
+  const fullRegistry = defaultValidatorRegistry()
+  const filtered = opts.includeQuality
+    ? fullRegistry
+    : createValidatorRegistry(fullRegistry.all().filter(v => !QUALITY_VALIDATORS.has(v.name)))
 
-  // 2. Validate all fragments
-  for (const [fragName, frag] of site.fragments) {
-    try {
-      const { resolveComponent } = await import('../resolver.js')
-      const ctx = { site, templatesDir: site.templatesDir, visited: new Set<string>(), path: [`@${fragName}`] }
-      await resolveComponent(`@${fragName}`, ctx)
+  // 3. Run via the scanner — same orchestrator as the admin background scan,
+  //    so the CLI exercises identical code paths.
+  const { createValidationScanner } = await import('../validation/scanner.js')
+  const { createMemoryCache } = await import('../cache/memory.js')
+  const scanner = createValidationScanner({
+    storage: source.storage,
+    contentRoot: source.contentRoot,
+    registry: filtered,
+    cache: createMemoryCache(),
+    siteOptions: { templatesDir, manifest: site.manifest },
+    loadSiteImpl: async () => site,
+  })
+  await scanner.scanAll()
+  const allIssues = scanner.allIssues()
 
-      const childCount = frag.components?.length ?? 0
-      console.log(`  ${c.green('✓')} @${fragName} ${c.dim(`(${childCount} components)`)}`)
-    } catch (err) {
-      console.error(`  ${c.red('✗')} @${fragName} ${c.dim(`— ${(err as Error).message}`)}`)
-      errors++
-    }
+  // 4. Per-item summary. Pages first, then fragments — matches the existing
+  //    output ordering for unsurprising diff vs. the prior implementation.
+  let errorCount = 0
+  let warnCount = 0
+  let infoCount = 0
+  type IssueOf<T> = T extends ReadonlyArray<infer U> ? U : never
+  const issuesByPath = new Map<string, Array<IssueOf<typeof allIssues>>>()
+  for (const issue of allIssues) {
+    const list = issuesByPath.get(issue.itemPath) ?? []
+    list.push(issue)
+    issuesByPath.set(issue.itemPath, list)
+    if (issue.severity === 'error') errorCount++
+    else if (issue.severity === 'warn') warnCount++
+    else infoCount++
   }
 
-  // 3. Validate all pages
+  function summaryGlyph(issues: readonly { severity: string }[]): { glyph: string; color: (s: string) => string } {
+    if (issues.some(i => i.severity === 'error')) return { glyph: '✗', color: c.red }
+    if (issues.some(i => i.severity === 'warn')) return { glyph: '⚠', color: c.yellow }
+    if (issues.length > 0) return { glyph: 'ⓘ', color: c.cyan }
+    return { glyph: '✓', color: c.green }
+  }
+
+  function shouldShow(severity: 'error' | 'warn' | 'info'): boolean {
+    if (opts.severity === 'all') return true
+    if (opts.severity === 'warn') return severity !== 'info'
+    return severity === 'error'
+  }
+
   for (const [pageName, page] of site.pages) {
-    try {
-      await resolvePage(pageName, site)
-
-      const componentCount = page.components?.length ?? 0
-      const fragmentCount = page.components?.filter(cc => typeof cc === 'string' && cc.startsWith('@')).length ?? 0
-      console.log(
-        `  ${c.green('✓')} ${pageName} ${c.dim(`(${componentCount} components, ${fragmentCount} fragments)`)}`,
-      )
-    } catch (err) {
-      console.error(`  ${c.red('✗')} ${pageName} ${c.dim(`— ${(err as Error).message}`)}`)
-      errors++
+    const path = `${page.dir}/page.json`
+    const issues = issuesByPath.get(path) ?? []
+    const visible = issues.filter(i => shouldShow(i.severity))
+    const { glyph, color } = summaryGlyph(visible)
+    const componentCount = page.components?.length ?? 0
+    console.log(`  ${color(glyph)} ${pageName} ${c.dim(`(${componentCount} components)`)}`)
+    if (opts.verbose) {
+      for (const issue of visible) {
+        console.log(`      ${severityIcon(issue.severity)} ${issue.message}`)
+      }
     }
   }
 
-  // 4. List templates (project-level filesystem, not target content)
+  for (const [fragName, frag] of site.fragments) {
+    const path = `${frag.dir}/fragment.json`
+    const issues = issuesByPath.get(path) ?? []
+    const visible = issues.filter(i => shouldShow(i.severity))
+    const { glyph, color } = summaryGlyph(visible)
+    const childCount = frag.components?.length ?? 0
+    console.log(`  ${color(glyph)} @${fragName} ${c.dim(`(${childCount} components)`)}`)
+    if (opts.verbose) {
+      for (const issue of visible) {
+        console.log(`      ${severityIcon(issue.severity)} ${issue.message}`)
+      }
+    }
+  }
+
+  // 5. Project-structure checks (orphaned editors, missing custom fields).
+  //    These are project-layout concerns rather than per-item content rules,
+  //    so they don't fit the Validator interface — kept inline here.
+  const adminDir = join(projectRoot, 'admin')
   const projectStorage = createFilesystemProvider()
   let templateNames: string[] = []
   try {
     const entries = await projectStorage.readDir(templatesDir)
-    templateNames = entries.filter(e => e.isDirectory).map((e: { name: string }) => e.name)
-    console.log(`  ${c.green('✓')} ${c.dim(`${templateNames.length} templates`)}`)
+    templateNames = entries.filter(e => e.isDirectory).map(e => e.name)
   } catch {
-    console.log(`  ${c.yellow('⚠')} ${c.dim('templates/ directory not found')}`)
+    /* templates dir missing — site already errored above */
   }
 
-  // 5. Check for orphaned editors (editor exists but template doesn't)
-  const adminDir = join(projectRoot, 'admin')
+  // 5a. Orphaned editors: editor file exists but no matching template.
+  //     Always shown regardless of --severity since these are structural
+  //     issues operators need to know about even at the strictest filter.
   const editorsDir = join(adminDir, 'editors')
   if (existsSync(editorsDir)) {
-    const editorFiles = (await import('node:fs'))
-      .readdirSync(editorsDir)
-      .filter(f => f.endsWith('.ts') || f.endsWith('.tsx'))
+    const fs = await import('node:fs')
+    const editorFiles = fs.readdirSync(editorsDir).filter(f => f.endsWith('.ts') || f.endsWith('.tsx'))
     for (const file of editorFiles) {
       const editorName = file.replace(/\.(ts|tsx)$/, '')
       if (!templateNames.includes(editorName)) {
         console.log(
           `  ${c.yellow('⚠')} orphaned editor: ${c.dim(`admin/editors/${file}`)} ${c.dim('— no matching template')}`,
         )
+        warnCount++
       }
     }
   }
 
-  // 6. Check for missing custom fields (schema references field but file doesn't exist)
+  // 5b. Missing custom fields: schema references field: 'name' but no
+  //     admin/fields/name.{ts,tsx}. Hard error — render fails without it.
   const fieldsDir = join(adminDir, 'fields')
   const fieldFiles = existsSync(fieldsDir)
     ? (await import('node:fs'))
@@ -1385,109 +1444,59 @@ async function runValidate(siteDir: string) {
         .filter(f => f.endsWith('.ts') || f.endsWith('.tsx'))
         .map(f => f.replace(/\.(ts|tsx)$/, ''))
     : []
-  const { loadTemplate } = await import('../template-loader.js')
-  const zod = await import('zod')
-  for (const tplName of templateNames) {
-    try {
-      const loaded = await loadTemplate(projectStorage, templatesDir, tplName)
-      const jsonSchema = zod.z.toJSONSchema(loaded.schema as import('zod').ZodType) as Record<string, unknown>
-      const props = jsonSchema.properties as Record<string, Record<string, unknown>> | undefined
-      if (!props) continue
-      for (const [propName, prop] of Object.entries(props)) {
-        const fieldRef = prop.field as string | undefined
-        if (fieldRef && !fieldFiles.includes(fieldRef)) {
-          console.error(
-            `  ${c.red('✗')} template ${tplName}.${propName} references field "${fieldRef}" ${c.dim('— not found in admin/fields/')}`,
-          )
-          errors++
+  if (templateNames.length > 0) {
+    const { loadTemplate } = await import('../template-loader.js')
+    const zod = await import('zod')
+    for (const tplName of templateNames) {
+      try {
+        const loaded = await loadTemplate(projectStorage, templatesDir, tplName)
+        const jsonSchema = zod.z.toJSONSchema(loaded.schema as import('zod').ZodType) as Record<string, unknown>
+        const props = jsonSchema.properties as Record<string, Record<string, unknown>> | undefined
+        if (!props) continue
+        for (const [propName, prop] of Object.entries(props)) {
+          const fieldRef = prop.field as string | undefined
+          if (fieldRef && !fieldFiles.includes(fieldRef)) {
+            console.error(
+              `  ${c.red('✗')} template ${tplName}.${propName} references field "${fieldRef}" ${c.dim('— not found in admin/fields/')}`,
+            )
+            errorCount++
+          }
         }
-      }
-    } catch {
-      /* template load errors already caught above */
-    }
-  }
-
-  // 7. Locale validation
-  const { defaultLocaleFor } = await import('../locale.js')
-  const defLoc = defaultLocaleFor(site.manifest)
-  const hasI18n = !!site.manifest.locales?.supported?.length
-
-  // 7a. Warn about orphaned locale files when i18n is disabled
-  if (!hasI18n && (site.pageLocales.size > 0 || site.fragmentLocales.size > 0)) {
-    const orphanCount = site.pageLocales.size + site.fragmentLocales.size
-    console.log(
-      `  ${c.yellow('⚠')} ${orphanCount} locale file${orphanCount > 1 ? 's' : ''} found but i18n is disabled ${c.dim('— add locales.supported to site.config.ts or remove *.locale.json files')}`,
-    )
-  }
-
-  // 7b. Warn about ambiguous page.en.json when en is default
-  if (hasI18n) {
-    for (const [name, entry] of site.pageLocales) {
-      if (entry.locales.has(defLoc)) {
-        console.log(
-          `  ${c.yellow('⚠')} page.${defLoc}.json in ${name} is ambiguous ${c.dim(`— "${defLoc}" is the default locale, use page.json instead`)}`,
-        )
-      }
-    }
-    for (const [name, entry] of site.fragmentLocales) {
-      if (entry.locales.has(defLoc)) {
-        console.log(
-          `  ${c.yellow('⚠')} fragment.${defLoc}.json in ${name} is ambiguous ${c.dim(`— "${defLoc}" is the default locale, use fragment.json instead`)}`,
-        )
+      } catch {
+        /* template load errors surface via referenced-template-exists */
       }
     }
   }
 
-  // 7c. Validate locale variant template/fragment refs
-  if (hasI18n) {
-    for (const [pageName, entry] of site.pageLocales) {
-      for (const [locale] of entry.locales) {
-        try {
-          await resolvePage(pageName, site, locale)
-        } catch (err) {
-          console.error(`  ${c.red('✗')} ${pageName} (${locale}) ${c.dim(`— ${(err as Error).message}`)}`)
-          errors++
-        }
-      }
-    }
-  }
-
-  // 8. Cross-domain hreflang bidirectional check
-  // For per-domain targets (each with siteUrl + single locale), verify that
-  // all targets serving the same page cross-link to each other.
-  if (hasI18n && site.manifest.targets) {
-    const targetsWithSiteUrl = Object.entries(site.manifest.targets).filter(
-      ([, cfg]) => cfg.siteUrl && cfg.locales?.length === 1,
-    )
-    if (targetsWithSiteUrl.length > 1) {
-      const localeToUrl = new Map<string, string>()
-      for (const [, cfg] of targetsWithSiteUrl) {
-        localeToUrl.set(cfg.locales![0], cfg.siteUrl!)
-      }
-      const missingPairs: string[] = []
-      for (const [locA, urlA] of localeToUrl) {
-        for (const [locB, urlB] of localeToUrl) {
-          if (locA === locB) continue
-          // Each target's sitemap should cross-link to the other
-          // We can't check the actual sitemaps here (would need network),
-          // but we can verify the config is consistent
-        }
-      }
-      if (localeToUrl.size > 1) {
-        console.log(
-          `  ${c.green('✓')} cross-domain hreflang: ${[...localeToUrl.entries()].map(([l, u]) => `${l} → ${u}`).join(', ')}`,
-        )
-      }
-    }
-  }
-
+  // 6. Footer + exit code.
   console.log()
-  if (errors > 0) {
-    console.error(`  ${errors} error${errors > 1 ? 's' : ''} found.\n`)
-    process.exit(1)
-  } else {
-    console.log(`  All good.\n`)
+  const totalShown =
+    opts.severity === 'all'
+      ? errorCount + warnCount + infoCount
+      : opts.severity === 'warn'
+        ? errorCount + warnCount
+        : errorCount
+  if (totalShown === 0) {
+    console.log(`  ${c.green('All good.')}\n`)
+    return
   }
+
+  const parts: string[] = []
+  if (errorCount > 0) parts.push(`${errorCount} error${errorCount > 1 ? 's' : ''}`)
+  if (warnCount > 0 && opts.severity !== 'error') parts.push(`${warnCount} warning${warnCount > 1 ? 's' : ''}`)
+  if (infoCount > 0 && opts.severity === 'all') parts.push(`${infoCount} info`)
+  const summary = parts.join(', ')
+  console.log(`  ${summary}.\n`)
+
+  // Exit non-zero if errors OR (warns AND warn-as-error is on).
+  const fail = errorCount > 0 || (opts.warnAsError && warnCount > 0)
+  if (fail) process.exit(1)
+}
+
+function severityIcon(severity: 'error' | 'warn' | 'info'): string {
+  if (severity === 'error') return c.red('✗')
+  if (severity === 'warn') return c.yellow('⚠')
+  return c.cyan('ⓘ')
 }
 
 function renderErrorOverlay(err: Error): string {
@@ -2267,7 +2276,7 @@ async function main() {
       await runDeploy(siteDir, targetName)
       break
     case 'validate':
-      await runValidate(siteDir)
+      await runValidate(siteDir, args.slice(1))
       break
     case 'dev':
       await runDev(siteDir, parsed.port ?? 3000)
