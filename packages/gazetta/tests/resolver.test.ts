@@ -400,3 +400,124 @@ describe('circular reference detection', () => {
     expect(resolved.children).toHaveLength(1) // @a at the root
   })
 })
+
+// Soft-delete Cut 2: alias-aware fragment resolution per design-soft-delete.md Q2 F1.
+//
+// Archived fragments with `aliasOf` resolve transparently to the alias
+// target. Archived fragments without `aliasOf` throw ArchivedNoAliasError,
+// surfacing render-time errors that the worker layer (Cut 3) translates
+// to 410 Gone or fail-fragment.
+describe('archive-aware fragment resolution', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  it('resolves @oldname → @newname when oldname is archived with aliasOf', async () => {
+    await writeSite({
+      'pages/home/page.json': JSON.stringify({
+        template: 'echo',
+        components: ['@old-header'],
+      }),
+      'fragments/old-header/fragment.json': JSON.stringify({
+        template: 'echo',
+        archived: true,
+        aliasOf: 'new-header',
+        archivedAt: '2026-05-09T10:00:00Z',
+        archivedBy: 'alice@example.com',
+      }),
+      'fragments/new-header/fragment.json': JSON.stringify({
+        template: 'echo',
+        content: { text: 'live header' },
+      }),
+    })
+    await writeTemplate('echo')
+
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
+    const resolved = await resolvePage('home', site)
+    // The page composes the new fragment's content, transparently
+    expect(resolved.children).toHaveLength(1)
+    expect(resolved.children?.[0]?.content).toMatchObject({ text: 'live header' })
+  })
+
+  it('throws ArchivedNoAliasError when the referenced fragment is archived without aliasOf', async () => {
+    await writeSite({
+      'pages/home/page.json': JSON.stringify({
+        template: 'echo',
+        components: ['@dead-fragment'],
+      }),
+      'fragments/dead-fragment/fragment.json': JSON.stringify({
+        template: 'echo',
+        archived: true,
+        archivedAt: '2026-05-09T10:00:00Z',
+        archivedBy: 'alice@example.com',
+        // no aliasOf — pure soft-delete
+      }),
+    })
+    await writeTemplate('echo')
+
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
+    await expect(resolvePage('home', site)).rejects.toThrow(/dead-fragment/)
+    // Verify it's our typed error
+    await expect(resolvePage('home', site)).rejects.toMatchObject({
+      name: 'ArchivedNoAliasError',
+      fragmentName: 'dead-fragment',
+    })
+  })
+
+  it('resolves a live fragment normally when archive fields are absent', async () => {
+    // Regression check: existing behavior unchanged for non-archived fragments.
+    await writeSite({
+      'pages/home/page.json': JSON.stringify({
+        template: 'echo',
+        components: ['@header'],
+      }),
+      'fragments/header/fragment.json': JSON.stringify({
+        template: 'echo',
+        content: { text: 'hi' },
+      }),
+    })
+    await writeTemplate('echo')
+
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
+    const resolved = await resolvePage('home', site)
+    expect(resolved.children?.[0]?.content).toMatchObject({ text: 'hi' })
+  })
+
+  it('throws "Fragment not found" when alias target does not exist', async () => {
+    await writeSite({
+      'pages/home/page.json': JSON.stringify({
+        template: 'echo',
+        components: ['@old-header'],
+      }),
+      'fragments/old-header/fragment.json': JSON.stringify({
+        template: 'echo',
+        archived: true,
+        aliasOf: 'never-existed',
+      }),
+    })
+    await writeTemplate('echo')
+
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
+    await expect(resolvePage('home', site)).rejects.toThrow(/not found/)
+  })
+
+  it('resolveFragment entry-point also follows aliases', async () => {
+    // The entry-point used by preview / direct fragment renders.
+    await writeSite({
+      'fragments/old-header/fragment.json': JSON.stringify({
+        template: 'echo',
+        archived: true,
+        aliasOf: 'new-header',
+      }),
+      'fragments/new-header/fragment.json': JSON.stringify({
+        template: 'echo',
+        content: { text: 'live' },
+      }),
+    })
+    await writeTemplate('echo')
+
+    const site = await loadSite({ siteDir: testDir, storage, manifest: { name: 'Test' } })
+    const resolved = await resolveFragment('old-header', site)
+    expect(resolved.content).toMatchObject({ text: 'live' })
+  })
+})

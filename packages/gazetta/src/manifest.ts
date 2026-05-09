@@ -1,4 +1,4 @@
-import type { ComponentEntry, FragmentManifest, PageManifest, StorageProvider } from './types.js'
+import type { ArchiveFields, ComponentEntry, FragmentManifest, PageManifest, StorageProvider } from './types.js'
 
 function parseJson(content: string, filePath: string): Record<string, unknown> {
   try {
@@ -13,6 +13,21 @@ function parseJson(content: string, filePath: string): Record<string, unknown> {
     }
     throw err
   }
+}
+
+/**
+ * Pick the archive fields off a parsed manifest, projecting only the
+ * locked four (per design-soft-delete.md Q1). Stale or unknown fields
+ * are dropped — the manifest projection layer is the boundary that
+ * defines which manifest properties Gazetta consumes.
+ */
+function parseArchiveFields(raw: Record<string, unknown>): ArchiveFields {
+  const out: ArchiveFields = {}
+  if (typeof raw.archived === 'boolean') out.archived = raw.archived
+  if (typeof raw.archivedAt === 'string') out.archivedAt = raw.archivedAt
+  if (typeof raw.archivedBy === 'string') out.archivedBy = raw.archivedBy
+  if (typeof raw.aliasOf === 'string') out.aliasOf = raw.aliasOf
+  return out
 }
 
 function parseComponents(raw: unknown): ComponentEntry[] | undefined {
@@ -49,6 +64,7 @@ export async function parsePageManifest(storage: StorageProvider, filePath: stri
     components: parseComponents(raw.components),
     metadata: raw.metadata as import('./types.js').PageMetadata | undefined,
     cache: raw.cache as import('./types.js').CacheConfig | undefined,
+    ...parseArchiveFields(raw),
   }
 }
 
@@ -61,5 +77,6 @@ export async function parseFragmentManifest(storage: StorageProvider, filePath: 
     template: raw.template,
     content: raw.content as Record<string, unknown> | undefined,
     components: parseComponents(raw.components),
+    ...parseArchiveFields(raw),
   }
 }
