@@ -418,7 +418,7 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   // when these routes' literal-suffix paths would correctly capture
   // `landing` + the suffix. First-match-wins in Hono's routing trie
   // means specific suffixes register first.
-  app.route('/', archiveRoutes(resolveSource))
+  app.route('/', archiveRoutes(resolveSource, { scanner: opts.validationScanner ?? null }))
   app.route('/', renameRoutes(resolveSource))
   app.route(
     '/',
