@@ -89,8 +89,31 @@ export interface InlineComponent {
 /** A component entry is either a fragment reference string ("@header") or an inline component object */
 export type ComponentEntry = string | InlineComponent
 
+/**
+ * Archive state on a component manifest. Per `design-soft-delete.md` Q1
+ * (storage shape): archive lives on the manifest itself as additive optional
+ * fields — content state, not derived state.
+ *
+ * - `archived: true` flips the item out of the live tree. Renderer follows
+ *   `aliasOf` when set; emits 410 / render-error otherwise (per Q2 F1).
+ * - `archivedAt` / `archivedBy` are snapshots at archive time (per
+ *   `design-audit.md`'s actor-snapshot pattern).
+ * - `aliasOf` names the live target (page name OR fragment name);
+ *   resolved per-kind (page → `deriveRoute`, fragment → `@aliasOf`).
+ *   Q3 flatten-on-rename guarantees aliases never point at archives.
+ *
+ * `archived: false` is treated identically to `archived` absent — both
+ * mean "live."
+ */
+export interface ArchiveFields {
+  archived?: boolean
+  archivedAt?: string
+  archivedBy?: string
+  aliasOf?: string
+}
+
 /** Component manifest (base) */
-export interface ComponentManifest {
+export interface ComponentManifest extends ArchiveFields {
   template: string
   content?: Record<string, unknown>
   components?: ComponentEntry[]
