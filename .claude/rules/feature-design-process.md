@@ -4,24 +4,57 @@ How Gazetta approaches feature design and implementation. Written so a new contr
 
 This is the resumability contract: **every kind of work we do has a designated durable artifact**. If a session ends without producing the right artifact, the work is lost.
 
-## The four phases of feature work
+## The phases of feature work
+
+Five phases: Discovery → UX-grilling → Implementation-grilling → Design → Implementation → Retrospective. The grilling phase splits into two passes (UX first, implementation second) per [team-preferences rule 23](team-preferences.md) (UX as a permanent lens) + [rule 24](team-preferences.md) (5K-envelope validation): UX surface and implementation surface have distinct concerns and benefit from being grilled separately. Implementation grilling sits behind a 5K-envelope gate.
 
 ### 1. Discovery
 
 Understand the problem. Read existing design docs, audit competitor approaches, talk to users, read the relevant issues. Identify what's actually being asked and what's tangential.
 
-**Durable artifact**: usually none — discovery feeds into design. If the discovery is large enough to be reusable (e.g., a CMS feature audit, a competitor analysis), capture it as a research doc under [`docs/audits/`](../../docs/audits/).
+For features with significant UX surface, Discovery includes UX-specific research per [team-preferences rule 27](team-preferences.md) (assertion provenance):
+- Inspect 3-5 competitor implementations of the same UX (with screenshots — fact-check claims per rule 20)
+- Identify which actor types the feature affects (Content Author / Template Developer / Operator / CMS Developer per [`CONTEXT.md`](../../CONTEXT.md))
+- Walk the relevant scenario(s) from `docs/actor-scenarios.md`
 
-### 2. Grilling
+**Durable artifact**: usually none — discovery feeds into grilling. If the discovery is large enough to be reusable (e.g., a CMS feature audit, a competitor analysis), capture it as a research doc under [`docs/audits/`](../../docs/audits/).
 
-Walk down each branch of the design tree, resolving decisions one-by-one. For each open question, present alternatives and a recommended answer. Capture rationale.
+### 2a. UX-grilling
 
-The grilling pattern (per the `grill-with-docs` skill):
-- Ask one question at a time
-- For each question, list alternatives
-- Recommend an answer with reasoning
-- Wait for confirmation
-- Move on
+Dedicated grilling pass for the user-facing surface — independent of implementation grilling. Walk the UX questions before walking the implementation questions, so UX choices aren't compromised by implementation convenience.
+
+UX questions to grill:
+- **Which actors does this feature affect?** (Per `docs/actor-scenarios.md`. Many features touch multiple actors with different needs — the publish dialog is Operator surface; the page tree is Content Author surface; the template manifest is Template Developer surface; the plugin contract is CMS Developer surface.)
+- **What user flow does each actor walk through?** Sketch the screens / clicks / decisions in order. The flow IS the UX; absent a flow, every later UX Q is intuition-shipped.
+- **What's the "absence-as-state" default?** Per Krug rule 23 — every indicator, modal, badge, banner is a candidate for "what if it weren't there?"
+- **What's the failure mode UX?** What happens when validation fails, when the network drops, when permissions deny, when concurrent edits conflict? Failure UX is where most CMSes fall short.
+- **What does the operator see vs. what does the author see?** Capability-gap surfaces (per locked principle in `feature-design-process.md` non-foundational disciplines) — boot validate / author modal / scanner / publish gate.
+- **What can be removed?** Per Krug. Three iteration cycles of "what can I remove?" routinely cut UI surface 30-60%.
+
+The grilling pattern is the same as Phase 2b (one Q at a time, alternatives + recommendation, await confirmation), but the Qs are UX-focused. UX research from Discovery feeds the Q list.
+
+**Durable artifact**: UX decisions land in `design-{feature}.md`'s "UX check" section (already part of the design doc per Phase 3 below). Detailed layout/copy/icons can be deferred to a focused UX research pass produced before implementation cuts that need them — see `design-scheduling.md` Q6 lock for the pattern. The deferral is honest documentation that "we have structural locks but not detailed UX yet."
+
+### 2b. 5K-envelope gate
+
+Before Implementation-grilling, validate the proposed UX flows against [team-preferences rule 24](team-preferences.md): every primitive holds at the 5K-page envelope per `design-scale.md`.
+
+Walk the design's primitives:
+- **Identify each cross-cutting check** the UX flow requires (e.g., "find archives whose `aliasOf === X`" for purge-blocked).
+- **For each, ask: does this scale to 5K pages?** O(N-pages) walks at request time or on hot paths fail the gate. The fix is per-edge sidecars (`asset-refs`, `fragment-deps`, `archive-aliases` pattern per [`sidecars.md`](sidecars.md)).
+- **Gate criteria** (any failure means re-design before Implementation-grilling):
+  - Synthetic-site benchmarks at 5K hold under 5-second admin SLA
+  - No O(N-pages) walks at request time / on hot paths (sidecar required)
+  - No publish-time aggregate manifests (per `feature-design-process.md` non-foundational disciplines — sidecars OR external-standard exception only)
+  - Multi-instance discipline holds (per-edge state, not in-memory cross-instance cache)
+
+**Durable artifact**: the design doc's "Foundational checks" section explicitly answers the **Scale check** with named primitives + their walk costs + sidecar requirements. Cuts that need new sidecars are flagged in the implementation doc.
+
+### 2c. Implementation-grilling
+
+Walk the technical design tree — architecture, data model, lifecycle, multi-instance, cache, audit, hooks, validation, render, plugin, offline, collaboration. Resolve one Q at a time per the grilling pattern.
+
+Implementation grilling is allowed to push back on UX choices that are technically expensive — but the pushback goes back to UX-grilling, not absorbed silently. "We can't do X because the architecture..." is the right warning sign that the UX needs revisiting.
 
 **Durable artifact**: a design doc — see Phase 3.
 
@@ -94,6 +127,29 @@ Ship in cuts per the implementation doc. Each cut:
 - Includes tests + docs + plan update
 
 **Durable artifacts**: code + commit messages + status table updates.
+
+### 5. Retrospective
+
+After the feature is done (or at significant milestones in a long-running feature), review the session for new learnings. Two failure modes the retrospective catches:
+
+- **Patterns that worked but weren't named.** "We split UX-grilling from impl-grilling and it caught X" is a learning that dies if not captured.
+- **Patterns that failed quietly.** "We shipped Q5's lock without grilling alternatives and Cut N hit the constraint" is a learning that recurs across features unless captured.
+
+The retrospective surfaces these explicitly:
+- What worked? Specific decisions or practices that produced good outcomes.
+- What didn't? Specific patterns that produced rework or surprise.
+- What should become a durable rule? New entry in `team-preferences.md`, update to this doc, or new ADR.
+- What should change in the next feature's process? Concrete adjustment to apply going forward.
+
+**Durable artifact**: the new rule(s) themselves, or the doc updates. The retrospective conversation itself is ephemeral — what matters is what the conversation produces. Per [team-preferences rule 22](team-preferences.md) ("every kind of work has a durable artifact home; if a session ends without producing it, the work dies").
+
+The session that produced rules 24-27 was retrospective in shape — the four rules (5K envelope, design grilling, test isolation, assertion provenance) all came from "what did we learn from this feature?" Without locking them durably, they would have died with the conversation.
+
+**When to run a retrospective:**
+- After a feature ships fully
+- At significant feature milestones (e.g., halfway through a 15-cut sequence, especially if the design surface is shifting)
+- When a session ends with multiple "we should remember X" observations
+- When the user asks "what did we learn?" — the rule is to take the question literally and produce durable output, not just verbal reflection
 
 ## Grilling pattern (the operational details)
 
