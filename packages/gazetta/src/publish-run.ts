@@ -49,8 +49,14 @@
 import type { Principal } from './auth/types.js'
 import type { ContentRoot } from './content-root.js'
 import type { HistoryProvider } from './history.js'
-import type { StorageProvider, SiteManifest, PurgeStrategy } from './types.js'
-import type { PublishItemResult, PublishItemKind, PublishRenderMode } from './publish-item.js'
+import { publishFragment } from './fragments/publish.js'
+import { publishPage } from './pages/publish.js'
+import type { PublishItemKind, PublishItemResult, PublishRenderMode, PublishTarget } from './publish-item.js'
+import { resolveFragmentRenderMode } from './fragments/publish.js'
+import { resolvePageRenderMode } from './pages/publish.js'
+import type { Site } from './site-loader.js'
+import { getType } from './types.js'
+import type { PurgeStrategy, SiteManifest, StorageProvider, TargetConfig } from './types.js'
 
 /**
  * Reference to one item being published. Locale undefined =
@@ -114,47 +120,206 @@ export type PublishProgressEvent =
  */
 export interface PublishRunInput {
   /**
-   * Items to publish. Orchestrator expands transitively via
-   * `findDependentsFromSidecars` (publishing `@header` pulls every
-   * page that references it).
+   * Items to publish. v1 spine treats this list verbatim — caller
+   * (CLI / admin route) does dependency expansion via
+   * `findDependentsFromSidecars` BEFORE calling. Reserved future:
+   * orchestrator owns expansion when CLI + admin both migrate.
    */
   readonly items: readonly PublishItemRef[]
-  /** Target names to publish to. Resolved against the target registry. */
+  /** Target names to publish to (must exist in `targetStorages` + `targetConfigs`). */
   readonly targets: readonly string[]
-  /** Source content tree — caller's already loaded. */
+  /**
+   * Loaded site. Caller does `loadSite()` ONCE for the publish run
+   * (loadSite is heavy; orchestrator reuses across all items × targets).
+   */
+  readonly site: Site
+  /** Source content tree — used by per-item core for sidecar refs. */
   readonly sourceRoot: ContentRoot
-  /** Project-level site manifest, passed through to loadSite. */
+  /** Project-level site manifest (drives target type resolution etc.). */
   readonly siteManifest: SiteManifest
-  /** Templates dir; passed through to template scan + loadSite. */
-  readonly templatesDir?: string
-  /** Per-target storage providers (registry-resolved). */
+  /**
+   * Per-target storage providers (registry-resolved). Caller calls
+   * `createTargetRegistry` and unwraps before passing.
+   */
   readonly targetStorages: ReadonlyMap<string, StorageProvider>
-  /** Authenticated principal driving this publish (capability gates + audit). */
+  /**
+   * Per-target manifest hashes for incremental publish. Caller computes
+   * via `hashManifest(item, { templateHashes, fragmentHashes? })`.
+   * Optional — when absent, items publish without sidecar hash and
+   * caller's compare-targets pre-skip logic doesn't apply at this layer.
+   */
+  readonly itemHashes?: ReadonlyMap<string, string>
+  /** Authenticated principal driving this publish (reserved for capability gates + audit). */
   readonly principal?: Principal
-  /** History provider per source (for revision recording). */
+  /** History provider per source (reserved for revision recording — Cut 5+ extension). */
   readonly history?: HistoryProvider
-  /** Cache purge strategy (cloudflare etc., fire-and-forget per Q5 step 12). */
+  /** Cache purge strategy (reserved — fire-and-forget post-publish). */
   readonly purgeStrategy?: PurgeStrategy
   /**
-   * `--force`: skip incremental publish optimization (publish all
-   * items even when content-hash sidecar matches). Mirrors today's
-   * CLI flag.
+   * `--force`: reserved for future incremental skip logic. Today's
+   * orchestrator publishes every item in the list verbatim — caller
+   * pre-filters via compareTargets if it wants to skip unchanged.
    */
   readonly force?: boolean
-  /**
-   * Streaming callback. Emitted at boundaries listed in
-   * `PublishProgressEvent`. Admin route → SSE; CLI → stdout.
-   */
+  /** Streaming callback emitted at run / target / item boundaries. */
   readonly onProgress?: (event: PublishProgressEvent) => void
 }
 
 /**
- * Publish pipeline orchestrator (per-run) — Cut 1 shell.
- *
- * Cut 5 ports the 17-step spine. Until then this throws so any
- * accidental wiring surfaces immediately rather than silently
- * no-op'ing.
+ * Item-key encoding for `itemHashes` lookup. Mirrors compareTargets
+ * convention: `pages/{name}` for default locale; `pages/{name}:{locale}`
+ * for locale variants. Same for fragments.
  */
-export async function publishRun(_input: PublishRunInput): Promise<PublishRunResult> {
-  throw new Error('publishRun: not implemented (Cut 1 shell; Cut 5 ports the spine)')
+function itemKey(ref: PublishItemRef): string {
+  const base = `${ref.kind === 'page' ? 'pages' : 'fragments'}/${ref.name}`
+  return ref.locale ? `${base}:${ref.locale}` : base
+}
+
+/**
+ * Publish pipeline orchestrator (per-run) — Cut 5.
+ *
+ * Ports the load-bearing fan-out from `cli/index.ts:runPublish` +
+ * admin-api/routes/publish.ts: validate inputs → loop targets ×
+ * items via `publishPage` / `publishFragment` → aggregate per-target
+ * + per-item results → emit progress events.
+ *
+ * v1 scope (intentional): pure fan-out. Caller-supplied responsibilities
+ * (kept in CLI / admin until Cuts 6-7 migrate them):
+ *   - Template scan + hash (`scanTemplates` / `templateHashesFrom`)
+ *   - loadSite (passed in via `input.site`)
+ *   - Asset publish (publishAssets — runs before publishRun)
+ *   - Dependency expansion (findDependentsFromSidecars — caller pre-expands items)
+ *   - Compare/incremental skip (compareTargets — caller pre-filters items)
+ *   - Per-target dep indices (publishDepIndices — runs after publishRun)
+ *   - Site manifest emit (publishSiteManifest — runs after publishRun)
+ *   - Cache purge (purgeStrategy — runs after publishRun, reserved input)
+ *   - History recording (recordWrite — runs after publishRun, reserved input)
+ *   - Audit events (per-item + per-run — reserved Cut 5+)
+ *
+ * Per Q4 fail-soft: per-target init failures fail just that target;
+ * per-item failures continue with next item. Boot fail-fast (steps
+ * 1-2) only when input is structurally invalid.
+ */
+export async function publishRun(input: PublishRunInput): Promise<PublishRunResult> {
+  // Step 1 — validate input. Empty items + targets is fast-path
+  // success (no-op); unknown target is operator error → boot fail-fast.
+  if (input.items.length === 0 && input.targets.length === 0) {
+    return { ok: true, items: [], targets: [] }
+  }
+  if (input.targets.length === 0) {
+    throw new Error('publishRun: no targets specified')
+  }
+  for (const targetName of input.targets) {
+    if (!input.targetStorages.has(targetName)) {
+      throw new Error(`publishRun: target "${targetName}" not in registry`)
+    }
+  }
+
+  input.onProgress?.({
+    kind: 'run-start',
+    totalItems: input.items.length,
+    totalTargets: input.targets.length,
+  })
+
+  const allItems: PublishItemResult[] = []
+  const allTargets: PublishTargetResult[] = []
+
+  // Steps 9-12 condensed: loop targets × items. Per-target failure
+  // (no storage) skips the whole target; per-item failures aggregate.
+  for (const targetName of input.targets) {
+    const targetStorage = input.targetStorages.get(targetName)
+    if (!targetStorage) {
+      // Defensive — already validated above, but keep typed.
+      allTargets.push({
+        name: targetName,
+        failed: true,
+        failureReason: 'target storage not initialized',
+        filesWritten: 0,
+        filesRemoved: 0,
+      })
+      continue
+    }
+
+    const targetConfig: TargetConfig | undefined = input.siteManifest.targets?.[targetName]
+    const targetType = targetConfig ? getType(targetConfig) : 'static'
+
+    input.onProgress?.({ kind: 'target-start', target: targetName })
+
+    const target: PublishTarget = {
+      name: targetName,
+      storage: targetStorage,
+      type: targetType,
+      seo: undefined,
+      cache: targetConfig?.cache,
+    }
+
+    let targetFilesWritten = 0
+    let targetFilesRemoved = 0
+    const targetItemResults: PublishItemResult[] = []
+
+    for (const ref of input.items) {
+      const manifestHash = input.itemHashes?.get(itemKey(ref))
+      const itemTarget: PublishTarget = manifestHash ? { ...target, manifestHash } : target
+
+      // Compute mode for the progress event before invoking; the
+      // wrappers compute it again (cheap pure fn) — emit-side
+      // mirrors what publishItemCore will receive.
+      const itemForMode = (ref.kind === 'page' ? input.site.pages : input.site.fragments).get(ref.name)
+      const mode: PublishRenderMode = itemForMode
+        ? ref.kind === 'page'
+          ? resolvePageRenderMode(itemForMode, targetType)
+          : resolveFragmentRenderMode(itemForMode)
+        : ref.kind === 'page'
+          ? resolvePageRenderMode({}, targetType)
+          : 'fragment-rendered'
+
+      input.onProgress?.({ kind: 'item-start', item: ref, target: targetName, mode })
+
+      const result =
+        ref.kind === 'page'
+          ? await publishPage({
+              name: ref.name,
+              locale: ref.locale,
+              site: input.site,
+              sourceRoot: input.sourceRoot,
+              target: itemTarget,
+            })
+          : await publishFragment({
+              name: ref.name,
+              locale: ref.locale,
+              site: input.site,
+              sourceRoot: input.sourceRoot,
+              target: itemTarget,
+            })
+
+      allItems.push(result)
+      targetItemResults.push(result)
+      input.onProgress?.({ kind: 'item-done', result, target: targetName })
+
+      if (result.ok) {
+        targetFilesWritten += result.files
+        targetFilesRemoved += result.removed
+      }
+    }
+
+    const targetResult: PublishTargetResult = {
+      name: targetName,
+      // Per-target fail = ALL items for this target failed (per Q4 lock).
+      // Empty items list = not failed (no work attempted on this target).
+      failed: targetItemResults.length > 0 && targetItemResults.every(r => !r.ok),
+      filesWritten: targetFilesWritten,
+      filesRemoved: targetFilesRemoved,
+    }
+    allTargets.push(targetResult)
+    input.onProgress?.({ kind: 'target-done', result: targetResult })
+  }
+
+  // Step 17 — aggregate. ok = every item AND every target succeeded.
+  const result: PublishRunResult = {
+    ok: allItems.every(i => i.ok) && allTargets.every(t => !t.failed),
+    items: allItems,
+    targets: allTargets,
+  }
+  input.onProgress?.({ kind: 'run-done', result })
+  return result
 }
