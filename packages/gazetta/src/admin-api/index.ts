@@ -46,6 +46,7 @@ import { validationRoutes } from './routes/validation.js'
 import { healthRoutes } from './routes/health.js'
 import { archiveRoutes } from './routes/archive.js'
 import { renameRoutes } from './routes/rename.js'
+import { warnOnCapabilityGaps } from '../runtime/capability-gap-warnings.js'
 import { HookRegistry, type HookContribution } from '../hooks/index.js'
 
 export interface BuildHooksRegistryOptions {
@@ -257,6 +258,14 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
       history: buildHistoryForLegacySource(opts),
     })
   }
+
+  // Capability-gap surface #1 (boot config validate) per
+  // `feature-design-process.md`'s capability-gap-UX discipline.
+  // Walks targets; warns about runtime capability gaps (e.g., a
+  // plain-static target can't emit 301 redirects from archive
+  // operations). Non-blocking — admin starts. Operators see the
+  // warning during deploy so misconfiguration surfaces early.
+  if (source.manifest) warnOnCapabilityGaps(source.manifest)
 
   // Build the per-request source resolver. When target configs are
   // declared, routes honor `?target=<name>` to read from any known

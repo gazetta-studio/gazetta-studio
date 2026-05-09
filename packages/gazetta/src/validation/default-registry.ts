@@ -1,10 +1,15 @@
 import { accessibility } from './validators/accessibility.js'
+import { aliasOfPointsToArchived } from './validators/aliasof-points-to-archived.js'
 import { altRequired } from './validators/alt-required.js'
+import { archiveNotSupportedOnTarget } from './validators/archive-not-supported-on-target.js'
 import { brokenLinks } from './validators/broken-links.js'
+import { circularAlias } from './validators/circular-alias.js'
 import { circularFragment } from './validators/circular-fragment.js'
+import { danglingAlias } from './validators/dangling-alias.js'
 import { dynamicRouteConflict } from './validators/dynamic-route-conflict.js'
 import { htmlValidity } from './validators/html-validity.js'
 import { orphanedLocaleFile } from './validators/orphaned-locale-file.js'
+import { referencedArchivedWithoutAlias } from './validators/referenced-archived-without-alias.js'
 import { referencedAssetExists } from './validators/referenced-asset-exists.js'
 import { referencedFragmentExists } from './validators/referenced-fragment-exists.js'
 import { referencedTemplateExists } from './validators/referenced-template-exists.js'
@@ -35,5 +40,11 @@ export function defaultValidatorRegistry(): ValidatorRegistry {
     htmlValidity,
     accessibility,
     brokenLinks,
+    // Soft-delete validators per design-soft-delete.md Q11 (P1-P5).
+    referencedArchivedWithoutAlias,
+    danglingAlias,
+    circularAlias,
+    archiveNotSupportedOnTarget,
+    aliasOfPointsToArchived,
   ])
 }

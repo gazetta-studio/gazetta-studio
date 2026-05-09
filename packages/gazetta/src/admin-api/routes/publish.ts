@@ -20,6 +20,7 @@ import { publishPageAllLocales, publishFragmentAllLocales } from '../../publish-
 import { resolveEnvVars } from '../../targets.js'
 import { isAltAdapterConfigured } from '../../alt/factory.js'
 import { resolveAltConfig } from '../../alt/config.js'
+import { inspectTarget } from '../../runtime/runtime-capabilities.js'
 import { scanTemplates, templateHashesFrom, type TemplateInfo } from '../../templates-scan.js'
 import { hashManifest } from '../../hash.js'
 import { createContentRoot } from '../../content-root.js'
@@ -230,6 +231,14 @@ export function publishRoutes(
         // feature is reported off uniformly.
         const altResolved = site ? resolveAltConfig(site, cfg) : null
         const altAvailable = site ? isAltAdapterConfigured(site, cfg) : false
+        // Runtime capability inspection per
+        // `feature-design-process.md`'s capability-gap UX discipline
+        // (surface #2 — author-time modal data source). The admin
+        // archive modal renders per-target capability badges from
+        // these fields; Cut 10 wires the UI.
+        const inspection = cfg
+          ? inspectTarget(cfg)
+          : { has: new Set<string>(), gaps: [] as Array<{ capability: string; reason: string }> }
         return {
           name,
           environment: cfg ? getEnvironment(cfg) : 'local',
@@ -241,6 +250,10 @@ export function publishRoutes(
             // false rather than the hardcoded default so the UI doesn't
             // imply "auto-fire is on" for an unconfigured target.
             auto: altResolved?.auto ?? false,
+          },
+          capabilities: {
+            has: [...inspection.has],
+            gaps: inspection.gaps.map(g => ({ capability: g.capability, reason: g.reason })),
           },
         }
       }),
@@ -990,7 +1003,26 @@ export function publishRoutes(
       strict,
       templatesDir: site.templatesDir,
     })
-    return c.json({ issues, strict })
+
+    // Capability-gap UX surface #4 (pre-publish gate) per
+    // `feature-design-process.md`'s capability-gap-UX discipline.
+    // When the publish set includes any archived items, surface the
+    // destination target's capability info so the publish dialog can
+    // warn operators (e.g., "this target won't emit 301 redirects").
+    const itemList = items as Array<{ kind: 'page' | 'fragment'; name: string }>
+    const includesArchived = itemList.some(i => {
+      const m = i.kind === 'page' ? site.pages.get(i.name) : site.fragments.get(i.name)
+      return m?.archived === true
+    })
+    let capabilities: { has: string[]; gaps: Array<{ capability: string; reason: string }> } | undefined
+    if (includesArchived && targetCfg) {
+      const inspection = inspectTarget(targetCfg)
+      capabilities = {
+        has: [...inspection.has],
+        gaps: inspection.gaps.map(g => ({ capability: g.capability, reason: g.reason })),
+      }
+    }
+    return c.json({ issues, strict, ...(capabilities ? { capabilities } : {}) })
   })
 
   return app
