@@ -82,7 +82,14 @@ describe('Cut 14 — archive on pending-review', () => {
     expect(res.status).toBe(200)
 
     const events = await readAuditEvents()
-    const matched = events.filter(e => e.scope.kind === 'page' && e.scope.name === 'landing')
+    // HistoryAuditProvider.query sorts newest-first. Test asserts
+    // chronological order (oldest-first), so re-sort ASC before
+    // indexOf. Without this, equal-millisecond ties happen to read
+    // back insertion-order (withdraw first), but cross-ms races flip
+    // it. Stable test = sort explicitly.
+    const matched = events
+      .filter(e => e.scope.kind === 'page' && e.scope.name === 'landing')
+      .sort((a, b) => a.timestamp.localeCompare(b.timestamp))
     // Expect at least review-withdraw + archive
     const actions = matched.map(e => e.action)
     expect(actions).toContain('review-withdraw')
