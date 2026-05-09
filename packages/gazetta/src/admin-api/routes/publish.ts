@@ -678,9 +678,12 @@ export function publishRoutes(
         finalItems = mutated.map(i => i.path)
       } catch (err) {
         if (err instanceof HookCancellation || err instanceof HookTimeout) {
+          // Per design-hooks.md Q3 audit lock: cancelled publishes
+          // record outcome 'hook-cancelled' (not 'forbidden' — hook
+          // policy is operator decision, not a capability denial).
           await c.var.audit.record({
             action: 'publish',
-            outcome: 'forbidden',
+            outcome: 'hook-cancelled',
             scope: { kind: 'site' },
             metadata: {
               items: body.items,
@@ -784,9 +787,12 @@ export function publishRoutes(
         finalItems = mutated.map(i => i.path)
       } catch (err) {
         if (err instanceof HookCancellation || err instanceof HookTimeout) {
+          // Per design-hooks.md Q3 audit lock: cancelled publishes
+          // record outcome 'hook-cancelled' (not 'forbidden' — hook
+          // policy is operator decision, not a capability denial).
           await c.var.audit.record({
             action: 'publish',
-            outcome: 'forbidden',
+            outcome: 'hook-cancelled',
             scope: { kind: 'site' },
             metadata: {
               items: body.items,

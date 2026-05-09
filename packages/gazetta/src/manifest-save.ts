@@ -141,7 +141,15 @@ export type SaveResult = SaveOk | SaveStale | SaveValidationFailed | SaveHookCan
 export interface SaveAuditRecorder {
   record(event: {
     action: 'save'
-    outcome: 'success' | 'validation-failed' | 'forbidden'
+    /**
+     * Closed-enum subset of AuditOutcome the save pipeline emits.
+     * 'hook-cancelled' fires when a beforeSave hook throws or times
+     * out (per design-hooks.md Q3); 'validation-failed' fires when
+     * save-delta validators flag blocking issues. Pre-fix shape
+     * conflated the two paths under 'validation-failed' — fixed
+     * 2026-05 alongside cross-foundation gap #1 coverage.
+     */
+    outcome: 'success' | 'validation-failed' | 'forbidden' | 'hook-cancelled'
     scope: { kind: SaveManifestKind; name: string }
     metadata?: Record<string, unknown>
   }): Promise<unknown>
@@ -358,9 +366,17 @@ export async function saveManifestCore(input: SaveManifestInput): Promise<SaveRe
       finalManifest = (await dispatchBeforeSave(hooks, hookScope, input.manifest, hookCtx)) as Record<string, unknown>
     } catch (err) {
       if (err instanceof HookCancellation || err instanceof HookTimeout) {
+        // Per design-hooks.md Q3 audit lock: cancelled saves record
+        // outcome 'hook-cancelled' (closed-enum extension to
+        // AuditOutcome already in audit/types.ts). Earlier behavior
+        // emitted 'validation-failed' which conflated hook policy
+        // with validator semantics — forensic queries filtering on
+        // outcome would mistakenly include hook cancellations.
+        // metadata.hookCancelled vs metadata.hookTimeout still
+        // distinguishes the two cancellation paths for forensics.
         await input.audit.record({
           action: 'save',
-          outcome: 'validation-failed',
+          outcome: 'hook-cancelled',
           scope: { kind: input.kind, name: input.name },
           metadata: {
             ...(input.locale ? { locale: input.locale } : {}),

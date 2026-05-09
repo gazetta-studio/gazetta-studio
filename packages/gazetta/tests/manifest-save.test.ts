@@ -34,6 +34,7 @@ import { loadSite, type Site } from '../src/site-loader.js'
 import { createValidatorRegistry } from '../src/validation/registry.js'
 import type { Validator } from '../src/validation/types.js'
 import { computeSaveEtag } from '../src/save-etag.js'
+import { HookCancellation, HookRegistry } from '../src/hooks/index.js'
 
 describe('SaveResult type contract', () => {
   it('SaveOk discriminates with ok: true', () => {
@@ -299,6 +300,136 @@ describe('saveManifestCore — pipeline branches', () => {
       kind: 'manifest',
       item: { kind: 'page', name: 'home', itemPath: fixture.manifestPath },
     })
+  })
+
+  /**
+   * Cross-foundation gap #1 (per testing-plan.md punch list):
+   * `beforeSave` hook throwing must surface in audit with the
+   * locked outcome `'hook-cancelled'` (not `'validation-failed'`).
+   *
+   * Per `design-hooks.md` Q3 audit lock:
+   *   - The cancelling save records `outcome: 'hook-cancelled'` in
+   *     its `save` event (closed-enum extension to AuditOutcome
+   *     already in audit/types.ts).
+   *   - Metadata captures `hookCancelled: <hook name>` so forensic
+   *     queries can filter by which hook stopped which save.
+   *   - Hook firings emit independent `action: 'hook-fired'` events
+   *     via the dispatcher's audit emitter (covered separately in
+   *     hooks-audit.test.ts); the SAVE event is what tests here pin.
+   *
+   * The semantically wrong `validation-failed` outcome (the literal
+   * string) was the pre-fix behavior. This test fails before the
+   * outcome is corrected to `'hook-cancelled'`.
+   */
+  it('records save audit with outcome=hook-cancelled when beforeSave hook throws', async () => {
+    const fixture = await buildPageFixture(tempRoot, {
+      template: 'hero',
+      content: { title: 'Hello' },
+      components: [],
+    })
+
+    const hooks = new HookRegistry()
+    hooks.register(
+      'beforeSave',
+      async () => {
+        throw new HookCancellation({
+          hookName: 'reject-everything',
+          phase: 'beforeSave',
+          message: 'Operator policy: no saves on Tuesdays',
+        })
+      },
+      { name: 'reject-everything' },
+      'site-local',
+    )
+    hooks.seal()
+
+    const audit = noopAuditRecorder()
+    const result = await saveManifestCore({
+      kind: 'page',
+      name: 'home',
+      manifest: { template: 'hero', content: { title: 'World' }, components: [] },
+      before: fixture.before,
+      manifestPath: fixture.manifestPath,
+      site: fixture.site,
+      cacheInvalidatePrefixes: ['pages:'],
+      etagExtras: { route: '/home' },
+      source: fixture.source,
+      audit,
+      principal: { id: 'alice', role: 'admin', trustMode: 'none', capabilities: ['*'] },
+      validators: createValidatorRegistry([]),
+      hooks,
+    })
+
+    // Operation result discriminates HOOK_CANCELLED so route handlers
+    // return the right HTTP status (per manifest-save.ts contract).
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error('expected failure')
+    expect(result.code).toBe('HOOK_CANCELLED')
+    expect((result as SaveHookCancelled).hook).toBe('reject-everything')
+
+    // Audit shape per design-hooks.md Q3:
+    //   action: 'save'
+    //   outcome: 'hook-cancelled' (closed-enum extension)
+    //   metadata.hookCancelled carries the hook identifier
+    expect(audit.events).toHaveLength(1)
+    const ev = audit.events[0]
+    expect(ev.action).toBe('save')
+    expect(ev.outcome).toBe('hook-cancelled')
+    expect(ev.scope).toEqual({ kind: 'page', name: 'home' })
+    expect(ev.metadata).toMatchObject({ hookCancelled: 'reject-everything' })
+  })
+
+  it('records save audit with outcome=hook-cancelled when beforeSave hook times out', async () => {
+    // Same shape as cancellation; HookTimeout wraps the timer reject
+    // and surfaces as a distinct metadata field but the same audit
+    // outcome ('hook-cancelled' is the umbrella for both per Q3).
+    // Pre-fix audit emitted 'validation-failed'; post-fix emits
+    // 'hook-cancelled' uniformly so consumers don't need to branch
+    // on metadata.hookCancelled vs metadata.hookTimeout.
+    const fixture = await buildPageFixture(tempRoot, {
+      template: 'hero',
+      content: { title: 'Hello' },
+      components: [],
+    })
+
+    const hooks = new HookRegistry()
+    // Slow hook — runWithTimeout in dispatch.ts will fire HookTimeout
+    // when our generous-but-finite test timeout window elapses. Use
+    // a 1ms registration timeout so the test stays fast.
+    hooks.register(
+      'beforeSave',
+      async () => {
+        await new Promise(r => setTimeout(r, 50))
+        return undefined as unknown as Record<string, unknown>
+      },
+      { name: 'slow-hook', timeout: 1 },
+      'site-local',
+    )
+    hooks.seal()
+
+    const audit = noopAuditRecorder()
+    const result = await saveManifestCore({
+      kind: 'page',
+      name: 'home',
+      manifest: { template: 'hero', content: { title: 'World' }, components: [] },
+      before: fixture.before,
+      manifestPath: fixture.manifestPath,
+      site: fixture.site,
+      cacheInvalidatePrefixes: ['pages:'],
+      etagExtras: { route: '/home' },
+      source: fixture.source,
+      audit,
+      principal: { id: 'alice', role: 'admin', trustMode: 'none', capabilities: ['*'] },
+      validators: createValidatorRegistry([]),
+      hooks,
+    })
+
+    expect(result.ok).toBe(false)
+    expect(audit.events).toHaveLength(1)
+    const ev = audit.events[0]
+    expect(ev.action).toBe('save')
+    expect(ev.outcome).toBe('hook-cancelled')
+    expect(ev.metadata).toMatchObject({ hookTimeout: 'slow-hook' })
   })
 })
 
