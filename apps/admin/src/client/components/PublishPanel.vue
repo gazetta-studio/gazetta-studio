@@ -708,7 +708,7 @@ function envClass(env: string | undefined): string {
           severity="danger"
           :loading="publishing"
           data-testid="publish-panel-confirm-prod"
-          @click="runPublish"
+          @click="() => runPublish()"
         />
       </template>
     </template>

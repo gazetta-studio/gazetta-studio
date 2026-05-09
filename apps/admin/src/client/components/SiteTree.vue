@@ -20,6 +20,14 @@ interface SiteNode {
   name: string
   icon: string
   locales?: string[]
+  /**
+   * Archived per design-soft-delete.md Q7 J1. When true the row
+   * renders greyed; when also `aliasOf` is set the alias suffix
+   * appears in italic. Hidden by default; shown when the
+   * "Show archived" toggle is enabled.
+   */
+  archived?: boolean
+  aliasOf?: string
 }
 
 const router = useRouter()
@@ -34,6 +42,12 @@ const fragmentsApi = useFragmentsApi()
 const selectedKey = ref<string | null>(null)
 const showCreatePage = ref(false)
 const showCreateFragment = ref(false)
+/**
+ * Per `design-soft-delete.md` Q7 J1: tree filter toggle, count badge,
+ * hidden when zero. Filter is local UI state (not site state) per
+ * Cut 10 grilling Q3 — different authors may want different views.
+ */
+const showArchived = ref(false)
 
 // Compare against the most-important target so each node can show whether
 // it has unpublished changes. Refreshes on mount and on site reload.
@@ -83,9 +97,15 @@ watch(
 
 const systemPageNames = computed(() => new Set(site.manifest?.systemPages ?? []))
 
+/**
+ * Pages filtered by the archive toggle. When `showArchived` is false
+ * (default), archived items are hidden from the tree entirely. When
+ * true, they appear with greyed styling + alias suffix.
+ */
 const contentPages = computed<SiteNode[]>(() =>
   [...site.pages]
     .filter(p => !systemPageNames.value.has(p.name))
+    .filter(p => showArchived.value || p.archived !== true)
     .sort((a, b) => a.route.localeCompare(b.route))
     .map(p => ({
       key: `page:${p.name}`,
@@ -94,7 +114,16 @@ const contentPages = computed<SiteNode[]>(() =>
       name: p.name,
       icon: 'pi pi-file',
       locales: p.locales,
+      archived: p.archived,
+      aliasOf: p.aliasOf,
     })),
+)
+
+/** Total archived item count — drives the toggle's "(N)" badge. */
+const archivedCount = computed(
+  () =>
+    site.pages.filter(p => p.archived === true && !systemPageNames.value.has(p.name)).length +
+    site.fragments.filter(f => f.archived === true).length,
 )
 
 const systemPages = computed<SiteNode[]>(() =>
@@ -106,6 +135,7 @@ const systemPages = computed<SiteNode[]>(() =>
 
 const fragments = computed<SiteNode[]>(() =>
   site.fragments
+    .filter(f => showArchived.value || f.archived !== true)
     .map(f => ({
       key: `fragment:${f.name}`,
       label: f.name,
@@ -113,6 +143,8 @@ const fragments = computed<SiteNode[]>(() =>
       name: f.name,
       icon: 'pi pi-share-alt',
       locales: f.locales,
+      archived: f.archived,
+      aliasOf: f.aliasOf,
     }))
     .sort((a, b) => a.label.localeCompare(b.label)),
 )
@@ -139,14 +171,33 @@ async function handleDelete(node: SiteNode, e: Event) {
 
 <template>
   <div class="site-tree">
+    <!--
+      Show-archived toggle per design-soft-delete.md Q7 J1.
+      Hidden when archivedCount === 0 (Krug "absence-as-state":
+      empty filter is no filter; don't show a control with "(0)"
+      that has nothing to do).
+    -->
+    <label v-if="archivedCount > 0" class="archive-toggle" data-testid="archive-toggle">
+      <input type="checkbox" v-model="showArchived" data-testid="archive-toggle-input" />
+      <span>Show archived ({{ archivedCount }})</span>
+    </label>
+
     <!-- Pages -->
     <div class="section-label">Pages</div>
     <div v-for="node in contentPages" :key="node.key"
-      :class="['node-item', { selected: selectedKey === node.key }]"
+      :class="['node-item', { selected: selectedKey === node.key, archived: node.archived }]"
       :data-testid="`site-${node.type}-${node.name}`"
       @click="onSelect(node)">
       <i :class="node.icon" class="node-icon" />
-      <span class="node-label">{{ node.label }}</span>
+      <span class="node-label">
+        {{ node.label }}
+        <span v-if="node.archived && node.aliasOf" class="node-alias-suffix">
+          → {{ node.aliasOf }}
+        </span>
+        <span v-else-if="node.archived" class="node-alias-suffix">
+          (archived)
+        </span>
+      </span>
       <span v-if="node.locales?.length" class="node-locales">
         <template v-if="node.locales.length <= 3">
           <span v-for="loc in node.locales" :key="loc" class="locale-badge">{{ loc.toUpperCase() }}</span>
@@ -189,11 +240,19 @@ async function handleDelete(node: SiteNode, e: Event) {
     <!-- Fragments -->
     <div class="section-label" style="margin-top: 12px;">Fragments</div>
     <div v-for="node in fragments" :key="node.key"
-      :class="['node-item', { selected: selectedKey === node.key }]"
+      :class="['node-item', { selected: selectedKey === node.key, archived: node.archived }]"
       :data-testid="`site-${node.type}-${node.name}`"
       @click="onSelect(node)">
       <i :class="node.icon" class="node-icon" />
-      <span class="node-label">{{ node.label }}</span>
+      <span class="node-label">
+        {{ node.label }}
+        <span v-if="node.archived && node.aliasOf" class="node-alias-suffix">
+          → @{{ node.aliasOf }}
+        </span>
+        <span v-else-if="node.archived" class="node-alias-suffix">
+          (archived)
+        </span>
+      </span>
       <FragmentBlastRadius :fragmentName="node.name" compact />
       <span v-if="isDirty(node)" class="node-dirty-dot" :title="dirtyTitle()"
         :data-testid="`dirty-${node.type}-${node.name}`" />
@@ -248,4 +307,13 @@ async function handleDelete(node: SiteNode, e: Event) {
 .new-btns { display: flex; gap: 0.5rem; margin-top: 8px; padding: 0 6px; }
 .node-locales { display: flex; gap: 2px; margin-left: auto; flex-shrink: 0; }
 .locale-badge { font-size: 0.5rem; font-weight: 700; letter-spacing: 0.05em; color: var(--color-muted); border: 1px solid var(--color-border); border-radius: 2px; padding: 0 3px; line-height: 1.4; }
+
+/* Archived row — greyed; alias suffix italic */
+.node-item.archived .node-label { opacity: 0.6; }
+.node-alias-suffix { font-style: italic; font-size: 0.6875rem; color: var(--color-muted); margin-left: 0.25rem; }
+
+/* Show-archived toggle */
+.archive-toggle { display: flex; align-items: center; gap: 0.375rem; padding: 0.25rem 0.5rem; margin: 0.25rem 0.125rem; font-size: 0.75rem; color: var(--color-muted); cursor: pointer; user-select: none; }
+.archive-toggle:hover { color: var(--color-fg); }
+.archive-toggle input { cursor: pointer; }
 </style>

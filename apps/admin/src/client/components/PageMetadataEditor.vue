@@ -5,11 +5,13 @@ import { useSiteStore } from '../stores/site.js'
 import { useToastStore } from '../stores/toast.js'
 import { usePagesApi } from '../composables/api.js'
 import type { PageMetadata } from '../api/client.js'
+import { useArchiveStore } from '../stores/archive.js'
 
 const selection = useSelectionStore()
 const site = useSiteStore()
 const toast = useToastStore()
 const pagesApi = usePagesApi()
+const archive = useArchiveStore()
 
 const title = ref('')
 const description = ref('')
@@ -93,15 +95,42 @@ const fallbackCanonical = computed(() => `${pageDetail.value?.route ?? '/'}`)
 const serpTitle = computed(() => title.value || fallbackTitle.value)
 const serpUrl = computed(() => canonical.value || `https://example.com${fallbackCanonical.value}`)
 const serpDescription = computed(() => description.value || fallbackDescription.value)
+
+// Archive surface — visible only when the page is currently live. The
+// ArchiveBanner takes over for archived pages (Restore / Edit alias /
+// Purge actions live there). One affordance per state, per Krug.
+const isArchived = computed(() => {
+  if (selection.type !== 'page' || !selection.name) return false
+  return site.pages.find(p => p.name === selection.name)?.archived === true
+})
+
+function onArchive() {
+  if (selection.type !== 'page' || !selection.name) return
+  archive.askArchive({
+    kind: 'page',
+    name: selection.name,
+    archived: false,
+  })
+}
 </script>
 
 <template>
   <div class="metadata-editor" data-testid="metadata-editor">
     <div class="meta-header">
       <h3>SEO</h3>
-      <button v-if="dirty" class="meta-save-btn" :disabled="saving" @click="save" data-testid="metadata-save">
-        {{ saving ? 'Saving…' : 'Save' }}
-      </button>
+      <div class="meta-header-actions">
+        <button
+          v-if="!isArchived"
+          class="meta-archive-btn"
+          @click="onArchive"
+          data-testid="page-archive-btn"
+          title="Archive this page (soft-delete)">
+          <i class="pi pi-archive" /> Archive
+        </button>
+        <button v-if="dirty" class="meta-save-btn" :disabled="saving" @click="save" data-testid="metadata-save">
+          {{ saving ? 'Saving…' : 'Save' }}
+        </button>
+      </div>
     </div>
 
     <div class="meta-fields">
@@ -175,6 +204,26 @@ const serpDescription = computed(() => description.value || fallbackDescription.
   color: var(--color-muted);
   letter-spacing: 0.05em;
   margin: 0;
+}
+.meta-header-actions {
+  display: flex;
+  gap: 0.375rem;
+}
+.meta-archive-btn {
+  font-size: 0.6875rem;
+  padding: 0.1875rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--p-border-radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.meta-archive-btn:hover {
+  color: var(--color-warning-fg);
+  border-color: var(--color-warning-fg);
 }
 .meta-save-btn {
   font-size: 0.6875rem;

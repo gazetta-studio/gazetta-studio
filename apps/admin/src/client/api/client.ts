@@ -72,6 +72,29 @@ export class StaleSaveError extends Error {
   }
 }
 
+/**
+ * Thrown when POST /api/{pages,fragments} returns 409 with code
+ * ARCHIVED_NAME_CONFLICT per design-soft-delete.md Q5 I3 — the
+ * requested name belongs to an archived item. Carries the archive
+ * details so the UI can prompt Restore / Replace / Move-aside.
+ */
+export interface ArchivedNameConflictDetails {
+  kind: 'page' | 'fragment'
+  name: string
+  archivedAt?: string
+  archivedBy?: string
+  aliasOf?: string
+}
+export class ArchivedNameConflictError extends Error {
+  readonly code = 'ARCHIVED_NAME_CONFLICT' as const
+  readonly archive: ArchivedNameConflictDetails
+  constructor(archive: ArchivedNameConflictDetails) {
+    super(`${archive.kind} "${archive.name}" is archived; choose Restore / Replace / Move aside`)
+    this.name = 'ArchivedNameConflictError'
+    this.archive = archive
+  }
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(apiUrl(path), {
     ...options,
@@ -82,6 +105,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     if (res.status === 409 && body && typeof body === 'object') {
       if (body.code === 'VALIDATION_FAILED') throw new ValidationFailedError(body.issues ?? [])
       if (body.code === 'STALE') throw new StaleSaveError(body.current ?? {}, body.currentEtag ?? '')
+      if (body.code === 'ARCHIVED_NAME_CONFLICT') throw new ArchivedNameConflictError(body.archive)
     }
     throw new Error(body.error ?? `Request failed: ${res.status}`)
   }
@@ -322,8 +346,13 @@ export const api = {
     const path = options?.locale ? `/pages/${name}?locale=${encodeURIComponent(options.locale)}` : `/pages/${name}`
     return requestWithEtag<PageDetail>(path, options)
   },
-  createPage: (data: CreatePageRequest) =>
-    request<CreatePageResponse>('/pages', { method: 'POST', body: JSON.stringify(data) }),
+  createPage: (data: CreatePageRequest, opts?: { onConflict?: 'restore' | 'replace' | 'moveAside' }) => {
+    const qs = opts?.onConflict ? `?onConflict=${opts.onConflict}` : ''
+    return request<CreatePageResponse & { resolution?: string }>(`/pages${qs}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
   deletePage: (name: string) => request<{ ok: boolean }>(`/pages/${name}`, { method: 'DELETE' }),
   updatePage: (name: string, data: Partial<PageDetail>, opts?: { locale?: string; ifMatch?: string }) => {
     const qs = opts?.locale ? `?locale=${encodeURIComponent(opts.locale)}` : ''
@@ -354,8 +383,13 @@ export const api = {
       : `/fragments/${name}`
     return requestWithEtag<FragmentDetail>(path, options)
   },
-  createFragment: (data: CreateFragmentRequest) =>
-    request<CreateFragmentResponse>('/fragments', { method: 'POST', body: JSON.stringify(data) }),
+  createFragment: (data: CreateFragmentRequest, opts?: { onConflict?: 'restore' | 'replace' | 'moveAside' }) => {
+    const qs = opts?.onConflict ? `?onConflict=${opts.onConflict}` : ''
+    return request<CreateFragmentResponse & { resolution?: string }>(`/fragments${qs}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
   deleteFragment: (name: string) => request<{ ok: boolean }>(`/fragments/${name}`, { method: 'DELETE' }),
   updateFragment: (name: string, data: Partial<FragmentDetail>, opts?: { locale?: string; ifMatch?: string }) => {
     const qs = opts?.locale ? `?locale=${encodeURIComponent(opts.locale)}` : ''
