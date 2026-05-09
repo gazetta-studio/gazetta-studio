@@ -2,12 +2,12 @@
 
 Strategic forward-looking priorities for Gazetta. Captures what's prioritized, what's deferred, and what's a non-goal.
 
-**Updated**: 2026-05-04
+**Updated**: 2026-05-09
 
 ## How to read this
 
 - **Tier 1** = next 4-8 weeks; explicit commitment
-- **Tier 2** = next quarter; planned but not started — historically included foundational design passes alongside committed implementation work; design corpus is now complete
+- **Tier 2** = next quarter; planned but not started — historically included foundational design passes alongside committed implementation work; foundational design corpus complete (14 dimensions)
 - **Tier 3** = phased implementation plan against the complete design corpus; ~7-11 month horizon for Phase 0 + Phase 1 + Phase 2 + Phase 3
 - **Deferred** = real gaps but not the right time
 - **Non-goals** = explicit strategic non-fits — see [`docs/non-goals.md`](docs/non-goals.md)
@@ -32,10 +32,13 @@ The framing decisions that shape multi-quarter priorities. Resolved (no longer "
 ### Editor papercut cluster (2-3 weeks)
 Aggregate small-but-high-impact UX wins:
 - #103 page/fragment/component creation UX
-- #104 metadata editing UX (template, name, route)
+- #104 metadata editing UX (template, name, route) — note: #104 absorbed into the soft-delete foundational design pass (Tier 2 #13). Rename composes archive + create + alias; can't ship as a small Tier 1 fix without the foundation.
 - #105 component ordering UX (drag-and-drop research)
 - #82 breadcrumb navigation in edit mode
 - #45 component duplication
+
+### Manual redirect creation in admin (1 week)
+Closes part of [`docs/seo-plan.md`](docs/seo-plan.md)'s Tier 2 redirect-management punch-list. The soft-delete mechanism (HTML markers / per-edge sidecars / `_redirects` host-glue) already supports redirect-without-archive — operators can manually create archive-only manifests to define redirects. Admin UI affordance: "Create redirect →" form (from-route + to-route fields) creates the manifest. Bounded scope: 301 only (per `design-soft-delete.md` Q14 lock); temporary/scheduled redirects deferred to scheduling primitive. Depends on soft-delete v1 shipping first.
 
 ### Onboarding sprint (3-4 weeks)
 Closes part of the deploy-adapters cluster:
@@ -49,7 +52,7 @@ Closes part of the deploy-adapters cluster:
 
 ### Foundational design passes
 
-Thirteen cross-cutting dimensions that every feature design must respect (see [`feature-design-process.md`](.claude/rules/feature-design-process.md) "Foundational dimensions"). Each is a separate design pass that lands a `design-{name}.md` and adds a check to every new feature design. Implementation phases sit in Tier 3 unless otherwise noted.
+Cross-cutting dimensions that every feature design must respect (see [`feature-design-process.md`](.claude/rules/feature-design-process.md) "Foundational dimensions"). Each is a separate design pass that lands a `design-{name}.md` and adds a check to every new feature design. Implementation phases sit in Tier 3 unless otherwise noted. All 14 design passes complete (2026-05); scheduling primitive (#14) ships with a UX research pass (~5-7 hours) before its admin UI cuts.
 
 Sequence (per dependency order):
 
@@ -81,6 +84,10 @@ Sequence (per dependency order):
 
 12. **`design-logging.md`** (complete 2026-05) — reference doc, NOT a foundational dimension. Operational logging conventions: structured JSON logs (no `console.log` in production); 5 levels (`trace` / `debug` / `info` / `warn` / `error`); dot-separated module namespacing (`cache.memory`, `plugin.@gazetta/slack-notify`); `requestId` for cross-instance correlation; PII exclusion (auth tokens / manifest content / comment bodies / asset bytes — all forbidden); `pino` recommended; logs to stdout (operator wires aggregator). Logging vs audit: audit is forensic record; logs are operational signal; both run. Added as "Logging discipline" to `feature-design-process.md`'s Non-foundational disciplines.
 
+13. **`design-soft-delete.md`** (complete 2026-05) — foundational primitive: archive + alias + rename + restore + purge for pages/fragments. Replaces hard-delete-with-block-on-refs with soft-delete; rename composes (archive old + create new + alias + flatten cascade). Manifest fields (`archived`, `archivedAt`, `archivedBy`, `aliasOf`); HTML comment marker for static targets, per-edge sidecars for ESI; no aggregate manifests (workers read source-of-truth); `_redirects` only as Cloudflare/Netlify host-glue. 5 validators (P1–P5) + 2 save-handler checks (P7/P8); review-workflow integration (auto-withdraw on archive; restore always to draft); admin-only `?force=true` escape hatch on purge. Capability-gap UX surfaced at four points (boot validate / author modal / scanner / publish gate) — locked as foundational principle for all future features needing runtime capabilities. Q14 redirect-lifecycle deferred (renames produce 301 only in v1; 302 + scheduled redirects reserved for separate design pass). Implementation Tier 3 (15 cuts, ~25 days). Closes #104 and parts of `docs/seo-plan.md`'s Tier 2 redirect-management punch-list.
+
+14. **`design-scheduling.md`** (complete 2026-05) — foundational primitive for time-based state transitions. Locked: single-shot actions (`publish` / `archive` / `unarchive` / `expire-approval` / `redirect-activate` / `redirect-expire`) + time-windowed visibility (`activeFrom` / `activeUntil`); recurring deferred. Background scheduler with sidecars for state-mutating actions; lazy visibility evaluation at render time. Multi-instance coordination via lock-with-TTL (atomic `If-None-Match: *` conditional-create); lazy stale-lock recovery on next acquire (no janitor). Per-action catch-up policy on missed windows (all v1 actions default to catch-up); structured-log alarm on excessive lateness. Capability check at fire time (snapshot principal at create + rehydrate); lost-capability fails permanently (no retry). Admin UX structurally locked (publish dialog gains schedule capability; archive modal gains schedule option; visibility window inline metadata; per-page chip; dedicated `/admin/scheduler` panel; tree clock indicator); detailed UX deferred to focused research pass before Cut 9-10 (~5-7 hours). 6 validators (V1-V6) + 5 new audit actions + 2 outcome extensions + 4 hook phases. Composes with soft-delete (auto-cancel on archive/rename), review-workflow (scheduled publish on `requiresPublishApproval` targets fires publish-request not direct publish). Implementation Tier 3 (12 cuts + UX research pass, ~22 days). Closes #198 + parts of `design-soft-delete.md` Q12 (archive retention) + Q14 (temporary/scheduled redirects).
+
 ### Validation Cut 2 + 3 (8 days)
 - Cut 2: background scanner + admin UI surfaces (tree dots, "Site health" drawer) — closes #40 fully
 - Cut 3: render-for-analysis + a11y (axe-core) + html-validate + `altRequired`
@@ -89,7 +96,7 @@ Sequence (per dependency order):
 Issue #202 — real correctness gap. Fragment changes don't trigger fan-out re-renders on static targets. Touches the same dependency-tracking machinery validation Cut 2 needs.
 
 ### Small content-feature bundle (1-2 weeks)
-- #61 redirects (301/302)
+- #61 redirects (301/302) — 301 permanent redirects shipped via soft-delete (#13). 302 (temporary) + scheduled redirects compose with scheduling primitive (#14); land when scheduling design ships.
 - #58 RSS / Atom feeds
 - #57 pagination for list pages
 - #91 `gazetta validate` checks target connectivity
@@ -117,7 +124,7 @@ Operator-facing features that mature production deployments:
 - #75 parallelize R2 REST API uploads
 - #76 in-memory cache for `gazetta serve`
 - #195 webhooks / post-publish hooks
-- #198 scheduled publishing
+- #198 scheduled publishing — composes with scheduling primitive (#14); lands when scheduling design ships
 
 ### Compare polish (1 week)
 - #109 compare targets — polish and edge cases
@@ -132,9 +139,9 @@ Operator-facing features that mature production deployments:
 ### Environment-specific content
 - #62 environment-specific content — design pass needed; sized after design
 
-## Tier 3 — implementation phases (design corpus complete; building features)
+## Tier 3 — implementation phases (foundation design corpus complete; building features)
 
-The 13-dimension foundational design corpus is complete. Implementation is now sequenced as four phases. **No backwards-compatibility constraint** (pre-1.0 product); cutovers are clean. **No external shipping pressure**; architectural correctness prioritized over velocity.
+The 14-dimension foundational design corpus is complete. Implementation is now sequenced as four phases. **No backwards-compatibility constraint** (pre-1.0 product); cutovers are clean. **No external shipping pressure**; architectural correctness prioritized over velocity.
 
 Total horizon: ~7-11 months for Phase 0 + Phase 1 + Phase 2 + Phase 3. Tier 3 strategic bets (concurrent editing, etc.) deferred indefinitely.
 
@@ -216,6 +223,20 @@ After foundations + features land:
 | Reactions on comments | Operator asks |
 | Email/Slack/Teams/Discord NotificationProviders | Operator demand (expected order locked in `design-collaboration.md` Q3) |
 | Edge SSR for `dynamic` Targets (WinterTC origin) | WASM-compiled templates or framework support catches up |
+| Soft-delete extension to assets | v1.5 — composes with `design-soft-delete.md`'s alias mechanism; replaces "delete blocked when refs > 0" hard-fail. Concrete demand surfaces when an operator wants to rename an asset without manual ref cleanup. |
+| Per-locale archive (archive only French variant of a page) | Concrete demand for "archive only one locale; default + others stay live" |
+| Bulk archive UI in admin (multi-select tree + bulk archive/restore/purge) | CLI works today (`gazetta archive purge --filter=...`); UI lands when authors ask |
+| Page move (parent route reparenting) as distinct concept | Today's rename + alias works through filesystem reparenting; T3 (decouple `route` from filesystem path) needs its own design pass |
+| Page duplicate / copy as standalone feature | Authors can manually copy directories today; UI affordance when concrete demand surfaces |
+| Find-and-replace across content (string match) | Operator asks; orthogonal to existing dependents-walking |
+| Versioned aliases (`@header-v1` + `@header-v2` simultaneously) | Strategic-bet level; would require revising `design-soft-delete.md` Q3's flatten lock — needs its own design pass |
+| Branch / PR-style workflows (per-item branches, merge into main) | Strategic bet; depends on concurrent-editing positioning |
+| Snapshot-named revisions ("v1.5 release snapshot" — name a history revision) | Concrete demand from operators wanting recoverable named checkpoints |
+| Bulk import from other CMSes (Notion, WordPress, Sanity) | Concrete operator request; manifest format is import-friendly |
+| Hidden but live (visible at URL, not in nav/sitemap) | Concrete demand; composes with publish flow + sitemap generation |
+| Member-only / paywalled content | Depends on RBAC content filtering shipping; composes with `design-auth-rbac.md` |
+| Time-windowed visibility (live between dates) | Composes with scheduling primitive (#14) when shipped |
+| Lock / immutability (lock published version) | Compliance archetype; archive transitions imply this — explicit lock affordance lands when distinct intent surfaces |
 
 ### Constraints driving this scope
 

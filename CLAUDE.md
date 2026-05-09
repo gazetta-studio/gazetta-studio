@@ -50,6 +50,10 @@ Stateless CMS that structures websites as composable fragments. All state lives 
 - `.claude/rules/design-config.md` — Site config reference (companion to ADR-0005). TS config (`gazetta.config.ts` + `site.config.ts`) replacing YAML; identity functions; secrets handling; evaluation timing.
 - `.claude/rules/design-logging.md` — Operational logging reference. Structured JSON logs, levels, module namespacing, requestId correlation, privacy rules. Companion to `design-audit.md` (audit = forensic record; logs = operational signal; both run).
 - `.claude/rules/sidecars.md` — Internal mechanism docs for per-item sidecars (`.{8hex}.hash`, `.pub-{ts}`) and reverse-dep indices (`.gazetta/fragment-deps/`, `.gazetta/asset-refs/`) used for incremental publish + reverse-dep lookups
+- `.claude/rules/design-soft-delete.md` — Foundational primitive: archive + alias + rename + restore + purge for pages/fragments. HTML-marker static rendering, per-edge sidecars for ESI, no aggregates. Capability-gap UX surfaced at four points.
+- `.claude/rules/design-soft-delete-implementation.md` — 15-cut sequence (~25 days). Manifest fields, alias-aware renderer, archive routes, rename composition, validators, admin UI, conflict prompt UX, resolution UX, CLI, review-workflow integration.
+- `.claude/rules/design-scheduling.md` — Foundational primitive: time-based state transitions (single-shot actions + visibility windows). Background scheduler with lock-with-TTL multi-instance coordination; lazy visibility evaluation at render time; capability check at fire time; per-action catch-up policy; 6 validators + 5 audit actions + 4 hook phases.
+- `.claude/rules/design-scheduling-implementation.md` — 12-cut sequence + UX research pass (~22 days). Manifest schedule field, atomic conditional-create, sidecar lifecycle, tick loop, capability rehydration, lazy visibility, admin UX (deferred to UX research), operator dashboard, CLI.
 
 ## Build & Test
 
