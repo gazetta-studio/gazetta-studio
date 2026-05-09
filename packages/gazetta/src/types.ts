@@ -299,6 +299,27 @@ export interface TargetConfig {
    */
   assets?: AssetUploadConfig
   /**
+   * Host-format redirect manifest emitted at publish. Used by
+   * plain-static targets (no worker): when archived pages exist, the
+   * publish flow walks them and emits a `_redirects` (or equivalent)
+   * file at the target root that the host runtime reads — Cloudflare
+   * Pages and Netlify both honor this convention.
+   *
+   * Worker-served target types (static + ESI + dynamic) DON'T need
+   * this — the worker reads the HTML marker on each archived page's
+   * `pages/{name}/index.html` directly. Setting `redirects.format`
+   * on a worker-served target is harmless but redundant.
+   *
+   * Defaults:
+   *   - `cloudflare-pages` runtime hint → `cloudflare`
+   *   - `netlify` runtime hint → `netlify`
+   *   - else → `none` (no file emitted)
+   *
+   * Override when host-runtime is plain-static and operator wants
+   * a structured form (`json`) for custom integrations.
+   */
+  redirects?: RedirectsConfig
+  /**
    * Per-target alt-text behavior overrides. Inherits site-level
    * `altText:` block; only behavior fields can be overridden
    * (`auto`, `maxImageEdge`, `model`). Provider and credentials are
@@ -322,6 +343,34 @@ export interface TargetConfig {
    * stop the ship.
    */
   publishAudit?: PublishAuditConfig
+}
+
+/**
+ * Format the publish flow uses to emit a host-format redirect manifest
+ * at the target root. Per design-soft-delete.md Q10: only the listed
+ * external standards earn the aggregate-file exception; everything
+ * else is sourced from the per-page HTML marker.
+ *
+ *   - `cloudflare`: `_redirects` file in Cloudflare Pages format.
+ *     Lines: `<from>  <to>  301` for aliased archives, `<from>  /  410`
+ *     for soft-deletes.
+ *   - `netlify`: `_redirects` in Netlify's format (same syntax as
+ *     Cloudflare for the patterns we emit).
+ *   - `json`: `redirects.json` for custom integrations — structured
+ *     `{ redirects: [...], gone: [...] }` shape; operator wires their
+ *     own host glue.
+ *   - `none`: no file emitted. Default for non-CDN-format storage.
+ */
+export type RedirectsFormat = 'cloudflare' | 'netlify' | 'json' | 'none'
+
+/**
+ * Per-target redirects-emit configuration. Set on
+ * `targets.{name}.redirects`. Read at publish time when archived
+ * pages exist on the target.
+ */
+export interface RedirectsConfig {
+  /** Output file format. See `RedirectsFormat` for semantics. */
+  format: RedirectsFormat
 }
 
 /**

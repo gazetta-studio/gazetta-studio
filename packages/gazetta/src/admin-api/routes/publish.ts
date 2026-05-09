@@ -548,6 +548,33 @@ export function publishRoutes(
           }
         }
 
+        // 3c. Host-format redirects file (e.g. _redirects). Per
+        // design-soft-delete.md Q10: plain-static targets without a
+        // worker can't read the per-page HTML marker; this file is the
+        // host glue for archive-driven redirects. Independent of
+        // siteUrl — the format determines whether to emit at all.
+        const redirectsFormat = config?.redirects?.format
+        if (redirectsFormat && redirectsFormat !== 'none') {
+          const { emitRedirects } = await import('../../runtime/redirects-emit.js')
+          const { allPageEntries, deriveRoute } = await import('../../site-loader.js')
+          const archives: { from: string; to?: string }[] = []
+          for (const entry of allPageEntries(site)) {
+            if (entry.page.archived !== true) continue
+            // Locale variants share the parent's archive state in v1
+            // (per design-soft-delete.md future directions). Default-
+            // locale row is the canonical entry.
+            if (entry.locale) continue
+            const from = deriveRoute(entry.name)
+            const to = entry.page.aliasOf ? deriveRoute(entry.page.aliasOf) : undefined
+            archives.push(to !== undefined ? { from, to } : { from })
+          }
+          const result = emitRedirects(redirectsFormat, archives)
+          if (result && result.body !== '') {
+            await targetStorage.writeFile(result.filename, result.body)
+            totalFiles++
+          }
+        }
+
         // 4. Purge CDN cache
         if (purgeConfig?.type === 'cloudflare') {
           const apiToken = resolveEnvVars(purgeConfig.apiToken)
