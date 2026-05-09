@@ -289,6 +289,107 @@ describe('publishRun — progress emission', () => {
   })
 })
 
+// ─── Extended spine: dep indices + site manifest + asset publish ──
+
+describe('publishRun — per-target side effects', () => {
+  it('writes site.json on each target by default', async () => {
+    const { site, manifest, sourceRoot } = await setup()
+    const targetStorage = memoryStorage()
+    const pageName = [...site.pages.keys()].find(k => !k.includes('['))!
+
+    await publishRun({
+      items: [{ kind: 'page', name: pageName }],
+      targets: ['local'],
+      site,
+      sourceRoot,
+      siteManifest: manifest,
+      targetStorages: new Map([['local', targetStorage]]),
+    })
+    expect(await targetStorage.exists('site.json')).toBe(true)
+  })
+
+  it('publishSiteManifestAfter: false skips site.json emit', async () => {
+    const { site, manifest, sourceRoot } = await setup()
+    const targetStorage = memoryStorage()
+    const pageName = [...site.pages.keys()].find(k => !k.includes('['))!
+
+    await publishRun({
+      items: [{ kind: 'page', name: pageName }],
+      targets: ['local'],
+      site,
+      sourceRoot,
+      siteManifest: manifest,
+      targetStorages: new Map([['local', targetStorage]]),
+      publishSiteManifestAfter: false,
+    })
+    expect(await targetStorage.exists('site.json')).toBe(false)
+  })
+
+  it('writes dep-index sidecars to .gazetta/asset-refs/ by default', async () => {
+    const { site, manifest, sourceRoot } = await setup()
+    const targetStorage = memoryStorage()
+    const pageName = [...site.pages.keys()].find(k => !k.includes('['))!
+
+    await publishRun({
+      items: [{ kind: 'page', name: pageName }],
+      targets: ['local'],
+      site,
+      sourceRoot,
+      siteManifest: manifest,
+      targetStorages: new Map([['local', targetStorage]]),
+    })
+    // After dep indices run, .gazetta/asset-refs/ AND/OR .gazetta/fragment-deps/
+    // should be present (depending on what the starter actually references).
+    const gazettaExists = await targetStorage.exists('.gazetta')
+    expect(gazettaExists).toBe(true)
+  })
+
+  it('publishDepIndicesAfter: false skips dep index rebuild', async () => {
+    const { site, manifest, sourceRoot } = await setup()
+    const targetStorage = memoryStorage()
+    const pageName = [...site.pages.keys()].find(k => !k.includes('['))!
+
+    await publishRun({
+      items: [{ kind: 'page', name: pageName }],
+      targets: ['local'],
+      site,
+      sourceRoot,
+      siteManifest: manifest,
+      targetStorages: new Map([['local', targetStorage]]),
+      publishDepIndicesAfter: false,
+      publishSiteManifestAfter: false,
+    })
+    // No dep indices written → no .gazetta/asset-refs/
+    expect(await targetStorage.exists('.gazetta/asset-refs')).toBe(false)
+  })
+})
+
+describe('publishRun — template precheck', () => {
+  it('throws when templateInfos contains invalid templates (boot fail-fast)', async () => {
+    const { site, manifest, sourceRoot } = await setup()
+    const invalidInfo = {
+      name: 'broken',
+      valid: false,
+      errors: ['no default export'],
+      hash: '',
+    } as unknown as Parameters<typeof publishRun>[0]['templateInfos'] extends readonly (infer T)[] | undefined
+      ? T
+      : never
+
+    await expect(
+      publishRun({
+        items: [],
+        targets: ['local'],
+        site,
+        sourceRoot,
+        siteManifest: manifest,
+        targetStorages: new Map([['local', memoryStorage()]]),
+        templateInfos: [invalidInfo],
+      }),
+    ).rejects.toThrow(/invalid templates.*broken/)
+  })
+})
+
 // ─── Aggregate result type ────────────────────────────────────────
 
 describe('PublishRunResult type contract', () => {

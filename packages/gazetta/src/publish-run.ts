@@ -46,15 +46,17 @@
  * Boot fail-fast (steps 1-6), per-item/per-target fail-soft (Q4 lock).
  */
 
+import { publishAssets } from './assets/publish.js'
 import type { Principal } from './auth/types.js'
-import type { ContentRoot } from './content-root.js'
+import { createContentRoot, type ContentRoot } from './content-root.js'
+import { publishFragment, resolveFragmentRenderMode } from './fragments/publish.js'
+import { hashManifest } from './hash.js'
 import type { HistoryProvider } from './history.js'
-import { publishFragment } from './fragments/publish.js'
-import { publishPage } from './pages/publish.js'
+import { publishPage, resolvePageRenderMode } from './pages/publish.js'
 import type { PublishItemKind, PublishItemResult, PublishRenderMode, PublishTarget } from './publish-item.js'
-import { resolveFragmentRenderMode } from './fragments/publish.js'
-import { resolvePageRenderMode } from './pages/publish.js'
+import { publishDepIndices, publishSiteManifest } from './publish-rendered.js'
 import type { Site } from './site-loader.js'
+import { templateHashesFrom, type TemplateInfo } from './templates-scan.js'
 import { getType } from './types.js'
 import type { PurgeStrategy, SiteManifest, StorageProvider, TargetConfig } from './types.js'
 
@@ -145,10 +147,39 @@ export interface PublishRunInput {
   /**
    * Per-target manifest hashes for incremental publish. Caller computes
    * via `hashManifest(item, { templateHashes, fragmentHashes? })`.
-   * Optional — when absent, items publish without sidecar hash and
-   * caller's compare-targets pre-skip logic doesn't apply at this layer.
+   * Optional — when absent and `templateInfos` is supplied, orchestrator
+   * computes per-item hashes inline (using the canonical hashManifest
+   * with templateHashes from scan + fragmentHashes for static-mode pages).
    */
   readonly itemHashes?: ReadonlyMap<string, string>
+  /**
+   * Pre-scanned templates. When supplied, orchestrator uses the
+   * derived hashes for sidecar emission AND short-circuits with
+   * `TEMPLATE_INVALID` when invalid templates are detected. Caller
+   * (CLI / admin route) does the scan once before the run.
+   *
+   * When absent, orchestrator skips template-hash computation and
+   * trusts caller-supplied `itemHashes`.
+   */
+  readonly templateInfos?: readonly TemplateInfo[]
+  /**
+   * Per-target asset publish. When true (default), orchestrator runs
+   * `publishAssets` per target before per-item renders so static-mode
+   * pages don't bake in URLs to bytes that aren't on the target yet.
+   */
+  readonly publishAssetsBeforeItems?: boolean
+  /**
+   * Per-target dep-index emit. When true (default), orchestrator runs
+   * `publishDepIndices` after all items publish (asset-refs +
+   * fragment-deps + archive-aliases sidecars on target).
+   */
+  readonly publishDepIndicesAfter?: boolean
+  /**
+   * Per-target site manifest emit. When true (default), orchestrator
+   * runs `publishSiteManifest` after items publish so target's
+   * `site.json` reflects the source's site name + version.
+   */
+  readonly publishSiteManifestAfter?: boolean
   /** Authenticated principal driving this publish (reserved for capability gates + audit). */
   readonly principal?: Principal
   /** History provider per source (reserved for revision recording — Cut 5+ extension). */
@@ -215,6 +246,31 @@ export async function publishRun(input: PublishRunInput): Promise<PublishRunResu
     }
   }
 
+  // Step 3 — template precheck. Invalid templates abort the run
+  // (boot fail-fast per Q4) — refuse to publish broken templates.
+  if (input.templateInfos) {
+    const invalid = input.templateInfos.filter(t => !t.valid)
+    if (invalid.length > 0) {
+      throw new Error(`publishRun: refusing to publish with invalid templates: ${invalid.map(t => t.name).join(', ')}`)
+    }
+  }
+
+  // Compute hash maps once: templateHashes for all items;
+  // fragmentHashes for static-mode page hash composition (so a fragment
+  // change invalidates every static page that bakes it in).
+  const templateHashes = input.templateInfos ? templateHashesFrom([...input.templateInfos]) : new Map<string, string>()
+  const fragmentHashes = new Map<string, string>()
+  if (input.templateInfos) {
+    for (const [fragName, frag] of input.site.fragments) {
+      fragmentHashes.set(fragName, hashManifest(frag, { templateHashes }))
+    }
+  }
+
+  // Defaults for per-target side-effects (Q5 spine steps 10-12).
+  const doAssetPublish = input.publishAssetsBeforeItems ?? true
+  const doDepIndices = input.publishDepIndicesAfter ?? true
+  const doSiteManifest = input.publishSiteManifestAfter ?? true
+
   input.onProgress?.({
     kind: 'run-start',
     totalItems: input.items.length,
@@ -252,13 +308,69 @@ export async function publishRun(input: PublishRunInput): Promise<PublishRunResu
       seo: undefined,
       cache: targetConfig?.cache,
     }
+    const targetRoot = createContentRoot(targetStorage)
 
     let targetFilesWritten = 0
     let targetFilesRemoved = 0
+    let targetFailureReason: string | undefined
     const targetItemResults: PublishItemResult[] = []
 
+    // Step 10a — asset publish before per-item renders so static-mode
+    // pages don't bake URLs to bytes that aren't on the target yet.
+    // Per-target failure here marks the whole target failed (no
+    // point publishing pages whose assets aren't there).
+    if (doAssetPublish) {
+      try {
+        const itemNames = [
+          ...[...input.site.pages.keys()].map(n => `pages/${n}`),
+          ...[...input.site.fragments.keys()].map(n => `fragments/${n}`),
+        ]
+        const assetResult = await publishAssets({
+          sourceRoot: input.sourceRoot,
+          targetRoot,
+          itemNames,
+        })
+        if (!assetResult.ok) {
+          targetFailureReason = `asset publish failed: missing ${assetResult.missing.join(', ')}`
+        } else {
+          targetFilesWritten += assetResult.copiedFiles
+        }
+      } catch (err) {
+        targetFailureReason = `asset publish threw: ${err instanceof Error ? err.message : String(err)}`
+      }
+    }
+
+    // If asset publish failed, skip per-item renders for this target —
+    // would emit broken pages. Continue with next target (Q4 fail-soft).
+    if (targetFailureReason) {
+      const failedResult: PublishTargetResult = {
+        name: targetName,
+        failed: true,
+        failureReason: targetFailureReason,
+        filesWritten: targetFilesWritten,
+        filesRemoved: targetFilesRemoved,
+      }
+      allTargets.push(failedResult)
+      input.onProgress?.({ kind: 'target-done', result: failedResult })
+      continue
+    }
+
     for (const ref of input.items) {
-      const manifestHash = input.itemHashes?.get(itemKey(ref))
+      // Compute per-item hash from caller-supplied map OR templateInfos.
+      let manifestHash = input.itemHashes?.get(itemKey(ref))
+      if (!manifestHash && input.templateInfos) {
+        const itemForHash = (ref.kind === 'page' ? input.site.pages : input.site.fragments).get(ref.name)
+        if (itemForHash) {
+          // Static-mode pages need fragmentHashes folded in so a
+          // fragment change invalidates every page that bakes it.
+          // ESI pages + fragments don't (compare doesn't track that).
+          const useFragmentHashes = ref.kind === 'page' && targetType === 'static'
+          manifestHash = hashManifest(itemForHash, {
+            templateHashes,
+            fragmentHashes: useFragmentHashes ? fragmentHashes : undefined,
+          })
+        }
+      }
       const itemTarget: PublishTarget = manifestHash ? { ...target, manifestHash } : target
 
       // Compute mode for the progress event before invoking; the
@@ -301,6 +413,39 @@ export async function publishRun(input: PublishRunInput): Promise<PublishRunResu
         targetFilesRemoved += result.removed
       }
     }
+
+    // Step 10b — dep indices (asset-refs + fragment-deps + alias-targets
+    // sidecars on target). Walks the source site once; rebuilds per-edge
+    // index files at target's `.gazetta/` namespace. Failures here are
+    // logged to failureReason but don't mark the whole target failed
+    // (items already published successfully).
+    if (doDepIndices) {
+      try {
+        await publishDepIndices(input.sourceRoot, targetStorage, input.site)
+      } catch (err) {
+        // Soft-fail: dep indices are derivable; reindex CLI recovers.
+        // Eslint-suppress: a future audit consumer can read this.
+        // eslint-disable-next-line no-console
+        console.warn(`publishRun: publishDepIndices failed for ${targetName}: ${err}`)
+      }
+    }
+
+    // Step 11 — site manifest emit (`site.json` snapshot at target root).
+    if (doSiteManifest) {
+      try {
+        await publishSiteManifest(input.sourceRoot, targetStorage, input.site)
+        targetFilesWritten++
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn(`publishRun: publishSiteManifest failed for ${targetName}: ${err}`)
+      }
+    }
+
+    // Step 12 — cache purge (fire-and-forget; doesn't block run).
+    // Today: caller fires it after publishRun returns (the strategy
+    // is on input but we don't yet auto-dispatch; future cut wires
+    // per-target purge against the target config's purge strategy).
+    // input.purgeStrategy reserved for that future wiring.
 
     const targetResult: PublishTargetResult = {
       name: targetName,

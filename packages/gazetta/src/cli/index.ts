@@ -606,20 +606,23 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
   const { createTargetRegistry } = await import('../targets.js')
   const targets = await createTargetRegistry(Object.fromEntries(targetNames.map(n => [n, siteYaml.targets![n]])))
 
-  const { publishPageRendered, publishPageStatic, publishFragmentRendered, publishSiteManifest, publishDepIndices } =
-    await import('../publish-rendered.js')
-  const { publishPageAllLocales, publishFragmentAllLocales } = await import('../publish-locale.js')
-  const { scanTemplates, templateHashesFrom, reportTemplateErrors } = await import('../templates-scan.js')
-  const { hashManifest } = await import('../hash.js')
+  // Per Cut 6 cutover: per-target render loop now goes through publishRun
+  // (imported below at use site). publishRun owns: per-item dispatch +
+  // asset publish + dep indices + site manifest. CLI keeps: incremental
+  // skip via compareTargets, locale fan-out into ItemRefs, console
+  // output via onProgress, sitemap+robots+redirects+purge post-loop.
+  const { scanTemplates, reportTemplateErrors } = await import('../templates-scan.js')
 
-  // Validate + hash templates once for this publish run
+  // Validate templates once for this publish run. publishRun consumes
+  // templateInfos directly and computes hashes internally (per Cut 5
+  // expansion); CLI only needs to scan + bail on invalid templates
+  // before launching the run.
   const templateInfos = await scanTemplates(templatesDir, projectRoot)
   const invalid = reportTemplateErrors(templateInfos)
   if (invalid > 0) {
     console.error(`\n  ${c.red('✗')} Refusing to publish with invalid templates.`)
     process.exit(1)
   }
-  const templateHashes = templateHashesFrom(templateInfos)
 
   console.log()
   console.log(`  ${c.bgGreen(c.bold(' gazetta '))} ${c.green('publish')} ${c.dim(site.manifest.name)}`)
@@ -628,6 +631,25 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
   console.log(`  ${c.dim('┃')} Fragments  ${c.dim([...site.fragments.keys()].join(', '))}`)
   console.log(`  ${c.dim('┃')} Targets    ${targetNames.join(', ')}`)
   console.log()
+
+  // Cutover (Cut 6 of publish-pipeline-extraction): per-target render
+  // loop now delegates to `publishRun` for the per-target × per-item
+  // dispatch + asset publish + dep indices + site manifest. CLI keeps
+  // ownership of:
+  //   - target registry init + per-target loop (so target-init failures
+  //     can short-circuit just that target)
+  //   - incremental skip via compareTargets (publishRun is filter-blind;
+  //     CLI pre-filters ItemRefs[] based on per-locale unchanged sets)
+  //   - locale fan-out (CLI expands page name → ItemRef[] including all
+  //     locale variants supported by the target)
+  //   - console output (onProgress callback formats human-readable lines)
+  //   - sitemap / robots.txt / _redirects / cache purge (post-publishRun
+  //     side effects on each target — kept inline)
+  //
+  // publishRun owns: per-item mode dispatch, archive short-circuit,
+  // sidecar emit, asset publish, dep indices, site manifest emit.
+  const { publishRun } = await import('../publish-run.js')
+  const { createContentRoot: _createContentRoot } = await import('../content-root.js')
 
   for (const name of targetNames) {
     const targetStorage = targets.get(name)
@@ -639,7 +661,6 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
     const targetConfig = siteYaml.targets![name]
     const { getType } = await import('../types.js')
     const targetType = targetConfig ? getType(targetConfig) : 'static'
-    const isStatic = targetType === 'static'
     console.log(`  ${c.bold(name)} ${c.dim(`(${targetType})`)}`)
     let totalFiles = 0
     let totalRemoved = 0
@@ -661,140 +682,102 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
       for (const item of cmp.unchanged) unchanged.add(item)
     }
     let skipped = 0
-    const sourceRoot = source.contentRoot
 
-    // Asset publish — before any page render, so static-mode page HTML
-    // doesn't bake in URLs to bytes that aren't on the target yet. Skips
-    // assets that are already on target (content-addressed dedupe).
-    {
-      const { publishAssets } = await import('../assets/publish.js')
-      const { createContentRoot } = await import('../content-root.js')
-      const targetRoot = createContentRoot(targetStorage)
-      const itemNames = [
-        ...[...site.pages.keys()].map(n => `pages/${n}`),
-        ...[...site.fragments.keys()].map(n => `fragments/${n}`),
-      ]
-      const assetResult = await publishAssets({ sourceRoot, targetRoot, itemNames })
-      if (!assetResult.ok) {
-        console.error(`    ${c.red('✗')} Asset publish failed: source is missing — ${assetResult.missing.join(', ')}`)
-        process.exit(1)
-      }
-      if (assetResult.copiedAssets > 0) {
-        console.log(`    ${c.green('✓')} ${assetResult.copiedAssets} asset(s), ${assetResult.copiedFiles} file(s)`)
-      }
-      totalFiles += assetResult.copiedFiles
-    }
+    // Build the per-target ItemRef list. CLI does the locale fan-out
+    // explicitly here (vs publishRun, which treats the input list
+    // verbatim). Each (page|fragment, locale) cell becomes one ItemRef
+    // unless the unchanged set covers it.
+    const targetLocales = targetConfig?.locales
+    const itemRefs: { kind: 'page' | 'fragment'; name: string; locale?: string }[] = []
+    const skippedNames = new Set<string>() // for console output (item entirely skipped)
 
-    // SEO context for this target — built once, shared across all page renders.
-    const { defaultLocaleFor: _defaultLocaleFor } = await import('../locale.js')
-    const seo = {
-      siteName: site.manifest.name,
-      siteUrl: targetConfig?.siteUrl,
-      locale: _defaultLocaleFor(site.manifest),
-      defaultOgImage: site.manifest.defaultOgImage,
-    }
-
-    if (isStatic) {
-      // Static mode — fully assembled HTML, no fragments needed separately.
-      // Page hash must include fragment hashes so a fragment change
-      // invalidates every page that bakes it in (compareTargets uses the
-      // same combination on the local side).
-      const fragmentHashes = new Map<string, string>()
-      for (const [fragName, frag] of site.fragments) {
-        fragmentHashes.set(fragName, hashManifest(frag, { templateHashes }))
-      }
-      for (const [pageName, page] of site.pages) {
-        if (unchanged.has(`pages/${pageName}`)) {
-          skipped++
-          continue
+    // Pages — default + per-locale variants, filtered by target.locales when set.
+    for (const [pageName] of site.pages) {
+      const pageLocales = site.pageLocales.get(pageName)
+      const localesForPage: (string | undefined)[] = [undefined]
+      if (pageLocales) {
+        for (const loc of pageLocales.locales.keys()) {
+          if (targetLocales && !targetLocales.includes(loc)) continue
+          localesForPage.push(loc)
         }
-        const manifestHash = hashManifest(page, { templateHashes, fragmentHashes })
-        const { files } = await publishPageStatic(
-          pageName,
-          sourceRoot,
-          targetStorage,
-          templatesDir,
-          manifestHash,
-          site,
-          seo,
-        )
-        totalFiles += files
-        console.log(`    ${c.green('✓')} ${pageName}`)
       }
-    } else {
-      // ESI mode — fragments separate, pages with placeholders
+      let added = 0
+      for (const loc of localesForPage) {
+        const key = loc ? `pages/${pageName}:${loc}` : `pages/${pageName}`
+        if (unchanged.has(key)) continue
+        itemRefs.push({ kind: 'page', name: pageName, locale: loc })
+        added++
+      }
+      if (added === 0 && localesForPage.length > 0) {
+        skippedNames.add(`pages/${pageName}`)
+        skipped++
+      }
+    }
+
+    // Fragments — only emitted as separate items for non-static targets
+    // (static bakes them into pages). For static, the publishRun spine
+    // still needs them in the site for page rendering (already loaded).
+    if (targetType !== 'static') {
       for (const [fragName] of site.fragments) {
-        // Build per-locale unchanged set: null = default, 'fr' = French
-        const fragUnchanged = new Set<string | null>()
-        if (unchanged.has(`fragments/${fragName}`)) fragUnchanged.add(null)
         const fragLocales = site.fragmentLocales.get(fragName)
+        const localesForFrag: (string | undefined)[] = [undefined]
         if (fragLocales) {
           for (const loc of fragLocales.locales.keys()) {
-            if (unchanged.has(`fragments/${fragName}:${loc}`)) fragUnchanged.add(loc)
+            if (targetLocales && !targetLocales.includes(loc)) continue
+            localesForFrag.push(loc)
           }
         }
-        // Skip entirely if all locales unchanged
-        const totalFragLocales = 1 + (fragLocales?.locales.size ?? 0)
-        if (fragUnchanged.size >= totalFragLocales) {
+        let added = 0
+        for (const loc of localesForFrag) {
+          const key = loc ? `fragments/${fragName}:${loc}` : `fragments/${fragName}`
+          if (unchanged.has(key)) continue
+          itemRefs.push({ kind: 'fragment', name: fragName, locale: loc })
+          added++
+        }
+        if (added === 0 && localesForFrag.length > 0) {
+          skippedNames.add(`fragments/${fragName}`)
           skipped++
-          continue
         }
-        const { files, removed } = await publishFragmentAllLocales(
-          fragName,
-          sourceRoot,
-          targetStorage,
-          site,
-          { templateHashes },
-          { templatesDir, targetLocales: targetConfig?.locales, unchangedLocales: fragUnchanged },
-        )
-        totalFiles += files
-        totalRemoved += removed
-        const skippedCount =
-          fragUnchanged.size > 0 ? ` (${fragUnchanged.size} locale${fragUnchanged.size > 1 ? 's' : ''} skipped)` : ''
-        console.log(`    ${c.green('✓')} @${fragName}${skippedCount}`)
-      }
-      for (const [pageName] of site.pages) {
-        // Build per-locale unchanged set
-        const pageUnchanged = new Set<string | null>()
-        if (unchanged.has(`pages/${pageName}`)) pageUnchanged.add(null)
-        const pageLocales = site.pageLocales.get(pageName)
-        if (pageLocales) {
-          for (const loc of pageLocales.locales.keys()) {
-            if (unchanged.has(`pages/${pageName}:${loc}`)) pageUnchanged.add(loc)
-          }
-        }
-        const totalPageLocales = 1 + (pageLocales?.locales.size ?? 0)
-        if (pageUnchanged.size >= totalPageLocales) {
-          skipped++
-          continue
-        }
-        const { files, removed } = await publishPageAllLocales(
-          pageName,
-          sourceRoot,
-          targetStorage,
-          site,
-          { templateHashes },
-          {
-            cache: targetConfig?.cache,
-            templatesDir,
-            seo,
-            targetLocales: targetConfig?.locales,
-            unchangedLocales: pageUnchanged,
-          },
-        )
-        totalFiles += files
-        totalRemoved += removed
-        const skippedCount =
-          pageUnchanged.size > 0 ? ` (${pageUnchanged.size} locale${pageUnchanged.size > 1 ? 's' : ''} skipped)` : ''
-        console.log(`    ${c.green('✓')} ${pageName}${skippedCount}`)
       }
     }
-    if (skipped > 0) console.log(`    ${c.dim(`· ${skipped} unchanged (skipped)`)}`)
 
-    // Site manifest + dep-sidecar indices
-    await publishSiteManifest(sourceRoot, targetStorage, site)
-    await publishDepIndices(sourceRoot, targetStorage, site)
-    totalFiles += 1
+    // Delegate the per-item × per-target render loop + asset publish +
+    // dep indices + site manifest to publishRun. Single-target call;
+    // CLI loops targets itself so per-target init failures (storage
+    // missing) short-circuit just that target.
+    const runResult = await publishRun({
+      items: itemRefs,
+      targets: [name],
+      site,
+      sourceRoot: source.contentRoot,
+      siteManifest: manifest,
+      targetStorages: new Map([[name, targetStorage]]),
+      templateInfos,
+      onProgress: ev => {
+        if (ev.kind === 'item-done') {
+          if (ev.result.ok) {
+            const label = ev.result.kind === 'fragment' ? `@${ev.result.name}` : ev.result.name
+            const localeMark = ev.result.locale ? c.dim(` (${ev.result.locale})`) : ''
+            console.log(`    ${c.green('✓')} ${label}${localeMark}`)
+          } else {
+            const label = ev.result.kind === 'fragment' ? `@${ev.result.name}` : ev.result.name
+            console.error(`    ${c.red('✗')} ${label}: ${ev.result.code}`)
+          }
+        }
+      },
+    })
+
+    // Aggregate counts from publishRun's per-target result.
+    const tr = runResult.targets.find(t => t.name === name)
+    if (tr) {
+      totalFiles += tr.filesWritten
+      totalRemoved += tr.filesRemoved
+      if (tr.failed) {
+        console.error(`    ${c.red('✗')} target failed: ${tr.failureReason ?? 'all items failed'}`)
+      }
+    }
+
+    if (skipped > 0) console.log(`    ${c.dim(`· ${skipped} unchanged (skipped)`)}`)
 
     // Sitemap + robots.txt — generated from target sidecars
     const siteUrl = targetConfig?.siteUrl
