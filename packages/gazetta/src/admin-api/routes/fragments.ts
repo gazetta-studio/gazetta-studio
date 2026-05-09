@@ -1,32 +1,17 @@
 import { Hono } from 'hono'
-import { join } from 'node:path'
 import { loadSiteFromSource } from '../source-context.js'
-import { recordWrite } from '../../history-recorder.js'
 import type { SourceContextResolver } from '../source-context.js'
 import { CreateFragmentRequestSchema, type FragmentSummary } from '../schemas/fragments.js'
 import { isValidLocale } from '../../locale.js'
-import { rebuildAssetRefs, type ItemRef } from '../../assets/asset-deps.js'
-import { rebuildFragmentDeps } from '../../fragment-deps.js'
-import { rebuildArchiveAliases } from '../../archive-aliases.js'
 import { FRAGMENT_HANDLE, handleArchive, handlePurge } from './archive.js'
-import { resolveArchivedNameConflict, type ArchivedNameConflictMode } from '../archived-name-conflict.js'
-import { hasBlockingIssues, runSaveDelta } from '../../validation/save-delta.js'
 import type { ValidatorRegistry } from '../../validation/registry.js'
-import type { FragmentManifest } from '../../types.js'
 import { computeSaveEtag } from '../../save-etag.js'
-import { ensureComponentIds } from '../../component-ids.js'
 import { requireCapability } from '../middleware/capability.js'
 import type { AuditEnv } from '../middleware/audit.js'
-import {
-  buildHookContext,
-  dispatchAfterLoad,
-  dispatchAfterSave,
-  dispatchBeforeSave,
-  HookCancellation,
-  HookTimeout,
-  type HookRegistry,
-} from '../../hooks/index.js'
+import { buildHookContext, dispatchAfterLoad, type HookRegistry } from '../../hooks/index.js'
 import { makeAuditFiringEmitter } from '../hook-audit-emitter.js'
+import { FragmentNotFoundError, InvalidLocaleError, saveFragment } from '../../fragments/save.js'
+import { createFragment } from '../../fragments/create.js'
 
 export interface FragmentRoutesOptions {
   hooks?: HookRegistry
@@ -78,9 +63,10 @@ export function fragmentRoutes(
     }
   })
 
+  // POST delegates to `fragments/create.ts` — same protocol-thin
+  // shape as pages POST.
   app.post('/api/fragments', requireCapability('edit:fragments'), async c => {
     const source = await resolve(c.req.query('target'))
-    const { storage } = source
     // Schema-validate the body — same rationale as pages.ts.
     const raw = await c.req.json()
     const parsed = CreateFragmentRequestSchema.safeParse(raw)
@@ -95,78 +81,30 @@ export function fragmentRoutes(
     }
     const body = parsed.data
 
-    const fragDir = source.contentRoot.path('fragments', body.name)
-    const manifestPath = join(fragDir, 'fragment.json')
+    const result = await createFragment({
+      name: body.name,
+      template: body.template,
+      onConflict: c.req.query('onConflict'),
+      source,
+      principal: c.var.principal,
+      audit: c.var.audit,
+    })
 
-    // Per design-soft-delete.md Q5 I3: archived-name-conflict gets
-    // the structured 409 + ?onConflict resolution flow. See pages.ts
-    // for the full rationale; same shape applies here.
-    if (await storage.exists(manifestPath)) {
-      const onConflict = c.req.query('onConflict')
-      const site = await loadSiteFromSource(source)
-      const existing = site.fragments.get(body.name)
-      const isArchived = existing?.archived === true
-
-      if (!isArchived) {
-        return c.json({ error: `Fragment "${body.name}" already exists` }, 409)
-      }
-
-      if (!onConflict) {
-        return c.json(
-          {
-            code: 'ARCHIVED_NAME_CONFLICT' as const,
-            archive: {
-              kind: 'fragment' as const,
-              name: body.name,
-              ...(existing?.archivedAt ? { archivedAt: existing.archivedAt } : {}),
-              ...(existing?.archivedBy ? { archivedBy: existing.archivedBy } : {}),
-              ...(existing?.aliasOf ? { aliasOf: existing.aliasOf } : {}),
-            },
-          },
-          409,
-        )
-      }
-
-      const principal = c.var.principal
-      const result = await resolveArchivedNameConflict({
-        source,
-        kind: 'fragment',
-        name: body.name,
-        existing: existing as FragmentManifest & { dir: string },
-        mode: onConflict as ArchivedNameConflictMode,
-        newTemplate: body.template,
-        actorId: principal.id,
-      })
-      if (result.kind === 'invalid-mode') {
-        return c.json({ error: `Invalid onConflict mode "${onConflict}"` }, 400)
-      }
-      const action: 'unarchive' | 'archive' | 'rename' =
-        result.kind === 'restored' ? 'unarchive' : result.kind === 'replaced' ? 'archive' : 'rename'
-      await c.var.audit.record({
-        action,
-        outcome: 'success',
-        scope: { kind: 'fragment', name: body.name },
-        metadata: { onConflict },
-      })
-      await Promise.all([source.cache.invalidatePrefix('fragments:'), source.cache.invalidatePrefix('pages:')])
-      return c.json({ ok: true, name: body.name, resolution: result.kind })
+    if (result.ok) {
+      return c.json(
+        result.resolution
+          ? { ok: true, name: result.name, resolution: result.resolution }
+          : { ok: true, name: result.name },
+      )
     }
-
-    await storage.mkdir(fragDir)
-    const manifest = { template: body.template, components: [] }
-    await storage.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
-    // Dep sidecars: empty initial fragment, no-op today; wired for
-    // symmetry with the fragment-update path.
-    const item: ItemRef = { source: 'fragment', name: body.name }
-    await Promise.all([
-      rebuildAssetRefs(source.contentRoot, item, null, manifest),
-      rebuildFragmentDeps(source.contentRoot, item, null, manifest),
-    ])
-    // Fragment edits affect both fragments and any pages that
-    // reference them — drop both summaries so /api/pages reflects
-    // any newly-resolvable fragment refs on the next call.
-    await Promise.all([source.cache.invalidatePrefix('fragments:'), source.cache.invalidatePrefix('pages:')])
-    return c.json({ ok: true, name: body.name })
+    if (result.code === 'LIVE_CONFLICT') {
+      return c.json({ error: `Fragment "${result.name}" already exists` }, 409)
+    }
+    if (result.code === 'ARCHIVED_CONFLICT') {
+      return c.json({ code: 'ARCHIVED_NAME_CONFLICT' as const, archive: result.archive }, 409)
+    }
+    // INVALID_CONFLICT_MODE — exhaustive narrow.
+    return c.json({ error: `Invalid onConflict mode "${result.mode}"` }, 400)
   })
 
   app.get('/api/fragments/:name', requireCapability('read:fragments'), async c => {
@@ -225,166 +163,60 @@ export function fragmentRoutes(
     return c.json(body)
   })
 
+  // PUT delegates to `fragments/save.ts` — the spine lives in
+  // `manifest-save.ts` (per Cut 2). This handler is now a protocol
+  // translator: parse Hono request → call `saveFragment` → project
+  // `SaveResult` to HTTP. Same response shape as before.
   app.put('/api/fragments/:name', requireCapability('edit:fragments'), async c => {
     const name = c.req.param('name')
     const rawLocale = c.req.query('locale')
-    const locale = rawLocale && isValidLocale(rawLocale) ? rawLocale.toLowerCase() : undefined
-    if (rawLocale && !locale) return c.json({ error: `Invalid locale code: "${rawLocale}"` }, 400)
 
     const source = await resolve(c.req.query('target'))
-    const { storage } = source
     const site = await loadSiteFromSource(source, { templatesDir })
 
-    const defaultFragment = site.fragments.get(name)
-    if (!defaultFragment) return c.json({ error: `Fragment "${name}" not found` }, 404)
-    const localeVariant = locale ? site.fragmentLocales.get(name)?.locales.get(locale) : undefined
-    const fragment = localeVariant ?? defaultFragment
-
-    // Save-concurrency check per design-offline.md Q3. Mirrors the
-    // pages PUT handler — see pages.ts for the rationale + 409 STALE
-    // shape.
+    // RFC-7232 If-Match is quoted; normalize before passing through.
     const ifMatchRaw = c.req.header('If-Match')
     const ifMatch = ifMatchRaw?.replace(/^"(.*)"$/, '$1')
-    if (ifMatch) {
-      const currentEtag = await computeSaveEtag({
-        template: fragment.template,
-        content: fragment.content,
-        components: fragment.components,
-      })
-      if (currentEtag !== ifMatch) {
-        return c.json(
-          {
-            code: 'STALE' as const,
-            current: {
-              template: fragment.template,
-              content: fragment.content,
-              components: fragment.components,
-            },
-            currentEtag,
-          },
-          409,
-          { ETag: `"${currentEtag}"` },
-        )
-      }
-    }
 
     const body = await c.req.json()
-    // Auto-generate stable component IDs on every save (per
-    // `design-collaboration.md`'s component-ID anchor primitive).
-    // See pages.ts PUT handler for full rationale; same shape here.
-    const components = ensureComponentIds(body.components ?? fragment.components)
-    const manifest = {
-      template: body.template ?? fragment.template,
-      content: body.content ?? fragment.content,
-      components,
-    }
 
-    const filename = locale ? `fragment.${locale}.json` : 'fragment.json'
-    const manifestPath = join(defaultFragment.dir, filename)
-    const serialized = JSON.stringify(manifest, null, 2) + '\n'
-
-    // Save-delta validation. Same contract as pages PUT handler — see
-    // pages.ts comment for rationale.
-    const issues = await runSaveDelta(
-      {
-        item: { kind: 'fragment', name, itemPath: source.contentRoot.relative(manifestPath) },
-        before: fragment as unknown as FragmentManifest,
-        after: manifest as FragmentManifest,
+    let result
+    try {
+      result = await saveFragment({
+        name,
+        locale: rawLocale,
+        body,
+        ifMatch,
         site,
-        contentRoot: source.contentRoot,
-        storage,
-      },
-      validators,
-    )
-    if (hasBlockingIssues(issues)) {
-      await c.var.audit.record({
-        action: 'save',
-        outcome: 'validation-failed',
-        scope: { kind: 'fragment', name },
-        metadata: locale ? { locale } : undefined,
+        source,
+        principal: c.var.principal,
+        audit: c.var.audit,
+        validators,
+        hooks,
+        hookAuditEmit: makeAuditFiringEmitter(c.var.audit),
+        scanner: opts.scanner ?? undefined,
+        requestId: c.req.header('x-request-id') ?? undefined,
       })
-      return c.json({ code: 'VALIDATION_FAILED' as const, issues }, 409)
+    } catch (err: unknown) {
+      if (err instanceof InvalidLocaleError) return c.json({ error: err.message }, 400)
+      if (err instanceof FragmentNotFoundError) return c.json({ error: err.message }, 404)
+      throw err
     }
 
-    // beforeSave hooks per design-hooks.md "Save flow with hooks".
-    // See pages.ts PUT handler for rationale; same shape applied
-    // to fragments.
-    const hookCtx = hooks
-      ? buildHookContext({
-          principal: c.var.principal,
-          storage: source.storage,
-          target: source.targetName,
-          requestId: c.req.header('x-request-id') ?? crypto.randomUUID(),
-          site: { name: source.manifest?.name },
-          auditEmit: makeAuditFiringEmitter(c.var.audit),
-        })
-      : null
-    const hookScope = { kind: 'fragment' as const, name, locale: locale ?? undefined }
-    let finalManifest: typeof manifest = manifest
-    if (hooks && hookCtx) {
-      try {
-        finalManifest = (await dispatchBeforeSave(hooks, hookScope, manifest, hookCtx)) as typeof manifest
-      } catch (err) {
-        if (err instanceof HookCancellation || err instanceof HookTimeout) {
-          await c.var.audit.record({
-            action: 'save',
-            outcome: 'validation-failed',
-            scope: { kind: 'fragment', name },
-            metadata: {
-              ...(locale ? { locale } : {}),
-              hookCancelled: err instanceof HookCancellation ? err.hookName : undefined,
-              hookTimeout: err instanceof HookTimeout ? err.hookName : undefined,
-            },
-          })
-          return c.json({ code: 'HOOK_CANCELLED' as const, hook: err.hookName, reason: err.message }, 409)
-        }
-        throw err
-      }
+    if (result.ok) {
+      c.header('ETag', `"${result.etag}"`)
+      return c.json({ ok: true, etag: result.etag })
     }
-    const serializedFinal = hooks === undefined ? serialized : JSON.stringify(finalManifest, null, 2) + '\n'
-
-    // History first — see pages.ts PUT handler rationale (baseline must
-    // capture pre-write state).
-    if (source.history) {
-      await recordWrite({
-        history: source.history,
-        contentRoot: source.contentRoot,
-        operation: 'save',
-        items: [{ path: source.contentRoot.relative(manifestPath), content: serializedFinal }],
+    if (result.code === 'STALE') {
+      return c.json({ code: 'STALE' as const, current: result.current, currentEtag: result.currentEtag }, 409, {
+        ETag: `"${result.currentEtag}"`,
       })
     }
-    await storage.writeFile(manifestPath, serializedFinal)
-    // Dep sidecars: diff old (in-memory `fragment`) vs new manifest for
-    // both asset and fragment dep relations.
-    const item: ItemRef = locale ? { source: 'fragment', name, locale } : { source: 'fragment', name }
-    await Promise.all([
-      rebuildAssetRefs(source.contentRoot, item, fragment, finalManifest),
-      rebuildFragmentDeps(source.contentRoot, item, fragment, finalManifest),
-      // archive-aliases sidecar — same rationale as pages.ts.
-      rebuildArchiveAliases(source.contentRoot, item, fragment, finalManifest),
-    ])
-    await Promise.all([source.cache.invalidatePrefix('fragments:'), source.cache.invalidatePrefix('pages:')])
-    const newEtag = await computeSaveEtag(finalManifest)
-    c.header('ETag', `"${newEtag}"`)
-    await c.var.audit.record({
-      action: 'save',
-      outcome: 'success',
-      scope: { kind: 'fragment', name },
-      metadata: locale ? { locale } : undefined,
-    })
-    // afterSave per design-hooks.md "Save flow" step 5. Observational;
-    // failures logged. Runs AFTER audit so the forensic record is
-    // committed first.
-    if (hooks && hookCtx) {
-      await dispatchAfterSave(hooks, hookScope, { payload: finalManifest, etag: newEtag }, hookCtx)
+    if (result.code === 'VALIDATION_FAILED') {
+      return c.json({ code: 'VALIDATION_FAILED' as const, issues: result.issues }, 409)
     }
-    // Background validation scanner re-validates this fragment + every
-    // page/fragment that references it (transitively). Fire-and-forget;
-    // SSE event drives the admin UI re-fetch when complete.
-    if (opts.scanner) {
-      void opts.scanner.rescan({ kind: 'fragment', name })
-    }
-    return c.json({ ok: true, etag: newEtag })
+    // HOOK_CANCELLED — exhaustive narrow per Q1 lock.
+    return c.json({ code: 'HOOK_CANCELLED' as const, hook: result.hook, reason: result.reason }, 409)
   })
 
   // DELETE = soft-delete (archive) by default per Cut 7 cutover.

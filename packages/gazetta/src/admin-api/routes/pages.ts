@@ -1,32 +1,17 @@
 import { Hono } from 'hono'
-import { join } from 'node:path'
 import { loadSiteFromSource } from '../source-context.js'
-import { recordWrite } from '../../history-recorder.js'
 import type { SourceContextResolver } from '../source-context.js'
 import { CreatePageRequestSchema, type PageSummary } from '../schemas/pages.js'
 import { isValidLocale } from '../../locale.js'
-import { rebuildAssetRefs, type ItemRef } from '../../assets/asset-deps.js'
-import { rebuildFragmentDeps } from '../../fragment-deps.js'
-import { rebuildArchiveAliases } from '../../archive-aliases.js'
-import { PAGE_HANDLE, handleArchive, handlePurge } from './archive.js'
-import { resolveArchivedNameConflict, type ArchivedNameConflictMode } from '../archived-name-conflict.js'
-import { hasBlockingIssues, runSaveDelta } from '../../validation/save-delta.js'
+import { handleArchive, handlePurge, PAGE_HANDLE } from './archive.js'
 import type { ValidatorRegistry } from '../../validation/registry.js'
-import type { PageManifest } from '../../types.js'
 import { computeSaveEtag } from '../../save-etag.js'
-import { ensureComponentIds } from '../../component-ids.js'
 import { requireCapability } from '../middleware/capability.js'
 import type { AuditEnv } from '../middleware/audit.js'
-import {
-  buildHookContext,
-  dispatchAfterLoad,
-  dispatchAfterSave,
-  dispatchBeforeSave,
-  HookCancellation,
-  HookTimeout,
-  type HookRegistry,
-} from '../../hooks/index.js'
+import { buildHookContext, dispatchAfterLoad, type HookRegistry } from '../../hooks/index.js'
 import { makeAuditFiringEmitter } from '../hook-audit-emitter.js'
+import { InvalidLocaleError, PageNotFoundError, savePage } from '../../pages/save.js'
+import { createPage } from '../../pages/create.js'
 
 export interface PageRoutesOptions {
   /**
@@ -104,9 +89,13 @@ export function pageRoutes(
     }
   })
 
+  // POST delegates to `pages/create.ts` — the create-time decision
+  // tree (live conflict / archived conflict prompt / archived
+  // resolution / fresh create) lives there. This handler is now a
+  // protocol translator: parse + Zod-validate → call `createPage` →
+  // project `CreatePageResult` to HTTP. Same response shape as before.
   app.post('/api/pages', requireCapability('edit:pages'), async c => {
     const source = await resolve(c.req.query('target'))
-    const { storage } = source
     // Schema-validate the body so drift between client and server
     // can't silently accept malformed requests. The Zod schema is the
     // single source of truth, shared with the client via
@@ -124,98 +113,31 @@ export function pageRoutes(
     }
     const body = parsed.data
 
-    const pageDir = source.contentRoot.path('pages', body.name)
-    const manifestPath = join(pageDir, 'page.json')
-
-    // Per design-soft-delete.md Q5 I3 lock: when the conflict is with
-    // an archived item, surface ARCHIVED_NAME_CONFLICT with archive
-    // details so the client can prompt Restore / Replace / Move-aside.
-    // Live conflicts stay as the existing 409 message.
-    if (await storage.exists(manifestPath)) {
-      const onConflict = c.req.query('onConflict')
-      const site = await loadSiteFromSource(source)
-      const existing = site.pages.get(body.name)
-      const isArchived = existing?.archived === true
-
-      if (!isArchived) {
-        return c.json({ error: `Page "${body.name}" already exists` }, 409)
-      }
-
-      // No onConflict flag → return the structured conflict body so
-      // the client can prompt the author.
-      if (!onConflict) {
-        const conflictBody = {
-          code: 'ARCHIVED_NAME_CONFLICT' as const,
-          archive: {
-            kind: 'page' as const,
-            name: body.name,
-            ...(existing?.archivedAt ? { archivedAt: existing.archivedAt } : {}),
-            ...(existing?.archivedBy ? { archivedBy: existing.archivedBy } : {}),
-            ...(existing?.aliasOf ? { aliasOf: existing.aliasOf } : {}),
-          },
-        }
-        return c.json(conflictBody, 409)
-      }
-
-      // ─── Resolve per the author's chosen onConflict mode ──────────
-      const principal = c.var.principal
-      const result = await resolveArchivedNameConflict({
-        source,
-        kind: 'page',
-        name: body.name,
-        existing: existing as PageManifest & { dir: string },
-        mode: onConflict as ArchivedNameConflictMode,
-        newTemplate: body.template,
-        newContent: body.content,
-        actorId: principal.id,
-      })
-      if (result.kind === 'invalid-mode') {
-        return c.json({ error: `Invalid onConflict mode "${onConflict}"` }, 400)
-      }
-      // Audit the resolution outcome — one event per logical mode.
-      const action: 'unarchive' | 'archive' | 'rename' =
-        result.kind === 'restored' ? 'unarchive' : result.kind === 'replaced' ? 'archive' : 'rename'
-      await c.var.audit.record({
-        action,
-        outcome: 'success',
-        scope: { kind: 'page', name: body.name },
-        metadata: { onConflict },
-      })
-      await source.cache.invalidatePrefix('pages:')
-      return c.json({ ok: true, name: body.name, resolution: result.kind })
-    }
-
-    await storage.mkdir(pageDir)
-    const manifest = {
+    const result = await createPage({
+      name: body.name,
       template: body.template,
-      content: body.content ?? { title: body.name },
-      components: [],
+      content: body.content,
+      onConflict: c.req.query('onConflict'),
+      source,
+      principal: c.var.principal,
+      audit: c.var.audit,
+    })
+
+    if (result.ok) {
+      return c.json(
+        result.resolution
+          ? { ok: true, name: result.name, resolution: result.resolution }
+          : { ok: true, name: result.name },
+      )
     }
-    await storage.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
-    // Dep sidecars: index this page's asset and fragment references.
-    // Freshly-created pages have empty manifests so this is mostly a
-    // no-op today, but wires the dep tracking the moment templates
-    // ship initial content with `_asset` or `@fragment` refs.
-    const item: ItemRef = { source: 'page', name: body.name }
-    await Promise.all([
-      rebuildAssetRefs(source.contentRoot, item, null, manifest),
-      rebuildFragmentDeps(source.contentRoot, item, null, manifest),
-    ])
-    // The summary list is now stale — drop it so the next /api/pages
-    // recomputes from disk. Cheap (single key) and explicit per
-    // design-cache.md Q2 (no auto-invalidation; consumers enumerate).
-    //
-    // Note: `pages:` matches all `pages:summary:target:*` entries,
-    // so this over-invalidates other targets when a backing cache is
-    // shared (one cross-target recompute on next read per affected
-    // target). Acceptable trade vs. the alternative — per-target
-    // precision would require the save handler to scope its
-    // invalidation key, but `pages:summary:target:${this}` doesn't
-    // catch hypothetical future per-page entries (e.g.
-    // `pages:detail:home:target:${this}`) without a wildcard the
-    // cache contract doesn't support.
-    await source.cache.invalidatePrefix('pages:')
-    return c.json({ ok: true, name: body.name })
+    if (result.code === 'LIVE_CONFLICT') {
+      return c.json({ error: `Page "${result.name}" already exists` }, 409)
+    }
+    if (result.code === 'ARCHIVED_CONFLICT') {
+      return c.json({ code: 'ARCHIVED_NAME_CONFLICT' as const, archive: result.archive }, 409)
+    }
+    // INVALID_CONFLICT_MODE — exhaustive narrow.
+    return c.json({ error: `Invalid onConflict mode "${result.mode}"` }, 400)
   })
 
   app.get('/api/pages/:name{.+}', requireCapability('read:pages'), async c => {
@@ -287,226 +209,60 @@ export function pageRoutes(
     return c.json(body)
   })
 
+  // PUT delegates to `pages/save.ts` — the Page-Save spine lives in the
+  // `manifest-save.ts` orchestrator (per Cut 2). This handler is now a
+  // protocol translator: parse Hono request → call `savePage` →
+  // project `SaveResult` to HTTP. Same response shape as before.
   app.put('/api/pages/:name{.+}', requireCapability('edit:pages'), async c => {
     const name = c.req.param('name')
     const rawLocale = c.req.query('locale')
-    const locale = rawLocale && isValidLocale(rawLocale) ? rawLocale.toLowerCase() : undefined
-    if (rawLocale && !locale) return c.json({ error: `Invalid locale code: "${rawLocale}"` }, 400)
 
     const source = await resolve(c.req.query('target'))
-    const { storage } = source
     const site = await loadSiteFromSource(source, { templatesDir })
 
-    // Resolve the page to update — locale variant or default
-    const defaultPage = site.pages.get(name)
-    if (!defaultPage) return c.json({ error: `Page "${name}" not found` }, 404)
-    const localeVariant = locale ? site.pageLocales.get(name)?.locales.get(locale) : undefined
-    const page = localeVariant ?? defaultPage
-
-    // Save-concurrency check per design-offline.md Q3. If-Match
-    // present → server compares against current on-disk etag; mismatch
-    // returns 409 STALE with current manifest body so the client can
-    // surface a conflict diff. Absent If-Match → no concurrency check
-    // (online clients without offline-awareness keep working — last-
-    // write-wins). Header value is RFC-7232 quoted; normalize.
+    // RFC-7232 If-Match is quoted; normalize before passing through.
     const ifMatchRaw = c.req.header('If-Match')
     const ifMatch = ifMatchRaw?.replace(/^"(.*)"$/, '$1')
-    if (ifMatch) {
-      const currentEtag = await computeSaveEtag({
-        template: page.template,
-        content: page.content,
-        components: page.components,
-        metadata: page.metadata,
-        route: page.route,
-      })
-      if (currentEtag !== ifMatch) {
-        return c.json(
-          {
-            code: 'STALE' as const,
-            current: {
-              template: page.template,
-              content: page.content,
-              components: page.components,
-              metadata: page.metadata,
-              route: page.route,
-            },
-            currentEtag,
-          },
-          409,
-          { ETag: `"${currentEtag}"` },
-        )
-      }
-    }
 
     const body = await c.req.json()
-    // Auto-generate stable component IDs on every save. Existing IDs
-    // are preserved; ID-less components get NanoIDs. Per
-    // `design-collaboration.md`, IDs are the load-bearing anchor for
-    // inline comments + future per-component overrides. Running this
-    // on every save (not just creation) means existing pages migrate
-    // to having IDs the first time the author saves them — no separate
-    // migration step required.
-    const components = ensureComponentIds(body.components ?? page.components)
-    const manifest: Record<string, unknown> = {
-      template: body.template ?? page.template,
-      content: body.content ?? page.content,
-      components,
-    }
-    if (body.metadata !== undefined) manifest.metadata = body.metadata
-    else if (page.metadata) manifest.metadata = page.metadata
-    // Locale variants store their route for preview resolution
-    if (locale && page.route) manifest.route = page.route
 
-    const filename = locale ? `page.${locale}.json` : 'page.json'
-    const manifestPath = join(defaultPage.dir, filename)
-    const serialized = JSON.stringify(manifest, null, 2) + '\n'
-
-    // Save-delta validation runs against the manifest the author is about to
-    // commit. The route handler is responsible for converting issues into a
-    // 409 response when error-severity issues are present. The validation
-    // contract: validators must not throw on validation failure; the
-    // orchestrator catches infrastructure errors and surfaces them as
-    // synthetic issues so the save flow stays predictable.
-    const issues = await runSaveDelta(
-      {
-        item: { kind: 'page', name, itemPath: source.contentRoot.relative(manifestPath) },
-        before: page as unknown as PageManifest,
-        after: { ...(manifest as unknown as PageManifest), route: page.route },
+    let result
+    try {
+      result = await savePage({
+        name,
+        locale: rawLocale,
+        body,
+        ifMatch,
         site,
-        contentRoot: source.contentRoot,
-        storage,
-      },
-      validators,
-    )
-    if (hasBlockingIssues(issues)) {
-      // Audit: validation-failed save. Per design-audit.md "Recording
-      // sites": this layer produced the outcome (validators ran first,
-      // returned blocking issues); record once before returning the
-      // 409. The audit record never blocks the response (fail-open
-      // unless strict mode).
-      await c.var.audit.record({
-        action: 'save',
-        outcome: 'validation-failed',
-        scope: { kind: 'page', name },
-        metadata: locale ? { locale } : undefined,
+        source,
+        principal: c.var.principal,
+        audit: c.var.audit,
+        validators,
+        hooks,
+        hookAuditEmit: makeAuditFiringEmitter(c.var.audit),
+        scanner: opts.scanner ?? undefined,
+        requestId: c.req.header('x-request-id') ?? undefined,
       })
-      return c.json({ code: 'VALIDATION_FAILED' as const, issues }, 409)
+    } catch (err) {
+      if (err instanceof InvalidLocaleError) return c.json({ error: err.message }, 400)
+      if (err instanceof PageNotFoundError) return c.json({ error: err.message }, 404)
+      throw err
     }
 
-    // beforeSave hooks per design-hooks.md "Save flow with hooks":
-    // validators run → beforeSave fires → storage write → afterSave
-    // → response. Hooks see the post-validation manifest; their
-    // returned payload proceeds to disk. A handler that throws
-    // cancels the operation (HookCancellation) — surface as a
-    // 409 with HOOK_CANCELLED so clients can discriminate.
-    //
-    // Build the HookContext ONCE per request — design-hooks.md
-    // "HookContext shape" locks `now` + `requestId` as deterministic
-    // for all hooks in a request. Reused for the afterSave dispatch
-    // below.
-    const hookCtx = hooks
-      ? buildHookContext({
-          principal: c.var.principal,
-          storage: source.storage,
-          target: source.targetName,
-          requestId: c.req.header('x-request-id') ?? crypto.randomUUID(),
-          site: { name: source.manifest?.name },
-          auditEmit: makeAuditFiringEmitter(c.var.audit),
-        })
-      : null
-    const hookScope = { kind: 'page' as const, name, locale: locale ?? undefined }
-    let finalManifest: Record<string, unknown> = manifest
-    if (hooks && hookCtx) {
-      try {
-        finalManifest = await dispatchBeforeSave(hooks, hookScope, manifest, hookCtx)
-      } catch (err) {
-        if (err instanceof HookCancellation || err instanceof HookTimeout) {
-          await c.var.audit.record({
-            action: 'save',
-            outcome: 'validation-failed',
-            scope: { kind: 'page', name },
-            metadata: {
-              ...(locale ? { locale } : {}),
-              hookCancelled: err instanceof HookCancellation ? err.hookName : undefined,
-              hookTimeout: err instanceof HookTimeout ? err.hookName : undefined,
-            },
-          })
-          return c.json({ code: 'HOOK_CANCELLED' as const, hook: err.hookName, reason: err.message }, 409)
-        }
-        throw err
-      }
+    if (result.ok) {
+      c.header('ETag', `"${result.etag}"`)
+      return c.json({ ok: true, etag: result.etag })
     }
-    // Re-serialize the (potentially mutated) manifest.
-    const serializedFinal = hooks === undefined ? serialized : JSON.stringify(finalManifest, null, 2) + '\n'
-
-    // Record the history revision BEFORE the disk write. recordWrite's
-    // first call scans the content tree to produce a pre-save baseline
-    // — if we wrote to disk first, the baseline would capture the
-    // post-save state and "undo my first save" would be a no-op.
-    // The baseline scan reads current disk state (pre-save); then
-    // recordWrite overlays the incoming delta (the post-save content)
-    // to build the save revision's snapshot.
-    if (source.history) {
-      await recordWrite({
-        history: source.history,
-        contentRoot: source.contentRoot,
-        operation: 'save',
-        items: [{ path: source.contentRoot.relative(manifestPath), content: serializedFinal }],
+    if (result.code === 'STALE') {
+      return c.json({ code: 'STALE' as const, current: result.current, currentEtag: result.currentEtag }, 409, {
+        ETag: `"${result.currentEtag}"`,
       })
     }
-    await storage.writeFile(manifestPath, serializedFinal)
-    // Dep sidecars: diff old vs new manifest for both asset and fragment
-    // references. Each affected target gets its sidecar written/removed
-    // accordingly. The pre-save manifest is already in memory as `page`
-    // (via loadSiteFromSource).
-    const item: ItemRef = locale ? { source: 'page', name, locale } : { source: 'page', name }
-    await Promise.all([
-      rebuildAssetRefs(source.contentRoot, item, page, finalManifest),
-      rebuildFragmentDeps(source.contentRoot, item, page, finalManifest),
-      // archive-aliases sidecar: keeps the per-edge index at
-      // .gazetta/alias-targets/{aliasOf}/{encoded-source-item}
-      // consistent when the manifest's archive fields change via PUT
-      // (the archive route handles its own sidecar; this branch covers
-      // direct manifest edits to `archived` / `aliasOf`).
-      rebuildArchiveAliases(source.contentRoot, item, page, finalManifest),
-    ])
-    await source.cache.invalidatePrefix('pages:')
-    // Echo the new save-etag so the client updates its baseline
-    // without a separate GET. The shape MUST match what the next
-    // GET produces — `route` is derived from the folder, not stored
-    // in the file, but the in-memory entry carries it. Carry it
-    // here so the projection chain works for offline replay
-    // sequences (design-offline.md Q3).
-    const echoShape: Record<string, unknown> = { ...finalManifest }
-    if (page.route !== undefined) echoShape.route = page.route
-    const newEtag = await computeSaveEtag(echoShape)
-    c.header('ETag', `"${newEtag}"`)
-    // Audit: successful save. Records actor + scope + locale (when
-    // locale variant). Strict-mode operators check the result.failed
-    // count; fail-open default ignores. Recorder never throws.
-    await c.var.audit.record({
-      action: 'save',
-      outcome: 'success',
-      scope: { kind: 'page', name },
-      metadata: locale ? { locale } : undefined,
-    })
-    // afterSave hooks per design-hooks.md "Save flow" step 5.
-    // Observational; failures logged but never propagated. Runs
-    // AFTER the audit record so the forensic record is durably
-    // committed before observational hooks fire. Per-hook timeout
-    // applies; one slow hook bounded by its timeout, not the total.
-    if (hooks && hookCtx) {
-      await dispatchAfterSave(hooks, hookScope, { payload: finalManifest, etag: newEtag }, hookCtx)
+    if (result.code === 'VALIDATION_FAILED') {
+      return c.json({ code: 'VALIDATION_FAILED' as const, issues: result.issues }, 409)
     }
-    // Background validation scanner re-validates this item + dependents.
-    // Fire-and-forget — the save response shouldn't block on scanner work;
-    // the scanner emits its own SSE event when the pass completes and the
-    // admin UI store re-fetches `/api/validation/issues` on the event.
-    if (opts.scanner) {
-      const itemRef = { kind: 'page' as const, name, itemPath: manifestPath }
-      void opts.scanner.rescan({ kind: 'manifest', item: itemRef })
-    }
-    return c.json({ ok: true, etag: newEtag })
+    // HOOK_CANCELLED — exhaustive narrow per Q1 lock.
+    return c.json({ code: 'HOOK_CANCELLED' as const, hook: result.hook, reason: result.reason }, 409)
   })
 
   // DELETE = soft-delete by default (Cut 7 cutover per design-soft-delete.md).
