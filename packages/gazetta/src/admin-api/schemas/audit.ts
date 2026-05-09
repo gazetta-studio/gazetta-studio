@@ -19,7 +19,19 @@
  */
 import { z } from 'zod'
 
-export const AuditActionSchema = z.enum(['save', 'publish', 'delete', 'restore', 'configure-roles', 'hook-fired'])
+export const AuditActionSchema = z.enum([
+  'save',
+  'publish',
+  'delete',
+  'restore',
+  'configure-roles',
+  'hook-fired',
+  // Soft-delete extensions per design-soft-delete.md Q8 (M4 lock).
+  'archive',
+  'unarchive',
+  'purge',
+  'rename',
+])
 export type AuditActionWire = z.infer<typeof AuditActionSchema>
 
 export const AuditOutcomeSchema = z.enum([
