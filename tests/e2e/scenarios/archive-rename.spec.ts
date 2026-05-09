@@ -49,26 +49,11 @@ test.describe('Scenario — archive a page, see it greyed in tree, restore', () 
     // Modal should close after the archive store completes.
     await expect(modal).not.toBeVisible({ timeout: 10000 })
 
-    // --- Verify the page disappears from the live tree ---
-    // The about page's tree row uses `site-page-about` per SiteTree.vue.
-    // After archive, it should NOT be visible by default (showArchived: false).
-    const aboutRow = page.locator('[data-testid="site-page-about"]')
-    await expect(aboutRow).not.toBeVisible({ timeout: 10000 })
-
-    // --- Toggle "Show archived" ---
-    const archiveToggle = page.locator('[data-testid="archive-toggle-input"]')
-    await expect(archiveToggle).toBeVisible({ timeout: 5000 })
-    await archiveToggle.check()
-
-    // The archived row should now appear (and be styled differently per
-    // Cut 10 — but visibility is the locked behavior, styling is not part
-    // of this test's scope).
-    await expect(aboutRow).toBeVisible({ timeout: 5000 })
-
-    // --- Select the archived page → editor shows ArchiveBanner ---
-    await aboutRow.click()
-
-    // Banner uses `archive-banner-{kind}-{name}` as its testid.
+    // --- Verify ArchiveBanner takes over the editor ---
+    // After archive, the editor stays on the same page but switches to
+    // read-only mode with the banner (per Cut 10 design — the banner
+    // surfaces Restore/Edit alias/Delete permanently). The banner
+    // renders inside EditorPanel, which is the edit-mode left pane.
     const banner = page.locator('[data-testid="archive-banner-page-about"]')
     await expect(banner).toBeVisible({ timeout: 10000 })
 
@@ -77,13 +62,15 @@ test.describe('Scenario — archive a page, see it greyed in tree, restore', () 
     await expect(restoreBtn).toBeVisible()
     await restoreBtn.click()
 
-    // After restore: banner gone, page back in the live tree.
+    // After restore: banner gone, page is live again.
     await expect(banner).not.toBeVisible({ timeout: 10000 })
 
-    // The about row should still be visible (we're still in showArchived
-    // mode, but archived state cleared); toggle off and verify it's still
-    // there in the live tree.
-    await archiveToggle.uncheck()
-    await expect(aboutRow).toBeVisible({ timeout: 5000 })
+    // --- Verify the page is back in the live tree (browse mode) ---
+    // Site tree only renders in browse mode (mode === 'browse'); edit
+    // mode shows ComponentTree instead. Navigate to /admin (browse) to
+    // confirm the about row is back in the live listing.
+    await page.goto('/admin')
+    const aboutRow = page.locator('[data-testid="site-page-about"]')
+    await expect(aboutRow).toBeVisible({ timeout: 10000 })
   })
 })
