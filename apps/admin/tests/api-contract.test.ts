@@ -220,6 +220,7 @@ describe('GET /api/targets contract', () => {
         type: 'static',
         editable: true,
         altText: { available: false, auto: false },
+        capabilities: { has: [], gaps: [] },
       }
       expect(TargetInfoSchema.safeParse(entry).success).toBe(true)
     })
@@ -246,9 +247,28 @@ describe('GET /api/targets contract', () => {
           type: 'static',
           editable: true,
           altText,
+          capabilities: { has: [], gaps: [] },
         }
         expect(TargetInfoSchema.safeParse(entry).success).toBe(true)
       }
+    })
+
+    it('accepts capabilities with has + gaps populated (Cut 9 capability-gap surface)', () => {
+      const entry: TargetInfo = {
+        name: 'production-static',
+        environment: 'production',
+        type: 'static',
+        editable: false,
+        altText: { available: false, auto: false },
+        capabilities: {
+          has: [],
+          gaps: [
+            { capability: 'redirects', reason: 'plain-static target — no worker' },
+            { capability: 'gone-status', reason: 'no worker available to emit 410 Gone' },
+          ],
+        },
+      }
+      expect(TargetInfoSchema.safeParse(entry).success).toBe(true)
     })
   })
 
