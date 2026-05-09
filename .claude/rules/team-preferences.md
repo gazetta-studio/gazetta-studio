@@ -166,3 +166,36 @@ Validated approaches and things to avoid. Each entry: rule, then why.
    Why: the asset-refs sidecar grilling that locked per-edge files (`design-media-implementation.md`) was driven precisely by the 5K-page measurement (walk-on-demand at 5K = ~30s on cloud, sidecar = ~5ms). Same logic generalizes: every cross-cutting check needs a sidecar OR an explicit declaration that the walk cost is acceptable at envelope.
 
    Example (Cut 5 of soft-delete): purge-blocked check needs "any archive aliasing this name." Walking 5K manifests = bad; per-edge `.gazetta/alias-targets/{target}/{archive}` sidecar = `readDir`-fast. Pattern consistent with existing `asset-refs` and `fragment-deps`.
+
+25. **Grill design docs the same as code — never lock a Q without enumerated rejected alternatives.** "We discussed it" isn't a justification; "we walked the alternatives and rejected each for documented reasons" is. When a design lock has only one option enumerated, that's a smell — re-grill before shipping.
+
+   **How to apply:** before writing a Q's lock paragraph, list at least 2-3 alternatives. For each rejection, name the specific failure mode that disqualifies it. If only one option survives the walk, ask honestly: "did I actually evaluate alternatives or take the path of least resistance?" If the latter, re-grill.
+
+   **Why:** design docs become enforced contracts that shape every downstream cut. Locks that were never grilled compound — Cut N starts implementing, hits the unjustified lock as a constraint, has to either work around it (creating inconsistency) or rip it out (creating churn). Re-grilling at lock time is cheap; rip-out at impl time isn't.
+
+   Example: `design-soft-delete.md` Q10 originally locked HTML-marker-for-static + per-edge-sidecar-for-ESI as a dual mechanism. The second mechanism was speculative — both worked for both target types. Caught during Cut 3 implementation when the user asked "why two mechanisms?" Reframed to one. Cost: one commit updating the doc + impl. Avoidable cost: zero rework if the original Q10 grilling had enumerated "HTML-marker-everywhere" as an alternative.
+
+26. **Default to test-isolation paranoia.** Every new test file: per-test fresh storage / fresh tempdir; module-level constants reviewed; no implicit sharing. Vitest's default serial-within-file mode is a soft guarantee, not a contract.
+
+   **How to apply:** before writing the first test in a new file, write down the answer to:
+   - What state is module-level vs per-test?
+   - Two tests in this file run sequentially today — would they break if vitest ever ran them in parallel?
+   - Two test files importing the same helper — do they share filesystem paths via `Date.now()` collision?
+
+   When in doubt, prefer per-test fresh resources (memory storage, per-test tempdir suffix) over module-level constants. The cost is one extra setup line per test; the benefit is robustness against future vitest config changes.
+
+   **Why:** flaky tests born from shared state are diagnosed late and expensively. The pre-existing pattern in `publish.test.ts` (`tempDir(name + Date.now())` at module scope, `beforeEach` recreate, `afterEach` rm-rf) is safe under serial-within-file but would fail under parallel-within-file. New test files inherit that fragility unless the author thinks about it explicitly.
+
+   Example: Cut 3 archive publish tests — 5 of 7 use fresh `memoryStorage()` per test (clean isolation), 2 use module-level filesystem `tempDir`. Both safe under current vitest mode; the latter would need per-test suffixes to survive future parallelism.
+
+27. **Label assertion provenance.** When stating UX, design, or workflow opinions, prefix with the source: "intuition," "training-data pattern match," "verified against [specific doc]," "verified against [user research]." Without the label, an opinion reads as authoritative when it might be a guess.
+
+   **How to apply:** before writing "I think X should..." or "the right pattern is...":
+   - If asserting from intuition or generic pattern memory, say so: "Intuition (un-verified): the publish dialog should gain a Schedule tab."
+   - If asserting from a specific doc, cite it: "Per `design-soft-delete.md` Q10: ...".
+   - If asserting from user research, name it: "Verified against the May 2026 CMS audit: ..."
+   - If you don't know whether you have data or intuition, **stop and figure that out before asserting**.
+
+   **Why:** unlabeled opinions accumulate as facts. A reader (including future-me) treats a confident statement as researched unless told otherwise; the cost of mistaking intuition for data is downstream rework when the intuition turns out wrong.
+
+   Example: `design-scheduling.md` Q6 (admin UX) — drafted detailed surfaces (publish dialog tab, archive modal option, visibility metadata, schedule chip, dashboard) based on intuition + training-data pattern matching. Asked "are you satisfied with UX research?" Honest answer was no. Re-locked Q6 to commit only structural decisions ("publish dialog gains schedule capability") and explicitly defer detailed UX to a focused research pass. The relabel was the fix.
