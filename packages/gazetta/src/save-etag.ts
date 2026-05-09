@@ -55,8 +55,26 @@
  *   4. Take first 8 bytes (16 hex characters).
  */
 
-/** Manifest fields that participate in the save etag. */
-const SAVE_ETAG_FIELDS = ['template', 'content', 'components', 'metadata', 'route'] as const
+/**
+ * Manifest fields that participate in the save etag.
+ *
+ * Archive fields (per `design-soft-delete.md` Q1) are part of the etag
+ * because archive transitions are saves the concurrency model must
+ * detect: if author A archives page X while author B is editing it,
+ * B's next save must 409-STALE rather than silently overwrite A's
+ * archive. Same logic for `aliasOf` flatten cascades and unarchive.
+ */
+const SAVE_ETAG_FIELDS = [
+  'template',
+  'content',
+  'components',
+  'metadata',
+  'route',
+  'archived',
+  'archivedAt',
+  'archivedBy',
+  'aliasOf',
+] as const
 
 /** Canonical JSON via sorted-key recursion. Same shape as the
  *  publish-hash module's sortedReplacer; duplicated here so this

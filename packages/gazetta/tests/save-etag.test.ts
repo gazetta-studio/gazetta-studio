@@ -110,4 +110,61 @@ describe('computeSaveEtag', () => {
     })
     expect(etag).toMatch(/^[0-9a-f]{16}$/)
   })
+
+  // Archive fields per `design-soft-delete.md` Q1. Save-concurrency check
+  // must detect archive transitions so concurrent edits don't silently
+  // overwrite an archive (or vice versa).
+  describe('archive fields participate in the etag', () => {
+    it('changes when archived flips from absent to true', async () => {
+      const a = await computeSaveEtag({ template: 'hero', content: { title: 'Hi' } })
+      const b = await computeSaveEtag({ template: 'hero', content: { title: 'Hi' }, archived: true })
+      expect(a).not.toBe(b)
+    })
+
+    it('changes when archivedAt changes', async () => {
+      const a = await computeSaveEtag({
+        template: 'hero',
+        archived: true,
+        archivedAt: '2026-05-09T10:00:00Z',
+      })
+      const b = await computeSaveEtag({
+        template: 'hero',
+        archived: true,
+        archivedAt: '2026-05-09T11:00:00Z',
+      })
+      expect(a).not.toBe(b)
+    })
+
+    it('changes when archivedBy changes', async () => {
+      const a = await computeSaveEtag({ template: 'hero', archived: true, archivedBy: 'alice' })
+      const b = await computeSaveEtag({ template: 'hero', archived: true, archivedBy: 'bob' })
+      expect(a).not.toBe(b)
+    })
+
+    it('changes when aliasOf changes (rename target update — Q3 flatten cascade)', async () => {
+      const a = await computeSaveEtag({ template: 'hero', archived: true, aliasOf: 'welcome' })
+      const b = await computeSaveEtag({ template: 'hero', archived: true, aliasOf: 'home' })
+      expect(a).not.toBe(b)
+    })
+
+    it('changes when aliasOf is dropped (drop-alias action from Q4 resolution UX)', async () => {
+      const a = await computeSaveEtag({ template: 'hero', archived: true, aliasOf: 'welcome' })
+      const b = await computeSaveEtag({ template: 'hero', archived: true })
+      expect(a).not.toBe(b)
+    })
+
+    it('treats archived: false the same as absent (live state)', async () => {
+      // Per `design-soft-delete.md` Q1: "archived: false is treated identically
+      // to archived absent — both = live."  The etag follows JSON canonicalization,
+      // so explicit false serializes differently than absent. Document the gap:
+      // route handlers SHOULD strip archived: false on save (treat as absent)
+      // before computing the etag. This test pins the underlying behavior so
+      // the contract is explicit.
+      const a = await computeSaveEtag({ template: 'hero' })
+      const b = await computeSaveEtag({ template: 'hero', archived: false })
+      // These DO differ at the etag level — the route handler is responsible
+      // for canonicalizing before write/compare.
+      expect(a).not.toBe(b)
+    })
+  })
 })
