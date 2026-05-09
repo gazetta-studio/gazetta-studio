@@ -199,3 +199,15 @@ Validated approaches and things to avoid. Each entry: rule, then why.
    **Why:** unlabeled opinions accumulate as facts. A reader (including future-me) treats a confident statement as researched unless told otherwise; the cost of mistaking intuition for data is downstream rework when the intuition turns out wrong.
 
    Example: `design-scheduling.md` Q6 (admin UX) — drafted detailed surfaces (publish dialog tab, archive modal option, visibility metadata, schedule chip, dashboard) based on intuition + training-data pattern matching. Asked "are you satisfied with UX research?" Honest answer was no. Re-locked Q6 to commit only structural decisions ("publish dialog gains schedule capability") and explicitly defer detailed UX to a focused research pass. The relabel was the fix.
+
+28. **Every feature follows the four-phase + retrospective discipline.** Per [`feature-design-process.md`](feature-design-process.md): Discovery → UX-grilling → 5K-envelope gate → Implementation-grilling → Design → Implementation → Retrospective. The grilling step splits in two: UX surface gets its own pass before implementation grilling, with a 5K-envelope gate between them.
+
+   **Why split UX from implementation grilling:** UX choices made inside implementation grilling get compromised by implementation convenience. Same lesson as `design-scheduling.md` Q6 — when UX is implicit inside the design Qs, intuition fills the gap. Separate UX-grilling forces explicit time on the user-facing surface.
+
+   **Why the 5K-envelope gate sits between them:** per rule 24, every primitive must hold at envelope. Catching scale issues in implementation-grilling (before lock) is cheap; catching them mid-cut means rework. The gate is a forcing function: name the cross-cutting checks the UX requires, identify their walk costs, decide whether sidecars are needed — then proceed to implementation Qs.
+
+   **Why the retrospective:** patterns that worked but weren't named die. The session that produced rules 24-27 was retrospective in shape; without locking them durably they would have died with the conversation. Run retrospectives after feature ships, at significant milestones, when sessions end with multiple "we should remember X" observations, or when the user asks "what did we learn?"
+
+   **How to apply mid-feature:** when starting any new feature (or significant feature milestone), open with phase 1 (Discovery), then 2a (UX-grilling — actor scenarios + user flows + Krug-lens removal), then 2b (5K-envelope gate — name primitives + walk costs + sidecar requirements), then 2c (Implementation-grilling). Land the design doc with all three grilling outputs reflected. After implementation completes, run phase 5 (Retrospective) and produce durable artifacts (new rules, doc updates, ADRs).
+
+   Example: this rule itself is the retrospective output of the soft-delete session. The session produced rules 24-27 the same way: caught patterns mid-implementation, locked them durably so future features inherit the awareness.
