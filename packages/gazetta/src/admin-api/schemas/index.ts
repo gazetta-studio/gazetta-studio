@@ -24,6 +24,7 @@
  */
 export * from './pages.js'
 export * from './fragments.js'
+export * from './archive.js'
 export * from './templates.js'
 export * from './fields.js'
 export * from './targets.js'

@@ -34,10 +34,24 @@
  * Closed enum of action verbs Gazetta records. Per `design-audit.md`
  * "Recording scope (v1)": save / publish / delete / restore at the
  * content level + configure-roles for role-mapping changes in
- * site.config.ts. Future hook-firing audit events will extend with
- * 'hook-fired' (per design-hooks.md Cut 7's audit integration).
+ * site.config.ts. `hook-fired` extends per design-hooks.md Cut 7.
+ *
+ * Soft-delete (per design-soft-delete.md Q8) extends with
+ * `archive` / `unarchive` / `purge` / `rename` — each maps to one
+ * user action; `rename` is recorded as a single composite event with
+ * `metadata.fromName` for forensic reconstruction (per Q8 M4 lock).
  */
-export type AuditAction = 'save' | 'publish' | 'delete' | 'restore' | 'configure-roles' | 'hook-fired'
+export type AuditAction =
+  | 'save'
+  | 'publish'
+  | 'delete'
+  | 'restore'
+  | 'configure-roles'
+  | 'hook-fired'
+  | 'archive'
+  | 'unarchive'
+  | 'purge'
+  | 'rename'
 
 /**
  * Closed enum of outcomes. Locked: every recording site supplies
