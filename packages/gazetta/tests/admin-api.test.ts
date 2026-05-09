@@ -946,18 +946,37 @@ describe('PUT /api/pages/:name (update component content)', () => {
 })
 
 describe('DELETE /api/pages/:name', () => {
-  it('deletes a page', async () => {
+  it('archives a page (soft-delete is the default per Cut 7 cutover)', async () => {
     await app.request('/api/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'to-delete', template: 'page-default' }),
+      body: JSON.stringify({ name: 'to-archive', template: 'page-default' }),
     })
 
-    const res = await app.request('/api/pages/to-delete', { method: 'DELETE' })
+    const res = await app.request('/api/pages/to-archive', { method: 'DELETE' })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { ok: boolean; name: string; archivedAt: string }
+    expect(body.ok).toBe(true)
+    expect(typeof body.archivedAt).toBe('string')
+
+    // Manifest still exists with archived: true (DELETE = archive, not hard-delete).
+    const { status, body: page } = await get('/api/pages/to-archive')
+    expect(status).toBe(200)
+    expect((page as { archived?: boolean }).archived).toBe(true)
+  })
+
+  it('purges with ?permanent=true (explicit hard-delete intent)', async () => {
+    await app.request('/api/pages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'to-purge', template: 'page-default' }),
+    })
+
+    const res = await app.request('/api/pages/to-purge?permanent=true', { method: 'DELETE' })
     expect(res.status).toBe(200)
 
-    const { body: pages } = await get('/api/pages')
-    expect(pages.some((p: { name: string }) => p.name === 'to-delete')).toBe(false)
+    const { status } = await get('/api/pages/to-purge')
+    expect(status).toBe(404)
   })
 
   it('returns 404 for missing page', async () => {
@@ -1024,14 +1043,27 @@ describe('PUT /api/fragments/:name component IDs', () => {
 })
 
 describe('DELETE /api/fragments/:name', () => {
-  it('deletes a fragment', async () => {
+  it('archives a fragment (soft-delete is the default per Cut 7 cutover)', async () => {
     await app.request('/api/fragments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'to-delete-frag', template: 'footer-layout' }),
+      body: JSON.stringify({ name: 'to-archive-frag', template: 'footer-layout' }),
     })
 
-    const res = await app.request('/api/fragments/to-delete-frag', { method: 'DELETE' })
+    const res = await app.request('/api/fragments/to-archive-frag', { method: 'DELETE' })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { ok: boolean; archivedAt: string }
+    expect(body.ok).toBe(true)
+    expect(typeof body.archivedAt).toBe('string')
+  })
+
+  it('purges with ?permanent=true', async () => {
+    await app.request('/api/fragments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'to-purge-frag', template: 'footer-layout' }),
+    })
+    const res = await app.request('/api/fragments/to-purge-frag?permanent=true', { method: 'DELETE' })
     expect(res.status).toBe(200)
   })
 

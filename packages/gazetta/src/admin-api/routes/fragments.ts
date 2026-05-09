@@ -7,6 +7,9 @@ import { CreateFragmentRequestSchema, type FragmentSummary } from '../schemas/fr
 import { isValidLocale } from '../../locale.js'
 import { rebuildAssetRefs, type ItemRef } from '../../assets/asset-deps.js'
 import { rebuildFragmentDeps } from '../../fragment-deps.js'
+import { rebuildArchiveAliases } from '../../archive-aliases.js'
+import { FRAGMENT_HANDLE, handleArchive, handlePurge } from './archive.js'
+import { resolveArchivedNameConflict, type ArchivedNameConflictMode } from '../archived-name-conflict.js'
 import { hasBlockingIssues, runSaveDelta } from '../../validation/save-delta.js'
 import type { ValidatorRegistry } from '../../validation/registry.js'
 import type { FragmentManifest } from '../../types.js'
@@ -61,6 +64,9 @@ export function fragmentRoutes(
           name,
           template: frag.template,
           locales: localeEntry ? [...localeEntry.locales.keys()] : undefined,
+          // Archive surfacing per design-soft-delete.md Q7 J1.
+          ...(frag.archived === true ? { archived: true } : {}),
+          ...(frag.aliasOf ? { aliasOf: frag.aliasOf } : {}),
         }
       })
       await source.cache.set(cacheKey, fragments)
@@ -92,8 +98,58 @@ export function fragmentRoutes(
     const fragDir = source.contentRoot.path('fragments', body.name)
     const manifestPath = join(fragDir, 'fragment.json')
 
+    // Per design-soft-delete.md Q5 I3: archived-name-conflict gets
+    // the structured 409 + ?onConflict resolution flow. See pages.ts
+    // for the full rationale; same shape applies here.
     if (await storage.exists(manifestPath)) {
-      return c.json({ error: `Fragment "${body.name}" already exists` }, 409)
+      const onConflict = c.req.query('onConflict')
+      const site = await loadSiteFromSource(source)
+      const existing = site.fragments.get(body.name)
+      const isArchived = existing?.archived === true
+
+      if (!isArchived) {
+        return c.json({ error: `Fragment "${body.name}" already exists` }, 409)
+      }
+
+      if (!onConflict) {
+        return c.json(
+          {
+            code: 'ARCHIVED_NAME_CONFLICT' as const,
+            archive: {
+              kind: 'fragment' as const,
+              name: body.name,
+              ...(existing?.archivedAt ? { archivedAt: existing.archivedAt } : {}),
+              ...(existing?.archivedBy ? { archivedBy: existing.archivedBy } : {}),
+              ...(existing?.aliasOf ? { aliasOf: existing.aliasOf } : {}),
+            },
+          },
+          409,
+        )
+      }
+
+      const principal = c.var.principal
+      const result = await resolveArchivedNameConflict({
+        source,
+        kind: 'fragment',
+        name: body.name,
+        existing: existing as FragmentManifest & { dir: string },
+        mode: onConflict as ArchivedNameConflictMode,
+        newTemplate: body.template,
+        actorId: principal.id,
+      })
+      if (result.kind === 'invalid-mode') {
+        return c.json({ error: `Invalid onConflict mode "${onConflict}"` }, 400)
+      }
+      const action: 'unarchive' | 'archive' | 'rename' =
+        result.kind === 'restored' ? 'unarchive' : result.kind === 'replaced' ? 'archive' : 'rename'
+      await c.var.audit.record({
+        action,
+        outcome: 'success',
+        scope: { kind: 'fragment', name: body.name },
+        metadata: { onConflict },
+      })
+      await Promise.all([source.cache.invalidatePrefix('fragments:'), source.cache.invalidatePrefix('pages:')])
+      return c.json({ ok: true, name: body.name, resolution: result.kind })
     }
 
     await storage.mkdir(fragDir)
@@ -147,6 +203,11 @@ export function fragmentRoutes(
       dir: fragment.dir,
       locale: locale ?? undefined,
       locales: localeEntry ? [...localeEntry.locales.keys()] : undefined,
+      // Archive fields per design-soft-delete.md Q1 A1. See pages.ts.
+      ...(fragment.archived === true ? { archived: true } : {}),
+      ...(fragment.archivedAt ? { archivedAt: fragment.archivedAt } : {}),
+      ...(fragment.archivedBy ? { archivedBy: fragment.archivedBy } : {}),
+      ...(fragment.aliasOf ? { aliasOf: fragment.aliasOf } : {}),
     }
     // afterLoad hooks per design-hooks.md "Save flow with hooks":
     // mutating chain at read time. See pages.ts for rationale.
@@ -299,6 +360,8 @@ export function fragmentRoutes(
     await Promise.all([
       rebuildAssetRefs(source.contentRoot, item, fragment, finalManifest),
       rebuildFragmentDeps(source.contentRoot, item, fragment, finalManifest),
+      // archive-aliases sidecar — same rationale as pages.ts.
+      rebuildArchiveAliases(source.contentRoot, item, fragment, finalManifest),
     ])
     await Promise.all([source.cache.invalidatePrefix('fragments:'), source.cache.invalidatePrefix('pages:')])
     const newEtag = await computeSaveEtag(finalManifest)
@@ -324,46 +387,13 @@ export function fragmentRoutes(
     return c.json({ ok: true, etag: newEtag })
   })
 
+  // DELETE = soft-delete (archive) by default per Cut 7 cutover.
+  // `?permanent=true` invokes purge for explicit hard-delete intent.
+  // See pages.ts for the full rationale; same shape applies here.
   app.delete('/api/fragments/:name', requireCapability('delete:fragments'), async c => {
-    const name = c.req.param('name')
-    const source = await resolve(c.req.query('target'))
-    const { storage } = source
-    const site = await loadSiteFromSource(source)
-    const fragment = site.fragments.get(name)
-    if (!fragment) return c.json({ error: `Fragment "${name}" not found` }, 404)
-
-    const manifestPath = join(fragment.dir, 'fragment.json')
-    if (source.history) {
-      await recordWrite({
-        history: source.history,
-        contentRoot: source.contentRoot,
-        operation: 'save',
-        items: [{ path: source.contentRoot.relative(manifestPath), content: null }],
-      })
-    }
-    await storage.rm(fragment.dir)
-    // Dep sidecars: tear down default + every locale variant for both
-    // asset and fragment dep relations.
-    const localeEntry = site.fragmentLocales.get(name)
-    const variantManifests = localeEntry ? [...localeEntry.locales.entries()] : []
-    const teardowns: Promise<void>[] = [
-      rebuildAssetRefs(source.contentRoot, { source: 'fragment', name }, fragment, null),
-      rebuildFragmentDeps(source.contentRoot, { source: 'fragment', name }, fragment, null),
-    ]
-    for (const [loc, variant] of variantManifests) {
-      teardowns.push(
-        rebuildAssetRefs(source.contentRoot, { source: 'fragment', name, locale: loc }, variant, null),
-        rebuildFragmentDeps(source.contentRoot, { source: 'fragment', name, locale: loc }, variant, null),
-      )
-    }
-    await Promise.all(teardowns)
-    await Promise.all([source.cache.invalidatePrefix('fragments:'), source.cache.invalidatePrefix('pages:')])
-    await c.var.audit.record({
-      action: 'delete',
-      outcome: 'success',
-      scope: { kind: 'fragment', name },
-    })
-    return c.json({ ok: true })
+    const permanent = c.req.query('permanent') === 'true'
+    if (permanent) return handlePurge(c, resolve, FRAGMENT_HANDLE)
+    return handleArchive(c, resolve, FRAGMENT_HANDLE)
   })
 
   return app

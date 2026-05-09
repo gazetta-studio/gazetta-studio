@@ -7,6 +7,9 @@ import { CreatePageRequestSchema, type PageSummary } from '../schemas/pages.js'
 import { isValidLocale } from '../../locale.js'
 import { rebuildAssetRefs, type ItemRef } from '../../assets/asset-deps.js'
 import { rebuildFragmentDeps } from '../../fragment-deps.js'
+import { rebuildArchiveAliases } from '../../archive-aliases.js'
+import { PAGE_HANDLE, handleArchive, handlePurge } from './archive.js'
+import { resolveArchivedNameConflict, type ArchivedNameConflictMode } from '../archived-name-conflict.js'
 import { hasBlockingIssues, runSaveDelta } from '../../validation/save-delta.js'
 import type { ValidatorRegistry } from '../../validation/registry.js'
 import type { PageManifest } from '../../types.js'
@@ -87,6 +90,9 @@ export function pageRoutes(
           route: page.route,
           template: page.template,
           locales: localeEntry ? [...localeEntry.locales.keys()] : undefined,
+          // Archive surfacing per design-soft-delete.md Q7 J1.
+          ...(page.archived === true ? { archived: true } : {}),
+          ...(page.aliasOf ? { aliasOf: page.aliasOf } : {}),
         }
       })
       await source.cache.set(cacheKey, pages)
@@ -121,8 +127,62 @@ export function pageRoutes(
     const pageDir = source.contentRoot.path('pages', body.name)
     const manifestPath = join(pageDir, 'page.json')
 
+    // Per design-soft-delete.md Q5 I3 lock: when the conflict is with
+    // an archived item, surface ARCHIVED_NAME_CONFLICT with archive
+    // details so the client can prompt Restore / Replace / Move-aside.
+    // Live conflicts stay as the existing 409 message.
     if (await storage.exists(manifestPath)) {
-      return c.json({ error: `Page "${body.name}" already exists` }, 409)
+      const onConflict = c.req.query('onConflict')
+      const site = await loadSiteFromSource(source)
+      const existing = site.pages.get(body.name)
+      const isArchived = existing?.archived === true
+
+      if (!isArchived) {
+        return c.json({ error: `Page "${body.name}" already exists` }, 409)
+      }
+
+      // No onConflict flag → return the structured conflict body so
+      // the client can prompt the author.
+      if (!onConflict) {
+        const conflictBody = {
+          code: 'ARCHIVED_NAME_CONFLICT' as const,
+          archive: {
+            kind: 'page' as const,
+            name: body.name,
+            ...(existing?.archivedAt ? { archivedAt: existing.archivedAt } : {}),
+            ...(existing?.archivedBy ? { archivedBy: existing.archivedBy } : {}),
+            ...(existing?.aliasOf ? { aliasOf: existing.aliasOf } : {}),
+          },
+        }
+        return c.json(conflictBody, 409)
+      }
+
+      // ─── Resolve per the author's chosen onConflict mode ──────────
+      const principal = c.var.principal
+      const result = await resolveArchivedNameConflict({
+        source,
+        kind: 'page',
+        name: body.name,
+        existing: existing as PageManifest & { dir: string },
+        mode: onConflict as ArchivedNameConflictMode,
+        newTemplate: body.template,
+        newContent: body.content,
+        actorId: principal.id,
+      })
+      if (result.kind === 'invalid-mode') {
+        return c.json({ error: `Invalid onConflict mode "${onConflict}"` }, 400)
+      }
+      // Audit the resolution outcome — one event per logical mode.
+      const action: 'unarchive' | 'archive' | 'rename' =
+        result.kind === 'restored' ? 'unarchive' : result.kind === 'replaced' ? 'archive' : 'rename'
+      await c.var.audit.record({
+        action,
+        outcome: 'success',
+        scope: { kind: 'page', name: body.name },
+        metadata: { onConflict },
+      })
+      await source.cache.invalidatePrefix('pages:')
+      return c.json({ ok: true, name: body.name, resolution: result.kind })
     }
 
     await storage.mkdir(pageDir)
@@ -199,6 +259,15 @@ export function pageRoutes(
       dir: page.dir,
       locale: locale ?? undefined,
       locales: localeEntry ? [...localeEntry.locales.keys()] : undefined,
+      // Archive fields (per design-soft-delete.md Q1 A1) — included
+      // when present so the admin UI can surface "Archived" banner +
+      // alias-target indicator. Absent fields stay absent (not undefined
+      // in the JSON output) per the locked invariant: `archived: false`
+      // is identical to `archived` absent.
+      ...(page.archived === true ? { archived: true } : {}),
+      ...(page.archivedAt ? { archivedAt: page.archivedAt } : {}),
+      ...(page.archivedBy ? { archivedBy: page.archivedBy } : {}),
+      ...(page.aliasOf ? { aliasOf: page.aliasOf } : {}),
     }
     // afterLoad hooks per design-hooks.md "Save flow with hooks":
     // mutating chain at read time. Hooks may transform the loaded
@@ -394,6 +463,12 @@ export function pageRoutes(
     await Promise.all([
       rebuildAssetRefs(source.contentRoot, item, page, finalManifest),
       rebuildFragmentDeps(source.contentRoot, item, page, finalManifest),
+      // archive-aliases sidecar: keeps the per-edge index at
+      // .gazetta/alias-targets/{aliasOf}/{encoded-source-item}
+      // consistent when the manifest's archive fields change via PUT
+      // (the archive route handles its own sidecar; this branch covers
+      // direct manifest edits to `archived` / `aliasOf`).
+      rebuildArchiveAliases(source.contentRoot, item, page, finalManifest),
     ])
     await source.cache.invalidatePrefix('pages:')
     // Echo the new save-etag so the client updates its baseline
@@ -434,51 +509,17 @@ export function pageRoutes(
     return c.json({ ok: true, etag: newEtag })
   })
 
+  // DELETE = soft-delete by default (Cut 7 cutover per design-soft-delete.md).
+  // `?permanent=true` calls the purge logic from archive.ts for explicit
+  // hard-delete intent; `?force=true` (admin-only) bypasses purge-blocked
+  // checks. The unified path keeps audit shape consistent with the explicit
+  // /archive and /purge routes — DELETE without `?permanent=true` audits
+  // as `action: 'archive'`, DELETE with `?permanent=true` audits as
+  // `action: 'purge'`.
   app.delete('/api/pages/:name{.+}', requireCapability('delete:pages'), async c => {
-    const name = c.req.param('name')
-    const source = await resolve(c.req.query('target'))
-    const { storage } = source
-    const site = await loadSiteFromSource(source)
-    const page = site.pages.get(name)
-    if (!page) return c.json({ error: `Page "${name}" not found` }, 404)
-
-    const manifestPath = join(page.dir, 'page.json')
-    // History first — see PUT handler rationale.
-    if (source.history) {
-      await recordWrite({
-        history: source.history,
-        contentRoot: source.contentRoot,
-        operation: 'save',
-        items: [{ path: source.contentRoot.relative(manifestPath), content: null }],
-      })
-    }
-    await storage.rm(page.dir)
-    // Dep sidecars: deleting the page removes all its refs (both asset
-    // and fragment). Pass pre-delete manifest as `old`, null as `new`.
-    // Per-locale variants share the page directory so they all go in
-    // the rm above; tear down the index entries for default + each
-    // locale variant the site loader exposed.
-    const localeEntry = site.pageLocales.get(name)
-    const variantManifests = localeEntry ? [...localeEntry.locales.entries()] : []
-    const teardowns: Promise<void>[] = [
-      rebuildAssetRefs(source.contentRoot, { source: 'page', name }, page, null),
-      rebuildFragmentDeps(source.contentRoot, { source: 'page', name }, page, null),
-    ]
-    for (const [loc, variant] of variantManifests) {
-      teardowns.push(
-        rebuildAssetRefs(source.contentRoot, { source: 'page', name, locale: loc }, variant, null),
-        rebuildFragmentDeps(source.contentRoot, { source: 'page', name, locale: loc }, variant, null),
-      )
-    }
-    await Promise.all(teardowns)
-    await source.cache.invalidatePrefix('pages:')
-    // Audit: successful delete.
-    await c.var.audit.record({
-      action: 'delete',
-      outcome: 'success',
-      scope: { kind: 'page', name },
-    })
-    return c.json({ ok: true })
+    const permanent = c.req.query('permanent') === 'true'
+    if (permanent) return handlePurge(c, resolve, PAGE_HANDLE)
+    return handleArchive(c, resolve, PAGE_HANDLE)
   })
 
   return app

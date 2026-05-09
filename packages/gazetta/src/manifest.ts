@@ -30,6 +30,20 @@ function parseArchiveFields(raw: Record<string, unknown>): ArchiveFields {
   return out
 }
 
+/**
+ * Forward-compat passthrough for review-workflow's `reviewState`
+ * field (per design-soft-delete.md Cut 14). The review-workflow
+ * foundation will lock the field's shape when it ships; until then,
+ * the parser passes through any string value so archive-time logic
+ * (auto-withdraw on pending-review, restore-to-draft on unarchive)
+ * has the field to read. Spread directly into the parsed object so
+ * it's `reviewState?: string | undefined`.
+ */
+function parseReviewFields(raw: Record<string, unknown>): { reviewState?: string } {
+  if (typeof raw.reviewState === 'string') return { reviewState: raw.reviewState }
+  return {}
+}
+
 function parseComponents(raw: unknown): ComponentEntry[] | undefined {
   if (!Array.isArray(raw)) return undefined
   return raw.map(entry => {
@@ -65,6 +79,7 @@ export async function parsePageManifest(storage: StorageProvider, filePath: stri
     metadata: raw.metadata as import('./types.js').PageMetadata | undefined,
     cache: raw.cache as import('./types.js').CacheConfig | undefined,
     ...parseArchiveFields(raw),
+    ...parseReviewFields(raw),
   }
 }
 
@@ -78,5 +93,6 @@ export async function parseFragmentManifest(storage: StorageProvider, filePath: 
     content: raw.content as Record<string, unknown> | undefined,
     components: parseComponents(raw.components),
     ...parseArchiveFields(raw),
+    ...parseReviewFields(raw),
   }
 }
