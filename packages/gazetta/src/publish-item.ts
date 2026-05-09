@@ -43,7 +43,18 @@
  * VALIDATION_FAILED — are typed `PublishItemResult` variants.
  */
 
-import type { StorageProvider } from './types.js'
+import { isArchived } from './archive-helpers.js'
+import {
+  renderArchiveMarker,
+  renderFragmentRendered,
+  renderPageStatic,
+  renderPageWithEsi,
+  type FragmentRenderContext,
+  type PageRenderContext,
+  type RenderOutput,
+} from './publish-renderers.js'
+import { writeSidecars } from './sidecars.js'
+import type { CacheConfig, StorageProvider } from './types.js'
 import type { Site } from './site-loader.js'
 import type { ContentRoot } from './content-root.js'
 import type { Issue } from './validation/types.js'
@@ -212,15 +223,182 @@ export interface PublishTarget {
   readonly manifestHash?: string
   /** Optional SEO context for fallback-chain rendering. */
   readonly seo?: import('./seo.js').SeoContext
+  /** Optional target-level cache config (browser / edge TTL); page-level overrides win in renderer. */
+  readonly cache?: CacheConfig
+}
+
+/** List existing hashed files at item dir (for cleanup). */
+async function listHashedFiles(storage: StorageProvider, dir: string): Promise<string[]> {
+  try {
+    const entries = await storage.readDir(dir)
+    return entries
+      .filter(e => !e.isDirectory && /\.(css|js)$/.test(e.name) && /\.[a-f0-9]{8}\./.test(e.name))
+      .map(e => `${dir}/${e.name}`)
+  } catch {
+    return []
+  }
+}
+
+/** Delete files from oldFiles[] not in newFiles[]; return removed count. */
+async function cleanupOldFiles(
+  storage: StorageProvider,
+  oldFiles: readonly string[],
+  newFiles: readonly string[],
+): Promise<number> {
+  const newSet = new Set(newFiles)
+  let removed = 0
+  for (const file of oldFiles) {
+    if (!newSet.has(file)) {
+      try {
+        await storage.rm(file)
+        removed++
+      } catch {
+        /* already gone */
+      }
+    }
+  }
+  return removed
 }
 
 /**
- * Publish pipeline orchestrator (per-item) — Cut 1 shell.
- *
- * Cut 3 ports the 13-step spine. Until then this throws so any
- * accidental wiring surfaces immediately rather than silently
- * no-op'ing.
+ * Item dir resolution per render mode. ESI + fragment + archive write
+ * under `pages/{name}/` or `fragments/{name}/`; static-mode pages
+ * write to URL-derived path (`/about` → `about/index.html`). Static
+ * mode is handled by `pages/publish.ts` Cut 4 — core treats all kinds
+ * uniformly under `{kind}s/{name}/`.
  */
-export async function publishItemCore(_input: PublishItemInput): Promise<PublishItemResult> {
-  throw new Error('publishItemCore: not implemented (Cut 1 shell; Cut 3 ports the spine)')
+function itemDir(kind: PublishItemKind, name: string): string {
+  return `${kind === 'page' ? 'pages' : 'fragments'}/${name}`
+}
+
+/**
+ * Publish pipeline orchestrator (per-item) — Cut 3.
+ *
+ * Ports the 13-step spine from `publish-rendered.ts`'s 5 publish-*
+ * functions. Mode dispatch (page-rendered / page-static /
+ * fragment-rendered / archive-marker) consumes pure-fn renderers
+ * from `publish-renderers.ts` (Cut 2). Storage I/O + sidecar writes
+ * + cleanup live here.
+ *
+ * Pipeline sequence (locked per Q5):
+ *
+ *   1. (RESERVED) review-state precheck — Review Cut 5
+ *   2. archive precheck — `mode: 'archive-marker'` → renderArchiveMarker
+ *   3. resolve item from preloadedSite (NOT_FOUND if missing)
+ *   4. (RESERVED) dispatchBeforePublishItem hooks
+ *   5. invoke renderer (mode dispatch)
+ *   6-7. (renderer produces RenderOutput; assembly + hashing internal)
+ *   8. list old hashed files
+ *   9. mkdir + write index file + write hashed files
+ *  10. cleanup oldFiles − newFiles
+ *  11. write content-hash + publish-state sidecars
+ *  12. (RESERVED) dispatchAfterPublishItem hooks
+ *  13. return PublishItemResult
+ */
+export async function publishItemCore(input: PublishItemInput): Promise<PublishItemResult> {
+  const { kind, name, locale, mode, site, target } = input
+
+  // Step 3 — resolve item. Mode dispatch reads from site.pages /
+  // site.fragments to verify existence; renderers do their own lookup
+  // but we surface NOT_FOUND here (via typed result) before render.
+  const map = kind === 'page' ? site.pages : site.fragments
+  const item = map.get(name)
+  if (!item) {
+    return {
+      kind,
+      name,
+      locale,
+      ok: false,
+      code: 'NOT_FOUND',
+      reason: `${kind === 'page' ? 'Page' : 'Fragment'} "${name}" not found in source`,
+    }
+  }
+
+  // Step 5 — invoke renderer per mode. Each renderer is pure;
+  // assembly + hashing happen inside.
+  let output: RenderOutput
+  try {
+    if (mode === 'archive-marker') {
+      // Step 2 — archive precheck materializes here. Renderer reads
+      // aliasOf directly; caller (per-kind wrapper) chose this mode
+      // because isArchived(item) was true.
+      output = renderArchiveMarker(item, locale)
+    } else if (mode === 'page-rendered') {
+      const ctx: PageRenderContext = { site, locale, seo: target.seo, targetCache: target.cache }
+      output = await renderPageWithEsi(name, ctx)
+    } else if (mode === 'page-static') {
+      const ctx: PageRenderContext = { site, locale, seo: target.seo, targetCache: target.cache }
+      output = await renderPageStatic(name, ctx)
+    } else {
+      // fragment-rendered
+      const ctx: FragmentRenderContext = { site, locale }
+      output = await renderFragmentRendered(name, ctx)
+    }
+  } catch (err) {
+    // Renderer threw (template SSR fail, malformed manifest). Surface
+    // as RENDER_FAILED per Q4 fail-soft — orchestrator continues with
+    // next item.
+    const reason = err instanceof Error ? err.message : String(err)
+    return { kind, name, locale, ok: false, code: 'RENDER_FAILED', reason }
+  }
+
+  // Step 8 — list old hashed files at item dir for cleanup pass below.
+  // Static-mode page writes use URL-derived paths handled by per-kind
+  // wrapper (Cut 4); core's cleanup applies to ESI / fragment /
+  // archive layouts under `{kind}s/{name}/`.
+  const dir = itemDir(kind, name)
+  const oldFiles = await listHashedFiles(target.storage, dir)
+  const newFiles: string[] = []
+
+  // Step 9 — mkdir, write index, write hashed files. Per-file atomic
+  // via storage.writeFile; surface storage failures as
+  // STORAGE_WRITE_FAILED per Q4.
+  try {
+    await target.storage.mkdir(dir)
+    await target.storage.writeFile(`${dir}/${output.indexFile}`, output.indexHtml)
+    let fileCount = 1 // index file
+    for (const f of output.files) {
+      await target.storage.writeFile(f.path, f.content)
+      newFiles.push(f.path)
+      fileCount++
+    }
+
+    // Step 10 — cleanup old hashed files not in newFiles.
+    const removed = await cleanupOldFiles(target.storage, oldFiles, newFiles)
+
+    // Step 11 — sidecars (hash + publish-state). Skipped when caller
+    // doesn't pass manifestHash (CLI / tests sometimes omit). Archive
+    // marker forces noindex: true; live pages read it from
+    // metadata.robots; fragments don't carry pub state at all.
+    if (target.manifestHash) {
+      // Pages can declare noindex via metadata.robots; fragments have no
+      // metadata field. Archive marker always forces noindex.
+      const pageMeta = kind === 'page' ? (item as { metadata?: { robots?: string } }).metadata : undefined
+      const noindex = output.archived ? true : !!pageMeta?.robots?.includes('noindex')
+      await writeSidecars(
+        target.storage,
+        dir,
+        {
+          hash: target.manifestHash,
+          // Fragments don't get pub-state sidecars (they're composition
+          // primitives, not addressable URLs). Pages always get one.
+          pub: kind === 'page' ? { lastPublished: new Date().toISOString(), noindex } : null,
+        },
+        locale,
+      )
+    }
+
+    return {
+      kind,
+      name,
+      locale,
+      ok: true,
+      mode,
+      files: fileCount,
+      removed,
+    }
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err)
+    return { kind, name, locale, ok: false, code: 'STORAGE_WRITE_FAILED', reason }
+  }
 }
