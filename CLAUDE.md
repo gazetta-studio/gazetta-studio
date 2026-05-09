@@ -31,6 +31,8 @@ Stateless CMS that structures websites as composable fragments. All state lives 
 - `docs/auth.md` — Authentication + RBAC (trust modes, roles, capability gates)
 - `docs/audit.md` — Audit log (forensic event recording, privacy posture, retention, capability gating)
 - `docs/hooks.md` — Lifecycle hooks (save / publish / upload extension surface; site-local + npm-distributed factory contributions)
+- `docs/soft-delete.md` — Archive / alias / rename / restore / purge for pages and fragments (UX, API, CLI, capability gaps)
+- `docs/runtime-capabilities.md` — Per-target capability matrix (`redirects`, `gone-status`); `_redirects` host-glue for plain-static deployments
 
 ## Design docs (auto-loaded by Claude)
 
