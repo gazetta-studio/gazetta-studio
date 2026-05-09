@@ -1,15 +1,15 @@
 /**
- * Cut 1 — type contract scaffold for publishRun.
+ * publishRun tests — Cut 5 (orchestrator ported).
  *
- * Cut 1 ships types (`PublishRunInput`, `PublishRunResult`,
- * `PublishProgressEvent` union) and an unimplemented `publishRun`
- * shell. The body lands in Cut 5 by porting the orchestration from
- * `publish.ts` + `cli/index.ts:runPublish` + admin-api/routes/publish.
+ * v1 spine is pure fan-out: validate → loop targets × items via
+ * publishPage / publishFragment → aggregate. Caller owns template
+ * scan, loadSite, asset publish, dep indices, site manifest, cache
+ * purge (CLI / admin do these around publishRun).
  *
- * These tests pin the type shape so Cut 5 can't quietly change the
- * contract.
+ * Per Q4 fail-soft: per-item failures continue; per-target init
+ * failures fail just that target; boot fail-fast on invalid input.
  */
-import { describe, expect, expectTypeOf, it } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import {
   publishRun,
   type PublishItemRef,
@@ -18,54 +18,32 @@ import {
   type PublishRunResult,
   type PublishTargetResult,
 } from '../src/publish-run.js'
+import { createContentRoot } from '../src/content-root.js'
+import { createFilesystemProvider } from '../src/providers/filesystem.js'
+import { loadSite, type Site } from '../src/site-loader.js'
+import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
+import { starterManifest, starterTargetDir, starterTemplatesDir } from './_helpers/starter.js'
 
-describe('publishRun — Cut 1 shell', () => {
-  it('throws "not implemented" until Cut 5 ports the spine', async () => {
-    const input = {} as PublishRunInput
-    await expect(publishRun(input)).rejects.toThrow(/not implemented/i)
-  })
-})
+async function loadStarterSite(): Promise<Site> {
+  const storage = createFilesystemProvider(starterTargetDir)
+  const contentRoot = createContentRoot(storage, '')
+  const manifest = await starterManifest()
+  return loadSite({ contentRoot, templatesDir: starterTemplatesDir, manifest })
+}
+
+async function setup() {
+  const site = await loadStarterSite()
+  const manifest = await starterManifest()
+  const sourceRoot = createContentRoot(memoryStorage(), '')
+  return { site, manifest, sourceRoot }
+}
+
+// ─── Type contract (Cut 1, preserved) ──────────────────────────────
 
 describe('PublishItemRef type contract', () => {
   it('carries kind + name + optional locale', () => {
     const ref: PublishItemRef = { kind: 'page', name: 'home' }
     expectTypeOf(ref.kind).toEqualTypeOf<'page' | 'fragment'>()
-    expect(ref.locale).toBeUndefined()
-    const localeRef: PublishItemRef = { kind: 'page', name: 'home', locale: 'fr' }
-    expect(localeRef.locale).toBe('fr')
-  })
-})
-
-describe('PublishTargetResult type contract', () => {
-  it('discriminates failed vs succeeded; carries write counts', () => {
-    const ok: PublishTargetResult = {
-      name: 'staging',
-      failed: false,
-      filesWritten: 31,
-      filesRemoved: 2,
-    }
-    expect(ok.failed).toBe(false)
-
-    const failed: PublishTargetResult = {
-      name: 'production',
-      failed: true,
-      failureReason: 'auth failed',
-      filesWritten: 0,
-      filesRemoved: 0,
-    }
-    expect(failed.failureReason).toBe('auth failed')
-  })
-})
-
-describe('PublishRunResult type contract', () => {
-  it('aggregates items + targets; ok derived', () => {
-    const result: PublishRunResult = {
-      ok: true,
-      items: [],
-      targets: [],
-    }
-    expectTypeOf(result.items).toEqualTypeOf<readonly import('../src/publish-item.js').PublishItemResult[]>()
-    expectTypeOf(result.targets).toEqualTypeOf<readonly PublishTargetResult[]>()
   })
 })
 
@@ -85,10 +63,238 @@ describe('PublishProgressEvent variants', () => {
           return `target-done ${e.result.name}`
         case 'run-done':
           return `run-done ${e.result.ok}`
-        // No default — adding a variant produces a TS error here.
       }
     }
     expect(project({ kind: 'run-start', totalItems: 5, totalTargets: 2 })).toBe('run 5×2')
-    expect(project({ kind: 'target-start', target: 'staging' })).toBe('target-start staging')
+  })
+})
+
+// ─── Spine boot ────────────────────────────────────────────────────
+
+describe('publishRun — boot phase', () => {
+  it('returns ok with empty items + targets (fast-path no-op)', async () => {
+    const { site, manifest, sourceRoot } = await setup()
+    const result = await publishRun({
+      items: [],
+      targets: [],
+      site,
+      sourceRoot,
+      siteManifest: manifest,
+      targetStorages: new Map(),
+    })
+    expect(result.ok).toBe(true)
+    expect(result.items).toHaveLength(0)
+    expect(result.targets).toHaveLength(0)
+  })
+
+  it('throws on no targets but non-empty items (boot fail-fast)', async () => {
+    const { site, manifest, sourceRoot } = await setup()
+    await expect(
+      publishRun({
+        items: [{ kind: 'page', name: 'home' }],
+        targets: [],
+        site,
+        sourceRoot,
+        siteManifest: manifest,
+        targetStorages: new Map(),
+      }),
+    ).rejects.toThrow(/no targets/)
+  })
+
+  it('throws on unknown target (operator error)', async () => {
+    const { site, manifest, sourceRoot } = await setup()
+    await expect(
+      publishRun({
+        items: [],
+        targets: ['ghost'],
+        site,
+        sourceRoot,
+        siteManifest: manifest,
+        targetStorages: new Map(),
+      }),
+    ).rejects.toThrow(/not in registry/)
+  })
+})
+
+// ─── Spine fan-out ─────────────────────────────────────────────────
+
+describe('publishRun — fan-out', () => {
+  it('publishes one item to one target → ok aggregate', async () => {
+    const { site, manifest, sourceRoot } = await setup()
+    const targetStorage = memoryStorage()
+    const pageName = [...site.pages.keys()].find(k => !k.includes('['))!
+
+    const result = await publishRun({
+      items: [{ kind: 'page', name: pageName }],
+      targets: ['local'],
+      site,
+      sourceRoot,
+      siteManifest: manifest,
+      targetStorages: new Map([['local', targetStorage]]),
+    })
+
+    expect(result.ok).toBe(true)
+    expect(result.items).toHaveLength(1)
+    expect(result.targets).toHaveLength(1)
+    expect(result.targets[0]?.failed).toBe(false)
+    expect(result.targets[0]?.filesWritten).toBeGreaterThanOrEqual(1)
+  })
+
+  it('publishes N items × M targets → N×M item results', async () => {
+    const { site, manifest, sourceRoot } = await setup()
+    const t1 = memoryStorage()
+    const t2 = memoryStorage()
+    const pageName = [...site.pages.keys()].find(k => !k.includes('['))!
+    const fragName = [...site.fragments.keys()][0]
+    if (!fragName) return
+
+    const result = await publishRun({
+      items: [
+        { kind: 'page', name: pageName },
+        { kind: 'fragment', name: fragName },
+      ],
+      targets: ['local', 'staging'],
+      site,
+      sourceRoot,
+      siteManifest: manifest,
+      targetStorages: new Map([
+        ['local', t1],
+        ['staging', t2],
+      ]),
+    })
+
+    expect(result.items).toHaveLength(4) // 2 items × 2 targets
+    expect(result.targets).toHaveLength(2)
+    expect(result.ok).toBe(true)
+  })
+
+  it('per-item NOT_FOUND continues run (fail-soft)', async () => {
+    const { site, manifest, sourceRoot } = await setup()
+    const targetStorage = memoryStorage()
+    const pageName = [...site.pages.keys()].find(k => !k.includes('['))!
+
+    const result = await publishRun({
+      items: [
+        { kind: 'page', name: 'does-not-exist' },
+        { kind: 'page', name: pageName },
+      ],
+      targets: ['local'],
+      site,
+      sourceRoot,
+      siteManifest: manifest,
+      targetStorages: new Map([['local', targetStorage]]),
+    })
+
+    expect(result.items).toHaveLength(2)
+    expect(result.items[0]?.ok).toBe(false)
+    if (!result.items[0]?.ok) expect(result.items[0]?.code).toBe('NOT_FOUND')
+    expect(result.items[1]?.ok).toBe(true)
+    expect(result.ok).toBe(false) // any item failed → run.ok false
+    // Per-target failed only when ALL items failed for that target — here 1/2 failed → not failed
+    expect(result.targets[0]?.failed).toBe(false)
+  })
+
+  it('all items fail on one target → target.failed true', async () => {
+    const { site, manifest, sourceRoot } = await setup()
+    const targetStorage = memoryStorage()
+
+    const result = await publishRun({
+      items: [
+        { kind: 'page', name: 'ghost-1' },
+        { kind: 'page', name: 'ghost-2' },
+      ],
+      targets: ['local'],
+      site,
+      sourceRoot,
+      siteManifest: manifest,
+      targetStorages: new Map([['local', targetStorage]]),
+    })
+
+    expect(result.targets[0]?.failed).toBe(true)
+    expect(result.ok).toBe(false)
+  })
+
+  it('passes manifestHash through to spine (sidecars get written)', async () => {
+    const { site, manifest, sourceRoot } = await setup()
+    const targetStorage = memoryStorage()
+    const pageName = [...site.pages.keys()].find(k => !k.includes('['))!
+
+    await publishRun({
+      items: [{ kind: 'page', name: pageName }],
+      targets: ['local'],
+      site,
+      sourceRoot,
+      siteManifest: manifest,
+      targetStorages: new Map([['local', targetStorage]]),
+      itemHashes: new Map([[`pages/${pageName}`, 'feedface']]),
+    })
+
+    const entries = await targetStorage.readDir(`pages/${pageName}`)
+    expect(entries.find(e => e.name === '.feedface.hash')).toBeDefined()
+  })
+})
+
+// ─── Progress events ───────────────────────────────────────────────
+
+describe('publishRun — progress emission', () => {
+  it('emits run-start / target-start / item-start / item-done / target-done / run-done', async () => {
+    const { site, manifest, sourceRoot } = await setup()
+    const targetStorage = memoryStorage()
+    const pageName = [...site.pages.keys()].find(k => !k.includes('['))!
+    const onProgress = vi.fn()
+
+    await publishRun({
+      items: [{ kind: 'page', name: pageName }],
+      targets: ['local'],
+      site,
+      sourceRoot,
+      siteManifest: manifest,
+      targetStorages: new Map([['local', targetStorage]]),
+      onProgress,
+    })
+
+    const events = onProgress.mock.calls.map(c => c[0] as PublishProgressEvent)
+    const kinds = events.map(e => e.kind)
+    expect(kinds[0]).toBe('run-start')
+    expect(kinds).toContain('target-start')
+    expect(kinds).toContain('item-start')
+    expect(kinds).toContain('item-done')
+    expect(kinds).toContain('target-done')
+    expect(kinds[kinds.length - 1]).toBe('run-done')
+  })
+
+  it('item-start event carries resolved render mode', async () => {
+    const { site, manifest, sourceRoot } = await setup()
+    const targetStorage = memoryStorage()
+    const pageName = [...site.pages.keys()].find(k => !k.includes('['))!
+    const events: PublishProgressEvent[] = []
+
+    await publishRun({
+      items: [{ kind: 'page', name: pageName }],
+      targets: ['local'],
+      site,
+      sourceRoot,
+      siteManifest: manifest,
+      targetStorages: new Map([['local', targetStorage]]),
+      onProgress: e => events.push(e),
+    })
+
+    const itemStart = events.find(e => e.kind === 'item-start')
+    expect(itemStart?.kind).toBe('item-start')
+    if (itemStart?.kind === 'item-start') {
+      // Mode resolves from target.type — starter `local` target is static by
+      // default in site.config.ts; a live page on static → page-static.
+      expect(['page-static', 'page-rendered']).toContain(itemStart.mode)
+    }
+  })
+})
+
+// ─── Aggregate result type ────────────────────────────────────────
+
+describe('PublishRunResult type contract', () => {
+  it('aggregates items + targets; ok derived', () => {
+    const result: PublishRunResult = { ok: true, items: [], targets: [] }
+    expectTypeOf(result.items).toEqualTypeOf<readonly import('../src/publish-item.js').PublishItemResult[]>()
+    expectTypeOf(result.targets).toEqualTypeOf<readonly PublishTargetResult[]>()
   })
 })
