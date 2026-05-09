@@ -126,38 +126,88 @@ export const FRAGMENT_HANDLE: ItemHandle = {
   label: 'Fragment',
 }
 
-export function archiveRoutes(resolve: SourceContextResolver) {
+/**
+ * Background-scanner notification options for the archive lifecycle.
+ *
+ * Every archive transition (archive / unarchive / purge / setAlias)
+ * is a manifest write — it must notify the validation scanner so
+ * background-stage validators (P1: `referenced-archived-without-alias`,
+ * P2: `dangling-alias`, P5: `aliasof-points-to-archived`) re-run on
+ * the affected item and clear stale cache entries.
+ *
+ * Same shape as `manifest-save.ts`'s `scanner.rescan(cause)` call;
+ * fire-and-forget — the route response doesn't block on scanner work.
+ * Cross-foundation gap #6 from `testing-plan.md` punch list.
+ */
+export interface ArchiveRoutesOptions {
+  scanner?: import('../../validation/scanner.js').ValidationScanner | null
+}
+
+export function archiveRoutes(resolve: SourceContextResolver, opts: ArchiveRoutesOptions = {}) {
   const app = new Hono<AuditEnv>()
+  const scanner = opts.scanner ?? null
 
   // ─── Pages ────────────────────────────────────────────────────────
-  app.post('/api/pages/:name/archive', requireCapability('delete:pages'), c => handleArchive(c, resolve, PAGE_HANDLE))
-  app.post('/api/pages/:name/unarchive', requireCapability('edit:pages'), c => handleUnarchive(c, resolve, PAGE_HANDLE))
-  app.delete('/api/pages/:name/purge', requireCapability('delete:pages'), c => handlePurge(c, resolve, PAGE_HANDLE))
+  app.post('/api/pages/:name/archive', requireCapability('delete:pages'), c =>
+    handleArchive(c, resolve, PAGE_HANDLE, scanner),
+  )
+  app.post('/api/pages/:name/unarchive', requireCapability('edit:pages'), c =>
+    handleUnarchive(c, resolve, PAGE_HANDLE, scanner),
+  )
+  app.delete('/api/pages/:name/purge', requireCapability('delete:pages'), c =>
+    handlePurge(c, resolve, PAGE_HANDLE, scanner),
+  )
   // Cut 12 — edit an archive's aliasOf (set / drop) from the
   // purge-blocked resolution modal. Capability `edit:` since this is
   // a content-state edit, not destruction (symmetric with unarchive).
-  app.patch('/api/pages/:name/alias', requireCapability('edit:pages'), c => handleSetAlias(c, resolve, PAGE_HANDLE))
+  app.patch('/api/pages/:name/alias', requireCapability('edit:pages'), c =>
+    handleSetAlias(c, resolve, PAGE_HANDLE, scanner),
+  )
 
   // ─── Fragments ────────────────────────────────────────────────────
   app.post('/api/fragments/:name/archive', requireCapability('delete:fragments'), c =>
-    handleArchive(c, resolve, FRAGMENT_HANDLE),
+    handleArchive(c, resolve, FRAGMENT_HANDLE, scanner),
   )
   app.post('/api/fragments/:name/unarchive', requireCapability('edit:fragments'), c =>
-    handleUnarchive(c, resolve, FRAGMENT_HANDLE),
+    handleUnarchive(c, resolve, FRAGMENT_HANDLE, scanner),
   )
   app.delete('/api/fragments/:name/purge', requireCapability('delete:fragments'), c =>
-    handlePurge(c, resolve, FRAGMENT_HANDLE),
+    handlePurge(c, resolve, FRAGMENT_HANDLE, scanner),
   )
   app.patch('/api/fragments/:name/alias', requireCapability('edit:fragments'), c =>
-    handleSetAlias(c, resolve, FRAGMENT_HANDLE),
+    handleSetAlias(c, resolve, FRAGMENT_HANDLE, scanner),
   )
 
   return app
 }
 
+/**
+ * Fire-and-forget: notify the scanner that a manifest write happened
+ * for `handle.scopeKind` named `name`. Mirrors `manifest-save.ts`'s
+ * scanner.rescan() call site shape.
+ */
+function notifyScanner(
+  scanner: import('../../validation/scanner.js').ValidationScanner | null,
+  handle: ItemHandle,
+  name: string,
+): void {
+  if (!scanner) return
+  const root = handle.scopeKind === 'page' ? 'pages' : 'fragments'
+  const itemPath = `${root}/${name}/${handle.filename}`
+  void scanner.rescan({
+    kind: 'manifest',
+    item: { kind: handle.scopeKind, name, itemPath },
+  })
+}
+
 // ─── Archive ───────────────────────────────────────────────────────────
 
-export async function handleArchive(c: Context<AuditEnv>, resolve: SourceContextResolver, handle: ItemHandle) {
+export async function handleArchive(
+  c: Context<AuditEnv>,
+  resolve: SourceContextResolver,
+  handle: ItemHandle,
+  scanner: import('../../validation/scanner.js').ValidationScanner | null = null,
+) {
   const name = c.req.param('name')
   if (!name) return c.json({ error: 'Missing name parameter' }, 400)
   const source = await resolve(c.req.query('target'))
@@ -276,6 +326,10 @@ export async function handleArchive(c: Context<AuditEnv>, resolve: SourceContext
     scope: { kind: handle.scopeKind, name },
     metadata: Object.keys(archiveMetadata).length > 0 ? archiveMetadata : undefined,
   })
+  // Background-stage validators (P1, P5) re-run on the archived item.
+  // Fire-and-forget per `manifest-save.ts` shape; the scanner emits
+  // its own SSE event when the pass completes.
+  notifyScanner(scanner, handle, name)
 
   const response: ArchiveResponse = { ok: true, name, archivedAt, ...(aliasOf ? { aliasOf } : {}) }
   return c.json(response)
@@ -283,7 +337,12 @@ export async function handleArchive(c: Context<AuditEnv>, resolve: SourceContext
 
 // ─── Unarchive ─────────────────────────────────────────────────────────
 
-async function handleUnarchive(c: Context<AuditEnv>, resolve: SourceContextResolver, handle: ItemHandle) {
+async function handleUnarchive(
+  c: Context<AuditEnv>,
+  resolve: SourceContextResolver,
+  handle: ItemHandle,
+  scanner: import('../../validation/scanner.js').ValidationScanner | null = null,
+) {
   const name = c.req.param('name')
   if (!name) return c.json({ error: 'Missing name parameter' }, 400)
   const source = await resolve(c.req.query('target'))
@@ -321,6 +380,9 @@ async function handleUnarchive(c: Context<AuditEnv>, resolve: SourceContextResol
     outcome: 'success',
     scope: { kind: handle.scopeKind, name },
   })
+  // Background-stage validators re-run on the restored item — clears
+  // stale archive-related issues from the scanner cache.
+  notifyScanner(scanner, handle, name)
 
   const response: UnarchiveResponse = { ok: true, name }
   return c.json(response)
@@ -340,7 +402,12 @@ async function handleUnarchive(c: Context<AuditEnv>, resolve: SourceContextResol
  * Audit: emits `archive` action with `metadata.aliasEdited: true` so
  * forensics can distinguish alias-edits from initial archives.
  */
-async function handleSetAlias(c: Context<AuditEnv>, resolve: SourceContextResolver, handle: ItemHandle) {
+async function handleSetAlias(
+  c: Context<AuditEnv>,
+  resolve: SourceContextResolver,
+  handle: ItemHandle,
+  scanner: import('../../validation/scanner.js').ValidationScanner | null = null,
+) {
   const name = c.req.param('name')
   if (!name) return c.json({ error: 'Missing name parameter' }, 400)
   const source = await resolve(c.req.query('target'))
@@ -403,6 +470,9 @@ async function handleSetAlias(c: Context<AuditEnv>, resolve: SourceContextResolv
       ...(aliasOf ? { aliasOf } : { aliasDropped: true }),
     },
   })
+  // Re-validate after alias edit — P5 (`aliasof-points-to-archived`)
+  // and P2 (`dangling-alias`) depend on the manifest's aliasOf field.
+  notifyScanner(scanner, handle, name)
 
   const response: SetAliasResponse = { ok: true, name, ...(aliasOf ? { aliasOf } : {}) }
   return c.json(response)
@@ -410,7 +480,12 @@ async function handleSetAlias(c: Context<AuditEnv>, resolve: SourceContextResolv
 
 // ─── Purge ─────────────────────────────────────────────────────────────
 
-export async function handlePurge(c: Context<AuditEnv>, resolve: SourceContextResolver, handle: ItemHandle) {
+export async function handlePurge(
+  c: Context<AuditEnv>,
+  resolve: SourceContextResolver,
+  handle: ItemHandle,
+  scanner: import('../../validation/scanner.js').ValidationScanner | null = null,
+) {
   const name = c.req.param('name')
   if (!name) return c.json({ error: 'Missing name parameter' }, 400)
   const force = c.req.query('force') === 'true'
@@ -494,6 +569,8 @@ export async function handlePurge(c: Context<AuditEnv>, resolve: SourceContextRe
     scope: { kind: handle.scopeKind, name },
     metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
   })
+  // Item is gone — scanner clears any cached issues for this path.
+  notifyScanner(scanner, handle, name)
 
   const response: PurgeResponse = { ok: true, name }
   return c.json(response)
