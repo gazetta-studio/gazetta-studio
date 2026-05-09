@@ -152,3 +152,17 @@ Validated approaches and things to avoid. Each entry: rule, then why.
    Why: every sub-decision in UX work risks accumulating cognitive load on users. The default question for any UI element should be "can I remove this without losing meaning?" not "what should I add?"
 
    Example: `design-offline.md`'s sync-state visibility went through three iterations — initially 5 explicit states with "Queued" badges and numeric progress; the Krug-aligned final has a cloud-with-slash icon (synced is the absence of indicator), plain-language messages, and an identical save button online/offline. Two-thirds of the original UI surface removed without losing meaning.
+
+24. **Validate every primitive against the 5K-page envelope.** Per [`design-scale.md`](.claude/rules/design-scale.md), Gazetta targets 5,000 pages / 20,000 assets / 50 components-per-page as the operating envelope. Every new primitive (route handler, validator, walk, lookup, sidecar, cache key) must hold there:
+
+   - **Avoid O(N-pages) walks at request time or on hot paths.** When a check would walk the whole content tree (e.g., "find archives whose `aliasOf === X`"), build a per-edge sidecar index and `readDir` it instead — same pattern as `asset-refs` and `fragment-deps` per [`sidecars.md`](.claude/rules/sidecars.md). The sidecar pattern is the established Gazetta way; deviating from it for "cut size" is short-term thinking — retrofitting later means rewriting consumers.
+
+   - **Check the bench cost before assuming "fast enough."** Filesystem walk at 5K pages is ~150ms cold / ~10ms warm. Cloud storage (R2/S3/Azure) walks at 5K pages project to 30–60s on real cloud (per `design-media-implementation.md`'s asset-refs measurement). Anything over the 5-second admin SLA at envelope is structurally wrong, not just slow.
+
+   - **`design-scale.md`'s envelope is the gate, not a future goal.** Implementation cuts that say "we'll add a sidecar later if perf becomes a concern" violate this — the sidecar IS the perf design.
+
+   - **Synthetic-site benchmarks are the gate.** When in doubt, run against `tests/_helpers/synthetic-site.ts`'s 5K-page generator (per `design-scale.md` Cut 1's perf-regression CI work).
+
+   Why: the asset-refs sidecar grilling that locked per-edge files (`design-media-implementation.md`) was driven precisely by the 5K-page measurement (walk-on-demand at 5K = ~30s on cloud, sidecar = ~5ms). Same logic generalizes: every cross-cutting check needs a sidecar OR an explicit declaration that the walk cost is acceptable at envelope.
+
+   Example (Cut 5 of soft-delete): purge-blocked check needs "any archive aliasing this name." Walking 5K manifests = bad; per-edge `.gazetta/alias-targets/{target}/{archive}` sidecar = `readDir`-fast. Pattern consistent with existing `asset-refs` and `fragment-deps`.
