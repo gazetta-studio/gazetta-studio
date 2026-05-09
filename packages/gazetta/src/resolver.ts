@@ -1,10 +1,17 @@
-import type { ResolvedComponent, ComponentEntry, InlineComponent } from './types.js'
+import type {
+  ResolvedComponent,
+  ComponentEntry,
+  InlineComponent,
+  ComponentManifest,
+  FragmentManifest,
+} from './types.js'
 import { loadTemplate } from './template-loader.js'
 import { processContent } from './content.js'
 import { resolveAssetRefs, type AssetResolveContext } from './assets/resolve.js'
 import type { Site } from './site-loader.js'
 import { resolveLocaleFallback, resolveSiteLocales, type ResolvedLocales } from './locale.js'
 import { resolveSiteThemes, type ResolvedThemes } from './themes.js'
+import { resolveFragmentArchiveAlias } from './archive-helpers.js'
 
 /**
  * Build the asset-resolve context from the site being rendered. Shared
@@ -79,15 +86,23 @@ export async function resolveComponent(entry: ComponentEntry, ctx: ResolveContex
   return resolveInlineComponent(entry, ctx)
 }
 
-async function resolveFragmentRef(fragmentName: string, ctx: ResolveContext): Promise<ResolvedComponent> {
-  const key = `@${fragmentName}`
-  if (ctx.visited.has(key)) {
-    throw new Error(`Circular reference detected: ${key}\n` + `  Resolution path: ${ctx.path.join(' → ')} → ${key}`)
-  }
-  ctx.visited.add(key)
-  ctx.path.push(key)
-
-  // Resolve locale-specific fragment variant, falling back through the chain
+/**
+ * Look up a fragment by name with locale fallback. Returns null when the
+ * fragment doesn't exist (in any locale). Doesn't follow aliasOf —
+ * that's the caller's job (via `resolveFragmentArchiveAlias`).
+ *
+ * Locale resolution: a locale-specific variant (`fragment.fr.json`)
+ * wins when available + reachable per the resolved-locales fallback
+ * chain; otherwise the default-locale manifest is used.
+ *
+ * Used by both `resolveFragmentRef` (per-component path) and
+ * `resolveFragment` (entry-point path). Sharing the lookup keeps
+ * locale + alias resolution coherent across both paths.
+ */
+function lookupFragmentForLocale(
+  fragmentName: string,
+  ctx: { site: Site; locale?: string; resolvedLocales?: ResolvedLocales },
+): (FragmentManifest & { dir: string }) | null {
   let fragment = ctx.site.fragments.get(fragmentName) ?? null
   if (ctx.locale && ctx.resolvedLocales) {
     const localeEntry = ctx.site.fragmentLocales.get(fragmentName)
@@ -98,7 +113,32 @@ async function resolveFragmentRef(fragmentName: string, ctx: ResolveContext): Pr
       if (localeVariant) fragment = localeVariant
     }
   }
-  if (!fragment) {
+  return fragment
+}
+
+async function resolveFragmentRef(fragmentName: string, ctx: ResolveContext): Promise<ResolvedComponent> {
+  const key = `@${fragmentName}`
+  if (ctx.visited.has(key)) {
+    throw new Error(`Circular reference detected: ${key}\n` + `  Resolution path: ${ctx.path.join(' → ')} → ${key}`)
+  }
+  ctx.visited.add(key)
+  ctx.path.push(key)
+
+  // Look up the fragment, following aliasOf when archived (Q2 F1 lock).
+  // Throws ArchivedNoAliasError if archived without alias; throws on
+  // alias chains > MAX_ALIAS_HOPS or cycles (defensive — Q3 flatten
+  // guarantees one hop in practice).
+  const lookup = (name: string): ComponentManifest | null => lookupFragmentForLocale(name, ctx)
+  let resolution: ReturnType<typeof resolveFragmentArchiveAlias>
+  try {
+    resolution = resolveFragmentArchiveAlias(fragmentName, lookup, ctx.path.join(' → '))
+  } catch (err) {
+    ctx.path.pop()
+    ctx.visited.delete(key)
+    throw err
+  }
+
+  if (!resolution) {
     const available = [...ctx.site.fragments.keys()]
     ctx.path.pop()
     ctx.visited.delete(key)
@@ -108,6 +148,8 @@ async function resolveFragmentRef(fragmentName: string, ctx: ResolveContext): Pr
         `  Available fragments: ${available.length > 0 ? available.join(', ') : '(none)'}`,
     )
   }
+  // Cast: lookup callback only returns Site fragment entries which carry `dir`.
+  const fragment = resolution.manifest as FragmentManifest & { dir: string }
 
   const loaded = await loadTemplate(ctx.site.storage, ctx.templatesDir, fragment.template)
   const children: ResolvedComponent[] = []
@@ -164,36 +206,31 @@ export async function resolveFragment(
   locale?: string,
   theme?: string,
 ): Promise<ResolvedComponent> {
-  // Resolve locale-specific fragment variant
-  let fragment = site.fragments.get(fragmentName) ?? null
   // Always resolve site-level config — even when no active locale/theme
   // is set, the asset resolver may need it (font enumeration walks the
   // configured theme universe).
   const resolvedLocales = resolveSiteLocales(site.manifest) ?? undefined
   const resolvedThemes = resolveSiteThemes(site.manifest)
-  if (locale && resolvedLocales) {
-    const localeEntry = site.fragmentLocales.get(fragmentName)
-    if (localeEntry) {
-      const available = new Set(localeEntry.locales.keys())
-      const bestLocale = resolveLocaleFallback(locale, available, resolvedLocales)
-      const localeVariant = localeEntry.locales.get(bestLocale)
-      if (localeVariant) fragment = localeVariant
-    }
-  }
-  if (!fragment) {
+
+  // Look up the fragment, following aliasOf when archived (Q2 F1 lock).
+  const lookup = (name: string): ComponentManifest | null =>
+    lookupFragmentForLocale(name, { site, locale, resolvedLocales })
+  const resolution = resolveFragmentArchiveAlias(fragmentName, lookup, `@${fragmentName}`)
+  if (!resolution) {
     const available = [...site.fragments.keys()]
     throw new Error(
       `Fragment "${fragmentName}" not found.\n` +
         `  Available fragments: ${available.length > 0 ? available.join(', ') : '(none)'}`,
     )
   }
+  const fragment = resolution.manifest as FragmentManifest & { dir: string }
 
   const templatesDir = site.templatesDir
   const ctx: ResolveContext = {
     site,
     templatesDir,
     visited: new Set(),
-    path: ['', `@${fragmentName}`],
+    path: ['', `@${resolution.resolvedName}`],
     locale,
     theme,
     resolvedLocales,
