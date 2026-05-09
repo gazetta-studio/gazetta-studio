@@ -7,26 +7,20 @@
  * `alt-route-handler.test.ts`.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import { Hono } from 'hono'
 import sharp from 'sharp'
 import { assetRoutes } from '../src/admin-api/routes/assets.js'
 import { staticSourceResolver, createSourceContext } from '../src/admin-api/source-context.js'
 import { anthropicProvider } from '../src/alt/anthropic.js'
 import { ollamaProvider } from '../src/alt/ollama.js'
-import { createFilesystemProvider } from '../src/providers/filesystem.js'
 import { principalMiddleware } from '../src/admin-api/middleware/principal.js'
 import type { SiteManifest } from '../src/types.js'
-import { tempDir } from './_helpers/temp.js'
-
-const testDir = tempDir('http-suggest-alt-test-' + Date.now())
+import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
 
 const ENV_KEYS = ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'OLLAMA_BASE_URL'] as const
 const savedEnv: Partial<Record<(typeof ENV_KEYS)[number], string | undefined>> = {}
 
 beforeEach(async () => {
-  await mkdir(testDir, { recursive: true })
   for (const key of ENV_KEYS) {
     savedEnv[key] = process.env[key]
     delete process.env[key]
@@ -34,7 +28,6 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  await rm(testDir, { recursive: true, force: true })
   for (const key of ENV_KEYS) {
     if (savedEnv[key] === undefined) {
       delete process.env[key]
@@ -54,7 +47,7 @@ async function jpegBytes(): Promise<Uint8Array> {
 }
 
 function buildApp(siteManifest?: SiteManifest) {
-  const storage = createFilesystemProvider(testDir)
+  const storage = memoryStorage()
   const source = createSourceContext({
     storage,
     siteDir: '',
@@ -70,7 +63,7 @@ function buildApp(siteManifest?: SiteManifest) {
   return { app, storage }
 }
 
-async function seedAsset(storage: ReturnType<typeof createFilesystemProvider>, name = 'hero', hash = 'abc12345') {
+async function seedAsset(storage: MemoryStorage, name = 'hero', hash = 'abc12345') {
   const bytes = await jpegBytes()
   const manifest = {
     version: 1,
