@@ -187,6 +187,14 @@ function printHelp() {
                                     Show full detail (variants, overrides, refs) for one asset
     gazetta assets reindex [target] [site]
                                     Rebuild the asset-refs sidecar index from manifests
+    gazetta archive list [--kind=page|fragment] [target] [site]
+                                    List archived items
+    gazetta archive purge <name> [--kind=...] [--force] [target] [site]
+                                    Permanently delete an archive
+    gazetta archive restore <name> [--kind=...] [target] [site]
+                                    Unarchive an item (back to live)
+    gazetta archive rename <oldname> <newname> [--kind=...] [--no-keep-alias] [target] [site]
+                                    Rename a live item; keeps the redirect by default
     gazetta help                    Show this help message
 
   Options:
@@ -2312,6 +2320,29 @@ async function main() {
       siteDir = await resolveSiteDir(parsed.positional[2])
       targetName = parsed.positional[1] ? await resolveTarget(parsed.positional[1], siteDir) : undefined
     }
+  } else if (command === 'archive') {
+    // gazetta archive <subcommand> [args...]
+    //
+    // Site/target resolution: positional after the subcommand's
+    // required args are interpreted as [target] [site]. The archive
+    // module honors `--kind=` / `--force` / `--no-keep-alias` flags
+    // separately (those don't reach the parsed.positional list per
+    // global parseArgs).
+    //
+    // Subcommand positional shapes:
+    //   archive list                              → []
+    //   archive purge <name>                      → [name]
+    //   archive restore <name>                    → [name]
+    //   archive rename <oldname> <newname>        → [oldname, newname]
+    //
+    // Remaining slots are [target] [site] in that order.
+    const subcmd = parsed.positional[0]
+    const requiredArgs = subcmd === 'rename' ? 2 : subcmd === 'purge' || subcmd === 'restore' ? 1 : 0
+    const trailingStart = 1 + requiredArgs
+    const targetArg = parsed.positional[trailingStart]
+    const siteArg = parsed.positional[trailingStart + 1]
+    siteDir = await resolveSiteDir(siteArg)
+    targetName = targetArg ? await resolveTarget(targetArg, siteDir) : undefined
   } else {
     console.error(`  Unknown command: ${command}\n`)
     printHelp()
@@ -2428,6 +2459,11 @@ async function main() {
     case 'assets': {
       const { runAssetsSubcommand } = await import('./assets-cli.js')
       await runAssetsSubcommand({ args: args.slice(1), siteDir, targetName })
+      break
+    }
+    case 'archive': {
+      const { runArchiveSubcommand } = await import('./archive.js')
+      await runArchiveSubcommand({ args: args.slice(1), siteDir, targetName })
       break
     }
   }
