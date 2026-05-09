@@ -213,4 +213,101 @@ describe('restoreRevision', () => {
     expect(list).toHaveLength(3) // baseline + save + rollback
     expect(list[0].id).toBe(restored.id)
   })
+
+  /**
+   * Cross-foundation gap #2 (per testing-plan.md punch list):
+   * history restore of an archived page must preserve archive marker,
+   * alias, archivedAt, and archivedBy fields. The restorer copies
+   * blob bytes verbatim — these tests pin the contract so a future
+   * refactor that introduces a manifest-field whitelist on restore
+   * can't silently strip archive state.
+   *
+   * Forensic concern: restoring an archived revision MUST produce a
+   * working archive. If `archivedAt` were dropped, the audit-restored
+   * page would render as live but with stale URL semantics; if
+   * `aliasOf` were dropped, the 301 redirect would silently break.
+   */
+  it('preserves archive fields when restoring an archived revision (alias variant)', async () => {
+    const archivedManifest = JSON.stringify({
+      template: 'page-default',
+      content: { title: 'Old landing' },
+      archived: true,
+      archivedAt: '2026-05-09T14:30:00Z',
+      archivedBy: 'alice@example.com',
+      aliasOf: 'welcome',
+    })
+
+    storage.seed({ 'pages/landing/page.json': archivedManifest })
+    const history = createHistoryProvider({ storage })
+    const contentRoot = createContentRoot(storage)
+
+    // Snapshot the archived state.
+    const archivedRev = await recordWrite({
+      history,
+      contentRoot,
+      operation: 'save',
+      items: [{ path: 'pages/landing/page.json', content: archivedManifest }],
+    })
+
+    // Mutate to a different state — record an unarchive (strips the
+    // archive fields). This produces a different snapshot for the
+    // restored path, so restore actually writes the archived bytes
+    // back rather than no-op'ing.
+    const livePromoted = JSON.stringify({
+      template: 'page-default',
+      content: { title: 'Old landing' },
+    })
+    storage.seed({ 'pages/landing/page.json': livePromoted })
+    await recordWrite({
+      history,
+      contentRoot,
+      operation: 'save',
+      items: [{ path: 'pages/landing/page.json', content: livePromoted }],
+    })
+
+    // Restore the archived revision — bytes round-trip verbatim.
+    await restoreRevision({ history, contentRoot, revisionId: archivedRev.id })
+
+    const restored = JSON.parse(await storage.readFile('pages/landing/page.json'))
+    expect(restored.archived).toBe(true)
+    expect(restored.archivedAt).toBe('2026-05-09T14:30:00Z')
+    expect(restored.archivedBy).toBe('alice@example.com')
+    expect(restored.aliasOf).toBe('welcome')
+    // Content + template preserved alongside the archive fields.
+    expect(restored.template).toBe('page-default')
+    expect(restored.content.title).toBe('Old landing')
+  })
+
+  it('preserves archive fields when restoring a pure soft-delete (no aliasOf)', async () => {
+    const archivedManifest = JSON.stringify({
+      template: 'page-default',
+      content: { title: 'Retired promo' },
+      archived: true,
+      archivedAt: '2026-04-01T10:00:00Z',
+      archivedBy: 'bob@example.com',
+    })
+
+    storage.seed({ 'pages/promo/page.json': archivedManifest })
+    const history = createHistoryProvider({ storage })
+    const contentRoot = createContentRoot(storage)
+
+    const archivedRev = await recordWrite({
+      history,
+      contentRoot,
+      operation: 'save',
+      items: [{ path: 'pages/promo/page.json', content: archivedManifest }],
+    })
+
+    // Restore (using head-restore round-trip to exercise the no-op
+    // delete path while still asserting bytes survive).
+    await restoreRevision({ history, contentRoot, revisionId: archivedRev.id })
+
+    const restored = JSON.parse(await storage.readFile('pages/promo/page.json'))
+    expect(restored.archived).toBe(true)
+    expect(restored.archivedAt).toBe('2026-04-01T10:00:00Z')
+    expect(restored.archivedBy).toBe('bob@example.com')
+    // No aliasOf for pure soft-delete — restored manifest must NOT
+    // synthesize one (would change render semantics from 410 to 301).
+    expect(restored.aliasOf).toBeUndefined()
+  })
 })
