@@ -28,13 +28,13 @@ See `design-soft-delete.md` for the design itself.
 
 Branch: `soft-delete-v1` off `main`. **No backwards compatibility** — `DELETE` handlers transition from hard-delete to soft-delete in-place; existing items unaffected (the new `archived` field is optional).
 
-Sequenced data-shape-first (manifest + types + schemas), then engine (loader + renderer + resolver), then admin-API contracts, then UX surfaces. The HTML marker / sidecar publish mechanism lands alongside the engine work because the renderer needs to know how to emit the markers.
+Sequenced data-shape-first (manifest + types + schemas), then engine (loader + renderer + resolver), then admin-API contracts, then UX surfaces. The HTML marker publish mechanism lands alongside the engine work because the renderer needs to know how to emit the markers.
 
 | # | Cut | Status | Risk | Validates |
 |---|---|---|---|---|
 | 1 | Manifest archive fields + Zod schemas + types | ☐ | Low | Type contract; no runtime behavior |
 | 2 | Site-loader archive-aware + renderer alias-aware | ☐ | High | The render-time engine — alias resolution, archive read |
-| 3 | Publish artifacts: HTML marker (static/dynamic) + per-edge sidecar (ESI) | ☐ | High | Runtime archive behavior on each target type |
+| 3 | Publish artifacts: HTML comment marker on `pages/{name}/index.html` for all worker-served target types (static / ESI / dynamic) | ☐ | High | Runtime archive behavior |
 | 4 | `_redirects` host-glue generation for static targets | ☐ | Medium | External-standard exception; per-target opt-in |
 | 5 | Archive/unarchive/purge admin-API routes + audit + cache invalidate | ☐ | Medium | Server contract for soft-delete operations |
 | 6 | Rename admin-API route (composes archive + create with alias + flatten cascade) | ☐ | Medium-high | Atomic composite; flatten correctness |
@@ -98,29 +98,40 @@ Sequenced data-shape-first (manifest + types + schemas), then engine (loader + r
 
 **SOLID:** SRP — `archive-helpers.ts` owns archive predicates; resolver consumes via narrow interface. DIP — site-loader doesn't reach into renderer; renderer reads `Site` shape it already consumes.
 
-### Cut 3: HTML marker + per-edge sidecar publish
+### Cut 3: Archive marker emit on published pages
+
+**Files added:**
+- `packages/gazetta/src/runtime/archive-marker.ts`:
+  - `archiveMarker(marker)` — emit the marker line for an archived page
+  - `parseArchiveMarker(input: Uint8Array | string)` — parse marker from leading bytes; returns `{ kind: 'alias', target } | { kind: 'gone' } | null`
+  - Pure functions; no I/O; round-trip test pins the contract
 
 **Files modified:**
 - `packages/gazetta/src/publish-rendered.ts`:
-  - When publishing an archived page: emit HTML with `<!-- gazetta:archived alias=X -->` (or `<!-- gazetta:archived gone -->`) as the first line, before `<!doctype html>`
-  - Marker grammar locked per design doc Q10
-- `packages/gazetta/src/publish.ts`:
-  - For ESI targets: per-edge sidecar `pages/{name}/.archived-alias-{target}` (zero-byte) OR `.archived-gone`
-  - Sidecar filename encodes everything; no separate manifest file
-- New `packages/gazetta/src/runtime/archive-marker.ts`:
-  - `parseArchiveMarker(headBytes: Uint8Array): { kind: 'alias', target: string } | { kind: 'gone' } | null`
-  - Pure function; reads first 200 bytes of HTML; returns null when no marker
-  - Used by static-target workers AND dynamic-target origins for the marker check
+  - When publishing an archived page (static or ESI mode): emit ONLY the marker line as `pages/{name}/index.html`. No body, no doctype, no CSS/JS — worker short-circuits on the marker; body content for an archived page is dead weight regardless.
+  - Page content hash sidecar (used by compare-targets) still written so cross-target compare works.
+- `packages/gazetta/src/publish-rendered.ts` (publishPageStatic):
+  - Same — emit marker line as the entire HTML file when archived.
 
 **Tests:**
-- Unit: `parseArchiveMarker` round-trips for alias, gone, no-marker, malformed-marker
-- Integration: publish archived page → output HTML has marker as first line
-- Integration: publish archived ESI page → sidecar exists at expected path with expected name; HTML may or may not exist
-- Integration: worker fetches `/landing` (archived w/ alias) → reads sidecar (ESI) OR first 200 bytes (static) → emits 301 to `deriveRoute(target)`
+- Unit: `parseArchiveMarker` round-trips for alias, gone, no-marker, malformed-marker (covered by `tests/archive-marker.test.ts`).
+- Integration: publish archived page → output HTML is exactly the marker line + newline.
+- Integration: publish archived page with `aliasOf` set → marker is `<!-- gazetta:archived alias=X -->`.
+- Integration: publish archived page without `aliasOf` → marker is `<!-- gazetta:archived gone -->`.
+- Integration: publish a non-archived page → output is unchanged (regression check).
 
-**Risk:** high. Worker contract is the production-load-bearing surface. Wrong marker grammar = broken redirects in production.
+**Risk:** high. Worker contract is the production-load-bearing surface. Wrong marker grammar = broken redirects in production. Tests cover round-trip + every branch.
 
-**Open implementation question (locked at cut start):** for ESI, does the worker `readDir(pages/{name})` per request to find the sidecar, OR maintain an in-memory cache populated at boot via one site-wide `readDir`? Per-request `readDir` is correct (multi-instance live), boot-cache is faster. Recommend: per-request with worker-local memo (per-page TTL ~30s) — same shape as page-summary cache.
+**Why one mechanism (HTML marker) for all target types:**
+
+The earlier draft locked HTML markers for static + per-edge sidecars
+(`pages/{name}/.archived-*`) for ESI. That split was speculative — both
+mechanisms work for both target types. ESI's reasoning ("worker needs
+to know whether to compose at all") didn't hold up: ESI workers already
+read `pages/{name}/index.html` as their composition starting point.
+Reading the first 200 bytes is cheaper than `readDir` to find a
+sidecar, and one mechanism = one code path = one round-trip primitive.
+Sidecar mechanism dropped; HTML marker is the universal mechanism.
 
 ### Cut 4: `_redirects` host-glue generation
 
@@ -424,7 +435,7 @@ Sequenced data-shape-first (manifest + types + schemas), then engine (loader + r
 
 ## Open implementation questions
 
-1. **ESI sidecar `readDir` vs cached lookup.** Worker-local memo with ~30s TTL is fine for v1; revisit if a real operator reports cold-start latency at scale. (Locked at Cut 3 implementation time.)
+1. **Worker first-200-bytes cache.** Each request reads the page HTML's leading bytes to check for the marker. Live pages (no marker) read the full file shortly after for content; archived pages short-circuit. Worker-local memo of "is this page archived?" with ~30s TTL avoids the duplicate read for live pages. Revisit if a real operator reports per-request latency at scale.
 2. **Static target without worker — 410 placeholder vs 404.** Operator-config opt-in to emit 200 placeholder page with "Gone" content. Default: omit; rely on host's 404. (Documented in `docs/runtime-capabilities.md`.)
 3. **Flatten cascade audit volume.** Each rewritten alias = one history revision + one audit event with `metadata.flattened: true`. At envelope (~5K archives, ~10 aliases/rename), one rename emits ~10 events. Acceptable; below the 25K events/year threshold.
 4. **Capability-gap principle generalization.** Cut 9's `runtime-capabilities.ts` predicates apply to archive; generalize when next foundational feature needs the four-point UX (presence, RBAC content filtering, dynamic fragments).
@@ -437,7 +448,7 @@ Sequenced data-shape-first (manifest + types + schemas), then engine (loader + r
 |---|---|
 | 1 (Manifest fields) | 0.5 day |
 | 2 (Loader + renderer) | 2.5 days |
-| 3 (HTML marker + sidecar publish) | 2 days |
+| 3 (HTML marker emit) | 1.5 days |
 | 4 (`_redirects` host-glue) | 1 day |
 | 5 (Archive/unarchive/purge routes) | 2 days |
 | 6 (Rename route) | 2 days |
@@ -457,7 +468,7 @@ Sequenced data-shape-first (manifest + types + schemas), then engine (loader + r
 
 - **Cut 1:** SRP — manifest fields, schemas, save-etag in their respective modules.
 - **Cut 2:** SRP — `archive-helpers.ts` owns archive predicates; resolver consumes via narrow interface. DIP — site-loader doesn't reach into renderer.
-- **Cut 3:** SRP — `archive-marker.ts` is a pure function; publish-rendered emits markers; sidecar emit lives in publish.ts. ISP — workers consume `parseArchiveMarker`, never publish-time emit.
+- **Cut 3:** SRP — `archive-marker.ts` is a pair of pure functions (emit + parse); publish-rendered + publish-static call the emit; workers (cli/serve, future cf-workers) call the parse. ISP — workers consume `parseArchiveMarker` only; publish never parses.
 - **Cut 4:** OCP — `redirects-emit.ts` has one function per host format; new formats land additively.
 - **Cut 5:** SRP per route handler. DIP — handlers depend on archive primitives, not implementation details.
 - **Cut 6:** SRP — `rename.ts` orchestrator owns "rename = archive + create + flatten"; doesn't replicate. DIP — depends on archive primitive.

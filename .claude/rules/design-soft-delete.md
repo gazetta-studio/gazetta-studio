@@ -30,7 +30,7 @@ This replaces the prior shape where `DELETE /api/pages/:name` hard-removed the d
 - [`feature-design-process.md`](feature-design-process.md) — defines the foundational-checks process every new feature must respect; soft-delete is foundational
 - [`design-publishing.md`](design-publishing.md) — history-recorder is the existing primitive; archive transitions are saves recorded normally
 - [`design-validation.md`](design-validation.md) — validators surface archive-related issues (dangling alias, archived ref without alias, etc.)
-- [`design-rendering.md`](design-rendering.md) — runtime archive-aware composition; HTML marker for static, sidecar for ESI
+- [`design-rendering.md`](design-rendering.md) — runtime archive-aware composition; HTML comment marker is the universal mechanism (worker reads first 200 bytes of page HTML)
 - [`design-audit.md`](design-audit.md) — `archive`/`unarchive`/`purge`/`rename` are new closed-enum action values
 - [`design-review-workflow.md`](design-review-workflow.md) — archive auto-withdraws pending-review state; restore returns to draft
 - [`design-auth-rbac.md`](design-auth-rbac.md) — capability gates (`delete:pages`, `delete:fragments`); admin-only `?force=true` escape hatch
@@ -64,7 +64,7 @@ Designing now keeps each surface uniform across all three primitives (pages, fra
 - Admin-only `?force=true` escape hatch for purge
 - Tree filter "Show archived" toggle
 - `_redirects` host-glue for static targets on Cloudflare/Netlify
-- HTML marker for static rendering, sidecar for ESI
+- HTML comment marker is the universal mechanism (worker reads first 200 bytes of page HTML)
 - Validators (P1-P5 from grilling): `referenced-archived-without-alias`, `dangling-alias`, `circular-alias`, `archive-not-supported-on-target`, `aliasOf-points-to-archived`
 - CLI surface: `gazetta archive list / purge / restore / rename` (composable; cron-friendly)
 - Capability-gap UX surfaced at four points (boot validate, author-time modal, validator scanner, publish gate)
@@ -346,14 +346,37 @@ Author has to re-submit if review needed. Auto-restoring to `approved` would let
 
 ### Q10 — Publish behavior
 
-**Locked: O2 revised — HTML markers (static/dynamic), per-edge sidecars (ESI), no aggregates, `_redirects` only as host-glue.**
+**Locked: O2 revised — HTML markers everywhere (one mechanism), `_redirects` only as host-glue exception for plain-static.**
+
+The earlier draft of this lock split mechanisms by target type — HTML
+markers for static, per-edge sidecars (`pages/{name}/.archived-alias-X`)
+for ESI. That split was speculative — both mechanisms could work for both
+target types, and ESI's reasoning (worker needs to know whether to compose
+at all) didn't hold up under inspection: ESI workers already read
+`pages/{name}/index.html` as their composition starting point. Reading the
+first 200 bytes of that file is cheaper than `readDir` to find a sidecar.
+
+**Re-locked: HTML comment marker for all worker-served target types.**
+One mechanism, one code path, one round-trip primitive. Sidecar mechanism
+dropped — it would have doubled the surface for no real gain.
 
 | Target type | Archive with `aliasOf` | Archive without `aliasOf` |
 |---|---|---|
 | **`static`** with worker | HTML carries `<!-- gazetta:archived alias=X -->` marker. Worker reads first 200 bytes; emits 301 to `deriveRoute(X)`. | HTML carries `<!-- gazetta:archived gone -->` marker. Worker emits 410. |
 | **`static`** without worker | `_redirects` regenerated at publish from walked archived manifests (host-glue). Plain static can't emit 410; falls to host's natural 404. Operator-config opt-in: emit a 200 "Gone" placeholder page. |
-| **`esi`** | Per-edge sidecar `pages/{name}/.archived-alias-X` (zero-byte filename encodes target). Worker `readDir` per request OR cached at boot. | Per-edge sidecar `pages/{name}/.archived-gone`. Worker emits 410. |
-| **`dynamic`** | Origin emits HTML marker OR returns 301 directly. Same shape as static. | Same — 410. |
+| **`esi`** | Same HTML marker as static — worker reads first 200 bytes of `pages/{name}/index.html` BEFORE composing. Marker present → emit 301 without composing. | Same — marker present → emit 410 without composing. |
+| **`dynamic`** | Origin emits HTML marker OR returns 301 directly. Same marker grammar as static / ESI. | Same — 410. |
+
+**Archived page HTML body content:**
+
+When a page is archived, the publish flow writes ONLY the marker line to
+`pages/{name}/index.html` — no doctype, no body, no CSS/JS/sidecars
+beyond the page content hash sidecar (used by compare-targets).
+
+Justification: the worker short-circuits on the marker; no consumer ever
+parses the file beyond byte 200. Skipping body emission saves a few
+KB per archived page across N targets. Body content for an archived
+page is dead weight regardless.
 
 **HTML marker grammar:**
 
@@ -372,9 +395,9 @@ Storage providers' `readBytes` supports range reads (per `design-media.md`); fir
 
 Strip strong caching: 301/410 responses get `Cache-Control: max-age=300` (5 minutes); operator override available. Lets unarchive propagate quickly without burning origin load.
 
-**No publish-time aggregate manifests** for archive state. Workers read source-of-truth (manifests for static; sidecars for ESI). Per-edge granularity — multi-instance correct, scales naturally.
+**No publish-time aggregate manifests** for archive state. Workers read the page HTML's marker line; that's source-of-truth. Per-edge granularity — multi-instance correct, scales naturally.
 
-**Aggregate exception:** `_redirects` for Cloudflare/Netlify (external standard, host-glue), regenerated each publish from walked manifests. Optional per-target `redirects.format: 'cloudflare' | 'netlify' | 'json' | 'none'` config; default depends on target's runtime hint.
+**Aggregate exception:** `_redirects` for Cloudflare/Netlify (external standard, host-glue), regenerated each publish from walked archived manifests. Optional per-target `redirects.format: 'cloudflare' | 'netlify' | 'json' | 'none'` config; default depends on target's runtime hint.
 
 **Capability-gap UX (locked; foundational principle for all features needing runtime capabilities):**
 
@@ -499,11 +522,10 @@ How soft-delete composes with each of the other 12 foundational dimensions plus 
 - Future archive-specific hooks (`beforeArchive`, `afterRename`) reserved if concrete demand surfaces.
 
 ### Render (#8)
-- Static targets: HTML comment marker drives 301/410.
-- ESI targets: per-edge sidecar drives 301/410.
-- Dynamic targets: origin emits marker OR returns 301/410 directly.
+- All worker-served target types: HTML comment marker as the first line of `pages/{name}/index.html` drives 301/410. Worker reads first 200 bytes; marker present → short-circuit before composing.
+- Plain-static (no worker): `_redirects` host-glue regenerated from walked archived manifests; capability-gap warning surfaces non-supported features.
 - Alias-aware composition: renderer follows `aliasOf` for fragment refs at compose time.
-- No publish-time aggregates (per Q10 lock); manifests + sidecars are source-of-truth.
+- No publish-time aggregates (per Q10 lock); manifests + page HTML markers are source-of-truth.
 
 ### Validation (#9)
 - 5 new validators (P1-P5 from Q11).
@@ -557,7 +579,7 @@ admin: {
 
 **Per-locale archive**: archive only the French variant of a page; default + other locales stay live. Composes with `design-i18n.md`'s locale-variant manifests.
 
-**Manual redirect creation in admin UI**: the mechanism (HTML marker / sidecar) supports redirects-without-archive. UI surface lands when concrete demand surfaces (`design-seo.md`'s deferred Tier 2 punch-list).
+**Manual redirect creation in admin UI**: the HTML-marker mechanism supports redirects-without-archive (operator creates an archive-only manifest with `aliasOf` set, which emits the marker). UI surface lands when concrete demand surfaces (`design-seo.md`'s deferred Tier 2 punch-list).
 
 **Bulk operations in admin UI** (L4 deferred): multi-select in tree, bulk archive/restore/purge with the standard resolution UX.
 

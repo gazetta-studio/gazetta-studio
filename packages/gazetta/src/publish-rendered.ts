@@ -11,6 +11,8 @@ import type { DepRelation } from './dep-sidecars.js'
 import { rebuildItemDeps } from './dep-sidecars.js'
 import { ASSET_REFS } from './assets/asset-deps.js'
 import { FRAGMENT_DEPS } from './fragment-deps.js'
+import { aliasTarget, isArchived } from './archive-helpers.js'
+import { archiveMarker } from './runtime/archive-marker.js'
 
 function contentHash(content: string): string {
   return createHash('md5').update(content).digest('hex').slice(0, 8)
@@ -46,6 +48,57 @@ async function cleanupOldFiles(storage: StorageProvider, oldFiles: string[], new
 }
 
 /**
+ * Soft-delete short-circuit — emit ONLY the archive marker line as the
+ * page HTML, no body, no doctype, no CSS/JS. The worker reads the first
+ * 200 bytes, sees the marker, and emits 301 / 410 without composing.
+ *
+ * Body content for an archived page is dead weight. The page content
+ * hash sidecar is still written so cross-target compare works
+ * (compare picks up that the page changed when archived).
+ *
+ * Hashed CSS/JS files from the previous (live) publish are cleaned up
+ * via the same `cleanupOldFiles` pass the live-page emit uses.
+ */
+async function publishArchiveMarker(
+  page: { aliasOf?: string; metadata?: { robots?: string } },
+  pageName: string,
+  targetStorage: StorageProvider,
+  manifestHash?: string,
+  locale?: string,
+): Promise<{ files: number; removed: number }> {
+  const target = aliasTarget(page)
+  const marker = target ? archiveMarker({ kind: 'alias', target }) : archiveMarker({ kind: 'gone' })
+
+  const pageDir = `pages/${pageName}`
+  const oldFiles = await listHashedFiles(targetStorage, pageDir)
+  const indexFile = locale ? `index.${locale}.html` : 'index.html'
+  await targetStorage.mkdir(pageDir)
+  await targetStorage.writeFile(`${pageDir}/${indexFile}`, marker)
+
+  if (manifestHash) {
+    await writeSidecars(
+      targetStorage,
+      pageDir,
+      {
+        hash: manifestHash,
+        pub: {
+          lastPublished: new Date().toISOString(),
+          // Archived pages always 410 (no alias) or 301 (alias) — both
+          // exclude from sitemap; encode noindex flag for sitemap generator.
+          noindex: true,
+        },
+      },
+      locale,
+    )
+  }
+
+  // Live publish wrote `styles.<hash>.css` and `script.<hash>.js`; archive
+  // emits no CSS/JS. cleanupOldFiles deletes the stale hashed files.
+  const removed = await cleanupOldFiles(targetStorage, oldFiles, [])
+  return { files: 1, removed }
+}
+
+/**
  * Publish a page as HTML with ESI placeholders for fragments.
  * Local components are baked in. Fragment markup is replaced at request time by the worker.
  * CSS is stored as separate hashed files for immutable caching.
@@ -69,6 +122,14 @@ export async function publishPageRendered(
     preloadedSite ?? (await loadSite({ contentRoot: sourceRoot, templatesDir, manifest: { name: '(publish)' } }))
   const page = site.pages.get(pageName)
   if (!page) throw new Error(`Page "${pageName}" not found`)
+
+  // Soft-delete short-circuit (per design-soft-delete.md Q10):
+  // archived pages emit ONLY the marker line as the page HTML. Body
+  // content is dead weight — worker reads the first 200 bytes, sees
+  // the marker, emits 301/410 without composing.
+  if (isArchived(page)) {
+    return publishArchiveMarker(page, pageName, targetStorage, manifestHash, locale)
+  }
 
   // Scope IDs are now deterministic (hash-based), no reset needed
   const resolved = await resolvePage(pageName, site, locale)
@@ -230,6 +291,31 @@ export async function publishPageStatic(
     preloadedSite ?? (await loadSite({ contentRoot: sourceRoot, templatesDir, manifest: { name: '(publish)' } }))
   const page = site.pages.get(pageName)
   if (!page) throw new Error(`Page "${pageName}" not found`)
+
+  // Soft-delete short-circuit — see publishArchiveMarker. For static
+  // targets the URL path comes from the route (page.route → /url/path)
+  // rather than the pages/{name}/ ESI layout; the route maps to a
+  // disk path the host serves directly.
+  if (isArchived(page)) {
+    const target = aliasTarget(page)
+    const marker = target ? archiveMarker({ kind: 'alias', target }) : archiveMarker({ kind: 'gone' })
+    const baseUrlPath = page.route === '/' ? '' : page.route.replace(/^\//, '')
+    const urlPath = locale ? (baseUrlPath ? `${locale}/${baseUrlPath}` : locale) : baseUrlPath
+    const outputPath = urlPath ? `${urlPath}/index.html` : 'index.html'
+    const outputDir = urlPath || '.'
+    await targetStorage.mkdir(outputDir)
+    await targetStorage.writeFile(outputPath, marker)
+    if (manifestHash) {
+      await writeSidecars(targetStorage, `pages/${pageName}`, {
+        hash: manifestHash,
+        pub: {
+          lastPublished: new Date().toISOString(),
+          noindex: true,
+        },
+      })
+    }
+    return { files: 1 }
+  }
 
   // Scope IDs are now deterministic (hash-based), no reset needed
   const resolved = await resolvePage(pageName, site, locale)
