@@ -4,29 +4,17 @@ import { getType, getEnvironment, isEditable, isHistoryEnabled, getHistoryRetent
 import type { StorageProvider, TargetConfig } from '../../types.js'
 import { publishItems, resolveDependencies, findFragmentDependents, findDependentsFromSidecars } from '../../publish.js'
 import type { SourceContextResolver } from '../source-context.js'
-import { mapLimitStream } from '../../concurrency.js'
 import type { PublishResult } from '../../publish.js'
-import {
-  publishPageRendered,
-  publishPageStatic,
-  publishFragmentRendered,
-  publishSiteManifest,
-  publishDepIndices,
-  createCloudflarePurge,
-  lookupCloudflareZoneId,
-} from '../../publish-rendered.js'
+import { createCloudflarePurge, lookupCloudflareZoneId } from '../../publish-rendered.js'
 import { loadSiteFromSource } from '../source-context.js'
-import { publishPageAllLocales, publishFragmentAllLocales } from '../../publish-locale.js'
 import { resolveEnvVars } from '../../targets.js'
 import { isAltAdapterConfigured } from '../../alt/factory.js'
 import { resolveAltConfig } from '../../alt/config.js'
 import { inspectTarget } from '../../runtime/runtime-capabilities.js'
-import { scanTemplates, templateHashesFrom, type TemplateInfo } from '../../templates-scan.js'
-import { hashManifest } from '../../hash.js'
+import { scanTemplates, type TemplateInfo } from '../../templates-scan.js'
 import { createContentRoot } from '../../content-root.js'
 import { createHistoryProvider } from '../../history-provider.js'
 import { recordWrite, type WrittenItem } from '../../history-recorder.js'
-import { publishAssets } from '../../assets/publish.js'
 import { requireCapability } from '../middleware/capability.js'
 import type { AuditEnv } from '../middleware/audit.js'
 import {
@@ -358,7 +346,9 @@ export function publishRoutes(
       }
       return
     }
-    const templateHashes = templateHashesFrom(templateInfos)
+    // Per Cut 7 cutover: per-item hash composition lives inside publishRun
+    // (consumes templateInfos, computes per-item hashManifest including
+    // fragmentHashes for static-mode pages). Route doesn't precompute.
     const site = await loadSiteFromSource(source, { templatesDir: tdir })
 
     yield { kind: 'start', targets: targetNames, itemsPerTarget: allItems.length }
@@ -392,6 +382,12 @@ export function publishRoutes(
       yield { kind: 'target-start', target: targetName, total }
 
       let current = 0
+      // Buffer for publishRun's progress events. The route's outer
+      // generator yields SSE frames; publishRun's onProgress callback
+      // can't yield directly (different generator). Push events into
+      // this queue inside the callback; drain after publishRun resolves.
+      // Order preserved (publishRun runs items sequentially per target).
+      const progressQueue: PublishProgress[] = []
       try {
         let totalFiles = 0
         const targetRoot = createContentRoot(targetStorage)
@@ -428,106 +424,91 @@ export function publishRoutes(
         current++
         yield { kind: 'progress', target: targetName, current, total, label: 'source files' }
 
-        // 1b. Asset publish — copy bytes for every `_asset` ref before
-        // rendering, so static-mode page HTML never bakes in URLs that
-        // resolve to missing bytes on this target. Validation runs first;
-        // a structured failure throws and is caught by the per-target
-        // try/catch (yielding `target-result success: false`).
-        const assetResult = await publishAssets({
-          sourceRoot: source.contentRoot,
-          targetRoot,
-          itemNames: targetItems,
-        })
-        if (!assetResult.ok) {
-          throw new Error(formatAssetPublishFailure(assetResult))
-        }
-        totalFiles += assetResult.copiedFiles
-
-        // 2. Render items in bounded parallel. Progress events are yielded
-        // in completion order — the UI shows X/N + whatever finished last,
-        // which stays meaningful without needing input-order. Preserves the
-        // event contract: one 'progress' per item between 'target-start'
-        // and 'target-result'.
-        // Static-mode page hashes must include fragment hashes (a fragment
-        // change invalidates every page that bakes it in). Matches the
-        // combination used by compareTargets.
-        const fragmentHashes = new Map<string, string>()
-        if (isStatic) {
-          for (const [fragName, frag] of site.fragments) {
-            fragmentHashes.set(fragName, hashManifest(frag, { templateHashes }))
-          }
-        }
-        const pageHashOpts = isStatic ? { templateHashes, fragmentHashes } : { templateHashes }
-
-        // SEO context for this target — built once, shared across all page renders.
-        const { defaultLocaleFor } = await import('../../locale.js')
-        const seo = {
-          siteName: site.manifest.name,
-          siteUrl: config?.siteUrl,
-          locale: defaultLocaleFor(site.manifest),
-          defaultOgImage: site.manifest.defaultOgImage,
-        }
-
-        const renderItem = async (item: string): Promise<{ files: number }> => {
-          if (item.startsWith('pages/')) {
-            const raw = item.replace('pages/', '')
-            // Support locale-qualified items: pages/home:fr → publish only FR
-            const [pageName, itemLocale] = raw.includes(':') ? raw.split(':') : [raw, undefined]
-            const page = site.pages.get(pageName)
-            const manifestHash = page ? hashManifest(page, pageHashOpts) : undefined
-            if (isStatic) {
-              return publishPageStatic(
-                pageName,
-                source.contentRoot,
-                targetStorage,
-                tdir,
-                manifestHash,
-                site,
-                seo,
-                itemLocale,
-              )
+        // Cutover (Cut 7 of publish-pipeline-extraction): asset publish +
+        // per-item render loop + dep indices + site manifest now go through
+        // `publishRun`. The route keeps history record (above), source-copy
+        // (publishItems above), sitemap/robots/redirects/purge (below) and
+        // the SSE progress emit. publishRun's onProgress feeds the SSE
+        // generator one progress event per item-done; admin's UI counts
+        // items toward `total`.
+        //
+        // Item-string layout (`pages/home:fr`) split into ItemRefs. Static
+        // targets emit only page items (fragments are baked); ESI emits
+        // both. Static-mode page hash composition (fragmentHashes) is
+        // handled inside publishRun when templateInfos is supplied.
+        const itemRefs: { kind: 'page' | 'fragment'; name: string; locale?: string }[] = []
+        for (const it of targetItems) {
+          if (it.startsWith('pages/')) {
+            const raw = it.replace('pages/', '')
+            const [name, locale] = raw.includes(':') ? raw.split(':') : [raw, undefined]
+            // Locale-qualified: just the requested variant. Else: default
+            // + every supported locale (subject to target.locales filter).
+            if (locale) {
+              itemRefs.push({ kind: 'page', name, locale })
+            } else {
+              itemRefs.push({ kind: 'page', name })
+              const pageLocales = site.pageLocales.get(name)
+              if (pageLocales) {
+                for (const loc of pageLocales.locales.keys()) {
+                  if (config?.locales && !config.locales.includes(loc)) continue
+                  itemRefs.push({ kind: 'page', name, locale: loc })
+                }
+              }
             }
-            // When a specific locale is requested, only publish that one
-            const onlyLocales = itemLocale ? [itemLocale] : undefined
-            const { files } = await publishPageAllLocales(
-              pageName,
-              source.contentRoot,
-              targetStorage,
-              site,
-              pageHashOpts,
-              { cache: config?.cache, templatesDir: tdir, seo, targetLocales: onlyLocales ?? config?.locales },
-            )
-            return { files }
+          } else if (it.startsWith('fragments/') && !isStatic) {
+            const raw = it.replace('fragments/', '')
+            const [name, locale] = raw.includes(':') ? raw.split(':') : [raw, undefined]
+            if (locale) {
+              itemRefs.push({ kind: 'fragment', name, locale })
+            } else {
+              itemRefs.push({ kind: 'fragment', name })
+              const fragLocales = site.fragmentLocales.get(name)
+              if (fragLocales) {
+                for (const loc of fragLocales.locales.keys()) {
+                  if (config?.locales && !config.locales.includes(loc)) continue
+                  itemRefs.push({ kind: 'fragment', name, locale: loc })
+                }
+              }
+            }
           }
-          if (item.startsWith('fragments/') && !isStatic) {
-            const raw = item.replace('fragments/', '')
-            const [fragName, itemLocale] = raw.includes(':') ? raw.split(':') : [raw, undefined]
-            const onlyLocales = itemLocale ? [itemLocale] : undefined
-            const { files } = await publishFragmentAllLocales(
-              fragName,
-              source.contentRoot,
-              targetStorage,
-              site,
-              { templateHashes },
-              { templatesDir: tdir, targetLocales: onlyLocales ?? config?.locales },
-            )
-            return { files }
-          }
-          return { files: 0 } // skipped (e.g. fragment on static target)
         }
 
-        // Render concurrency is lower than listing concurrency — each render
-        // may do multiple writes, so 10 in flight is the safe default.
-        for await (const { item, result } of mapLimitStream(targetItems, renderItem, 10)) {
-          totalFiles += result.files
-          current++
-          yield { kind: 'progress', target: targetName, current, total, label: item }
-        }
+        const { publishRun } = await import('../../publish-run.js')
+        const runResult = await publishRun({
+          items: itemRefs,
+          targets: [targetName],
+          site,
+          sourceRoot: source.contentRoot,
+          siteManifest: source.manifest ?? { name: '(publish)' },
+          targetStorages: new Map([[targetName, targetStorage]]),
+          templateInfos,
+          onProgress: ev => {
+            if (ev.kind === 'item-done') {
+              const label =
+                (ev.result.kind === 'fragment' ? `@${ev.result.name}` : `pages/${ev.result.name}`) +
+                (ev.result.locale ? `:${ev.result.locale}` : '')
+              current++
+              // SSE consumer reads per-item progress; admin UI updates X/N.
+              // Yield is bridged via the outer generator below.
+              progressQueue.push({ kind: 'progress', target: targetName, current, total, label })
+            }
+          },
+        })
 
-        // 3. Site manifest + dep-sidecar indices
-        await publishSiteManifest(source.contentRoot, targetStorage, site)
-        await publishDepIndices(source.contentRoot, targetStorage, site)
-        totalFiles += 1
+        // publishRun doesn't throw on per-target init failure (assets
+        // missing → target failed); surface as the same error the inline
+        // path used to throw so the per-target try/catch projects to
+        // `target-result success: false`.
+        const tr = runResult.targets.find(t => t.name === targetName)
+        if (tr?.failed) {
+          throw new Error(tr.failureReason ?? 'all items failed')
+        }
+        totalFiles += tr?.filesWritten ?? 0
+
+        // Drain queued progress events from the publishRun callback.
+        for (const ev of progressQueue) yield ev
+        progressQueue.length = 0
+
         current++
         yield { kind: 'progress', target: targetName, current, total, label: 'site manifest' }
 
@@ -1059,14 +1040,4 @@ async function collectPublishedItemsForHistory(
     }
   }
   return out
-}
-
-/**
- * Render an asset-publish failure as a single-line message for the
- * `target-result` error field. Surfaces the structured reason
- * (`missing-on-source`) plus the affected names so the author knows
- * what to fix without digging through logs.
- */
-function formatAssetPublishFailure(failure: Exclude<Awaited<ReturnType<typeof publishAssets>>, { ok: true }>): string {
-  return `Asset publish failed: source is missing ${failure.missing.length} asset(s) — ${failure.missing.join(', ')}`
 }
