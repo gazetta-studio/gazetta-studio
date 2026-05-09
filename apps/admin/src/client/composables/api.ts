@@ -46,7 +46,10 @@ import {
 export interface PagesApi {
   getPages(opts?: { target?: string }): Promise<PageSummary[]>
   getPage(name: string, options?: RequestInit): Promise<PageDetail>
-  createPage(data: { name: string; template: string }): Promise<{ ok: boolean; name: string }>
+  createPage(
+    data: { name: string; template: string },
+    opts?: { onConflict?: 'restore' | 'replace' | 'moveAside' },
+  ): Promise<{ ok: boolean; name: string; resolution?: string }>
   deletePage(name: string): Promise<{ ok: boolean }>
   updatePage(name: string, data: Partial<PageDetail>): Promise<{ ok: boolean }>
 }
@@ -60,7 +63,10 @@ export function usePagesApi(): PagesApi {
 export interface FragmentsApi {
   getFragments(opts?: { target?: string }): Promise<FragmentSummary[]>
   getFragment(name: string, options?: RequestInit): Promise<FragmentDetail>
-  createFragment(data: { name: string; template: string }): Promise<{ ok: boolean; name: string }>
+  createFragment(
+    data: { name: string; template: string },
+    opts?: { onConflict?: 'restore' | 'replace' | 'moveAside' },
+  ): Promise<{ ok: boolean; name: string; resolution?: string }>
   deleteFragment(name: string): Promise<{ ok: boolean }>
   updateFragment(name: string, data: Partial<FragmentDetail>): Promise<{ ok: boolean }>
   getDependents(item: string, options?: RequestInit): Promise<DependentsResponse>

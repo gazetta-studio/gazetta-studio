@@ -15,6 +15,9 @@ import PageMetadataEditor from './PageMetadataEditor.vue'
 import ValidationBanner from './ValidationBanner.vue'
 import ConflictBanner from './ConflictBanner.vue'
 import EditorBreadcrumb from './EditorBreadcrumb.vue'
+import ArchiveBanner from './ArchiveBanner.vue'
+import ArchiveModal from './ArchiveModal.vue'
+import PurgeBlockedModal from './PurgeBlockedModal.vue'
 import { useLocaleStore } from '../stores/locale.js'
 import { manifestPath } from '../stores/editorEtags.js'
 import { useConflictDiscard } from '../composables/useConflictDiscard.js'
@@ -127,6 +130,16 @@ async function handleConflictDiscard() {
       v-if="showConflictBanner && activeManifestPath"
       :itemPath="activeManifestPath"
       @discard="handleConflictDiscard" />
+    <!--
+      Archive banner — visible when the selected item is archived.
+      Hidden otherwise (Krug "absence-as-state"). Lives at the top of
+      the editor panel so it's the first thing the author sees on an
+      archived item; the read-only editor below is the second.
+    -->
+    <ArchiveBanner
+      v-if="selection.selection && (selection.type === 'page' || selection.type === 'fragment')"
+      :kind="selection.type"
+      :name="selection.selection.name" />
     <div v-if="editing.loadError" class="editor-error" data-testid="editor-error">
       <i class="pi pi-exclamation-triangle" />
       <p>{{ editing.loadError }}</p>
@@ -153,6 +166,20 @@ async function handleConflictDiscard() {
       <PageMetadataEditor v-if="selection.type === 'page' && editing.path === '_root'" />
       <p v-else-if="!hasProperties" class="editor-no-schema">No editable content. Edit its children instead.</p>
     </div>
+    <!--
+      ArchiveModal lives at panel scope so it's available from any
+      surface that dispatches archive ops (PageMetadataEditor's
+      Archive button, ArchiveBanner's "Edit alias" action). The store
+      drives visibility — the modal renders its own content based on
+      `dialogVariant`.
+    -->
+    <ArchiveModal />
+    <!--
+      Cut 12 — surfaces 409 DELETE_BLOCKED with per-blocker resolution
+      actions (Drop alias, Restore, Jump to ref). Same store; the
+      `dialogVariant` enum extends with `purge-blocked`.
+    -->
+    <PurgeBlockedModal />
   </div>
 </template>
 
