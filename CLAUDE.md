@@ -15,6 +15,7 @@ Stateless CMS that structures websites as composable fragments. All state lives 
 - `ROADMAP.md` — Strategic forward-looking priorities (Tier 1/2/3 + deferred + non-goals). Updated as priorities shift.
 - `docs/non-goals.md` — Explicit strategic non-fits (memberships, content branching, federation, built-in search, visual-first editing, database integration). Read before proposing one of these.
 - `docs/audits/cms-feature-audit.md` — Snapshot of Gazetta's coverage vs. the modern CMS landscape, with fact-checked competitor citations. Drives ROADMAP and non-goals.
+- `docs/actor-scenarios.md` — Canonical task narratives per actor type (Content Author / Template Developer / Operator / CMS Developer). Yardstick for UX-grilling phase per `feature-design-process.md`.
 - `docs/adr/` — Architecture Decision Records for hard-to-reverse, surprising-without-context decisions.
 
 **Public docs** (user-facing):
