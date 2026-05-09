@@ -32,23 +32,23 @@ Sequenced data-shape-first (manifest + types + schemas), then engine (loader + r
 
 | # | Cut | Status | Risk | Validates |
 |---|---|---|---|---|
-| 1 | Manifest archive fields + Zod schemas + types | ☐ | Low | Type contract; no runtime behavior |
-| 2 | Site-loader archive-aware + renderer alias-aware | ☐ | High | The render-time engine — alias resolution, archive read |
-| 3 | Publish artifacts: HTML comment marker on `pages/{name}/index.html` for all worker-served target types (static / ESI / dynamic) | ☐ | High | Runtime archive behavior |
-| 4 | `_redirects` host-glue generation for static targets | ☐ | Medium | External-standard exception; per-target opt-in |
-| 5 | Archive/unarchive/purge admin-API routes + audit + cache invalidate | ☐ | Medium | Server contract for soft-delete operations |
-| 6 | Rename admin-API route (composes archive + create with alias + flatten cascade) | ☐ | Medium-high | Atomic composite; flatten correctness |
-| 7 | `DELETE /api/{kind}/:name` becomes soft-delete; new `?permanent=true` for purge | ☐ | Low | Existing handlers cut over |
-| 8 | Validators (P1-P5) + save-handler checks (P7/P8) | ☐ | Medium | Validation foundation integration |
-| 9 | Capability-gap surfaces: boot validate + author modal + scanner + publish gate | ☐ | Medium | The four-point principle |
-| 10 | Admin UI: tree filter toggle + archive/rename/restore/purge modals + read-only editor banner | ☐ | High | The visible UX |
-| 11 | Archived-name-conflict prompt UX (Q5 I3) | ☐ | Medium | Restore / Replace / Move-aside flow |
-| 12 | Resolution UX for purge-blocked: re-target / drop alias / cascade purge / restore | ☐ | High | The user-resolves-the-block flow |
-| 13 | CLI: `gazetta archive list / purge / restore / rename` | ☐ | Low | Operator surface; bulk via `--filter` / `--older-than` |
-| 14 | Review-workflow integration (auto-withdraw on archive; restore to draft) | ☐ | Low | Cross-foundation composition; depends on review-workflow shipping |
-| 15 | E2E + docs (`docs/soft-delete.md`, `docs/runtime-capabilities.md`) | ☐ | Low | User-facing |
+| 1 | Manifest archive fields + Zod schemas + types | ✓ | Low | Type contract; no runtime behavior |
+| 2 | Site-loader archive-aware + renderer alias-aware | ✓ | High | The render-time engine — alias resolution, archive read |
+| 3 | Publish artifacts: HTML comment marker on `pages/{name}/index.html` for all worker-served target types (static / ESI / dynamic) | ✓ | High | Runtime archive behavior |
+| 4 | `_redirects` host-glue generation for static targets | ✓ | Medium | External-standard exception; per-target opt-in |
+| 5 | Archive/unarchive/purge admin-API routes + audit + cache invalidate | ✓ | Medium | Server contract for soft-delete operations |
+| 6 | Rename admin-API route (composes archive + create with alias + flatten cascade) | ✓ | Medium-high | Atomic composite; flatten correctness |
+| 7 | `DELETE /api/{kind}/:name` becomes soft-delete; new `?permanent=true` for purge | ✓ | Low | Existing handlers cut over |
+| 8 | Validators (P1-P5) + save-handler checks (P7/P8) | ✓ | Medium | Validation foundation integration |
+| 9 | Capability-gap surfaces: boot validate + author modal + scanner + publish gate | ✓ | Medium | The four-point principle |
+| 10 | Admin UI: tree filter toggle + archive/rename/restore/purge modals + read-only editor banner | ✓ | High | The visible UX |
+| 11 | Archived-name-conflict prompt UX (Q5 I3) | ✓ | Medium | Restore / Replace / Move-aside flow |
+| 12 | Resolution UX for purge-blocked: re-target / drop alias / cascade purge / restore | ✓ | High | The user-resolves-the-block flow |
+| 13 | CLI: `gazetta archive list / purge / restore / rename` | ✓ | Low | Operator surface; bulk via `--filter` / `--older-than` |
+| 14 | Review-workflow integration (auto-withdraw on archive; restore to draft) | ✓ | Low | Cross-foundation composition; depends on review-workflow shipping |
+| 15 | E2E + docs (`docs/soft-delete.md`, `docs/runtime-capabilities.md`) | ✓ | Low | User-facing |
 
-**Total: ~25 days** wall-clock for solo dev. Budget ~5 weeks with iteration on cuts 2, 3, 6, 10, 12 (the high-risk surfaces).
+**Shipped 2026-05** on the `soft-delete-v1` branch. Per the lifecycle convention in `feature-design-process.md` ("Lifecycle of an implementation doc"), this status table is candidate for prune-at-merge — the durable design lives in `design-soft-delete.md`, the per-cut detail is recoverable from git log.
 
 ## Per-cut scope
 

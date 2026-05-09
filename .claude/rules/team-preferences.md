@@ -211,3 +211,26 @@ Validated approaches and things to avoid. Each entry: rule, then why.
    **How to apply mid-feature:** when starting any new feature (or significant feature milestone), open with phase 1 (Discovery), then 2a (UX-grilling — actor scenarios + user flows + Krug-lens removal), then 2b (5K-envelope gate — name primitives + walk costs + sidecar requirements), then 2c (Implementation-grilling). Land the design doc with all three grilling outputs reflected. After implementation completes, run phase 5 (Retrospective) and produce durable artifacts (new rules, doc updates, ADRs).
 
    Example: this rule itself is the retrospective output of the soft-delete session. The session produced rules 24-27 the same way: caught patterns mid-implementation, locked them durably so future features inherit the awareness.
+
+29. **`data-testid` is part of every UI cut's definition of done.** Modals, banners, pickers, and any new interactive component land with `data-testid` attributes during the UI cut that creates them — not deferred to the e2e cut that needs them. Extends rule 3 ("Use data-testid attributes for Playwright selectors").
+
+   **Why:** every modal/dialog without testids creates an opportunity for the next person to add one inconsistently. The e2e cut (typically the final cut of a sequence) becomes a junkyard of "Boy Scout" testid additions across components from many earlier cuts; each addition risks naming-convention drift, and review burden goes up because the e2e PR touches files outside its conceptual scope.
+
+   **How to apply:** before marking a UI cut complete, grep the new component(s) for `data-testid=` and confirm every interactive element (modal root, primary action button, secondary action button, every input field used by tests) has one. Naming convention: `{feature}-{action}` for buttons (`archive-confirm`, `purge-cancel`); `{feature}-modal` for modal roots; `{feature}-{field}-input` for inputs.
+
+   Example: soft-delete Cut 10 shipped ArchiveModal with no testids; Cut 15's e2e couldn't be written without adding 4 testids as Boy Scout fixes. Better path: Cut 10 lands with testids alongside the modal markup, Cut 15's e2e is pure scenario-writing.
+
+30. **Forward-compat changes touch every projection layer.** When adding a field for a future foundation (e.g., a future-version `reviewState` ahead of review-workflow shipping), trace the field's path through every layer it traverses: storage → parser → typed manifest → route handler → response → audit / cache / sidecar. Skipping any layer means the field is invisible at runtime even though the unit-level contract works.
+
+   **Why:** layered projections (whitelist parsers, type narrowing, audit-event shapes, cache-key encoders) each commit to "fields I know about." A new field invisible to one of them is silently dropped at that layer; downstream consumers see `undefined` and the gate that should activate stays inert. Unit tests of the helper pass; integration tests fail.
+
+   **How to apply:** when introducing a field for forward-compat (no current consumer), enumerate the layers explicitly:
+   - Manifest parser (`parseXManifest` whitelist) — does the field round-trip through the whitelist?
+   - Save handler — does the field survive the save → re-load cycle?
+   - Audit shape — does the field appear in audit metadata if relevant?
+   - Cache key — does the field affect cache invalidation?
+   - Sidecar shape — does the field affect any per-edge sidecar?
+
+   Land a route-level integration test that exercises the full save → read chain; unit-level helper tests aren't sufficient.
+
+   Example: soft-delete Cut 14's `reviewState` field — the helper functions (`buildAutoWithdrawEvent`, `archiveReviewMetadata`) had passing unit tests, but the route-level integration tests failed because `parsePageManifest` whitelisted fields and dropped `reviewState`. Required adding `parseReviewFields` passthrough alongside `parseArchiveFields`. The integration test caught the gap; without it, the forward-compat code would have been silently dead until review-workflow shipped.

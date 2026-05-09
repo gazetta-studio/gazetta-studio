@@ -54,6 +54,11 @@ export default defineSite({
   //   ],
   // },
 
+  // Plain-static targets (no worker, no `redirects.format`) can't emit
+  // 301/410 for archived pages — visitors hit the host's natural 404
+  // instead. To close the gap on Cloudflare Pages or Netlify, add
+  // `redirects: { format: 'cloudflare' | 'netlify' }` to the target.
+  // See docs/runtime-capabilities.md for the per-target matrix.
   targets: {
     local: {
       // Relative paths are anchored to this config file's directory
