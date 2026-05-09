@@ -188,6 +188,8 @@ Validated approaches and things to avoid. Each entry: rule, then why.
 
    Example: Cut 3 archive publish tests — 5 of 7 use fresh `memoryStorage()` per test (clean isolation), 2 use module-level filesystem `tempDir`. Both safe under current vitest mode; the latter would need per-test suffixes to survive future parallelism.
 
+   **Operational rule:** the storage-tier choice (memory by default, fs only for binary I/O / hash-in-path / watcher / starter smoke) lives in [`testing-plan.md`'s "Storage tier" section](testing-plan.md). This rule is the principle; that section is the rule.
+
 27. **Label assertion provenance.** When stating UX, design, or workflow opinions, prefix with the source: "intuition," "training-data pattern match," "verified against [specific doc]," "verified against [user research]." Without the label, an opinion reads as authoritative when it might be a guess.
 
    **How to apply:** before writing "I think X should..." or "the right pattern is...":
@@ -234,3 +236,24 @@ Validated approaches and things to avoid. Each entry: rule, then why.
    Land a route-level integration test that exercises the full save → read chain; unit-level helper tests aren't sufficient.
 
    Example: soft-delete Cut 14's `reviewState` field — the helper functions (`buildAutoWithdrawEvent`, `archiveReviewMetadata`) had passing unit tests, but the route-level integration tests failed because `parsePageManifest` whitelisted fields and dropped `reviewState`. Required adding `parseReviewFields` passthrough alongside `parseArchiveFields`. The integration test caught the gap; without it, the forward-compat code would have been silently dead until review-workflow shipped.
+
+31. **TDD-first ordering when delegating to AI agents.** When asking Claude (or any agent) to add or fix behavior in a non-trivial module, write the test first in its own commit, confirm it fails, then ask the agent to implement. Tell the agent explicitly "do not modify the failing tests" — agents will otherwise weaken assertions to make red turn green.
+
+   **Why:** the dominant failure mode of AI-generated tests is **tautological assertions** — the agent writes implementation first, observes the output, then writes tests that assert on the observed output. The test passes; it proves nothing. ThoughtWorks Tech Radar (Vol 34, "AI-aided test-first development") and Anthropic's own engineering posture converge on TDD ordering as the single highest-leverage correctness pattern with AI. Industry-cited mutation scores on LLM-generated tests written-after-implementation hover around 20% — meaning ~80% of injected faults survive the test suite.
+
+   **How to apply:**
+   - For pure-logic changes (renderer, sidecars, manifest parser, hash, validators, hook dispatch): write the failing test in commit N, the implementation in commit N+1. Commit message on N: `failing test: <behavior>`. Both commits land in the same PR.
+   - For UI-only changes (CSS, layout, copy): TDD ordering doesn't apply; ship the change with a Vue Test Utils or Playwright test alongside per [team-preferences rule 4](team-preferences.md).
+   - **Default test tier matches the sub-system's shape** (per [`testing-plan.md`](testing-plan.md) "Shape per sub-system"): pyramid sub-systems (core: renderer, hash, sidecars, parsers) → unit-first; trophy / honeycomb sub-systems (admin-API surface, validators, hooks, audit, auth) → API-first via `app.request()` against `createAdminApp()` or a route-mounted Hono. Deviate only when the SUT is genuinely cross-tier (e.g. behavior that spans a CLI command, a route, AND an internal helper — pick the highest tier that exercises all three). API-first is the highest-leverage default with AI agents because route + audit + sidecar assertions are hardest to fake-pass.
+   - When the agent says "tests pass," verify yourself per [Simon Willison's reviewer-time-as-burden discipline](https://simonwillison.net/2025/Dec/18/code-proven-to-work/) — run the suite locally, confirm the relevant test fails when the implementation commit is reverted.
+   - If the agent edits the failing tests during implementation, that's a structural correction (not a patch): revert, re-prompt with "the tests you committed in <sha> are the spec; do not modify them."
+
+   **Skip when:**
+   - Trivial one-liners (typo, comment fix, dependency bump) — TDD ordering is overhead.
+   - Investigative work where the spec emerges from exploration. In that case, capture the discovered spec in tests at the end and treat the impl commit as throwaway.
+
+   **Pairs with:**
+   - [`tdd` skill](~/.claude/skills/tdd/) — the existing red-green-refactor harness; this rule makes its use the default rather than opt-in.
+   - Mutation testing nightly (StrykerJS, already shipped per [`testing-plan.md`](testing-plan.md)) catches the residual tautological tests that slip through TDD ordering.
+
+   Example: validation Cut 1's save-delta orchestrator — failing test landed first (`save returns 409 with the introduced ref's issue, not pre-existing issues`), then the diff implementation. Reverting the implementation re-fails the test; the TDD ordering proved the diff logic was load-bearing, not vestigial. Without the ordering, the agent would have written `expect(response.status).toBeOneOf([200, 409])` — passing whether or not the diff worked.
