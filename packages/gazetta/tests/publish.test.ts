@@ -471,6 +471,254 @@ describe('publishPageStatic', () => {
   })
 })
 
+// Soft-delete Cut 3: archived pages emit only the marker line as the
+// published HTML — no body, no doctype, no CSS/JS. Worker reads the
+// first 200 bytes and short-circuits with 301 / 410.
+//
+// Tests use memoryStorage where possible (the archived short-circuit
+// returns BEFORE template loading; no jiti / filesystem needed). The
+// cleanup test exercises the live-publish path first, which needs a
+// real templatesDir on disk for jiti import.
+describe('archived-page publish (Cut 3)', () => {
+  it('publishPageRendered (ESI) emits ONLY the alias marker for archived pages with aliasOf', async () => {
+    const { memoryStorage } = await import('./_helpers/memory-storage.js')
+    const { loadSite } = await import('../src/site-loader.js')
+    const source = memoryStorage()
+    const target = memoryStorage()
+    source.seed({
+      'pages/landing/page.json': JSON.stringify({
+        template: 'echo',
+        archived: true,
+        archivedAt: '2026-05-09T10:00:00Z',
+        archivedBy: 'alice@example.com',
+        aliasOf: 'welcome',
+      }),
+      'pages/welcome/page.json': JSON.stringify({ template: 'echo' }),
+    })
+    const site = await loadSite({
+      contentRoot: createContentRoot(source),
+      templatesDir: '/__not-loaded__', // archived short-circuit returns before template loading
+      manifest: { name: '(archive-test)' },
+    })
+
+    const result = await publishPageRendered(
+      'landing',
+      createContentRoot(source),
+      target,
+      undefined,
+      undefined,
+      undefined,
+      site,
+    )
+
+    expect(result.files).toBe(1)
+    const html = await target.readFile('pages/landing/index.html')
+    expect(html).toBe('<!-- gazetta:archived alias=welcome -->\n')
+    expect(html).not.toContain('<!DOCTYPE')
+    expect(html).not.toContain('<!--esi:')
+    const entries = await target.readDir('pages/landing')
+    const cssOrJs = entries.filter(e => e.name.endsWith('.css') || e.name.endsWith('.js'))
+    expect(cssOrJs.length).toBe(0)
+  })
+
+  it('publishPageRendered emits the gone marker for pure soft-delete (no aliasOf)', async () => {
+    const { memoryStorage } = await import('./_helpers/memory-storage.js')
+    const { loadSite } = await import('../src/site-loader.js')
+    const source = memoryStorage()
+    const target = memoryStorage()
+    source.seed({
+      'pages/landing/page.json': JSON.stringify({
+        template: 'echo',
+        archived: true,
+        archivedAt: '2026-05-09T10:00:00Z',
+      }),
+    })
+    const site = await loadSite({
+      contentRoot: createContentRoot(source),
+      manifest: { name: '(archive-test)' },
+    })
+
+    await publishPageRendered('landing', createContentRoot(source), target, undefined, undefined, undefined, site)
+
+    const html = await target.readFile('pages/landing/index.html')
+    expect(html).toBe('<!-- gazetta:archived gone -->\n')
+  })
+
+  it('publishPageStatic emits ONLY the alias marker at the route URL path', async () => {
+    const { memoryStorage } = await import('./_helpers/memory-storage.js')
+    const { loadSite } = await import('../src/site-loader.js')
+    const source = memoryStorage()
+    const target = memoryStorage()
+    source.seed({
+      'pages/landing/page.json': JSON.stringify({ template: 'echo', archived: true, aliasOf: 'welcome' }),
+      'pages/welcome/page.json': JSON.stringify({ template: 'echo' }),
+    })
+    const site = await loadSite({
+      contentRoot: createContentRoot(source),
+      manifest: { name: '(archive-test)' },
+    })
+
+    await publishPageStatic('landing', createContentRoot(source), target, undefined, undefined, site)
+
+    // Static publish maps page.route to disk path: /landing → landing/index.html
+    const html = await target.readFile('landing/index.html')
+    expect(html).toBe('<!-- gazetta:archived alias=welcome -->\n')
+  })
+
+  it('publishPageStatic emits gone marker at /landing/index.html for soft-delete', async () => {
+    const { memoryStorage } = await import('./_helpers/memory-storage.js')
+    const { loadSite } = await import('../src/site-loader.js')
+    const source = memoryStorage()
+    const target = memoryStorage()
+    source.seed({
+      'pages/landing/page.json': JSON.stringify({ template: 'echo', archived: true }),
+    })
+    const site = await loadSite({
+      contentRoot: createContentRoot(source),
+      manifest: { name: '(archive-test)' },
+    })
+
+    await publishPageStatic('landing', createContentRoot(source), target, undefined, undefined, site)
+    const html = await target.readFile('landing/index.html')
+    expect(html).toBe('<!-- gazetta:archived gone -->\n')
+  })
+
+  it('writes the page content-hash sidecar for compare-targets even when archived', async () => {
+    const { memoryStorage } = await import('./_helpers/memory-storage.js')
+    const { loadSite } = await import('../src/site-loader.js')
+    const source = memoryStorage()
+    const target = memoryStorage()
+    source.seed({
+      'pages/landing/page.json': JSON.stringify({ template: 'echo', archived: true, aliasOf: 'welcome' }),
+      'pages/welcome/page.json': JSON.stringify({ template: 'echo' }),
+    })
+    const site = await loadSite({ contentRoot: createContentRoot(source), manifest: { name: '(archive-test)' } })
+
+    await publishPageRendered('landing', createContentRoot(source), target, undefined, undefined, 'abcd1234', site)
+
+    // .{hash}.hash + .pub-{ts} sidecars present in pages/landing/
+    const entries = await target.readDir('pages/landing')
+    expect(entries.some(e => e.name === '.abcd1234.hash')).toBe(true)
+    expect(entries.some(e => e.name.startsWith('.pub-'))).toBe(true)
+  })
+})
+
+// Real-template tests — exercise the live-render pipeline plus archive
+// transitions; need a filesystem templates directory because the live
+// path goes through jiti's import.
+describe('archived-page publish — live-to-archive cleanup (Cut 3)', () => {
+  const archiveTestDir = tempDir('archive-publish-test-' + Date.now())
+  const archiveSourceDir = join(archiveTestDir, 'source')
+  const archiveTargetDir = join(archiveTestDir, 'target')
+  const archiveTemplatesDir = join(archiveTestDir, 'templates')
+
+  beforeEach(async () => {
+    await mkdir(archiveSourceDir, { recursive: true })
+    await mkdir(archiveTargetDir, { recursive: true })
+    await mkdir(join(archiveTemplatesDir, 'echo'), { recursive: true })
+    await writeFile(
+      join(archiveTemplatesDir, 'echo/index.ts'),
+      `import { z } from 'zod'\nexport const schema = z.object({ text: z.string().optional() })\nexport default ({ content }) => ({ html: '<div>' + (content?.text ?? '') + '</div>', css: 'div { color: red; }', js: '', head: '' })\n`,
+    )
+  })
+
+  afterEach(async () => {
+    await rm(archiveTestDir, { recursive: true, force: true })
+  })
+
+  it('cleans up old hashed CSS/JS files when a previously-live page is archived', async () => {
+    const { loadSite } = await import('../src/site-loader.js')
+    await writeTestFile(
+      archiveSourceDir,
+      'pages/landing/page.json',
+      JSON.stringify({ template: 'echo', content: { text: 'live' } }),
+    )
+    let site = await loadSite({
+      siteDir: archiveSourceDir,
+      storage: createFilesystemProvider(),
+      templatesDir: archiveTemplatesDir,
+      manifest: { name: '(archive-test)' },
+    })
+    const target = createFilesystemProvider(archiveTargetDir)
+
+    // Live publish — emits index.html + styles.{hash}.css
+    await publishPageRendered(
+      'landing',
+      createContentRoot(createFilesystemProvider(), archiveSourceDir),
+      target,
+      undefined,
+      archiveTemplatesDir,
+      undefined,
+      site,
+    )
+    const liveEntries = await target.readDir('pages/landing')
+    expect(liveEntries.some(e => /styles\.[a-f0-9]{8}\.css$/.test(e.name))).toBe(true)
+
+    // Archive the page; republish should write ONLY the marker + clean CSS
+    await writeTestFile(
+      archiveSourceDir,
+      'pages/landing/page.json',
+      JSON.stringify({ template: 'echo', content: { text: 'live' }, archived: true, aliasOf: 'welcome' }),
+    )
+    await writeTestFile(archiveSourceDir, 'pages/welcome/page.json', JSON.stringify({ template: 'echo' }))
+    site = await loadSite({
+      siteDir: archiveSourceDir,
+      storage: createFilesystemProvider(),
+      templatesDir: archiveTemplatesDir,
+      manifest: { name: '(archive-test)' },
+    })
+    const result = await publishPageRendered(
+      'landing',
+      createContentRoot(createFilesystemProvider(), archiveSourceDir),
+      target,
+      undefined,
+      archiveTemplatesDir,
+      undefined,
+      site,
+    )
+
+    const html = await target.readFile('pages/landing/index.html')
+    expect(html).toBe('<!-- gazetta:archived alias=welcome -->\n')
+    const archiveEntries = await target.readDir('pages/landing')
+    const cssOrJs = archiveEntries.filter(e => /\.[a-f0-9]{8}\.(css|js)$/.test(e.name))
+    expect(cssOrJs.length).toBe(0)
+    expect(result.removed).toBeGreaterThan(0)
+  })
+
+  it('non-archived pages still render normally (regression)', async () => {
+    const { loadSite } = await import('../src/site-loader.js')
+    await writeTestFile(
+      archiveSourceDir,
+      'pages/home/page.json',
+      JSON.stringify({ template: 'echo', content: { text: 'live' } }),
+    )
+    const site = await loadSite({
+      siteDir: archiveSourceDir,
+      storage: createFilesystemProvider(),
+      templatesDir: archiveTemplatesDir,
+      manifest: { name: '(archive-test)' },
+    })
+    const target = createFilesystemProvider(archiveTargetDir)
+    await publishPageRendered(
+      'home',
+      createContentRoot(createFilesystemProvider(), archiveSourceDir),
+      target,
+      undefined,
+      archiveTemplatesDir,
+      undefined,
+      site,
+    )
+
+    const html = await target.readFile('pages/home/index.html')
+    // Live page renders the full document — DOCTYPE + head + body + cache
+    // comment. The archive short-circuit produces a single-line marker;
+    // this assertion proves the live path is unchanged.
+    expect(html).toContain('<!DOCTYPE html>')
+    expect(html).toContain('<body>')
+    expect(html).not.toContain('gazetta:archived')
+  })
+})
+
 describe('isEditable', () => {
   it('defaults to true for local environment (explicit or unset)', async () => {
     const { isEditable } = await import('../src/types.js')
