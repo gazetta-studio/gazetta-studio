@@ -11,6 +11,10 @@ export const FragmentSummarySchema = z.object({
   name: z.string(),
   template: z.string(),
   locales: z.array(z.string()).optional(),
+  /** Archive state per design-soft-delete.md Q1 A1. See pages schema. */
+  archived: z.boolean().optional(),
+  /** Alias target name when archived with aliasOf. */
+  aliasOf: z.string().optional(),
 })
 export type FragmentSummary = z.infer<typeof FragmentSummarySchema>
 

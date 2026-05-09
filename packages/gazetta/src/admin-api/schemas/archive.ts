@@ -69,3 +69,44 @@ export const PurgeResponseSchema = z.object({
   name: z.string(),
 })
 export type PurgeResponse = z.infer<typeof PurgeResponseSchema>
+
+/**
+ * 409 body when an archive-without-aliasOf is attempted on an item
+ * that still has live refs (P8 save-handler check per
+ * design-soft-delete.md Q11). Refusal preserves the invariant that
+ * archived-no-alias items render 410 — which would silently break
+ * any live reference. Author resolves by either setting `aliasOf`
+ * on the archive request OR removing live refs first. Admin
+ * `?force=true` bypasses with audit metadata recording the bypass.
+ */
+export const ArchiveHasLiveRefsSchema = z.object({
+  code: z.literal('ARCHIVE_HAS_LIVE_REFS'),
+  liveRefs: z.array(LiveRefSchema),
+})
+export type ArchiveHasLiveRefs = z.infer<typeof ArchiveHasLiveRefsSchema>
+
+/**
+ * Body for PATCH /api/{kind}/:name/alias. Edits an existing
+ * archive's `aliasOf` field — set to a string to point at a live
+ * target, or `null` to drop the alias (pure soft-delete).
+ *
+ * Used by Cut 12's purge-blocked resolution modal: when archives
+ * point at a name the author wants to purge, the modal offers
+ * "Drop alias" (aliasOf: null) per design-soft-delete.md Q4 H1.
+ *
+ * Only valid on archived items; live items' aliasOf is meaningless
+ * (the field is implicitly stripped on unarchive). Returns 409 when
+ * called on a live item.
+ */
+export const SetAliasRequestSchema = z.object({
+  /** New alias target. `null` strips the alias (pure soft-delete). */
+  aliasOf: z.string().min(1).nullable(),
+})
+export type SetAliasRequest = z.infer<typeof SetAliasRequestSchema>
+
+export const SetAliasResponseSchema = z.object({
+  ok: z.literal(true),
+  name: z.string(),
+  aliasOf: z.string().optional(),
+})
+export type SetAliasResponse = z.infer<typeof SetAliasResponseSchema>

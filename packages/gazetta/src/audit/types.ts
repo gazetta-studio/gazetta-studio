@@ -52,6 +52,7 @@ export type AuditAction =
   | 'unarchive'
   | 'purge'
   | 'rename'
+  | 'review-withdraw'
 
 /**
  * Closed enum of outcomes. Locked: every recording site supplies

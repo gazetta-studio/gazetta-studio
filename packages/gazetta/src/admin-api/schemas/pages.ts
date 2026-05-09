@@ -32,6 +32,17 @@ export const PageSummarySchema = z.object({
   route: z.string(),
   template: z.string(),
   locales: z.array(z.string()).optional(),
+  /**
+   * Archive state per design-soft-delete.md Q1 A1 / Q7 J1. When true,
+   * the admin tree renders the page greyed under the "Show archived
+   * (N)" filter toggle. Absent or false = live.
+   */
+  archived: z.boolean().optional(),
+  /**
+   * Alias target name when archived with aliasOf. Tree row appends
+   * "(archived → {aliasOf})" per Q7 J1 visualization.
+   */
+  aliasOf: z.string().optional(),
 })
 export type PageSummary = z.infer<typeof PageSummarySchema>
 

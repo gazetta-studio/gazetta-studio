@@ -111,7 +111,7 @@ describe('Cut 5 — end-to-end audit recording', () => {
     await rm(resolve(localTargetDir, 'pages/audit-vf-test'), { recursive: true, force: true })
   })
 
-  it('successful page delete records action: delete, outcome: success', async () => {
+  it('DELETE on a page records action: archive (soft-delete per Cut 7 cutover)', async () => {
     await app.request('/api/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -121,7 +121,22 @@ describe('Cut 5 — end-to-end audit recording', () => {
     expect(res.status).toBe(200)
     const events = await readAuditEvents()
     const matched = events.filter(
-      e => e.action === 'delete' && e.outcome === 'success' && e.scope.name === 'audit-delete-test',
+      e => e.action === 'archive' && e.outcome === 'success' && e.scope.name === 'audit-delete-test',
+    )
+    expect(matched).toHaveLength(1)
+  })
+
+  it('DELETE with ?permanent=true records action: purge', async () => {
+    await app.request('/api/pages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'audit-purge-test', template: 'page-default' }),
+    })
+    const res = await app.request('/api/pages/audit-purge-test?permanent=true', { method: 'DELETE' })
+    expect(res.status).toBe(200)
+    const events = await readAuditEvents()
+    const matched = events.filter(
+      e => e.action === 'purge' && e.outcome === 'success' && e.scope.name === 'audit-purge-test',
     )
     expect(matched).toHaveLength(1)
   })

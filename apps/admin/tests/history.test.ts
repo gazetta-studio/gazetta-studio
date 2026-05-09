@@ -131,8 +131,11 @@ describe('History on save', () => {
     expect(secondSave.snapshot['pages/about/page.json']).not.toBe(firstSave.snapshot['pages/about/page.json'])
   })
 
-  it('records a revision on DELETE /api/pages/:name with the item removed from the snapshot', async () => {
-    // Create a page so we can delete it cleanly.
+  it('records a revision on DELETE /api/pages/:name (archive) with the manifest carrying archived: true', async () => {
+    // Per Cut 7 cutover: DELETE = soft-delete (archive). The manifest
+    // stays in the snapshot but flips to `archived: true`. Hard delete
+    // (purge) is opt-in via `?permanent=true` and DOES remove from the
+    // snapshot — covered by the next test.
     await app.request('/api/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -144,7 +147,28 @@ describe('History on save', () => {
     const entries = await readdir(resolve(contentDir, '.gazetta/history/revisions'))
     const latest = entries.sort().at(-1)!
     const manifest = JSON.parse(await readFile(resolve(contentDir, '.gazetta/history/revisions', latest), 'utf-8'))
-    expect(manifest.snapshot).not.toHaveProperty('pages/.history-delete-test/page.json')
+    // Page still in the snapshot.
+    expect(manifest.snapshot).toHaveProperty('pages/.history-delete-test/page.json')
+    // The blob the snapshot points at carries `archived: true`.
+    const blobHash = manifest.snapshot['pages/.history-delete-test/page.json']
+    const blobPath = resolve(contentDir, '.gazetta/history/objects', blobHash.slice(0, 2), blobHash.slice(2))
+    const blob = JSON.parse(await readFile(blobPath, 'utf-8'))
+    expect(blob.archived).toBe(true)
+  })
+
+  it('records a revision on DELETE /api/pages/:name?permanent=true (purge) with the item removed from the snapshot', async () => {
+    await app.request('/api/pages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'history-purge-test', template: 'page-default' }),
+    })
+    const del = await app.request('/api/pages/history-purge-test?permanent=true', { method: 'DELETE' })
+    expect(del.status).toBe(200)
+
+    const entries = await readdir(resolve(contentDir, '.gazetta/history/revisions'))
+    const latest = entries.sort().at(-1)!
+    const manifest = JSON.parse(await readFile(resolve(contentDir, '.gazetta/history/revisions', latest), 'utf-8'))
+    expect(manifest.snapshot).not.toHaveProperty('pages/history-purge-test/page.json')
   })
 })
 

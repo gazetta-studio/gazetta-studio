@@ -44,6 +44,8 @@ import { systemRoutes } from './routes/system.js'
 import { auditRoutes } from './routes/audit.js'
 import { validationRoutes } from './routes/validation.js'
 import { healthRoutes } from './routes/health.js'
+import { archiveRoutes } from './routes/archive.js'
+import { renameRoutes } from './routes/rename.js'
 import { HookRegistry, type HookContribution } from '../hooks/index.js'
 
 export interface BuildHooksRegistryOptions {
@@ -401,6 +403,14 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   )
 
   app.route('/', siteRoutes(resolveSource))
+  // Archive + rename routes must register BEFORE pageRoutes /
+  // fragmentRoutes — those modules use `:name{.+}` greedy regex
+  // parameters that would capture `landing/archive` (or `/rename`)
+  // when these routes' literal-suffix paths would correctly capture
+  // `landing` + the suffix. First-match-wins in Hono's routing trie
+  // means specific suffixes register first.
+  app.route('/', archiveRoutes(resolveSource))
+  app.route('/', renameRoutes(resolveSource))
   app.route(
     '/',
     pageRoutes(resolveSource, validators, templatesDir, {

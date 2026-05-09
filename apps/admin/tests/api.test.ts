@@ -28,10 +28,12 @@ afterAll(async () => {
     'pages/.test-page',
     'pages/.test-nested',
     'pages/.test-comp-parent',
-    'pages/.test-to-delete',
+    'pages/test-to-archive',
+    'pages/test-to-purge',
     'fragments/.test-put-frag',
     'fragments/.test-frag',
-    'fragments/.test-to-delete',
+    'fragments/test-to-archive',
+    'fragments/test-to-purge',
   ]
   await Promise.all(dirs.map(d => rm(resolve(contentDir, d), { recursive: true, force: true })))
 })
@@ -316,20 +318,40 @@ describe('POST /api/pages (create)', () => {
 })
 
 describe('DELETE /api/pages/:name', () => {
-  it('deletes a page', async () => {
+  // Clean any leftover dirs from prior runs so the POST returns 200 (not 409).
+  beforeAll(async () => {
+    await rm(resolve(contentDir, 'pages/test-to-archive'), { recursive: true, force: true })
+    await rm(resolve(contentDir, 'pages/test-to-purge'), { recursive: true, force: true })
+  })
+
+  it('archives a page (soft-delete is the default per Cut 7 cutover)', async () => {
     // Create first
     await app.request('/api/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: '.test-to-delete', route: '/.test-to-delete', template: 'page-default' }),
+      body: JSON.stringify({ name: 'test-to-archive', route: '/test-to-archive', template: 'page-default' }),
     })
 
-    const res = await app.request('/api/pages/.test-to-delete', { method: 'DELETE' })
+    const res = await app.request('/api/pages/test-to-archive', { method: 'DELETE' })
     expect(res.status).toBe(200)
 
-    // Verify gone
+    // Manifest still listed but with archived: true.
     const { body: pages } = await get('/api/pages')
-    expect(pages.some((p: { name: string }) => p.name === '.test-to-delete')).toBe(false)
+    const matched = (pages as Array<{ name: string; archived?: boolean }>).find(p => p.name === 'test-to-archive')
+    expect(matched).toBeDefined()
+    expect(matched?.archived).toBe(true)
+  })
+
+  it('purges with ?permanent=true', async () => {
+    await app.request('/api/pages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'test-to-purge', route: '/test-to-purge', template: 'page-default' }),
+    })
+    const res = await app.request('/api/pages/test-to-purge?permanent=true', { method: 'DELETE' })
+    expect(res.status).toBe(200)
+    const { body: pages } = await get('/api/pages')
+    expect((pages as Array<{ name: string }>).some(p => p.name === 'test-to-purge')).toBe(false)
   })
 
   it('returns 404 for missing page', async () => {
@@ -373,18 +395,37 @@ describe('POST /api/fragments (create)', () => {
 })
 
 describe('DELETE /api/fragments/:name', () => {
-  it('deletes a fragment', async () => {
+  beforeAll(async () => {
+    await rm(resolve(contentDir, 'fragments/test-to-archive'), { recursive: true, force: true })
+    await rm(resolve(contentDir, 'fragments/test-to-purge'), { recursive: true, force: true })
+  })
+
+  it('archives a fragment (soft-delete is the default per Cut 7 cutover)', async () => {
     await app.request('/api/fragments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: '.test-to-delete', template: 'footer-layout' }),
+      body: JSON.stringify({ name: 'test-to-archive', template: 'footer-layout' }),
     })
 
-    const res = await app.request('/api/fragments/.test-to-delete', { method: 'DELETE' })
+    const res = await app.request('/api/fragments/test-to-archive', { method: 'DELETE' })
     expect(res.status).toBe(200)
 
     const { body: frags } = await get('/api/fragments')
-    expect(frags.some((f: { name: string }) => f.name === '.test-to-delete')).toBe(false)
+    const matched = (frags as Array<{ name: string; archived?: boolean }>).find(f => f.name === 'test-to-archive')
+    expect(matched).toBeDefined()
+    expect(matched?.archived).toBe(true)
+  })
+
+  it('purges with ?permanent=true', async () => {
+    await app.request('/api/fragments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'test-to-purge', template: 'footer-layout' }),
+    })
+    const res = await app.request('/api/fragments/test-to-purge?permanent=true', { method: 'DELETE' })
+    expect(res.status).toBe(200)
+    const { body: frags } = await get('/api/fragments')
+    expect((frags as Array<{ name: string }>).some(f => f.name === 'test-to-purge')).toBe(false)
   })
 
   it('returns 404 for missing fragment', async () => {
