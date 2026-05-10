@@ -61,11 +61,46 @@ Stateless CMS that structures websites as composable fragments. All state lives 
 
 ## Build & Test
 
+All commands run from the repo root unless noted.
+
 ```bash
-npm install        # install dependencies (from root)
-npm run build      # build all packages
-npm run dev        # start dev server (examples/starter on localhost:3000)
-npm test           # run all tests
+npm install                              # install all workspace deps
+npm run build                            # build all packages
+npm run dev                              # examples/starter on localhost:3000
+npm test                                 # all workspace tests (~65s for gazetta)
+npm test -w packages/gazetta             # one workspace's tests
+```
+
+**Single test file / pattern** — run from the package directory:
+
+```bash
+cd packages/gazetta && npx vitest run tests/some-file.test.ts
+cd packages/gazetta && npx vitest run -t "test name pattern"
+```
+
+**Type-check** — no repo-level script; per-package:
+
+```bash
+cd packages/gazetta && npx tsc --noEmit
+```
+
+**Format** — Biome; rule 30 says run before tests, not after (post-test format thrash forces a re-run):
+
+```bash
+npm run format                           # write
+npm run format:check                     # CI gate
+```
+
+**E2e** — Playwright; no wrapping npm script:
+
+```bash
+npx playwright test
+```
+
+**Mutation** — StrykerJS, opt-in (per `testing-plan.md`); slow:
+
+```bash
+npm run test:mutation -w packages/gazetta
 ```
 
 **Note:** Page and fragment manifests use JSON (`page.json`, `fragment.json`). Site config is TypeScript (`site.config.ts`) using `defineSite()` from the `gazetta` package. Components are inline in the page manifest — no separate component files.
