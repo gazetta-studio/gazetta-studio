@@ -7,6 +7,7 @@
   "description": "Repo-scoped bots that run on GitHub Actions cron schedules. Each bot lives in its own subdirectory and shares helpers from _lib/.",
   "scripts": {
     "flake-watcher": "tsx flake-watcher/index.ts",
+    "mutation-watcher": "tsx mutation-watcher/index.ts",
     "triage-bot": "tsx triage-bot/index.ts",
     "discovery-prep-bot": "tsx discovery-prep-bot/index.ts",
     "fix-bot": "tsx fix-bot/index.ts",

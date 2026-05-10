@@ -59,36 +59,57 @@ GITHUB_REPOSITORY=gazetta-studio/gazetta-studio GH_TOKEN=$(gh auth token) \
 
 ## Active bots
 
-| Bot | Trigger | Input (label-driven) | Output |
-|---|---|---|---|
-| `flake-watcher` | Daily 12:00 UTC + workflow_dispatch | (CI events, not labels) | New issue with `bug`, `flake`, `area: X`, `recurring-flake?` |
-| `triage-bot` | Daily 11:00 UTC + workflow_dispatch | Open issue lacking all of `ready-for-agent`, `ready-for-human`, `wontfix`, `needs-info` | One of `bug` / `enhancement` / `triage-uncertain` + `area: X`. Reproducible bug also gets `ready-for-agent`. |
-| `discovery-prep-bot` | Daily 10:00 UTC + workflow_dispatch | `enhancement` AND lacks all of `ready-for-human`, `ready-for-agent`, `wontfix`, `needs-info` | Research comment + `ready-for-human` label |
-| `fix-bot` | Daily 13:00 UTC + workflow_dispatch | `bug` + `ready-for-agent` AND lacks all of `ready-for-human`, `wontfix`, `needs-info` AND no prior fix-bot comment | EITHER draft PR (two commits: failing test + fix), OR stuck-comment + `ready-for-human` label |
+| Bot | Trigger | Input (label-driven, except producer bots) | Output | Role |
+|---|---|---|---|---|
+| `flake-watcher` | Daily 12:00 UTC + workflow_dispatch | CI events (run_attempt >= 2) — not labels | New issue with `bug` + `flake` + `area: X` + `ready-for-agent` (+ `recurring-flake` when applicable) | **Producer** — self-classifies, bypasses triage |
+| `mutation-watcher` | Daily 03:30 UTC + workflow_dispatch | Latest successful Mutation artifact — not labels | New issue with `bug` + `area: X` + `ready-for-agent` per source file with surviving mutants | **Producer** — self-classifies, bypasses triage |
+| `triage-bot` | Daily 11:00 UTC + workflow_dispatch | Open issue lacking all of `bug`, `enhancement`, `triage-uncertain`, `ready-for-agent`, `ready-for-human`, `wontfix`, `needs-info` | One of `bug` / `enhancement` / `triage-uncertain` + `area: X`. Reproducible bug also gets `ready-for-agent`. | Classifier |
+| `discovery-prep-bot` | Daily 10:00 UTC + workflow_dispatch | `enhancement` AND lacks all of `ready-for-human`, `ready-for-agent`, `wontfix`, `needs-info` | Research comment + `ready-for-human` label | Researcher |
+| `fix-bot` | Daily 13:00 UTC + workflow_dispatch | `bug` + `ready-for-agent` AND lacks all of `ready-for-human`, `wontfix`, `needs-info` AND no prior fix-bot comment | EITHER draft PR (two commits: failing test + fix), OR stuck-comment + `ready-for-human` label | Implementer |
+
+**Producer bots vs triage-bot.** Producer bots (`flake-watcher`,
+`mutation-watcher`) consume CI signal and self-classify their output —
+they apply `bug` + `ready-for-agent` directly, bypassing triage-bot.
+Triage-bot's input contract excludes issues already carrying `bug` /
+`enhancement` / `triage-uncertain`, so producer-bot output flows
+straight into fix-bot's queue. The CI signal IS the validation; no
+triage step adds value.
 
 ### Pipeline shape (label-driven)
 
 ```
-flake-watcher (cron 12:00 UTC)
-    ↓ files issue (auto-classified `bug`)
-triage-bot (cron 11:00 UTC next day) — input: open + no terminal-state label
-    ├─→ confident bug + reproducible → applies `ready-for-agent`
-    │       ↓
-    │   fix-bot (cron 13:00 UTC) — input: bug + ready-for-agent + no
-    │   terminal-state label + no prior fix-bot comment
-    │       ↓ EITHER opens draft PR (failing test + fix), OR posts
-    │         stuck-comment + applies `ready-for-human`
-    │   maintainer reviews PR, merges
+Producer bots — bypass triage-bot, go straight to fix-bot's queue:
+─────────────────────────────────────────────────────────────────
+flake-watcher (cron 12:00 UTC)         mutation-watcher (cron 03:30 UTC)
+    ↓ files issue with                     ↓ files issue with
+      bug + flake + ready-for-agent          bug + ready-for-agent
+                          \           /
+                           \         /
+Human-filed issues — go through triage:
+──────────────────────────────────────
+issue filed by maintainer / contributor (no labels)
+    ↓
+triage-bot (cron 11:00 UTC) — input: open + no classification
+    ├─→ confident bug + reproducible → applies bug + ready-for-agent
     │
-    ├─→ confident enhancement → no extra label
+    ├─→ confident enhancement → applies enhancement
     │       ↓
-    │   discovery-prep-bot (cron 10:00 UTC) — input: enhancement + no
-    │   ready-for-human / ready-for-agent / wontfix / needs-info
-    │       ↓ posts research comment + applies `ready-for-human`
+    │   discovery-prep-bot (cron 10:00 UTC) — input: enhancement + not yet handed off
+    │       ↓ posts research comment + applies ready-for-human
     │   maintainer reads comment, starts grilling at their pace
     │
     └─→ triage-uncertain → maintainer's morning queue
             gh issue list --label triage-uncertain
+
+All confident-bug paths converge here:
+─────────────────────────────────────
+                          ↓
+                          ↓ (bug + ready-for-agent from any source)
+                          ↓
+fix-bot (cron 13:00 UTC) — input: bug + ready-for-agent + no prior fix-bot comment
+    ↓ EITHER opens draft PR (failing test + fix),
+      OR posts stuck-comment + applies ready-for-human
+maintainer reviews PR, merges
 ```
 
 **Pipeline state lives in labels, not in code or workflow runs.** Each bot's input is a label query; each bot's output is a label mutation. To re-run any bot on an issue, remove its output label — the next cron picks it up. To opt-out an issue, apply a terminal-state label (`wontfix` / `ready-for-human`).

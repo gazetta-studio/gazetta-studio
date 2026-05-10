@@ -1,0 +1,68 @@
+name: Mutation watcher
+
+# Daily review of Stryker mutation results. Pairs with the Mutation
+# workflow (mutation.yml) which runs at 03:00 UTC and uploads an HTML
+# report. This watcher runs at 03:30 UTC, fetches that artifact, and
+# files issues for surviving mutants worth investigating.
+#
+# Producer-bot pattern: self-classifies output as `bug` + `area: X` +
+# `ready-for-agent`, bypassing triage-bot. Surviving mutants are
+# self-validating gaps — they go straight to fix-bot's queue.
+#
+# This workflow's failure doesn't block anything (continue-on-error) —
+# monitoring infrastructure, not a gate.
+on:
+  schedule:
+    # 03:30 UTC daily — 30 min after the Mutation workflow's nightly
+    # run. Mutation runs ~1-3h on the current target set; the artifact
+    # is ready well before our 30-min lag, but the lag absorbs delays.
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+    # Manual trigger — useful for testing prompt changes against the
+    # latest Mutation artifact without waiting for the next cron.
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 30
+    permissions:
+      # Read CI run history (download Mutation artifact) + read/write
+      # issues. No code/contents access needed.
+      actions: read
+      issues: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install workspace deps
+        run: npm ci
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run mutation watcher
+        env:
+          # Auth via Claude Code OAuth token — see flake-watcher.yml for
+          # the same pattern.
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: npm run mutation-watcher -w @gazetta/bots
+
+      # Per-investigation JSONL transcripts. A future agent can run
+      # `gh run download <run-id> -n mutation-watcher-transcripts` to read
+      # every tool call and decision from past runs.
+      - name: Upload transcripts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutation-watcher-transcripts
+          path: bots/transcripts/
+          if-no-files-found: ignore
+          retention-days: 90
