@@ -23,14 +23,16 @@
  * Run in CI:
  *   .github/workflows/triage-bot.yml (daily 11:00 UTC)
  */
-import { mkdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
-import { findTriageCandidates, octokitFromEnv, repoFromEnv } from '../_lib/github.js'
+import { findTriageCandidates, hasPriorBotComment, octokitFromEnv, repoFromEnv } from '../_lib/github.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PROMPT_PATH = resolve(HERE, 'prompt.md')
+// Repo root: bots/triage-bot/ → ../../
+const REPO_ROOT = resolve(HERE, '../..')
 
 const DRY_RUN = process.env.DRY_RUN === '1'
 const TRANSCRIPTS_DIR = resolve(HERE, '../transcripts')
@@ -76,6 +78,34 @@ async function main(): Promise<void> {
   const promptTemplate = readFileSync(PROMPT_PATH, 'utf-8')
   mkdirSync(TRANSCRIPTS_DIR, { recursive: true })
 
+  // Pre-load reference docs the bot consults on EVERY investigation. Reading
+  // these once at startup + injecting into the per-issue prompt avoids the
+  // bot re-fetching them per issue. On the previous run, docs/non-goals.md
+  // was opened 92 times across 44 investigations — that's pure waste.
+  const nonGoalsPath = resolve(REPO_ROOT, 'docs/non-goals.md')
+  const roadmapPath = resolve(REPO_ROOT, 'ROADMAP.md')
+  const nonGoals = existsSync(nonGoalsPath) ? readFileSync(nonGoalsPath, 'utf-8') : '(docs/non-goals.md not present)'
+  const roadmap = existsSync(roadmapPath) ? readFileSync(roadmapPath, 'utf-8') : '(ROADMAP.md not present)'
+  const referenceDocsBlock = `
+
+## Reference docs (pre-loaded; DO NOT re-read with cat / grep / Read)
+
+These two files are consulted on every investigation. Their contents are
+inlined below so you can match against them directly without tool calls.
+
+### docs/non-goals.md
+
+\`\`\`markdown
+${nonGoals}
+\`\`\`
+
+### ROADMAP.md
+
+\`\`\`markdown
+${roadmap}
+\`\`\`
+`
+
   const runStart = Date.now()
   let processed = 0
 
@@ -97,10 +127,18 @@ async function main(): Promise<void> {
     console.log(
       `\n=== Triaging #${candidate.number}: "${candidate.title}" (${processed + 1}/${candidates.length}, ${Math.round(elapsed / 1000)}s elapsed) ===`,
     )
-    const prompt = `${promptTemplate}
+
+    // Pre-compute "is this a first investigation" at the orchestrator level.
+    // Saves Claude one tool call (gh issue view --json comments) and removes
+    // an ambiguity (Claude sometimes mis-classified maintainer comments
+    // mentioning "triage" as prior bot output).
+    const isFirstInvestigation = !(await hasPriorBotComment(octokit, repo, candidate.number))
+
+    const prompt = `${promptTemplate}${referenceDocsBlock}
 
 ISSUE_NUMBER=${candidate.number}
 ISSUE_TITLE=${candidate.title}
+IS_FIRST_INVESTIGATION=${isFirstInvestigation}
 RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
 
     const transcriptPath = resolve(TRANSCRIPTS_DIR, `${RUN_TIMESTAMP}-issue-${candidate.number}.jsonl`)
