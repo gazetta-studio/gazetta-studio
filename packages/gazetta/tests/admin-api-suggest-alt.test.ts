@@ -11,12 +11,28 @@ import { Hono } from 'hono'
 import sharp from 'sharp'
 import { assetRoutes } from '../src/admin-api/routes/assets.js'
 import { staticSourceResolver, createSourceContext } from '../src/admin-api/source-context.js'
+import { ErrorResponseSchema } from '../src/admin-api/schemas/error.js'
 import { anthropicProvider } from '../src/alt/anthropic.js'
 import { ollamaProvider } from '../src/alt/ollama.js'
 import { principalMiddleware } from '../src/admin-api/middleware/principal.js'
 import { auditMiddleware } from '../src/admin-api/middleware/audit.js'
 import type { SiteManifest } from '../src/types.js'
 import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
+
+/**
+ * Assert that an error response round-trips through the shared
+ * error-response schema AND carries a non-empty `message`. Per
+ * `docs/audits/test-quality-with-ai.md` cycle 1: status-only
+ * assertions left `code: ''` and `message: ''` mutations alive.
+ * The schema parse pins `code` to the closed enum; the explicit
+ * `message.length` assertion pins the human-readable side.
+ */
+async function expectErrorResponse(res: Response, expectedCode: string): Promise<void> {
+  const body = ErrorResponseSchema.parse(await res.json())
+  expect(body.code).toBe(expectedCode)
+  expect(body.message).toBeDefined()
+  expect(body.message!.length).toBeGreaterThan(0)
+}
 
 const ENV_KEYS = ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'OLLAMA_BASE_URL'] as const
 const savedEnv: Partial<Record<(typeof ENV_KEYS)[number], string | undefined>> = {}
@@ -219,8 +235,7 @@ describe('POST /api/assets/:name/suggest-alt — locale parameter', () => {
     const { app } = buildApp(site)
     const res = await app.request('/api/assets/hero/suggest-alt?locale=NOT_A_LOCALE!!!', { method: 'POST' })
     expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.code).toBe('BAD_REQUEST')
+    await expectErrorResponse(res, 'BAD_REQUEST')
   })
 })
 
@@ -232,8 +247,7 @@ describe('POST /api/assets/:name/suggest-alt — unavailable', () => {
     await seedAsset(storage)
     const res = await app.request('/api/assets/hero/suggest-alt', { method: 'POST' })
     expect(res.status).toBe(503)
-    const body = await res.json()
-    expect(body.code).toBe('AI_ADAPTER_UNAVAILABLE')
+    await expectErrorResponse(res, 'AI_ADAPTER_UNAVAILABLE')
   })
 
   it('503s when site manifest is unavailable on source', async () => {
@@ -242,8 +256,7 @@ describe('POST /api/assets/:name/suggest-alt — unavailable', () => {
     await seedAsset(storage)
     const res = await app.request('/api/assets/hero/suggest-alt', { method: 'POST' })
     expect(res.status).toBe(503)
-    const body = await res.json()
-    expect(body.code).toBe('AI_ADAPTER_UNAVAILABLE')
+    await expectErrorResponse(res, 'AI_ADAPTER_UNAVAILABLE')
   })
 
   it('502s when the adapter is configured but the SDK call fails (no msw stub)', async () => {
@@ -284,8 +297,7 @@ describe('POST /api/assets/:name/suggest-alt — failed', () => {
     try {
       const res = await app.request('/api/assets/hero/suggest-alt', { method: 'POST' })
       expect(res.status).toBe(502)
-      const body = await res.json()
-      expect(body.code).toBe('AI_ADAPTER_FAILED')
+      await expectErrorResponse(res, 'AI_ADAPTER_FAILED')
     } finally {
       globalThis.fetch = originalFetch
     }
@@ -303,7 +315,6 @@ describe('POST /api/assets/:name/suggest-alt — not found', () => {
     // No asset seeded.
     const res = await app.request('/api/assets/missing/suggest-alt', { method: 'POST' })
     expect(res.status).toBe(404)
-    const body = await res.json()
-    expect(body.code).toBe('ASSET_MANIFEST_NOT_FOUND')
+    await expectErrorResponse(res, 'ASSET_MANIFEST_NOT_FOUND')
   })
 })

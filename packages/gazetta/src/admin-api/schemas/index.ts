@@ -22,6 +22,7 @@
  *
  * Add new endpoint modules here as they move to schema-validated contracts.
  */
+export * from './error.js'
 export * from './pages.js'
 export * from './fragments.js'
 export * from './archive.js'
