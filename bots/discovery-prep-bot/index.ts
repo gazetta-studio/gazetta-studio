@@ -52,6 +52,15 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
 import { findIssuesByLabels, hasPriorCommentFromBot, octokitFromEnv, repoFromEnv } from '../_lib/github.js'
+import {
+  printBanner,
+  printCandidateHeader,
+  printCandidateList,
+  printNotice,
+  printRunSummary,
+  printTranscriptPath,
+  printWarning,
+} from '../_lib/ui.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PROMPT_PATH = resolve(HERE, 'prompt.md')
@@ -81,7 +90,21 @@ async function main(): Promise<void> {
     return
   }
 
-  console.log(`Discovery prep bot: scanning ${repo.owner}/${repo.repo} for confident-enhancement candidates`)
+  printBanner({
+    name: 'discovery-prep-bot',
+    tagline: 'researcher',
+    purpose: 'Research confident-enhancement issues; prepare design grilling.',
+    inputs: [
+      'Open issues with `enhancement`',
+      'AND no `ready-for-human` / `ready-for-agent` / `wontfix` / `needs-info`',
+    ],
+    outputs: [
+      'Research comment (competitor scan, ADRs, scenarios, open questions)',
+      '`ready-for-human` label (signals research done; grilling can start)',
+    ],
+  })
+
+  printNotice(`Scanning ${repo.owner}/${repo.repo} for confident-enhancement candidates`)
 
   // Label-driven input: every enhancement that hasn't been handed off
   // downstream. Once `ready-for-human` is applied (after research is
@@ -93,20 +116,20 @@ async function main(): Promise<void> {
   })
 
   if (allCandidates.length === 0) {
-    console.log('No discovery-prep candidates found. Inbox zero — nothing to do.')
+    printNotice('No discovery-prep candidates found. Inbox zero — nothing to do. ✨')
     return
   }
 
   // Oldest-first so longest-waiting enhancements get research first.
   const candidates = [...allCandidates].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
 
-  console.log(`Discovery candidates (${candidates.length}, oldest-first):`)
-  for (const c of candidates) {
-    console.log(`  #${c.number} "${c.title}"`)
-  }
+  printCandidateList({
+    noun: 'enhancement',
+    candidates: candidates.map(c => ({ ref: `#${c.number}`, label: c.title })),
+  })
 
   if (DRY_RUN) {
-    console.log(`DRY_RUN=1 — exiting before invoking Claude (${candidates.length} would be processed).`)
+    printNotice(`DRY_RUN=1 — exiting before invoking Claude (${candidates.length} would be processed).`)
     return
   }
 
@@ -116,28 +139,38 @@ async function main(): Promise<void> {
     const elapsed = Date.now() - runStart
     if (elapsed > PER_RUN_BUDGET_MS) {
       const remaining = candidates.length - processed
-      console.log(
-        `\nPer-run budget exhausted (${Math.round(elapsed / 1000)}s elapsed > ${Math.round(PER_RUN_BUDGET_MS / 1000)}s budget).`,
+      printWarning(
+        `Per-run budget exhausted (${Math.round(elapsed / 1000)}s > ${Math.round(PER_RUN_BUDGET_MS / 1000)}s). Stopping with ${remaining} un-researched; tomorrow's run picks them up.`,
       )
-      console.log(`Stopping with ${remaining} candidate(s); tomorrow's run picks them up (oldest-first sort holds).`)
       for (const skipped of candidates.slice(processed)) {
-        console.log(`  #${skipped.number} "${skipped.title}"`)
+        console.log(`     ⏭  #${skipped.number} "${skipped.title}"`)
       }
       break
     }
 
-    console.log(
-      `\n=== Researching #${candidate.number}: "${candidate.title}" (${processed + 1}/${candidates.length}, ${Math.round(elapsed / 1000)}s elapsed) ===`,
-    )
+    printCandidateHeader({
+      index: processed + 1,
+      total: candidates.length,
+      label: `#${candidate.number} · ${candidate.title}`,
+      elapsedSec: Math.round(elapsed / 1000),
+    })
+
     try {
       await researchOneIssue(octokit, repo, candidate.number)
     } catch (err) {
-      console.log(`Warning: research of #${candidate.number} threw: ${err}; continuing.`)
+      printWarning(`research of #${candidate.number} threw: ${err}; continuing.`)
     }
     processed++
   }
 
-  console.log(`\nDiscovery prep bot complete. Processed ${processed}/${candidates.length}.`)
+  const totalSec = Math.round((Date.now() - runStart) / 1000)
+  printRunSummary({
+    verb: 'Researched',
+    processed,
+    total: candidates.length,
+    skipped: candidates.length - processed,
+    elapsedSec: totalSec,
+  })
 }
 
 /**
@@ -156,16 +189,16 @@ async function researchOneIssue(
 ): Promise<void> {
   const { data: issue } = await octokit.issues.get({ ...repo, issue_number: issueNumber })
   if (issue.pull_request) {
-    console.log(`#${issueNumber} is a pull request, not an issue. Skipping.`)
+    printNotice(`#${issueNumber} is a pull request, not an issue. Skipping.`)
     return
   }
   if (issue.state !== 'open') {
-    console.log(`#${issueNumber} is ${issue.state}; nothing to research.`)
+    printNotice(`#${issueNumber} is ${issue.state}; nothing to research.`)
     return
   }
   const labels = issue.labels.map(l => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean)
   if (!labels.includes('enhancement')) {
-    console.log(`#${issueNumber} is not labeled 'enhancement' (current: [${labels.join(', ')}]); nothing to research.`)
+    printNotice(`#${issueNumber} is not labeled 'enhancement' (current: [${labels.join(', ')}]); nothing to research.`)
     return
   }
 
@@ -175,22 +208,21 @@ async function researchOneIssue(
   // but a manual one-issue invocation can target any issue.
   const alreadyCommented = await hasPriorCommentFromBot(octokit, repo, issueNumber, 'discovery-prep-bot')
   if (alreadyCommented) {
-    console.log(`#${issueNumber}: discovery-prep-bot has already commented; nothing to do.`)
-    console.log('To re-research, manually delete the prior comment AND remove `ready-for-human`, then re-run.')
+    printNotice(
+      `#${issueNumber}: discovery-prep-bot has already commented. To re-research, delete the prior comment AND remove ready-for-human, then re-run.`,
+    )
     return
   }
 
-  console.log(`#${issueNumber}: "${issue.title}" — labels [${labels.join(', ')}]`)
-
   if (DRY_RUN) {
-    console.log(`DRY_RUN=1 — exiting before invoking Claude.`)
+    printNotice(`DRY_RUN=1 — exiting before invoking Claude.`)
     return
   }
 
   const promptTemplate = readFileSync(PROMPT_PATH, 'utf-8')
   mkdirSync(TRANSCRIPTS_DIR, { recursive: true })
   const transcriptPath = resolve(TRANSCRIPTS_DIR, `${RUN_TIMESTAMP}-discovery-issue-${issueNumber}.jsonl`)
-  console.log(`(transcript: ${transcriptPath})`)
+  printTranscriptPath(transcriptPath)
 
   const prompt = `${promptTemplate}
 
@@ -204,7 +236,7 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     allowedTools: ['Bash', 'Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch'],
   })
   if (!result.success) {
-    console.log(`Warning: discovery for #${issueNumber} exited ${result.exitCode}`)
+    printWarning(`discovery for #${issueNumber} exited ${result.exitCode}`)
   }
 }
 

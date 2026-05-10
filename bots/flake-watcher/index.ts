@@ -14,8 +14,8 @@
  * When a flake is found, hand the run to `claude -p` with the prompt in
  * `prompt.md`. Claude reads failed-attempt logs, searches existing open
  * issues for a match, and either comments on the existing issue (with
- * dedup against the run ID) or files a new one following the templates
- * established in #268.
+ * dedup against the run ID) or files a new one per the producer-bot
+ * pattern (self-classifies as bug + applies ready-for-agent).
  *
  * Run locally:
  *   DRY_RUN=1 LOOKBACK_HOURS=336 npm run flake-watcher -w @gazetta/bots
@@ -25,8 +25,17 @@
 import { mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { findFlakeCandidates, findWorkflowId, octokitFromEnv, repoFromEnv } from '../_lib/github.js'
 import { runClaude } from '../_lib/claude.js'
+import { findFlakeCandidates, findWorkflowId, octokitFromEnv, repoFromEnv } from '../_lib/github.js'
+import {
+  printBanner,
+  printCandidateHeader,
+  printCandidateList,
+  printNotice,
+  printRunSummary,
+  printTranscriptPath,
+  printWarning,
+} from '../_lib/ui.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PROMPT_PATH = resolve(HERE, 'prompt.md')
@@ -40,6 +49,20 @@ const TRANSCRIPTS_DIR = resolve(HERE, '../transcripts')
 const RUN_TIMESTAMP = new Date().toISOString().replace(/[:.]/g, '-').replace(/Z$/, 'Z')
 
 async function main(): Promise<void> {
+  printBanner({
+    name: 'flake-watcher',
+    tagline: 'producer bot · self-classifies',
+    purpose: `Find CI flakes (run_attempt >= 2) and file/comment issues.`,
+    inputs: [
+      `${WORKFLOW_NAME} runs in the last ${LOOKBACK_HOURS}h with run_attempt >= 2`,
+      'Open issues matching the failed test path (for dedup)',
+    ],
+    outputs: [
+      'New issue with `bug` + `flake` + `area: X` + `ready-for-agent`',
+      'Or comment on existing matching issue (run-ID-deduped)',
+    ],
+  })
+
   const repo = repoFromEnv()
   const octokit = octokitFromEnv()
   const workflowId = await findWorkflowId(octokit, repo, WORKFLOW_NAME)
@@ -47,50 +70,73 @@ async function main(): Promise<void> {
   const sinceMs = Date.now() - LOOKBACK_HOURS * 60 * 60 * 1000
   const sinceIso = new Date(sinceMs).toISOString().replace(/\.\d{3}Z$/, 'Z')
 
-  console.log(`Flake watcher: scanning ${WORKFLOW_NAME} (workflow id ${workflowId}) runs since ${sinceIso}`)
+  printNotice(`Scanning ${WORKFLOW_NAME} (workflow id ${workflowId}) since ${sinceIso}`)
 
   const flakes = await findFlakeCandidates(octokit, repo, workflowId, sinceIso)
 
   if (flakes.length === 0) {
-    console.log(`No flakes found in last ${LOOKBACK_HOURS}h. CI is healthy.`)
+    printNotice(`No flakes found in last ${LOOKBACK_HOURS}h. CI is healthy. ✨`)
     return
   }
 
-  console.log('Flake candidates:')
-  for (const f of flakes) {
-    console.log(`  run=${f.runId} sha=${f.headSha.slice(0, 8)} conclusion=${f.conclusion} attempt=${f.runAttempt}`)
-  }
+  printCandidateList({
+    noun: 'flake',
+    candidates: flakes.map(f => ({
+      ref: `run ${f.runId}`,
+      label: `sha ${f.headSha.slice(0, 8)}`,
+      meta: `attempt ${f.runAttempt}, ${f.conclusion}`,
+    })),
+  })
 
   if (DRY_RUN) {
-    console.log(`DRY_RUN=1 — exiting before invoking Claude (${flakes.length} would be processed).`)
+    printNotice(`DRY_RUN=1 — exiting before invoking Claude (${flakes.length} flake(s) would be processed).`)
     return
   }
 
   const promptTemplate = readFileSync(PROMPT_PATH, 'utf-8')
   mkdirSync(TRANSCRIPTS_DIR, { recursive: true })
 
+  const runStart = Date.now()
+  let processed = 0
   for (const flake of flakes) {
-    console.log(`\n=== Investigating run ${flake.runId} (sha ${flake.headSha.slice(0, 8)}) ===`)
+    const elapsed = Math.round((Date.now() - runStart) / 1000)
+    printCandidateHeader({
+      index: processed + 1,
+      total: flakes.length,
+      label: `Investigating run ${flake.runId}`,
+      meta: [`sha ${flake.headSha.slice(0, 8)}, attempt ${flake.runAttempt}, ${flake.conclusion}`],
+      elapsedSec: elapsed,
+    })
+
     const prompt = `${promptTemplate}
 
 RUN_ID=${flake.runId}
 LOOKBACK_HOURS=${LOOKBACK_HOURS}`
 
     const transcriptPath = resolve(TRANSCRIPTS_DIR, `${RUN_TIMESTAMP}-run-${flake.runId}.jsonl`)
-    console.log(`(transcript: ${transcriptPath})`)
+    printTranscriptPath(transcriptPath)
 
     try {
       const result = await runClaude({ prompt, transcriptPath })
       if (!result.success) {
         // Don't let one failed investigation kill the whole job.
-        console.log(`Warning: investigation of run ${flake.runId} exited ${result.exitCode}; continuing.`)
+        printWarning(`investigation of run ${flake.runId} exited ${result.exitCode}; continuing.`)
       }
     } catch (err) {
-      console.log(`Warning: investigation of run ${flake.runId} threw: ${err}; continuing.`)
+      printWarning(`investigation of run ${flake.runId} threw: ${err}; continuing.`)
     }
+    processed++
   }
 
-  console.log(`\nFlake watcher complete. Transcripts: ${TRANSCRIPTS_DIR}`)
+  const total = Math.round((Date.now() - runStart) / 1000)
+  printRunSummary({
+    verb: 'Investigated',
+    processed,
+    total: flakes.length,
+    skipped: flakes.length - processed,
+    notes: [`Transcripts: ${TRANSCRIPTS_DIR}`],
+    elapsedSec: total,
+  })
 }
 
 main().catch(err => {
