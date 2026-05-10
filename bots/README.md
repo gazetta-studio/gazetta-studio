@@ -62,13 +62,28 @@ GITHUB_REPOSITORY=gazetta-studio/gazetta-studio GH_TOKEN=$(gh auth token) \
 | Bot | Trigger | Purpose | Workflow |
 |---|---|---|---|
 | `flake-watcher` | Daily 12:00 UTC | Detects CI flakes (run_attempt >= 2), files / comments on issues | `.github/workflows/flake-watcher.yml` |
-| `triage-bot` | Daily 11:00 UTC | Enriches incoming issues with classification + repro for bugs; pairs with `/triage` skill | `.github/workflows/triage-bot.yml` |
+| `triage-bot` | Daily 11:00 UTC + workflow_dispatch | Classifies incoming issues (`bug` / `enhancement` / `triage-uncertain`); auto-advances reproducible bugs to `ready-for-agent`; chain-dispatches discovery-prep-bot for confident enhancements | `.github/workflows/triage-bot.yml` |
+| `discovery-prep-bot` | workflow_dispatch (chained from triage-bot, OR manual) | Researches a single confident-enhancement issue; opens a draft PR with `docs/audits/issue-NNN-discovery.md` | `.github/workflows/discovery-prep-bot.yml` |
 
-### Bot interactions
+### Pipeline shape
 
-- `flake-watcher` files issues with `flake` + `needs-triage`
-- `triage-bot` picks them up the next day. For flake-labeled issues it skips repro (timing-dependent by definition) and posts code-structure analysis. For non-flake bugs it pre-flight classifies, runs the reproducer when possible, and posts investigation notes (not an agent brief — that's the maintainer's job).
-- Maintainer runs `/triage` interactively — sees both bots' enrichment, decides state, writes a durable agent brief if advancing to `ready-for-agent`.
+```
+flake-watcher (cron 12:00 UTC)
+    ↓ files issue with flake + bug
+triage-bot (cron 11:00 UTC next day)
+    ├─→ confident bug + reproducible → applies ready-for-agent
+    │       ↓ (future: fix-bot opens PR; maintainer merges)
+    ├─→ confident enhancement → dispatches discovery-prep-bot
+    │       ↓
+    │   discovery-prep-bot → opens draft PR with audit doc
+    │       ↓
+    │   maintainer reviews PR, starts grilling at their pace
+    │
+    └─→ triage-uncertain → maintainer's morning queue
+            gh issue list --label triage-uncertain
+```
+
+Each bot is independent. Failures are isolated (per-bot try/catch + workflow `continue-on-error`). Each dispatched downstream bot runs on its own GitHub Actions run with its own transcript artifact.
 
 ## Improving a bot
 
