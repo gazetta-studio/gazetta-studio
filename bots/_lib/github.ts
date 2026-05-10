@@ -121,7 +121,7 @@ export interface IssueSummary {
  *     excludeAny: ['bug', 'enhancement', 'triage-uncertain',
  *                  'ready-for-agent', 'ready-for-human',
  *                  'wontfix', 'needs-info']
- *     (the absence of any category role + absence of any state advancement)
+ *     (no classification yet AND no state advancement)
  *
  *   discovery-prep-bot:
  *     requireAll: ['enhancement']
@@ -129,23 +129,26 @@ export interface IssueSummary {
  *                  'wontfix', 'needs-info']
  *     (an enhancement that hasn't been handed off downstream)
  *
- *   fix-bot (future):
+ *   fix-bot:
  *     requireAll: ['bug', 'ready-for-agent']
  *     excludeAny: ['wontfix', 'needs-info', 'ready-for-human']
  *     (a bug ready for an agent, no maintainer escalation in flight)
  *
- * `sinceIso` (optional) lets the daily cron scan only what changed since
- * the last successful run. Without it (or with a since from before the
- * project began), behaves as a full scan — the manual "wide lookback"
- * path uses no since.
- *
  * Excludes pull requests — Octokit returns PRs in this endpoint by default
  * because GitHub treats them as a kind of issue. Filtered out here.
+ *
+ * No since-filter: the label-driven exclude-set already narrows candidates
+ * to "issues that need work this run." Re-checking already-processed
+ * issues at the API level is cheap (one bounded list call per cron); the
+ * since-filter would save ~30s per cron at the cost of a stranded-backlog
+ * failure mode. Not worth the complexity. Maintainer who wants to
+ * re-enqueue an issue removes its completion label — the next cron picks
+ * it up because the exclude-set no longer matches.
  */
 export async function findIssuesByLabels(
   octokit: Octokit,
   repo: RepoIdentity,
-  options: { requireAll?: readonly string[]; excludeAny: readonly string[]; sinceIso?: string },
+  options: { requireAll?: readonly string[]; excludeAny: readonly string[] },
 ): Promise<IssueSummary[]> {
   const requireAll = options.requireAll ?? []
   const { data } = await octokit.issues.listForRepo({
@@ -156,7 +159,6 @@ export async function findIssuesByLabels(
     // takes a comma-separated string. Issues here have ALL of these labels
     // (intersection), which matches our requireAll semantics.
     ...(requireAll.length > 0 ? { labels: requireAll.join(',') } : {}),
-    ...(options.sinceIso ? { since: options.sinceIso } : {}),
   })
 
   const out: IssueSummary[] = []
@@ -173,45 +175,6 @@ export async function findIssuesByLabels(
     })
   }
   return out
-}
-
-/**
- * Find when the most recent successful workflow run COMPLETED (not started).
- *
- * Used by triage-bot to determine "what's changed since I last finished
- * looking" without persistent state — the workflow run history IS the state.
- *
- * Returns the run's `updated_at` ISO timestamp (which equals `completed_at`
- * for finished runs). Returns null when no prior successful run exists.
- *
- * Why `updated_at` not `created_at`: the bot's own comments happen DURING
- * a run, between `created_at` and `updated_at`. If we anchored to
- * `created_at`, the next run's incremental scan would see all those
- * comments as "new activity since last run" and re-investigate every
- * issue the bot just touched. Anchoring to `updated_at` (when the bot
- * stopped writing) means only genuinely-new activity since then triggers
- * re-investigation.
- *
- * Excludes the current in-progress run so the bot doesn't pick its own
- * start as the anchor.
- */
-export async function findLastSuccessfulRunIso(
-  octokit: Octokit,
-  repo: RepoIdentity,
-  workflowFileName: string,
-  excludeRunId?: number,
-): Promise<string | null> {
-  const { data } = await octokit.actions.listWorkflowRuns({
-    ...repo,
-    workflow_id: workflowFileName, // Octokit accepts file path here, e.g. "triage-bot.yml"
-    status: 'success',
-    per_page: 10,
-  })
-  for (const run of data.workflow_runs) {
-    if (excludeRunId !== undefined && run.id === excludeRunId) continue
-    return run.updated_at
-  }
-  return null
 }
 
 /**
