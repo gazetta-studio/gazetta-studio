@@ -273,16 +273,28 @@ Two label dimensions per the
 [`triage` skill](https://github.com/anthropics/claude-skills/tree/main/skills/triage).
 **Category roles**: `bug` | `enhancement`. **State roles**: `needs-triage`
 | `needs-info` | `ready-for-agent` | `ready-for-human` | `wontfix`. Every
-triaged issue carries exactly one of each. The triage-bot may apply category
-roles + `needs-triage` only; advancing past `needs-triage` is reserved for
-maintainers via `/triage`.
+triaged issue carries exactly one of each. The triage-bot applies category
+roles autonomously; advances confident bugs to `ready-for-agent` for
+fix-bot to pick up; never advances to `needs-info` / `ready-for-human` /
+`wontfix` (those require maintainer judgment via `/triage`).
 
 **`needs-triage` (label)**:
-Default state for any issue not yet maintainer-evaluated. Applied by the
-triage-bot after first-pass enrichment. The interactive `/triage` skill
-queries this label to find work. Spelled with a hyphen per the skill's
-canonical name (the project briefly used `needs triage` with a space —
-migrated 2026-05-10).
+Skill-canonical "no bot or human has looked yet" state. The bot does NOT
+apply this label — once the bot has classified, the bot HAS looked. The
+interactive `/triage` skill queries this label for issues the bot
+hasn't gotten to (rare; typically only for issues filed before the bot
+existed). Spelled with a hyphen per the skill's canonical name (the
+project briefly used `needs triage` with a space — migrated 2026-05-10).
+
+**`triage-uncertain` (label)**:
+Bot looked but couldn't classify confidently. Applied by triage-bot when
+the issue body has both bug-language AND enhancement-language, or
+neither. The maintainer's primary morning queue:
+`gh issue list --label triage-uncertain`. Steady-state target: 1-3 per
+week. Distinct from `needs-triage` (which means "never been looked at").
+The bot's lean (if any) goes in the comment body, not the label —
+applying a category guess in the label would defeat the "trust labels
+to mean confident classification" UX.
 
 **`flake` (label)**:
 CI test-flake classification — intermittent failure, not a real bug until
