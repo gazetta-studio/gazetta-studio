@@ -280,6 +280,13 @@ Validated approaches and things to avoid. Each entry: rule, then why.
    - Wait for CI green; merge with `gh pr merge --rebase --delete-branch` (per rule 16).
    - If branch protection blocks merge (1-approval required) and admin bypass is needed, ask the user explicitly per-PR. Default is to wait for review.
 
+   **Commit grouping inside a PR.** A PR can carry multiple commits — one PR ≠ one commit. Group commits into one PR when they share a theme or land in the same workflow pass; keep them as separate commits inside the PR for revertability and reviewability. Examples:
+   - 7 cross-foundation gap fixes → one PR (`cross-foundation-tests`), seven commits
+   - MCP wiring + CLAUDE.md command expansion + rule 32 → one PR, three commits (related session-pass output)
+   - Pure docs typo + unrelated bug fix → two PRs (different concerns; reviewers shouldn't context-switch mid-PR)
+
+   The grouping test: would a reviewer naturally evaluate these commits together, or are they independent enough that one being rejected shouldn't block the other? Together → one PR. Independent → separate PRs.
+
    **Why:** branch protection encodes team policy at the repo level. Bypassing it because a change is "just docs" or "obviously safe" is the same shape as rule 31's anti-pattern of weakening a failing test because the assertion is "obvious." The rule is the rule. Workflow respect is a forcing function for thinking before merging — even small commits get one CI pass + one read-through before they touch main, which catches typos / accidental file additions / test breakage that "I'll just push it" would miss.
 
    **Why this rule earns a number despite seeming obvious:** it failed twice in one session (commits `1a2493c` and `b332826` straight to main). Slippage was driven by "this change is small enough to not need ceremony" reasoning. Capturing it as a numbered preference makes the default explicit: every commit, every time, branch + PR.
