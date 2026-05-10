@@ -1,6 +1,8 @@
 # Gazetta
 
-Stateless CMS that structures websites as composable components stored on multiple targets. Domain glossary captures the canonical vocabulary used across design docs, code, and conversations.
+Stateless CMS that structures websites as composable components stored on multiple targets. Product-domain glossary capturing the canonical vocabulary used across design docs, code, and conversations.
+
+For dev-process vocabulary (design phases, doc artifacts, testing, bots, skills, triage labels), see [`.claude/rules/dev-glossary.md`](.claude/rules/dev-glossary.md).
 
 ## Language
 

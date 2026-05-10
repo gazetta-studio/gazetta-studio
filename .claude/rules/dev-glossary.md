@@ -1,0 +1,332 @@
+# Dev Glossary
+
+Process and infrastructure vocabulary used across this project's design docs,
+team preferences, bots, and AI-agent surfaces. Companion to [`CONTEXT.md`](../../CONTEXT.md)
+(product domain) — this file covers HOW we work, that file covers WHAT we
+build.
+
+Entries appear when a term is project-specific (precise meaning here that
+doesn't generalize), used in two or more places, and surprised someone
+recently (i.e. needed disambiguation in conversation or PR review). Single-use
+coinages and obvious general English don't earn entries.
+
+Add entries lazily — when a term first surfaces a real ambiguity. Don't
+audit speculatively.
+
+## Design process
+
+**Discovery**:
+Phase 1 of feature work. Read existing design docs, audit competitors, walk
+the relevant scenarios, identify the actor types affected. May produce a
+durable research artifact under [`docs/audits/`](../../docs/audits/) when
+substantial. See [feature-design-process.md](feature-design-process.md).
+
+**UX-grilling**:
+Dedicated grilling pass for the user-facing surface, run BEFORE
+implementation-grilling so UX choices aren't compromised by implementation
+convenience. Walks actor scenarios, flow sketches, "what can I remove?"
+(Krug-aligned), failure-mode UX, capability-gap surfaces. Output: the design
+doc's "UX check" section.
+
+**5K-envelope gate**:
+Pre-implementation checkpoint validating that proposed primitives hold at
+the documented operating envelope (5,000 pages, 20,000 assets, 50 components
+per page) per [design-scale.md](design-scale.md). Required between
+UX-grilling and implementation-grilling. Failure means redesign before
+proceeding — not "we'll add a sidecar later." See
+[team-preferences.md rule 24](team-preferences.md).
+
+**Implementation-grilling**:
+Second grilling pass after UX-grilling. Walks the technical design tree:
+architecture, data model, lifecycle, multi-instance, cache, audit, hooks,
+validation, render, plugin, offline, collaboration. One question at a time
+with named rejected alternatives per question.
+
+**Grilling**:
+The shared technique used in UX-grilling and implementation-grilling. One
+structural question at a time, present 2-3 alternatives, recommend with
+reasoning, wait for confirmation, capture decision. Codified by the
+[`grill-with-docs`](https://github.com/anthropics/claude-skills/tree/main/skills/grill-with-docs)
+and `grill-me` skills. The discipline: never lock a Q without enumerated
+rejected alternatives ([rule 25](team-preferences.md)).
+
+**Retrospective**:
+Phase 5 of feature work. After ship (or at significant milestones), review
+the session for new learnings. Produces durable artifacts: new entries in
+`team-preferences.md`, updates to `feature-design-process.md`, or new ADRs.
+The conversation itself is ephemeral; the artifacts are the point.
+
+**Foundational dimensions**:
+Thirteen cross-cutting concerns every feature design must respect (Scale,
+Themes, Locale, Auth+RBAC, Audit, Review, Hooks, Rendering, Validation,
+Plugin, Cache, Offline, Collaboration). Plus the discipline of
+Multi-instance correctness. Each has its own design pass; new features
+answer each one in their "Foundational checks" section.
+
+**Non-foundational disciplines**:
+Six narrower invariants that compose with implementation but don't rise to
+dimension level: MCP schema discipline, real-time event-source discipline,
+multi-instance discipline, logging discipline, no-aggregate-manifests rule,
+capability-gap-UX-at-four-points. Documented inline in
+[feature-design-process.md](feature-design-process.md), not in their own
+design files.
+
+## Design documentation
+
+**Design doc** (`design-{feature}.md`):
+Required durable artifact per feature. Captures Scope, Companion docs,
+Design model, Distinctive choices, Foundational checks, UX check, Migration,
+Open questions, Future directions. Survives the feature shipping; describes
+the durable model. Distinct from the implementation doc (which is pruned at
+ship time).
+
+**Implementation doc** (`design-{feature}-implementation.md`):
+Working document per feature. Status table, per-cut scope, effort estimates,
+deferred items, SOLID checks per cut. Pruned at the same commit that ships
+the last cut — kept entries: header pointer to the design doc, deferred-items
+table (for v1.5 planning), lessons learned. Cut-by-cut detail recoverable
+from git log.
+
+**Reference doc** (`design-{feature}-reference.md`):
+Optional artifact when a feature design has 5+ external claims needing
+versioning, licensing, or citation. Houses the fact-check ledger. Below the
+5-claim threshold, inline citations in the design doc are clearer.
+
+**Companion docs block**:
+Standard section near the top of every design doc listing the impl doc,
+reference doc, and any ADRs that travel with the feature. Tells a cold
+reader which docs go together. Format: `- [name](relative-path) — one-line
+description`.
+
+**Foundational checks**:
+Required section in every new design doc answering each of the 13
+foundational dimensions plus the multi-instance check. Documents the
+feature's interaction (or non-interaction) with each. A feature designed
+before a dimension's design pass has shipped MUST document the assumption
+it's making about the pending dimension's contract.
+
+**Punch list**:
+Ordered, blast-radius-ranked list of cross-foundation integration test gaps
+in [testing-plan.md](testing-plan.md), or deferred features in implementation
+docs. Items land alongside the next feature cut that touches the relevant
+foundation, not as a backlog batch.
+
+**ADR (Architecture Decision Record)**:
+Durable doc at `docs/adr/NNNN-slug.md` for load-bearing decisions. Three
+criteria, all required: hard to reverse, surprising without context, result
+of a real trade-off. Most decisions live as "Distinctive choices" sections
+in feature design docs; ADRs are reserved for the load-bearing few.
+
+## Testing
+
+**Storage tier**:
+Test-isolation choice. `memoryStorage()` (fresh per test, ~10ms setup) is
+the default; filesystem (`createFilesystemProvider` + `tempDir`) is required
+only for tests exercising real binary I/O, hash-in-path filename
+construction, file watcher, or starter-site smoke. See
+[testing-plan.md](testing-plan.md) "Storage tier" section.
+
+**Per-test isolation**:
+Discipline that every test gets fresh storage / fresh tempdir; no
+module-level state shared between tests; no implicit ordering dependency.
+Vitest's serial-within-file mode is a soft guarantee, not a contract — code
+defensively. Captured in [team-preferences.md rule 26](team-preferences.md).
+
+**Mutation scope**:
+The set of source modules currently subjected to StrykerJS mutation testing.
+Expanded smallest-first so the workflow calibrates triage-time and
+artifact-handling on focused surfaces before tackling large ones. See
+[testing-plan.md](testing-plan.md).
+
+**Tautological tests**:
+Tests written after observing the implementation's output, asserting on what
+was observed rather than what should be true. Pass without proving anything;
+caught by mutation testing and prevented by TDD-first ordering. Industry
+mutation scores on AI-generated tests-after-implementation hover around 20%
+— meaning ~80% of injected faults survive.
+
+**TDD-first ordering**:
+When delegating non-trivial code to an AI agent, write the failing test in
+commit N, the implementation in commit N+1, and tell the agent "do not
+modify the failing tests." Per [team-preferences.md rule 31](team-preferences.md).
+The dominant failure mode of AI test-writing is tautology; this ordering
+prevents it.
+
+**Trophy / pyramid / honeycomb shape**:
+Test-distribution shapes per sub-system. Core (renderer, hash, sidecars) is
+**pyramid** (heavy unit). Storage providers are **honeycomb** (heavy
+integration via testcontainers). Admin SPA is **trophy** (component +
+scenario). CLI is **crab** (heavy scenario). The shape determines test-tier
+defaults; rule 31 also references this for which tier API tests belong to.
+
+## Git + workflow
+
+**Rebase posture**:
+Default git strategy. Main is rebase / fast-forward only — no merge commits,
+linear history. Apply at every level: PR merge via `gh pr merge --rebase`,
+PR-branch updates via `git fetch && git rebase origin/main`, conflict
+resolution during rebase, stacked PRs rebased on each other. See
+[team-preferences.md rule 16](team-preferences.md).
+
+**Boy Scout rule**:
+When passing through a file for a real change, fix small broken things you
+see along the way (pre-existing type error, dead re-export, stale comment,
+missing test, obvious typo). Scope stays tight to "cheap and adjacent." See
+[team-preferences.md rule 19](team-preferences.md).
+
+## Bots and skills
+
+**Bot**:
+Autonomous, scheduled, repo-scoped automation that runs in GitHub Actions
+without human invocation. Lives under [`bots/`](../../bots/). Each has its
+own subdirectory with `index.ts` + `prompt.md`, shares helpers from
+[`bots/_lib/`](../../bots/_lib/), runs on a daily cron via
+`.github/workflows/<bot-name>.yml`. Distinct from a Skill: bots run
+unattended, skills are user-invoked.
+
+**Skill**:
+A user-invoked Claude Code surface, defined under `~/.claude/skills/<name>/`
+(global) or as a slash command in this project. Interactive: the user types
+`/<name>` and the skill walks them through a process step by step. Distinct
+from a Bot: skills are interactive, bots are autonomous. The interactive
+[`triage`](https://github.com/anthropics/claude-skills/tree/main/skills/triage)
+skill and the autonomous `triage-bot` cover the same domain at different
+audiences.
+
+**Transcript**:
+JSONL stream-json artifact written by [`bots/_lib/claude.ts`](../../bots/_lib/claude.ts)
+on every bot's `claude -p` invocation. One JSON event per line: tool calls,
+tool results, assistant messages. Uploaded as the `<bot-name>-transcripts`
+GitHub Actions artifact (90-day retention). Read by future agents to
+understand what a past bot run did and why; primary input to the replay loop.
+
+**Decision log**:
+Convention requiring bot prompts to instruct Claude to articulate
+load-bearing choices inline as `> Decision: <why>` text blocks. The
+transcript captures the WHAT (every tool call) automatically; the
+decision log captures the WHY in Claude's own words. Skip narration of
+trivial tool calls — only call out choices a reviewer would want explained.
+
+**Outcome tag**:
+Convention requiring every bot-authored comment or new issue body to end
+with `<!-- <bot-name>: run=$RUN_ID -->`. Lets a future agent query
+`gh issue list --search "<bot-name>: run=12345"` to find every issue a bot
+touched in any past run, joining intent (transcript) with outcome (issue
+tracker activity).
+
+**Replay loop**:
+The mechanism for improving a bot's prompt over time. Steps: download a past
+workflow's transcripts artifact, identify quality issues, edit the prompt,
+run `npm run replay -w @gazetta/bots <bot-name> <past-run-id>` which
+re-invokes the current prompt against the same flakes the bot saw, write
+new transcripts beside the originals, diff to evaluate. Documented in
+[`bots/README.md`](../../bots/README.md).
+
+**Hard exclusion**:
+Triage-bot pattern. A category of issue (security keywords, CVE, etc.) that
+the bot must NEVER deep-investigate because misclassification is dangerous.
+Bot applies `needs-triage`, posts a deferral notice, and exits — no labels
+beyond `needs-triage`, no investigation, no agent brief. Maintainer reviews
+personally.
+
+**Soft bail**:
+Triage-bot pattern weaker than hard exclusion. A category where the bot
+could try but is poorly equipped (visual / UI bugs without browser,
+performance complaints without baseline). Bot applies labels, posts a brief
+"out of my depth" comment, exits. Distinct from hard exclusion: soft bails
+are about competence (bot can't add value), hard exclusions are about
+safety (bot might cause harm).
+
+**Investigation notes**:
+Triage-bot artifact for the human running `/triage` next. Includes file
+paths and line numbers (transient — they may go stale in weeks but are
+immediately useful). Audience: maintainer. Distinct from an Agent brief:
+notes are research findings; the brief is a durable spec the AFK agent
+works from.
+
+**Agent brief**:
+Durable spec on a `ready-for-agent` issue, authored by a human (not the
+bot) per
+[`~/.claude/skills/triage/AGENT-BRIEF.md`](https://github.com/anthropics/claude-skills/tree/main/skills/triage/AGENT-BRIEF.md).
+Behavioral, not procedural. No file paths, no line numbers — those go stale
+between when the brief is written and when the AFK agent picks it up. The
+triage-bot does NOT write briefs; it writes Investigation notes and lets
+the maintainer convert them.
+
+**Disclaimer prefix**:
+Convention requiring every AI-authored triage comment to start with
+`> *This was generated by AI during triage.*`. Per the
+[`triage` skill](https://github.com/anthropics/claude-skills/tree/main/skills/triage).
+Lets maintainers scan an issue thread and immediately distinguish bot output
+from human notes.
+
+**Per-run budget**:
+Bot pattern preventing GitHub Actions workflow timeout. Triage-bot sorts
+candidates oldest-first, processes in order, exits gracefully when 50 min
+elapsed (10 min margin from the 60-min workflow timeout). One-time backlog
+spikes converge in 2-3 daily runs without ever hitting the timeout.
+
+## Issue triage
+
+**State role** / **Category role**:
+Two label dimensions per the
+[`triage` skill](https://github.com/anthropics/claude-skills/tree/main/skills/triage).
+**Category roles**: `bug` | `enhancement`. **State roles**: `needs-triage`
+| `needs-info` | `ready-for-agent` | `ready-for-human` | `wontfix`. Every
+triaged issue carries exactly one of each. The triage-bot may apply category
+roles + `needs-triage` only; advancing past `needs-triage` is reserved for
+maintainers via `/triage`.
+
+**`needs-triage` (label)**:
+Default state for any issue not yet maintainer-evaluated. Applied by the
+triage-bot after first-pass enrichment. The interactive `/triage` skill
+queries this label to find work. Spelled with a hyphen per the skill's
+canonical name (the project briefly used `needs triage` with a space —
+migrated 2026-05-10).
+
+**`flake` (label)**:
+CI test-flake classification — intermittent failure, not a real bug until
+proven otherwise via triage. Applied by flake-watcher to every issue it
+files. Skipped only when the bot's hypothesis concludes the failure is
+structurally a real bug masquerading as a flake (e.g. an equal-millisecond
+ordering race). Provenance is captured by the outcome tag, not the label.
+
+**`recurring-flake` (label)**:
+Same flake observed three or more times across distinct days. Applied by
+flake-watcher when the threshold is met. Signals "root-cause work should be
+prioritized over continued tracking."
+
+**Failure mode** (flake dedup grain):
+The unit of flake dedup: same test path + same line (or same locator + same
+symptom). Two failures of `publish.spec.ts:33` are the same mode; a failure
+of `:33` and a failure of `:199` are different modes. Flake-watcher files
+one issue per failure mode, not per test file — the right grain because
+fixes correlate with mode, not file.
+
+**First investigation vs subsequent investigations**:
+Bot pattern. First investigation = labels applied + comment posted.
+Subsequent investigations = append-only comments; labels never changed,
+prior bot comments never edited. Detect by checking for any prior comment
+starting with the AI disclaimer prefix.
+
+## Flagged ambiguities
+
+Terms the project once conflated. Resolved here so future use stays clean.
+
+- **"Bot" vs "Skill"**: distinct surfaces (autonomous vs interactive). Don't
+  call a skill a bot or vice versa.
+- **"Agent brief" vs "Investigation notes" vs "Triage notes"**: three
+  artifacts. Agent brief = durable spec the AFK agent works from, written
+  by a human. Investigation notes = bot's research output for the maintainer
+  running `/triage` next. Triage notes = informal term for what `/triage`
+  produces interactively (no fixed format).
+- **"Flake" the concept** (a test that intermittently fails) vs **"flake"
+  the label** (provenance + classification by the flake-watcher bot).
+  Resolved: the label classifies, doesn't merely tag bot provenance — the
+  outcome tag handles provenance.
+- **"Hard exclusion" vs "soft bail"**: both prevent the bot from
+  investigating, but for different reasons. Hard = safety (bot might harm),
+  soft = competence (bot can't help).
+- **"Companion docs" block (in design doc)** vs **"Companion docs" the
+  conceptual pairing of design + impl + reference**: same word, two scopes.
+  The block is the load-bearing artifact.

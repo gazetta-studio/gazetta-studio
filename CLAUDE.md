@@ -12,7 +12,8 @@ Stateless CMS that structures websites as composable fragments. All state lives 
 - `sites/gazetta.studio/` — The gazetta.studio website (dogfooding)
 
 **Strategic / process docs** (read these before designing or planning):
-- `CONTEXT.md` — **Domain glossary**: canonical vocabulary for the CMS (actors, structural primitives, manifests, references, targets, assets, locale/theme dimensions, composition vs. resolution, project/site/workspace). Use the glossary terms in conversations, code, and docs.
+- `CONTEXT.md` — **Product domain glossary**: canonical vocabulary for the CMS (actors, structural primitives, manifests, references, targets, assets, locale/theme dimensions, composition vs. resolution, project/site/workspace). Covers WHAT we build.
+- `.claude/rules/dev-glossary.md` — **Dev-process glossary**: vocabulary for design phases, doc artifacts, testing, bots, skills, triage labels, etc. Covers HOW we work. Auto-loaded.
 - `ROADMAP.md` — Strategic forward-looking priorities (Tier 1/2/3 + deferred + non-goals). Updated as priorities shift.
 - `docs/non-goals.md` — Explicit strategic non-fits (memberships, content branching, federation, built-in search, visual-first editing, database integration). Read before proposing one of these.
 - `docs/audits/cms-feature-audit.md` — Snapshot of Gazetta's coverage vs. the modern CMS landscape, with fact-checked competitor citations. Drives ROADMAP and non-goals.
@@ -51,6 +52,7 @@ Stateless CMS that structures websites as composable fragments. All state lives 
 - `.claude/rules/architecture.md` — System architecture and package layout
 - `.claude/rules/testing-plan.md` — Active testing coverage + e2e restructure plan (auto-loads when editing tests)
 - `.claude/rules/feature-design-process.md` — How feature design + implementation works in Gazetta. The resumability contract (every kind of work has a designated durable artifact). Read when starting feature design or unsure where a piece of work belongs.
+- `.claude/rules/dev-glossary.md` — Dev-process vocabulary (design phases, doc artifacts, testing, bots, skills, triage labels). Companion to `CONTEXT.md` (product domain). Auto-loaded.
 - `.claude/rules/design-config.md` — Site config reference (companion to ADR-0005). TS config (`gazetta.config.ts` + `site.config.ts`) replacing YAML; identity functions; secrets handling; evaluation timing.
 - `.claude/rules/design-logging.md` — Operational logging reference. Structured JSON logs, levels, module namespacing, requestId correlation, privacy rules. Companion to `design-audit.md` (audit = forensic record; logs = operational signal; both run).
 - `.claude/rules/sidecars.md` — Internal mechanism docs for per-item sidecars (`.{8hex}.hash`, `.pub-{ts}`) and reverse-dep indices (`.gazetta/fragment-deps/`, `.gazetta/asset-refs/`) used for incremental publish + reverse-dep lookups
