@@ -93,11 +93,15 @@ tests slip most easily where assertions match observed response shapes ("expect 
 the route returned"). Rule 31's failure mode lives most often at this tier; mutation
 testing is the discovery tool. Sequence:
 
-1. `packages/gazetta/src/admin-api/routes/suggest-alt.ts` — smallest route; one
-   real tautology already fixed (cross-foundation gap #4); methodology calibration.
-2. `archive.ts` — recent feature, AI-paired cuts, concentrated seam.
-3. `publish.ts` — highest blast radius; tackle once triage workflow stable.
-4. Remaining routes (`pages.ts`, `fragments.ts`, `assets.ts`, `history.ts`, …) on demand.
+1. `packages/gazetta/src/admin-api/routes/assets.ts` (where suggest-alt lives —
+   no separate `suggest-alt.ts` file as the original Q4 lock assumed) — first
+   cycle complete; see [`docs/audits/test-quality-with-ai.md`](../../docs/audits/test-quality-with-ai.md).
+2. `src/alt/route-handler.ts` — adjacent finding from cycle 1; suggest-alt
+   orchestration lives here, NOT in `admin-api/routes/assets.ts`. Added to the
+   Stryker `mutate` glob; cycle 2 audits the next nightly run.
+3. `archive.ts` — recent feature, AI-paired cuts, concentrated seam.
+4. `publish.ts` — highest blast radius; tackle once triage workflow stable.
+5. Remaining routes (`pages.ts`, `fragments.ts`, `history.ts`, …) on demand.
 
 Same smallest-first discipline as the internal-module list. Routes calling internal
 modules already covered by mutation testing produce some redundant signal; document
