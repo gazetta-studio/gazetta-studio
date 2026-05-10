@@ -5,7 +5,7 @@ name: Flake watcher
 # Same code, different outcome = unambiguous flake signal.
 #
 # When found, hands the failed run to claude -p with the prompt at
-# tools/bots/flake-watcher/prompt.md. The agent reads logs, searches existing
+# bots/flake-watcher/prompt.md. The agent reads logs, searches existing
 # open issues, and either comments (with run-ID dedup) or files a new one
 # per the convention established in #268.
 #

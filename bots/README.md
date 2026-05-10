@@ -10,7 +10,7 @@ Repo-scoped bots that run on GitHub Actions cron schedules. Each bot:
 ## Layout
 
 ```
-tools/bots/
+bots/
 ├── package.json              # one workspace, one entry per bot
 ├── tsconfig.json
 ├── _lib/                     # shared modules — github, claude, etc.
@@ -20,6 +20,10 @@ tools/bots/
     ├── index.ts              # entry point
     └── prompt.md             # Claude prompt template
 ```
+
+`bots/` is a top-level peer of `apps/`, `packages/`, `tools/`. They live at the
+root because they're autonomous infrastructure — different audience and lifecycle
+from `tools/` (developer/operator utilities run on demand).
 
 ## Conventions
 
