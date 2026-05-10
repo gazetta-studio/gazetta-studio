@@ -62,6 +62,13 @@ GITHUB_REPOSITORY=gazetta-studio/gazetta-studio GH_TOKEN=$(gh auth token) \
 | Bot | Trigger | Purpose | Workflow |
 |---|---|---|---|
 | `flake-watcher` | Daily 12:00 UTC | Detects CI flakes (run_attempt >= 2), files / comments on issues | `.github/workflows/flake-watcher.yml` |
+| `triage-bot` | Daily 11:00 UTC | Enriches incoming issues with classification + repro for bugs; pairs with `/triage` skill | `.github/workflows/triage-bot.yml` |
+
+### Bot interactions
+
+- `flake-watcher` files issues with `flake` + `needs-triage`
+- `triage-bot` picks them up the next day, runs reproducer, drafts agent brief if confident
+- Maintainer runs `/triage` interactively — sees both bots' enrichment, decides state
 
 ## Improving a bot
 
