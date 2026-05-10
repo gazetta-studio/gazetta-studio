@@ -298,12 +298,14 @@ to mean confident classification" UX.
 
 **`ready-for-human` (label)**:
 Project-specific overload of the skill-canonical `ready-for-human` state
-role. Used in two contexts:
+role. Used in three contexts:
 
 - **discovery-prep-bot output**: "Discovery research posted as a comment;
   design grilling can start whenever the maintainer is ready."
 - **fix-bot output (when stuck)**: "Tried but couldn't capture the bug as
   a failing test; needs human to write the test or close as wontfix."
+- **Maintainer-applied via `/triage`**: Skill-canonical "needs human
+  implementation, can't be delegated."
 
 Disambiguate by reading the latest bot comment's outcome tag
 (`<!-- discovery-prep-bot:` vs `<!-- fix-bot:`). The skill's canonical
