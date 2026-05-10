@@ -7,6 +7,7 @@ Stateless CMS that structures websites as composable fragments. All state lives 
 - `apps/admin/` — CMS admin frontend (Vue 3 + PrimeVue editor shell)
 - `packages/gazetta/` — Core package (renderer, CLI, admin API, editor, storage providers)
 - `tools/mcp-dev/` — MCP dev server (screenshot tool)
+- `bots/` — Autonomous repo bots run on GitHub Actions cron (e.g., flake-watcher); see `bots/README.md`
 - `examples/starter/` — Sample site with templates, fragments, pages
 - `sites/gazetta.studio/` — The gazetta.studio website (dogfooding)
 

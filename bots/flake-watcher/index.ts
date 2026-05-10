@@ -18,7 +18,7 @@
  * established in #268.
  *
  * Run locally:
- *   DRY_RUN=1 LOOKBACK_HOURS=336 npm run flake-watcher -w tools/bots
+ *   DRY_RUN=1 LOOKBACK_HOURS=336 npm run flake-watcher -w @gazetta/bots
  * Run in CI:
  *   .github/workflows/flake-watcher.yml (daily 12:00 UTC)
  */

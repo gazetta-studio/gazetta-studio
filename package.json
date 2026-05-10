@@ -9,6 +9,7 @@
     "packages/*",
     "apps/*",
     "tools/*",
+    "bots",
     "examples/*",
     "sites/*",
     "tests/fixtures/sites/*"
