@@ -58,10 +58,19 @@ const RUN_TIMESTAMP = new Date().toISOString().replace(/[:.]/g, '-').replace(/Z$
 const PER_RUN_BUDGET_MS = Number(process.env.BUDGET_MS ?? 50 * 60 * 1000)
 
 // Optional manual override: set LOOKBACK_HOURS to force a wider scan.
-//   LOOKBACK_HOURS=720  → scan last 30 days (good for a periodic full sweep)
-//   LOOKBACK_HOURS=0    → scan ALL open issues (no since filter — backlog mode)
-//   unset (default)     → auto-detect via the last successful workflow run
-const LOOKBACK_HOURS_OVERRIDE = process.env.LOOKBACK_HOURS
+//   LOOKBACK_HOURS=720    → scan last 30 days (good for a periodic full sweep)
+//   LOOKBACK_HOURS=0      → scan ALL open issues (no since filter — backlog mode)
+//   unset / empty string  → auto-detect via the last successful workflow run
+//
+// Empty string handling: workflow_dispatch inputs always coerce to strings
+// in the env block. With `LOOKBACK_HOURS: ${{ inputs.lookback_hours || '' }}`
+// in the YAML, an unset input arrives here as "" (empty string), NOT
+// undefined. We treat empty as equivalent to unset to preserve the auto-
+// detect default for cron AND default-input manual triggers. Without this,
+// empty string would coerce via Number('') === 0 into the "full backlog"
+// branch and silently re-walk all issues every manual trigger.
+const rawLookback = process.env.LOOKBACK_HOURS
+const LOOKBACK_HOURS_OVERRIDE = rawLookback !== undefined && rawLookback !== '' ? rawLookback : undefined
 
 async function main(): Promise<void> {
   const repo = repoFromEnv()
