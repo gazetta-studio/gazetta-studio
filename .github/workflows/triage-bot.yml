@@ -19,6 +19,15 @@ on:
     - cron: '0 11 * * *'
   workflow_dispatch:
     # Manual trigger for testing prompt changes or one-off triage passes.
+    inputs:
+      lookback_hours:
+        description: |
+          How many hours back to scan. Empty = auto-detect via last
+          successful run (default cron behavior; incremental). Set to a
+          number to force a wider scan (720 = monthly sweep). Set to 0
+          to scan all open issues regardless of update time.
+        required: false
+        default: ''
 
 jobs:
   triage:
@@ -57,6 +66,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}
+          # Empty on cron (auto-detect via last-successful-run); set on
+          # manual trigger to override (720 = 30d sweep, 0 = all open).
+          LOOKBACK_HOURS: ${{ inputs.lookback_hours || '' }}
         run: npm run triage-bot -w @gazetta/bots
 
       # Per-issue JSONL transcripts. Same loop as flake-watcher: a future
