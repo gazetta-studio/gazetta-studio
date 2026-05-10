@@ -19,7 +19,19 @@
 import { spawn } from 'node:child_process'
 import { createWriteStream } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+/**
+ * Repo root, derived from this file's location: bots/_lib/claude.ts → ../../
+ *
+ * Default cwd for spawned `claude` processes. Without this, npm-run lands the
+ * script in `bots/`, and Claude's relative-path tool calls (cat docs/...,
+ * grep ROADMAP.md) miss — costing 2-5 wasted retries per investigation.
+ * Verified live on triage-bot run 25630679446: docs/non-goals.md was opened
+ * 92 times across 44 investigations because relative paths kept failing.
+ */
+const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '../../..')
 
 export interface ClaudeOptions {
   /** The prompt content (system + user combined). */
@@ -31,7 +43,9 @@ export interface ClaudeOptions {
    */
   allowedTools?: string[]
   /**
-   * Working directory for tool calls. Default `process.cwd()`.
+   * Working directory for tool calls. Defaults to the repo root (derived from
+   * this file's location) so Claude's relative paths land in the project tree
+   * rather than in `bots/` (where npm-run leaves the script).
    */
   cwd?: string
   /**
@@ -120,7 +134,7 @@ export async function runClaude(opts: ClaudeOptions): Promise<ClaudeResult> {
         '--dangerously-skip-permissions',
         opts.prompt,
       ],
-      { cwd: opts.cwd ?? process.cwd(), env: process.env, stdio: ['ignore', 'pipe', 'inherit'] },
+      { cwd: opts.cwd ?? REPO_ROOT, env: process.env, stdio: ['ignore', 'pipe', 'inherit'] },
     )
 
     // Buffer stdout to handle JSONL events split across chunks. Each complete
