@@ -271,3 +271,17 @@ Validated approaches and things to avoid. Each entry: rule, then why.
    **Why:** the iterate-on-test loop is one of the highest-frequency activities in any session. A 3-failure sequence costs 4× a 1-pass fix; a 5-edit watch loop costs 1× the watch startup vs 5× the run cold-start. Both compound across sessions.
 
    Example: cross-foundation gap #3 produced 3 independent surface failures at once (validator scope shape wrong, publish/audit body shape wrong, consistency check cascading from #4). I fixed them sequentially across 3 runs (~3.6s total). Pattern A would have fixed all 3 in one edit pass and one rerun (~1.2s) — same diagnostic effort, one-third the runs.
+
+33. **Never commit directly to `main`. Every change goes through a PR.** Even one-line doc fixes. Even when admin privileges allow `git push` to bypass branch protection. The protection rule is the workflow; respecting it is non-negotiable.
+
+   **How to apply:**
+   - Before the first edit of any change destined for main, `git checkout -b <branch>`. Branch naming: `<kind>/<slug>` (`docs/...`, `fix/...`, `feat/...`, `test/...`, `chore/...`).
+   - Commit and push the branch; open a PR via `gh pr create`.
+   - Wait for CI green; merge with `gh pr merge --rebase --delete-branch` (per rule 16).
+   - If branch protection blocks merge (1-approval required) and admin bypass is needed, ask the user explicitly per-PR. Default is to wait for review.
+
+   **Why:** branch protection encodes team policy at the repo level. Bypassing it because a change is "just docs" or "obviously safe" is the same shape as rule 31's anti-pattern of weakening a failing test because the assertion is "obvious." The rule is the rule. Workflow respect is a forcing function for thinking before merging — even small commits get one CI pass + one read-through before they touch main, which catches typos / accidental file additions / test breakage that "I'll just push it" would miss.
+
+   **Why this rule earns a number despite seeming obvious:** it failed twice in one session (commits `1a2493c` and `b332826` straight to main). Slippage was driven by "this change is small enough to not need ceremony" reasoning. Capturing it as a numbered preference makes the default explicit: every commit, every time, branch + PR.
+
+   **The only exceptions** are operations where main IS the working tree by design — none currently exist in this project. If one ever does, document it explicitly here.
