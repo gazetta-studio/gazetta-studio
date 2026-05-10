@@ -14,6 +14,7 @@ import { staticSourceResolver, createSourceContext } from '../src/admin-api/sour
 import { anthropicProvider } from '../src/alt/anthropic.js'
 import { ollamaProvider } from '../src/alt/ollama.js'
 import { principalMiddleware } from '../src/admin-api/middleware/principal.js'
+import { auditMiddleware } from '../src/admin-api/middleware/audit.js'
 import type { SiteManifest } from '../src/types.js'
 import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
 
@@ -55,10 +56,23 @@ function buildApp(siteManifest?: SiteManifest) {
   })
   const resolve = staticSourceResolver(source)
   const app = new Hono()
-  // Wire the principal middleware (none-mode = admin role) so the
-  // capability gates on /api/assets routes are satisfied. Tests bypass
-  // createAdminApp; they need to wire what createAdminApp wires.
+  // Wire the principal + audit middleware (none-mode = admin role,
+  // empty audit providers = recording no-ops) so the capability
+  // gates on /api/assets routes are satisfied AND the suggest-alt
+  // route's audit emit (per gap #4 fix) doesn't fail with
+  // `c.var.audit` undefined. Tests bypass createAdminApp; they need
+  // to wire what createAdminApp wires.
   app.use('/api/*', principalMiddleware())
+  app.use(
+    '/api/*',
+    auditMiddleware({
+      providers: [],
+      strict: false,
+      actorPseudonym: 'none',
+      recordSourceIp: 'none',
+      recordUserAgent: 'none',
+    }),
+  )
   app.route('/', assetRoutes(resolve))
   return { app, storage }
 }
