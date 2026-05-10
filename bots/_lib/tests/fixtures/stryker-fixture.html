@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en">
+<head><title>Stryker fixture</title></head>
+<body>
+<mutation-test-report-app></mutation-test-report-app>
+<script>
+const app = document.querySelector('mutation-test-report-app');
+      app.report = {"files":{"src/admin-api/routes/publish.ts":{"language":"typescript","mutants":[{"id":"1","mutatorName":"BlockStatement","replacement":"{}","status":"Survived","location":{"start":{"line":42,"column":3},"end":{"line":50,"column":4}}},{"id":"2","mutatorName":"ConditionalExpression","replacement":"false","status":"NoCoverage","location":{"start":{"line":61,"column":7},"end":{"line":61,"column":18}}},{"id":"3","mutatorName":"StringLiteral","replacement":"\"\"","status":"Killed","location":{"start":{"line":80,"column":12},"end":{"line":80,"column":18}}},{"id":"4","mutatorName":"StringLiteral","replacement":"\"\"","status":"CompileError","statusReason":"Type 'Set<"+"\"\" | \"replace\">' is not assignable","location":{"start":{"line":99,"column":3},"end":{"line":99,"column":11}}}]},"src/history-recorder.ts":{"language":"typescript","mutants":[{"id":"5","mutatorName":"BlockStatement","replacement":"{}","status":"Killed","location":{"start":{"line":10,"column":1},"end":{"line":15,"column":2}}},{"id":"6","mutatorName":"BlockStatement","replacement":"{}","status":"Killed","location":{"start":{"line":20,"column":1},"end":{"line":25,"column":2}}},{"id":"7","mutatorName":"ConditionalExpression","replacement":"true","status":"Killed","location":{"start":{"line":30,"column":1},"end":{"line":30,"column":10}}},{"id":"8","mutatorName":"ConditionalExpression","replacement":"true","status":"Killed","location":{"start":{"line":40,"column":1},"end":{"line":40,"column":10}}},{"id":"9","mutatorName":"ConditionalExpression","replacement":"true","status":"Killed","location":{"start":{"line":50,"column":1},"end":{"line":50,"column":10}}},{"id":"10","mutatorName":"ConditionalExpression","replacement":"true","status":"Killed","location":{"start":{"line":60,"column":1},"end":{"line":60,"column":10}}},{"id":"11","mutatorName":"BlockStatement","replacement":"{}","status":"Survived","location":{"start":{"line":70,"column":1},"end":{"line":75,"column":2}}}]},"src/admin-api/routes/clean.ts":{"language":"typescript","mutants":[{"id":"12","mutatorName":"BlockStatement","replacement":"{}","status":"Killed","location":{"start":{"line":1,"column":1},"end":{"line":5,"column":2}}}]}}};
+function updateTheme() {}
+</script>
+</body>
+</html>

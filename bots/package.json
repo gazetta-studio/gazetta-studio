@@ -11,7 +11,8 @@
     "triage-bot": "tsx triage-bot/index.ts",
     "discovery-prep-bot": "tsx discovery-prep-bot/index.ts",
     "fix-bot": "tsx fix-bot/index.ts",
-    "replay": "tsx _lib/replay.ts"
+    "replay": "tsx _lib/replay.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@octokit/rest": "^22.0.0"
@@ -19,6 +20,7 @@
   "devDependencies": {
     "@types/node": "^25.6.0",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
   }
 }
