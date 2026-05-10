@@ -88,6 +88,31 @@ batch — survived mutants from one module need triage before adding the next.
 Don't gate on score yet — observational metric until each module's baseline
 stabilises. Treat survived mutants as test-quality bugs.
 
+**Admin-API route track (parallel to the internal-module list above).** Tautological
+tests slip most easily where assertions match observed response shapes ("expect what
+the route returned"). Rule 31's failure mode lives most often at this tier; mutation
+testing is the discovery tool. Sequence:
+
+1. `packages/gazetta/src/admin-api/routes/suggest-alt.ts` — smallest route; one
+   real tautology already fixed (cross-foundation gap #4); methodology calibration.
+2. `archive.ts` — recent feature, AI-paired cuts, concentrated seam.
+3. `publish.ts` — highest blast radius; tackle once triage workflow stable.
+4. Remaining routes (`pages.ts`, `fragments.ts`, `assets.ts`, `history.ts`, …) on demand.
+
+Same smallest-first discipline as the internal-module list. Routes calling internal
+modules already covered by mutation testing produce some redundant signal; document
+equivalent mutants per route in the audit notes rather than skipping the route.
+
+**Test-quality-with-AI research (next session).** Locked scope: B-primary
+(test quality, signal-to-noise) + A-secondary (agent-loop ergonomics that
+compose with B's findings). C (coverage gaps) deferred — wait for the next
+escape. Methodology: mutation testing per the admin-API track above,
+suggest-alt first. Outputs: audit doc at `docs/audits/test-quality-with-ai.md`
+(per rule 21) + rule/plan updates as patterns generalize. Sequencing:
+measurement-first — write the audit doc from triage notes, layer in
+external-source framing (Anthropic PBT post, ThoughtWorks Vol 34+, recent
+StrykerJS releases) after.
+
 **Property-test scope expansion (next):** `fast-check` is installed and used
 in 1 file. Targets where round-trip / fallback chain semantics matter:
 - `archive/` filename codec round-trip (alias-targets sidecar names)
