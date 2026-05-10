@@ -1,0 +1,72 @@
+name: Triage bot
+
+# Daily autonomous first-pass triage of incoming issues. The bot enriches
+# issues with classification (bug / enhancement), area labels, duplicate
+# detection, and (for reproducible bugs) agent briefs — but NEVER advances
+# state past `needs-triage`. State decisions stay with maintainers via the
+# interactive `/triage` skill.
+#
+# Conventions match the /triage skill (~/.claude/skills/triage/) so bot output
+# and human triage notes are interoperable.
+#
+# This workflow's failure doesn't block anything (continue-on-error) — it's
+# monitoring infrastructure, not a gate.
+on:
+  schedule:
+    # 11:00 UTC daily — one hour before flake-watcher's 12:00, so any issues
+    # flake-watcher files at 12:00 get picked up by triage-bot's NEXT-day run
+    # (gives maintainers a day to review flake-watcher output first).
+    - cron: '0 11 * * *'
+  workflow_dispatch:
+    # Manual trigger for testing prompt changes or one-off triage passes.
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 60
+    permissions:
+      # Read code/contents (for repro), read+write issues (for labels +
+      # comments). No write access to code; bot never commits.
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install workspace deps
+        # Full install required because the bot may run actual tests as part
+        # of bug reproduction. ~2 min cost amortized across the run.
+        run: npm ci
+
+      - name: Build gazetta package
+        # Some tests need the built package; build once up front.
+        run: npm run build -w packages/gazetta
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run triage bot
+        env:
+          # Auth via Claude Code OAuth token — same setup as flake-watcher.
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: npm run triage-bot -w @gazetta/bots
+
+      # Per-issue JSONL transcripts. Same loop as flake-watcher: a future
+      # agent can `gh run download <run-id> -n triage-bot-transcripts` to
+      # read every triage decision.
+      - name: Upload transcripts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: triage-bot-transcripts
+          path: bots/transcripts/
+          if-no-files-found: ignore
+          retention-days: 90

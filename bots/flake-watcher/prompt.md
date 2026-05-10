@@ -150,7 +150,7 @@ workflow logs.
    | Label | When | gh command |
    |---|---|---|
    | `flake` | Default on every issue (see note below) | `gh issue edit <N> --add-label flake` |
-   | `needs triage` | Always on NEW issues. Skip if a human has already commented on the issue (signals they've started triaging). | `gh issue edit <N> --add-label "needs triage"` |
+   | `needs-triage` | Always on NEW issues. Skip if a human has already commented on the issue (signals they've started triaging). | `gh issue edit <N> --add-label "needs-triage"` |
    | `area: <X>` | Always — pick from path → area mapping below | `gh issue edit <N> --add-label "area: cms"` |
    | `recurring-flake` | When the issue has 3+ occurrences across distinct days | `gh issue edit <N> --add-label recurring-flake` |
 
@@ -182,7 +182,7 @@ workflow logs.
    **Apply all labels in one call** to avoid multiple API roundtrips:
 
    ```
-   gh issue edit <N> --add-label "flake,needs triage,area: cms"
+   gh issue edit <N> --add-label "flake,needs-triage,area: cms"
    ```
 
    For a recurring flake on an existing issue:
