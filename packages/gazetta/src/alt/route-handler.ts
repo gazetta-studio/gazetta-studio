@@ -36,9 +36,16 @@ import { createAltSuggester } from './suggester.js'
  *   - `'failed'`      → 502 (adapter threw)
  *   - `'not-found'`   → 404 (asset doesn't exist)
  *   - `'ok'`          → 200 (with body, including possible refused: true)
+ *
+ * `provider` is exposed on `ok` so the route handler can include it
+ * in the audit event (per testing-plan.md gap #4 — refusal forensics).
  */
 export type SuggestAltResult =
-  | { kind: 'ok'; suggestion: { text: string; refused: boolean; refusalReason: string | null } }
+  | {
+      kind: 'ok'
+      suggestion: { text: string; refused: boolean; refusalReason: string | null }
+      provider: string
+    }
   | { kind: 'unavailable'; message: string }
   | { kind: 'failed'; message: string }
   | { kind: 'not-found'; message: string }
@@ -162,5 +169,5 @@ export async function suggestAltForAsset(opts: SuggestAltOptions): Promise<Sugge
     }
   }
 
-  return { kind: 'ok', suggestion }
+  return { kind: 'ok', suggestion, provider: resolved.provider.name }
 }

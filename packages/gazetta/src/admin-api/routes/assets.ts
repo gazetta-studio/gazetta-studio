@@ -358,8 +358,29 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
       })
 
       switch (result.kind) {
-        case 'ok':
+        case 'ok': {
+          // Audit the suggest-alt invocation per design-ai.md +
+          // cross-foundation gap #4. Refusal is recorded as
+          // metadata.refused: true (the API call succeeded; the
+          // model declined — outcome stays 'success'). Provider
+          // name + locale + refusalReason carried in metadata so
+          // forensic queries can answer "why did this image not
+          // get alt?" without re-fetching context.
+          await c.var.audit.record({
+            action: 'ai-suggest-alt',
+            outcome: 'success',
+            scope: { kind: 'asset', name },
+            metadata: {
+              provider: result.provider,
+              locale,
+              refused: result.suggestion.refused,
+              ...(result.suggestion.refused && result.suggestion.refusalReason
+                ? { refusalReason: result.suggestion.refusalReason }
+                : {}),
+            },
+          })
           return c.json(result.suggestion, 200)
+        }
         case 'unavailable':
           return c.json({ code: 'AI_ADAPTER_UNAVAILABLE', message: result.message }, 503)
         case 'failed':
