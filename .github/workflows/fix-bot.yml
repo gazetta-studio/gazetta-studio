@@ -21,6 +21,9 @@ on:
       issue:
         description: 'Optional: fix one specific issue (otherwise scans all candidates)'
         required: false
+      lookback_hours:
+        description: 'Optional: scan window. 0 = full backlog (no since-filter); N>0 = last N hours; empty = auto-detect from last successful run'
+        required: false
 
 jobs:
   fix:
@@ -74,6 +77,10 @@ jobs:
           # mode (scan candidates) and treats a numeric value as manual
           # one-issue mode.
           ISSUE_NUMBER: ${{ inputs.issue }}
+          # Empty on cron (auto-detect since-anchor); set to "0" via manual
+          # trigger to force a full backlog scan; set to "N" to scan last
+          # N hours.
+          LOOKBACK_HOURS: ${{ inputs.lookback_hours }}
         run: npm run fix-bot -w @gazetta/bots
 
       - name: Upload transcripts
