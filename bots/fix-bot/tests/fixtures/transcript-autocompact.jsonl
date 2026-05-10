@@ -1,0 +1,7 @@
+{"type":"system","subtype":"init","model":"claude-sonnet-4-6","tools":["Bash","Read"]}
+{"type":"assistant","message":{"content":[{"type":"text","text":"I'll start by reading the issue."},{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"gh issue view 308"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"some content"}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t2","name":"Read","input":{"file_path":"/foo/bar.ts"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t2","content":"file contents"}]}}
+{"type":"assistant","message":{"content":[{"type":"text","text":"Autocompact is thrashing: the context refilled to the limit within 3 turns of the previous compact, 3 times in a row. A file being read or a tool output is likely too large for the context window."}]}}
+{"type":"result","is_error":true,"duration_ms":1225000,"num_turns":15}

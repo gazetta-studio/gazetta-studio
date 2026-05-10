@@ -1,0 +1,3 @@
+{"type":"system","subtype":"init","model":"claude-opus-4-7[1m]","tools":["Bash"]}
+{"type":"assistant","message":{"content":[{"type":"text","text":"I'm unable to investigate this issue."}]}}
+{"type":"result","is_error":true,"duration_ms":5000,"num_turns":1}

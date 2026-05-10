@@ -43,11 +43,11 @@
  * Run in CI:
  *   .github/workflows/fix-bot.yml (cron + workflow_dispatch)
  */
-import { mkdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
-import { findIssuesByLabels, hasPriorCommentFromBot, octokitFromEnv, repoFromEnv } from '../_lib/github.js'
+import { addLabel, findIssuesByLabels, hasPriorCommentFromBot, octokitFromEnv, repoFromEnv } from '../_lib/github.js'
 import {
   printBanner,
   printCandidateHeader,
@@ -57,9 +57,12 @@ import {
   printTranscriptPath,
   printWarning,
 } from '../_lib/ui.js'
+import { diagnoseFailure, formatFailureComment } from './failure-diagnostic.js'
+import { detectIssueSource, extractMutationSourcePath } from './issue-shape.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PROMPT_PATH = resolve(HERE, 'prompt.md')
+const REPO_ROOT = resolve(HERE, '../..')
 
 const DRY_RUN = process.env.DRY_RUN === '1'
 const TRANSCRIPTS_DIR = resolve(HERE, '../transcripts')
@@ -223,7 +226,55 @@ async function fixOneIssue(
   printTranscriptPath(transcriptPath)
 
   const branchName = `fix/issue-${issueNumber}`
-  const prompt = `${promptTemplate}
+
+  // Pre-load context for known issue shapes. Today: mutation-watcher
+  // issues have a locked body shape with the affected source path in a
+  // known position. We read the file server-side and inject its contents
+  // into the prompt so Claude doesn't have to Glob/Read to discover it.
+  // (Fix-bot run 25639089938 against #308 read publish-rendered.ts six
+  // times before autocompact thrashed; pre-loading saves those turns.)
+  //
+  // Falls back gracefully when the issue doesn't match any known shape
+  // — Claude discovers everything itself, same as before.
+  const issueBody = issue.body ?? ''
+  const sourceTag = detectIssueSource(issueBody)
+  let preloadedSource: { path: string; contents: string } | null = null
+  if (sourceTag === 'mutation-watcher') {
+    const path = extractMutationSourcePath(issueBody)
+    if (path) {
+      // Prefix with packages/gazetta because mutation-watcher's body
+      // uses package-relative paths (src/...) while the bot's cwd is
+      // the repo root.
+      const fullPath = resolve(REPO_ROOT, 'packages/gazetta', path)
+      if (existsSync(fullPath)) {
+        const contents = readFileSync(fullPath, 'utf-8')
+        preloadedSource = { path: `packages/gazetta/${path}`, contents }
+        printNotice(`Pre-loaded source ${path} (${contents.length} bytes) into prompt`)
+      } else {
+        printWarning(`Mutation issue points at ${path} but file not found at ${fullPath}; skipping pre-load.`)
+      }
+    }
+  }
+
+  const preloadBlock = preloadedSource
+    ? `
+
+## Pre-loaded source file (DO NOT re-Read)
+
+The orchestrator has read the affected source file for you. Reference
+the contents below when writing the failing test and the fix; use line
+numbers as cited in the issue's mutant table. DO NOT call Read on this
+file — your context budget is tight, and re-reading wastes turns.
+
+PRELOADED_FILE_PATH=${preloadedSource.path}
+PRELOADED_FILE_CONTENTS:
+\`\`\`typescript
+${preloadedSource.contents}
+\`\`\`
+`
+    : ''
+
+  const prompt = `${promptTemplate}${preloadBlock}
 
 ISSUE_NUMBER=${issueNumber}
 ISSUE_TITLE=${issue.title}
@@ -238,8 +289,50 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     transcriptPath,
     allowedTools: ['Bash', 'Read', 'Grep', 'Glob', 'Write', 'Edit'],
   })
+
   if (!result.success) {
     printWarning(`fix attempt for #${issueNumber} exited ${result.exitCode}`)
+    await postFailureComment(octokit, repo, issueNumber, transcriptPath)
+  }
+}
+
+/**
+ * On non-zero Claude exit: read the transcript, extract a maintainer-
+ * readable failure summary, post it as an issue comment, apply
+ * `ready-for-human` so the candidate is removed from fix-bot's queue
+ * until a human intervenes.
+ *
+ * Without this path, fix-bot failures leave the issue indistinguishable
+ * from "never tried" — a black hole that requires the maintainer to
+ * read workflow logs to diagnose.
+ *
+ * Best-effort: if the comment / label call itself fails (rare), log
+ * and move on; the workflow log + transcript artifact still record what
+ * happened.
+ */
+async function postFailureComment(
+  octokit: ReturnType<typeof octokitFromEnv>,
+  repo: ReturnType<typeof repoFromEnv>,
+  issueNumber: number,
+  transcriptPath: string,
+): Promise<void> {
+  try {
+    const diagnostic = diagnoseFailure(transcriptPath)
+    printNotice(`Failure category: ${diagnostic.category}`)
+
+    const ghServer = process.env.GITHUB_SERVER_URL ?? 'https://github.com'
+    const repoSlug = `${repo.owner}/${repo.repo}`
+    const runId = process.env.GITHUB_RUN_ID ?? 'local'
+    const workflowRunUrl =
+      runId === 'local' ? '(local run — no workflow URL)' : `${ghServer}/${repoSlug}/actions/runs/${runId}`
+
+    const body = formatFailureComment({ diagnostic, workflowRunUrl, runId })
+
+    await octokit.issues.createComment({ ...repo, issue_number: issueNumber, body })
+    await addLabel(octokit, repo, issueNumber, 'ready-for-human')
+    printNotice(`Posted failure-diagnostic comment + applied ready-for-human on #${issueNumber}`)
+  } catch (err) {
+    printWarning(`Could not post failure comment on #${issueNumber}: ${err}`)
   }
 }
 

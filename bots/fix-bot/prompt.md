@@ -68,9 +68,16 @@ actual code.
 
 ### 2. Trace the relevant code
 
+**If a `## Pre-loaded source file` section is present below the prompt
+template (orchestrator pre-loaded it for known issue shapes like
+mutation-watcher's), reference that content directly. DO NOT call
+`Read` on the same file — your context is finite, and re-reading
+wastes turns. Use `offset`/`limit` if you legitimately need a slice
+not in the supplied contents (rare).**
+
 Use `Grep` / `Glob` / `Read` to find:
 - The failing test file (if reporter cited one) OR the related test files
-- The implementation code that the bug is in
+- The implementation code that the bug is in (only if not pre-loaded)
 - Adjacent tests in the same area to understand existing patterns
 
 If the issue is a flake (`flake` label present), the failing test
