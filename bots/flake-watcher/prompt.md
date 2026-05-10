@@ -149,10 +149,19 @@ workflow logs.
 
    | Label | When | gh command |
    |---|---|---|
-   | `flake` | Always — every issue you file or comment on | `gh issue edit <N> --add-label flake` |
+   | `flake` | Default on every issue (see note below) | `gh issue edit <N> --add-label flake` |
    | `needs triage` | Always on NEW issues. Skip if a human has already commented on the issue (signals they've started triaging). | `gh issue edit <N> --add-label "needs triage"` |
    | `area: <X>` | Always — pick from path → area mapping below | `gh issue edit <N> --add-label "area: cms"` |
    | `recurring-flake` | When the issue has 3+ occurrences across distinct days | `gh issue edit <N> --add-label recurring-flake` |
+
+   **`flake` label semantics.** The `flake` label classifies an issue as "CI
+   test-flake — intermittent failure, not a real bug until proven otherwise
+   via triage." Apply it by default on every issue you file. Skip ONLY if
+   your hypothesis section concludes the failure is structurally a real
+   bug masquerading as a flake (e.g. an equal-millisecond ordering race in
+   a test, a permanently-wrong assertion that happens to pass under timing
+   coincidence). In that case, say so in the body and let humans decide
+   whether to add the label.
 
    **Path → area mapping:**
 
