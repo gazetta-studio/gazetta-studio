@@ -67,8 +67,8 @@ GITHUB_REPOSITORY=gazetta-studio/gazetta-studio GH_TOKEN=$(gh auth token) \
 ### Bot interactions
 
 - `flake-watcher` files issues with `flake` + `needs-triage`
-- `triage-bot` picks them up the next day, runs reproducer, drafts agent brief if confident
-- Maintainer runs `/triage` interactively — sees both bots' enrichment, decides state
+- `triage-bot` picks them up the next day. For flake-labeled issues it skips repro (timing-dependent by definition) and posts code-structure analysis. For non-flake bugs it pre-flight classifies, runs the reproducer when possible, and posts investigation notes (not an agent brief — that's the maintainer's job).
+- Maintainer runs `/triage` interactively — sees both bots' enrichment, decides state, writes a durable agent brief if advancing to `ready-for-agent`.
 
 ## Improving a bot
 
