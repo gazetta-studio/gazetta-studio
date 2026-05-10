@@ -1,0 +1,4 @@
+{"type":"system","subtype":"init","model":"claude-opus-4-7[1m]","tools":["Bash"]}
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"gh issue view 308"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"some content"}]}}
+{"type":"assistant","message":{"content":[{"type":"text","text":"Now I'll read the source file."}]}}
