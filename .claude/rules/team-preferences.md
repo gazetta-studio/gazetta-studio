@@ -257,3 +257,17 @@ Validated approaches and things to avoid. Each entry: rule, then why.
    - Mutation testing nightly (StrykerJS, already shipped per [`testing-plan.md`](testing-plan.md)) catches the residual tautological tests that slip through TDD ordering.
 
    Example: validation Cut 1's save-delta orchestrator — failing test landed first (`save returns 409 with the introduced ref's issue, not pre-existing issues`), then the diff implementation. Reverting the implementation re-fails the test; the TDD ordering proved the diff logic was load-bearing, not vestigial. Without the ordering, the agent would have written `expect(response.status).toBeOneOf([200, 409])` — passing whether or not the diff worked.
+
+32. **Read all failures before editing; iterate on a single file via vitest watch mode.** Two complementary patterns for the test-error inner loop:
+
+   **Pattern A — when a single run produces N independent failures, fix all N in one edit pass before rerunning.** Common case in API/contract work: different routes, different validator surfaces, different return shapes — each failure has its own root cause, none caused by another. Sequential single-fix-per-run is a heuristic for *coupled* changes (where the second failure might be caused by the first fix). Applied to independent contract mismatches, it just multiplies run cost by N. Reading two types and editing two call sites in one pass is the same cognitive cost as four serialized read-then-edit-then-rerun cycles, but one test run instead of four.
+
+   **Pattern B — when iterating on a single test file (refining assertions, narrowing a flake, exploring a behavior), use `vitest` (watch mode), not `vitest run`.** Each subsequent edit reruns the changed file in ~10-50ms instead of paying the ~400ms-1.2s cold-start tax per `vitest run` invocation. Background it via `Bash run_in_background` if conversational visibility matters; otherwise run inline and read output between edits.
+
+   **When NOT to apply A:** when failures are genuinely coupled (a state-machine transition test where fixing the first transition might cascade into the second). Read the failure messages and judge — if each failure names a different file/route/type, they're independent.
+
+   **When NOT to apply B:** one-shot verification ("did my fix work?") — `vitest run path/to/file.test.ts` is fine; the cold-start tax pays once. Watch mode earns its keep on the third-or-later invocation against the same file.
+
+   **Why:** the iterate-on-test loop is one of the highest-frequency activities in any session. A 3-failure sequence costs 4× a 1-pass fix; a 5-edit watch loop costs 1× the watch startup vs 5× the run cold-start. Both compound across sessions.
+
+   Example: cross-foundation gap #3 produced 3 independent surface failures at once (validator scope shape wrong, publish/audit body shape wrong, consistency check cascading from #4). I fixed them sequentially across 3 runs (~3.6s total). Pattern A would have fixed all 3 in one edit pass and one rerun (~1.2s) — same diagnostic effort, one-third the runs.
