@@ -4,12 +4,10 @@ name: Discovery prep bot
 # triggered either by triage-bot (chained dispatch when triage classifies
 # an issue as `enhancement`) or manually for re-research / prompt iteration.
 #
-# The bot writes `docs/audits/issue-NNN-discovery.md`, opens a draft PR,
-# and comments on the issue with the PR link. Per Q6 lock: research input
-# for the maintainer's grilling phase, NOT a design doc.
-#
-# Idempotent: skips if the discovery doc already exists (caller can delete
-# the file + re-trigger to force re-research).
+# Output is a SINGLE ISSUE COMMENT — no PR, no repo file. The bot needs
+# only `issues: write` permission. Idempotent: skips if discovery-prep-bot
+# has already commented on the issue (delete the prior comment to force
+# re-research).
 on:
   workflow_dispatch:
     inputs:
@@ -23,23 +21,13 @@ jobs:
     continue-on-error: true
     timeout-minutes: 30
     permissions:
-      # Read code/contents (for repo grep) + write code (for opening the PR
-      # with the audit doc). Read+write issues for the comment. PR write
-      # for opening the draft PR.
-      contents: write
+      # Read code (for repo grep + bot source) + read/write issues (for the
+      # research comment). NO `contents: write` and NO `pull-requests`
+      # — bot doesn't write any files or open PRs.
+      contents: read
       issues: write
-      pull-requests: write
     steps:
       - uses: actions/checkout@v6
-        with:
-          # Need full history for git commit + PR creation, not the
-          # default shallow clone.
-          fetch-depth: 0
-
-      - name: Configure git author
-        run: |
-          git config user.name 'discovery-prep-bot'
-          git config user.email 'noreply@anthropic.com'
 
       - uses: actions/setup-node@v6
         with:
