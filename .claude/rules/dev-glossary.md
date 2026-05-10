@@ -296,6 +296,26 @@ The bot's lean (if any) goes in the comment body, not the label —
 applying a category guess in the label would defeat the "trust labels
 to mean confident classification" UX.
 
+**`ready-for-human` (label)**:
+Project-specific overload of the skill-canonical `ready-for-human` state
+role. Used in two contexts:
+
+- **discovery-prep-bot output**: "Discovery research posted as a comment;
+  design grilling can start whenever the maintainer is ready."
+- **fix-bot output (when stuck)**: "Tried but couldn't capture the bug as
+  a failing test; needs human to write the test or close as wontfix."
+
+Disambiguate by reading the latest bot comment's outcome tag
+(`<!-- discovery-prep-bot:` vs `<!-- fix-bot:`). The skill's canonical
+"needs human implementation" usage is preserved — maintainer-applied
+`ready-for-human` via `/triage` keeps that meaning. Three contexts on
+one label is the trade-off accepted to avoid a new label per bot.
+
+The label is also a pipeline gate: once applied, the issue is excluded
+from triage-bot's and discovery-prep-bot's input queries. Maintainer
+intervention is required to re-enter the bot pipeline (remove the
+label).
+
 **`flake` (label)**:
 CI test-flake classification — intermittent failure, not a real bug until
 proven otherwise via triage. Applied by flake-watcher to every issue it

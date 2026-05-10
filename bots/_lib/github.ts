@@ -107,41 +107,55 @@ export interface IssueSummary {
  * "no bot or human has looked yet" state, distinct from `triage-uncertain`
  * (bot looked, couldn't classify).
  */
-const ADVANCED_STATE_ROLES = ['needs-info', 'ready-for-agent', 'ready-for-human', 'wontfix'] as const
-
 /**
- * List open issues the triage bot may enrich.
+ * List open issues matching label-driven criteria.
  *
- * Scope: every open issue that has NOT been advanced past `needs-triage` by
- * a maintainer. Concretely, any open issue lacking ALL of `needs-info`,
- * `ready-for-agent`, `ready-for-human`, `wontfix`. Includes:
+ * Each bot in the pipeline declares its input as "issues with ALL of
+ * `requireAll` AND NONE of `excludeAny`." This is the universal contract
+ * — pipeline state lives in labels, not in code or transcripts.
  *
- *   - Unlabeled issues (newly filed, never touched)
- *   - Issues labeled `needs-triage` (the bot's primary surface)
- *   - Issues partially labeled by maintainers (`bug` only, `area: cms` only,
- *     `flake` only, etc.) but never advanced past triage
+ * Concrete bot inputs:
+ *
+ *   triage-bot:
+ *     requireAll: []
+ *     excludeAny: ['bug', 'enhancement', 'triage-uncertain',
+ *                  'ready-for-agent', 'ready-for-human',
+ *                  'wontfix', 'needs-info']
+ *     (the absence of any category role + absence of any state advancement)
+ *
+ *   discovery-prep-bot:
+ *     requireAll: ['enhancement']
+ *     excludeAny: ['ready-for-human', 'ready-for-agent',
+ *                  'wontfix', 'needs-info']
+ *     (an enhancement that hasn't been handed off downstream)
+ *
+ *   fix-bot (future):
+ *     requireAll: ['bug', 'ready-for-agent']
+ *     excludeAny: ['wontfix', 'needs-info', 'ready-for-human']
+ *     (a bug ready for an agent, no maintainer escalation in flight)
+ *
+ * `sinceIso` (optional) lets the daily cron scan only what changed since
+ * the last successful run. Without it (or with a since from before the
+ * project began), behaves as a full scan — the manual "wide lookback"
+ * path uses no since.
  *
  * Excludes pull requests — Octokit returns PRs in this endpoint by default
  * because GitHub treats them as a kind of issue. Filtered out here.
- *
- * Per-issue dedup (skip if the bot has already enriched and has no new
- * findings) lives in the bot's prompt, not here. This function is intent-
- * neutral — it returns every candidate that's ever eligible.
  */
-export async function findTriageCandidates(
+export async function findIssuesByLabels(
   octokit: Octokit,
   repo: RepoIdentity,
-  options: { sinceIso?: string } = {},
+  options: { requireAll?: readonly string[]; excludeAny: readonly string[]; sinceIso?: string },
 ): Promise<IssueSummary[]> {
-  // `since` server-side filters to issues whose ANY-FIELD (labels, comments,
-  // body, state) changed after that timestamp. Lets daily runs scan only
-  // what actually changed, instead of re-walking the full backlog. Without
-  // it (or with a `since` from before the project began), behaves as full
-  // scan — the manual "wide lookback" path uses no since.
+  const requireAll = options.requireAll ?? []
   const { data } = await octokit.issues.listForRepo({
     ...repo,
     state: 'open',
     per_page: 100,
+    // Server-side prefilter when at least one required label exists. Octokit
+    // takes a comma-separated string. Issues here have ALL of these labels
+    // (intersection), which matches our requireAll semantics.
+    ...(requireAll.length > 0 ? { labels: requireAll.join(',') } : {}),
     ...(options.sinceIso ? { since: options.sinceIso } : {}),
   })
 
@@ -149,7 +163,7 @@ export async function findTriageCandidates(
   for (const issue of data) {
     if (issue.pull_request) continue // skip PRs
     const labels = issue.labels.map(l => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean)
-    if (labels.some(l => (ADVANCED_STATE_ROLES as readonly string[]).includes(l))) continue
+    if (labels.some(l => (options.excludeAny as readonly string[]).includes(l))) continue
     out.push({
       number: issue.number,
       title: issue.title,
@@ -256,32 +270,22 @@ export async function hasPriorCommentFromBot(
 }
 
 /**
- * Trigger another workflow via the workflow_dispatch event with inputs.
+ * Apply a label to an issue. Idempotent — adding an already-present label
+ * is a no-op on the GitHub side.
  *
- * Used for chained handoffs between bots (e.g., triage-bot dispatching
- * discovery-prep-bot when an issue is classified as enhancement). The
- * dispatched workflow runs as its own GH Actions run; the caller doesn't
- * wait for completion — that's the whole point of async dispatch.
- *
- * `workflowFileName` is the filename in `.github/workflows/`, e.g.
- * `"discovery-prep-bot.yml"`. `inputs` are the workflow's `inputs:` keys
- * defined in its `workflow_dispatch:` block.
- *
- * Default ref is `main` because pipeline handoffs should always run the
- * latest production code, not whatever branch the caller is on. Pass
- * `ref` to override (rare).
+ * Used by bots to mark pipeline progress: e.g., discovery-prep-bot adds
+ * `ready-for-human` to signal "research done, maintainer's grilling phase
+ * starts now."
  */
-export async function dispatchWorkflow(
+export async function addLabel(
   octokit: Octokit,
   repo: RepoIdentity,
-  workflowFileName: string,
-  inputs: Record<string, string>,
-  ref = 'main',
+  issueNumber: number,
+  label: string,
 ): Promise<void> {
-  await octokit.actions.createWorkflowDispatch({
+  await octokit.issues.addLabels({
     ...repo,
-    workflow_id: workflowFileName,
-    ref,
-    inputs,
+    issue_number: issueNumber,
+    labels: [label],
   })
 }
