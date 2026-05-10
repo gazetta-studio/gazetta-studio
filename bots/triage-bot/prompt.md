@@ -573,6 +573,18 @@ gh issue edit $ISSUE_NUMBER --add-label "triage-uncertain,area: cms"
   `needs-info` — but verify defensively at start of investigation. If any of
   those four labels is present, emit a Decision line and exit immediately;
   do not re-classify.
+- **Auto-advance is idempotent and runs unconditionally** (when its
+  conditions match). Even when `IS_FIRST_INVESTIGATION=false` and
+  you're about to dedup-skip, FIRST check whether auto-advance applies
+  (per step 8e: confident bug + reproducible-locally OR producer-bot-
+  filed). If yes, apply `ready-for-agent` BEFORE exiting. The label is
+  idempotent — a no-op when already present — so it's safe to apply on
+  every investigation. Without this carve-out, any bug classified
+  before auto-advance was a rule (PR #296) would never receive
+  `ready-for-agent` because the dedup-skip would fire first. Order:
+  read prior comments → check auto-advance conditions → apply
+  `ready-for-agent` if applicable → THEN apply the dedup-skip rule
+  below.
 - **Skip if no new findings vs prior bot comment.** When
   `IS_FIRST_INVESTIGATION=false` (the orchestrator pre-computed this for
   you — trust it; do NOT re-fetch comments), read the existing bot
@@ -586,13 +598,17 @@ gh issue edit $ISSUE_NUMBER --add-label "triage-uncertain,area: cms"
   hand. When `IS_FIRST_INVESTIGATION=true`, apply category + area +
   needs-triage. When `false`, append new comments but do NOT change
   labels (even labels the bot itself applied) and do NOT edit prior bot
-  comments. If new evidence (reporter follow-up, new failures, etc.)
-  suggests reclassifying — e.g. an `enhancement` that the reporter has
-  now clarified is happening in production — append a comment surfacing
-  the suggested reclassification and let the maintainer decide via
-  `/triage`. Format: "Reporter follow-up suggests reclassifying as
-  `<X>` — maintainer please confirm." Bot never retracts its own labels
-  or edits its own comments.
+  comments. **Exception:** `ready-for-agent` may be applied on subsequent
+  investigations when the auto-advance conditions match (per the
+  preceding rule). This is the one label triage-bot adds during dedup-
+  skip; all others stay frozen after first investigation. If new evidence
+  (reporter follow-up, new failures, etc.) suggests reclassifying —
+  e.g. an `enhancement` that the reporter has now clarified is happening
+  in production — append a comment surfacing the suggested
+  reclassification and let the maintainer decide via `/triage`. Format:
+  "Reporter follow-up suggests reclassifying as `<X>` — maintainer
+  please confirm." Bot never retracts its own labels or edits its own
+  comments.
 - **Comment-action consistency.** The body of any `gh issue comment` MUST
   match the labels you actually applied and the actions you actually took.
   When drafting your comment text, re-read your prior `gh issue edit`
