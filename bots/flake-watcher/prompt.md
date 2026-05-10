@@ -93,9 +93,24 @@ workflow logs.
    ```
 
    Use the test file name (e.g. `publish.spec.ts`, `admin-api-archive-review.test.ts`)
-   as the search term. Match conservatively — the same test file may host both a
-   tracked flake and a real bug; read the issue body to confirm the failure
-   pattern matches.
+   as the search term. **Match grain: per failure mode, NOT per test file.**
+
+   - The same test file can host multiple distinct flakes (different test cases
+     with different root causes — e.g. one timing race in a tree-render test,
+     a separate state-leak in a theme test in the same file). File a separate
+     issue per failure mode.
+   - "Failure mode" = same test path + same line (or same locator + same
+     symptom). Two failures of `publish.spec.ts:33` are the same mode; a
+     failure of `:33` and a failure of `:199` are different modes.
+   - When deciding "match or new":
+     - **Match (comment)** if the existing issue's title/body describes
+       the same test path and the same symptom you're seeing
+     - **New issue** if the existing issue covers a different test or a
+       different symptom in the same file
+   - Read the existing issue's body to verify, don't title-match. The bot
+     filed both #286 and #290 against `publish.spec.ts` because they're
+     different tests (`:33` vs `:199`) with different root causes — that's
+     the right call.
 
 3. **Dedup against this run.** If you find a matching open issue, search its
    comments for the run ID:
@@ -128,17 +143,43 @@ workflow logs.
      uncertainty — distinguish "flake" (timing race) from "structural bug
      hiding as flake" (the test is wrong).
 
-5. **Recurring-flake label.** If the matched issue has 3+ historical
-   occurrences across different days (count distinct dates in the comment
-   thread), apply the `recurring-flake` label:
+5. **Labelling.** Apply labels per the table below. New issues get the full
+   set; commenting on an existing issue, ADD any missing labels (don't
+   remove ones humans applied during triage).
+
+   | Label | When | gh command |
+   |---|---|---|
+   | `flake` | Always — every issue you file or comment on | `gh issue edit <N> --add-label flake` |
+   | `needs triage` | Always on NEW issues. Skip if a human has already commented on the issue (signals they've started triaging). | `gh issue edit <N> --add-label "needs triage"` |
+   | `area: <X>` | Always — pick from path → area mapping below | `gh issue edit <N> --add-label "area: cms"` |
+   | `recurring-flake` | When the issue has 3+ occurrences across distinct days | `gh issue edit <N> --add-label recurring-flake` |
+
+   **Path → area mapping:**
+
+   | Test path prefix | Area label |
+   |---|---|
+   | `tests/e2e/` | `area: cms` (admin frontend exercised end-to-end) |
+   | `apps/admin/tests/` | `area: cms` |
+   | `packages/gazetta/tests/cli*` or `tests/cli-*` | `area: cli` |
+   | `packages/gazetta/tests/admin-api*` | `area: cms` (admin API is the CMS server side) |
+   | `packages/gazetta/tests/` (anything else — render, hash, sidecars, validators) | `area: renderer` |
+   | `packages/gazetta/tests/` involving storage providers | `area: storage` |
+   | `packages/gazetta/tests/` involving template loading | `area: templates` |
+
+   When a test path doesn't fit the mapping cleanly, pick the closest area
+   and note your reasoning via a `> Decision: ...` line. Don't apply
+   multiple `area:` labels to one issue — pick one.
+
+   **Apply all labels in one call** to avoid multiple API roundtrips:
 
    ```
-   gh label create recurring-flake --color "fbca04" --description "Same flake observed 3+ times across different days" --force
-   gh issue edit <NUMBER> --add-label recurring-flake
+   gh issue edit <N> --add-label "flake,needs triage,area: cms"
    ```
 
-   The label is the signal that root-cause work should be prioritized over
-   continued tracking.
+   For a recurring flake on an existing issue:
+   ```
+   gh issue edit <N> --add-label "flake,recurring-flake,area: cms"
+   ```
 
 ## New-issue template
 
@@ -196,8 +237,9 @@ distinction for whoever picks this up.>
 - **Link related issues.** If the new failure looks like an existing issue's
   cousin (same root-cause class, different test), link it: "Possibly related:
   see issue #<N>'s discussion of <root cause>."
-- **Don't apply the `bug` label.** Issue templates already include it via
-  workflow defaults; let humans triage real bug-vs-flake classification.
+- **Don't apply the `bug` label** — that's a triage decision (real-bug vs
+  flake-vs-test-quality-issue) reserved for humans. Apply only the labels in
+  the Labelling section above.
 - **Stay terse.** Issue bodies should fit on one screen. The pattern + one
   hypothesis + fix options. No preamble, no summary.
 - **Do not ask the user questions** — you're running headless in CI. If
