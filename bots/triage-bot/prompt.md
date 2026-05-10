@@ -26,10 +26,14 @@ advancement past `ready-for-agent` (they merge the fix-bot PR or not).
 
 - `ISSUE_NUMBER` — the GitHub issue number to triage
 - `ISSUE_TITLE` — for context (the issue body has the full content)
-- `IS_FIRST_INVESTIGATION` — `true` when no prior bot comment exists on this
-  issue, `false` otherwise. Pre-computed by the orchestrator. Trust this
-  value — do NOT re-check via `gh issue view --json comments`.
 - `RUN_ID` — the workflow run ID (used for outcome tags); `local` if running outside CI
+
+Every investigation is FRESH. The candidate query already excludes
+classified issues — if you're seeing this issue, it's either brand-new
+or explicitly re-enqueued by a maintainer who removed the prior
+classification label. In both cases, classify from scratch. If a prior
+bot comment exists, append your new comment as a new entry; the prior
+one stands as history.
 
 The prompt also includes a **Reference docs** block at the bottom containing
 the full text of `docs/non-goals.md` and `ROADMAP.md`. Match against that
@@ -568,47 +572,13 @@ gh issue edit $ISSUE_NUMBER --add-label "triage-uncertain,area: cms"
 - **Don't ask the user questions** — you're running headless. If reporter
   input is needed, surface that in your comment ("Maintainer: this needs
   reporter clarification on X before agent-ready") and stop.
-- **Skip if already advanced.** The bot's selection logic already excludes
-  issues with any of `ready-for-agent`, `ready-for-human`, `wontfix`,
-  `needs-info` — but verify defensively at start of investigation. If any of
-  those four labels is present, emit a Decision line and exit immediately;
-  do not re-classify.
-- **Auto-advance is idempotent and runs unconditionally** (when its
-  conditions match). Even when `IS_FIRST_INVESTIGATION=false` and
-  you're about to dedup-skip, FIRST check whether auto-advance applies
-  (per step 8e: confident bug + reproducible-locally OR producer-bot-
-  filed). If yes, apply `ready-for-agent` BEFORE exiting. The label is
-  idempotent — a no-op when already present — so it's safe to apply on
-  every investigation. Without this carve-out, any bug classified
-  before auto-advance was a rule (PR #296) would never receive
-  `ready-for-agent` because the dedup-skip would fire first. Order:
-  read prior comments → check auto-advance conditions → apply
-  `ready-for-agent` if applicable → THEN apply the dedup-skip rule
-  below.
-- **Skip if no new findings vs prior bot comment.** When
-  `IS_FIRST_INVESTIGATION=false` (the orchestrator pre-computed this for
-  you — trust it; do NOT re-fetch comments), read the existing bot
-  comments first to understand what was already said. Only post a new
-  comment if you have meaningfully new findings — e.g. you ran a repro
-  this time and the prior comment hadn't, or new reporter/maintainer
-  activity has surfaced fresh information. If you have nothing new, emit
-  `> Decision: prior bot comment covers this; nothing new to add` and
-  exit. Labels are still applied idempotently (no-op when already there).
-- **Append-only after first investigation.** Labels are the bot's opening
-  hand. When `IS_FIRST_INVESTIGATION=true`, apply category + area +
-  needs-triage. When `false`, append new comments but do NOT change
-  labels (even labels the bot itself applied) and do NOT edit prior bot
-  comments. **Exception:** `ready-for-agent` may be applied on subsequent
-  investigations when the auto-advance conditions match (per the
-  preceding rule). This is the one label triage-bot adds during dedup-
-  skip; all others stay frozen after first investigation. If new evidence
-  (reporter follow-up, new failures, etc.) suggests reclassifying —
-  e.g. an `enhancement` that the reporter has now clarified is happening
-  in production — append a comment surfacing the suggested
-  reclassification and let the maintainer decide via `/triage`. Format:
-  "Reporter follow-up suggests reclassifying as `<X>` — maintainer
-  please confirm." Bot never retracts its own labels or edits its own
-  comments.
+- **Defensive label check before classifying.** The bot's selection
+  logic excludes issues with any of `bug`, `enhancement`,
+  `triage-uncertain`, `ready-for-agent`, `ready-for-human`, `wontfix`,
+  `needs-info` — but verify defensively at start of investigation. If
+  any of those labels is unexpectedly present (e.g., a manual workflow
+  run targeting an already-classified issue), emit a Decision line
+  and exit immediately. Do not re-classify a labeled issue.
 - **Comment-action consistency.** The body of any `gh issue comment` MUST
   match the labels you actually applied and the actions you actually took.
   When drafting your comment text, re-read your prior `gh issue edit`
