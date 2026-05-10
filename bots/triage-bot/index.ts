@@ -33,7 +33,7 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
-import { findIssuesByLabels, hasPriorBotComment, octokitFromEnv, repoFromEnv } from '../_lib/github.js'
+import { findIssuesByLabels, octokitFromEnv, repoFromEnv } from '../_lib/github.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PROMPT_PATH = resolve(HERE, 'prompt.md')
@@ -153,17 +153,14 @@ ${roadmap}
       `\n=== Triaging #${candidate.number}: "${candidate.title}" (${processed + 1}/${candidates.length}, ${Math.round(elapsed / 1000)}s elapsed) ===`,
     )
 
-    // Pre-compute "is this a first investigation" at the orchestrator level.
-    // Saves Claude one tool call (gh issue view --json comments) and removes
-    // an ambiguity (Claude sometimes mis-classified maintainer comments
-    // mentioning "triage" as prior bot output).
-    const isFirstInvestigation = !(await hasPriorBotComment(octokit, repo, candidate.number))
-
+    // Every investigation is fresh — the candidate query already excludes
+    // classified issues, so any candidate we see is either brand-new or
+    // explicitly re-enqueued by a maintainer (who removed the prior
+    // classification label). In both cases, classify from scratch.
     const prompt = `${promptTemplate}${referenceDocsBlock}
 
 ISSUE_NUMBER=${candidate.number}
 ISSUE_TITLE=${candidate.title}
-IS_FIRST_INVESTIGATION=${isFirstInvestigation}
 RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
 
     const transcriptPath = resolve(TRANSCRIPTS_DIR, `${RUN_TIMESTAMP}-issue-${candidate.number}.jsonl`)
