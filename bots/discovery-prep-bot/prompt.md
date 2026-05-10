@@ -254,19 +254,40 @@ revisit", or "this overlaps with existing in-flight work in #other".]
 \`\`\`
 
 The trailing outcome tag (`<!-- discovery-prep-bot: run=$RUN_ID -->`) is
-load-bearing — the orchestrator and triage-bot use it for idempotency
+load-bearing — the orchestrator and bots use it for idempotency
 checks. Don't omit.
+
+### 8. Apply `ready-for-human` label
+
+After posting the comment, apply the `ready-for-human` label. This is
+the bot's pipeline-handoff signal — it tells the maintainer "research
+done, design grilling can start" AND it removes the issue from this
+bot's future cron candidates (the input contract excludes
+`ready-for-human`).
+
+```bash
+gh issue edit $ISSUE_NUMBER --add-label ready-for-human
+```
+
+The label is shared with fix-bot's "stuck — needs human" state. The
+maintainer disambiguates by reading the comment thread:
+- discovery-prep-bot outcome tag in the latest comment → "research done,
+  start grilling"
+- fix-bot outcome tag in the latest comment → "fix-bot stuck on this
+  bug; decide whether to take it on or close as wontfix"
 
 ## Rules
 
 - **Don't write a design doc.** No "Distinctive choices," no "Foundational
   checks" (those belong in design docs after grilling), no committed
   decisions on architecture / data model / API shape.
-- **Don't write any files.** Output is a single issue comment. No PR.
-  No `docs/audits/...` artifact. No edits to any repo file.
-- **Don't advance issue state.** No `ready-for-agent`, no `wontfix`, no
-  closing. No new labels (the `enhancement` + `area:` labels triage-bot
-  applied are fine; don't add or remove anything).
+- **Don't write any files.** Output is a single issue comment + the
+  `ready-for-human` label. No PR. No `docs/audits/...` artifact. No
+  edits to any repo file.
+- **Don't advance issue state past `ready-for-human`.** No `ready-for-agent`,
+  no `wontfix`, no closing. The `enhancement` + `area:` labels triage-bot
+  applied are fine; don't remove them. The ONLY new label you may apply
+  is `ready-for-human`.
 - **Don't @mention anyone.** Issue comment notification is enough.
 - **Quote sources verbatim.** Don't paraphrase competitor docs.
 - **Distinguish verified from unverified.** Per rule 20: if you can't find

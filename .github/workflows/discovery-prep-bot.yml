@@ -1,28 +1,35 @@
 name: Discovery prep bot
 
-# Researches a single confident-enhancement issue. NOT cron-driven —
-# triggered either by triage-bot (chained dispatch when triage classifies
-# an issue as `enhancement`) or manually for re-research / prompt iteration.
+# Researches confident-enhancement issues. Two trigger modes:
+#   - Cron (daily): scans `enhancement` issues lacking `ready-for-human`,
+#     `ready-for-agent`, `wontfix`, `needs-info`. Per-run budget bounds work;
+#     backlog converges over multiple days.
+#   - workflow_dispatch with `issue` input: research one specific issue
+#     (manual override for re-research after prompt iteration).
 #
-# Output is a SINGLE ISSUE COMMENT — no PR, no repo file. The bot needs
-# only `issues: write` permission. Idempotent: skips if discovery-prep-bot
-# has already commented on the issue (delete the prior comment to force
-# re-research).
+# Output: single issue comment + `ready-for-human` label. No PR, no repo
+# file. The label is the idempotency contract.
 on:
+  schedule:
+    # 10:00 UTC daily — one hour before triage-bot's 11:00 UTC. Discovery
+    # picks up enhancements triage-bot classified yesterday; downstream
+    # actor (maintainer) sees `ready-for-human` issues during their
+    # workday.
+    - cron: '0 10 * * *'
   workflow_dispatch:
     inputs:
       issue:
-        description: 'Issue number to research (must be a confident-enhancement issue, open)'
-        required: true
+        description: 'Optional: research one specific issue (otherwise scans all candidates)'
+        required: false
 
 jobs:
   research:
     runs-on: ubuntu-latest
     continue-on-error: true
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
-      # Read code (for repo grep + bot source) + read/write issues (for the
-      # research comment). NO `contents: write` and NO `pull-requests`
+      # Read code (for repo grep) + read/write issues (research comment +
+      # ready-for-human label). No `contents: write`, no `pull-requests`
       # — bot doesn't write any files or open PRs.
       contents: read
       issues: write
@@ -46,6 +53,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}
+          # Empty when input not provided — the bot treats empty as "cron
+          # mode" (scan candidates) and treats a numeric value as "manual
+          # one-issue mode."
           ISSUE_NUMBER: ${{ inputs.issue }}
         run: npm run discovery-prep-bot -w @gazetta/bots
 

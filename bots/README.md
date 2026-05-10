@@ -59,31 +59,54 @@ GITHUB_REPOSITORY=gazetta-studio/gazetta-studio GH_TOKEN=$(gh auth token) \
 
 ## Active bots
 
-| Bot | Trigger | Purpose | Workflow |
+| Bot | Trigger | Input (label-driven) | Output |
 |---|---|---|---|
-| `flake-watcher` | Daily 12:00 UTC | Detects CI flakes (run_attempt >= 2), files / comments on issues | `.github/workflows/flake-watcher.yml` |
-| `triage-bot` | Daily 11:00 UTC + workflow_dispatch | Classifies incoming issues (`bug` / `enhancement` / `triage-uncertain`); auto-advances reproducible bugs to `ready-for-agent`; chain-dispatches discovery-prep-bot for confident enhancements | `.github/workflows/triage-bot.yml` |
-| `discovery-prep-bot` | workflow_dispatch (chained from triage-bot, OR manual) | Researches a single confident-enhancement issue; opens a draft PR with `docs/audits/issue-NNN-discovery.md` | `.github/workflows/discovery-prep-bot.yml` |
+| `flake-watcher` | Daily 12:00 UTC + workflow_dispatch | (CI events, not labels) | New issue with `bug`, `flake`, `area: X`, `recurring-flake?` |
+| `triage-bot` | Daily 11:00 UTC + workflow_dispatch | Open issue lacking all of `ready-for-agent`, `ready-for-human`, `wontfix`, `needs-info` | One of `bug` / `enhancement` / `triage-uncertain` + `area: X`. Reproducible bug also gets `ready-for-agent`. |
+| `discovery-prep-bot` | Daily 10:00 UTC + workflow_dispatch | `enhancement` AND lacks all of `ready-for-human`, `ready-for-agent`, `wontfix`, `needs-info` | Research comment + `ready-for-human` label |
 
-### Pipeline shape
+### Pipeline shape (label-driven)
 
 ```
 flake-watcher (cron 12:00 UTC)
-    ↓ files issue with flake + bug
-triage-bot (cron 11:00 UTC next day)
-    ├─→ confident bug + reproducible → applies ready-for-agent
-    │       ↓ (future: fix-bot opens PR; maintainer merges)
-    ├─→ confident enhancement → dispatches discovery-prep-bot
+    ↓ files issue (auto-classified `bug`)
+triage-bot (cron 11:00 UTC next day) — input: open + no terminal-state label
+    ├─→ confident bug + reproducible → applies `ready-for-agent`
+    │       ↓ (future: fix-bot picks up bug + ready-for-agent)
+    ├─→ confident enhancement → no extra label (handed off via the
+    │   `enhancement` label itself)
     │       ↓
-    │   discovery-prep-bot → opens draft PR with audit doc
-    │       ↓
-    │   maintainer reviews PR, starts grilling at their pace
+    │   discovery-prep-bot (cron 10:00 UTC) — input: enhancement + no
+    │   ready-for-human / ready-for-agent / wontfix / needs-info
+    │       ↓ posts research comment + applies `ready-for-human`
+    │   maintainer reads comment, starts grilling at their pace
     │
     └─→ triage-uncertain → maintainer's morning queue
             gh issue list --label triage-uncertain
 ```
 
-Each bot is independent. Failures are isolated (per-bot try/catch + workflow `continue-on-error`). Each dispatched downstream bot runs on its own GitHub Actions run with its own transcript artifact.
+**Pipeline state lives in labels, not in code or workflow runs.** Each bot's input is a label query; each bot's output is a label mutation. To re-run any bot on an issue, remove its output label — the next cron picks it up. To opt-out an issue, apply a terminal-state label (`wontfix` / `ready-for-human`).
+
+**Maintainer queries:**
+
+```bash
+# What did the bot flag for me?
+gh issue list --label triage-uncertain
+
+# What's in design-grilling territory? (read the latest comment to know
+# whether it's discovery-prep-bot's research or fix-bot's stuck case)
+gh issue list --label ready-for-human
+
+# What's queued for fix-bot?
+gh issue list --label ready-for-agent
+
+# What needs reporter clarification?
+gh issue list --label needs-info
+```
+
+`ready-for-human` is shared between discovery-prep-bot ("research done, grilling can start") and fix-bot ("stuck — needs human"). Disambiguate by reading the most recent bot comment's outcome tag.
+
+Each bot is independent. Failures are isolated (per-bot try/catch + workflow `continue-on-error`). No chained workflow_dispatch — each bot's cron is the trigger, the issue's label state is the input.
 
 ## Improving a bot
 

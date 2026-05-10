@@ -34,11 +34,9 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
 import {
-  dispatchWorkflow,
+  findIssuesByLabels,
   findLastSuccessfulRunIso,
-  findTriageCandidates,
   hasPriorBotComment,
-  hasPriorCommentFromBot,
   octokitFromEnv,
   repoFromEnv,
 } from '../_lib/github.js'
@@ -109,7 +107,18 @@ async function main(): Promise<void> {
 
   console.log(`Triage bot: scanning ${repo.owner}/${repo.repo} for triage candidates`)
 
-  const allCandidates = await findTriageCandidates(octokit, repo, { sinceIso })
+  // Triage-bot's input contract: any open issue NOT yet advanced to a
+  // terminal state. Re-visits already-classified issues so that:
+  //   - New reporter activity can trigger reclassification suggestions
+  //   - Auto-advance can fire on bugs the bot classified before the
+  //     auto-advance rule existed
+  // The bot's prompt handles dedup (skip if no new findings) and the
+  // append-only rule (don't change labels on re-investigation, except
+  // for ready-for-agent auto-advance).
+  const allCandidates = await findIssuesByLabels(octokit, repo, {
+    excludeAny: ['ready-for-agent', 'ready-for-human', 'wontfix', 'needs-info'],
+    sinceIso,
+  })
 
   if (allCandidates.length === 0) {
     console.log('No triage candidates found. Inbox zero — nothing to do.')
@@ -218,66 +227,16 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
       console.log(`Warning: triage of #${candidate.number} threw: ${err}; continuing.`)
     }
 
-    // Pipeline handoff: if Claude classified this as a confident
-    // `enhancement` AND no discovery doc exists yet, dispatch
-    // discovery-prep-bot for this one issue. Per Q6 lock — discovery is
-    // one-time per issue, not periodic, so we trigger event-driven (here)
-    // rather than via cron.
-    //
-    // Failure isolation: dispatch is best-effort. If it fails (rate limit,
-    // transient API error), the issue still has its `enhancement` label;
-    // a maintainer can re-trigger via workflow_dispatch on demand.
-    try {
-      await maybeDispatchDiscovery(octokit, repo, candidate.number)
-    } catch (err) {
-      console.log(`Warning: discovery dispatch for #${candidate.number} failed: ${err}; continuing.`)
-    }
+    // No chain-dispatch: discovery-prep-bot now runs on its own cron and
+    // reads `enhancement` issues without `ready-for-human` (its label-
+    // driven input). Triage-bot's job ends at classification; pipeline
+    // hand-off happens via the issue tracker's label state, not via
+    // workflow_dispatch.
 
     processed++
   }
 
   console.log(`\nTriage bot complete. Processed ${processed}/${candidates.length}. Transcripts: ${TRANSCRIPTS_DIR}`)
-}
-
-/**
- * Decide whether to dispatch discovery-prep-bot for this issue.
- *
- * Fires the dispatch when ALL hold:
- *   - The issue is now labeled `enhancement` (triage-bot classified it as
- *     a confident enhancement — either this run or a prior one)
- *   - The issue is NOT labeled `triage-uncertain` (would be a contradiction
- *     but defensive check)
- *   - discovery-prep-bot has NOT already commented on this issue (detected
- *     via the bot's outcome-tag `<!-- discovery-prep-bot: run=` in any
- *     prior comment)
- *
- * The outcome-tag check is the load-bearing idempotency guard. Without it,
- * triage-bot would re-dispatch discovery-prep-bot for every existing
- * enhancement on every run — N PRs of CI burn for no work. The tag is
- * persistent (lives forever in the issue thread), so dedup survives across
- * any number of triage-bot runs.
- *
- * Discovery-prep-bot also performs its own outcome-tag check at startup as
- * a defensive measure (catches manual re-dispatches that bypass triage-bot).
- */
-async function maybeDispatchDiscovery(
-  octokit: ReturnType<typeof octokitFromEnv>,
-  repo: ReturnType<typeof repoFromEnv>,
-  issueNumber: number,
-): Promise<void> {
-  const { data: issue } = await octokit.issues.get({ ...repo, issue_number: issueNumber })
-  const labels = issue.labels.map(l => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean)
-  if (!labels.includes('enhancement')) return
-  if (labels.includes('triage-uncertain')) return
-
-  const alreadyCommented = await hasPriorCommentFromBot(octokit, repo, issueNumber, 'discovery-prep-bot')
-  if (alreadyCommented) {
-    console.log(`#${issueNumber}: discovery-prep-bot has already commented; skipping dispatch.`)
-    return
-  }
-
-  console.log(`#${issueNumber}: dispatching discovery-prep-bot.yml (issue=${issueNumber})`)
-  await dispatchWorkflow(octokit, repo, 'discovery-prep-bot.yml', { issue: String(issueNumber) })
 }
 
 main().catch(err => {
