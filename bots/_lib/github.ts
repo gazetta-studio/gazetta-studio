@@ -92,13 +92,20 @@ export interface IssueSummary {
 
 /**
  * State roles that indicate an issue has been advanced past the triage bot's
- * scope. The bot enriches; humans decide. Any issue carrying one of these
- * has had a maintainer judgment applied — bot stays out.
+ * re-investigation scope. Any issue carrying one of these is excluded from
+ * future bot scans:
+ *
+ *   - `needs-info` / `ready-for-human` / `wontfix` — applied by maintainer
+ *     via the `/triage` skill; bot stays out
+ *   - `ready-for-agent` — may be applied by the maintainer OR by the bot
+ *     itself (per prompt step 8e auto-advance). Either way, the next bot
+ *     surface is fix-bot, not re-triage. Triage-bot stays out.
  *
  * Mirrors the five state roles from the `/triage` skill
  * (~/.claude/skills/triage/SKILL.md). `needs-triage` is intentionally NOT
- * in this list — it's the bot's "default state" and the bot may re-enrich
- * issues sitting there.
+ * in this list — that label is reserved for the skill-canonical
+ * "no bot or human has looked yet" state, distinct from `triage-uncertain`
+ * (bot looked, couldn't classify).
  */
 const ADVANCED_STATE_ROLES = ['needs-info', 'ready-for-agent', 'ready-for-human', 'wontfix'] as const
 

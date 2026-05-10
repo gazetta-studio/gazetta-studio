@@ -1,20 +1,26 @@
 /**
- * triage-bot — daily autonomous enrichment of incoming issues.
+ * triage-bot — daily autonomous classification of incoming issues.
  *
- * Scope: every open issue that's either labeled `needs-triage` OR completely
- * unlabeled. Per-issue, the bot reads the body + comments + linked code,
- * categorizes (bug / enhancement), applies area + needs-triage labels, runs
- * the reproducer for bugs when possible, posts findings, and (for high-
- * confidence reproduced bugs) drafts an agent brief comment.
+ * Per-issue, the bot reads the body + comments + linked code, classifies
+ * confidently as `bug` or `enhancement` when the body has concrete
+ * evidence, OR escalates as `triage-uncertain` when the body is ambiguous.
+ * For confident bugs that reproduce locally (or are producer-bot-filed),
+ * the bot also auto-advances state to `ready-for-agent` so fix-bot picks
+ * up the issue on its next cron.
  *
- * The bot NEVER advances issue state past `needs-triage` (no `ready-for-agent`,
- * no `wontfix`, no closing). Those decisions stay with maintainers via the
- * interactive `/triage` skill, which sees the bot's enrichment as starting
- * research, not as a verdict.
+ * Maintainer UX target: morning view = `gh issue list --label triage-uncertain`
+ * shows ONLY the issues the bot couldn't classify (target: 1-3 per week
+ * in steady state). Confident classifications carry no maintainer-attention
+ * label; the maintainer reviews fix-bot's PRs as the irreducible gate.
  *
- * Conventions shared with the `/triage` skill (see `bots/_lib/triage.ts`):
+ * The bot does NOT apply `needs-triage` (that label is skill-canonical
+ * "no bot or human has looked yet"). The bot does NOT advance state past
+ * `ready-for-agent` — `wontfix` / `needs-info` / `ready-for-human` are
+ * maintainer-only via the interactive `/triage` skill.
+ *
+ * Conventions shared with the `/triage` skill (~/.claude/skills/triage/):
  *   - AI disclaimer prefix on every comment
- *   - Two category roles: bug | enhancement
+ *   - Category roles: bug | enhancement (+ project-specific triage-uncertain)
  *   - Outcome-tag suffix per flake-watcher convention
  *
  * Run locally:
