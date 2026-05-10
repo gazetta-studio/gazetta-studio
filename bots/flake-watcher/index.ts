@@ -22,7 +22,7 @@
  * Run in CI:
  *   .github/workflows/flake-watcher.yml (daily 12:00 UTC)
  */
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { findFlakeCandidates, findWorkflowId, octokitFromEnv, repoFromEnv } from '../_lib/github.js'
@@ -34,6 +34,10 @@ const PROMPT_PATH = resolve(HERE, 'prompt.md')
 const LOOKBACK_HOURS = Number(process.env.LOOKBACK_HOURS ?? '48')
 const WORKFLOW_NAME = process.env.WORKFLOW_NAME ?? 'CI'
 const DRY_RUN = process.env.DRY_RUN === '1'
+// Transcripts are uploaded as a workflow artifact. One JSONL per investigated
+// run, named by the run ID + ISO date so a future agent can browse them.
+const TRANSCRIPTS_DIR = resolve(HERE, '../transcripts')
+const RUN_TIMESTAMP = new Date().toISOString().replace(/[:.]/g, '-').replace(/Z$/, 'Z')
 
 async function main(): Promise<void> {
   const repo = repoFromEnv()
@@ -63,22 +67,30 @@ async function main(): Promise<void> {
   }
 
   const promptTemplate = readFileSync(PROMPT_PATH, 'utf-8')
+  mkdirSync(TRANSCRIPTS_DIR, { recursive: true })
 
   for (const flake of flakes) {
-    console.log(`\n=== Investigating run ${flake.runId} ===`)
+    console.log(`\n=== Investigating run ${flake.runId} (sha ${flake.headSha.slice(0, 8)}) ===`)
     const prompt = `${promptTemplate}
 
 RUN_ID=${flake.runId}
 LOOKBACK_HOURS=${LOOKBACK_HOURS}`
 
-    const result = runClaude({ prompt })
-    if (!result.success) {
-      // Don't let one failed investigation kill the whole job. Log and move on.
-      console.log(`Warning: investigation of run ${flake.runId} exited ${result.exitCode}; continuing.`)
+    const transcriptPath = resolve(TRANSCRIPTS_DIR, `${RUN_TIMESTAMP}-run-${flake.runId}.jsonl`)
+    console.log(`(transcript: ${transcriptPath})`)
+
+    try {
+      const result = await runClaude({ prompt, transcriptPath })
+      if (!result.success) {
+        // Don't let one failed investigation kill the whole job.
+        console.log(`Warning: investigation of run ${flake.runId} exited ${result.exitCode}; continuing.`)
+      }
+    } catch (err) {
+      console.log(`Warning: investigation of run ${flake.runId} threw: ${err}; continuing.`)
     }
   }
 
-  console.log('\nFlake watcher complete.')
+  console.log(`\nFlake watcher complete. Transcripts: ${TRANSCRIPTS_DIR}`)
 }
 
 main().catch(err => {

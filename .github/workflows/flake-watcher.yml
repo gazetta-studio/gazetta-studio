@@ -60,3 +60,16 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           LOOKBACK_HOURS: ${{ inputs.lookback_hours || '48' }}
         run: npm run flake-watcher -w @gazetta/bots
+
+      # Per-investigation JSONL transcripts. A future agent can `gh run download
+      # <run-id> -n flake-watcher-transcripts` to read every tool call and
+      # decision from past runs — feeds the prompt-improvement loop documented
+      # in bots/README.md.
+      - name: Upload transcripts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: flake-watcher-transcripts
+          path: bots/transcripts/
+          if-no-files-found: ignore
+          retention-days: 90
