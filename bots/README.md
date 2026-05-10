@@ -13,9 +13,11 @@ Repo-scoped bots that run on GitHub Actions cron schedules. Each bot:
 bots/
 ├── package.json              # one workspace, one entry per bot
 ├── tsconfig.json
-├── _lib/                     # shared modules — github, claude, etc.
+├── _lib/                     # shared modules — github, claude, replay
 │   ├── github.ts
-│   └── claude.ts
+│   ├── claude.ts             # claude -p wrapper; writes JSONL transcript
+│   └── replay.ts             # rerun past investigations against current prompt
+├── transcripts/              # JSONL transcripts (gitignored; CI uploads as artifact)
 └── <bot-name>/
     ├── index.ts              # entry point
     └── prompt.md             # Claude prompt template
@@ -60,3 +62,49 @@ GITHUB_REPOSITORY=gazetta-studio/gazetta-studio GH_TOKEN=$(gh auth token) \
 | Bot | Trigger | Purpose | Workflow |
 |---|---|---|---|
 | `flake-watcher` | Daily 12:00 UTC | Detects CI flakes (run_attempt >= 2), files / comments on issues | `.github/workflows/flake-watcher.yml` |
+
+## Improving a bot
+
+Bots are designed for an agent (you, in a future session) to improve over time.
+Three signals make the loop work:
+
+1. **JSONL transcripts** — every Claude invocation writes one line per event
+   (tool call, tool result, assistant text) to `bots/transcripts/`. CI uploads
+   them as the `<bot-name>-transcripts` artifact (90-day retention). To read a
+   past run's transcripts: `gh run download <run-id> -n flake-watcher-transcripts`.
+2. **Decision-log convention** — bot prompts ask Claude to articulate
+   load-bearing decisions inline (`> Decision: ...`). The transcript captures
+   the WHY, not just the WHAT.
+3. **Outcome tags** — every comment / new issue ends with
+   `<!-- flake-watcher: run=$RUN_ID -->`. Lets you query
+   `gh issue list --search "flake-watcher: run=12345"` to find what the bot
+   touched in any past run, joining intent (transcript) with outcome (issue
+   activity).
+
+### Replay loop (the actual improvement workflow)
+
+```bash
+# 1. Pick a recent workflow run
+gh run list --workflow=flake-watcher.yml --limit 5
+
+# 2. Read transcripts to find quality issues — over-eager dedup, missed
+#    root-cause class, etc. Outcome tags let you cross-check what each
+#    investigation actually produced on the issue tracker.
+gh run download <run-id> -n flake-watcher-transcripts -D /tmp/transcripts
+
+# 3. Edit the prompt (bots/<bot-name>/prompt.md)
+
+# 4. Replay the same flakes against the new prompt — writes side-by-side
+#    transcripts to bots/transcripts/<bot>/replay-from-<source-run>/.
+npm run replay -w @gazetta/bots <bot-name> <source-run-id>
+
+# 5. Diff <run-id>-original.jsonl vs <run-id>-replay.jsonl per investigation;
+#    decide if the change is an improvement.
+
+# 6. Open a PR with the prompt change; cite which past runs replay improved.
+```
+
+**Replay safety**: replays invoke real Claude with real tools. The current
+prompt may instruct Claude to file/comment on issues — replays will too.
+Always inspect transcripts before shipping a prompt change. Future work:
+add a `REPLAY=1` env that the prompt can read to suppress side effects.

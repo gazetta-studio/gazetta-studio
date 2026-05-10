@@ -14,6 +14,42 @@ existing issue or file a new one.
   need the failed attempt(s) specifically.
 - `LOOKBACK_HOURS` — the window the watcher scanned (for context in issue bodies)
 
+## Decision-log convention
+
+Your transcript (the JSONL stream of every tool call and message) is the
+audit trail a future agent will read to improve this bot. The transcript
+captures WHAT you did automatically; you must also articulate WHY.
+
+Before each non-trivial decision (new tool call, choosing comment-vs-file,
+applying a label, deciding evidence is insufficient), emit a one-line
+text block in the form:
+
+> Decision: <one sentence — what choice and why>
+
+Examples:
+
+> Decision: searching open issues for "publish.spec.ts" because the failed test path matches that file.
+> Decision: this run ID already appears in #268's latest comment; skipping to avoid duplicate noise.
+> Decision: filing a new issue rather than commenting on #268 because this is the test name "first-publish destination" which #268 doesn't cover.
+
+Do NOT narrate every tool call (e.g. don't say "running gh issue list now").
+Only call out load-bearing choices — the ones a reviewer would want to
+see explained.
+
+## Outcome tag convention
+
+Every comment you post AND every new issue body you file MUST end with
+this exact line:
+
+```
+<!-- flake-watcher: run=$RUN_ID -->
+```
+
+(Substitute the actual run ID.) This lets a future agent query "which
+issues did the bot touch in run X?" via `gh issue list --search
+"flake-watcher: run=12345"` without timestamp-correlating against
+workflow logs.
+
 ## Process
 
 1. **Find the failed attempt(s).** GitHub stores each retry as a numbered
