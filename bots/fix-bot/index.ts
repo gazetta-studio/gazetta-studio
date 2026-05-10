@@ -47,13 +47,7 @@ import { mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
-import {
-  findIssuesByLabels,
-  findLastSuccessfulRunIso,
-  hasPriorCommentFromBot,
-  octokitFromEnv,
-  repoFromEnv,
-} from '../_lib/github.js'
+import { findIssuesByLabels, hasPriorCommentFromBot, octokitFromEnv, repoFromEnv } from '../_lib/github.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PROMPT_PATH = resolve(HERE, 'prompt.md')
@@ -67,11 +61,6 @@ const RUN_TIMESTAMP = new Date().toISOString().replace(/[:.]/g, '-').replace(/Z$
 // take 15-30 min per issue. Budget at 50 min (10 min margin from
 // workflow's 60 min timeout) means roughly 1-2 fixes per cron.
 const PER_RUN_BUDGET_MS = Number(process.env.BUDGET_MS ?? 50 * 60 * 1000)
-
-// Optional manual override: set LOOKBACK_HOURS to force a wider scan than
-// the auto-detected since-anchor. Same shape as triage-bot / discovery-prep-bot.
-const rawLookback = process.env.LOOKBACK_HOURS
-const LOOKBACK_HOURS_OVERRIDE = rawLookback !== undefined && rawLookback !== '' ? rawLookback : undefined
 
 async function main(): Promise<void> {
   const repo = repoFromEnv()
@@ -88,14 +77,17 @@ async function main(): Promise<void> {
     return
   }
 
-  // Cron mode: scan candidates.
-  const sinceIso = await resolveSinceIso(octokit, repo)
   console.log(`Fix bot: scanning ${repo.owner}/${repo.repo} for bug+ready-for-agent candidates`)
 
+  // Label-driven input: every bug ready-for-agent that hasn't escalated
+  // to a maintainer-only state. The `ready-for-agent` label is the
+  // upstream signal (applied by triage-bot or by maintainer); fix-bot's
+  // own completion is "ready-for-human" (when stuck) or PR existence
+  // (when fix attempted). The hasPriorCommentFromBot check below catches
+  // the PR-attempted path; ready-for-human catches the stuck path.
   const allCandidates = await findIssuesByLabels(octokit, repo, {
     requireAll: ['bug', 'ready-for-agent'],
     excludeAny: ['ready-for-human', 'wontfix', 'needs-info'],
-    sinceIso,
   })
 
   if (allCandidates.length === 0) {
@@ -143,32 +135,6 @@ async function main(): Promise<void> {
   }
 
   console.log(`\nFix bot complete. Processed ${processed}/${candidates.length}.`)
-}
-
-async function resolveSinceIso(
-  octokit: ReturnType<typeof octokitFromEnv>,
-  repo: ReturnType<typeof repoFromEnv>,
-): Promise<string | undefined> {
-  if (LOOKBACK_HOURS_OVERRIDE !== undefined) {
-    const hours = Number(LOOKBACK_HOURS_OVERRIDE)
-    if (hours === 0) {
-      console.log('LOOKBACK_HOURS=0 — full backlog scan (no since filter)')
-      return undefined
-    }
-    const sinceIso = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
-    console.log(`LOOKBACK_HOURS=${hours} — scanning issues updated since ${sinceIso}`)
-    return sinceIso
-  }
-  const currentRunId = process.env.GITHUB_RUN_ID ? Number(process.env.GITHUB_RUN_ID) : undefined
-  const lastRun = await findLastSuccessfulRunIso(octokit, repo, 'fix-bot.yml', currentRunId)
-  if (!lastRun) {
-    console.log('No prior successful run — full backlog scan (first ever invocation)')
-    return undefined
-  }
-  const lastRunMs = new Date(lastRun).getTime()
-  const sinceIso = new Date(lastRunMs - 60 * 60 * 1000).toISOString()
-  console.log(`Auto-detected last successful run completed at ${lastRun}; scanning since ${sinceIso} (1h overlap)`)
-  return sinceIso
 }
 
 /**

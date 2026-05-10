@@ -51,13 +51,7 @@ import { mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
-import {
-  findIssuesByLabels,
-  findLastSuccessfulRunIso,
-  hasPriorCommentFromBot,
-  octokitFromEnv,
-  repoFromEnv,
-} from '../_lib/github.js'
+import { findIssuesByLabels, hasPriorCommentFromBot, octokitFromEnv, repoFromEnv } from '../_lib/github.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PROMPT_PATH = resolve(HERE, 'prompt.md')
@@ -71,11 +65,6 @@ const RUN_TIMESTAMP = new Date().toISOString().replace(/[:.]/g, '-').replace(/Z$
 // at 50 min for the upload-artifacts step + any in-flight per-issue work.
 // Override via env for local manual runs.
 const PER_RUN_BUDGET_MS = Number(process.env.BUDGET_MS ?? 50 * 60 * 1000)
-
-// Optional manual override: set LOOKBACK_HOURS to force a wider scan than
-// the auto-detected since-anchor. Same shape as triage-bot's override.
-const rawLookback = process.env.LOOKBACK_HOURS
-const LOOKBACK_HOURS_OVERRIDE = rawLookback !== undefined && rawLookback !== '' ? rawLookback : undefined
 
 async function main(): Promise<void> {
   const repo = repoFromEnv()
@@ -92,14 +81,15 @@ async function main(): Promise<void> {
     return
   }
 
-  // Cron mode: scan candidates and process per-run-budget.
-  const sinceIso = await resolveSinceIso(octokit, repo)
   console.log(`Discovery prep bot: scanning ${repo.owner}/${repo.repo} for confident-enhancement candidates`)
 
+  // Label-driven input: every enhancement that hasn't been handed off
+  // downstream. Once `ready-for-human` is applied (after research is
+  // posted), the issue is excluded forever — the label IS the
+  // completion signal. Maintainer re-enqueues by removing the label.
   const allCandidates = await findIssuesByLabels(octokit, repo, {
     requireAll: ['enhancement'],
     excludeAny: ['ready-for-human', 'ready-for-agent', 'wontfix', 'needs-info'],
-    sinceIso,
   })
 
   if (allCandidates.length === 0) {
@@ -148,40 +138,6 @@ async function main(): Promise<void> {
   }
 
   console.log(`\nDiscovery prep bot complete. Processed ${processed}/${candidates.length}.`)
-}
-
-/**
- * Resolve the "since" anchor for incremental scanning.
- *
- *   - LOOKBACK_HOURS=0           → no since filter (full backlog scan)
- *   - LOOKBACK_HOURS=N (N > 0)   → since = now - N hours
- *   - unset (cron default)       → since = last successful discovery-prep-bot
- *                                  run minus 1h overlap
- */
-async function resolveSinceIso(
-  octokit: ReturnType<typeof octokitFromEnv>,
-  repo: ReturnType<typeof repoFromEnv>,
-): Promise<string | undefined> {
-  if (LOOKBACK_HOURS_OVERRIDE !== undefined) {
-    const hours = Number(LOOKBACK_HOURS_OVERRIDE)
-    if (hours === 0) {
-      console.log('LOOKBACK_HOURS=0 — full backlog scan (no since filter)')
-      return undefined
-    }
-    const sinceIso = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
-    console.log(`LOOKBACK_HOURS=${hours} — scanning issues updated since ${sinceIso}`)
-    return sinceIso
-  }
-  const currentRunId = process.env.GITHUB_RUN_ID ? Number(process.env.GITHUB_RUN_ID) : undefined
-  const lastRun = await findLastSuccessfulRunIso(octokit, repo, 'discovery-prep-bot.yml', currentRunId)
-  if (!lastRun) {
-    console.log('No prior successful run — full backlog scan (first ever invocation)')
-    return undefined
-  }
-  const lastRunMs = new Date(lastRun).getTime()
-  const sinceIso = new Date(lastRunMs - 60 * 60 * 1000).toISOString()
-  console.log(`Auto-detected last successful run completed at ${lastRun}; scanning since ${sinceIso} (1h overlap)`)
-  return sinceIso
 }
 
 /**

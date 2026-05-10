@@ -33,13 +33,7 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
-import {
-  findIssuesByLabels,
-  findLastSuccessfulRunIso,
-  hasPriorBotComment,
-  octokitFromEnv,
-  repoFromEnv,
-} from '../_lib/github.js'
+import { findIssuesByLabels, hasPriorBotComment, octokitFromEnv, repoFromEnv } from '../_lib/github.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PROMPT_PATH = resolve(HERE, 'prompt.md')
@@ -57,67 +51,31 @@ const RUN_TIMESTAMP = new Date().toISOString().replace(/[:.]/g, '-').replace(/Z$
 // days for one-time spikes). Override via env for local manual runs.
 const PER_RUN_BUDGET_MS = Number(process.env.BUDGET_MS ?? 50 * 60 * 1000)
 
-// Optional manual override: set LOOKBACK_HOURS to force a wider scan.
-//   LOOKBACK_HOURS=720    → scan last 30 days (good for a periodic full sweep)
-//   LOOKBACK_HOURS=0      → scan ALL open issues (no since filter — backlog mode)
-//   unset / empty string  → auto-detect via the last successful workflow run
-//
-// Empty string handling: workflow_dispatch inputs always coerce to strings
-// in the env block. With `LOOKBACK_HOURS: ${{ inputs.lookback_hours || '' }}`
-// in the YAML, an unset input arrives here as "" (empty string), NOT
-// undefined. We treat empty as equivalent to unset to preserve the auto-
-// detect default for cron AND default-input manual triggers. Without this,
-// empty string would coerce via Number('') === 0 into the "full backlog"
-// branch and silently re-walk all issues every manual trigger.
-const rawLookback = process.env.LOOKBACK_HOURS
-const LOOKBACK_HOURS_OVERRIDE = rawLookback !== undefined && rawLookback !== '' ? rawLookback : undefined
-
 async function main(): Promise<void> {
   const repo = repoFromEnv()
   const octokit = octokitFromEnv()
 
-  // Resolve the "since" anchor for incremental scanning.
-  //   - LOOKBACK_HOURS=0           → no since filter (full backlog scan)
-  //   - LOOKBACK_HOURS=N (N > 0)   → since = now - N hours
-  //   - unset (cron default)       → since = last successful triage-bot run
-  //                                  minus 1h overlap (handles edge cases
-  //                                  where an issue was updated mid-run)
-  let sinceIso: string | undefined
-  if (LOOKBACK_HOURS_OVERRIDE !== undefined) {
-    const hours = Number(LOOKBACK_HOURS_OVERRIDE)
-    if (hours === 0) {
-      console.log('LOOKBACK_HOURS=0 — full backlog scan (no since filter)')
-      sinceIso = undefined
-    } else {
-      sinceIso = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
-      console.log(`LOOKBACK_HOURS=${hours} — scanning issues updated since ${sinceIso}`)
-    }
-  } else {
-    const currentRunId = process.env.GITHUB_RUN_ID ? Number(process.env.GITHUB_RUN_ID) : undefined
-    const lastRun = await findLastSuccessfulRunIso(octokit, repo, 'triage-bot.yml', currentRunId)
-    if (lastRun) {
-      const lastRunMs = new Date(lastRun).getTime()
-      sinceIso = new Date(lastRunMs - 60 * 60 * 1000).toISOString()
-      console.log(`Auto-detected last successful run completed at ${lastRun}; scanning since ${sinceIso} (1h overlap)`)
-    } else {
-      console.log('No prior successful run — full backlog scan (first ever invocation)')
-      sinceIso = undefined
-    }
-  }
-
   console.log(`Triage bot: scanning ${repo.owner}/${repo.repo} for triage candidates`)
 
-  // Triage-bot's input contract: any open issue NOT yet advanced to a
-  // terminal state. Re-visits already-classified issues so that:
-  //   - New reporter activity can trigger reclassification suggestions
-  //   - Auto-advance can fire on bugs the bot classified before the
-  //     auto-advance rule existed
-  // The bot's prompt handles dedup (skip if no new findings) and the
-  // append-only rule (don't change labels on re-investigation, except
-  // for ready-for-agent auto-advance).
+  // Triage-bot's input contract: any open issue with NO classification
+  // yet (no `bug` / `enhancement` / `triage-uncertain`) AND no terminal-
+  // state label (no `ready-for-agent` / `ready-for-human` / `wontfix` /
+  // `needs-info`). Once classified, the issue is excluded forever — the
+  // label IS the completion signal.
+  //
+  // Reclassification path: maintainer removes the existing classification
+  // label to re-enqueue. Re-investigation across runs is the maintainer's
+  // explicit gesture, not the bot's default.
   const allCandidates = await findIssuesByLabels(octokit, repo, {
-    excludeAny: ['ready-for-agent', 'ready-for-human', 'wontfix', 'needs-info'],
-    sinceIso,
+    excludeAny: [
+      'bug',
+      'enhancement',
+      'triage-uncertain',
+      'ready-for-agent',
+      'ready-for-human',
+      'wontfix',
+      'needs-info',
+    ],
   })
 
   if (allCandidates.length === 0) {
