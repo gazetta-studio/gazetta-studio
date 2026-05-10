@@ -48,6 +48,15 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
 import { findIssuesByLabels, hasPriorCommentFromBot, octokitFromEnv, repoFromEnv } from '../_lib/github.js'
+import {
+  printBanner,
+  printCandidateHeader,
+  printCandidateList,
+  printNotice,
+  printRunSummary,
+  printTranscriptPath,
+  printWarning,
+} from '../_lib/ui.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PROMPT_PATH = resolve(HERE, 'prompt.md')
@@ -77,7 +86,19 @@ async function main(): Promise<void> {
     return
   }
 
-  console.log(`Fix bot: scanning ${repo.owner}/${repo.repo} for bug+ready-for-agent candidates`)
+  printBanner({
+    name: 'fix-bot',
+    tagline: 'implementer',
+    purpose: 'Fix `bug + ready-for-agent` issues with TDD-first commit ordering.',
+    inputs: [
+      'Open issues with `bug` AND `ready-for-agent`',
+      'AND no `ready-for-human` / `wontfix` / `needs-info`',
+      'AND no prior fix-bot comment (idempotency)',
+    ],
+    outputs: ['EITHER draft PR (commit 1: failing test, commit 2: fix)', 'OR stuck-comment + `ready-for-human` label'],
+  })
+
+  printNotice(`Scanning ${repo.owner}/${repo.repo} for bug+ready-for-agent candidates`)
 
   // Label-driven input: every bug ready-for-agent that hasn't escalated
   // to a maintainer-only state. The `ready-for-agent` label is the
@@ -91,19 +112,19 @@ async function main(): Promise<void> {
   })
 
   if (allCandidates.length === 0) {
-    console.log('No fix-bot candidates found. Inbox zero — nothing to do.')
+    printNotice('No fix-bot candidates found. Inbox zero — nothing to do. ✨')
     return
   }
 
   const candidates = [...allCandidates].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
 
-  console.log(`Fix candidates (${candidates.length}, oldest-first):`)
-  for (const c of candidates) {
-    console.log(`  #${c.number} "${c.title}"`)
-  }
+  printCandidateList({
+    noun: 'bug',
+    candidates: candidates.map(c => ({ ref: `#${c.number}`, label: c.title })),
+  })
 
   if (DRY_RUN) {
-    console.log(`DRY_RUN=1 — exiting before invoking Claude (${candidates.length} would be processed).`)
+    printNotice(`DRY_RUN=1 — exiting before invoking Claude (${candidates.length} would be processed).`)
     return
   }
 
@@ -113,28 +134,38 @@ async function main(): Promise<void> {
     const elapsed = Date.now() - runStart
     if (elapsed > PER_RUN_BUDGET_MS) {
       const remaining = candidates.length - processed
-      console.log(
-        `\nPer-run budget exhausted (${Math.round(elapsed / 1000)}s elapsed > ${Math.round(PER_RUN_BUDGET_MS / 1000)}s budget).`,
+      printWarning(
+        `Per-run budget exhausted (${Math.round(elapsed / 1000)}s > ${Math.round(PER_RUN_BUDGET_MS / 1000)}s). Stopping with ${remaining} unfixed; tomorrow's run picks them up.`,
       )
-      console.log(`Stopping with ${remaining} candidate(s); tomorrow's run picks them up.`)
       for (const skipped of candidates.slice(processed)) {
-        console.log(`  #${skipped.number} "${skipped.title}"`)
+        console.log(`     ⏭  #${skipped.number} "${skipped.title}"`)
       }
       break
     }
 
-    console.log(
-      `\n=== Fixing #${candidate.number}: "${candidate.title}" (${processed + 1}/${candidates.length}, ${Math.round(elapsed / 1000)}s elapsed) ===`,
-    )
+    printCandidateHeader({
+      index: processed + 1,
+      total: candidates.length,
+      label: `#${candidate.number} · ${candidate.title}`,
+      elapsedSec: Math.round(elapsed / 1000),
+    })
+
     try {
       await fixOneIssue(octokit, repo, candidate.number)
     } catch (err) {
-      console.log(`Warning: fix attempt for #${candidate.number} threw: ${err}; continuing.`)
+      printWarning(`fix attempt for #${candidate.number} threw: ${err}; continuing.`)
     }
     processed++
   }
 
-  console.log(`\nFix bot complete. Processed ${processed}/${candidates.length}.`)
+  const totalSec = Math.round((Date.now() - runStart) / 1000)
+  printRunSummary({
+    verb: 'Fixed',
+    processed,
+    total: candidates.length,
+    skipped: candidates.length - processed,
+    elapsedSec: totalSec,
+  })
 }
 
 /**
@@ -153,20 +184,20 @@ async function fixOneIssue(
 ): Promise<void> {
   const { data: issue } = await octokit.issues.get({ ...repo, issue_number: issueNumber })
   if (issue.pull_request) {
-    console.log(`#${issueNumber} is a pull request, not an issue. Skipping.`)
+    printNotice(`#${issueNumber} is a pull request, not an issue. Skipping.`)
     return
   }
   if (issue.state !== 'open') {
-    console.log(`#${issueNumber} is ${issue.state}; nothing to fix.`)
+    printNotice(`#${issueNumber} is ${issue.state}; nothing to fix.`)
     return
   }
   const labels = issue.labels.map(l => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean)
   if (!labels.includes('bug') || !labels.includes('ready-for-agent')) {
-    console.log(`#${issueNumber} lacks 'bug' + 'ready-for-agent' (current: [${labels.join(', ')}]); skipping.`)
+    printNotice(`#${issueNumber} lacks 'bug' + 'ready-for-agent' (current: [${labels.join(', ')}]); skipping.`)
     return
   }
   if (labels.includes('ready-for-human') || labels.includes('wontfix') || labels.includes('needs-info')) {
-    console.log(`#${issueNumber} has terminal-state label; skipping.`)
+    printNotice(`#${issueNumber} has terminal-state label; skipping.`)
     return
   }
 
@@ -175,22 +206,21 @@ async function fixOneIssue(
   // bot's outcome tag in any prior comment IS the signal.
   const alreadyTried = await hasPriorCommentFromBot(octokit, repo, issueNumber, 'fix-bot')
   if (alreadyTried) {
-    console.log(`#${issueNumber}: fix-bot has already attempted; nothing to do.`)
-    console.log('To re-attempt, manually delete the prior fix-bot comment, then re-run.')
+    printNotice(
+      `#${issueNumber}: fix-bot has already attempted. To re-attempt, delete the prior fix-bot comment, then re-run.`,
+    )
     return
   }
 
-  console.log(`#${issueNumber}: "${issue.title}" — labels [${labels.join(', ')}]`)
-
   if (DRY_RUN) {
-    console.log(`DRY_RUN=1 — exiting before invoking Claude.`)
+    printNotice(`DRY_RUN=1 — exiting before invoking Claude.`)
     return
   }
 
   const promptTemplate = readFileSync(PROMPT_PATH, 'utf-8')
   mkdirSync(TRANSCRIPTS_DIR, { recursive: true })
   const transcriptPath = resolve(TRANSCRIPTS_DIR, `${RUN_TIMESTAMP}-fix-issue-${issueNumber}.jsonl`)
-  console.log(`(transcript: ${transcriptPath})`)
+  printTranscriptPath(transcriptPath)
 
   const branchName = `fix/issue-${issueNumber}`
   const prompt = `${promptTemplate}
@@ -209,7 +239,7 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     allowedTools: ['Bash', 'Read', 'Grep', 'Glob', 'Write', 'Edit'],
   })
   if (!result.success) {
-    console.log(`Warning: fix attempt for #${issueNumber} exited ${result.exitCode}`)
+    printWarning(`fix attempt for #${issueNumber} exited ${result.exitCode}`)
   }
 }
 

@@ -34,6 +34,15 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
 import { findIssuesByLabels, octokitFromEnv, repoFromEnv } from '../_lib/github.js'
+import {
+  printBanner,
+  printCandidateHeader,
+  printCandidateList,
+  printNotice,
+  printRunSummary,
+  printTranscriptPath,
+  printWarning,
+} from '../_lib/ui.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PROMPT_PATH = resolve(HERE, 'prompt.md')
@@ -52,10 +61,24 @@ const RUN_TIMESTAMP = new Date().toISOString().replace(/[:.]/g, '-').replace(/Z$
 const PER_RUN_BUDGET_MS = Number(process.env.BUDGET_MS ?? 50 * 60 * 1000)
 
 async function main(): Promise<void> {
+  printBanner({
+    name: 'triage-bot',
+    tagline: 'classifier',
+    purpose: 'Classify open issues as bug / enhancement / triage-uncertain.',
+    inputs: [
+      'Open issues with NO classification (no bug / enhancement / triage-uncertain)',
+      'AND no terminal-state label (no ready-for-agent / ready-for-human / wontfix / needs-info)',
+    ],
+    outputs: [
+      'One of bug / enhancement / triage-uncertain + area: X',
+      'Reproducible bug also gets ready-for-agent (auto-advances to fix-bot queue)',
+    ],
+  })
+
   const repo = repoFromEnv()
   const octokit = octokitFromEnv()
 
-  console.log(`Triage bot: scanning ${repo.owner}/${repo.repo} for triage candidates`)
+  printNotice(`Scanning ${repo.owner}/${repo.repo} for triage candidates`)
 
   // Triage-bot's input contract: any open issue with NO classification
   // yet (no `bug` / `enhancement` / `triage-uncertain`) AND no terminal-
@@ -79,7 +102,7 @@ async function main(): Promise<void> {
   })
 
   if (allCandidates.length === 0) {
-    console.log('No triage candidates found. Inbox zero — nothing to do.')
+    printNotice('No triage candidates found. Inbox zero — nothing to do. ✨')
     return
   }
 
@@ -89,14 +112,17 @@ async function main(): Promise<void> {
   // newer issues forever (which a newest-first or arrival-order sort would).
   const candidates = [...allCandidates].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
 
-  console.log(`Triage candidates (${candidates.length}, oldest-first):`)
-  for (const c of candidates) {
-    const labels = c.labels.length ? `[${c.labels.join(', ')}]` : '[unlabeled]'
-    console.log(`  #${c.number} ${labels} "${c.title}"`)
-  }
+  printCandidateList({
+    noun: 'issue',
+    candidates: candidates.map(c => ({
+      ref: `#${c.number}`,
+      label: c.title,
+      meta: c.labels.length ? `[${c.labels.join(', ')}]` : '[unlabeled]',
+    })),
+  })
 
   if (DRY_RUN) {
-    console.log(`DRY_RUN=1 — exiting before invoking Claude (${candidates.length} would be processed).`)
+    printNotice(`DRY_RUN=1 — exiting before invoking Claude (${candidates.length} would be processed).`)
     return
   }
 
@@ -138,20 +164,22 @@ ${roadmap}
     const elapsed = Date.now() - runStart
     if (elapsed > PER_RUN_BUDGET_MS) {
       const remaining = candidates.length - processed
-      console.log(
-        `\nPer-run budget exhausted (${Math.round(elapsed / 1000)}s elapsed > ${Math.round(PER_RUN_BUDGET_MS / 1000)}s budget).`,
+      printWarning(
+        `Per-run budget exhausted (${Math.round(elapsed / 1000)}s > ${Math.round(PER_RUN_BUDGET_MS / 1000)}s). Stopping with ${remaining} un-triaged; tomorrow's run picks them up.`,
       )
-      console.log(`Stopping with ${remaining} candidate(s) un-triaged this run; tomorrow's run picks them up.`)
-      console.log('Skipped (oldest first will be retried tomorrow):')
       for (const skipped of candidates.slice(processed)) {
-        console.log(`  #${skipped.number} "${skipped.title}"`)
+        console.log(`     ⏭  #${skipped.number} "${skipped.title}"`)
       }
       break
     }
 
-    console.log(
-      `\n=== Triaging #${candidate.number}: "${candidate.title}" (${processed + 1}/${candidates.length}, ${Math.round(elapsed / 1000)}s elapsed) ===`,
-    )
+    printCandidateHeader({
+      index: processed + 1,
+      total: candidates.length,
+      label: `#${candidate.number} · ${candidate.title}`,
+      meta: candidate.labels.length ? [`labels: ${candidate.labels.join(', ')}`] : undefined,
+      elapsedSec: Math.round(elapsed / 1000),
+    })
 
     // Every investigation is fresh — the candidate query already excludes
     // classified issues, so any candidate we see is either brand-new or
@@ -164,7 +192,7 @@ ISSUE_TITLE=${candidate.title}
 RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
 
     const transcriptPath = resolve(TRANSCRIPTS_DIR, `${RUN_TIMESTAMP}-issue-${candidate.number}.jsonl`)
-    console.log(`(transcript: ${transcriptPath})`)
+    printTranscriptPath(transcriptPath)
 
     try {
       // Triage needs more tools than flake-watcher: Bash for gh + npm test +
@@ -176,10 +204,10 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
         allowedTools: ['Bash', 'Read', 'Grep', 'Glob'],
       })
       if (!result.success) {
-        console.log(`Warning: triage of #${candidate.number} exited ${result.exitCode}; continuing.`)
+        printWarning(`triage of #${candidate.number} exited ${result.exitCode}; continuing.`)
       }
     } catch (err) {
-      console.log(`Warning: triage of #${candidate.number} threw: ${err}; continuing.`)
+      printWarning(`triage of #${candidate.number} threw: ${err}; continuing.`)
     }
 
     // No chain-dispatch: discovery-prep-bot now runs on its own cron and
@@ -191,7 +219,15 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     processed++
   }
 
-  console.log(`\nTriage bot complete. Processed ${processed}/${candidates.length}. Transcripts: ${TRANSCRIPTS_DIR}`)
+  const totalSec = Math.round((Date.now() - runStart) / 1000)
+  printRunSummary({
+    verb: 'Triaged',
+    processed,
+    total: candidates.length,
+    skipped: candidates.length - processed,
+    notes: [`Transcripts: ${TRANSCRIPTS_DIR}`],
+    elapsedSec: totalSec,
+  })
 }
 
 main().catch(err => {
