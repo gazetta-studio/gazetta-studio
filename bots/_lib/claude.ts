@@ -55,7 +55,39 @@ export interface ClaudeOptions {
    * want this wrapper.
    */
   transcriptPath: string
+  /**
+   * Model to use. Defaults to `DEFAULT_MODEL` below — Opus 4.7 with 1M
+   * context. Override per-call to use a smaller / cheaper model when the
+   * task is small.
+   *
+   * Pass either an alias (`'opus'`, `'sonnet'`, `'haiku'`) which resolves
+   * to the latest model in that line, or a full model ID like
+   * `'claude-opus-4-7[1m]'`. The `[1m]` bracket suffix selects the 1M
+   * context window for models that support it; without the suffix you
+   * get the default 200K window.
+   */
+  model?: string
 }
+
+/**
+ * Default model for all bot Claude invocations: Opus 4.7 with the 1M
+ * context window.
+ *
+ * Why Opus 4.7 [1m]: bots routinely read multiple source files + tests +
+ * issue bodies (fix-bot reads 30-50KB; mutation-watcher consumes a
+ * pre-parsed summary but Claude still reads source files to ground fix
+ * recommendations). Sonnet 4.6 (200K — the CLI default) blew the
+ * context window on fix-bot's first dispatch against
+ * `publish-rendered.ts` (22.7KB × 6 re-reads → autocompact thrash, run
+ * 25639089938 exit 1 with no work product).
+ *
+ * Cost note: Opus is more expensive per-token, but bots run 1-2 times
+ * per cron and read ~30-50KB. The dollar cost is cents per call. The
+ * alternative (Sonnet 4.6) is the bot failing entirely, wasting the
+ * full attempt — net more expensive. See team-preferences.md rule 21
+ * on capturing this kind of operational lesson.
+ */
+const DEFAULT_MODEL = 'claude-opus-4-7[1m]'
 
 export interface ClaudeResult {
   /** Exit code from the claude binary. 0 = success. */
@@ -132,6 +164,8 @@ interface ResultEvent extends StreamEventBase {
  *                                   for the transcript + summary split
  *   --verbose                     : required alongside stream-json (CLI
  *                                   refuses without it)
+ *   --model <id>                  : Opus 4.7 with 1M context by default —
+ *                                   see DEFAULT_MODEL below for rationale
  *   --allowedTools <list>         : restrict to tools the prompt needs
  *   --dangerously-skip-permissions: no human in CI to approve tool calls;
  *                                   --allowedTools is the safety boundary
@@ -140,6 +174,7 @@ interface ResultEvent extends StreamEventBase {
  */
 export async function runClaude(opts: ClaudeOptions): Promise<ClaudeResult> {
   const tools = opts.allowedTools ?? ['Bash']
+  const model = opts.model ?? DEFAULT_MODEL
   await mkdir(dirname(opts.transcriptPath), { recursive: true })
   const transcript = createWriteStream(opts.transcriptPath, { flags: 'w' })
 
@@ -157,6 +192,8 @@ export async function runClaude(opts: ClaudeOptions): Promise<ClaudeResult> {
         '--output-format',
         'stream-json',
         '--verbose',
+        '--model',
+        model,
         '--allowedTools',
         tools.join(','),
         '--dangerously-skip-permissions',
