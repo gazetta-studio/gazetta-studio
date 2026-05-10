@@ -70,3 +70,16 @@ jobs:
           path: bots/transcripts/
           if-no-files-found: ignore
           retention-days: 90
+
+      # Test output the bot captured during bug reproduction. Investigation
+      # notes link to these artifacts so maintainers can review the actual
+      # output the bot saw without re-running the test. Bot writes to
+      # bots/test-outputs/<issue-number>.txt per the prompt convention.
+      - name: Upload test outputs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: triage-bot-test-outputs
+          path: bots/test-outputs/
+          if-no-files-found: ignore
+          retention-days: 90

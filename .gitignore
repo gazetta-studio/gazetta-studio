@@ -54,3 +54,4 @@ reports/
 # Bot transcripts — uploaded as workflow artifact in CI; locally accumulate after
 # real bot runs or replays. Don't commit.
 bots/transcripts/
+bots/test-outputs/
