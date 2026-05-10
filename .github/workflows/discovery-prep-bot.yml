@@ -1,0 +1,71 @@
+name: Discovery prep bot
+
+# Researches a single confident-enhancement issue. NOT cron-driven —
+# triggered either by triage-bot (chained dispatch when triage classifies
+# an issue as `enhancement`) or manually for re-research / prompt iteration.
+#
+# The bot writes `docs/audits/issue-NNN-discovery.md`, opens a draft PR,
+# and comments on the issue with the PR link. Per Q6 lock: research input
+# for the maintainer's grilling phase, NOT a design doc.
+#
+# Idempotent: skips if the discovery doc already exists (caller can delete
+# the file + re-trigger to force re-research).
+on:
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: 'Issue number to research (must be a confident-enhancement issue, open)'
+        required: true
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 30
+    permissions:
+      # Read code/contents (for repo grep) + write code (for opening the PR
+      # with the audit doc). Read+write issues for the comment. PR write
+      # for opening the draft PR.
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Need full history for git commit + PR creation, not the
+          # default shallow clone.
+          fetch-depth: 0
+
+      - name: Configure git author
+        run: |
+          git config user.name 'discovery-prep-bot'
+          git config user.email 'noreply@anthropic.com'
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install workspace deps
+        run: npm ci
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run discovery prep bot
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          ISSUE_NUMBER: ${{ inputs.issue }}
+        run: npm run discovery-prep-bot -w @gazetta/bots
+
+      - name: Upload transcripts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: discovery-prep-bot-transcripts
+          path: bots/transcripts/
+          if-no-files-found: ignore
+          retention-days: 90

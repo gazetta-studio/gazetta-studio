@@ -34,6 +34,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
 import {
+  dispatchWorkflow,
   findLastSuccessfulRunIso,
   findTriageCandidates,
   hasPriorBotComment,
@@ -215,10 +216,61 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     } catch (err) {
       console.log(`Warning: triage of #${candidate.number} threw: ${err}; continuing.`)
     }
+
+    // Pipeline handoff: if Claude classified this as a confident
+    // `enhancement` AND no discovery doc exists yet, dispatch
+    // discovery-prep-bot for this one issue. Per Q6 lock — discovery is
+    // one-time per issue, not periodic, so we trigger event-driven (here)
+    // rather than via cron.
+    //
+    // Failure isolation: dispatch is best-effort. If it fails (rate limit,
+    // transient API error), the issue still has its `enhancement` label;
+    // a maintainer can re-trigger via workflow_dispatch on demand.
+    try {
+      await maybeDispatchDiscovery(octokit, repo, candidate.number)
+    } catch (err) {
+      console.log(`Warning: discovery dispatch for #${candidate.number} failed: ${err}; continuing.`)
+    }
+
     processed++
   }
 
   console.log(`\nTriage bot complete. Processed ${processed}/${candidates.length}. Transcripts: ${TRANSCRIPTS_DIR}`)
+}
+
+/**
+ * Decide whether to dispatch discovery-prep-bot for this issue.
+ *
+ * Fires the dispatch when ALL hold:
+ *   - The issue is now labeled `enhancement` (the bot just classified)
+ *   - The issue is NOT labeled `triage-uncertain` (would be a contradiction
+ *     but defensive check)
+ *   - No discovery doc exists at `docs/audits/issue-N-discovery.md` on disk
+ *
+ * The disk check uses the working-tree state, which on CI is the latest
+ * main (`actions/checkout` happens before this runs). False negatives are
+ * possible if a discovery PR was opened but not yet merged — discovery-
+ * prep-bot's own idempotency check (existsSync of the file) catches that
+ * case downstream too.
+ */
+async function maybeDispatchDiscovery(
+  octokit: ReturnType<typeof octokitFromEnv>,
+  repo: ReturnType<typeof repoFromEnv>,
+  issueNumber: number,
+): Promise<void> {
+  const { data: issue } = await octokit.issues.get({ ...repo, issue_number: issueNumber })
+  const labels = issue.labels.map(l => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean)
+  if (!labels.includes('enhancement')) return
+  if (labels.includes('triage-uncertain')) return
+
+  const discoveryDocPath = resolve(REPO_ROOT, `docs/audits/issue-${issueNumber}-discovery.md`)
+  if (existsSync(discoveryDocPath)) {
+    console.log(`#${issueNumber}: discovery doc already exists; skipping dispatch.`)
+    return
+  }
+
+  console.log(`#${issueNumber}: dispatching discovery-prep-bot.yml (issue=${issueNumber})`)
+  await dispatchWorkflow(octokit, repo, 'discovery-prep-bot.yml', { issue: String(issueNumber) })
 }
 
 main().catch(err => {

@@ -8,6 +8,7 @@
   "scripts": {
     "flake-watcher": "tsx flake-watcher/index.ts",
     "triage-bot": "tsx triage-bot/index.ts",
+    "discovery-prep-bot": "tsx discovery-prep-bot/index.ts",
     "replay": "tsx _lib/replay.ts"
   },
   "dependencies": {
