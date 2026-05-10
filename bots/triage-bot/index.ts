@@ -38,6 +38,7 @@ import {
   findLastSuccessfulRunIso,
   findTriageCandidates,
   hasPriorBotComment,
+  hasPriorCommentFromBot,
   octokitFromEnv,
   repoFromEnv,
 } from '../_lib/github.js'
@@ -242,16 +243,22 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
  * Decide whether to dispatch discovery-prep-bot for this issue.
  *
  * Fires the dispatch when ALL hold:
- *   - The issue is now labeled `enhancement` (the bot just classified)
+ *   - The issue is now labeled `enhancement` (triage-bot classified it as
+ *     a confident enhancement — either this run or a prior one)
  *   - The issue is NOT labeled `triage-uncertain` (would be a contradiction
  *     but defensive check)
- *   - No discovery doc exists at `docs/audits/issue-N-discovery.md` on disk
+ *   - discovery-prep-bot has NOT already commented on this issue (detected
+ *     via the bot's outcome-tag `<!-- discovery-prep-bot: run=` in any
+ *     prior comment)
  *
- * The disk check uses the working-tree state, which on CI is the latest
- * main (`actions/checkout` happens before this runs). False negatives are
- * possible if a discovery PR was opened but not yet merged — discovery-
- * prep-bot's own idempotency check (existsSync of the file) catches that
- * case downstream too.
+ * The outcome-tag check is the load-bearing idempotency guard. Without it,
+ * triage-bot would re-dispatch discovery-prep-bot for every existing
+ * enhancement on every run — N PRs of CI burn for no work. The tag is
+ * persistent (lives forever in the issue thread), so dedup survives across
+ * any number of triage-bot runs.
+ *
+ * Discovery-prep-bot also performs its own outcome-tag check at startup as
+ * a defensive measure (catches manual re-dispatches that bypass triage-bot).
  */
 async function maybeDispatchDiscovery(
   octokit: ReturnType<typeof octokitFromEnv>,
@@ -263,9 +270,9 @@ async function maybeDispatchDiscovery(
   if (!labels.includes('enhancement')) return
   if (labels.includes('triage-uncertain')) return
 
-  const discoveryDocPath = resolve(REPO_ROOT, `docs/audits/issue-${issueNumber}-discovery.md`)
-  if (existsSync(discoveryDocPath)) {
-    console.log(`#${issueNumber}: discovery doc already exists; skipping dispatch.`)
+  const alreadyCommented = await hasPriorCommentFromBot(octokit, repo, issueNumber, 'discovery-prep-bot')
+  if (alreadyCommented) {
+    console.log(`#${issueNumber}: discovery-prep-bot has already commented; skipping dispatch.`)
     return
   }
 

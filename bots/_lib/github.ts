@@ -222,6 +222,40 @@ export async function hasPriorBotComment(octokit: Octokit, repo: RepoIdentity, i
 }
 
 /**
+ * Detect whether a SPECIFIC bot has commented on an issue, by looking for
+ * its outcome tag (`<!-- <bot-name>: run=...) in any comment body.
+ *
+ * Used by triage-bot to decide whether to chain-dispatch a downstream bot
+ * (e.g., discovery-prep-bot) — if the downstream bot has already
+ * commented on this issue, dispatching again is a wasted run.
+ *
+ * Different from `hasPriorBotComment` (which detects any AI triage
+ * activity via the disclaimer prefix). This one is bot-specific.
+ *
+ * Caller can pre-fetch the comments and reuse via the comments parameter
+ * to avoid duplicate API calls when checking multiple bots' tags on the
+ * same issue.
+ */
+export async function hasPriorCommentFromBot(
+  octokit: Octokit,
+  repo: RepoIdentity,
+  issueNumber: number,
+  botName: string,
+  comments?: Array<{ body?: string | null }>,
+): Promise<boolean> {
+  const tag = `<!-- ${botName}: run=`
+  if (comments) {
+    return comments.some(c => (c.body ?? '').includes(tag))
+  }
+  const { data } = await octokit.issues.listComments({
+    ...repo,
+    issue_number: issueNumber,
+    per_page: 100,
+  })
+  return data.some(c => (c.body ?? '').includes(tag))
+}
+
+/**
  * Trigger another workflow via the workflow_dispatch event with inputs.
  *
  * Used for chained handoffs between bots (e.g., triage-bot dispatching
