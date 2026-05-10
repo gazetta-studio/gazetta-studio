@@ -1,0 +1,86 @@
+name: Fix bot
+
+# Attempts to fix `bug + ready-for-agent` issues. Two trigger modes:
+#   - Cron (daily): scans candidates per the input contract
+#   - workflow_dispatch with `issue` input: fix one specific issue
+#
+# Output: PR (or stuck-comment + ready-for-human label). Bot opens the
+# PR as DRAFT; maintainer reviews, marks ready, and merges. Bot never
+# merges (per rule 33).
+#
+# TDD-first hard contract: bot's first commit MUST be a failing test or
+# it stops. See bots/fix-bot/prompt.md.
+on:
+  schedule:
+    # 13:00 UTC daily — one hour after triage-bot's 11:00 UTC. New
+    # ready-for-agent bugs from today's triage get a fix attempt
+    # tomorrow at the latest.
+    - cron: '0 13 * * *'
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: 'Optional: fix one specific issue (otherwise scans all candidates)'
+        required: false
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 60
+    permissions:
+      # Read+write contents (push fix branches), read+write issues
+      # (post comments + apply ready-for-human), read+write PRs (open
+      # draft PRs). The widest permission set of any bot — but only
+      # writes to fix/issue-NNN branches, never main (rule 33).
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Need full history for branch creation + force-with-lease.
+          fetch-depth: 0
+
+      - name: Configure git author
+        run: |
+          git config user.name 'fix-bot'
+          git config user.email 'noreply@anthropic.com'
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install workspace deps
+        # Full install required because the bot runs real tests during
+        # both the failing-test verification and the post-fix regression
+        # check. ~2 min cost amortized across the run.
+        run: npm ci
+
+      - name: Build gazetta package
+        # Some tests need the built package; build once up front.
+        run: npm run build -w packages/gazetta
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run fix bot
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          # Empty when input not provided — the bot treats empty as cron
+          # mode (scan candidates) and treats a numeric value as manual
+          # one-issue mode.
+          ISSUE_NUMBER: ${{ inputs.issue }}
+        run: npm run fix-bot -w @gazetta/bots
+
+      - name: Upload transcripts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fix-bot-transcripts
+          path: bots/transcripts/
+          if-no-files-found: ignore
+          retention-days: 90

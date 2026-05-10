@@ -64,6 +64,7 @@ GITHUB_REPOSITORY=gazetta-studio/gazetta-studio GH_TOKEN=$(gh auth token) \
 | `flake-watcher` | Daily 12:00 UTC + workflow_dispatch | (CI events, not labels) | New issue with `bug`, `flake`, `area: X`, `recurring-flake?` |
 | `triage-bot` | Daily 11:00 UTC + workflow_dispatch | Open issue lacking all of `ready-for-agent`, `ready-for-human`, `wontfix`, `needs-info` | One of `bug` / `enhancement` / `triage-uncertain` + `area: X`. Reproducible bug also gets `ready-for-agent`. |
 | `discovery-prep-bot` | Daily 10:00 UTC + workflow_dispatch | `enhancement` AND lacks all of `ready-for-human`, `ready-for-agent`, `wontfix`, `needs-info` | Research comment + `ready-for-human` label |
+| `fix-bot` | Daily 13:00 UTC + workflow_dispatch | `bug` + `ready-for-agent` AND lacks all of `ready-for-human`, `wontfix`, `needs-info` AND no prior fix-bot comment | EITHER draft PR (two commits: failing test + fix), OR stuck-comment + `ready-for-human` label |
 
 ### Pipeline shape (label-driven)
 
@@ -72,9 +73,14 @@ flake-watcher (cron 12:00 UTC)
     ↓ files issue (auto-classified `bug`)
 triage-bot (cron 11:00 UTC next day) — input: open + no terminal-state label
     ├─→ confident bug + reproducible → applies `ready-for-agent`
-    │       ↓ (future: fix-bot picks up bug + ready-for-agent)
-    ├─→ confident enhancement → no extra label (handed off via the
-    │   `enhancement` label itself)
+    │       ↓
+    │   fix-bot (cron 13:00 UTC) — input: bug + ready-for-agent + no
+    │   terminal-state label + no prior fix-bot comment
+    │       ↓ EITHER opens draft PR (failing test + fix), OR posts
+    │         stuck-comment + applies `ready-for-human`
+    │   maintainer reviews PR, merges
+    │
+    ├─→ confident enhancement → no extra label
     │       ↓
     │   discovery-prep-bot (cron 10:00 UTC) — input: enhancement + no
     │   ready-for-human / ready-for-agent / wontfix / needs-info
