@@ -41,6 +41,22 @@ jobs:
       - run: npm run build -w packages/gazetta
       - run: npm test -w packages/gazetta
 
+  bots:
+    # Pure-logic tests for the bots workspace (Stryker report parser,
+    # fix-bot's failure-diagnostic + issue-shape helpers). Fast (~150ms)
+    # and infrastructure-free — no testcontainers, no Playwright, no
+    # workspace build needed. Gates only the bots/ tree, but runs on
+    # every PR because changes to `bots/_lib/*` affect every bot.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test -w @gazetta/bots
+
   e2e:
     runs-on: ubuntu-latest
     strategy:
