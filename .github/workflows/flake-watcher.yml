@@ -1,11 +1,16 @@
 name: Flake watcher
 
-# Daily scan for CI flakes. A "flake" is a SHA that produced both a successful
-# and a failing CI run — same code, different outcome. The bot files / comments
-# on issues per the convention established in #268, #284, #285.
+# Daily scan for CI flakes. A "flake" is a workflow run with run_attempt >= 2 —
+# meaning an earlier attempt failed on the same SHA and someone hit "Re-run".
+# Same code, different outcome = unambiguous flake signal.
 #
-# Result is the issue activity. Failure of this workflow itself doesn't block
-# anything (continue-on-error) — it's monitoring infrastructure, not a gate.
+# When found, hands the failed run to claude -p with the prompt at
+# tools/bots/flake-watcher/prompt.md. The agent reads logs, searches existing
+# open issues, and either comments (with run-ID dedup) or files a new one
+# per the convention established in #268.
+#
+# This workflow's failure doesn't block anything (continue-on-error) — it's
+# monitoring infrastructure, not a gate.
 on:
   schedule:
     # 12:00 UTC daily. After most overnight CI runs have completed; before
@@ -34,6 +39,14 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install workspace deps
+        run: npm ci
+
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
 
@@ -44,5 +57,6 @@ jobs:
           # rotate via `claude /logout` + new `claude /login` if compromised.
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           LOOKBACK_HOURS: ${{ inputs.lookback_hours || '48' }}
-        run: scripts/flake-watcher.sh
+        run: npm run flake-watcher -w @gazetta/bots

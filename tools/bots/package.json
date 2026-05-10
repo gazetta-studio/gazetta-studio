@@ -1,0 +1,19 @@
+{
+  "name": "@gazetta/bots",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Repo-scoped bots that run on GitHub Actions cron schedules. Each bot lives in its own subdirectory and shares helpers from _lib/.",
+  "scripts": {
+    "flake-watcher": "tsx flake-watcher/index.ts"
+  },
+  "dependencies": {
+    "@octokit/rest": "^22.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
+  }
+}
