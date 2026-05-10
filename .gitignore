@@ -55,3 +55,6 @@ reports/
 # real bot runs or replays. Don't commit.
 bots/transcripts/
 bots/test-outputs/
+# mutation-watcher's per-run artifact staging dir — re-fetched every cron from
+# the latest Mutation workflow run. Never authoritative.
+bots/mutation-report-staging/
