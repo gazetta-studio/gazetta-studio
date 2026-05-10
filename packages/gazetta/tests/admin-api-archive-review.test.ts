@@ -225,3 +225,52 @@ describe('Cut 14 — unarchive strips reviewState (restore-to-draft)', () => {
     })
   })
 })
+
+describe('regression #284 — audit ordering race (direct provider, deterministic)', () => {
+  beforeEach(() => {
+    setup({
+      'pages/landing/page.json': JSON.stringify({
+        template: 'page-default',
+        content: {},
+        reviewState: 'pending-review',
+      }),
+    })
+  })
+
+  it('FAILING: indexOf on query() newest-first gives wrong order when archive is 1ms newer than withdraw (reproduces #284)', async () => {
+    // Direct provider write with controlled timestamps reproduces the
+    // cross-millisecond race documented in issue #284: the route fires two
+    // audit.record() calls in sequence; when they straddle a millisecond
+    // boundary the second event has a later timestamp. query() sorts
+    // newest-first, so archive (T+1ms) lands at index 0 and
+    // review-withdraw (T) lands at index 1 — reversing their order.
+    const writer = createHistoryAuditProvider({ storage, instance: 'route-handler' })
+    const actor = { id: 'test-user', role: 'admin', trustMode: 'none' }
+
+    await writer.record({
+      timestamp: '2026-01-01T12:00:00.000Z',
+      actor,
+      action: 'review-withdraw',
+      outcome: 'success',
+      scope: { kind: 'page', name: 'landing' },
+      metadata: { autoWithdrawn: true, reason: 'archive', priorState: 'pending-review' },
+    })
+    await writer.record({
+      timestamp: '2026-01-01T12:00:00.001Z', // 1ms later — the race condition
+      actor,
+      action: 'archive',
+      outcome: 'success',
+      scope: { kind: 'page', name: 'landing' },
+      metadata: {},
+    })
+
+    const events = await readAuditEvents()
+    const matched = events.filter(e => e.scope.kind === 'page' && e.scope.name === 'landing')
+    // BUG: no ascending re-sort — query() returns newest-first.
+    // archive (T+1ms) is at index 0, review-withdraw (T) is at index 1.
+    const actions = matched.map(e => e.action)
+    const withdrawIdx = actions.indexOf('review-withdraw')
+    const archiveIdx = actions.indexOf('archive')
+    expect(withdrawIdx).toBeLessThan(archiveIdx) // FAILS: 1 < 0 is false
+  })
+})
