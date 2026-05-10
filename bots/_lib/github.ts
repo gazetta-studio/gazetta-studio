@@ -121,14 +121,21 @@ const ADVANCED_STATE_ROLES = ['needs-info', 'ready-for-agent', 'ready-for-human'
  * findings) lives in the bot's prompt, not here. This function is intent-
  * neutral — it returns every candidate that's ever eligible.
  */
-export async function findTriageCandidates(octokit: Octokit, repo: RepoIdentity): Promise<IssueSummary[]> {
-  // GitHub's REST API has no native "lacks ALL of these labels" filter, so
-  // fetch all open issues and filter client-side. Bounded by total open issue
-  // count, which is small for any project where a daily triage bot makes sense.
+export async function findTriageCandidates(
+  octokit: Octokit,
+  repo: RepoIdentity,
+  options: { sinceIso?: string } = {},
+): Promise<IssueSummary[]> {
+  // `since` server-side filters to issues whose ANY-FIELD (labels, comments,
+  // body, state) changed after that timestamp. Lets daily runs scan only
+  // what actually changed, instead of re-walking the full backlog. Without
+  // it (or with a `since` from before the project began), behaves as full
+  // scan — the manual "wide lookback" path uses no since.
   const { data } = await octokit.issues.listForRepo({
     ...repo,
     state: 'open',
     per_page: 100,
+    ...(options.sinceIso ? { since: options.sinceIso } : {}),
   })
 
   const out: IssueSummary[] = []
@@ -145,6 +152,45 @@ export async function findTriageCandidates(octokit: Octokit, repo: RepoIdentity)
     })
   }
   return out
+}
+
+/**
+ * Find when the most recent successful workflow run COMPLETED (not started).
+ *
+ * Used by triage-bot to determine "what's changed since I last finished
+ * looking" without persistent state — the workflow run history IS the state.
+ *
+ * Returns the run's `updated_at` ISO timestamp (which equals `completed_at`
+ * for finished runs). Returns null when no prior successful run exists.
+ *
+ * Why `updated_at` not `created_at`: the bot's own comments happen DURING
+ * a run, between `created_at` and `updated_at`. If we anchored to
+ * `created_at`, the next run's incremental scan would see all those
+ * comments as "new activity since last run" and re-investigate every
+ * issue the bot just touched. Anchoring to `updated_at` (when the bot
+ * stopped writing) means only genuinely-new activity since then triggers
+ * re-investigation.
+ *
+ * Excludes the current in-progress run so the bot doesn't pick its own
+ * start as the anchor.
+ */
+export async function findLastSuccessfulRunIso(
+  octokit: Octokit,
+  repo: RepoIdentity,
+  workflowFileName: string,
+  excludeRunId?: number,
+): Promise<string | null> {
+  const { data } = await octokit.actions.listWorkflowRuns({
+    ...repo,
+    workflow_id: workflowFileName, // Octokit accepts file path here, e.g. "triage-bot.yml"
+    status: 'success',
+    per_page: 10,
+  })
+  for (const run of data.workflow_runs) {
+    if (excludeRunId !== undefined && run.id === excludeRunId) continue
+    return run.updated_at
+  }
+  return null
 }
 
 /**
