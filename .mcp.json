@@ -2,17 +2,12 @@
   "mcpServers": {
     "dev": {
       "command": "npx",
-      "args": [
-        "tsx",
-        "tools/mcp-dev/src/index.ts"
-      ]
+      "args": ["tsx", "tools/mcp-dev/src/index.ts"]
     },
     "playwright": {
       "type": "stdio",
       "command": "npx",
-      "args": [
-        "@playwright/mcp@latest"
-      ],
+      "args": ["@playwright/mcp@latest"],
       "env": {}
     }
   }
