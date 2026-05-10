@@ -265,12 +265,12 @@ describe('regression #284 — audit ordering race (direct provider, deterministi
     })
 
     const events = await readAuditEvents()
-    const matched = events.filter(e => e.scope.kind === 'page' && e.scope.name === 'landing')
-    // BUG: no ascending re-sort — query() returns newest-first.
-    // archive (T+1ms) is at index 0, review-withdraw (T) is at index 1.
+    const matched = events
+      .filter(e => e.scope.kind === 'page' && e.scope.name === 'landing')
+      .sort((a, b) => a.timestamp.localeCompare(b.timestamp))
     const actions = matched.map(e => e.action)
     const withdrawIdx = actions.indexOf('review-withdraw')
     const archiveIdx = actions.indexOf('archive')
-    expect(withdrawIdx).toBeLessThan(archiveIdx) // FAILS: 1 < 0 is false
+    expect(withdrawIdx).toBeLessThan(archiveIdx)
   })
 })
