@@ -120,6 +120,20 @@ export class ComponentTreePom {
   private async dispatchAltArrow(name: string, key: 'ArrowUp' | 'ArrowDown'): Promise<void> {
     const handle = this.page.locator(`[data-testid="drag-handle-${name}"]`)
     await handle.waitFor({ state: 'visible', timeout: 10000 })
+    // `waitFor({ state: 'visible' })` doesn't imply "Vue's reactivity queue
+    // is flushed and event listeners are attached on the current DOM nodes."
+    // After a save cycle, `selection.reload()` schedules another v-for patch
+    // whose DOM nodes can attach mid-evaluate, so the synthetic keydown
+    // below fires against a detached `.top-level-block` listener and the
+    // store action never runs (#288). Two rAF rounds: the first rAF lets
+    // Vue's scheduler flush; the second ensures the resulting DOM commit
+    // has landed. Same mechanism Vue's `nextTick` uses internally.
+    await this.page.evaluate(
+      () =>
+        new Promise<void>(resolve => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+        }),
+    )
     await handle.evaluate((el, k) => {
       const block = el.closest('.top-level-block')
       if (!block) throw new Error('drag handle is not inside a top-level block')
