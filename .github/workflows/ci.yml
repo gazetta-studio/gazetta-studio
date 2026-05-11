@@ -6,7 +6,13 @@ on:
   # No base-branch filter — CI runs on every PR, including stacked ones
   # whose base is another feature branch. Without this, stacked PRs show
   # zero checks until they're retargeted to main.
+  #
+  # `ready_for_review` is added explicitly: GitHub's default pull_request
+  # types are [opened, synchronize, reopened] — flipping a draft to
+  # ready does NOT trigger CI without this. fix-bot opens PRs as drafts;
+  # this ensures CI fires when they're flipped.
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 concurrency:
   group: ci-${{ github.ref }}
