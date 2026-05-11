@@ -252,3 +252,89 @@ export async function addLabel(
     labels: [label],
   })
 }
+
+/**
+ * Remove a label from an issue. Best-effort: returns false when the label
+ * isn't present (GitHub responds 404), which is the expected no-op case.
+ * Throws on any other error so callers see real failures (auth, network).
+ *
+ * Used by bots to reset pipeline state: e.g., maintainer wanting fix-bot
+ * to re-attempt an issue removes the `fix-bot-attempted` label; next cron
+ * run sees the issue as fresh again.
+ */
+export async function removeLabel(
+  octokit: Octokit,
+  repo: RepoIdentity,
+  issueNumber: number,
+  label: string,
+): Promise<boolean> {
+  try {
+    await octokit.issues.removeLabel({
+      ...repo,
+      issue_number: issueNumber,
+      name: label,
+    })
+    return true
+  } catch (err) {
+    if ((err as { status?: number }).status === 404) return false
+    throw err
+  }
+}
+
+/**
+ * Look up when a specific label was applied to an issue. Used by fix-bot's
+ * auto-clear-on-reopen logic: if the issue was reopened after the bot's
+ * `fix-bot-attempted` label was applied, treat that as a re-attempt request
+ * regardless of whether the label is still present.
+ *
+ * Returns the ISO timestamp of the most recent `labeled` event for `label`,
+ * or null when the label has never been applied (or the issue's timeline is
+ * empty). Pulled from the issue events timeline (paginated; we fetch up to
+ * 100, which is enough for any realistic per-issue history).
+ */
+export async function getLabelAppliedAt(
+  octokit: Octokit,
+  repo: RepoIdentity,
+  issueNumber: number,
+  label: string,
+): Promise<string | null> {
+  const { data } = await octokit.issues.listEvents({
+    ...repo,
+    issue_number: issueNumber,
+    per_page: 100,
+  })
+  // Iterate newest-first; the most recent `labeled` event for this label wins.
+  // Octokit's response is a union over event types; narrow via a shape check
+  // since the discriminated-union narrowing isn't precise enough for TS.
+  for (let i = data.length - 1; i >= 0; i--) {
+    const ev = data[i] as { event: string; label?: { name?: string }; created_at: string }
+    if (ev.event === 'labeled' && ev.label?.name === label) {
+      return ev.created_at
+    }
+  }
+  return null
+}
+
+/**
+ * Look up when an issue was most recently reopened. Returns the ISO
+ * timestamp of the most recent `reopened` event, or null when the issue
+ * has never been closed-and-reopened.
+ *
+ * Used by fix-bot's auto-clear-on-reopen logic: if `getReopenedAt` is
+ * newer than `getLabelAppliedAt('fix-bot-attempted')`, the maintainer
+ * has signaled a re-attempt request by reopening.
+ */
+export async function getReopenedAt(octokit: Octokit, repo: RepoIdentity, issueNumber: number): Promise<string | null> {
+  const { data } = await octokit.issues.listEvents({
+    ...repo,
+    issue_number: issueNumber,
+    per_page: 100,
+  })
+  for (let i = data.length - 1; i >= 0; i--) {
+    const ev = data[i] as { event: string; created_at: string }
+    if (ev.event === 'reopened') {
+      return ev.created_at
+    }
+  }
+  return null
+}

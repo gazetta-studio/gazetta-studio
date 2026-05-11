@@ -5,7 +5,8 @@
  *
  *   1. Cron (default): scans for `bug + ready-for-agent` issues that
  *      lack `ready-for-human` / `wontfix` / `needs-info` AND haven't
- *      been touched by fix-bot yet (no prior fix-bot comment).
+ *      been touched by fix-bot yet (no `fix-bot-attempted` label OR
+ *      reopened after the attempt).
  *   2. workflow_dispatch with `issue` input: attempt a single specific
  *      issue, regardless of label state. Useful for re-attempts after
  *      prompt iteration.
@@ -47,7 +48,14 @@ import { mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
-import { addLabel, findIssuesByLabels, hasPriorCommentFromBot, octokitFromEnv, repoFromEnv } from '../_lib/github.js'
+import {
+  addLabel,
+  findIssuesByLabels,
+  getLabelAppliedAt,
+  getReopenedAt,
+  octokitFromEnv,
+  repoFromEnv,
+} from '../_lib/github.js'
 import {
   printBanner,
   printCandidateHeader,
@@ -105,8 +113,10 @@ async function main(): Promise<void> {
   // to a maintainer-only state. The `ready-for-agent` label is the
   // upstream signal (applied by triage-bot or by maintainer); fix-bot's
   // own completion is "ready-for-human" (when stuck) or PR existence
-  // (when fix attempted). The hasPriorCommentFromBot check below catches
+  // (when fix attempted). The fix-bot-attempted label below catches
   // the PR-attempted path; ready-for-human catches the stuck path.
+  // Auto-clear-on-reopen lets maintainers re-queue an issue without
+  // touching the label by simply reopening it.
   const allCandidates = await findIssuesByLabels(octokit, repo, {
     requireAll: ['bug', 'ready-for-agent'],
     excludeAny: ['ready-for-human', 'wontfix', 'needs-info'],
@@ -202,15 +212,33 @@ async function fixOneIssue(
     return
   }
 
-  // Idempotency: skip if fix-bot has already commented. The cron query
-  // doesn't filter on this directly (no label for "fix-bot tried"); the
-  // bot's outcome tag in any prior comment IS the signal.
-  const alreadyTried = await hasPriorCommentFromBot(octokit, repo, issueNumber, 'fix-bot')
-  if (alreadyTried) {
+  // Idempotency: skip if the `fix-bot-attempted` label is present AND
+  // the issue hasn't been reopened since the label was applied.
+  //
+  // - Label is applied after every attempt (success → PR opened; failure
+  //   → stuck-comment + ready-for-human).
+  // - Maintainer can clear idempotency two ways:
+  //   1. Remove the `fix-bot-attempted` label (explicit retry).
+  //   2. Reopen the issue after the bot tried (implicit retry — the
+  //      reopen IS the signal that the prior attempt didn't stick).
+  //
+  // Previous design used a substring marker in comment bodies. Replaced
+  // because (a) maintainers couldn't unstick the bot without deleting
+  // history, and (b) the substring check tripped on maintainer comments
+  // that merely mentioned the marker. Labels are atomic and parse-free.
+  const attemptedAt = await getLabelAppliedAt(octokit, repo, issueNumber, 'fix-bot-attempted')
+  if (attemptedAt) {
+    const reopenedAt = await getReopenedAt(octokit, repo, issueNumber)
+    const reopenedSinceAttempt = reopenedAt !== null && reopenedAt > attemptedAt
+    if (!reopenedSinceAttempt) {
+      printNotice(
+        `#${issueNumber}: fix-bot-attempted label present and no reopen since. To re-attempt, remove the label OR reopen the issue.`,
+      )
+      return
+    }
     printNotice(
-      `#${issueNumber}: fix-bot has already attempted. To re-attempt, delete the prior fix-bot comment, then re-run.`,
+      `#${issueNumber}: prior fix-bot-attempted (${attemptedAt}); issue reopened at ${reopenedAt}. Re-attempting.`,
     )
-    return
   }
 
   if (DRY_RUN) {
@@ -243,6 +271,18 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
   if (!result.success) {
     printWarning(`fix attempt for #${issueNumber} exited ${result.exitCode}`)
     await postFailureComment(octokit, repo, issueNumber, transcriptPath)
+  }
+
+  // Apply attempted-marker label whether the run succeeded or failed.
+  // Idempotency check on the next cron run reads this; a maintainer who
+  // wants a re-attempt removes the label OR reopens the issue (auto-
+  // detected by getReopenedAt > getLabelAppliedAt). Label add is
+  // best-effort — a failed label call doesn't unwind the fix attempt
+  // itself; log and move on.
+  try {
+    await addLabel(octokit, repo, issueNumber, 'fix-bot-attempted')
+  } catch (err) {
+    printWarning(`could not apply fix-bot-attempted label to #${issueNumber}: ${err}`)
   }
 }
 
