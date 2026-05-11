@@ -66,8 +66,8 @@ If `gh pr checks <N>` returns "no checks reported," diagnose:
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| PR opened by `GITHUB_TOKEN` (Actions bot author) | GitHub's anti-recursion: PRs opened by Actions don't trigger `pull_request` events | `gh pr close <N> && gh pr reopen <N>` — `reopened` event fires normally |
-| Draft flipped to ready, no checks | Workflow's `pull_request:` trigger doesn't list `ready_for_review` (it's not in the default `[opened, synchronize, reopened]`) | Either close+reopen, push empty commit, or fix workflow to add `types: [..., ready_for_review]` |
+| PR opened by `GITHUB_TOKEN` (Actions bot author) | GitHub anti-recursion: events triggered by `GITHUB_TOKEN` do NOT create new workflow runs ([docs](https://docs.github.com/en/actions/using-workflows/triggering-a-workflow)) | **User account** close+reopen via `gh pr close <N> && gh pr reopen <N>` — actor identity becomes the user, not the bot, so `reopened` fires. (Close+reopen done by the bot itself stays suppressed.) Permanent fix: switch the bot to a GitHub App installation token or PAT. |
+| Draft flipped to ready, no checks | Workflow's `pull_request:` trigger doesn't list `ready_for_review` (default types are only `[opened, synchronize, reopened]`) | Fix the workflow: `types: [opened, synchronize, reopened, ready_for_review]`. Short-term unblock: close+reopen, or push an empty commit. |
 | All PRs cold | Workflow disabled / file syntax error | `gh api repos/:owner/:repo/actions/workflows/ci.yml --jq .state` should return `active` |
 
 ## Recommend merge / close / changes
