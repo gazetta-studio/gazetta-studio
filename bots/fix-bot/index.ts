@@ -102,7 +102,7 @@ async function main(): Promise<void> {
     inputs: [
       'Open issues with `bug` AND `ready-for-agent`',
       'AND no `ready-for-human` / `wontfix` / `needs-info`',
-      'AND no prior fix-bot comment (idempotency)',
+      'AND no `fix-bot-attempted` label, OR reopened since (idempotency)',
     ],
     outputs: ['EITHER draft PR (commit 1: failing test, commit 2: fix)', 'OR stuck-comment + `ready-for-human` label'],
   })
