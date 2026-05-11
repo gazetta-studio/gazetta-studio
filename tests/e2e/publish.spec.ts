@@ -30,6 +30,34 @@ test.describe('Publish panel', () => {
     await expect(panel.destination('production')).toBeVisible()
   })
 
+  test('PublishPanelPom.open() awaits /api/targets hydration before resolving (regression: #268)', async ({
+    page,
+    testSite: _,
+  }) => {
+    // Issue #268: on shard 5 under dev-server rebuild pressure the targets
+    // API can take longer than Playwright's 5s expect timeout to respond.
+    // If open() returns before targets are hydrated, editableTargets is []
+    // and the source chip renders '(no editable target)' instead of 'local'.
+    //
+    // This test simulates the slow CI shard by delaying /api/targets so
+    // the race is deterministic. The assertion uses a one-shot
+    // textContent() read (no auto-retry) so the race is captured at the
+    // moment open() resolves — without the fix, the chip is still in its
+    // pre-hydration state; with the fix, open() has awaited the response
+    // and the chip already reads 'local'.
+    await page.route('**/admin/api/targets**', async route => {
+      await new Promise(r => setTimeout(r, 6000))
+      await route.continue()
+    })
+
+    const panel = new PublishPanelPom(page)
+    await panel.open()
+    await panel.sourceFixed.waitFor({ state: 'attached', timeout: 3000 })
+    const text = (await panel.sourceFixed.textContent())?.trim() ?? ''
+    expect(text).not.toContain('no editable target')
+    expect(text).toContain('local')
+  })
+
   test('first-publish destination shows all items as added', async ({ page, testSite }) => {
     await wipe(testSite.projectDir)
     const panel = new PublishPanelPom(page)
