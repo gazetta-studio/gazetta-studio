@@ -33,7 +33,7 @@ from `tools/` (developer/operator utilities run on demand).
 - **Permissions**: workflow declares `actions: read` + `issues: write` (most bots) + nothing else. Add `contents: write` only when the bot commits to the repo.
 - **Failure isolation**: workflow uses `continue-on-error: true`. Bot's `index.ts` wraps each per-target investigation in a try/catch so one bad investigation doesn't kill the run.
 - **Dry-run**: every bot supports `DRY_RUN=1` env to list candidates without invoking Claude. Used for local testing and prompt iteration.
-- **Cron**: pick a UTC time off-peak for contributors. 12:00 UTC is the current convention (after overnight CI, before workday).
+- **Cron**: schedule for results visible by the maintainer's morning review (09:00 CEST). Bots fire 02:00–04:00 UTC = 04:00–06:00 CEST, with 0–3h GitHub Actions skew baked in. Defensive timing guarantees worst-case completion by 09:00 CEST.
 
 ## Adding a new bot
 
@@ -61,11 +61,11 @@ GITHUB_REPOSITORY=gazetta-studio/gazetta-studio GH_TOKEN=$(gh auth token) \
 
 | Bot | Trigger | Input (label-driven, except producer bots) | Output | Role |
 |---|---|---|---|---|
-| `flake-watcher` | Daily 12:00 UTC + workflow_dispatch | CI events (run_attempt >= 2) — not labels | New issue with `bug` + `flake` + `area: X` + `ready-for-agent` (+ `recurring-flake` when applicable) | **Producer** — self-classifies, bypasses triage |
-| `mutation-watcher` | Daily 03:30 UTC + workflow_dispatch | Latest successful Mutation artifact — not labels | New issue with `bug` + `area: X` + `ready-for-agent` per source file with surviving mutants | **Producer** — self-classifies, bypasses triage |
-| `triage-bot` | Daily 11:00 UTC + workflow_dispatch | Open issue lacking all of `bug`, `enhancement`, `triage-uncertain`, `ready-for-agent`, `ready-for-human`, `wontfix`, `needs-info` | One of `bug` / `enhancement` / `triage-uncertain` + `area: X`. Reproducible bug also gets `ready-for-agent`. | Classifier |
-| `discovery-prep-bot` | Daily 10:00 UTC + workflow_dispatch | `enhancement` AND lacks all of `ready-for-human`, `ready-for-agent`, `wontfix`, `needs-info` | Research comment + `ready-for-human` label | Researcher |
-| `fix-bot` | Daily 13:00 UTC + workflow_dispatch | `bug` + `ready-for-agent` AND lacks all of `ready-for-human`, `wontfix`, `needs-info` AND no prior fix-bot comment | EITHER draft PR (two commits: failing test + fix), OR stuck-comment + `ready-for-human` label | Implementer |
+| `flake-watcher` | Daily 02:00 UTC + workflow_dispatch | CI events (run_attempt >= 2) — not labels | New issue with `bug` + `flake` + `area: X` + `ready-for-agent` (+ `recurring-flake` when applicable) | **Producer** — self-classifies, bypasses triage |
+| `mutation-watcher` | `workflow_run` on Mutation completion + workflow_dispatch | Latest Mutation artifact — not labels | New issue with `bug` + `area: X` + `ready-for-agent` per source file with surviving mutants | **Producer** — self-classifies, bypasses triage |
+| `triage-bot` | Daily 03:00 UTC + workflow_dispatch | Open issue lacking all of `bug`, `enhancement`, `triage-uncertain`, `ready-for-agent`, `ready-for-human`, `wontfix`, `needs-info` | One of `bug` / `enhancement` / `triage-uncertain` + `area: X`. Reproducible bug also gets `ready-for-agent`. | Classifier |
+| `discovery-prep-bot` | Daily 04:00 UTC + workflow_dispatch | `enhancement` AND lacks all of `ready-for-human`, `ready-for-agent`, `wontfix`, `needs-info` | Research comment + `ready-for-human` label | Researcher |
+| `fix-bot` | Daily 04:00 UTC + workflow_dispatch | `bug` + `ready-for-agent` AND lacks all of `ready-for-human`, `wontfix`, `needs-info` AND no prior fix-bot comment | EITHER draft PR (two commits: failing test + fix), OR stuck-comment + `ready-for-human` label | Implementer |
 
 **Producer bots vs triage-bot.** Producer bots (`flake-watcher`,
 `mutation-watcher`) consume CI signal and self-classify their output —
@@ -80,7 +80,7 @@ triage step adds value.
 ```
 Producer bots — bypass triage-bot, go straight to fix-bot's queue:
 ─────────────────────────────────────────────────────────────────
-flake-watcher (cron 12:00 UTC)         mutation-watcher (cron 03:30 UTC)
+flake-watcher (cron 02:00 UTC)         mutation-watcher (workflow_run on Mutation)
     ↓ files issue with                     ↓ files issue with
       bug + flake + ready-for-agent          bug + ready-for-agent
                           \           /
@@ -89,12 +89,12 @@ Human-filed issues — go through triage:
 ──────────────────────────────────────
 issue filed by maintainer / contributor (no labels)
     ↓
-triage-bot (cron 11:00 UTC) — input: open + no classification
+triage-bot (cron 03:00 UTC) — input: open + no classification
     ├─→ confident bug + reproducible → applies bug + ready-for-agent
     │
     ├─→ confident enhancement → applies enhancement
     │       ↓
-    │   discovery-prep-bot (cron 10:00 UTC) — input: enhancement + not yet handed off
+    │   discovery-prep-bot (cron 04:00 UTC) — input: enhancement + not yet handed off
     │       ↓ posts research comment + applies ready-for-human
     │   maintainer reads comment, starts grilling at their pace
     │
@@ -106,7 +106,7 @@ All confident-bug paths converge here:
                           ↓
                           ↓ (bug + ready-for-agent from any source)
                           ↓
-fix-bot (cron 13:00 UTC) — input: bug + ready-for-agent + no prior fix-bot comment
+fix-bot (cron 04:00 UTC) — input: bug + ready-for-agent + no prior fix-bot comment
     ↓ EITHER opens draft PR (failing test + fix),
       OR posts stuck-comment + applies ready-for-human
 maintainer reviews PR, merges

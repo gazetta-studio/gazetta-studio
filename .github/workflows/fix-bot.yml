@@ -12,10 +12,14 @@ name: Fix bot
 # it stops. See bots/fix-bot/prompt.md.
 on:
   schedule:
-    # 13:00 UTC daily — one hour after triage-bot's 11:00 UTC. New
-    # ready-for-agent bugs from today's triage get a fix attempt
-    # tomorrow at the latest.
-    - cron: '0 13 * * *'
+    # 04:00 UTC daily = 06:00 CEST / 05:00 CET. Runs after flake-watcher
+    # (02:00 UTC) and triage-bot (03:00 UTC) so today's freshly-filed
+    # bug + ready-for-agent issues from BOTH producer bots and triage's
+    # confident-bug auto-advance are visible in the same morning's run.
+    # Parallel with discovery-prep-bot (also 04:00 UTC) — different
+    # label inputs so no race. Worst-case skew lands the PR by ~09:00
+    # CEST, the maintainer's review window.
+    - cron: '0 4 * * *'
   workflow_dispatch:
     inputs:
       issue:
