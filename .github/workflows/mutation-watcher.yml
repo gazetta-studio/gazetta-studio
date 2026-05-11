@@ -1,9 +1,13 @@
 name: Mutation watcher
 
-# Daily review of Stryker mutation results. Pairs with the Mutation
-# workflow (mutation.yml) which runs at 03:00 UTC and uploads an HTML
-# report. This watcher runs at 03:30 UTC, fetches that artifact, and
-# files issues for surviving mutants worth investigating.
+# Review of Stryker mutation results. Pairs with the Mutation workflow
+# (mutation.yml) — fires when Mutation completes successfully (any
+# event, including manual workflow_dispatch). The previous cron-based
+# trigger (`30 3 * * *`) raced with Stryker's variable runtime (~1-3h)
+# AND GitHub Actions cron skew (scheduled runs can start hours late on
+# free runners); the watcher consistently consumed yesterday's artifact
+# instead of today's. workflow_run is event-driven, so the dependency
+# is correct regardless of when Stryker actually finishes.
 #
 # Producer-bot pattern: self-classifies output as `bug` + `area: X` +
 # `ready-for-agent`, bypassing triage-bot. Surviving mutants are
@@ -12,14 +16,16 @@ name: Mutation watcher
 # This workflow's failure doesn't block anything (continue-on-error) —
 # monitoring infrastructure, not a gate.
 on:
-  schedule:
-    # 03:30 UTC daily — 30 min after the Mutation workflow's nightly
-    # run. Mutation runs ~1-3h on the current target set; the artifact
-    # is ready well before our 30-min lag, but the lag absorbs delays.
-    - cron: '30 3 * * *'
+  workflow_run:
+    workflows: [Mutation]
+    # Both success and failure: Stryker exits non-zero when the
+    # mutation score breaks the threshold, but the HTML artifact is
+    # still uploaded and worth analyzing. The bot's prompt handles
+    # "no actionable mutants" gracefully when there's nothing to file.
+    types: [completed]
   workflow_dispatch:
     # Manual trigger — useful for testing prompt changes against the
-    # latest Mutation artifact without waiting for the next cron.
+    # latest Mutation artifact without waiting for the next nightly run.
 
 jobs:
   watch:

@@ -54,16 +54,32 @@ Stryker artifact; `watcher-run` traces to this analysis pass.
 ### 1. Search for an existing issue tracking this file
 
 ```
-gh issue list --state open --search "<file.filename> mutation in:title,body" --json number,title,body
+gh issue list --state all --search "<file.filename> mutation in:title,body" --json number,title,state,body
 ```
+
+Use `--state all` (not `--state open`) — closed issues matter for
+dedup. A file with surviving mutants might have a closed prior issue
+because someone shipped tests against it. If we search only open
+issues, mutation-watcher re-files duplicates for already-fixed files
+on every cron (this happened: #319 duplicated #308 after PR #315
+shipped tests). The closed-issue match path skips filing; surviving
+mutants in an already-handled file are "tests don't yet cover these
+specific cases, but we've already started" — not actionable as a
+fresh issue.
 
 Use the bare `file.filename` (e.g. `publish.ts`) as the search term.
 Match grain: per source file, NOT per mutant.
 
-- **Match** when an existing issue's title or body names the same
-  source file (path-suffix match) AND describes Stryker mutation
-  gaps. Read the body to verify; don't title-match alone.
-- **No match** → file a new issue.
+- **Match found, issue is OPEN** → proceed to step 2 (dedup against
+  source run); may comment per step 3a.
+- **Match found, issue is CLOSED** → skip entirely. Don't file, don't
+  comment. Stryker still flags the file but a prior fix attempt
+  exists; trust the human to re-open or file a fresh issue if the
+  remaining mutants warrant follow-up.
+- **No match** → file a new issue per step 3b.
+
+Document the skip decision with a `> Decision: ...` line so the
+transcript records why nothing was filed for this file.
 
 ### 2. Dedup against this source run
 
