@@ -21,9 +21,20 @@ export class PublishPanelPom {
   // ---- Opening ---------------------------------------------------------
 
   /** Open the panel from the toolbar button. Panel is not scoped to a
-   *  selected item — it's a cross-target operation. */
+   *  selected item — it's a cross-target operation.
+   *
+   *  Awaits the /api/targets response triggered by the admin boot before
+   *  clicking, so the activeTarget store is hydrated when the panel
+   *  mounts. Without this, on slow CI shards (issue #268) the panel
+   *  could render with `editableTargets=[]` and show
+   *  '(no editable target)' until the API response landed — the
+   *  resulting flake exhausted Playwright's 5s expect timeout 7/7 times
+   *  observed via attempt-rerun analysis. waitForResponse uses its own
+   *  30s default, comfortably above worst-case CI latency. */
   async open(): Promise<void> {
+    const targetsReady = this.page.waitForResponse('**/admin/api/targets**')
     await this.page.goto('/admin')
+    await targetsReady
     await this.page.locator('[data-testid="publish-btn"]').click()
   }
 
