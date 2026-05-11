@@ -13,10 +13,13 @@ name: Flake watcher
 # monitoring infrastructure, not a gate.
 on:
   schedule:
-    # 12:00 UTC daily. After most overnight CI runs have completed; before
-    # most contributors start their day so issues are filed by the time
-    # anyone looks.
-    - cron: '0 12 * * *'
+    # 02:00 UTC daily = 04:00 CEST / 03:00 CET. First in the producer-
+    # bot chain (flake-watcher → triage-bot → discovery-prep / fix-bot)
+    # so its output is in place by the time downstream bots run.
+    # Defensive start time absorbs GitHub Actions' 0-3h cron skew; on
+    # a good day results land by 03:00 CEST, on a bad day by 07:00 CEST
+    # — both well before the maintainer's 09:00 CEST review window.
+    - cron: '0 2 * * *'
   workflow_dispatch:
     # Manual trigger — useful for testing prompt changes or backfilling
     # after the workflow itself was broken.

@@ -13,10 +13,13 @@ name: Triage bot
 # monitoring infrastructure, not a gate.
 on:
   schedule:
-    # 11:00 UTC daily — one hour before flake-watcher's 12:00, so any issues
-    # flake-watcher files at 12:00 get picked up by triage-bot's NEXT-day run
-    # (gives maintainers a day to review flake-watcher output first).
-    - cron: '0 11 * * *'
+    # 03:00 UTC daily = 05:00 CEST / 04:00 CET. Runs after flake-watcher
+    # (02:00 UTC) so today's flake-output is in place before triage-bot
+    # scans — though producer-bot flake issues self-classify and bypass
+    # triage anyway. Stays before discovery-prep + fix-bot (04:00 UTC)
+    # so triage-bot's enhancement/bug classifications are visible when
+    # those downstream bots pick up their inputs the same morning.
+    - cron: '0 3 * * *'
   workflow_dispatch:
     # Manual trigger for testing prompt changes or one-off triage passes.
     # No inputs — bot's input is purely label-driven (open issues without

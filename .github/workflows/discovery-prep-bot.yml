@@ -11,11 +11,13 @@ name: Discovery prep bot
 # file. The label is the idempotency contract.
 on:
   schedule:
-    # 10:00 UTC daily — one hour before triage-bot's 11:00 UTC. Discovery
-    # picks up enhancements triage-bot classified yesterday; downstream
-    # actor (maintainer) sees `ready-for-human` issues during their
-    # workday.
-    - cron: '0 10 * * *'
+    # 04:00 UTC daily = 06:00 CEST / 05:00 CET. Runs after triage-bot
+    # (03:00 UTC) so today's freshly-classified enhancements are visible
+    # this morning, not tomorrow. Parallel with fix-bot (also 04:00 UTC)
+    # — they consume different label sets (enhancement vs bug + ready-
+    # for-agent) so no race. Worst-case skew lands results by ~09:00
+    # CEST, the maintainer's review window.
+    - cron: '0 4 * * *'
   workflow_dispatch:
     inputs:
       issue:
