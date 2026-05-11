@@ -292,3 +292,36 @@ Validated approaches and things to avoid. Each entry: rule, then why.
    **Why this rule earns a number despite seeming obvious:** it failed twice in one session (commits `1a2493c` and `b332826` straight to main). Slippage was driven by "this change is small enough to not need ceremony" reasoning. Capturing it as a numbered preference makes the default explicit: every commit, every time, branch + PR.
 
    **The only exceptions** are operations where main IS the working tree by design — none currently exist in this project. If one ever does, document it explicitly here.
+
+34. **Know the GitHub Actions trigger gotchas.** Four sharp edges that cost real time when missed; each has a one-line workaround once you know the cause.
+
+   **(a) `pull_request:` defaults exclude `ready_for_review`.** Default activity types are `[opened, synchronize, reopened]` only. A draft flipped to ready does NOT fire CI without explicit `types: [opened, synchronize, reopened, ready_for_review]` in the workflow's trigger. Fix-bot opens PRs as drafts; without this, every flip-to-ready leaves CI silent until a subsequent push fires `synchronize`. ([docs](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows))
+
+   **(b) `GITHUB_TOKEN` triggers no downstream workflows.** Per [GitHub's anti-recursion safety](https://docs.github.com/en/actions/using-workflows/triggering-a-workflow): "events triggered by the `GITHUB_TOKEN` will not create a new workflow run." Applies to ALL event types — `opened`, `synchronize`, `reopened`, `ready_for_review`. Affects every bot that opens PRs or pushes commits using the default Actions token (fix-bot, triage-bot, flake-watcher). Workarounds: user account close+reopen (bot's own close+reopen stays suppressed), `workflow_dispatch`/`repository_dispatch` (the documented escape hatches), or switch the bot to a GitHub App installation token / PAT (the permanent fix — tracked in #336).
+
+   **(c) Cancelled-run jobs show up alongside the current run in `gh pr checks`.** After a force-push, the older run gets cancelled by the concurrency rule (`cancel-in-progress`). Its `pack`-needing jobs (`smoke`, etc.) get marked `fail` because their `needs:` dependency was cancelled mid-flight — not because of a test failure. `gh pr checks <N>` lists both runs together with no separator. Aggregate scripts ("are all checks green?") will misclassify. Filter by `runId`:
+   ```bash
+   gh pr view <N> --json statusCheckRollup --jq '.statusCheckRollup
+     | group_by(.detailsUrl | capture("runs/(?<id>[0-9]+)").id)'
+   ```
+   The highest `runId` is the current run; verify all of its jobs show `SUCCESS` before drawing conclusions.
+
+   **(d) `git rebase` auto-drops cherry-pick equivalents.** When a stacked PR's parent merges, rebasing the child onto fresh main makes git skip the parent's commits via patch-id detection (`warning: skipped previously applied commit XXX`). No interactive rebase needed; no manual `git drop`. The opposite — `--reapply-cherry-picks` — preserves them, but the default is what you want for stacked-PR cleanup. Reference example: today's #325 → #326 → #327 chain cleaned up with three plain `git rebase origin/main` calls.
+
+   **Why this rule earns a number:** today's `/review-prs` session lost ~30 minutes across cycles of "why isn't CI firing?" (a + b), "did the test really fail?" (c), and "how do I unstack this?" (d). Each gotcha is documented somewhere in GitHub's docs but the docs don't surface them together; you only discover them via the failure mode. Centralizing them here means the next session reads one rule instead of rediscovering four.
+
+35. **Flake fixes that pass CI on the first run are not proven.** Rule 31's "verify by reverting and confirming the test fails" doesn't catch race conditions — the race doesn't reproduce locally on demand, and a single green CI run is consistent with the flake simply not firing this time. Before merging a flake-fix PR, verify durability under shard-load conditions:
+
+   ```bash
+   npx playwright test --project=dev --shard=<N>/7 <spec-file> --repeat-each=5
+   ```
+
+   5 consecutive passes on the affected shard = durable fix. Less than 5 = still flaky; the hypothesis was wrong or the fix is incomplete. Run on CI (where the flake originally surfaced), not locally — local hardware often masks races that only appear under CI's resource constraints.
+
+   **Why:** PR #325 added a double-`requestAnimationFrame` gate to ostensibly fix `component-ops.spec.ts:84` (#288). The PR passed CI on its first run; the issue auto-closed. Within hours #288's same failure recurred verbatim on an unrelated PR (#335) — the gate didn't actually close the race. Costs: stale "closed" issue tracking real flake; reviewer time on the recurrence; fix-bot will now re-attempt with possibly the same hypothesis. A `--repeat-each=5` shard run on #325's branch before merge would have surfaced the hole.
+
+   **How to apply:**
+   - Mandatory for any PR whose title / body claims to fix a `flake`-labeled issue
+   - The PR description must include the `--repeat-each=N` command run and its result count ("5/5 pass on shard 1 = durable")
+   - Single-run green CI alone is NOT acceptable evidence to merge a flake fix
+   - When the hypothesis turns out wrong (recurrence within a week), reopen the issue with the recurrence evidence and the next hypothesis — don't silently re-attempt without acknowledging the prior failure
