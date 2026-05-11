@@ -230,6 +230,12 @@ test.describe('Publish panel', () => {
     const html = page.locator('html')
     if ((await html.getAttribute('class'))?.includes('dark')) {
       await page.locator('[data-testid="theme-toggle"]').click()
+      // Confirm the class actually flipped before continuing — fire-and-forget
+      // click can race with the SSE reload triggered by `wipe()` (file-watcher
+      // detects staging deletion → page re-mounts → theme.init() re-applies
+      // stale state). Asserting here surfaces the failure at the toggle, not
+      // 15 seconds later at line 211.
+      await expect(html).toHaveClass(/light/)
     }
     const panel = new PublishPanelPom(page)
     await page.locator('[data-testid="publish-btn"]').click()
