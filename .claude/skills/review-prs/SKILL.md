@@ -70,6 +70,23 @@ If `gh pr checks <N>` returns "no checks reported," diagnose:
 | Draft flipped to ready, no checks | Workflow's `pull_request:` trigger doesn't list `ready_for_review` (default types are only `[opened, synchronize, reopened]`) | Fix the workflow: `types: [opened, synchronize, reopened, ready_for_review]`. Short-term unblock: close+reopen, or push an empty commit. |
 | All PRs cold | Workflow disabled / file syntax error | `gh api repos/:owner/:repo/actions/workflows/ci.yml --jq .state` should return `active` |
 
+### Reading mixed-run CI status
+
+After a force-push, `gh pr checks <N>` lists ALL recent workflow runs' jobs together — including jobs from the previous run that the concurrency rule cancelled mid-flight. A `smoke fail` row from an older `runs/XXXXX` URL is usually a cancelled job whose `needs:` dependency was cancelled, not a real test failure.
+
+To filter to the current run only:
+
+```bash
+gh pr view <N> --json statusCheckRollup --jq '.statusCheckRollup
+  | group_by(.detailsUrl | capture("runs/(?<id>[0-9]+)").id)
+  | map({runId: (.[0].detailsUrl | capture("runs/(?<id>[0-9]+)").id),
+         checks: [.[] | {name, status, conclusion}]})'
+```
+
+The newest run's `runId` will be the highest number. If all of its jobs show `SUCCESS`, the PR is genuinely green even if older-run rows show `CANCELLED` / `fail`.
+
+**Monitor scripts that aggregate "all pass" can produce false-failure signals from cancelled-run artifacts.** When this happens, manually verify with the `runId` grouping above before assuming the PR is broken.
+
 ## Recommend merge / close / changes
 
 Before recommending, consider:
