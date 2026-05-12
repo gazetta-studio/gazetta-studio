@@ -58,3 +58,14 @@ bots/test-outputs/
 # mutation-watcher's per-run artifact staging dir — re-fetched every cron from
 # the latest Mutation workflow run. Never authoritative.
 bots/mutation-report-staging/
+
+# Storybook — local-only artifacts. `storybook-static/` is the build output
+# (`npm run build-storybook`); `*storybook.log` covers the debug log Storybook
+# init writes on errors.
+storybook-static/
+*storybook.log
+
+# Playwright MCP server's working dir — page snapshots, console logs, and
+# screenshots Claude captures during browser-verification sessions. Always
+# transient; never committed.
+.playwright-mcp/

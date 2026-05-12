@@ -23,15 +23,21 @@
     "test": "npm run test --workspaces --if-present",
     "smoke": "bash scripts/smoke-publish.sh",
     "format": "biome format --write .",
-    "format:check": "biome format ."
+    "format:check": "biome format .",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",
     "@biomejs/biome": "^2.4.15",
     "@playwright/test": "^1.60.0",
+    "@storybook/addon-a11y": "^10.3.6",
+    "@storybook/addon-themes": "^10.3.6",
+    "@storybook/vue3-vite": "^10.3.6",
     "playwright": "^1.59.1",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react-dom": "^19.2.6",
+    "storybook": "^10.3.6"
   },
   "overrides": {
     "glob": "^13.0.6"
