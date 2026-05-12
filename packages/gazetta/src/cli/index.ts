@@ -11,6 +11,7 @@ import { resolvePage } from '../resolver.js'
 import { renderPage } from '../renderer.js'
 import { createFilesystemProvider } from '../providers/filesystem.js'
 import { invalidateTemplate, invalidateAllTemplates } from '../template-loader.js'
+import { isTemplateEventRecent, TEMPLATE_RECENT_CHANGE_WINDOW_MS } from './dev-template-watcher.js'
 // createTargetRegistry is used lazily by admin-api publish routes
 import type { SiteManifest } from '../types.js'
 import { getEnvironment, getType, isEditable } from '../types.js'
@@ -1995,21 +1996,33 @@ async function runDev(siteDir: string, port: number) {
         const parts = filename.split('/')
         if (parts.length >= 1) {
           const templateName = parts[0]
-          console.log(`  Template changed: ${templateName}`)
-          invalidateTemplate(templateName)
-          // Drop the admin-api's cached scan so next compare/publish
-          // rehashes. Cheap (the scan is what's slow, not invalidation).
-          cmsApp?.invalidateTemplatesCache()
-          // Cut 6 — fire a validation rescan with the template-edit
-          // cause so the scanner re-runs schema-conformance against
-          // every page+fragment using this template. The ScanEvent
-          // emits on the /__validation SSE channel; the admin's
-          // TemplateChangedBanner consumes it to show the
-          // template-developer's "did I break anything?" surface.
-          // Fire-and-forget — the scan runs in the background and
-          // the SSE event is the signal that it finished.
-          void cmsApp?.rescanForTemplate?.(templateName)
-          notifyReload()
+          const fullPath = join(templatesDir, filename)
+          // Suppress spurious events for files whose mtime predates the
+          // watcher's recent window — these are kernel-delayed metadata
+          // flushes for files written before the watcher began observing,
+          // typical of the worker-scoped `cp -r` setup in the e2e fixture
+          // (#286). Without the gate, the resulting notifyReload() closes
+          // any open admin UI mid-interaction.
+          void (async () => {
+            if (!(await isTemplateEventRecent(fullPath, TEMPLATE_RECENT_CHANGE_WINDOW_MS))) {
+              return
+            }
+            console.log(`  Template changed: ${templateName}`)
+            invalidateTemplate(templateName)
+            // Drop the admin-api's cached scan so next compare/publish
+            // rehashes. Cheap (the scan is what's slow, not invalidation).
+            cmsApp?.invalidateTemplatesCache()
+            // Cut 6 — fire a validation rescan with the template-edit
+            // cause so the scanner re-runs schema-conformance against
+            // every page+fragment using this template. The ScanEvent
+            // emits on the /__validation SSE channel; the admin's
+            // TemplateChangedBanner consumes it to show the
+            // template-developer's "did I break anything?" surface.
+            // Fire-and-forget — the scan runs in the background and
+            // the SSE event is the signal that it finished.
+            void cmsApp?.rescanForTemplate?.(templateName)
+            notifyReload()
+          })()
         }
       }
     })
