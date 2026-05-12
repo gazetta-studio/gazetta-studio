@@ -32,13 +32,17 @@ test.describe('Target switch preserves preview', () => {
     await page.goto('/admin/pages/home')
     await page.waitForSelector('iframe[data-testid="preview-iframe"]', { timeout: 10000 })
 
-    // Give the iframe time to load its first srcdoc and lay out.
+    // `body` is truthy before layout completes; a scroll issued then is
+    // silently discarded when readyState reaches 'complete'. Gate on
+    // 'complete' AND body content (skips the iframe's initial blank doc).
     await expect
       .poll(
         async () => {
           return page.evaluate(() => {
             const f = document.querySelector('iframe[data-testid="preview-iframe"]') as HTMLIFrameElement | null
-            return (f?.srcdoc?.length ?? 0) > 500 && !!f?.contentDocument?.body
+            return (
+              f?.contentDocument?.readyState === 'complete' && (f?.contentDocument?.body?.innerHTML?.length ?? 0) > 500
+            )
           })
         },
         { timeout: 10000 },
