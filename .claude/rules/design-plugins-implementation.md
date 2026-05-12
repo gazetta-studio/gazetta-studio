@@ -17,7 +17,7 @@ See [`design-plugins.md`](design-plugins.md) for the design itself.
 | Provider factory-call surfaces (Storage, Cache, Transform, AI, Audit, AuthIdentity) | ✓/◐ Path X (per `design-provider-config-implementation.md`) |
 | `admin.hooks` factory contributions | ✓ Hooks v1 (Cut 9) |
 | Hook audit `source` separate field | ✓ Already shipped (hooks v1 Cut 7 + Cut 9 — `metadata.source` separate from `metadata.hookName`); locked as the design here so the contract is durable |
-| `admin.validators: Validator[]` config + registry merge | ☐ Validation Cut 1 + 2 — `Validator.source` field added there |
+| `admin.validators: Validator[]` config + registry merge | ☐ Pending — not shipped with Validation Cuts 1-3 as the earlier plan assumed (`admin.validators` not referenced anywhere in source as of 2026-05-12). Lands when concrete operator demand surfaces; the registry pattern (`validation/registry.ts`) is already factor-ready for the merge. |
 | Service-account capability elevation on `HookContribution` | ☐ Auth/RBAC's service-account primitive (per `design-auth-rbac-implementation.md`) |
 | `admin.routes: RouteContribution[]` config + Hono mount | ☐ Standalone — lands when first concrete demand surfaces |
 | `optional()` lazy wrapper | ☐ Standalone — lands when first concrete demand surfaces |
