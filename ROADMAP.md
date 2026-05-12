@@ -2,7 +2,7 @@
 
 Strategic forward-looking priorities for Gazetta. Captures what's prioritized, what's deferred, and what's a non-goal.
 
-**Updated**: 2026-05-12 (papercut cluster + validation cuts status; Lighthouse deferred)
+**Updated**: 2026-05-12 (Phase 1 foundation status verified; Plugin loader retired per ADR-0009)
 
 ## How to read this
 
@@ -156,16 +156,17 @@ Cross-cutting sequencing (TS config first; AuthIdentity before Audit/Hooks; Plug
 
 Each foundation: code + unit tests + contract tests (where it's an extension surface) + integration tests + at least one consumer integration + user-facing docs. Sequenced to respect cross-cutting dependencies.
 
-| Foundation | Sequence | Estimate |
-|---|---|---|
-| ✓ TS config migration | First (mechanical, affects everything) — shipped 2026-05 | 1-2w |
-| AuthIdentity layer | After TS config (Principal extraction; trust modes) | 2w |
-| Component IDs | Independent (structural manifest change) | 1w |
-| AdminCache abstraction | Independent (replaces existing memos) | 1-2w |
-| Audit primitive | After AuthIdentity (records `actor` snapshot) | 1-2w |
-| Hooks lifecycle | After AuthIdentity (`Principal` in HookContext) | 2w |
-| Plugin loader | After TS config + Hooks (factory invocation; PluginAPI) | 1-2w |
-| NotificationProvider (in-admin only) | After Hooks (in-admin via subscribe) | 1w |
+| Foundation | Sequence | Estimate | Status |
+|---|---|---|---|
+| TS config migration | First (mechanical, affects everything) — shipped 2026-05 | 1-2w | ✓ shipped |
+| AuthIdentity layer | After TS config (Principal extraction; trust modes) | 2w | ✓ shipped (6 trust-mode providers; 9 test files; 66 admin-API integrations) |
+| Component IDs | Independent (structural manifest change) | 1w | ✓ shipped (`component-ids.ts`; `ensureComponentIds` called from page + fragment save handlers) |
+| AdminCache abstraction | Independent (replaces existing memos) | 1-2w | ✓ shipped (interface + `MemoryCache` + per-site + 6 test files) |
+| Audit primitive (v1 scope) | After AuthIdentity (records `actor` snapshot) | 1-2w | ✓ shipped (recorder + middleware + `HistoryAuditProvider`; v2 external sinks deferred per `design-audit.md`) |
+| Hooks lifecycle | After AuthIdentity (`Principal` in HookContext) | 2w | ✓ shipped (factory contributions via `admin.hooks: HookContribution[]` per ADR-0009; 10 test files) |
+| NotificationProvider (in-admin only) | After Hooks (in-admin via subscribe) | 1w | ☐ pending |
+
+**Plugin loader removed** per [ADR-0009](docs/adr/0009-no-plugin-runtime-factory-contributions.md) — there is no `Plugin` runtime contract, `PluginAPI`, `init(api)`, or `dispose()`. The locked plugin design pre-2026-05 was collapsed: Path X ([ADR-0008](docs/adr/0008-provider-factory-returns-instance.md)) covers Provider surfaces via factory-call-at-field; Hooks Cut 9 ships factory contributions via `admin.hooks`; Validators / Routes follow the contribution-array pattern (lands as those surfaces ship, not as standalone work). See [`design-plugins.md`](.claude/rules/design-plugins.md) for the operator-facing distribution pattern.
 
 ### Phase 2 — Features composing against foundations (10-14 weeks)
 
@@ -173,10 +174,10 @@ Each foundation: code + unit tests + contract tests (where it's an extension sur
 |---|---|---|
 | ✓ Validation Cut 2 (background scanner) — shipped (scanner manages its own memoization) | — | 4 days |
 | ✓ Validation Cut 3 (render-for-analysis + a11y) — shipped | — | 5 days |
-| Per-field translation (#192) | i18n design (shipped) + Component IDs | 2-3w |
-| Review workflow MVP | AuthIdentity + Audit + Hooks | 2-3w |
-| Comments-first collaboration v1 | AuthIdentity + Audit + Component IDs + NotificationProvider | 3w |
-| Offline mode v1 | AdminCache + service worker stack (idb + Vue Query + vite-plugin-pwa) | 3w |
+| Per-field translation (#192) | i18n design (shipped) + Component IDs (shipped) | 2-3w |
+| Review workflow MVP | AuthIdentity + Audit + Hooks (all shipped); state machine + capabilities + UI pending | 2-3w |
+| Comments-first collaboration v1 | AuthIdentity + Audit + Component IDs (all shipped) + NotificationProvider (pending) | 3w |
+| ✓ Offline mode v1 — shipped | AdminCache + Vue Query + `idb` + `vite-plugin-pwa` + 5-state connection machine + conflict UI + 9 test files | 3w |
 
 ### Phase 3 — Polish, parallel tracks, remaining cuts (8-12 weeks)
 
