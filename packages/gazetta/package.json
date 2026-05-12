@@ -115,7 +115,7 @@
     "postcss": "^8.5.14",
     "postcss-prefix-selector": "^2.1.1",
     "sharp": "^0.34.5",
-    "write-file-atomic": "^7.0.1",
+    "write-file-atomic": "^8.0.0",
     "zod": "^4.4.3"
   },
   "peerDependencies": {
