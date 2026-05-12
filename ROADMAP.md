@@ -2,13 +2,13 @@
 
 Strategic forward-looking priorities for Gazetta. Captures what's prioritized, what's deferred, and what's a non-goal.
 
-**Updated**: 2026-05-09
+**Updated**: 2026-05-12
 
 ## How to read this
 
 - **Tier 1** = next 4-8 weeks; explicit commitment
 - **Tier 2** = next quarter; planned but not started — historically included foundational design passes alongside committed implementation work; foundational design corpus complete (14 dimensions)
-- **Tier 3** = phased implementation plan against the complete design corpus; ~7-11 month horizon for Phase 0 + Phase 1 + Phase 2 + Phase 3
+- **Tier 3** = phased implementation plan against the complete design corpus; Phase 0 (impl-doc artifacts) ✓ complete 2026-05; ~6-10 month horizon for Phase 1 + Phase 2 + Phase 3
 - **Deferred** = real gaps but not the right time
 - **Non-goals** = explicit strategic non-fits — see [`docs/non-goals.md`](docs/non-goals.md)
 
@@ -143,22 +143,15 @@ Operator-facing features that mature production deployments:
 
 The 14-dimension foundational design corpus is complete. Implementation is now sequenced as four phases. **No backwards-compatibility constraint** (pre-1.0 product); cutovers are clean. **No external shipping pressure**; architectural correctness prioritized over velocity.
 
-Total horizon: ~7-11 months for Phase 0 + Phase 1 + Phase 2 + Phase 3. Tier 3 strategic bets (concurrent editing, etc.) deferred indefinitely.
+Total horizon: ~6-10 months for Phase 1 + Phase 2 + Phase 3 (Phase 0 ✓ complete 2026-05). Tier 3 strategic bets (concurrent editing, etc.) deferred indefinitely.
 
-### Phase 0 — Implementation planning artifacts (1 week)
+### Phase 0 — Implementation planning artifacts ✓ complete 2026-05
 
-Write the remaining `design-{feature}-implementation.md` docs. Already shipped: ai, audit, auth-rbac, cache, collaboration, config, hooks, media, offline, plugins, provider-config, validation.
+All 19 `design-{feature}-implementation.md` docs shipped: ai, audit, auth-rbac, cache, collaboration, config, hooks, i18n, media, offline, plugins, provider-config, rendering, review-workflow, scale, scheduling, soft-delete, themes, validation.
 
-Still missing (5):
-- `design-scale-implementation.md`
-- `design-themes-implementation.md`
-- `design-i18n-implementation.md`
-- `design-rendering-implementation.md`
-- `design-review-workflow-implementation.md`
+Each defines cut sequence, per-cut scope, files added/modified, tests, integration consumer for validation, and SOLID checks.
 
-Each defines cut sequence, per-cut scope, files added/modified, tests, integration consumer for validation, and SOLID checks. No migration sections needed (no backwards compat).
-
-Plus: lock the cross-cutting sequencing (TS config affects every consumer; serial), per-foundation test plans, and integration test strategy across foundations.
+Cross-cutting sequencing (TS config first; AuthIdentity before Audit/Hooks; Plugin loader after Hooks), per-foundation test plans, and integration test strategy across foundations all locked. Phase 1 is next.
 
 ### Phase 1 — Foundations (8-12 weeks)
 
