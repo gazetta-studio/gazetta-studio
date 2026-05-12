@@ -47,6 +47,22 @@ jobs:
       - run: npm run build -w packages/gazetta
       - run: npm test -w packages/gazetta
 
+  admin:
+    # Vue Test Utils + jsdom tests for apps/admin. Runs in parallel with
+    # `test` (no shared build artifacts — admin tests run against TS
+    # source). The test suite is the trophy/honeycomb tier per
+    # testing-plan.md and the load-bearing gate for Vue component +
+    # admin-API behavior.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test -w @gazetta/admin
+
   bots:
     # Pure-logic tests for the bots workspace (Stryker report parser,
     # fix-bot's failure-diagnostic + issue-shape helpers). Fast (~150ms)
