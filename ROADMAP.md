@@ -2,7 +2,7 @@
 
 Strategic forward-looking priorities for Gazetta. Captures what's prioritized, what's deferred, and what's a non-goal.
 
-**Updated**: 2026-05-12
+**Updated**: 2026-05-12 (papercut cluster status)
 
 ## How to read this
 
@@ -29,13 +29,13 @@ The framing decisions that shape multi-quarter priorities. Resolved (no longer "
 - ✓ Fix bug #106 (component reordering immediate-save, PR #225) — shipped
 - ✓ Validation Cut 1 — shipped. Save-time integrity validation per [`design-validation.md`](.claude/rules/design-validation.md): `Validator` interface, save-delta orchestrator, 5 reference-existence validators, 409 wiring on page/fragment PUT, `ValidationBanner.vue`. Closes part of issue #40. Cut 2 is Tier 2 / Phase 2 work — depends on AdminCache (per [Phase 2 table](#phase-2--features-composing-against-foundations-10-14-weeks)), not next-up here.
 
-### Editor papercut cluster (2-3 weeks)
-Aggregate small-but-high-impact UX wins:
-- #103 page/fragment/component creation UX
-- #104 metadata editing UX (template, name, route) — note: #104 absorbed into the soft-delete foundational design pass (Tier 2 #13). Rename composes archive + create + alias; can't ship as a small Tier 1 fix without the foundation.
-- #105 component ordering UX (drag-and-drop research)
-- #82 breadcrumb navigation in edit mode
-- #45 component duplication
+### Editor papercut cluster (largely shipped; one open)
+Aggregate small-but-high-impact UX wins. 3 of 4 closed; only the design pass for creation UX remains.
+- ✓ #104 metadata editing UX — shipped via the soft-delete foundational design pass (Tier 2 #13). Rename composes archive + create + alias.
+- ✓ #105 component ordering UX — drag-and-drop shipped (`@formkit/drag-and-drop` integrated in `ComponentTree.vue`); replaces move-up/move-down buttons per `design-component-ordering.md`. Closed 2026-05-08.
+- ✓ #82 breadcrumb navigation in edit mode — closed 2026-05-09.
+- ✓ #45 component duplication — closed 2026-05-08.
+- ☐ #103 page/fragment/component creation UX — open; `ready-for-human` (needs Discovery + UX-grilling pass before implementation).
 
 ### Manual redirect creation in admin (1 week)
 Closes part of [`docs/seo-plan.md`](docs/seo-plan.md)'s Tier 2 redirect-management punch-list. The soft-delete mechanism (HTML markers / per-edge sidecars / `_redirects` host-glue) already supports redirect-without-archive — operators can manually create archive-only manifests to define redirects. Admin UI affordance: "Create redirect →" form (from-route + to-route fields) creates the manifest. Bounded scope: 301 only (per `design-soft-delete.md` Q14 lock); temporary/scheduled redirects deferred to scheduling primitive. Depends on soft-delete v1 shipping first.
@@ -183,7 +183,7 @@ Each foundation: code + unit tests + contract tests (where it's an extension sur
 
 These can run in parallel with Phase 1-2 since they don't depend on the foundations:
 
-- **Editor papercut cluster** (2-3w; Tier 1 commitment): #103, #104, #105, #82, #45
+- **Editor papercut cluster** — largely shipped (#104, #105, #82, #45 ✓); remaining: #103 creation UX (needs Discovery + UX-grilling pass before implementation)
 - **Onboarding sprint** (3-4w; Tier 1 commitment): #203 deploy adapter contract + 3 priority adapters + #213 container guide + #79 Docker example + #214 first-run UX
 
 After foundations + features land:
