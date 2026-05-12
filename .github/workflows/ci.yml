@@ -48,11 +48,12 @@ jobs:
       - run: npm test -w packages/gazetta
 
   admin:
-    # Vue Test Utils + jsdom tests for apps/admin. Runs in parallel with
-    # `test` (no shared build artifacts — admin tests run against TS
-    # source). The test suite is the trophy/honeycomb tier per
-    # testing-plan.md and the load-bearing gate for Vue component +
-    # admin-API behavior.
+    # Vue Test Utils + jsdom tests for apps/admin. The trophy/honeycomb
+    # tier per testing-plan.md and the load-bearing gate for Vue
+    # component + admin-API behavior. Requires the gazetta package to
+    # be built first because tests/sw-build.test.ts invokes the admin
+    # Vite build, which imports `gazetta/types` etc. via the package's
+    # exports map (resolved against packages/gazetta/dist).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -61,6 +62,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run build -w packages/gazetta
       - run: npm test -w @gazetta/admin
 
   bots:
