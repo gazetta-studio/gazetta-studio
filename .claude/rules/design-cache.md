@@ -417,7 +417,7 @@ How cache composes with each of the other 12 foundational dimensions plus the mu
 - Worker cache (L3) is governed by `design-rendering.md` Q1; not part of this design pass.
 
 ### Validation (#9)
-- Validator results cached when expensive (axe-core, html-validate, Lighthouse); content-hash key.
+- Validator results cached when expensive (axe-core, html-validate); content-hash key.
 - Cache invalidation on save flows through normal Q2 lock.
 
 ### Plugin (#10)
