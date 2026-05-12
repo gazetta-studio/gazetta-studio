@@ -13,13 +13,13 @@ Per [team-preferences.md rule 17](team-preferences.md): "Build and validate, don
 | Cut | What | Effort | Dependency | Status |
 |---|---|---|---|---|
 | **1** | Validator infrastructure + save-delta | 4 days | None | ✓ |
-| **2** | Background scanner + admin UI surfaces | 4 days | Cut 1, AdminCache (Phase 1 foundation) | ☐ |
-| **3** | Render-for-analysis + quality validators (a11y, html-validate) + altRequired | 5 days | Cut 1, Cut 2 | ☐ |
-| **4** | Publish gate + heavy validators (Lighthouse, linkinator) | 5 days | Cut 3 | ☐ |
-| **5** | `gazetta validate` CLI rewrite | 2 days | Cut 1 (more useful after Cut 3) | ☐ |
-| **6** | Template-developer surfaces | 3 days | Cut 2 | ☐ |
+| **2** | Background scanner + admin UI surfaces | 4 days | Cut 1 | ✓ — `scanner.ts` + `SiteHealthDrawer.vue` + `validationScanner` / `validationIssues` stores; 3 background-only validators shipped (`schema-conformance`, `orphaned-locale-file`, `unused-fragment`) |
+| **3** | Render-for-analysis + quality validators (a11y, html-validate) + altRequired | 5 days | Cut 1, Cut 2 | ✓ — `validators/accessibility.ts`, `html-validity.ts`, `alt-required.ts`, `alt-required-walker.ts` shipped |
+| **4** | Publish gate + heavy validators (Lighthouse, linkinator) | 5 days | Cut 3 | ◐ — pre-publish audit step in `PublishPanel.vue` + `publish-audit.ts` + `validators/broken-links.ts` (linkinator) shipped; **Lighthouse validator deferred** |
+| **5** | `gazetta validate` CLI rewrite | 2 days | Cut 1 (more useful after Cut 3) | ✓ — `runValidate` rebuilt around scanner orchestrator; `parseValidateFlags` supports `--severity`, `--include-quality`, `--no-warn-as-error`, `--verbose`; 15 tests across `cli-validate-flags.test.ts` + `cli-validate.test.ts` |
+| **6** | Template-developer surfaces | 3 days | Cut 2 | ✓ — `template-impact.ts` shipped |
 
-**Total: ~23 days** for the full plan.
+**Total: ~23 days** for the full plan. **Status as of 2026-05-12:** Cuts 1–3, 5, 6 fully shipped; Cut 4 partial (Lighthouse remains). Plus 5 additional soft-delete validators (`aliasof-points-to-archived`, `archive-not-supported-on-target`, `circular-alias`, `dangling-alias`, `referenced-archived-without-alias`) shipped beyond the original cut scope.
 
 **Minimum useful ship: Cut 1 (4 days)** — catches the most common author-introduced breaks; establishes the abstraction.
 
