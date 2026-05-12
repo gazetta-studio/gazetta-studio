@@ -84,15 +84,24 @@ export const SiteConfigSchema = z
      */
     cache: z.unknown().optional(),
     /**
-     * Reserved for future foundations (auth, plugins, hooks, audit,
-     * notifications). Each block is validated by its own factory at
-     * load time per the Universal Provider Requirements.
+     * Reserved for future foundations (auth, hooks, audit, notifications).
+     * Each block is validated by its own factory at load time per the
+     * Universal Provider Requirements.
+     *
+     * Extension surfaces per ADR-0009:
+     *   - `hooks` is `HookContribution[]` — array of factory-call results
+     *     (e.g., `[autoSlugify(), cdnPurge({...})]`). Runtime treats
+     *     `Array.isArray(hooks)`; schema accepts opaque array.
+     *   - Future `validators` + `routes` follow the same contribution-array
+     *     shape when they ship.
+     *
+     * The `plugins` field was retired per ADR-0009 — no `Plugin` runtime
+     * contract; operators import per-surface factories.
      */
     admin: z
       .object({
         auth: z.record(z.string(), z.unknown()).optional(),
-        plugins: z.array(z.unknown()).optional(),
-        hooks: z.record(z.string(), z.unknown()).optional(),
+        hooks: z.array(z.unknown()).optional(),
         audit: z.record(z.string(), z.unknown()).optional(),
         notifications: z.record(z.string(), z.unknown()).optional(),
         offline: z.record(z.string(), z.unknown()).optional(),
