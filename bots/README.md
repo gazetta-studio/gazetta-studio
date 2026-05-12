@@ -45,6 +45,33 @@ from `tools/` (developer/operator utilities run on demand).
 
 If three+ bots end up needing the same helper (e.g., posting structured comments, parsing test output), extract to `_lib/`. Until then, inline.
 
+## Architecture: producer vs consumer — where does work live?
+
+The single most important question when designing a new bot is **what work lives in the orchestrator (TS code) vs the prompt (Claude)**. Get this wrong and the bot will either fail with context overruns, file duplicate noise, or do brittle pattern-matching that breaks on language variation.
+
+**Rule of thumb:**
+
+| Kind of work | Lives in | Why |
+|---|---|---|
+| Parsing, filtering, paginating, summarising large inputs | **Orchestrator (TS)** | Deterministic; testable with vitest; doesn't burn context |
+| Deduping against prior bot output | **Orchestrator (TS)** | Cheap `gh issue list` filters + outcome-tag regex; needs to be reliable across runs |
+| Identity / classification of inputs (which producer filed this issue?) | **Orchestrator (TS)** | Outcome-tag regex is more reliable than asking Claude to recognize bot-authored bodies |
+| Interpretation, classification of natural language | **Prompt (Claude)** | Judgment work; pattern-match across context |
+| Writing prose (issue bodies, comments, fix recommendations) | **Prompt (Claude)** | Generative work; needs context awareness |
+| Picking which fix to apply, which test to write | **Prompt (Claude)** | Judgment work; benefits from reading the actual code |
+| Deciding "the bug is too vague — apply ready-for-human and bail" | **Prompt (Claude)** | Self-awareness; needs to see the bug's repro to decide |
+
+**Why this matters:** mutation-watcher's first iteration asked Claude to parse a 3 MB Stryker HTML report (`mutation-watcher/prompt.md` step 1: "extract the JSON via grep + node -e"). Claude *did* parse it correctly — and exhausted its context window doing so, exiting before filing any issues. The fix was `bots/_lib/stryker-parse.ts` — 50 lines of TS that handle parsing, summarising, and per-file capping. Claude now consumes a small JSON summary per file (~few KB), one Claude call per file, and writes focused issue bodies. Same architecture pattern as triage-bot's per-issue Claude call.
+
+**Symptoms that tell you the producer/consumer split is wrong:**
+
+- **Autocompact thrashes** ("the context refilled to the limit within 3 turns") — Claude is being asked to hold more state than fits. Move parsing/state-tracking to TS.
+- **Brittle regex parsers in the orchestrator** to match Claude's output shapes — you're asking the consumer to deal with a producer that writes prose. Either tighten the producer's prompt (lock body shape) OR move what you're parsing back into TS-generated structured output.
+- **Repeated `gh issue list --state open` searches that re-file duplicates** of recently-closed issues — dedup logic that only looks at open issues misses the fixed-but-still-flagged case. Search `--state all` and skip on closed-match.
+- **Silent failures** (exit 1 with no comment, no label change) — orchestrator should catch non-zero exits, mine the transcript for the failure mode, post a maintainer-readable comment. See `bots/fix-bot/failure-diagnostic.ts` for the pattern.
+
+**When in doubt:** prefer pushing work to the orchestrator. The TS code is testable (vitest), debugger-friendly (real stack traces, not transcript archaeology), and doesn't burn context budget. Claude's strengths are judgment and prose — use them there, not for stuff a parser could do deterministically.
+
 ## Running locally
 
 ```bash
