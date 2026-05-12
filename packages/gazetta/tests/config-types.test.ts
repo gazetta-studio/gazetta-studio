@@ -116,8 +116,26 @@ describe('SiteConfigSchema validation', () => {
       cache: { get: () => null, set: () => {}, invalidate: () => {} },
       admin: {
         auth: { trust: 'cloudflare-access' },
-        plugins: [],
         audit: { providers: ['history'] },
+      },
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts admin.hooks as an array of contributions per ADR-0009', () => {
+    // Documented operator pattern per design-hooks.md "Registration":
+    // `admin.hooks: HookContribution[]` — array of factory-call results.
+    // Schema must accept the array shape; runtime treats it via
+    // `Array.isArray()` at packages/gazetta/src/cli/index.ts:67.
+    const result = SiteConfigSchema.safeParse({
+      name: 'main',
+      admin: {
+        hooks: [
+          {
+            source: 'site-local:auto-slugify',
+            hooks: [{ phase: 'beforeSave', handler: () => undefined }],
+          },
+        ],
       },
     })
     expect(result.success).toBe(true)
