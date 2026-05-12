@@ -141,7 +141,7 @@ Legend: ✅ shipped · ⚠ partial · ❌ missing · ⛔ explicit non-goal
 | HTML validity | ❌ | Cut 3 |
 | CSS lint | ❌ | Cut 3 |
 | Broken link checking | ❌ | Cut 4 |
-| Lighthouse / perf scoring | ❌ | Cut 4 |
+| Lighthouse / perf scoring | ❌ | Deferred indefinitely — operators use CI-side Lighthouse or PageSpeed Insights. See `design-validation-implementation.md` deferred-items table. |
 | `gazetta validate` CLI | ⚠ | Exists; rewrite designed (Cut 5) |
 | Pre-publish gate | ❌ | Cut 4 |
 

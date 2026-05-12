@@ -2,7 +2,7 @@
 
 Strategic forward-looking priorities for Gazetta. Captures what's prioritized, what's deferred, and what's a non-goal.
 
-**Updated**: 2026-05-12 (papercut cluster + validation cuts status)
+**Updated**: 2026-05-12 (papercut cluster + validation cuts status; Lighthouse deferred)
 
 ## How to read this
 
@@ -27,7 +27,7 @@ The framing decisions that shape multi-quarter priorities. Resolved (no longer "
 - ✓ Land dependabot PR #219 — shipped
 - ✓ Land `@hono/node-server` v2 bump (PR #224) — shipped
 - ✓ Fix bug #106 (component reordering immediate-save, PR #225) — shipped
-- ✓ Validation Cuts 1, 2, 3, 5, 6 — shipped. Cut 1: save-time integrity (`Validator` interface, save-delta orchestrator, 5 ref-existence validators, 409 wiring, `ValidationBanner.vue`). Cut 2: background scanner + `SiteHealthDrawer.vue` + 3 background-only validators (`schema-conformance`, `orphaned-locale-file`, `unused-fragment`). Cut 3: render-for-analysis + a11y (axe-core) + html-validity + `altRequired`. Cut 5: `gazetta validate` CLI rewrite (15 tests). Cut 6: template-developer surfaces (`template-impact.ts`). Plus 5 soft-delete-related validators beyond the original scope. Closes #40. **Cut 4 partial** — pre-publish audit step + linkinator shipped; Lighthouse validator remains (see Phase 3).
+- ✓ Validation Cuts 1–6 — all shipped. Cut 1: save-time integrity (`Validator` interface, save-delta orchestrator, 5 ref-existence validators, 409 wiring, `ValidationBanner.vue`). Cut 2: background scanner + `SiteHealthDrawer.vue` + 3 background-only validators (`schema-conformance`, `orphaned-locale-file`, `unused-fragment`). Cut 3: render-for-analysis + a11y (axe-core) + html-validity + `altRequired`. Cut 4: pre-publish audit step in `PublishPanel.vue` + `publish-audit.ts` + linkinator (`validators/broken-links.ts`). Cut 5: `gazetta validate` CLI rewrite (15 tests). Cut 6: template-developer surfaces (`template-impact.ts`). Plus 5 soft-delete-related validators beyond the original scope. Closes #40. **Lighthouse validator** (originally Cut 4) **deferred indefinitely** — see `design-validation-implementation.md` deferred-items table.
 
 ### Editor papercut cluster (largely shipped; one open)
 Aggregate small-but-high-impact UX wins. 3 of 4 closed; only the design pass for creation UX remains.
@@ -187,7 +187,6 @@ These can run in parallel with Phase 1-2 since they don't depend on the foundati
 
 After foundations + features land:
 
-- **Validation Cut 4 (Lighthouse only)** — pre-publish audit step + linkinator already shipped; Lighthouse validator remains
 - **Static publish fan-out** (#202, 1-2w)
 - **Small content cluster** (1-2w): #61 redirects, #58 RSS/Atom, #57 pagination, #91 connectivity validate
 - **Operability cluster** (2w): #19, #38, #39, #75, #76, #195, #198

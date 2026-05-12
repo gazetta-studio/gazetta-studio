@@ -21,7 +21,7 @@ How the CMS surfaces correctness, integrity, and quality issues to authors and o
 
 **Out of scope:**
 - Real-time keystroke validation (already covered by @rjsf's Zod-driven form layer)
-- Reimplementing accessibility / HTML / CSS analysis (use real tools — axe-core, html-validate, stylelint, Lighthouse, linkinator — under the abstraction)
+- Reimplementing accessibility / HTML / CSS analysis (use real tools — axe-core, html-validate, stylelint, linkinator — under the abstraction)
 - A "site SEO score" or content scoring (per [seo-plan.md](seo-plan.md): weakly correlated with rankings, encourages over-optimization)
 - Blocking save on accumulated pre-existing issues (hostile UX; the background scanner surfaces them visibly without blocking)
 - Server-side keystroke validation (the form layer is sufficient)
@@ -136,7 +136,7 @@ export interface Issue {
 
 - **background**: Admin server runs a long-lived scanner. Initial scan on admin boot. Incremental rescan when file watcher detects manifest/template/asset changes. Per-page validation run cached by content hash; only re-runs when something material changed. Issues stored in a Pinia store, surfaced in the UI.
 
-- **pre-publish**: Publish dialog gains a "Run audit" affordance (or always-runs for opted-in targets). Heavy validators (Lighthouse) only run here. Operator sees consolidated `Issue[]` with severity per their target's config. Fix / ignore / promote-to-error per issue. Block publish on remaining errors.
+- **pre-publish**: Publish dialog gains a "Run audit" affordance (or always-runs for opted-in targets). Operator sees consolidated `Issue[]` with severity per their target's config. Fix / ignore / promote-to-error per issue. Block publish on remaining errors. (The heavy-validator slot — originally Lighthouse — is intentionally empty; see implementation-doc deferred-items table.)
 
 - **cli**: `gazetta validate` runs all validators in non-interactive mode. Exit non-zero on any error. Useful for CI gating before deploy.
 
@@ -155,7 +155,6 @@ export interface Issue {
 | `html-validity` (html-validate) | — | ✓ warn | ✓ warn | ✓ warn |
 | `css-validity` (stylelint) | — | ✓ info | ✓ warn | ✓ warn |
 | `broken-links` (linkinator) | — | — | ✓ warn (opt-in) | ✓ warn (opt-in) |
-| `lighthouse` | — | — | ✓ info (opt-in, heavy) | ✓ info (opt-in) |
 | `orphaned-locale-file` | — | ✓ warn | — | ✓ warn |
 | `unused-fragment` | — | ✓ info | — | ✓ info |
 
@@ -264,7 +263,8 @@ The architectural call: use real tools for the actual analysis. Each tool plugs 
 | HTML validity | `html-validate` | Fast, configurable, widely used in CI. |
 | CSS lint | `stylelint` | Industry standard. |
 | Broken links | `linkinator` | Crawl rendered output for outbound link rot. |
-| Performance / SEO score | Lighthouse via Playwright | Heavy (5-15s per page). Pre-publish only, opt-in. |
+
+Lighthouse was originally specced for the "Performance / SEO score" slot but is deferred indefinitely (see `design-validation-implementation.md` deferred-items table). Reasoning: accessibility is covered better by direct axe-core; SEO by `seo-plan.md`'s primitives; the remaining performance + best-practices value doesn't justify the ~200MB Chromium + Lighthouse deps, the 5-15s per-page runtime, and the maintenance burden of tracking scoring methodology changes. Operators wanting publish-time perf budgets use CI-side Lighthouse. The pre-publish audit framework supports adding the validator later if concrete demand surfaces.
 
 Why this is the right move:
 - These tools encode decades of domain expertise; any in-house validator would be strictly worse
@@ -275,7 +275,7 @@ Why this is the right move:
 What we DON'T do:
 - Reimplement a11y rules
 - Build a Yoast-style content score (rejected per [seo-plan.md](seo-plan.md))
-- Run heavy tools (Lighthouse) in the background scanner
+- Ship Lighthouse as a built-in validator (deferred indefinitely; see implementation-doc deferred-items table for reasoning + revisit trigger)
 
 ## Render-for-analysis
 
@@ -325,7 +325,7 @@ Validation is itself foundational dimension #9 of 13. This section answers how e
 
 - **Multi-instance check** (discipline) — save-delta runs on the instance receiving the save request; no cross-instance coordination. Background scanner (Cut 2) per-page cache is per-admin-instance (each instance scans + caches independently); the multi-instance pattern is "every instance reads source-of-truth from storage on demand, caches results in-process, no cross-instance cache sharing." Per-page content-hash cache key ensures different instances arrive at the same cached result without coordination. Suppression state (when shipped) lives in storage, not in-memory.
 
-- **Scale check** — save-delta is O(diff) per save; only checks refs introduced by THIS save, not the full site. Background scanner (Cut 2) caches per-page validation results by content hash; only re-validates when something material changed. Heavy validators (Cut 4 Lighthouse, linkinator) are pre-publish only, opt-in. The framework scales because phase-separation matches detection cost to author commitment level. Gates: Cut 2 must reuse the existing sidecar dependency tracking (`findDependentsFromSidecars`) so a fragment edit only invalidates pages that use that fragment.
+- **Scale check** — save-delta is O(diff) per save; only checks refs introduced by THIS save, not the full site. Background scanner (Cut 2) caches per-page validation results by content hash; only re-validates when something material changed. Pre-publish-only validators (Cut 4 linkinator) are opt-in. The framework scales because phase-separation matches detection cost to author commitment level. Gates: Cut 2 must reuse the existing sidecar dependency tracking (`findDependentsFromSidecars`) so a fragment edit only invalidates pages that use that fragment.
 
 - **Theme check** — validation runs against rendered output for quality validators (Cut 3 axe-core, html-validate). Render-for-analysis composes with the active theme: when themes ship per [`design-themes.md`](design-themes.md), render-for-analysis renders per-(content, locale, theme) tuple, and validators see theme-specific output. Cache key includes theme. v1 (single-theme world): no impact.
 
