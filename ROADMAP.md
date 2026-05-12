@@ -2,7 +2,7 @@
 
 Strategic forward-looking priorities for Gazetta. Captures what's prioritized, what's deferred, and what's a non-goal.
 
-**Updated**: 2026-05-12 (papercut cluster status)
+**Updated**: 2026-05-12 (papercut cluster + validation cuts status)
 
 ## How to read this
 
@@ -27,7 +27,7 @@ The framing decisions that shape multi-quarter priorities. Resolved (no longer "
 - ✓ Land dependabot PR #219 — shipped
 - ✓ Land `@hono/node-server` v2 bump (PR #224) — shipped
 - ✓ Fix bug #106 (component reordering immediate-save, PR #225) — shipped
-- ✓ Validation Cut 1 — shipped. Save-time integrity validation per [`design-validation.md`](.claude/rules/design-validation.md): `Validator` interface, save-delta orchestrator, 5 reference-existence validators, 409 wiring on page/fragment PUT, `ValidationBanner.vue`. Closes part of issue #40. Cut 2 is Tier 2 / Phase 2 work — depends on AdminCache (per [Phase 2 table](#phase-2--features-composing-against-foundations-10-14-weeks)), not next-up here.
+- ✓ Validation Cuts 1, 2, 3, 5, 6 — shipped. Cut 1: save-time integrity (`Validator` interface, save-delta orchestrator, 5 ref-existence validators, 409 wiring, `ValidationBanner.vue`). Cut 2: background scanner + `SiteHealthDrawer.vue` + 3 background-only validators (`schema-conformance`, `orphaned-locale-file`, `unused-fragment`). Cut 3: render-for-analysis + a11y (axe-core) + html-validity + `altRequired`. Cut 5: `gazetta validate` CLI rewrite (15 tests). Cut 6: template-developer surfaces (`template-impact.ts`). Plus 5 soft-delete-related validators beyond the original scope. Closes #40. **Cut 4 partial** — pre-publish audit step + linkinator shipped; Lighthouse validator remains (see Phase 3).
 
 ### Editor papercut cluster (largely shipped; one open)
 Aggregate small-but-high-impact UX wins. 3 of 4 closed; only the design pass for creation UX remains.
@@ -88,9 +88,8 @@ Sequence (per dependency order):
 
 14. **`design-scheduling.md`** (complete 2026-05) — foundational primitive for time-based state transitions. Locked: single-shot actions (`publish` / `archive` / `unarchive` / `expire-approval` / `redirect-activate` / `redirect-expire`) + time-windowed visibility (`activeFrom` / `activeUntil`); recurring deferred. Background scheduler with sidecars for state-mutating actions; lazy visibility evaluation at render time. Multi-instance coordination via lock-with-TTL (atomic `If-None-Match: *` conditional-create); lazy stale-lock recovery on next acquire (no janitor). Per-action catch-up policy on missed windows (all v1 actions default to catch-up); structured-log alarm on excessive lateness. Capability check at fire time (snapshot principal at create + rehydrate); lost-capability fails permanently (no retry). Admin UX structurally locked (publish dialog gains schedule capability; archive modal gains schedule option; visibility window inline metadata; per-page chip; dedicated `/admin/scheduler` panel; tree clock indicator); detailed UX deferred to focused research pass before Cut 9-10 (~5-7 hours). 6 validators (V1-V6) + 5 new audit actions + 2 outcome extensions + 4 hook phases. Composes with soft-delete (auto-cancel on archive/rename), review-workflow (scheduled publish on `requiresPublishApproval` targets fires publish-request not direct publish). Implementation Tier 3 (12 cuts + UX research pass, ~22 days). Closes #198 + parts of `design-soft-delete.md` Q12 (archive retention) + Q14 (temporary/scheduled redirects).
 
-### Validation Cut 2 + 3 (8 days)
-- Cut 2: background scanner + admin UI surfaces (tree dots, "Site health" drawer) — closes #40 fully
-- Cut 3: render-for-analysis + a11y (axe-core) + html-validate + `altRequired`
+### Validation Cuts 2 + 3 ✓ shipped
+Both shipped without an explicit AdminCache foundation — the scanner manages its own per-instance memoization. AdminCache abstraction remains a Phase 1 target for unifying caches across features (validation scanner, asset listings, target listings, etc.) but isn't a prerequisite for the validation work itself.
 
 ### Static publish fan-out (1-2 weeks)
 Issue #202 — real correctness gap. Fragment changes don't trigger fan-out re-renders on static targets. Touches the same dependency-tracking machinery validation Cut 2 needs.
@@ -172,8 +171,8 @@ Each foundation: code + unit tests + contract tests (where it's an extension sur
 
 | Feature | Depends on | Estimate |
 |---|---|---|
-| Validation Cut 2 (background scanner) | AdminCache | 4 days |
-| Validation Cut 3 (render-for-analysis + a11y) | AdminCache + Cut 2 | 5 days |
+| ✓ Validation Cut 2 (background scanner) — shipped (scanner manages its own memoization) | — | 4 days |
+| ✓ Validation Cut 3 (render-for-analysis + a11y) — shipped | — | 5 days |
 | Per-field translation (#192) | i18n design (shipped) + Component IDs | 2-3w |
 | Review workflow MVP | AuthIdentity + Audit + Hooks | 2-3w |
 | Comments-first collaboration v1 | AuthIdentity + Audit + Component IDs + NotificationProvider | 3w |
@@ -188,7 +187,7 @@ These can run in parallel with Phase 1-2 since they don't depend on the foundati
 
 After foundations + features land:
 
-- **Validation Cut 4-6** (~3w): publish gate + Lighthouse, CLI rewrite, template-developer surfaces
+- **Validation Cut 4 (Lighthouse only)** — pre-publish audit step + linkinator already shipped; Lighthouse validator remains
 - **Static publish fan-out** (#202, 1-2w)
 - **Small content cluster** (1-2w): #61 redirects, #58 RSS/Atom, #57 pagination, #91 connectivity validate
 - **Operability cluster** (2w): #19, #38, #39, #75, #76, #195, #198
