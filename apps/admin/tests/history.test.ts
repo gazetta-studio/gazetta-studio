@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { cp, rm, readFile, readdir } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { relative, resolve } from 'node:path'
 import type { Hono } from 'hono'
 import {
   createFilesystemProvider,
@@ -42,6 +42,39 @@ async function setupWorkingCopy(name: string) {
   await cp(resolve(starterSiteDir, 'targets/local'), tempDir, { recursive: true })
   return tempDir
 }
+
+describe('setupWorkingCopy isolation (issue #351)', () => {
+  // The shared `examples/starter/sites/main/targets/local/` directory is
+  // mutated in place by api.test.ts (writes pages, fragments, and audit
+  // events via write-file-atomic). When history.test.ts's setupWorkingCopy
+  // does `cp -r` against that same dir, audit-write temp files
+  // (`events-{id}.jsonl.{rand}`) can be lstat'd by the walker and then
+  // disappear (atomic rename) before the copy reaches them — ENOENT.
+  //
+  // The fix is to stop copying from the shared starter dir entirely:
+  // seed the minimal manifest tree (the four files the history tests
+  // exercise) directly into the tempdir. This test pins that contract:
+  // the temp working copy must contain ONLY the seeded manifests, no
+  // ambient files inherited from the live starter target.
+  it('produces only the minimal seeded manifest tree, not the full starter target', async () => {
+    const dir = await setupWorkingCopy('setup-isolation-test')
+    try {
+      const entries = await readdir(dir, { recursive: true, withFileTypes: true })
+      const files = entries
+        .filter(e => e.isFile())
+        .map(e => relative(dir, resolve(e.parentPath, e.name)))
+        .sort()
+      expect(files).toEqual([
+        'fragments/footer/fragment.json',
+        'fragments/header/fragment.json',
+        'pages/about/page.json',
+        'pages/home/page.json',
+      ])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+})
 
 describe('History on save', () => {
   let contentDir: string
