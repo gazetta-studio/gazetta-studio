@@ -22,7 +22,7 @@ Priorities derive from [`docs/audits/cms-feature-audit.md`](docs/audits/cms-feat
 
 Reduce time-to-first-deploy for new operators. Closes the bulk of the deploy-adapters cluster:
 
-- [#203](https://github.com/gazetta-studio/gazetta-studio/issues/203) deploy adapter contract — the foundation; unblocks the rest
+- [#203](https://github.com/gazetta-studio/gazetta-studio/issues/203) deploy adapter contract — design pass complete ([`design-deploy.md`](.claude/rules/design-deploy.md) + [`design-deploy-implementation.md`](.claude/rules/design-deploy-implementation.md) + [ADR-0010](docs/adr/0010-deploy-publish-independence.md)); 4-cut implementation (~5-6 days) ships the contract + Cloudflare refactor; unblocks the rest
 - 3 priority adapters proving the contract: [#204](https://github.com/gazetta-studio/gazetta-studio/issues/204) Cloudflare Pages+Functions, [#206](https://github.com/gazetta-studio/gazetta-studio/issues/206) Vercel Edge, [#209](https://github.com/gazetta-studio/gazetta-studio/issues/209) Netlify static
 - [#213](https://github.com/gazetta-studio/gazetta-studio/issues/213) container deployment guide
 - [#79](https://github.com/gazetta-studio/gazetta-studio/issues/79) Docker example for `gazetta serve`
