@@ -23,6 +23,7 @@ Stateless CMS that structures websites as composable fragments. All state lives 
 **Public docs** (user-facing):
 - `docs/cloudflare.md` — Cloudflare deployment guide (R2, Workers, cache, CI)
 - `docs/self-hosted.md` — Self-hosted deployment guide (VPS, Docker, Fly.io)
+- `docs/deploy.md` — Deploy adapter contract reference (factory shape, available adapters, container-host pattern)
 - `docs/getting-started.md` — Onboarding tutorial
 - `docs/template-assets.md` — Template developer guide for asset references
 - `docs/content-assets.md` — Content author guide for the asset library

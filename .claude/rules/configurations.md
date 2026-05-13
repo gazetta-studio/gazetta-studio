@@ -168,28 +168,26 @@ R2 uses the S3-compatible API. Create an R2 API token at the Cloudflare dashboar
 
 ## Target Configurations
 
-A target = storage + optional worker + optional cache + optional publishMode.
+A target = storage + optional deploy adapter + optional cache + optional type.
 
-| Target type | Worker config | Publish mode | Serve mode | Fragment updates |
+| Target type | Deploy adapter | Rendering | Serve mode | Fragment updates |
 |-------------|--------------|--------------|------------|-----------------|
-| **Edge (Cloudflare)** | `worker: { type: cloudflare }` | ESI — pages have `<!--esi:-->` placeholders, fragments stored separately | Cloudflare Worker assembles at edge | Instant — republish fragment only |
-| **Self-hosted server** | `publishMode: esi` (no worker needed) | ESI — same as edge | Node/Bun Hono server via `gazetta serve` | Instant — republish fragment only |
-| **Static hosting** | No worker, no server | Static — pages fully assembled, fragments baked in | GitHub Pages / Netlify / S3 / any file server | Requires republishing all pages using that fragment |
+| **Edge (Cloudflare)** | `cloudflareWorkersDeploy({...})` | `type: 'dynamic'` — ESI placeholders, fragments stored separately | Cloudflare Worker assembles at edge | Instant — republish fragment only |
+| **Self-hosted server** | (none) | `type: 'dynamic'` — ESI mode | Node/Bun Hono server via `gazetta serve` | Instant — republish fragment only |
+| **Static hosting** | (e.g., `githubPagesDeploy`, `s3StaticDeploy` when shipped) | `type: 'static'` | GitHub Pages / Netlify / S3 / any file server | Requires republishing all pages using that fragment |
 
-Decision logic: determined by `publishMode` field in target config (default: `static` if no worker, `esi` if worker configured).
-
-Both CLI and admin API use `getPublishMode(target)` from `types.ts` to determine mode.
-`gazetta serve` also reads `publishMode` to decide whether to do ESI assembly or serve static files.
+Decision logic: `target.type` determines rendering. Default falls back to `'dynamic'` when a worker-capable deploy adapter is present, else `'static'`. See `getType()` in `types.ts`.
 
 ### Real-world target examples
 
 ```ts
 import {
+  azureBlobStorage,
+  cloudflareWorkersDeploy,
   defineSite,
   filesystemStorage,
   r2Storage,
   s3Storage,
-  azureBlobStorage,
 } from 'gazetta'
 
 defineSite({
@@ -201,13 +199,19 @@ defineSite({
 
     // Cloudflare — R2 + Worker, ESI mode
     production: {
+      type: 'dynamic',
       storage: r2Storage({
         accountId: '...',
         bucket: 'my-site',
         accessKeyId: process.env.R2_ACCESS_KEY_ID!,
         secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
       }),
-      worker: { type: 'cloudflare', name: 'my-site' },
+      deploy: cloudflareWorkersDeploy({
+        apiToken: process.env.CLOUDFLARE_API_TOKEN!,
+        accountId: '...',
+        name: 'my-site',
+        bucket: 'my-site',
+      }),
       siteUrl: 'https://mysite.com',
       cache: {
         browser: 0,
@@ -226,6 +230,7 @@ defineSite({
 
     // Self-hosted — S3 storage, served by gazetta serve
     'production-s3': {
+      type: 'dynamic',
       storage: s3Storage({
         endpoint: 'https://s3.amazonaws.com',
         bucket: 'my-site',
@@ -233,7 +238,8 @@ defineSite({
         accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
       }),
-      publishMode: 'esi', // ESI for gazetta serve — no worker needed
+      // No deploy: — gazetta serve handles the runtime; container hosts
+      // deploy via platform CLIs (flyctl, gcloud, etc.).
     },
   },
 })
@@ -243,19 +249,19 @@ defineSite({
 
 | Combination | What happens | Problem |
 |-------------|-------------|---------|
-| R2 + no worker | Publishes static HTML to R2 | Can't serve — no worker at edge, `gazetta serve` from cloud R2 is inefficient |
-| Filesystem + worker config | Publishes ESI mode, `gazetta serve` works | Worker name is dead config — `gazetta deploy` would try to deploy to Cloudflare from local files |
+| R2 + no deploy + non-local environment | `gazetta serve` from cloud R2 is inefficient | Container hosts deploy via platform CLI (see [`docs/container-deployment.md`](../../docs/container-deployment.md)); `target-deploy-coverage` validator emits info pointing operators there |
 | `cache.purge` on non-Cloudflare target | Purge silently skipped | User thinks cache is purged, but it's not. Only `purge.type: cloudflare` is implemented |
-| `worker.type` other than `cloudflare` | `gazetta deploy` fails with error | `WorkerConfig.type` is `string` but only `'cloudflare'` is handled. Should be a literal type |
+| Incompatible target.type + deploy adapter | `deploy-target-type-supported` validator errors | E.g., `type: 'dynamic'` + a `['static']`-only adapter |
 
 ## site.config.ts Complete Schema
 
 ```ts
 import {
+  cloudflareWorkersDeploy,
   defineSite,
   filesystemStorage,
-  r2Storage,
   memoryCache,
+  r2Storage,
 } from 'gazetta'
 
 export default defineSite({
@@ -278,9 +284,14 @@ export default defineSite({
       storage: filesystemStorage({ path: './dist/staging' }),
     },
     production: {
+      type: 'dynamic',                          // optional — 'static' | 'dynamic'. Default: 'dynamic' when a worker-capable deploy adapter is present, else 'static'.
       storage: r2Storage({ /* ... */ }),
-      worker: { type: 'cloudflare', name: 'my-site' },
-      publishMode: 'esi',                       // optional — 'esi' | 'static' (auto-detected from worker)
+      deploy: cloudflareWorkersDeploy({         // optional — platform deploy adapter (Path X factory)
+        apiToken: process.env.CLOUDFLARE_API_TOKEN!,
+        accountId: '...',
+        name: 'my-site',
+        bucket: 'my-site',
+      }),
       environment: 'production',                // optional — 'local' | 'staging' | 'production'. Default: local for filesystem, production otherwise. Drives admin UI confirmation prompts and badges.
       siteUrl: 'https://mysite.com',            // optional — for cache purge URL resolution
       cache: {                                  // optional — HTTP/CDN caching configuration (separate from site-level AdminCache)
@@ -353,4 +364,4 @@ targets, or CLI commands to avoid re-introducing these issues or building on bro
 | ~~4~~ | ~~`WorkerConfig.type` is `string`~~ | ~~Low~~ | | Fixed — literal type `'cloudflare'` |
 | 5 | `validate` doesn't check targets | Medium | `cli/index.ts` | No storage connectivity, env var, or credential checks |
 | 6 | `fetch` can't recover from static targets | Medium | `admin-api/routes/publish.ts` | Static targets have rendered HTML, not source manifests |
-| 7 | No validation of nonsensical target combos | Low | `targets.ts` | R2+no worker, filesystem+worker silently accepted |
+| ~~7~~ | ~~No validation of nonsensical target combos~~ | ~~Low~~ | | Fixed (#203) — `deploy-target-type-supported` validator (error) catches incompatible adapter/target pairs; `target-deploy-coverage` validator (info) surfaces missing-deploy on runtime-constrained targets |
