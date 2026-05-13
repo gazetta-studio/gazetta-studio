@@ -30,7 +30,7 @@ Reduce time-to-first-deploy for new operators. Closes the bulk of the deploy-ada
 
 ### Manual redirect creation in admin (1 week)
 
-Closes part of [`docs/seo-plan.md`](.claude/rules/seo-plan.md)'s Tier 2 redirect-management punch-list. Soft-delete's HTML markers + per-edge sidecars + `_redirects` host-glue already support redirect-without-archive; needs admin UI affordance for from-route + to-route creation. 301 only (per `design-soft-delete.md` Q14 lock); temporary/scheduled redirects compose with the scheduling primitive.
+[#364](https://github.com/gazetta-studio/gazetta-studio/issues/364). Soft-delete's HTML markers + `_redirects` host-glue already support redirect-without-archive; needs admin UI affordance for from-route + to-route creation. 301 only (per `design-soft-delete.md` Q14 lock); temporary/scheduled redirects compose with the scheduling primitive. Design grilling pending (API shape, UI surface, domain noun) before implementation.
 
 ### Creation UX design pass
 
