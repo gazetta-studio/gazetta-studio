@@ -351,7 +351,7 @@ the `banner` template. Other fields in the schema use the default form inputs.
 
 ### Target types
 
-Each target has a **storage** config (where files go) and an optional **worker** config (what serves them):
+Each target has a **storage** config (where files go) and an optional **deploy** adapter (how the platform serves them — see [`deploy.md`](./deploy.md) for the full reference):
 
 | Storage type | Use case | Config |
 |------|----------|--------|
@@ -360,16 +360,16 @@ Each target has a **storage** config (where files go) and an optional **worker**
 | `filesystem` | Local dev, staging, backups | `path: ./dist/staging` |
 | `azure-blob` | Azure Blob Storage | `connectionString`, `container` |
 
-| Worker type | Use case |
+| Deploy adapter | Use case |
 |-------------|----------|
-| `cloudflare` | Cloudflare Workers — ESI assembly at the edge |
-| (none) | No worker — just publish files to storage |
+| `cloudflareWorkersDeploy` | Cloudflare Workers — ESI assembly at the edge |
+| (none) | No platform deploy — just publish content to storage (container hosts use platform CLIs; see [container-deployment.md](./container-deployment.md)) |
 
 ### Configure targets
 
 ```ts
 // site.config.ts
-import { defineSite, filesystemStorage, r2Storage } from 'gazetta'
+import { cloudflareWorkersDeploy, defineSite, filesystemStorage, r2Storage } from 'gazetta'
 
 export default defineSite({
   name: 'My Site',
@@ -378,6 +378,7 @@ export default defineSite({
       storage: filesystemStorage({ path: './dist/staging' }),
     },
     production: {
+      type: 'dynamic',
       environment: 'production',           // admin UI requires confirmation before publishing
       storage: r2Storage({
         accountId: 'your-cloudflare-account-id',
@@ -385,9 +386,12 @@ export default defineSite({
         accessKeyId: process.env.R2_ACCESS_KEY_ID!,
         secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
       }),
-      worker: {
-        type: 'cloudflare',
-      },
+      deploy: cloudflareWorkersDeploy({
+        apiToken: process.env.CLOUDFLARE_API_TOKEN!,
+        accountId: 'your-cloudflare-account-id',
+        name: 'my-site',
+        bucket: 'my-site',
+      }),
       siteUrl: 'https://mysite.com',
       cache: {
         browser: 0,

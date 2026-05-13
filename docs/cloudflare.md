@@ -26,12 +26,13 @@ npx wrangler r2 bucket create my-site
 ### 2. Configure site.config.ts
 
 ```ts
-import { defineSite, r2Storage } from 'gazetta'
+import { cloudflareWorkersDeploy, defineSite, r2Storage } from 'gazetta'
 
 export default defineSite({
   name: 'My Site',
   targets: {
     production: {
+      type: 'dynamic',
       environment: 'production',
       storage: r2Storage({
         accountId: 'your-cloudflare-account-id',
@@ -39,9 +40,12 @@ export default defineSite({
         accessKeyId: process.env.R2_ACCESS_KEY_ID!,
         secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
       }),
-      worker: {
-        type: 'cloudflare',
-      },
+      deploy: cloudflareWorkersDeploy({
+        apiToken: process.env.CLOUDFLARE_API_TOKEN!,
+        accountId: 'your-cloudflare-account-id',
+        name: 'my-site',
+        bucket: 'my-site',
+      }),
       siteUrl: 'https://mysite.com',
       cache: {
         browser: 0,

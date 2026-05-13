@@ -149,17 +149,18 @@ Builds the admin UI and worker code. Run before `deploy` or `serve`.
 
 ### `gazetta deploy [target]`
 
-Deploys the built worker to a target's edge platform. Rare — only on initial setup or Gazetta upgrades.
-Each target has its own worker (different storage, cache, URL).
+Calls `target.deploy.execute(ctx)` on the configured `DeployAdapter`. Rare — only on initial setup or platform changes. Independent of `gazetta publish` per ADR-0010.
 
-- Requires `gazetta build` first
-- Deploys worker from `dist/workers/{target}/` to the target's platform
-- Currently: Cloudflare Workers
-- Future: Deno Deploy, Vercel Edge, Netlify Edge
+- Reads `target.deploy` (a Path X factory result; see [`docs/deploy.md`](../../docs/deploy.md))
+- Errors with a clear message if `target.deploy` is unset
+- Adapters bundle their own platform glue (worker code, push-to-branch, container image, etc.)
+- Currently shipped: `cloudflareWorkersDeploy()`
+- Downstream adapters in flight: Cloudflare Pages + Functions (#204), Vercel Edge (#206), Netlify static (#209), and others — see [`docs/deploy.md`](../../docs/deploy.md)
+- Container hosts (Fly.io, Cloud Run, Railway, Render) use platform CLIs, NOT a Gazetta deploy adapter — see [`docs/container-deployment.md`](../../docs/container-deployment.md)
 
 ```
-gazetta deploy production      # deploy worker to production
-gazetta deploy staging         # deploy worker to staging
+gazetta deploy production      # invoke target.production.deploy.execute()
+gazetta deploy staging
 ```
 
 ### `gazetta serve`
@@ -343,10 +344,12 @@ Stale files from previous builds are removed. `dist/` is always a fresh, complet
 `dist/` is never committed — it's in `.gitignore`. After `git clone`, the developer must
 run `gazetta build` to regenerate it. CI/CD pipelines should also run `build` before `deploy`.
 
-## Build Skips Targets Without Workers
+## Build Skips Targets Without Worker-Capable Deploy Adapters
 
-`build` generates worker code only for targets that have `worker` config. Static targets
-and `publishMode: esi` targets (without worker) are skipped — no worker to build.
+`build` generates worker code only for targets whose `deploy` adapter implements
+`WorkerCapableDeployAdapter` (e.g., `cloudflareWorkersDeploy()`). Static targets,
+adapters without worker bundling (e.g., a future `githubPagesDeploy`), and targets
+with no `deploy:` field are skipped — no worker to build.
 
 ## `gazetta init` in Existing Directory
 
@@ -443,8 +446,11 @@ Storage providers implement `StorageProvider` interface in `packages/gazetta/src
 
 ## Adding a New Edge Platform
 
-Edge platforms require:
-1. Worker adapter code in `packages/gazetta/src/workers/{platform}.ts`
-2. Deploy logic in `cli/index.ts` (under `gazetta deploy`)
-3. `worker.type` value in `site.config.ts` (e.g. `worker: { type: 'deno' }`)
-4. Document in hosting.md under Future Hosting Platforms
+Edge platforms ship as Pattern 1 deploy adapters per ADR-0008 + ADR-0010:
+1. Worker runtime in `packages/gazetta/src/workers/{platform}.ts` (if needed)
+2. Adapter factory in `packages/gazetta/src/deploy/{platform}.ts` returning a
+   `DeployAdapter` (or `WorkerCapableDeployAdapter` for worker-bundling platforms)
+3. Public export from `packages/gazetta/src/index.ts`
+4. Declare `supports: readonly TargetType[]` per the deployment matrix in
+   [`design-rendering.md`](design-rendering.md) Q6
+5. Document in [`docs/deploy.md`](../../docs/deploy.md)

@@ -152,15 +152,21 @@ Per-target `redirects` config — only relevant for plain-static
 targets without a worker:
 
 ```ts
-import { defineSite, filesystemStorage, r2Storage } from 'gazetta'
+import { cloudflareWorkersDeploy, defineSite, filesystemStorage, r2Storage } from 'gazetta'
 
 defineSite({
   targets: {
     // Worker-served — uses the HTML marker mechanism; redirects field
     // is unnecessary here (the worker reads the marker directly).
     production: {
+      type: 'dynamic',
       storage: r2Storage({ /* ... */ }),
-      worker: { type: 'cloudflare', name: 'my-site' },
+      deploy: cloudflareWorkersDeploy({
+        apiToken: process.env.CLOUDFLARE_API_TOKEN!,
+        accountId: '...',
+        name: 'my-site',
+        bucket: 'my-site',
+      }),
       siteUrl: 'https://mysite.com',
     },
 
