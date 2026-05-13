@@ -31,10 +31,11 @@
  *
  * # supports
  *
- * `['esi']` in v1. Per design-deploy.md Q5: `dynamic` deferred to v2
- * when CF Workers + origin pair is supported. Today, the worker
- * reads R2 directly at request time (the `cloudflare-r2` adapter
- * inside `packages/gazetta/src/workers/`) — that's the ESI shape.
+ * `['dynamic']` in v1 — matches today's `TargetType = 'static' |
+ * 'dynamic'` enum where `'dynamic'` plays the ESI role per
+ * `getType()` semantics. Widens to `['esi']` when
+ * `design-rendering.md` Cut 1 splits the enum into three. Future
+ * `dynamic` (CF Workers + Node/Bun origin) deferred to v2.
  *
  * # SOLID
  *
@@ -146,7 +147,10 @@ export function cloudflareWorkersDeploy(opts: CloudflareWorkersDeployOptions): W
 
   return {
     name: ADAPTER_NAME,
-    supports: ['esi'] as const,
+    // `TargetType` today is `'static' | 'dynamic'`; `'dynamic'` plays
+    // the ESI role per current `getType()` semantics. Widens to
+    // `['esi']` when design-rendering.md Cut 1 splits the enum.
+    supports: ['dynamic'] as const,
 
     workerRuntimeConfig(): WorkerRuntimeConfig {
       return {

@@ -77,7 +77,8 @@ describe('cloudflareWorkersDeploy() — construction', () => {
       bucket: 'my-site',
     })
     expect(adapter.name).toBe('cloudflare-workers')
-    expect(adapter.supports).toEqual(['esi'])
+    // Widens to ['esi'] when design-rendering.md Cut 1 splits TargetType
+    expect(adapter.supports).toEqual(['dynamic'])
   })
 })
 
