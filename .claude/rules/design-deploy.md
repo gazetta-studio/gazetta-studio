@@ -241,11 +241,11 @@ Per ADR-0010, container deploys (Fly.io, Cloud Run, Railway, Render, AWS App Run
 
 ## Target-type compatibility
 
-Per `design-rendering.md` Q6's deployment matrix, each adapter declares which target types it supports:
+Per `design-rendering.md` Q6's deployment matrix, each adapter declares which target types it supports. Adapter `supports` values below assume the post-Cut 1 rendering taxonomy (`'static' | 'esi' | 'dynamic'`); today's `TargetType` enum is `'static' | 'dynamic'` where `'dynamic'` plays the ESI role per `getType()`. Adapters shipping before `design-rendering.md` Cut 1 declare `['dynamic']` and widen to `['esi']` when that cut lands — forward-compatible additive change.
 
-| Adapter | `supports` | Notes |
+| Adapter | `supports` (post-rendering-Cut-1) | Notes |
 |---|---|---|
-| `cloudflareWorkersDeploy` | `['esi']` | Worker bundles ESI assembly; `dynamic` deferred to v2 (needs origin) |
+| `cloudflareWorkersDeploy` | `['esi']` (today: `['dynamic']`) | Worker bundles ESI assembly; future `dynamic` (Workers + Node/Bun origin) deferred to v2 |
 | `cloudflarePagesDeploy` | `['static', 'esi']` | Pages for static; Functions add ESI capability |
 | `cloudflarePagesStaticDeploy` | `['static']` | Pages without Functions |
 | `vercelEdgeDeploy` | `['esi']` | WinterTC; `dynamic` deferred to v2 |
