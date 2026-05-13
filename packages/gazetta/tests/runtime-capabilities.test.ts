@@ -43,10 +43,11 @@ describe('inspectTarget', () => {
     expect(result.gaps).toEqual([])
   })
 
-  it('static target with worker config has both capabilities', () => {
+  it('static target with worker-capable deploy adapter has both capabilities', async () => {
+    const { cloudflareWorkersDeploy } = await import('../src/deploy/cloudflare-workers.js')
     const target = makeTarget({
       type: 'static',
-      worker: { type: 'cloudflare', name: 'my-site' },
+      deploy: cloudflareWorkersDeploy({ apiToken: 't', accountId: 'a', name: 'my-site', bucket: 'my-site' }),
     })
     const result = inspectTarget(target)
     expect(result.has.has('redirects')).toBe(true)

@@ -1309,9 +1309,6 @@ async function runServe(siteDir: string, port: number, targetName?: string) {
 }
 
 async function runDeploy(siteDir: string, targetName?: string) {
-  const { execSync } = await import('node:child_process')
-  const { writeFile, mkdir, rm } = await import('node:fs/promises')
-
   const siteYaml = await loadSiteManifestForCli(siteDir)
   if (!siteYaml) {
     console.error(`\n  Error: no site config found at ${siteDir} (looked for site.config.ts)\n`)
@@ -1330,67 +1327,57 @@ async function runDeploy(siteDir: string, targetName?: string) {
     console.error(`\n  Error: Unknown target "${targetName}". Available: ${Object.keys(siteYaml.targets).join(', ')}\n`)
     process.exit(1)
   }
-  if (!target.worker) {
+  if (!target.deploy) {
     console.error(
-      `\n  Error: Target "${targetName}" has no worker config. Add to site.config.ts:\n\n  worker: { type: 'cloudflare', name: 'my-site' }\n`,
+      `\n  Error: Target "${targetName}" has no \`deploy:\` adapter configured. Add to site.config.ts:\n\n  ` +
+        `import { cloudflareWorkersDeploy } from 'gazetta'\n  ` +
+        `deploy: cloudflareWorkersDeploy({\n  ` +
+        `  apiToken: process.env.CLOUDFLARE_API_TOKEN!,\n  ` +
+        `  accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,\n  ` +
+        `  name: '${targetName}',\n  ` +
+        `  bucket: '${targetName}',\n  })\n\n` +
+        `For container hosts (Fly.io, Cloud Run, Railway, Render), use platform-native\n` +
+        `deploy tooling; see docs/container-deployment.md.\n`,
     )
     process.exit(1)
   }
-  if (target.worker.type !== 'cloudflare') {
-    console.error(
-      `\n  Error: Unsupported worker type "${target.worker.type}". Currently only "cloudflare" is supported.\n`,
-    )
-    process.exit(1)
+
+  const adapter = target.deploy
+  console.log(`  ${c.cyan(`Deploying via ${adapter.name}...`)}`)
+
+  // Build a no-op logger; v1 deploy doesn't require structured logging yet.
+  const logger = {
+    debug: (_o: object | string, _m?: string) => {},
+    info: (_o: object | string, _m?: string) => {},
+    warn: (o: object | string, m?: string) => console.warn(`  ${typeof o === 'string' ? o : (m ?? '')}`),
+    error: (o: object | string, m?: string) => console.error(`  ${typeof o === 'string' ? o : (m ?? '')}`),
   }
 
-  // Generate worker in temp dir
-  const workerName = target.worker.name ?? targetName
-  const bucketName = target.worker.bucket ?? workerName
-  const tmpDir = join(siteDir, '.gazetta-deploy')
-  await rm(tmpDir, { recursive: true, force: true })
-  await mkdir(tmpDir, { recursive: true })
-
-  // Generate wrangler.toml
-  let wranglerToml = `name = "${workerName}"\nmain = "index.ts"\ncompatibility_date = "2024-12-01"\nworkers_dev = true\n\n[[r2_buckets]]\nbinding = "SITE_BUCKET"\nbucket_name = "${bucketName}"\n`
-
-  // Add custom domain route if siteUrl is configured
-  if (target.siteUrl) {
-    const url = new URL(target.siteUrl)
-    const hostname = url.hostname
-    wranglerToml += `\n[[routes]]\npattern = "${hostname}/*"\nzone_name = "${hostname}"\n`
-  }
-
-  await writeFile(join(tmpDir, 'wrangler.toml'), wranglerToml)
-
-  // Generate worker entry point
-  const workerCode = `import { createWorker } from 'gazetta/workers/cloudflare-r2'\nexport default createWorker()\n`
-  await writeFile(join(tmpDir, 'index.ts'), workerCode)
-
-  // Generate package.json for wrangler
-  const pkgJson = JSON.stringify({
-    type: 'module',
-    dependencies: { gazetta: '*', hono: '*' },
-  })
-  await writeFile(join(tmpDir, 'package.json'), pkgJson)
-
-  // Install deps and deploy
-  console.log(`  Deploying worker "${workerName}" to Cloudflare...`)
   try {
-    execSync('npm install --install-links ' + resolve(import.meta.dirname, '../..'), { cwd: tmpDir, stdio: 'pipe' })
-    const output = execSync('npx wrangler deploy', { cwd: tmpDir, stdio: 'pipe' }).toString()
-    const urlMatch = output.match(/https:\/\/[^\s]+/)
-    console.log(`  Worker deployed: ${urlMatch?.[0] ?? workerName}`)
+    const result = await adapter.execute({
+      target,
+      targetName,
+      // outputDir not used by worker-deploy adapters (worker reads R2 at request).
+      // Adapters that need bytes (static-host) read storage themselves.
+      outputDir: join(siteDir, 'dist', targetName),
+      storage: target.storage,
+      env: process.env,
+      logger,
+      signal: new AbortController().signal,
+    })
+
+    if (result.url) console.log(`  ${c.green('✓')} Deployed: ${result.url}`)
+    else console.log(`  ${c.green('✓')} Deployed.`)
     if (target.siteUrl) console.log(`  Site: ${target.siteUrl}`)
   } catch (err) {
-    const stderr = (err as { stderr?: Buffer }).stderr?.toString() ?? (err as Error).message
-    console.error(`\n  Deploy failed: ${stderr}\n`)
+    const message = err instanceof Error ? err.message : String(err)
+    const adapterTag = (err as { adapter?: string }).adapter ?? adapter.name
+    console.error(`\n  ${c.red(`Deploy failed (${adapterTag}):`)} ${message}\n`)
     process.exit(1)
-  } finally {
-    await rm(tmpDir, { recursive: true, force: true })
   }
 
   console.log(
-    `\n  ${c.green('✓')} Worker deployed. Now publish content:\n    ${c.cyan(`gazetta publish ${targetName}`)}\n`,
+    `\n  ${c.green('✓')} Deploy complete. Publish content with:\n    ${c.cyan(`gazetta publish ${targetName}`)}\n`,
   )
 }
 

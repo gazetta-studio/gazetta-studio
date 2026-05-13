@@ -81,11 +81,12 @@ export function inspectTarget(target: TargetConfig): TargetCapabilities {
 
   const redirectsFormat = target.redirects?.format
   const isPlainStatic = target.type === 'static' && (redirectsFormat === undefined || redirectsFormat === 'none')
-  // `worker` field OR `type: 'dynamic'` indicates worker presence.
-  // `TargetType` is a closed enum (`'static' | 'dynamic'`); ESI-mode
-  // operates on top of `type: 'dynamic'`. Plain-static ⇔ no worker AND
-  // no host-redirects-format AND `type: 'static'` (or unset).
-  const hasWorker = target.worker !== undefined || target.type === 'dynamic'
+  // Worker presence detected via:
+  //   - `type: 'dynamic'` (ESI mode runs on a worker), OR
+  //   - a WorkerCapableDeployAdapter (e.g., cloudflareWorkersDeploy)
+  // Pure-static deploy adapters (GitHub Pages, S3 static, etc.) don't
+  // bundle a worker and don't implement workerRuntimeConfig().
+  const hasWorker = target.type === 'dynamic' || (target.deploy !== undefined && 'workerRuntimeConfig' in target.deploy)
   const hasHostRedirects = redirectsFormat !== undefined && redirectsFormat !== 'none'
 
   if (hasWorker || hasHostRedirects) {

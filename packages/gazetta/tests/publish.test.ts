@@ -777,35 +777,37 @@ describe('isEditable', () => {
 
 describe('getType', () => {
   // Import dynamically to avoid circular deps
-  it('returns dynamic when worker configured', async () => {
+  it('returns dynamic when worker-capable deploy adapter configured', async () => {
     const { getType } = await import('../src/types.js')
+    const { cloudflareWorkersDeploy } = await import('../src/deploy/cloudflare-workers.js')
     expect(
       getType({
         storage: r2Storage({ accountId: 'a', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' }),
-        worker: { type: 'cloudflare' },
+        deploy: cloudflareWorkersDeploy({ apiToken: 't', accountId: 'a', name: 'n', bucket: 'b' }),
       }),
     ).toBe('dynamic')
   })
 
-  it('returns static when no worker', async () => {
+  it('returns static when no deploy adapter', async () => {
     const { getType } = await import('../src/types.js')
     expect(getType({ storage: filesystemStorage({ path: './dist' }) })).toBe('static')
   })
 
-  it('respects explicit type over worker config', async () => {
+  it('respects explicit type over deploy adapter inference', async () => {
     const { getType } = await import('../src/types.js')
-    // Dynamic without worker (for gazetta serve)
+    const { cloudflareWorkersDeploy } = await import('../src/deploy/cloudflare-workers.js')
+    // Dynamic without deploy adapter (for gazetta serve)
     expect(
       getType({
         storage: s3Storage({ endpoint: 'http://x', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' }),
         type: 'dynamic',
       }),
     ).toBe('dynamic')
-    // Static even with worker (override)
+    // Static even with worker-capable adapter (explicit override)
     expect(
       getType({
         storage: r2Storage({ accountId: 'a', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' }),
-        worker: { type: 'cloudflare' },
+        deploy: cloudflareWorkersDeploy({ apiToken: 't', accountId: 'a', name: 'n', bucket: 'b' }),
         type: 'static',
       }),
     ).toBe('static')
