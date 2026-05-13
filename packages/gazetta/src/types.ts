@@ -1,5 +1,6 @@
 import type { AIProvider } from './ai/provider.js'
 import type { AdminCache } from './cache/types.js'
+import type { DeployAdapter } from './deploy/types.js'
 import type { TransformAdapter } from './transforms/adapter.js'
 
 /** Output of a rendered component */
@@ -284,6 +285,24 @@ export interface TargetConfig {
    * constructed adapter (see `design-provider-config.md`).
    */
   transforms?: TransformAdapter
+  /**
+   * Platform deploy strategy for this target. Operators construct via
+   * factory functions imported from `gazetta` (e.g.,
+   * `cloudflareWorkersDeploy({...})`, `githubPagesDeploy({...})`).
+   * When unset, `gazetta deploy <target>` errors with "no deploy
+   * adapter configured" — the operator either adds a `deploy:` field
+   * or uses platform-native deploy tooling (container hosts run
+   * `gazetta serve` and deploy via `flyctl` / `gcloud run deploy` /
+   * etc. — see `docs/container-deployment.md`). Path X — the field's
+   * value IS the constructed adapter (see `design-deploy.md` +
+   * `design-provider-config.md`).
+   *
+   * Per Q4 lock of the deploy design pass: `gazetta publish` and
+   * `gazetta deploy` are independent operations. Adapters that need
+   * published content read `target.storage` themselves and surface
+   * `DeployContentError` when missing.
+   */
+  deploy?: DeployAdapter
   /**
    * Per-target asset upload policy. Today carries the size cap; future
    * fields (MIME allowlist subset, name policy overrides) extend this
