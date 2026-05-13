@@ -160,6 +160,10 @@ export {
   DeployError,
   DeployTransportError,
 } from './deploy/index.js'
+export {
+  cloudflareWorkersDeploy,
+  type CloudflareWorkersDeployOptions,
+} from './deploy/index.js'
 
 // AI provider factories — operator-facing (Path X). Operators import
 // these into `site.config.ts` / `gazetta.config.ts` and call them inline:
