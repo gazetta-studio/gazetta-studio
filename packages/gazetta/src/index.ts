@@ -138,6 +138,29 @@ export { memoryCache, type MemoryCacheOptions } from './cache/factories.js'
 export { createMemoryCache } from './cache/memory.js'
 export type { AdminCache, CacheStats, InvalidationEvent } from './cache/types.js'
 
+// Deploy adapter types + error taxonomy — operator-facing (Path X).
+// Cut 1 of #203 ships the type-only foundation; Cut 3 adds
+// `cloudflareWorkersDeploy()` (the first concrete factory). Operators
+// will import factories into `site.config.ts` and call them inline at
+// the `deploy:` field. Per Q4 of the design pass, deploy and publish
+// are independent operations.
+export type {
+  DeployAdapter,
+  DeployContext,
+  DeployLogger,
+  DeployResult,
+  ValidateContext,
+  WorkerCapableDeployAdapter,
+  WorkerRuntimeConfig,
+} from './deploy/index.js'
+export {
+  DeployAuthError,
+  DeployConfigError,
+  DeployContentError,
+  DeployError,
+  DeployTransportError,
+} from './deploy/index.js'
+
 // AI provider factories — operator-facing (Path X). Operators import
 // these into `site.config.ts` / `gazetta.config.ts` and call them inline:
 //   const anthropic = anthropicProvider({ apiKey: process.env.ANTHROPIC_API_KEY! })
