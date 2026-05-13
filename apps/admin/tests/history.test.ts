@@ -5,8 +5,8 @@
  * is fine for single-item asserts but would clobber history state.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { cp, rm, readFile, readdir } from 'node:fs/promises'
-import { relative, resolve } from 'node:path'
+import { mkdir, rm, readFile, readdir, writeFile } from 'node:fs/promises'
+import { dirname, relative, resolve } from 'node:path'
 import type { Hono } from 'hono'
 import {
   createFilesystemProvider,
@@ -32,14 +32,28 @@ async function getManifest(): Promise<SiteManifest> {
 }
 
 /**
- * Spin up an isolated copy of the starter's local target. We snapshot
- * only the content root (sites/main/targets/local) since that's where
- * history writes. The app config points at the real templates.
+ * Spin up an isolated working dir for a history test. Seeds the minimal
+ * manifest tree (the four items the assertions reference) directly,
+ * rather than `cp -r` from the live starter target — that shared dir
+ * is mutated in place by api.test.ts and audit-event writes via
+ * write-file-atomic, which races with the cp walker (#351). Templates
+ * are loaded from examples/starter/templates as usual.
  */
+const SEED_MANIFESTS: Record<string, unknown> = {
+  'pages/home/page.json': { template: 'page-default', content: { title: 'Home' } },
+  'pages/about/page.json': { template: 'page-default', content: { title: 'About' } },
+  'fragments/header/fragment.json': { template: 'header-layout' },
+  'fragments/footer/fragment.json': { template: 'footer-layout' },
+}
+
 async function setupWorkingCopy(name: string) {
   const tempDir = resolve(import.meta.dirname, '../../../.tmp', name)
   await rm(tempDir, { recursive: true, force: true })
-  await cp(resolve(starterSiteDir, 'targets/local'), tempDir, { recursive: true })
+  for (const [path, contents] of Object.entries(SEED_MANIFESTS)) {
+    const fullPath = resolve(tempDir, path)
+    await mkdir(dirname(fullPath), { recursive: true })
+    await writeFile(fullPath, JSON.stringify(contents, null, 2))
+  }
   return tempDir
 }
 
