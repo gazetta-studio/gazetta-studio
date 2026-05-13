@@ -11,7 +11,6 @@ export type {
   SiteManifest,
   ResolvedComponent,
   TargetConfig,
-  WorkerConfig,
   CacheConfig,
   DirEntry,
   StorageProvider,

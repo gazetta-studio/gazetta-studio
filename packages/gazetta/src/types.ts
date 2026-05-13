@@ -193,20 +193,6 @@ export interface PageManifest extends ComponentManifest {
   cache?: CacheConfig
 }
 
-/** Worker/runtime configuration */
-export interface WorkerConfig {
-  type: 'cloudflare'
-  name?: string
-  /** R2 bucket name to bind into the worker as `SITE_BUCKET`. Required when
-   *  the worker reads content from R2; `gazetta deploy` writes this into
-   *  wrangler.toml's `[[r2_buckets]]` block. Path X separates storage
-   *  construction (operator imports `r2Storage(...)`) from worker-deploy
-   *  config (which bucket the worker binds at runtime); both name the same
-   *  bucket but live on different fields. Defaults to `worker.name` (which
-   *  itself defaults to the target name) when unset. */
-  bucket?: string
-}
-
 export type TargetEnvironment = 'local' | 'staging' | 'production'
 
 export type TargetType = 'static' | 'dynamic'
@@ -221,7 +207,6 @@ export interface TargetConfig {
    * `design-provider-config.md`).
    */
   storage: StorageProvider
-  worker?: WorkerConfig
   /**
    * Rendering model:
    * - `static`: pre-rendered at publish time, served from edge (no SSR at request)
@@ -529,7 +514,12 @@ export interface HistoryConfig {
 
 /** Determine rendering type for a target — centralised logic used by CLI and admin API */
 export function getType(target: TargetConfig): TargetType {
-  return target.type ?? (target.worker ? 'dynamic' : 'static')
+  // Pre-Cut 3 fallback was `target.worker ? 'dynamic' : 'static'`.
+  // With `target.worker` deleted, a WorkerCapableDeployAdapter
+  // implies a worker is bundled — that's the new heuristic.
+  if (target.type) return target.type
+  if (target.deploy && 'workerRuntimeConfig' in target.deploy) return 'dynamic'
+  return 'static'
 }
 
 /** Resolve a target's environment. Defaults to 'local' — production must be explicit. */
