@@ -19,3 +19,9 @@ export {
   DeployError,
   DeployTransportError,
 } from './errors.js'
+export {
+  cloudflareWorkersDeploy,
+  renderWorkerEntry,
+  renderWranglerToml,
+  type CloudflareWorkersDeployOptions,
+} from './cloudflare-workers.js'
