@@ -6,6 +6,7 @@ import { brokenLinks } from './validators/broken-links.js'
 import { circularAlias } from './validators/circular-alias.js'
 import { circularFragment } from './validators/circular-fragment.js'
 import { danglingAlias } from './validators/dangling-alias.js'
+import { deployTargetTypeSupported } from './validators/deploy-target-type-supported.js'
 import { dynamicRouteConflict } from './validators/dynamic-route-conflict.js'
 import { htmlValidity } from './validators/html-validity.js'
 import { orphanedLocaleFile } from './validators/orphaned-locale-file.js'
@@ -14,6 +15,7 @@ import { referencedAssetExists } from './validators/referenced-asset-exists.js'
 import { referencedFragmentExists } from './validators/referenced-fragment-exists.js'
 import { referencedTemplateExists } from './validators/referenced-template-exists.js'
 import { schemaConformance } from './validators/schema-conformance.js'
+import { targetDeployCoverage } from './validators/target-deploy-coverage.js'
 import { unusedFragment } from './validators/unused-fragment.js'
 import { createValidatorRegistry, type ValidatorRegistry } from './registry.js'
 
@@ -46,5 +48,8 @@ export function defaultValidatorRegistry(): ValidatorRegistry {
     circularAlias,
     archiveNotSupportedOnTarget,
     aliasOfPointsToArchived,
+    // Deploy validators per design-deploy.md Cut 2.
+    deployTargetTypeSupported,
+    targetDeployCoverage,
   ])
 }
