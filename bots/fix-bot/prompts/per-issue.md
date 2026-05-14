@@ -280,9 +280,36 @@ Closes #$ISSUE_NUMBER
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ```
 
-### 7. Push + open PR
+### 7. STOP HERE — orchestrator handles push + PR
+
+**Do NOT `git push`. Do NOT `gh pr create`.** The reviewer (Agent B)
+inspects your two-commit branch next; the orchestrator pushes + opens
+the PR only after the reviewer approves.
+
+**Final message format — required.** Your last assistant message must
+end with a block in EXACTLY this shape:
+
+```
+SUMMARY:
+<2-4 sentences: what the bug was, what your fix does, why the failing
+test pins it. Plain prose; no headings, no bullets, no code blocks
+inside the summary.>
+```
+
+The orchestrator extracts the text after `SUMMARY:` and includes it
+verbatim in the PR body. Anything else in your final message (commit
+output, protocol acknowledgments, follow-up notes) goes ABOVE the
+`SUMMARY:` block — only the marked summary lands in the PR.
+
+---
+
+The sections below are LEGACY guidance from fix-bot v1, when the
+agent pushed + opened the PR directly. They remain in the prompt as
+reference for what the orchestrator will do on your behalf, but you
+must NOT execute them yourself.
 
 ```bash
+# Orchestrator runs this after Agent B approves:
 git push --force-with-lease origin $BRANCH_NAME
 ```
 

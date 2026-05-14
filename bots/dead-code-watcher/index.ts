@@ -42,6 +42,7 @@ import { branchHasCommits, captureCommitMessages, captureDiff, resetToMain } fro
 import { type Finding, filterStableFindings, type KnipReport, parseKnipReport, rankFindings } from './knip-parse.js'
 import { fingerprintToBranch, pastPROutcome } from './past-pr.js'
 import { parseReviewerVerdict } from '../_lib/reviewer-verdict.js'
+import { extractLastAssistantText, extractSummary } from '../_lib/transcript.js'
 import {
   appendEntry,
   findSkipMatch,
@@ -77,8 +78,17 @@ const PER_RUN_FINDING_CAP = Number(process.env.PER_RUN_FINDING_CAP ?? '5')
 /** Per-run wall-clock budget. Workflow timeout is 60min; we exit at 55. */
 const PER_RUN_BUDGET_MS = Number(process.env.BUDGET_MS ?? 55 * 60 * 1000)
 
-/** Minimum file-age in days to consider a finding stable (vs mid-flight WIP). */
-const MIN_STABLE_DAYS = Number(process.env.MIN_STABLE_DAYS ?? '30')
+/**
+ * Minimum file-age in days to consider a finding stable (vs mid-flight WIP).
+ * Default 14 = stable across two weekly cycles — enough signal that the
+ * file isn't mid-flight, not so long that a young codebase produces zero
+ * findings. Mature codebases raise via `MIN_STABLE_DAYS` env.
+ *
+ * History: defaulted to 30 in v1. The 2026-05-14 production run on this
+ * repo (~few months old) filtered out all 133 findings — nothing was old
+ * enough. Lowered to 14 to keep the bot productive on younger repos.
+ */
+const MIN_STABLE_DAYS = Number(process.env.MIN_STABLE_DAYS ?? '14')
 
 /**
  * Maximum generator-critic loop iterations per finding. Agent A
@@ -379,7 +389,7 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     if (verdict.kind === 'approve') {
       printNotice(`✅ Reviewer APPROVED on attempt ${attempt}/${MAX_ATTEMPTS}: ${verdict.reasoning.slice(0, 120)}`)
       pushBranch(branchName)
-      openDeletePR(finding, branchName, verdict.reasoning, extractLastAssistantText(agentATranscript))
+      openDeletePR(finding, branchName, verdict.reasoning, extractSummary(agentATranscript))
       return 'invoked-claude'
     }
 
@@ -493,31 +503,6 @@ function recordSkipListEntry(
  * Returns empty string when no text block exists or the file can't
  * be read.
  */
-function extractLastAssistantText(transcriptPath: string): string {
-  try {
-    const lines = readFileSync(transcriptPath, 'utf-8')
-      .split('\n')
-      .filter(l => l.trim().length > 0)
-    let lastText = ''
-    for (const line of lines) {
-      try {
-        const event = JSON.parse(line)
-        if (event.type === 'assistant' && Array.isArray(event.message?.content)) {
-          for (const block of event.message.content) {
-            if (block.type === 'text' && typeof block.text === 'string') {
-              lastText = block.text
-            }
-          }
-        }
-      } catch {
-        // ignore malformed line
-      }
-    }
-    return lastText
-  } catch {
-    return ''
-  }
-}
 
 /**
  * Open a tiny PR containing just the skip-list update for a
