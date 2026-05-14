@@ -1,0 +1,74 @@
+name: Dead code watcher
+
+# Weekly scan for dead code (knip findings older than 30 days). Files
+# delete-PRs directly when safe; opens skip-list-entry PRs when
+# uncertain. Composes with the monthly compaction workflow.
+#
+# Different from other producer bots (flake-watcher, mutation-watcher):
+# does NOT delegate to fix-bot. The "TDD-first" contract that fix-bot
+# enforces doesn't compose well with code deletion — the verification
+# is "existing tests pass," not "a new failing test passes."
+on:
+  schedule:
+    # Saturday 02:30 UTC = 04:30 CEST. 1h after Saturday's flake-watcher
+    # to avoid runner contention. Weekly cadence — knip output is stable
+    # across days; daily would mostly re-find the same things.
+    - cron: '30 2 * * 6'
+  workflow_dispatch:
+    # Manual trigger for testing or backfill after prompt iteration.
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 60
+    permissions:
+      # Read CI run history (for past-PR feedback loop), read+write
+      # issues (skip-list comments), read+write PRs (open delete-PRs +
+      # skip-list-entry PRs), read+write contents (push branches).
+      actions: read
+      issues: write
+      pull-requests: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # need git log for last-modified computation
+
+      - name: Configure git author
+        run: |
+          git config user.name 'dead-code-watcher'
+          git config user.email 'noreply@anthropic.com'
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install workspace deps
+        run: npm ci
+
+      - name: Build gazetta package
+        # Some workspaces need the built package for type-checks during
+        # test runs (the bot validates deletions before pushing).
+        run: npm run build -w packages/gazetta
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run dead-code-watcher
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: npm run dead-code-watcher -w @gazetta/bots
+
+      - name: Upload transcripts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dead-code-watcher-transcripts
+          path: bots/transcripts/
+          if-no-files-found: ignore
+          retention-days: 90

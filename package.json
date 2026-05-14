@@ -25,7 +25,7 @@
     "format": "biome format --write .",
     "format:check": "biome format .",
     "knip": "knip --reporter compact",
-    "knip:json": "knip --reporter json",
+    "knip:json": "knip --reporter json --no-exit-code",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },
