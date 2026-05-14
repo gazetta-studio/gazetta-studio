@@ -24,6 +24,8 @@
     "smoke": "bash scripts/smoke-publish.sh",
     "format": "biome format --write .",
     "format:check": "biome format .",
+    "knip": "knip --reporter compact",
+    "knip:json": "knip --reporter json",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },
@@ -34,6 +36,7 @@
     "@storybook/addon-a11y": "^10.3.6",
     "@storybook/addon-themes": "^10.3.6",
     "@storybook/vue3-vite": "^10.3.6",
+    "knip": "6.13.1",
     "playwright": "^1.59.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
