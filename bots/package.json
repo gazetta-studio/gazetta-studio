@@ -11,6 +11,8 @@
     "triage-bot": "tsx triage-bot/index.ts",
     "discovery-prep-bot": "tsx discovery-prep-bot/index.ts",
     "fix-bot": "tsx fix-bot/index.ts",
+    "dead-code-watcher": "tsx dead-code-watcher/index.ts",
+    "dead-code-watcher:compact": "tsx dead-code-watcher/compact.ts",
     "replay": "tsx _lib/replay.ts",
     "test": "vitest run"
   },
