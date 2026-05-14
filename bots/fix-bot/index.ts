@@ -286,6 +286,14 @@ async function fixOneIssue(
     return
   }
 
+  // Lessons-learned is the durable cross-issue memory the monthly
+  // compactor maintains. Loaded once per issue and inlined into every
+  // Agent A + reviewer prompt. Loaded BEFORE the DRY_RUN exit so
+  // dry-runs exercise the load path + report file size (catches
+  // stale/corrupted lessons files early).
+  const lessonsLearned = existsSync(LESSONS_ABS) ? readFileSync(LESSONS_ABS, 'utf-8') : ''
+  printNotice(`Lessons file: ${lessonsLearned ? `${lessonsLearned.length} bytes` : 'absent'}`)
+
   if (DRY_RUN) {
     printNotice(`DRY_RUN=1 — exiting before invoking Claude.`)
     return
@@ -306,13 +314,10 @@ async function fixOneIssue(
   //      REJECT → reset working tree, retry with reviewer's note
   //      NEEDS_HUMAN → add skip-list entry, stop
   // Loop exhausts → skip-list entry ('needs-human').
-  //
-  // Both prompts get the lessons-learned doc inlined so Agent A can
-  // avoid known recurring failure modes proactively.
 
   const agentAPromptTemplate = readFileSync(PROMPT_PATH, 'utf-8')
   const reviewerPromptTemplate = readFileSync(REVIEWER_PROMPT_PATH, 'utf-8')
-  const lessonsLearned = existsSync(LESSONS_ABS) ? readFileSync(LESSONS_ABS, 'utf-8') : ''
+  // lessonsLearned loaded above before DRY_RUN exit.
 
   mkdirSync(TRANSCRIPTS_DIR, { recursive: true })
   const issueBody = issue.body ?? ''
