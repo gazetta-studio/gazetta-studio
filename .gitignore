@@ -19,6 +19,7 @@ reports/
 # publish, never authoritative. Anchored under any `targets/` dir so we
 # don't accidentally swallow legitimate dotfiles elsewhere.
 **/targets/**/.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].hash
+**/targets/**/.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].hash.*
 **/targets/**/.pub-*
 
 # Reverse-dep indices — derived from page/fragment manifests, rebuilt
@@ -48,6 +49,7 @@ reports/
 #   - site.json (publish-time site manifest summary)
 #   - index/fragments.json and any other aggregate indices
 **/targets/**/index.html
+**/targets/**/index.*.html
 **/targets/**/site.json
 **/targets/**/index/
 
