@@ -169,6 +169,14 @@ async function main(): Promise<void> {
     })),
   })
 
+  // Lessons-learned is the durable cross-finding memory the monthly
+  // compactor maintains. Loaded once per run and inlined into every
+  // Agent A prompt so it shapes judgment proactively. Loaded BEFORE
+  // the DRY_RUN exit so dry-runs exercise the load path + report
+  // the file size (catches stale/corrupted files early).
+  const lessonsLearned = existsSync(LESSONS_ABS) ? readFileSync(LESSONS_ABS, 'utf-8') : ''
+  printNotice(`Lessons file: ${lessonsLearned ? `${lessonsLearned.length} bytes` : 'absent'}`)
+
   if (DRY_RUN) {
     printNotice(`DRY_RUN=1 — exiting before invoking Claude.`)
     return
@@ -177,11 +185,6 @@ async function main(): Promise<void> {
   // Step 5: per-finding processing.
   mkdirSync(TRANSCRIPTS_DIR, { recursive: true })
   const promptTemplate = readFileSync(PROMPT_PATH, 'utf-8')
-
-  // Lessons-learned is the durable cross-finding memory the monthly
-  // compactor maintains. Loaded once per run and inlined into every
-  // Agent A prompt so it shapes judgment proactively.
-  const lessonsLearned = existsSync(LESSONS_ABS) ? readFileSync(LESSONS_ABS, 'utf-8') : ''
 
   const runStart = Date.now()
   let processed = 0
