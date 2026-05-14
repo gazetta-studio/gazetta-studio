@@ -28,10 +28,12 @@ This changes one thing about your work: **commit locally but DO NOT
 push or open the PR.** The orchestrator pushes + opens the PR after
 the reviewer approves. Stop after committing.
 
-For SKIP decisions: same as before — write a skip-list entry +
-commit it on a `dead-code-skip/...` branch. The orchestrator pushes
-that one without reviewer involvement (skip decisions are safe by
-construction).
+For SKIP decisions: write a skip-list entry + commit it on a
+`dead-code-skip/...` branch and **STOP**. The orchestrator pushes
+the branch + opens the draft PR after you finish (skip decisions
+are safe by construction, so the reviewer is bypassed — but the
+push + PR creation happens orchestrator-side for symmetry with
+the DELETE path).
 
 ## Inputs (appended below this prompt)
 
@@ -233,26 +235,33 @@ read it first, append to the `entries` array). Entry shape:
 }
 ```
 
-Then open a tiny PR with just the skip-list change:
+Then commit it on a `dead-code-skip/...` branch and **STOP** — do
+NOT push, do NOT open a PR. The orchestrator detects the
+skip-branch's commits, pushes the branch, and opens the draft PR
+on your behalf (symmetric with how the DELETE path works after
+reviewer approval).
 
 ```bash
 git checkout -b dead-code-skip/$BRANCH_NAME-suffix
 git add $SKIP_LIST_PATH
 git commit -m "chore(skip-list): record $reason for $fingerprintLabel
 
-<one-paragraph why>
+<one-paragraph why — this commit message becomes the PR body's
+'Agent A's rationale' section, so be specific>
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
-
-git push -u origin dead-code-skip/$BRANCH_NAME-suffix
-
-gh pr create --draft --title "chore(skip-list): record $reason for $fingerprintLabel" --body "..."
 ```
 
-PR opens as DRAFT — maintainer doesn't need to review urgently;
-the bot just needs the commit to land so future runs honor the decision.
+**STOP HERE.** Do NOT `git push`. Do NOT `gh pr create`. The
+orchestrator handles both — it pushes the skip branch and opens a
+draft PR titled `chore(skip-list): record $reason for $fingerprintLabel`,
+mining the reason + rationale from your commit message.
+
+Draft because the maintainer doesn't need to review urgently;
+the bot just needs the entry to land on main so future runs
+honor the decision.
 
 ## Rules
 
