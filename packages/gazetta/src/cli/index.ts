@@ -527,7 +527,7 @@ export default template
           name,
           private: true,
           type: 'module',
-          engines: { node: '>=22' },
+          engines: { node: '>=22.22.2' },
           scripts: { dev: 'gazetta dev' },
           dependencies: { gazetta: '*', react: '^19.0.0', 'react-dom': '^19.0.0', zod: '^4.0.0' },
         },
