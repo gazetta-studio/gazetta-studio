@@ -7,7 +7,7 @@
  */
 
 /** User clicked the page/fragment root node — opens root content editor. */
-export interface RootSelection {
+interface RootSelection {
   kind: 'root'
 }
 
