@@ -136,7 +136,11 @@ describe('runInit', () => {
     const pkg = JSON.parse(await import('node:fs').then(fs => fs.readFileSync(join(testDir, 'package.json'), 'utf-8')))
     expect(pkg.private).toBe(true)
     expect(pkg.type).toBe('module')
-    expect(pkg.engines.node).toBe('>=22')
+    // Must match the repo's root engines floor (see repo-engines.test.ts). New
+    // sites created via `gazetta init` install write-file-atomic transitively;
+    // a looser floor here would surface as a confusing EBADENGINE pointing at
+    // a transitive dep on Node 22.0–22.22.1.
+    expect(pkg.engines.node).toBe('>=22.22.2')
     expect(pkg.scripts.dev).toBe('gazetta dev')
     expect(pkg.dependencies.react).toBeDefined()
     expect(pkg.dependencies.zod).toBeDefined()
