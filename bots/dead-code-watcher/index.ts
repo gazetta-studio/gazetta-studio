@@ -39,14 +39,8 @@ import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
 import { octokitFromEnv, repoFromEnv } from '../_lib/github.js'
 import { branchHasCommits, captureCommitMessages, captureDiff, resetToMain } from '../_lib/git-tree.js'
-import {
-  type Finding,
-  filterStableFindings,
-  type KnipReport,
-  parseKnipReport,
-  rankFindings,
-} from '../_lib/knip-parse.js'
-import { fingerprintToBranch, pastPROutcome } from '../_lib/past-pr.js'
+import { type Finding, filterStableFindings, type KnipReport, parseKnipReport, rankFindings } from './knip-parse.js'
+import { fingerprintToBranch, pastPROutcome } from './past-pr.js'
 import { parseReviewerVerdict } from '../_lib/reviewer-verdict.js'
 import {
   appendEntry,
@@ -56,7 +50,7 @@ import {
   type SkipList,
   SKIP_LIST_PATH,
   writeSkipList,
-} from '../_lib/skip-list.js'
+} from './skip-list.js'
 import {
   printBanner,
   printCandidateHeader,

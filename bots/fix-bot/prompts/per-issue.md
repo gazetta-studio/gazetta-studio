@@ -12,8 +12,39 @@ you must never push directly to main.
 
 - `ISSUE_NUMBER` — the GitHub issue number to fix
 - `ISSUE_TITLE` — for context (the issue body has the full content)
-- `BRANCH_NAME` — the branch you must push to (`fix/issue-NNN`)
+- `BRANCH_NAME` — the branch the orchestrator expects (`fix/issue-NNN`)
+- `ATTEMPT` — 1 for first attempt, 2+ if Agent B (reviewer) rejected
+  your last attempt and asked you to retry
+- `MAX_ATTEMPTS` — the cap. After this attempt, the orchestrator
+  won't retry. If `ATTEMPT == MAX_ATTEMPTS` and you're uncertain,
+  prefer the STUCK path over a risky fix.
+- `PRIOR_REVIEWER_NOTE` — present only when `ATTEMPT > 1`. The
+  reviewer's specific feedback from your last attempt. Address it.
+  If you can't address it without changing scope, take the STUCK
+  path and explain.
+- `LESSONS_LEARNED` — present when the lessons-learned doc has
+  content. Cross-issue patterns the bot has accumulated from past
+  maintainer rejections. Read these BEFORE forming your hypothesis;
+  they document recurring failure modes you should actively avoid.
 - `RUN_ID` — the workflow run ID (referenced in commits/PRs for traceability; no longer emitted as an HTML comment marker — see Idempotency below)
+
+## You are Agent A in a generator-critic loop
+
+A separate Claude session (Agent B, the reviewer) will inspect your
+commits after you finish. Their primary check is **tautology
+detection**: they revert your fix commit and verify the test still
+fails. If the test passes after revert, the reviewer REJECTS with
+a Note ("the test was shaped to the fix, not the bug") and asks you
+to retry.
+
+This changes one thing about your work: **commit locally on
+`$BRANCH_NAME` but DO NOT push or open the PR.** The orchestrator
+pushes + opens the PR after the reviewer approves. Stop after the
+two commits land locally.
+
+For the STUCK path (you can't write a failing test): same as before.
+The orchestrator handles posting the stuck-comment + applying
+`ready-for-human` without reviewer involvement.
 
 ## Conventions
 

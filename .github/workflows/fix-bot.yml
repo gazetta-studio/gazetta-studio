@@ -25,6 +25,14 @@ on:
       issue:
         description: 'Optional: fix one specific issue (otherwise scans all candidates)'
         required: false
+      max_attempts:
+        description: 'Generator-critic loop cap (default 5; lower for cost-bounded testing)'
+        required: false
+        default: '5'
+      budget_ms:
+        description: 'Per-run wall-clock budget in ms (default 3000000 = 50min)'
+        required: false
+        default: '3000000'
 
 jobs:
   fix:
@@ -78,6 +86,11 @@ jobs:
           # mode (scan candidates) and treats a numeric value as manual
           # one-issue mode.
           ISSUE_NUMBER: ${{ inputs.issue }}
+          # Optional overrides via workflow_dispatch inputs. Cron runs
+          # use the orchestrator's defaults (`||` fallback below passes
+          # the same defaults the TS code defines).
+          MAX_ATTEMPTS: ${{ inputs.max_attempts || '5' }}
+          BUDGET_MS: ${{ inputs.budget_ms || '3000000' }}
         run: npm run fix-bot -w @gazetta/bots
 
       - name: Upload transcripts

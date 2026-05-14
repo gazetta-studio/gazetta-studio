@@ -12,7 +12,7 @@
  * pattern; the bot's outcome-tag in PR body is the orchestration-
  * layer audit trail.
  */
-import type { RepoIdentity } from './github.js'
+import type { RepoIdentity } from '../_lib/github.js'
 import type { Octokit } from '@octokit/rest'
 import type { Fingerprint } from './skip-list.js'
 import { formatFingerprint } from './skip-list.js'
