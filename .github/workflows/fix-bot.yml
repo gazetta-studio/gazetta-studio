@@ -34,6 +34,17 @@ on:
         required: false
         default: '3000000'
 
+# Single-instance invariant for cache safety. The bot appends to a
+# cached reviewer-log.jsonl; two concurrent runs would race on the
+# cache (last-writer-wins would lose entries). `cancel-in-progress:
+# false` queues the second invocation until the first completes —
+# never kills in-flight work. The literal group name 'fix-bot' is
+# shared with the matching job in bots-compact.yml so the monthly
+# compactor cannot run concurrently with the daily bot.
+concurrency:
+  group: fix-bot
+  cancel-in-progress: false
+
 jobs:
   fix:
     runs-on: ubuntu-latest
@@ -75,6 +86,18 @@ jobs:
 
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
+
+      # Restore the reviewer-log from cache. The bot appends Agent B
+      # verdicts on every loop iteration; the cache keeps the file
+      # across runs so the monthly compactor has cross-issue signal
+      # to work with. See bots/README.md "Reviewer-log persistence".
+      # Cache miss is fine — tailReviewerLog returns []. Bump the
+      # -v1 suffix if the JSONL schema ever changes.
+      - name: Restore reviewer-log cache
+        uses: actions/cache@v4
+        with:
+          path: bots/fix-bot/reviewer-log.jsonl
+          key: fix-bot-reviewer-log-v1
 
       - name: Run fix bot
         env:

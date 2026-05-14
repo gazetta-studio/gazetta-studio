@@ -57,6 +57,10 @@ reports/
 # real bot runs or replays. Don't commit.
 bots/transcripts/
 bots/test-outputs/
+# Per-bot reviewer-log — persisted across runs via GH Actions cache
+# (per ADR-0011). Never committed; local files appear when running
+# bots locally for testing/development.
+bots/*/reviewer-log.jsonl
 # mutation-watcher's per-run artifact staging dir — re-fetched every cron from
 # the latest Mutation workflow run. Never authoritative.
 bots/mutation-report-staging/

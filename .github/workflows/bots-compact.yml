@@ -40,6 +40,13 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    # Share concurrency group with the daily dead-code-watcher workflow.
+    # The compactor reads AND truncates the reviewer-log (prunes to a
+    # bounded window after producing the lessons rewrite); racing with
+    # the daily bot would lose verdicts. Queue instead of cancel.
+    concurrency:
+      group: dead-code-watcher
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v6
         with:
@@ -60,6 +67,17 @@ jobs:
 
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
+
+      # Restore reviewer-log from the same cache the daily bot writes
+      # to. The compactor reads recent entries, produces a lessons
+      # rewrite, then PRUNES the file to a bounded window —
+      # actions/cache@v4 saves the truncated file on post-step,
+      # keeping the cache size bounded across months.
+      - name: Restore reviewer-log cache
+        uses: actions/cache@v4
+        with:
+          path: bots/dead-code-watcher/reviewer-log.jsonl
+          key: dead-code-watcher-reviewer-log-v1
 
       - name: Run dead-code-watcher:compact
         env:
@@ -86,6 +104,12 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    # Share concurrency group with the daily fix-bot workflow. The
+    # compactor reads AND truncates the reviewer-log; racing with
+    # the daily bot would lose verdicts. Queue instead of cancel.
+    concurrency:
+      group: fix-bot
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v6
         with:
@@ -106,6 +130,17 @@ jobs:
 
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
+
+      # Restore reviewer-log from the same cache the daily fix-bot
+      # writes to. The compactor reads recent entries, produces a
+      # lessons-learned rewrite, then PRUNES the file to a bounded
+      # window — actions/cache@v4 saves the truncated file on
+      # post-step, keeping the cache size bounded across months.
+      - name: Restore reviewer-log cache
+        uses: actions/cache@v4
+        with:
+          path: bots/fix-bot/reviewer-log.jsonl
+          key: fix-bot-reviewer-log-v1
 
       - name: Run fix-bot:compact
         env:
