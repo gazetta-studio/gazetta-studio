@@ -1,5 +1,17 @@
 {
   "version": 1,
-  "entries": [],
+  "entries": [
+    {
+      "fingerprint": {
+        "kind": "export",
+        "path": "packages/gazetta/src/concurrency.ts",
+        "symbol": "DEFAULT_CONCURRENCY"
+      },
+      "reason": "planned-feature",
+      "reasonNote": "Named in design-scale.md and design-scale-implementation.md as part of the in-flight provider-aware-concurrency migration. Cut 2 (pending) adds `recommendedConcurrency: 20` on the filesystem provider that 'matches existing DEFAULT_CONCURRENCY'; Cut 2's risk note shows `mapLimit(items, fn, DEFAULT_CONCURRENCY)` as the explicit-pass shape callers use until Cut 3 migrates them. Removing the export now would force re-adding it when scale Cut 2-3 lands.",
+      "addedAt": "2026-05-14T14:11:53Z",
+      "addedBy": "bot"
+    }
+  ],
   "rules": []
 }
