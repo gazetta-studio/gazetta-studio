@@ -38,6 +38,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
 import { octokitFromEnv, repoFromEnv } from '../_lib/github.js'
+import { branchHasCommits, captureCommitMessages, captureDiff, resetToMain } from '../_lib/git-tree.js'
 import {
   type Finding,
   filterStableFindings,
@@ -46,6 +47,7 @@ import {
   rankFindings,
 } from '../_lib/knip-parse.js'
 import { fingerprintToBranch, pastPROutcome } from '../_lib/past-pr.js'
+import { parseReviewerVerdict } from '../_lib/reviewer-verdict.js'
 import {
   appendEntry,
   findSkipMatch,
@@ -67,6 +69,7 @@ import {
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PROMPT_PATH = resolve(HERE, 'prompts/per-finding.md')
+const REVIEWER_PROMPT_PATH = resolve(HERE, 'prompts/reviewer.md')
 const REPO_ROOT = resolve(HERE, '../..')
 const SKIP_LIST_ABS = resolve(REPO_ROOT, SKIP_LIST_PATH)
 
@@ -82,6 +85,14 @@ const PER_RUN_BUDGET_MS = Number(process.env.BUDGET_MS ?? 55 * 60 * 1000)
 
 /** Minimum file-age in days to consider a finding stable (vs mid-flight WIP). */
 const MIN_STABLE_DAYS = Number(process.env.MIN_STABLE_DAYS ?? '30')
+
+/**
+ * Maximum generator-critic loop iterations per finding. Agent A
+ * proposes; Agent B reviews; if REJECT, Agent A retries with the
+ * reviewer's note. After this cap, the orchestrator gives up and
+ * adds a `needs-human` skip-list entry.
+ */
+const MAX_ATTEMPTS = Number(process.env.MAX_ATTEMPTS ?? '5')
 
 async function main(): Promise<void> {
   printBanner({
@@ -253,17 +264,10 @@ async function processFinding(
     return 'past-pr-matched'
   }
 
-  // No past PR — fresh investigation. Hand to Claude.
+  // No past PR — fresh investigation. Run the generator-critic loop.
   const branchName = fingerprintToBranch(finding.fingerprint)
-  const transcriptPath = resolve(
-    TRANSCRIPTS_DIR,
-    `${RUN_TIMESTAMP}-dead-code-${branchName.replace(/[/-]/g, '_')}.jsonl`,
-  )
-  printTranscriptPath(transcriptPath)
-
-  const prompt = `${promptTemplate}
-
-FINDING_JSON=${JSON.stringify(
+  const reviewerPromptTemplate = readFileSync(REVIEWER_PROMPT_PATH, 'utf-8')
+  const findingPayload = JSON.stringify(
     {
       fingerprint: finding.fingerprint,
       fingerprintLabel: formatFingerprint(finding.fingerprint),
@@ -273,20 +277,252 @@ FINDING_JSON=${JSON.stringify(
     },
     null,
     2,
-  )}
+  )
+
+  let priorReviewerNote: string | null = null
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    printNotice(`Attempt ${attempt}/${MAX_ATTEMPTS}: invoking Agent A (cleanup)…`)
+
+    // Reset to clean main between attempts (no-op on attempt 1 unless
+    // a prior partial run left state behind).
+    resetToMain(branchName, { cwd: REPO_ROOT })
+
+    // Run Agent A.
+    const agentATranscript = resolve(
+      TRANSCRIPTS_DIR,
+      `${RUN_TIMESTAMP}-dead-code-${branchName.replace(/[/-]/g, '_')}-attempt${attempt}-A.jsonl`,
+    )
+    printTranscriptPath(agentATranscript)
+    const agentAPrompt = `${promptTemplate}
+
+FINDING_JSON=${findingPayload}
 BRANCH_NAME=${branchName}
 SKIP_LIST_PATH=${SKIP_LIST_PATH}
+ATTEMPT=${attempt}
+MAX_ATTEMPTS=${MAX_ATTEMPTS}
+${priorReviewerNote ? `PRIOR_REVIEWER_NOTE=${priorReviewerNote}\n` : ''}RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
+
+    const aResult = await runClaude({
+      prompt: agentAPrompt,
+      transcriptPath: agentATranscript,
+      allowedTools: ['Bash', 'Read', 'Grep', 'Glob', 'Write', 'Edit'],
+    })
+    if (!aResult.success) {
+      printWarning(`Agent A exited ${aResult.exitCode} on attempt ${attempt}; aborting loop for this finding`)
+      return 'invoked-claude'
+    }
+
+    // What did Agent A produce?
+    //   - A `dead-code-skip/...` branch with a skip-list commit → bot's done,
+    //     skip case. Push that branch (no reviewer needed).
+    //   - The `dead-code/...` branch with delete commit(s) → reviewer time.
+    //   - Nothing (no branch / no commits) → Agent A bailed; record + exit.
+    const skipBranch = `dead-code-skip/${branchName.replace('dead-code/', '')}`
+    const skipBranchHasCommits = branchHasCommits(skipBranch, { cwd: REPO_ROOT })
+    const deleteBranchHasCommits = branchHasCommits(branchName, { cwd: REPO_ROOT })
+
+    if (skipBranchHasCommits) {
+      printNotice('Agent A chose SKIP — pushing skip-list-entry PR (no reviewer needed)')
+      pushBranch(skipBranch)
+      // The branch is already committed by Agent A; nothing more to do.
+      return 'invoked-claude'
+    }
+
+    if (!deleteBranchHasCommits) {
+      printWarning(`Agent A produced no commits on either branch; treating as needs-human and stopping`)
+      recordSkipListEntry(skipList, finding, {
+        reason: 'needs-human',
+        reasonNote: `Agent A attempt ${attempt} produced no commits. See transcript ${agentATranscript}.`,
+      })
+      return 'invoked-claude'
+    }
+
+    // Agent A made a delete-branch — hand to reviewer.
+    printNotice(`Attempt ${attempt}/${MAX_ATTEMPTS}: invoking Agent B (reviewer)…`)
+    const diff = captureDiff(branchName, { cwd: REPO_ROOT })
+    const commitMessages = captureCommitMessages(branchName, { cwd: REPO_ROOT })
+
+    const reviewerTranscript = resolve(
+      TRANSCRIPTS_DIR,
+      `${RUN_TIMESTAMP}-dead-code-${branchName.replace(/[/-]/g, '_')}-attempt${attempt}-B.jsonl`,
+    )
+    printTranscriptPath(reviewerTranscript)
+    const reviewerPrompt = `${reviewerPromptTemplate}
+
+FINDING_JSON=${findingPayload}
+BRANCH_NAME=${branchName}
+ATTEMPT=${attempt}
+${priorReviewerNote ? `PRIOR_REVIEWER_NOTE=${priorReviewerNote}\n` : ''}
+DIFF=
+${diff}
+
+COMMIT_MESSAGES=
+${commitMessages}
+
+TEST_SUMMARY=tests passed (verified by Agent A before commit)
 RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
 
-  const result = await runClaude({
-    prompt,
-    transcriptPath,
-    allowedTools: ['Bash', 'Read', 'Grep', 'Glob', 'Write', 'Edit'],
-  })
-  if (!result.success) {
-    printWarning(`Claude exited ${result.exitCode} on ${formatFingerprint(finding.fingerprint)}`)
+    const bResult = await runClaude({
+      prompt: reviewerPrompt,
+      transcriptPath: reviewerTranscript,
+      // Reviewer has Read for spot-checking, Bash for grep. NO Write/Edit.
+      allowedTools: ['Bash', 'Read'],
+    })
+    if (!bResult.success) {
+      printWarning(`Agent B exited ${bResult.exitCode} on attempt ${attempt}; treating as needs-human`)
+      recordSkipListEntry(skipList, finding, {
+        reason: 'needs-human',
+        reasonNote: `Reviewer (Agent B) crashed on attempt ${attempt}. See transcript ${reviewerTranscript}.`,
+      })
+      return 'invoked-claude'
+    }
+
+    // Parse the reviewer's final text block for the VERDICT line.
+    const reviewerLastText = extractLastAssistantText(reviewerTranscript)
+    const verdict = parseReviewerVerdict(reviewerLastText)
+
+    if (verdict.kind === 'approve') {
+      printNotice(`✅ Reviewer APPROVED on attempt ${attempt}/${MAX_ATTEMPTS}: ${verdict.reasoning.slice(0, 120)}`)
+      pushBranch(branchName)
+      openDeletePR(finding, branchName, verdict.reasoning, extractLastAssistantText(agentATranscript))
+      return 'invoked-claude'
+    }
+
+    if (verdict.kind === 'needs-human') {
+      printWarning(`⚠ Reviewer escalated to NEEDS_HUMAN: ${verdict.note.slice(0, 120)}`)
+      recordSkipListEntry(skipList, finding, {
+        reason: 'needs-human',
+        reasonNote: `Reviewer verdict on attempt ${attempt}: ${verdict.note}`,
+      })
+      return 'invoked-claude'
+    }
+
+    // REJECT — loop with the reviewer's note for Agent A.
+    printNotice(`Reviewer REJECTED on attempt ${attempt}/${MAX_ATTEMPTS}: ${verdict.note.slice(0, 120)}`)
+    priorReviewerNote = verdict.note
+    // continue → next iteration
   }
+
+  // Loop exhausted without convergence.
+  printWarning(`Loop exhausted after ${MAX_ATTEMPTS} attempts — Agent A and reviewer disagreed`)
+  recordSkipListEntry(skipList, finding, {
+    reason: 'needs-human',
+    reasonNote: `Agent A and reviewer didn't converge after ${MAX_ATTEMPTS} attempts. Last reviewer note: ${priorReviewerNote ?? '(none)'}`,
+  })
   return 'invoked-claude'
+}
+
+/**
+ * Push a branch to origin. Failures here are non-fatal — the
+ * commits remain locally; the orchestrator's per-finding budget
+ * absorbs the loss and the next cron retries.
+ */
+function pushBranch(branchName: string): void {
+  try {
+    execFileSync('git', ['push', '-u', 'origin', branchName], {
+      cwd: REPO_ROOT,
+      stdio: 'inherit',
+    })
+  } catch (err) {
+    printWarning(`git push ${branchName} failed: ${err}`)
+  }
+}
+
+/**
+ * Open the delete PR with the reviewer's approve-reasoning + Agent A's
+ * last assistant message as the body. Best-effort; failures non-fatal.
+ */
+function openDeletePR(finding: Finding, branchName: string, reviewerReasoning: string, agentASummary: string): void {
+  const label = formatFingerprint(finding.fingerprint)
+  const body = `## Summary
+
+Knip flagged \`${label}\` as unused. After investigation by Agent A
+and independent review by Agent B (both Claude Code sessions), this
+PR removes it.
+
+## What Agent A checked
+
+${agentASummary || '(no Agent A summary captured)'}
+
+## Reviewer reasoning
+
+${reviewerReasoning || '(no reviewer reasoning captured)'}
+
+## Verification
+
+\`npm test\` passes after removal (verified by Agent A before
+commit; CI re-verifies on this PR).
+
+## What if this is wrong?
+
+Close the PR. The bot's feedback loop will read the close reason
+from your comment and add a skip-list entry so it doesn't re-attempt.
+
+<!-- dead-code-watcher: kind=${finding.fingerprint.kind} path=${finding.fingerprint.path}${finding.fingerprint.symbol ? ` symbol=${finding.fingerprint.symbol}` : ''} run=${process.env.GITHUB_RUN_ID ?? 'local'} -->`
+  try {
+    execFileSync('gh', ['pr', 'create', '--title', `refactor(dead-code): remove unused ${label}`, '--body', body], {
+      cwd: REPO_ROOT,
+      stdio: 'inherit',
+    })
+  } catch (err) {
+    printWarning(`gh pr create failed for ${label}: ${err}`)
+  }
+}
+
+/**
+ * Append a skip-list entry + persist. Used by failure paths where
+ * the bot bails out without going through Agent A's normal SKIP
+ * branch creation.
+ */
+function recordSkipListEntry(
+  skipList: SkipList,
+  finding: Finding,
+  opts: { reason: 'needs-human'; reasonNote: string },
+): void {
+  const added = appendEntry(skipList, {
+    fingerprint: finding.fingerprint,
+    reason: opts.reason,
+    reasonNote: opts.reasonNote,
+    addedAt: new Date().toISOString(),
+    addedBy: 'bot',
+  })
+  if (added) {
+    writeSkipList(SKIP_LIST_ABS, skipList)
+  }
+}
+
+/**
+ * Extract the last assistant text block from a JSONL transcript.
+ * Used to grab Agent A's summary or Agent B's verdict line.
+ *
+ * Returns empty string when no text block exists or the file can't
+ * be read.
+ */
+function extractLastAssistantText(transcriptPath: string): string {
+  try {
+    const lines = readFileSync(transcriptPath, 'utf-8')
+      .split('\n')
+      .filter(l => l.trim().length > 0)
+    let lastText = ''
+    for (const line of lines) {
+      try {
+        const event = JSON.parse(line)
+        if (event.type === 'assistant' && Array.isArray(event.message?.content)) {
+          for (const block of event.message.content) {
+            if (block.type === 'text' && typeof block.text === 'string') {
+              lastText = block.text
+            }
+          }
+        }
+      } catch {
+        // ignore malformed line
+      }
+    }
+    return lastText
+  } catch {
+    return ''
+  }
 }
 
 /**

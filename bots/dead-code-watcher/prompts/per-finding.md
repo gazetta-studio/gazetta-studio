@@ -16,6 +16,23 @@ The orchestrator has already filtered out:
 
 So this finding is genuinely fresh — you are the first to investigate it.
 
+## You are Agent A in a generator-critic loop
+
+A separate Claude session (Agent B, the reviewer) will inspect your
+diff after you finish. If they REJECT with a Note, the orchestrator
+discards your branch, hands you the Note, and asks you to retry.
+The maximum is `MAX_ATTEMPTS` retries before the orchestrator gives
+up and adds a `needs-human` skip-list entry.
+
+This changes one thing about your work: **commit locally but DO NOT
+push or open the PR.** The orchestrator pushes + opens the PR after
+the reviewer approves. Stop after committing.
+
+For SKIP decisions: same as before — write a skip-list entry +
+commit it on a `dead-code-skip/...` branch. The orchestrator pushes
+that one without reviewer involvement (skip decisions are safe by
+construction).
+
 ## Inputs (appended below this prompt)
 
 - `FINDING_JSON` — the finding to investigate. Fields:
@@ -29,6 +46,15 @@ So this finding is genuinely fresh — you are the first to investigate it.
   (`dead-code/<encoded-fingerprint>`). Always use this exact name —
   the orchestrator searches for past PRs by this branch ref.
 - `SKIP_LIST_PATH` — relative path to skip-list.json from repo root
+- `ATTEMPT` — 1 for first attempt, 2-5 for retries after a prior
+  reviewer reject. Always provided.
+- `MAX_ATTEMPTS` — the cap. After this attempt, the orchestrator
+  won't retry. If you're on `ATTEMPT == MAX_ATTEMPTS` and uncertain,
+  prefer SKIP `needs-human` over a risky DELETE.
+- `PRIOR_REVIEWER_NOTE` — present only when `ATTEMPT > 1`. The
+  reviewer's specific feedback from your last attempt. Address it
+  in this retry. If you can't address it without changing scope,
+  switch to SKIP `needs-human` and explain.
 - `RUN_ID` — this watcher's GH Actions run ID (for outcome tags)
 
 ## Decision-log convention
@@ -155,7 +181,7 @@ Instead, switch to the SKIP path with reason `needs-human`:
 > failed so a human can investigate.
 ```
 
-### 3c. Push + open PR
+### 3c. Commit (DO NOT push or open PR)
 
 If tests are green:
 
@@ -174,33 +200,16 @@ Stable for $lastModifiedDays days before removal.
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"
-
-git push -u origin $BRANCH_NAME
-
-gh pr create --title "refactor(dead-code): remove unused $fingerprintLabel" --body "$(cat <<EOF
-## Summary
-
-Knip flagged \`$fingerprintLabel\` as unused. After investigation
-(see below), this PR removes it.
-
-## What I checked
-
-<one short paragraph: dynamic-import grep, public-API check, test
-results, anything else relevant>
-
-## Verification
-
-\`npm test\` passes after removal.
-
-## What if this is wrong?
-
-Close the PR. The bot's feedback loop will read the close reason
-from your comment and add a skip-list entry so it doesn't re-attempt.
-
-<!-- dead-code-watcher: kind=$kind path=$path symbol=$symbol run=$RUN_ID -->
-EOF
-)"
 ```
+
+**STOP HERE.** Do NOT `git push`. Do NOT `gh pr create`. The
+reviewer (Agent B) inspects your diff next; the orchestrator pushes
++ opens the PR only after the reviewer approves.
+
+If your last assistant message gives a clear summary (one paragraph:
+what you removed, what you checked, why you're confident), the
+orchestrator includes it in the PR body. So spend your last 5-10
+seconds writing a clear one-paragraph rationale BEFORE you finish.
 
 ### 4. SKIP path — add a skip-list entry
 
