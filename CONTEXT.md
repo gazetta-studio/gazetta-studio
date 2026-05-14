@@ -171,6 +171,32 @@ _Avoid_: Localize (means roughly the same; pick one — Translate is the canonic
 A single per-width entry in an image Asset's `variants` array — the responsive `srcset` ladder. Implemented as `AssetVariant` in code. Distinct from Locale Variant — same word in conversation only, qualified by context. Always say "Responsive Variant" when ambiguity is possible.
 _Avoid_: Variant (bare — qualify with Responsive or Locale), Width Variant, Asset Variant (in domain conversation; type name kept in code for stability).
 
+### Soft delete and redirects
+
+**Archive** (verb + state):
+The operation of transitioning a Page or Fragment from live to a non-live state without removing the manifest. Sets `archived: true` on the manifest along with `archivedAt` and `archivedBy` snapshots. Archived items remain readable via admin (read-only), keep their reverse-dep sidecars (asset-refs, fragment-deps), and survive restore. Recoverable via Restore; permanently removable via Purge. Replaces the prior hard-delete semantics. Per [`design-soft-delete.md`](.claude/rules/design-soft-delete.md).
+_Avoid_: Delete (hard-deletion is now an explicit operator action via Purge; "Delete" by itself in domain conversation defaults to Archive), Trash (Webflow/WordPress vocabulary; Gazetta uses Archive).
+
+**Alias** (data field):
+The `aliasOf` field on an Archive's manifest, pointing at the name of a live target Page or Fragment. Aliases are flattened on rename (`design-soft-delete.md` Q3 lock) — chains collapse to depth-1; multi-hop aliases are forbidden permanently. Drives the Redirect mechanism.
+_Avoid_: Symlink (filesystem metaphor; Aliases are content-tree state, not filesystem state), Reference (collides with the in-content Reference / Usage distinction).
+
+**Redirect**:
+A Page or Fragment whose manifest carries `archived: true` AND a non-empty `aliasOf` pointing at a live target. The Worker (or `_redirects` host-glue for plain-static targets) emits `301 Moved Permanently` from the source URL to the alias target's route. Distinguished from a **Pure Soft-Delete** (archived without `aliasOf` — emits `410 Gone`).
+
+A Redirect originates from one of two operations:
+- **Rename Redirect** — composed during the rename operation; the archived old name carries `aliasOf` pointing at the new name (per `design-soft-delete.md` Q3 flatten lock).
+- **Manual Redirect** — created standalone via the admin's redirect creation UI; no preceding content at the source name.
+
+Both produce the same on-disk shape and the same HTTP response. The distinction matters for forensic queries (per `design-audit.md`) and UX entry points.
+
+v1 ships 301 redirects only, depth-1 (no chains; flattened on rename). Status codes beyond 301, time-bounded redirects, and scheduled activation/expiry are reserved per [`design-redirects.md`](.claude/rules/design-redirects.md) "Future surfaces" + `design-scheduling.md`'s `redirect-activate` / `redirect-expire` actions.
+_Avoid_: URL Rewrite (different mechanism — Gazetta does not own URL rewriting), HTTP Redirect (too generic; "Redirect" in domain language always means the Gazetta primitive defined above).
+
+**Pure Soft-Delete**:
+An Archive without an `aliasOf` field. Emits `410 Gone` (not `404 Not Found`) at the source URL — search-engine semantics: 410 tells crawlers the URL is permanently retired (drop from index), 404 implies "may come back" (keep in crawl queue). Same HTML marker mechanism as Redirect, different marker grammar (`<!-- gazetta:archived gone -->`).
+_Avoid_: Hard Delete (Purge is the hard-delete operation), Removed (too generic).
+
 ### Composition and resolution
 
 **Compose** (verb):

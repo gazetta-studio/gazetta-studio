@@ -30,7 +30,7 @@ Reduce time-to-first-deploy for new operators. Closes the bulk of the deploy-ada
 
 ### Manual redirect creation in admin (1 week)
 
-[#364](https://github.com/gazetta-studio/gazetta-studio/issues/364). Soft-delete's HTML markers + `_redirects` host-glue already support redirect-without-archive; needs admin UI affordance for from-route + to-route creation. 301 only (per `design-soft-delete.md` Q14 lock); temporary/scheduled redirects compose with the scheduling primitive. Design grilling pending (API shape, UI surface, domain noun) before implementation.
+[#364](https://github.com/gazetta-studio/gazetta-studio/issues/364). Design pass complete 2026-05-14; see [`design-redirect-ui.md`](.claude/rules/design-redirect-ui.md) + [`design-redirect-ui-implementation.md`](.claude/rules/design-redirect-ui-implementation.md). Implementation pending in [#364](https://github.com/gazetta-studio/gazetta-studio/issues/364) (7 cuts: schema refinement, audit enum, route, dialog + tree button, conflict UX, capability-gap, e2e + docs).
 
 ### Creation UX design pass
 
