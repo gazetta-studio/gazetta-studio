@@ -164,6 +164,86 @@ function detectProjectRoot(siteDir: string): string {
   return siteDir
 }
 
+/**
+ * Resolve the siteDir for any CLI command by extracting the site
+ * positional from the parsed args per the command's documented
+ * positional layout. Pure fs walk; no config eval — safe to call
+ * before env-load.
+ *
+ * Single dispatch table so env-load happens exactly once at the top
+ * of `main()`, before any config-eval can read process.env.
+ */
+async function resolveSiteDirForCommand(cmd: string, parsed: { positional: readonly string[] }): Promise<string> {
+  // Commands whose site positional sits at a fixed index.
+  if (cmd === 'build') return resolveSiteDir(parsed.positional[0])
+  if (cmd === 'dev' || cmd === 'validate' || cmd === 'admin') return resolveSiteDir(parsed.positional[0])
+
+  // `rollback <rev> [target|site] [site]`: site is positional[1] when
+  // site-shaped, else positional[2].
+  if (cmd === 'rollback') {
+    const second = parsed.positional[1]
+    const third = parsed.positional[2]
+    const secondIsSite = second && (second.includes('/') || hasSiteConfig(resolve(second)))
+    return resolveSiteDir(secondIsSite ? second : third)
+  }
+
+  // `publish|serve|deploy|history|undo [target|site] [site]`: site is
+  // positional[0] when site-shaped, else positional[1].
+  if (cmd === 'publish' || cmd === 'serve' || cmd === 'deploy' || cmd === 'history' || cmd === 'undo') {
+    const first = parsed.positional[0]
+    const firstIsSite = first && (first.includes('/') || hasSiteConfig(resolve(first)))
+    return resolveSiteDir(firstIsSite ? first : parsed.positional[1])
+  }
+
+  // `translate <item> --to <locale> [target]` — no explicit site arg.
+  if (cmd === 'translate') return resolveSiteDir(undefined)
+
+  // `assets <subcmd> [args...] [target] [site]`: layout differs by subcmd.
+  if (cmd === 'assets') {
+    const subcmd = parsed.positional[0]
+    const sitePositional = subcmd === 'info' ? parsed.positional[3] : parsed.positional[2]
+    return resolveSiteDir(sitePositional)
+  }
+
+  // `archive <subcmd> [args...] [target] [site]`: site at trailingStart+1.
+  if (cmd === 'archive') {
+    const subcmd = parsed.positional[0]
+    const requiredArgs = subcmd === 'rename' ? 2 : subcmd === 'purge' || subcmd === 'restore' ? 1 : 0
+    return resolveSiteDir(parsed.positional[1 + requiredArgs + 1])
+  }
+
+  // Unknown command → auto-detect (main's switch will reject with a
+  // clear "Unknown command" error after env-load runs).
+  return resolveSiteDir(undefined)
+}
+
+/**
+ * Load `.env` + `.env.local` from project root and site dir, in that
+ * order, so per-site secrets override project-wide defaults. Must run
+ * BEFORE the first config-eval (the site's storage / deploy / etc.
+ * factories read `process.env` synchronously at construction). Skipped
+ * in CI — CI runners inject env directly.
+ *
+ * Per Q1 of CLI env-loading discipline: site-local `.env` is honored
+ * (gazetta.studio has its own `.env` with R2/Cloudflare creds; this
+ * function ensures factories see them at config-eval time).
+ */
+function loadEnvFiles(siteDir: string): void {
+  if (process.env.CI) return
+  const projectRoot = detectProjectRoot(siteDir)
+  const envDirs = projectRoot !== siteDir ? [projectRoot, siteDir] : [siteDir]
+  for (const dir of envDirs) {
+    for (const name of ['.env', '.env.local']) {
+      const envPath = join(dir, name)
+      if (!existsSync(envPath)) continue
+      for (const line of readFileSync(envPath, 'utf-8').split('\n')) {
+        const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/)
+        if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '')
+      }
+    }
+  }
+}
+
 function printHelp() {
   console.log(`
   gazetta - Stateless CMS for composable websites
@@ -2253,13 +2333,24 @@ async function main() {
   if (command === 'init') {
     await runInit(parsed.positional[0] ?? '.')
     return
-  } else if (command === 'build') {
-    const siteDir = await resolveSiteDir(parsed.positional[0])
+  }
+
+  // ── Resolve siteDir once (fs walk; no config eval) + load .env
+  // ── BEFORE any config-eval. Storage / deploy / AI factories read
+  // ── process.env synchronously at construction; resolveTarget()
+  // ── triggers config-eval, so env must be in place first. Per-
+  // ── command positional layouts determine which slot carries the
+  // ── site path. Site-local `.env` is honored (e.g.,
+  // ── sites/gazetta.studio/.env with R2 creds) per design-config.md.
+  siteDir = await resolveSiteDirForCommand(command, parsed)
+  loadEnvFiles(siteDir)
+
+  if (command === 'build') {
     await runBuild(siteDir)
     return
   } else if (command === 'rollback') {
     // gazetta rollback <rev> [target] [site]
-    const [rev, second, third] = parsed.positional
+    const [rev, second] = parsed.positional
     if (!rev || !rev.startsWith('rev-')) {
       console.error(
         `\n  Error: rollback requires a revision id as the first argument (e.g. gazetta rollback rev-1776337441608 [target])\n`,
@@ -2269,54 +2360,26 @@ async function main() {
     }
     rollbackRevisionId = rev
     const secondIsSite = second && (second.includes('/') || hasSiteConfig(resolve(second)))
-    if (secondIsSite) {
-      siteDir = await resolveSiteDir(second)
-      targetName = await resolveTarget(undefined, siteDir)
-    } else {
-      siteDir = await resolveSiteDir(third)
-      targetName = await resolveTarget(second, siteDir)
-    }
+    targetName = secondIsSite ? await resolveTarget(undefined, siteDir) : await resolveTarget(second, siteDir)
   } else if (targetFirstCommands.has(command)) {
     // gazetta publish [target] [site]
-    const [first, second] = parsed.positional
-    // If first arg looks like a site path (contains / or has site.config.ts), it's the site
+    const [first] = parsed.positional
     const firstIsSite = first && (first.includes('/') || hasSiteConfig(resolve(first)))
-    if (firstIsSite) {
-      siteDir = await resolveSiteDir(first)
-      targetName = await resolveTarget(undefined, siteDir)
-    } else {
-      siteDir = await resolveSiteDir(second)
-      targetName = await resolveTarget(first, siteDir)
-    }
+    targetName = firstIsSite ? await resolveTarget(undefined, siteDir) : await resolveTarget(first, siteDir)
   } else if (siteOnlyCommands.has(command)) {
-    siteDir = await resolveSiteDir(parsed.positional[0])
+    // siteDir set up front; nothing more needed.
   } else if (command === 'translate') {
     // gazetta translate <item> --to <locale> [target]
-    // positional args after the item are the optional target name
-    siteDir = await resolveSiteDir(undefined)
-    // Find the target arg — skip the item (pages/... or fragments/...) and --to/locale flags
     const translatePositionals = parsed.positional.filter(p => !p.startsWith('pages/') && !p.startsWith('fragments/'))
     if (translatePositionals.length > 0) targetName = translatePositionals[0]
   } else if (command === 'assets') {
     // gazetta assets <subcommand> [args...] [target] [site]
-    //
-    // Subcommand layouts:
     //   assets list [target] [site]        → subcmd, target, site
     //   assets info <name> [target] [site] → subcmd, name, target, site
     //   assets reindex [target] [site]     → subcmd, target, site
-    //
-    // The dispatcher in the assets-cli module reads the asset name
-    // from its `args` slice; here we resolve target/site by checking
-    // the positional layout.
     const subcmd = parsed.positional[0]
-    if (subcmd === 'info') {
-      // info has an extra positional (the asset name) before target/site.
-      siteDir = await resolveSiteDir(parsed.positional[3])
-      targetName = parsed.positional[2] ? await resolveTarget(parsed.positional[2], siteDir) : undefined
-    } else {
-      siteDir = await resolveSiteDir(parsed.positional[2])
-      targetName = parsed.positional[1] ? await resolveTarget(parsed.positional[1], siteDir) : undefined
-    }
+    const targetArg = subcmd === 'info' ? parsed.positional[2] : parsed.positional[1]
+    targetName = targetArg ? await resolveTarget(targetArg, siteDir) : undefined
   } else if (command === 'archive') {
     // gazetta archive <subcommand> [args...]
     //
@@ -2337,31 +2400,12 @@ async function main() {
     const requiredArgs = subcmd === 'rename' ? 2 : subcmd === 'purge' || subcmd === 'restore' ? 1 : 0
     const trailingStart = 1 + requiredArgs
     const targetArg = parsed.positional[trailingStart]
-    const siteArg = parsed.positional[trailingStart + 1]
-    siteDir = await resolveSiteDir(siteArg)
     targetName = targetArg ? await resolveTarget(targetArg, siteDir) : undefined
   } else {
     console.error(`  Unknown command: ${command}\n`)
     printHelp()
     process.exit(1)
     return
-  }
-
-  // Load .env from project root and site dir (skipped in CI)
-  if (!process.env.CI) {
-    const projectRoot = detectProjectRoot(siteDir)
-    const envDirs = projectRoot !== siteDir ? [projectRoot, siteDir] : [siteDir]
-    for (const dir of envDirs) {
-      for (const name of ['.env', '.env.local']) {
-        const envPath = join(dir, name)
-        if (existsSync(envPath)) {
-          for (const line of readFileSync(envPath, 'utf-8').split('\n')) {
-            const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/)
-            if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '')
-          }
-        }
-      }
-    }
   }
 
   switch (command) {
