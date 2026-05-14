@@ -16,6 +16,19 @@ on:
     - cron: '30 2 * * 6'
   workflow_dispatch:
     # Manual trigger for testing or backfill after prompt iteration.
+    inputs:
+      min_stable_days:
+        description: 'Override MIN_STABLE_DAYS (default 30). Lower values let the bot act on more recent findings.'
+        required: false
+        default: '30'
+      max_attempts:
+        description: 'Override MAX_ATTEMPTS for the reviewer loop (default 5).'
+        required: false
+        default: '5'
+      per_run_finding_cap:
+        description: 'Override PER_RUN_FINDING_CAP (default 5).'
+        required: false
+        default: '5'
 
 jobs:
   watch:
@@ -62,6 +75,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}
+          # Optional overrides via workflow_dispatch inputs. Cron runs
+          # use the orchestrator's defaults; manual dispatch can lower
+          # MIN_STABLE_DAYS for testing against younger findings, etc.
+          MIN_STABLE_DAYS: ${{ inputs.min_stable_days || '30' }}
+          MAX_ATTEMPTS: ${{ inputs.max_attempts || '5' }}
+          PER_RUN_FINDING_CAP: ${{ inputs.per_run_finding_cap || '5' }}
         run: npm run dead-code-watcher -w @gazetta/bots
 
       - name: Upload transcripts
