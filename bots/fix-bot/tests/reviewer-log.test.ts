@@ -2,7 +2,13 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { appendReviewerLog, readReviewerLog, type ReviewerLogEntry, tailReviewerLog } from '../reviewer-log.js'
+import {
+  appendReviewerLog,
+  pruneReviewerLog,
+  readReviewerLog,
+  type ReviewerLogEntry,
+  tailReviewerLog,
+} from '../reviewer-log.js'
 
 let dir: string
 let logPath: string
@@ -64,5 +70,29 @@ describe('tailReviewerLog (fix-bot)', () => {
   it('returns last N entries', () => {
     for (let i = 1; i <= 10; i++) appendReviewerLog(logPath, entry({ attempt: i }))
     expect(tailReviewerLog(logPath, 3).map(e => e.attempt)).toEqual([8, 9, 10])
+  })
+})
+
+describe('pruneReviewerLog (fix-bot)', () => {
+  it('truncates to the last N entries', () => {
+    for (let i = 1; i <= 10; i++) appendReviewerLog(logPath, entry({ attempt: i }))
+    expect(pruneReviewerLog(logPath, 3)).toEqual({ dropped: 7, kept: 3 })
+    expect(readReviewerLog(logPath).map(e => e.attempt)).toEqual([8, 9, 10])
+  })
+
+  it('is a no-op when under threshold', () => {
+    for (let i = 1; i <= 3; i++) appendReviewerLog(logPath, entry({ attempt: i }))
+    expect(pruneReviewerLog(logPath, 100)).toEqual({ dropped: 0, kept: 3 })
+  })
+
+  it('handles missing file', () => {
+    expect(pruneReviewerLog(resolve(dir, 'missing.jsonl'), 10)).toEqual({ dropped: 0, kept: 0 })
+  })
+
+  it('subsequent append continues correctly after prune', () => {
+    for (let i = 1; i <= 5; i++) appendReviewerLog(logPath, entry({ attempt: i }))
+    pruneReviewerLog(logPath, 2)
+    appendReviewerLog(logPath, entry({ attempt: 99 }))
+    expect(readReviewerLog(logPath).map(e => e.attempt)).toEqual([4, 5, 99])
   })
 })

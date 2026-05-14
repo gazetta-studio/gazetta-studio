@@ -137,17 +137,22 @@ ability to push code or modify the diff. Verdict line format
 `Note:` is parsed by the orchestrator.
 
 **Durable memory pattern.** Two bots have cross-run memory:
-dead-code-watcher and fix-bot. Each has its own per-bot skip-list
-file in JSON; the pattern is the same shape, the fingerprint type
-differs.
+dead-code-watcher and fix-bot. Each has three memory surfaces, each
+with its own persistence model:
 
-  - `bots/dead-code-watcher/skip-list.json` — durable "don't try
-    this finding again" decisions keyed by knip fingerprint.
-    Compaction generalizes 3+ entries into one glob-scoped rule.
-  - `bots/fix-bot/skip-list.json` — durable "don't try this issue
-    again" decisions keyed by GitHub issue number. Rules use label
-    or title-regex scope. Compaction here is different from
-    dead-code-watcher's — see lessons-learned below.
+  - **`skip-list.json`** (per-bot, committed to repo) — durable
+    "don't try this again" decisions. dead-code-watcher's is keyed
+    by knip fingerprint; fix-bot's by GitHub issue number.
+    Persists via PR + merge to main; the bot reads on checkout.
+  - **`lessons-learned.md`** (per-bot, committed to repo) — distilled
+    cross-finding/cross-issue patterns. Loaded into Agent A's prompt
+    every run. The monthly compactor rewrites holistically;
+    persists via PR + merge to main.
+  - **`reviewer-log.jsonl`** (per-bot, **NOT** committed) — every
+    Agent B verdict (APPROVE / REJECT / NEEDS_HUMAN) appended by the
+    daily bot. The raw input the compactor reads to produce
+    lessons-learned. Persists via `actions/cache@v4` keyed
+    `{bot}-reviewer-log-v1` — see "Reviewer-log persistence" below.
 
 Each memoryful bot also has a Past-PR feedback loop (e.g. `bots/dead-code-watcher/past-pr.ts`):
 before investigating, the bot checks if there's a recent PR for
@@ -157,17 +162,55 @@ issue should be gone). Mining happens inside Agent A's flow on
 retry attempts, not in the orchestrator's pre-pass.
 
 **Compaction differs per bot.**
-  - **dead-code-watcher's compactor** generalizes 3+ skip-list
-    entries sharing a pattern into one glob-scoped rule. The
-    skip-list shrinks AND becomes more powerful.
-  - **fix-bot's compactor** rewrites `bots/fix-bot/lessons-learned.md`
-    from cross-issue patterns. The skip-list stays per-issue
-    (most rejections are per-issue-unique); the lessons-learned
-    doc is loaded into Agent A's prompt every run and accumulates
-    the bot's understanding of recurring failure modes.
+  - **dead-code-watcher's compactor** does two things in one PR:
+    generalizes 3+ skip-list entries sharing a pattern into one
+    glob-scoped rule (skip-list shrinks AND becomes more powerful),
+    AND rewrites lessons-learned.md from cross-finding patterns
+    in the reviewer-log.
+  - **fix-bot's compactor** rewrites lessons-learned.md from both
+    skip-list patterns AND reviewer-log patterns. The skip-list
+    stays per-issue (most rejections are per-issue-unique).
+
+Both compactors also **prune the reviewer-log** to a bounded window
+(default 200 most-recent entries) after Claude succeeds — the
+compactor IS the memory-trimmer for that surface, keeping the cached
+file size bounded across many months of runs.
 
 Both run in the same `bots-compact.yml` workflow (one job per bot)
 on the first Saturday of each month.
+
+### Reviewer-log persistence
+
+The reviewer-log is operational signal, not the forensic record
+(audit log + transcripts artifact serve that purpose). It persists
+via `actions/cache@v4` between runs:
+
+  - **Cache key:** `{bot-name}-reviewer-log-v1`. Bump the suffix
+    if the JSONL schema changes incompatibly.
+  - **Cache path:** `bots/{bot-name}/reviewer-log.jsonl`.
+  - **Workflows that touch it:** `dead-code-watcher.yml`,
+    `fix-bot.yml` (both write), and the corresponding jobs in
+    `bots-compact.yml` (both write — they prune after producing
+    the lessons rewrite).
+  - **Eviction:** GH Actions caches evict after 7 days from last
+    access. Every daily cron touches the cache → effectively
+    permanent under daily-bot cadence. A 7+ day bot outage = log
+    gone; recovery is a fresh start (lessons-learned.md remains in
+    the repo).
+
+**Single-instance invariant.** Two workflows of the same bot must
+never run concurrently — they'd race on the cache and lose entries.
+Enforced by workflow-level `concurrency:` groups with literal
+names matching across `{bot}.yml` and the corresponding job in
+`bots-compact.yml`:
+
+```yaml
+concurrency:
+  group: dead-code-watcher    # or 'fix-bot'
+  cancel-in-progress: false   # queue, don't cancel in-flight work
+```
+
+See ADR-0011 for the full design rationale.
 
 ### Pipeline shape (label-driven)
 

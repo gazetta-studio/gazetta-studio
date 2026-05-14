@@ -18,9 +18,9 @@ on:
     # Manual trigger for testing or backfill after prompt iteration.
     inputs:
       min_stable_days:
-        description: 'Override MIN_STABLE_DAYS (default 30). Lower values let the bot act on more recent findings.'
+        description: 'Override MIN_STABLE_DAYS (default 14). Lower values let the bot act on more recent findings.'
         required: false
-        default: '30'
+        default: '14'
       max_attempts:
         description: 'Override MAX_ATTEMPTS for the reviewer loop (default 5).'
         required: false
@@ -29,6 +29,18 @@ on:
         description: 'Override PER_RUN_FINDING_CAP (default 5).'
         required: false
         default: '5'
+
+# Single-instance invariant for cache safety. The bot appends to a
+# cached reviewer-log.jsonl; two concurrent runs would race on the
+# cache (last-writer-wins would lose entries). `cancel-in-progress:
+# false` queues the second invocation until the first completes —
+# never kills in-flight work. The group name is the literal
+# 'dead-code-watcher' (not ${{ github.workflow }}) so the monthly
+# compactor's matching job in bots-compact.yml shares the same
+# concurrency group across workflows.
+concurrency:
+  group: dead-code-watcher
+  cancel-in-progress: false
 
 jobs:
   watch:
@@ -69,16 +81,30 @@ jobs:
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
 
+      # Restore the reviewer-log from cache. The bot appends Agent B
+      # verdicts here on every loop iteration; the cache keeps the file
+      # across runs so the monthly compactor has cross-run signal to
+      # work with. See bots/README.md "Reviewer-log persistence" for
+      # the design. Cache miss is fine — tailReviewerLog returns [].
+      # Bump the -v1 suffix if the JSONL schema ever changes.
+      - name: Restore reviewer-log cache
+        uses: actions/cache@v4
+        with:
+          path: bots/dead-code-watcher/reviewer-log.jsonl
+          key: dead-code-watcher-reviewer-log-v1
+
       - name: Run dead-code-watcher
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}
-          # Optional overrides via workflow_dispatch inputs. Cron runs
-          # use the orchestrator's defaults; manual dispatch can lower
-          # MIN_STABLE_DAYS for testing against younger findings, etc.
-          MIN_STABLE_DAYS: ${{ inputs.min_stable_days || '30' }}
+          # Optional overrides via workflow_dispatch inputs. The fallback
+          # literals here MUST match the TypeScript defaults in
+          # bots/dead-code-watcher/index.ts — when manual dispatch
+          # provides no value, GH Actions evaluates `inputs.X` to ''
+          # and the `||` selects the literal.
+          MIN_STABLE_DAYS: ${{ inputs.min_stable_days || '14' }}
           MAX_ATTEMPTS: ${{ inputs.max_attempts || '5' }}
           PER_RUN_FINDING_CAP: ${{ inputs.per_run_finding_cap || '5' }}
         run: npm run dead-code-watcher -w @gazetta/bots

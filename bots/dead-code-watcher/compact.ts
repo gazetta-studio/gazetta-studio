@@ -33,7 +33,7 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
-import { REVIEWER_LOG_PATH, tailReviewerLog } from './reviewer-log.js'
+import { pruneReviewerLog, REVIEWER_LOG_PATH, tailReviewerLog } from './reviewer-log.js'
 import { readSkipList, SKIP_LIST_PATH } from './skip-list.js'
 import { printBanner, printNotice, printRunSummary, printTranscriptPath, printWarning } from '../_lib/ui.js'
 
@@ -64,10 +64,18 @@ const MIN_REVIEWER_LOG_FOR_LESSONS = Number(process.env.MIN_REVIEWER_LOG_FOR_LES
 
 /**
  * How many recent reviewer-log entries the compactor reads. Older
- * entries stay on disk for git-blame archaeology but don't inform
- * lessons — they may reflect outdated patterns.
+ * entries don't inform lessons — they may reflect outdated patterns.
  */
 const REVIEWER_LOG_WINDOW = Number(process.env.REVIEWER_LOG_WINDOW ?? '100')
+
+/**
+ * How many entries the compactor keeps in the file after pruning.
+ * Set to 2× the read window so the next monthly run has headroom
+ * for new appends without losing recent-but-not-most-recent context.
+ * Older entries are dropped — the compactor IS the memory-trimmer
+ * for this surface.
+ */
+const REVIEWER_LOG_KEEP_LAST = Number(process.env.REVIEWER_LOG_KEEP_LAST ?? '200')
 
 async function main(): Promise<void> {
   printBanner({
@@ -143,6 +151,7 @@ PREVIOUS_LESSONS=
 ${lessonsContent}
 RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
 
+  let claudeSucceeded = false
   try {
     const result = await runClaude({
       prompt,
@@ -151,9 +160,29 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     })
     if (!result.success) {
       printWarning(`Claude exited ${result.exitCode}; transcript at ${transcriptPath}`)
+    } else {
+      claudeSucceeded = true
     }
   } catch (err) {
     printWarning(`compact threw: ${err}; transcript at ${transcriptPath}`)
+  }
+
+  // Prune the reviewer-log to a bounded window AFTER Claude succeeds.
+  // If Claude failed mid-run, the lessons rewrite may not have landed
+  // — keep the full log so next month's run has the same input to
+  // try again with. Pruning on success keeps the cached file from
+  // growing unbounded across many months of runs.
+  const pruneNotes: string[] = []
+  if (claudeSucceeded) {
+    const { dropped, kept } = pruneReviewerLog(REVIEWER_LOG_ABS, REVIEWER_LOG_KEEP_LAST)
+    if (dropped > 0) {
+      printNotice(`Pruned reviewer-log: dropped ${dropped} old entries, kept ${kept} most-recent`)
+      pruneNotes.push(`Pruned reviewer-log: ${dropped} dropped, ${kept} kept`)
+    } else {
+      printNotice(`Reviewer-log under prune threshold (${kept}/${REVIEWER_LOG_KEEP_LAST}) — no entries dropped`)
+    }
+  } else {
+    printNotice("Claude did not succeed — skipping reviewer-log prune to preserve next month's input")
   }
 
   const totalSec = Math.round((Date.now() - runStart) / 1000)
@@ -162,7 +191,7 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     processed: 1,
     total: 1,
     skipped: 0,
-    notes: [`Transcript: ${transcriptPath}`],
+    notes: [`Transcript: ${transcriptPath}`, ...pruneNotes],
     elapsedSec: totalSec,
   })
 }

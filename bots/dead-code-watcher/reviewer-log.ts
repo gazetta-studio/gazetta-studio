@@ -18,7 +18,7 @@
  * a few lines duplicated; the duplication is cheap and the memory
  * boundary is the load-bearing constraint.
  */
-import { appendFileSync, existsSync, readFileSync } from 'node:fs'
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import type { Fingerprint } from './skip-list.js'
 
 export interface ReviewerLogEntry {
@@ -64,6 +64,26 @@ export function readReviewerLog(absolutePath: string): ReviewerLogEntry[] {
 /** Return the most recent N entries. Used by the compactor to bound input size. */
 export function tailReviewerLog(absolutePath: string, n: number): ReviewerLogEntry[] {
   return readReviewerLog(absolutePath).slice(-n)
+}
+
+/**
+ * Truncate the file to the last `keepLast` entries — the compactor
+ * calls this AFTER producing its lessons-learned rewrite, so the
+ * cached file stays bounded and the daily bot's next append doesn't
+ * inflate it indefinitely. Old entries are intentionally dropped:
+ * git history would have been the long-term archive but we chose
+ * cache-based persistence (per ADR-0011); a future artifact-upload
+ * path can preserve raw history if needed.
+ *
+ * Returns the number of entries dropped (for the compactor's summary
+ * banner).
+ */
+export function pruneReviewerLog(absolutePath: string, keepLast: number): { dropped: number; kept: number } {
+  const all = readReviewerLog(absolutePath)
+  if (all.length <= keepLast) return { dropped: 0, kept: all.length }
+  const kept = all.slice(-keepLast)
+  writeFileSync(absolutePath, `${kept.map(e => JSON.stringify(e)).join('\n')}\n`)
+  return { dropped: all.length - keepLast, kept: kept.length }
 }
 
 export const REVIEWER_LOG_PATH = 'bots/dead-code-watcher/reviewer-log.jsonl'
