@@ -90,7 +90,7 @@ GITHUB_REPOSITORY=gazetta-studio/gazetta-studio GH_TOKEN=$(gh auth token) \
 |---|---|---|---|---|
 | `flake-watcher` | Daily 02:00 UTC + workflow_dispatch | CI events (run_attempt >= 2) — not labels | New issue with `bug` + `flake` + `area: X` + `ready-for-agent` (+ `recurring-flake` when applicable) | **Producer** — self-classifies, bypasses triage |
 | `mutation-watcher` | `workflow_run` on Mutation completion + workflow_dispatch | Latest Mutation artifact — not labels | New issue with `bug` + `area: X` + `ready-for-agent` per source file with surviving mutants | **Producer** — self-classifies, bypasses triage |
-| `dead-code-watcher` | Weekly Sat 02:30 UTC + workflow_dispatch | knip JSON output (files, exports, types, deps) — not labels; ≥30-day stable filter | Delete-PR per safe finding (full pipeline, NOT delegated to fix-bot) OR skip-list-entry PR | **Producer** — autonomous fixer with durable memory |
+| `dead-code-watcher` | Weekly Sat 02:30 UTC + workflow_dispatch | knip JSON output (files, exports, types, deps) — not labels; ≥30-day stable filter | Delete-PR per safe finding (full pipeline, NOT delegated to fix-bot) OR skip-list-entry PR | **Producer** — autonomous fixer with durable memory + generator-critic reviewer loop |
 | `dead-code-watcher:compact` | Monthly 1st Sat 03:00 UTC + workflow_dispatch | bots/dead-code-watcher/skip-list.json | PR generalizing 3+ entries into 1 rule (memory compaction) | Memory compactor |
 | `triage-bot` | Daily 03:00 UTC + workflow_dispatch | Open issue lacking all of `bug`, `enhancement`, `triage-uncertain`, `ready-for-agent`, `ready-for-human`, `wontfix`, `needs-info` | One of `bug` / `enhancement` / `triage-uncertain` + `area: X`. Reproducible bug also gets `ready-for-agent`. | Classifier |
 | `discovery-prep-bot` | Daily 04:00 UTC + workflow_dispatch | `enhancement` AND lacks all of `ready-for-human`, `ready-for-agent`, `wontfix`, `needs-info` | Research comment + `ready-for-human` label | Researcher |
@@ -111,6 +111,24 @@ producer: it files PRs directly, no fix-bot involvement. The
 difference is whether the bot can complete the loop end-to-end.
 Dead-code-watcher can because deletion's "test" is "existing tests
 pass" — fix-bot's TDD-first contract doesn't compose with deletion.
+
+**Generator-critic loop pattern.** Dead-code-watcher is the first bot
+with two Claude agents in series. Agent A (cleanup) investigates and
+makes changes locally; Agent B (reviewer) inspects the diff fresh —
+no shared transcript — and votes APPROVE / REJECT / NEEDS_HUMAN.
+On REJECT, the orchestrator resets the working tree and re-runs
+Agent A with the reviewer's specific note. Up to `MAX_ATTEMPTS`
+iterations (default 5, configurable) before the bot gives up and
+records `needs-human` in the skip-list.
+
+The reviewer catches failure modes the test-suite gate can't:
+hidden public-API surfaces (JSDoc `@public` markers), accidental
+refactors disguised as deletions, misleading commit messages, and
+architecturally-questionable deletions (extension points,
+documented contracts). Reviewer has `Bash` + `Read` only — no
+ability to push code or modify the diff. Verdict line format
+`VERDICT: APPROVE|REJECT|NEEDS_HUMAN` followed by `Reasoning:` or
+`Note:` is parsed by the orchestrator.
 
 **Durable memory pattern.** Dead-code-watcher is the first bot with
 cross-run memory. Two layers:
