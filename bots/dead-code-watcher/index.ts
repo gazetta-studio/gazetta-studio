@@ -344,7 +344,13 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     if (skipBranchHasCommits) {
       printNotice('Agent A chose SKIP — pushing skip-list-entry PR (no reviewer needed)')
       pushBranch(skipBranch)
-      // The branch is already committed by Agent A; nothing more to do.
+      // Agent A committed the skip-list entry locally on `skipBranch`
+      // and stopped. The orchestrator opens the draft PR — Agent A's
+      // prompt instructs it to STOP after the commit (symmetric with
+      // the DELETE path) so the bot doesn't run terminal `gh pr create`
+      // mid-loop and create surprise output. We open the PR here.
+      const commitMessages = captureCommitMessages(skipBranch, { cwd: REPO_ROOT })
+      openAgentASkipPR(finding, skipBranch, commitMessages)
       return 'invoked-claude'
     }
 
@@ -506,6 +512,79 @@ from your comment and add a skip-list entry so it doesn't re-attempt.
     })
   } catch (err) {
     printWarning(`gh pr create failed for ${label}: ${err}`)
+  }
+}
+
+/**
+ * Open a draft PR for Agent A's SKIP-path branch. Agent A has already
+ * committed the skip-list entry locally; the orchestrator pushes the
+ * branch (above) and opens the PR here.
+ *
+ * Distinct from `openSkipListPR` further down — that one builds an
+ * entry from a maintainer rejection. THIS one wraps Agent A's
+ * already-authored commit, mining the commit message for the SKIP
+ * reason + rationale.
+ *
+ * Sent as draft so the maintainer doesn't get pinged for urgent
+ * review; the goal is just to land the skip-list entry on main so
+ * future runs honor it. Best-effort; failures are non-fatal (the
+ * branch stays around for manual recovery).
+ *
+ * History: shipped 2026-05-14 after observing run 25864744962 push
+ * a `dead-code-skip/...` branch but never open the PR — the prompt
+ * had asked Agent A to do `gh pr create` itself, but the DELETE-path
+ * "STOP HERE" instruction confused Agent A into stopping early.
+ * Moving PR creation to the orchestrator makes the SKIP path
+ * symmetric with the DELETE path.
+ */
+function openAgentASkipPR(finding: Finding, skipBranch: string, agentACommitMessages: string): void {
+  const label = formatFingerprint(finding.fingerprint)
+  // First non-blank line is the conventional-commits header, e.g.
+  // "chore(skip-list): record planned-feature for ...". Mine the
+  // reason category from it for the PR title.
+  const firstLine = agentACommitMessages.split('\n').find(l => l.trim().length > 0) ?? ''
+  const reasonMatch = firstLine.match(/record (\w[\w-]*) for/)
+  const reason = reasonMatch?.[1] ?? 'bot-decided'
+  const body = `## Summary
+
+Knip flagged \`${label}\` as unused. After investigation, Agent A
+decided NOT to delete — it chose the SKIP path with reason
+\`${reason}\` and committed a skip-list entry instead.
+
+## Agent A's rationale
+
+${agentACommitMessages || '(no commit message captured)'}
+
+## What this PR does
+
+Adds an entry to \`bots/dead-code-watcher/skip-list.json\` so future
+bot runs will skip this finding by matching the fingerprint, rather
+than re-investigating it.
+
+## What if this is wrong?
+
+Close the PR + remove the skip-list entry. The next weekly run
+will surface the finding again.
+
+<!-- dead-code-watcher: kind=${finding.fingerprint.kind} path=${finding.fingerprint.path}${finding.fingerprint.symbol ? ` symbol=${finding.fingerprint.symbol}` : ''} reason=${reason} run=${process.env.GITHUB_RUN_ID ?? 'local'} -->`
+  try {
+    execFileSync(
+      'gh',
+      [
+        'pr',
+        'create',
+        '--draft',
+        '--title',
+        `chore(skip-list): record ${reason} for ${label}`,
+        '--body',
+        body,
+        '--head',
+        skipBranch,
+      ],
+      { cwd: REPO_ROOT, stdio: 'inherit' },
+    )
+  } catch (err) {
+    printWarning(`gh pr create failed for skip-list ${label}: ${err}`)
   }
 }
 
