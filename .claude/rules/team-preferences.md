@@ -24,8 +24,8 @@ Validated approaches and things to avoid. Each entry: rule, then why.
 8. **Update docs in the same commit as the feature.** When adding or changing user-facing behavior, update getting-started.md and gazetta.studio docs in the same commit. Don't leave docs as a follow-up.
    Why: Docs that lag behind the code mislead users and create extra issues to track.
 
-9. **npm release: bump version, lockfile, commit, tag — all together.**
-   When bumping the gazetta package version:
+9. **npm release: bump version, lockfile, commit, tag — all together, AND match CI's Node version.**
+   When bumping the gazetta package version, first verify local Node matches CI's Node (currently 22, per `.github/workflows/publish.yml`). Then:
    ```
    npm version <patch|minor|major> -w packages/gazetta
    git add packages/gazetta/package.json package-lock.json
@@ -34,7 +34,12 @@ Validated approaches and things to avoid. Each entry: rule, then why.
    git push && git push --tags
    ```
    `npm version -w` updates package.json and lockfile but does NOT commit or tag (disabled for workspaces). Must do it manually.
-   Why: v0.1.1 shipped with lockfile out of sync because the commit and tag were done without the lockfile.
+
+   **Why local Node must match CI Node:** optional peer deps in the lockfile are Node-version-conditional. Running `npm version` on Node 25.1.0 stripped `@emnapi/core` + `@emnapi/runtime` from the lockfile that Node 22 CI requires; `npm ci` then failed with `Missing: @emnapi/core ... from lock file`. The same family of mismatch as the v0.1.1 lockfile bug — different mechanism.
+
+   **Recovery shape when CI fails at `npm ci` because of lockfile drift:** restore the pre-bump lockfile (`git show <prev-sha>:package-lock.json > package-lock.json`), manually re-edit version in `packages/gazetta/package.json` AND the lockfile's `packages['packages/gazetta'].version` field, commit forward (branch protection blocks force-push to main), delete the remote tag, recreate it at the new commit, push. If npm hasn't published yet (`npm view gazetta@<version>` returns ENOTFOUND), the version is reusable.
+
+   **Why:** v0.1.1 shipped with lockfile out of sync because the commit and tag were done without the lockfile. v0.8.0 (2026-05-14) shipped after one failed CI run because local Node 25.1.0 didn't match CI Node 22 — recovered via forward commit + tag move.
 
 10. **E2e test isolation: per-worker temp sites, not in-place mutation.**
    Each Playwright worker gets its own `cp -r` of `examples/starter` into `{repo}/.tmp/e2e-{workerIdx}/project/` with its own dev server on port 3100+workerIdx. Mutation tests write to the copy, never to the repo. See `tests/e2e/fixtures.ts` for the worker-scoped `testSite` fixture.
