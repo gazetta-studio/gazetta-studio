@@ -55,6 +55,13 @@ construction).
   reviewer's specific feedback from your last attempt. Address it
   in this retry. If you can't address it without changing scope,
   switch to SKIP `needs-human` and explain.
+- `LESSONS_LEARNED` — durable cross-finding patterns the monthly
+  compactor distilled from prior skip-list rejections + reviewer
+  feedback. Read this BEFORE investigating: if the finding you're
+  looking at matches a pattern flagged here, save yourself the
+  attempt and SKIP with `needs-human` referencing the lesson. The
+  file is short by design — every line is load-bearing.
+
 ## Decision-log convention
 
 Articulate non-trivial choices inline with `> Decision: ...` text.

@@ -33,7 +33,7 @@
  *   .github/workflows/dead-code-watcher.yml (Sat 02:30 UTC)
  */
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
@@ -41,6 +41,7 @@ import { octokitFromEnv, repoFromEnv } from '../_lib/github.js'
 import { branchHasCommits, captureCommitMessages, captureDiff, resetToMain } from '../_lib/git-tree.js'
 import { type Finding, filterStableFindings, type KnipReport, parseKnipReport, rankFindings } from './knip-parse.js'
 import { fingerprintToBranch, pastPROutcome } from './past-pr.js'
+import { appendReviewerLog, REVIEWER_LOG_PATH } from './reviewer-log.js'
 import { parseReviewerVerdict } from '../_lib/reviewer-verdict.js'
 import { extractLastAssistantText, extractSummary } from '../_lib/transcript.js'
 import {
@@ -67,6 +68,9 @@ const PROMPT_PATH = resolve(HERE, 'prompts/per-finding.md')
 const REVIEWER_PROMPT_PATH = resolve(HERE, 'prompts/reviewer.md')
 const REPO_ROOT = resolve(HERE, '../..')
 const SKIP_LIST_ABS = resolve(REPO_ROOT, SKIP_LIST_PATH)
+const REVIEWER_LOG_ABS = resolve(REPO_ROOT, REVIEWER_LOG_PATH)
+const LESSONS_PATH = 'bots/dead-code-watcher/lessons-learned.md'
+const LESSONS_ABS = resolve(REPO_ROOT, LESSONS_PATH)
 
 const DRY_RUN = process.env.DRY_RUN === '1'
 const TRANSCRIPTS_DIR = resolve(HERE, '../transcripts')
@@ -174,6 +178,11 @@ async function main(): Promise<void> {
   mkdirSync(TRANSCRIPTS_DIR, { recursive: true })
   const promptTemplate = readFileSync(PROMPT_PATH, 'utf-8')
 
+  // Lessons-learned is the durable cross-finding memory the monthly
+  // compactor maintains. Loaded once per run and inlined into every
+  // Agent A prompt so it shapes judgment proactively.
+  const lessonsLearned = existsSync(LESSONS_ABS) ? readFileSync(LESSONS_ABS, 'utf-8') : ''
+
   const runStart = Date.now()
   let processed = 0
   let pastPRMatches = 0
@@ -196,7 +205,7 @@ async function main(): Promise<void> {
     })
 
     try {
-      const handled = await processFinding(octokit, repo, finding, skipList, promptTemplate)
+      const handled = await processFinding(octokit, repo, finding, skipList, promptTemplate, lessonsLearned)
       if (handled === 'past-pr-matched') pastPRMatches++
     } catch (err) {
       printWarning(`processing ${formatFingerprint(finding.fingerprint)} threw: ${err}; continuing.`)
@@ -233,6 +242,7 @@ async function processFinding(
   finding: Finding,
   skipList: SkipList,
   promptTemplate: string,
+  lessonsLearned: string,
 ): Promise<'past-pr-matched' | 'invoked-claude'> {
   // Feedback loop: check past PR history first.
   const past = await pastPROutcome(octokit, repo, finding.fingerprint)
@@ -305,7 +315,9 @@ BRANCH_NAME=${branchName}
 SKIP_LIST_PATH=${SKIP_LIST_PATH}
 ATTEMPT=${attempt}
 MAX_ATTEMPTS=${MAX_ATTEMPTS}
-${priorReviewerNote ? `PRIOR_REVIEWER_NOTE=${priorReviewerNote}\n` : ''}RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
+${priorReviewerNote ? `PRIOR_REVIEWER_NOTE=${priorReviewerNote}\n\n` : ''}LESSONS_LEARNED=
+${lessonsLearned}
+RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
 
     const aResult = await runClaude({
       prompt: agentAPrompt,
@@ -385,6 +397,26 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     // Parse the reviewer's final text block for the VERDICT line.
     const reviewerLastText = extractLastAssistantText(reviewerTranscript)
     const verdict = parseReviewerVerdict(reviewerLastText)
+
+    // Persist the verdict to reviewer-log.jsonl regardless of outcome.
+    // The monthly compactor reads this raw signal and selects valuable
+    // entries (reject→retry→approve sequences, substantive caveats,
+    // genuine failure modes) for lessons-learned. Cheap append; the
+    // value filter lives in the compactor, not here.
+    try {
+      appendReviewerLog(REVIEWER_LOG_ABS, {
+        ts: new Date().toISOString(),
+        runId: process.env.GITHUB_RUN_ID ?? 'local',
+        fingerprint: finding.fingerprint,
+        fingerprintLabel: formatFingerprint(finding.fingerprint),
+        attempt,
+        verdict: verdict.kind === 'approve' ? 'approve' : verdict.kind === 'needs-human' ? 'needs-human' : 'reject',
+        reasoning: verdict.kind === 'approve' ? verdict.reasoning : verdict.note,
+        agentASummary: extractSummary(agentATranscript),
+      })
+    } catch (err) {
+      printWarning(`reviewer-log append failed (non-fatal): ${err}`)
+    }
 
     if (verdict.kind === 'approve') {
       printNotice(`✅ Reviewer APPROVED on attempt ${attempt}/${MAX_ATTEMPTS}: ${verdict.reasoning.slice(0, 120)}`)

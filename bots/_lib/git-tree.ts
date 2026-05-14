@@ -33,8 +33,17 @@ export function resetToMain(branchName: string, opts: GitExecOptions): void {
   // Delete the in-flight branch if it exists. `-D` is hard-delete
   // (we explicitly DON'T want git complaining about unmerged commits
   // here — that's exactly the point of resetting).
+  //
+  // Use captured stdio: the branch usually doesn't exist on the
+  // first attempt of a finding, and `git branch -D` prints
+  // "error: branch 'X' not found" to stderr in that case. The
+  // failure is harmless (we catch it) but the stderr line looks
+  // alarming in workflow logs. Suppress it.
   try {
-    run(['git', 'branch', '-D', branchName], opts)
+    execFileSync('git', ['branch', '-D', branchName], {
+      cwd: opts.cwd,
+      stdio: ['ignore', 'ignore', 'ignore'],
+    })
   } catch {
     // Branch didn't exist locally — fine.
   }

@@ -31,12 +31,14 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
 import { printBanner, printNotice, printRunSummary, printTranscriptPath, printWarning } from '../_lib/ui.js'
+import { REVIEWER_LOG_PATH, tailReviewerLog } from './reviewer-log.js'
 import { readSkipList, SKIP_LIST_PATH } from './skip-list.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PROMPT_PATH = resolve(HERE, 'prompts/compact.md')
 const REPO_ROOT = resolve(HERE, '../..')
 const SKIP_LIST_ABS = resolve(REPO_ROOT, SKIP_LIST_PATH)
+const REVIEWER_LOG_ABS = resolve(REPO_ROOT, REVIEWER_LOG_PATH)
 const LESSONS_PATH = 'bots/fix-bot/lessons-learned.md'
 const LESSONS_ABS = resolve(REPO_ROOT, LESSONS_PATH)
 const TRANSCRIPTS_DIR = resolve(HERE, '../transcripts')
@@ -47,17 +49,27 @@ const DRY_RUN = process.env.DRY_RUN === '1'
 /**
  * Minimum entries required to consider running the compactor. Below
  * this we exit early without invoking Claude — there's not enough
- * signal to surface patterns from.
+ * signal to surface patterns from. Counts the larger of skip-list
+ * size + reviewer-log size — either signal is enough to justify a
+ * rewrite.
  */
 const MIN_ENTRIES_FOR_COMPACTION = Number(process.env.MIN_ENTRIES_FOR_COMPACTION ?? '3')
+
+/**
+ * How many recent reviewer-log entries the compactor reads. Older
+ * entries stay on disk but don't inform lessons — they may reflect
+ * outdated patterns from a past prompt iteration.
+ */
+const REVIEWER_LOG_WINDOW = Number(process.env.REVIEWER_LOG_WINDOW ?? '100')
 
 async function main(): Promise<void> {
   printBanner({
     name: 'fix-bot:compact',
     tagline: 'monthly memory compactor',
-    purpose: "Rewrite lessons-learned.md from skip-list patterns; keep the bot's cross-issue memory fresh.",
+    purpose: 'Rewrite lessons-learned.md from skip-list + reviewer-log patterns; keep cross-issue memory fresh.',
     inputs: [
       'bots/fix-bot/skip-list.json (per-issue rejections)',
+      'bots/fix-bot/reviewer-log.jsonl (Agent B verdicts)',
       'bots/fix-bot/lessons-learned.md (previous lessons)',
     ],
     outputs: ['PR rewriting lessons-learned.md with current recurring patterns'],
@@ -66,15 +78,21 @@ async function main(): Promise<void> {
   const skipList = readSkipList(SKIP_LIST_ABS)
   const entryCount = skipList.entries.length
   const ruleCount = skipList.rules.length
+  const reviewerLog = tailReviewerLog(REVIEWER_LOG_ABS, REVIEWER_LOG_WINDOW)
   const lessonsExists = existsSync(LESSONS_ABS)
   const lessonsContent = lessonsExists ? readFileSync(LESSONS_ABS, 'utf-8') : ''
 
   printNotice(`Current skip-list: ${entryCount} entries + ${ruleCount} rules`)
+  printNotice(`Reviewer-log: ${reviewerLog.length} recent entries (window=${REVIEWER_LOG_WINDOW})`)
   printNotice(`Current lessons file: ${lessonsExists ? `${lessonsContent.length} bytes` : 'absent'}`)
 
-  if (entryCount < MIN_ENTRIES_FOR_COMPACTION) {
+  // Either signal can justify a rewrite — they capture complementary
+  // patterns (skip-list = "don't try again"; reviewer-log = "what to
+  // notice next time").
+  const totalSignal = entryCount + reviewerLog.length
+  if (totalSignal < MIN_ENTRIES_FOR_COMPACTION) {
     printNotice(
-      `Below MIN_ENTRIES_FOR_COMPACTION=${MIN_ENTRIES_FOR_COMPACTION} — not enough signal to surface patterns. ✨`,
+      `Below MIN_ENTRIES_FOR_COMPACTION=${MIN_ENTRIES_FOR_COMPACTION} (skip-list=${entryCount} + reviewer-log=${reviewerLog.length}) — not enough signal to surface patterns. ✨`,
     )
     return
   }
@@ -95,6 +113,7 @@ async function main(): Promise<void> {
 SKIP_LIST_PATH=${SKIP_LIST_PATH}
 LESSONS_PATH=${LESSONS_PATH}
 SKIP_LIST_JSON=${JSON.stringify(skipList, null, 2)}
+REVIEWER_LOG_JSON=${JSON.stringify(reviewerLog, null, 2)}
 PREVIOUS_LESSONS=
 ${lessonsContent}
 RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
