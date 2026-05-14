@@ -96,6 +96,10 @@ cd packages/gazetta && npx vitest tests/some-file.test.ts
 cd packages/gazetta && npx tsc --noEmit
 ```
 
+⚠️ **`tsc --noEmit` is not a full build verification.** It catches the dominant class of type errors but can suppress real errors that surface under emit (e.g., narrow-enum + `as const` mismatches that the build catches but `--noEmit` lets through). After non-trivial type-shape changes, run `npm run build` from the repo root before commit.
+
+⚠️ **Never run `tsc -b` from a workspace dir.** It walks build references up to the root tsconfig and emits `.d.ts` / `.js` / `.js.map` files **next to every `.ts` source file** in the monorepo (spills hundreds of artifacts into `apps/`, `bots/`, `sites/`, etc.). For build verification use `npm run build`. For per-package type-check use `npx tsc -p <pkg>/tsconfig.json --noEmit` (explicit `-p`, explicit `--noEmit`).
+
 **Format** — Biome; rule 30 says run before tests, not after (post-test format thrash forces a re-run):
 
 ```bash
@@ -113,6 +117,25 @@ npx playwright test
 
 ```bash
 npm run test:mutation -w packages/gazetta
+```
+
+**CLI smoke against the dogfood site** — `sites/gazetta.studio/` is the canonical end-to-end target. `.env` lives at the site dir (`sites/gazetta.studio/.env`), not the repo root; the CLI loads it via the per-command env-load dispatch (see `loadEnvFiles` in `packages/gazetta/src/cli/index.ts`).
+
+```bash
+# Publish content to a target (writes R2; independent of deploy per ADR-0010):
+npx gazetta publish local        # local filesystem target
+npx gazetta publish production   # R2 — needs CLOUDFLARE_API_TOKEN + R2_* in sites/gazetta.studio/.env
+
+# Deploy the worker (invokes target.deploy.execute(); independent of publish):
+npx gazetta deploy production    # `cloudflareWorkersDeploy()` → wrangler deploy
+```
+
+Auto-detection: `npx gazetta publish` (no args) walks `sites/` for a single site, picks the only target if one exists, prompts otherwise. CI fails on multi-target ambiguity instead of prompting.
+
+After a real deploy, smoke the live site:
+
+```bash
+curl -sI https://gazetta.studio | head -5    # 200 from `server: cloudflare`
 ```
 
 **Note:** Page and fragment manifests use JSON (`page.json`, `fragment.json`). Site config is TypeScript (`site.config.ts`) using `defineSite()` from the `gazetta` package. Components are inline in the page manifest — no separate component files.
