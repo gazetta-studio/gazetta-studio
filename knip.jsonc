@@ -1,0 +1,131 @@
+// Knip configuration — https://knip.dev
+//
+// Goal: report should be mostly true positives, so the planned
+// dead-code-watcher bot doesn't flood the issue queue with noise.
+//
+// Knip's static analysis can't see two classes of consumer in this repo:
+//
+//   1. Dynamic file loading. The gazetta runtime loads templates,
+//      site.config.ts, custom editors, asset analyzers etc. at runtime
+//      via filesystem paths — no static `import`. Each dynamic-load
+//      pattern needs an explicit `entry` so knip doesn't flag the
+//      target as unused.
+//
+//   2. External consumers of public package APIs. The gazetta package's
+//      `exports` map lists 12 public entry points consumed by sites
+//      and apps outside this repo. The packages/gazetta/`entry` list
+//      mirrors that exports map.
+//
+// If you add a workspace, a public entry point, or a new dynamic-load
+// pattern, update this file in the same commit.
+{
+  "$schema": "https://unpkg.com/knip@6/schema-jsonc.json",
+
+  "workspaces": {
+    // Core package. The entry list mirrors packages/gazetta/package.json
+    // exports map; each name is a public API consumed by external sites
+    // or apps. Tests + benches are also entry points (they invoke the
+    // package directly, not as a consumer of the exports map).
+    "packages/gazetta": {
+      "entry": [
+        "src/index.ts",
+        "src/types.ts",
+        "src/format.ts",
+        "src/save-etag.ts",
+        "src/editor/mount.ts",
+        "src/admin-api/index.ts",
+        "src/admin-api/schemas/index.ts",
+        "src/schema.ts",
+        "src/testing/index.ts",
+        "src/providers/azure-blob.ts",
+        "src/providers/s3.ts",
+        "src/workers/cloudflare-r2.ts",
+        "src/cli/index.ts",
+        // Worker-thread entry: spawned by templates-scan.ts via `new
+        // Worker(resolve(here, './templates-scan-worker.js'))` rather
+        // than `import`. Without this, knip flags it as unused.
+        "src/templates-scan-worker.ts",
+        "tests/**/*.test.ts",
+        "tests/_helpers/**/*.ts",
+        "tests/**/*.bench.ts"
+      ],
+      "project": ["src/**/*.ts"]
+    },
+
+    // Vue admin SPA. Vite + index.html consume the client entry; the
+    // server entry is invoked by `gazetta dev` / `gazetta serve`. The
+    // service-worker source (sw.ts) is registered via a URL-string,
+    // never imported — listing it as an entry stops the false flag.
+    "apps/admin": {
+      "entry": [
+        "src/server/index.ts",
+        "src/client/main.ts",
+        "src/client/admin-loader.ts",
+        "src/client/sw.ts",
+        "tests/**/*.test.ts"
+      ],
+      "project": ["src/**/*.{ts,tsx,vue}"]
+    },
+
+    // Each bot's index.ts is invoked directly via npm scripts from the
+    // bot's workflow YAML. Replay harness is a separate manual entry.
+    "bots": {
+      "entry": [
+        "flake-watcher/index.ts",
+        "triage-bot/index.ts",
+        "discovery-prep-bot/index.ts",
+        "fix-bot/index.ts",
+        "mutation-watcher/index.ts",
+        "_lib/replay.ts",
+        "_lib/tests/**/*.test.ts",
+        "fix-bot/tests/**/*.test.ts"
+      ],
+      "project": ["**/*.ts"]
+    },
+
+    // MCP dev server — entry is the bin script per package.json.
+    "tools/mcp-dev": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"]
+    },
+
+    // Starter site: every .ts/.tsx file is dynamically loaded by the
+    // gazetta runtime. Templates, custom editors, fields, hooks, and
+    // site.config are all loaded by filesystem path, never imported
+    // statically from in-repo code.
+    "examples/starter": {
+      "entry": [
+        "sites/**/*.config.ts",
+        "templates/**/index.{ts,tsx}",
+        "admin/editors/**/*.{ts,tsx}",
+        "admin/fields/**/*.{ts,tsx}",
+        "admin/hooks/**/*.ts"
+      ],
+      "project": ["**/*.{ts,tsx}"]
+    },
+
+    // Production gazetta.studio site (dogfooded). Same dynamic-loading
+    // pattern as the starter plus a Cloudflare Worker entry.
+    "sites/gazetta.studio": {
+      "entry": ["site.config.ts", "templates/**/index.{ts,tsx}", "worker/src/index.ts"],
+      "project": ["**/*.{ts,tsx}"]
+    },
+
+    // Test fixture site exercised by the target-matrix e2e suite. Every
+    // template + site config is a dynamic entry; the suite loads them
+    // via the gazetta CLI, not via JS imports.
+    "tests/fixtures/sites/target-matrix": {
+      "entry": ["sites/**/site.config.ts", "templates/**/index.{ts,tsx}"],
+      "project": ["**/*.{ts,tsx}"]
+    }
+  },
+
+  // One-off scripts (benchmarks, etc.) live outside any workspace and
+  // aren't worth knip-tracking. Generated dist/ trees are derived state.
+  "ignore": ["scripts/**", "packages/gazetta/dist/**", "apps/admin/dist/**", "**/node_modules/**"],
+
+  // Stryker's typescript-checker is invoked by Stryker config (not via
+  // `import`). TypeScript itself is used by every workspace via `tsc`
+  // — knip can't see that pattern.
+  "ignoreDependencies": ["@stryker-mutator/typescript-checker", "typescript"]
+}
