@@ -1,35 +1,39 @@
 /**
  * dead-code-watcher's memory-compaction pass.
  *
- * Runs monthly on the 1st Saturday at 03:00 UTC (per
- * .github/workflows/dead-code-watcher-compact.yml). Reads the
- * skip-list and asks Claude to identify groups of ≥3 entries that
- * share a pattern (path-prefix + reason, or glob-collapsible shape),
- * propose generalized rules, and open a PR with the new skip-list
- * shape.
+ * Runs monthly (per `.github/workflows/bots-compact.yml`). Reads
+ * three durable memory surfaces and produces TWO outputs in one PR:
  *
- * "Compaction" not "compression": the result is the skip-list
- * literally getting smaller AND more powerful — fewer concrete
- * entries, more general rules that catch future findings too. Same
- * shape as how LLM session memory compacts: summarize accumulated
- * state into a smaller form that preserves load-bearing information.
+ *   1. Skip-list compaction: groups of ≥3 skip-list entries sharing
+ *      a pattern collapse into glob rules. Same shape as v1.
  *
- * Conservatism: rules only get proposed when 3+ entries share a
- * clear pattern. The compact-bot is allowed to be wrong (the PR is
- * reviewable), but it's expensive to maintainer-time to review
- * spurious compactions, so the prompt asks for high-confidence
- * generalizations only.
+ *   2. Lessons-learned rewrite: holistic regeneration of
+ *      `lessons-learned.md` from the reviewer-log's valuable signal
+ *      (reject→retry→approve sequences, substantive APPROVE caveats,
+ *      loop-exhausted failure modes). Same shape as fix-bot's
+ *      compactor — surfaces cross-finding patterns into Agent A's
+ *      proactive context.
+ *
+ * The compactor is the value filter. The reviewer-log is the raw
+ * append-only signal. The compactor decides which entries deserve
+ * to become lessons; trivial first-attempt approves with "looks
+ * good" reasoning never make it to lessons-learned.
+ *
+ * Conservatism applies to both:
+ *  - Skip-list rules: only when 3+ entries share a clear pattern
+ *  - Lessons: only when 2+ reviewer-log entries share a failure mode
  *
  * Run locally:
  *   GITHUB_REPOSITORY=gazetta-studio/gazetta-studio \
  *     GH_TOKEN=$(gh auth token) npm run dead-code-watcher:compact -w @gazetta/bots
  * Run in CI:
- *   .github/workflows/dead-code-watcher-compact.yml (1st Sat 03:00 UTC)
+ *   .github/workflows/bots-compact.yml (1st Sat 03:00 UTC)
  */
-import { mkdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
+import { REVIEWER_LOG_PATH, tailReviewerLog } from './reviewer-log.js'
 import { readSkipList, SKIP_LIST_PATH } from './skip-list.js'
 import { printBanner, printNotice, printRunSummary, printTranscriptPath, printWarning } from '../_lib/ui.js'
 
@@ -37,35 +41,80 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const PROMPT_PATH = resolve(HERE, 'prompts/compact.md')
 const REPO_ROOT = resolve(HERE, '../..')
 const SKIP_LIST_ABS = resolve(REPO_ROOT, SKIP_LIST_PATH)
+const REVIEWER_LOG_ABS = resolve(REPO_ROOT, REVIEWER_LOG_PATH)
+const LESSONS_PATH = 'bots/dead-code-watcher/lessons-learned.md'
+const LESSONS_ABS = resolve(REPO_ROOT, LESSONS_PATH)
 const TRANSCRIPTS_DIR = resolve(HERE, '../transcripts')
 const RUN_TIMESTAMP = new Date().toISOString().replace(/[:.]/g, '-').replace(/Z$/, 'Z')
 
 const DRY_RUN = process.env.DRY_RUN === '1'
 
 /**
- * Minimum entries required to consider compaction. Below this we
- * exit early without invoking Claude — there's nothing to generalize.
+ * Minimum skip-list entries to consider glob-rule compaction. Below
+ * this we still run the lessons rewrite (it has its own threshold).
  */
-const MIN_ENTRIES_FOR_COMPACTION = 3
+const MIN_ENTRIES_FOR_COMPACTION = Number(process.env.MIN_ENTRIES_FOR_COMPACTION ?? '3')
+
+/**
+ * Minimum reviewer-log entries to consider rewriting lessons-learned.
+ * Below this the signal-to-noise ratio is too low — keep the
+ * existing lessons file untouched.
+ */
+const MIN_REVIEWER_LOG_FOR_LESSONS = Number(process.env.MIN_REVIEWER_LOG_FOR_LESSONS ?? '5')
+
+/**
+ * How many recent reviewer-log entries the compactor reads. Older
+ * entries stay on disk for git-blame archaeology but don't inform
+ * lessons — they may reflect outdated patterns.
+ */
+const REVIEWER_LOG_WINDOW = Number(process.env.REVIEWER_LOG_WINDOW ?? '100')
 
 async function main(): Promise<void> {
   printBanner({
     name: 'dead-code-watcher:compact',
     tagline: 'monthly memory compactor',
-    purpose: "Generalize skip-list entries into rules; keep the bot's memory compact and powerful.",
-    inputs: ['bots/dead-code-watcher/skip-list.json'],
-    outputs: ['PR replacing N specific entries with M general rules (compactedFrom: N)'],
+    purpose: 'Generalize skip-list entries into rules + rewrite lessons-learned from reviewer-log.',
+    inputs: [
+      'bots/dead-code-watcher/skip-list.json (per-finding rejections)',
+      'bots/dead-code-watcher/reviewer-log.jsonl (Agent B verdicts)',
+      'bots/dead-code-watcher/lessons-learned.md (previous lessons)',
+    ],
+    outputs: [
+      'PR replacing N specific entries with M general rules (compactedFrom: N)',
+      'PR rewriting lessons-learned.md with current recurring patterns',
+    ],
   })
 
   const skipList = readSkipList(SKIP_LIST_ABS)
   const entryCount = skipList.entries.length
   const ruleCount = skipList.rules.length
+  const reviewerLog = tailReviewerLog(REVIEWER_LOG_ABS, REVIEWER_LOG_WINDOW)
+  const lessonsExists = existsSync(LESSONS_ABS)
+  const lessonsContent = lessonsExists ? readFileSync(LESSONS_ABS, 'utf-8') : ''
 
   printNotice(`Current skip-list: ${entryCount} entries + ${ruleCount} rules`)
+  printNotice(`Reviewer-log: ${reviewerLog.length} recent entries (window=${REVIEWER_LOG_WINDOW})`)
+  printNotice(`Lessons file: ${lessonsExists ? `${lessonsContent.length} bytes` : 'absent'}`)
 
-  if (entryCount < MIN_ENTRIES_FOR_COMPACTION) {
-    printNotice(`Below MIN_ENTRIES_FOR_COMPACTION=${MIN_ENTRIES_FOR_COMPACTION} — nothing to compact. ✨`)
+  const skipListEligible = entryCount >= MIN_ENTRIES_FOR_COMPACTION
+  const lessonsEligible = reviewerLog.length >= MIN_REVIEWER_LOG_FOR_LESSONS
+
+  if (!skipListEligible && !lessonsEligible) {
+    printNotice(
+      `Below both thresholds (skip-list ${entryCount}/${MIN_ENTRIES_FOR_COMPACTION}, reviewer-log ${reviewerLog.length}/${MIN_REVIEWER_LOG_FOR_LESSONS}) — nothing to compact. ✨`,
+    )
     return
+  }
+
+  if (!skipListEligible) {
+    printNotice(
+      `Skip-list below threshold (${entryCount}/${MIN_ENTRIES_FOR_COMPACTION}) — skipping rule compaction; doing lessons only.`,
+    )
+  }
+  if (!lessonsEligible) {
+    printNotice(
+      `Reviewer-log below threshold (${reviewerLog.length}/${MIN_REVIEWER_LOG_FOR_LESSONS}) — skipping lessons rewrite; doing rule compaction only.`,
+    )
   }
 
   if (DRY_RUN) {
@@ -73,9 +122,9 @@ async function main(): Promise<void> {
     return
   }
 
-  // Hand the entire skip-list to Claude. It's small (under 100 entries
-  // typically), no context pressure. Claude reads, proposes rules,
-  // commits + opens PR.
+  // Hand the full memory surface to Claude. Skip-list + reviewer-log
+  // are both small (under 100 entries typically); previous lessons
+  // are bounded under 4KB. No context pressure.
   mkdirSync(TRANSCRIPTS_DIR, { recursive: true })
   const promptTemplate = readFileSync(PROMPT_PATH, 'utf-8')
   const transcriptPath = resolve(TRANSCRIPTS_DIR, `${RUN_TIMESTAMP}-dead-code-compact.jsonl`)
@@ -85,7 +134,13 @@ async function main(): Promise<void> {
   const prompt = `${promptTemplate}
 
 SKIP_LIST_PATH=${SKIP_LIST_PATH}
+LESSONS_PATH=${LESSONS_PATH}
+SKIP_LIST_ELIGIBLE=${skipListEligible}
+LESSONS_ELIGIBLE=${lessonsEligible}
 SKIP_LIST_JSON=${JSON.stringify(skipList, null, 2)}
+REVIEWER_LOG_JSON=${JSON.stringify(reviewerLog, null, 2)}
+PREVIOUS_LESSONS=
+${lessonsContent}
 RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
 
   try {

@@ -71,6 +71,7 @@ import {
   printWarning,
 } from '../_lib/ui.js'
 import { diagnoseFailure, formatFailureComment } from './failure-diagnostic.js'
+import { appendReviewerLog, REVIEWER_LOG_PATH } from './reviewer-log.js'
 import {
   appendEntry,
   findSkipMatch,
@@ -86,6 +87,7 @@ const PROMPT_PATH = resolve(HERE, 'prompts/per-issue.md')
 const REVIEWER_PROMPT_PATH = resolve(HERE, 'prompts/reviewer.md')
 const REPO_ROOT = resolve(HERE, '../..')
 const SKIP_LIST_ABS = resolve(REPO_ROOT, SKIP_LIST_PATH)
+const REVIEWER_LOG_ABS = resolve(REPO_ROOT, REVIEWER_LOG_PATH)
 const LESSONS_PATH = 'bots/fix-bot/lessons-learned.md'
 const LESSONS_ABS = resolve(REPO_ROOT, LESSONS_PATH)
 
@@ -429,6 +431,26 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     // Parse the reviewer's final text block for the VERDICT line.
     const reviewerLastText = extractLastAssistantText(reviewerTranscript)
     const verdict = parseReviewerVerdict(reviewerLastText)
+
+    // Persist the verdict to reviewer-log.jsonl regardless of outcome.
+    // The monthly compactor reads this raw signal and selects valuable
+    // entries (reject→retry→approve sequences, substantive caveats,
+    // genuine failure modes) for lessons-learned. Cheap append; the
+    // value filter lives in the compactor, not here.
+    try {
+      appendReviewerLog(REVIEWER_LOG_ABS, {
+        ts: new Date().toISOString(),
+        runId: process.env.GITHUB_RUN_ID ?? 'local',
+        fingerprint,
+        fingerprintLabel: `#${issueNumber}`,
+        attempt,
+        verdict: verdict.kind === 'approve' ? 'approve' : verdict.kind === 'needs-human' ? 'needs-human' : 'reject',
+        reasoning: verdict.kind === 'approve' ? verdict.reasoning : verdict.note,
+        agentASummary: extractSummary(agentATranscript),
+      })
+    } catch (err) {
+      printWarning(`reviewer-log append failed (non-fatal): ${err}`)
+    }
 
     if (verdict.kind === 'approve') {
       printNotice(`✅ Reviewer APPROVED on attempt ${attempt}/${MAX_ATTEMPTS}: ${verdict.reasoning.slice(0, 120)}`)

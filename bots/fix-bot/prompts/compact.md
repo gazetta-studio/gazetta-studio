@@ -16,9 +16,38 @@ of failure modes accumulated across rejections.
 
 - `SKIP_LIST_PATH` — relative path to the skip-list file
 - `LESSONS_PATH` — relative path to the lessons-learned.md file
-- `SKIP_LIST_JSON` — full current skip-list state
+- `SKIP_LIST_JSON` — full current skip-list state (per-issue rejections)
+- `REVIEWER_LOG_JSON` — recent Agent B verdicts (window-bounded).
+  Each entry: `{ts, runId, fingerprint, fingerprintLabel, attempt,
+  verdict, reasoning, agentASummary}`. APPROVE, REJECT, and
+  NEEDS_HUMAN verdicts all land here; the value filter is yours.
 - `PREVIOUS_LESSONS` — current content of lessons-learned.md
 - `RUN_ID` — diagnostic only
+
+## Value filter — what to actually surface
+
+The reviewer-log captures EVERY verdict. Most are noise (trivial
+first-attempt approves with "looks good"). Only these patterns
+deserve a lesson:
+
+1. **Reject → retry → approve** sequences — Agent A's first attempt
+   was rejected, the next succeeded. What changed? That's a
+   transferable fix pattern.
+2. **Approves with substantive caveats** — Agent B said "approving
+   but noticed X." Cluster across ≥2 entries: when reviewers raise
+   the same caveat across different issues, surface it.
+3. **Substantive REJECT reasoning** — recurring reject themes (same
+   rationale across 2+ findings) → "don't do this" lesson.
+4. **Loop-exhausted needs-human** — genuine failure modes where
+   Agent A and reviewer couldn't converge. Future Agent A should
+   recognize the pattern and SKIP early.
+
+**Reject these as lessons:**
+
+- ❌ Clean first-attempt approves with "looks good" reasoning
+- ❌ Single-instance observations (no pattern yet — wait for it to recur)
+- ❌ Per-issue specifics already captured in skip-list.json
+- ❌ Static guidance already in `prompts/per-issue.md`
 
 ## Holistic rewrite, NOT append
 

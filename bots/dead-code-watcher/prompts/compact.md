@@ -1,25 +1,39 @@
 # Dead-code-watcher — monthly compaction prompt
 
-You are compacting the bot's skip-list (`bots/dead-code-watcher/skip-list.json`).
+You are the monthly memory compactor for dead-code-watcher. You
+produce TWO outputs in ONE PR (or skip either when its eligibility
+threshold isn't met):
 
-**Goal:** identify groups of ≥3 entries that share a generalizable
-pattern, replace them with a single rule. The skip-list ends up
-smaller AND more powerful — fewer concrete entries, more rules that
-catch future findings of the same shape.
+1. **Skip-list compaction** — replace ≥3 entries sharing a pattern
+   with a single glob rule. Skip-list ends up smaller AND more
+   powerful (rules also catch future findings of the same shape).
+
+2. **Lessons-learned rewrite** — holistic regeneration of
+   `lessons-learned.md` from the reviewer-log's VALUABLE signal.
+   Surfaces cross-finding patterns so future Agent A reads them
+   before investigating.
 
 ## Inputs (appended below)
 
 - `SKIP_LIST_PATH` — relative path to the skip-list file
+- `LESSONS_PATH` — relative path to lessons-learned.md
+- `SKIP_LIST_ELIGIBLE` — `true` if you should attempt rule compaction
+- `LESSONS_ELIGIBLE` — `true` if you should attempt lessons rewrite
 - `SKIP_LIST_JSON` — the full current skip-list state
-- `RUN_ID` — this watcher's GH Actions run ID (for outcome tags)
+- `REVIEWER_LOG_JSON` — recent Agent B verdicts (window-bounded)
+- `PREVIOUS_LESSONS` — the current lessons-learned.md content
+
+Run the eligible work only. If BOTH eligibility flags are false, the
+orchestrator wouldn't have invoked you — defensive exit cleanly.
 
 ## Decision-log convention
 
-Articulate every proposed compaction with `> Decision: ...`. The
-maintainer needs to see your reasoning — they'll review the PR diff
-plus your commit message.
+Articulate every proposed change with `> Decision: ...`. The maintainer
+reviews the PR diff plus your commit message.
 
-## What "compaction" actually means
+---
+
+## Output 1: Skip-list compaction (if SKIP_LIST_ELIGIBLE=true)
 
 Concretely: replace N skip-list entries (each tied to one specific
 fingerprint) with M rules (each tied to a glob scope + reason).
@@ -48,7 +62,7 @@ After:
       "scope": "packages/gazetta/src/{index,types,schema}.ts",
       "kinds": ["export", "type"],
       "reason": "public-api",
-      "reasonNote": "These files are public-API entry points per gazetta/package.json exports map. External consumers may use any exported symbol.",
+      "reasonNote": "Public-API entry points per gazetta/package.json exports map.",
       "addedAt": "<ISO-8601 now>",
       "addedBy": "bot",
       "compactedFrom": 4
@@ -57,160 +71,154 @@ After:
 }
 ```
 
-4 specific entries → 1 general rule. The rule **also** matches any
-future export added to those files — that's the "more powerful"
-part.
+### Process
 
-## Process
+1. **Group entries** by `reason` + path-prefix
+2. **Identify compactable groups** (ALL three must hold):
+   - 3+ entries share the same `reason` field
+   - They share a path-prefix or glob-collapsible pattern
+   - The generalization is sound — the rule would correctly capture
+     the original entries AND any future findings of the same shape
+3. **Be conservative.** When unsure, DON'T compact. False compactions
+   create false skips (real dead code blocked by a wrong rule).
+4. **Never compact `reason: maintainer-rejected`** — each rejection
+   is a specific maintainer decision; don't generalize across them.
+5. **Compose rules** with descriptive `rule` IDs, careful `scope`
+   globs, and a `reasonNote` explaining why the generalization holds.
 
-### 1. Read the current skip-list
-
-Parse `SKIP_LIST_JSON`. Group entries by `reason` + path-prefix.
-
-### 2. Look for compactable groups
-
-A group is compactable when ALL of these hold:
-
-- **3+ entries** share the same `reason` field
-- They share a path-prefix or a glob-collapsible pattern
-- The generalization is sound: the rule, when applied to the
-  shared scope, would correctly capture the original entries AND
-  any future findings of the same shape
-
-**Be conservative.** When you're unsure whether a generalization is
-sound, DON'T compact. False compactions create false skips (real
-dead code that should be removed but the rule blocks the bot from
-filing a PR).
-
-**Examples of safe compactions:**
-
-- 4 entries all under `packages/gazetta/src/*.ts` with reason
-  `public-api` → rule scope `packages/gazetta/src/*.ts`
-- 5 entries all under `examples/starter/templates/*/index.ts` with
-  reason `dynamic-load` → rule scope `examples/starter/templates/*/index.ts`
-- 3 entries all of kind=`devDependency` in same `package.json` with
-  reason `needs-human` → tighten the original entries (don't compact)
-
-**Examples of UNSAFE compactions:**
-
-- 3 entries in `packages/gazetta/src/` but with mixed reasons
-  (`public-api` × 2 + `maintainer-rejected` × 1) → don't compact
-- 3 entries with `reason: maintainer-rejected` but different
-  rejection notes → the maintainer's reasoning differs per entry;
-  don't generalize
-- Anywhere reason is `other` → free-text reason means the entries
-  don't share a structural pattern, just a label
-
-### 3. Compose new rules
-
-For each compactable group, write a rule:
-
-```json
-{
-  "rule": "<descriptive-id>",       // kebab-case, stable
-  "scope": "<glob>",                 // matches all replaced entries
-  "kinds": ["<kind>", ...],          // optional — restrict to specific kinds
-  "reason": "<same as replaced>",
-  "reasonNote": "<one-paragraph why this generalization is sound>",
-  "addedAt": "<ISO-8601 now>",
-  "addedBy": "bot",
-  "compactedFrom": <count>           // how many entries this rule replaced
-}
-```
-
-Pick the `scope` glob carefully:
+### Glob support
 
 - `path/to/file.ts` — exact (single entry, no compaction)
 - `path/to/*.ts` — single directory
 - `path/to/**/*.ts` — recursive
-- Brace expansion (`{a,b}.ts`) is NOT supported by the skip-list's
-  glob matcher — use multiple rules if you need it
+- Brace expansion (`{a,b}.ts`) IS supported — see existing skip-list.
 
-Use `kinds: [...]` to restrict when the original entries all share
-a kind. Omit when the rule should match any kind under the scope.
+---
 
-### 4. Build the new skip-list
+## Output 2: Lessons-learned rewrite (if LESSONS_ELIGIBLE=true)
 
-```ts
-const newList = {
-  version: 1,
-  entries: <originalEntries minus compacted ones>,
-  rules: <originalRules + new rules>
-}
+You rewrite `lessons-learned.md` from scratch using the reviewer-log
+as raw signal. The previous lessons file is just historical context —
+git history preserves it; don't preserve stale lessons in the new file.
+
+### What to surface as a lesson — the value filter
+
+**ONLY these patterns earn a place in lessons-learned:**
+
+1. **Reject → retry → approve sequences** — Agent A's first attempt
+   was rejected, second succeeded. What did Agent A change? That's
+   a transferable fix pattern future Agent A should know.
+
+2. **Approves with substantive caveats** — Agent B said "approving
+   but noticed X" or "approved but flagging Y." The caveat is the
+   signal. Group across multiple entries: when 2+ reviewers raise
+   the same caveat across different findings, surface it.
+
+3. **Loop-exhausted needs-human cases** — genuine failure modes
+   where Agent A and reviewer couldn't converge. Future Agent A
+   should recognize the pattern and SKIP `needs-human` early
+   instead of burning attempts.
+
+4. **Substantive REJECT reasoning** — recurring reject themes
+   (same rejection rationale across 2+ findings) become a "don't
+   do this" lesson.
+
+**EXCLUDE these — they're noise, not lessons:**
+
+- ❌ Clean first-attempt approves with "looks good" reasoning
+- ❌ Single-instance rejections (no pattern yet — wait for it to recur)
+- ❌ Per-finding specifics already captured in skip-list.json
+- ❌ Static prompt guidance that already exists in `prompts/per-finding.md`
+
+### Output format
+
+Rewrite `lessons-learned.md` with this shape:
+
+```markdown
+# dead-code-watcher — lessons learned
+
+<preserve the existing intro paragraphs explaining what this file is
+and how the compactor maintains it>
+
+## Recurring failure modes
+
+### <Pattern name — short, actionable>
+
+**What it looks like:** <one sentence describing the shape>
+
+**Signal:** <count> reviewer-log entries (refs: <run-id-1>, <run-id-2>, ...)
+
+**Guidance for future Agent A:** <2-3 sentences — what to check
+before proceeding, OR when to switch to SKIP needs-human>
+
+### <Next pattern...>
 ```
 
-### 5. Write to disk + open PR
+**Threshold per pattern:** at least 2 reviewer-log entries must
+share the failure mode for it to land as a lesson. Single-instance
+observations stay in the reviewer-log; they're not yet patterns.
+
+**Target file size:** under 4KB. Lessons-learned is loaded into every
+Agent A prompt — long files dilute the signal. If you have more
+patterns than fit, surface the highest-frequency ones.
+
+**Drop stale lessons:** if the previous file's lessons no longer
+appear in the reviewer-log window, they're stale — drop them. Git
+history preserves them. Better to have 3 current load-bearing
+lessons than 12 historical ones diluting context.
+
+---
+
+## Process
+
+1. **Build the new skip-list** (if SKIP_LIST_ELIGIBLE)
+   - Parse `SKIP_LIST_JSON`
+   - Identify compactable groups per the rules above
+   - Compose new rules, drop the now-redundant entries
+
+2. **Build the new lessons-learned.md** (if LESSONS_ELIGIBLE)
+   - Parse `REVIEWER_LOG_JSON`
+   - Apply the value filter — pick out patterns with 2+ entries
+   - Write the file from scratch (don't append; holistic rewrite)
+   - Keep under 4KB
+
+3. **Write both files + open ONE PR**
 
 ```bash
-# Write the new skip-list (use Edit/Write tool to format JSON cleanly
-# with 2-space indent + trailing newline; match existing file format)
-
 git checkout -b dead-code-compact/$(date -u +%Y-%m)
-git add $SKIP_LIST_PATH
-
-# Format prevents diff churn
+git add $SKIP_LIST_PATH $LESSONS_PATH
 npm run format
+git commit -m "chore(dead-code-watcher): monthly compaction
 
-git commit -m "$(cat <<EOF
-chore(skip-list): monthly compaction — $entriesBeforeCount entries → $rulesAfterCount rules
-
-Replaces $compactedCount specific skip-list entries with $rulesAfterCount
-generalized rules. Each rule's reasonNote explains why the
-generalization is sound.
-
-<list of rule names + their compactedFrom counts>
+<skip-list summary if applicable>
+<lessons-learned summary if applicable>
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 git push -u origin dead-code-compact/$(date -u +%Y-%m)
-
-gh pr create --title "chore(skip-list): monthly compaction" --body "$(cat <<EOF
-## Why
-
-Monthly memory compaction per the dead-code-watcher design.
-
-Before: $entriesBeforeCount entries + $rulesBeforeCount rules
-After:  $entriesAfterCount entries + $rulesAfterCount rules
-
-## Rules proposed
-
-<per-rule section explaining:
-  - what entries it replaces
-  - why the generalization is sound
-  - what future findings it would also catch>
-
-## What if a rule is too broad?
-
-Edit \`$SKIP_LIST_PATH\` in this PR (or a follow-up) to either:
-- Narrow the rule's scope
-- Replace the rule with the original concrete entries
-
-The bot reads the file as-is on next weekly run.
-
-<!-- dead-code-watcher: compact run=$RUN_ID -->
-EOF
-)"
+gh pr create --title "chore(dead-code-watcher): monthly compaction" --body "..."
 ```
+
+PR body sections:
+- **Skip-list compaction** — before/after counts + per-rule rationale
+- **Lessons-learned rewrite** — diff highlights, which patterns were
+  added/dropped, why
+
+---
 
 ## Rules
 
-- **Conservative beats aggressive.** A skip-list with too many
-  entries is annoying; a skip-list with wrong rules is dangerous
-  (skips real dead code).
-- **Never compact `reason: maintainer-rejected` entries.** Each
-  rejection is a specific maintainer decision; generalizing across
-  them risks creating a rule the maintainer didn't agree to.
-- **Never compact when fewer than 3 entries share the pattern.**
-  Threshold codifies "I've seen this pattern multiple times, not just
-  once."
-- **Always document `reasonNote` on rules.** Future maintainers
-  (and the bot itself) need to understand the generalization.
-- **Don't ask the user questions.** Headless in CI. If you can't
-  find ≥3 compactable entries, exit cleanly with no PR.
-- **One compaction PR per run.** If you find multiple separate
-  compactions, bundle them into ONE PR — the maintainer reviews the
-  full month's compaction in one place.
+- **Conservative beats aggressive.** A skip-list with too many entries
+  is annoying; a skip-list with wrong rules is dangerous (skips real
+  dead code). Same for lessons — a wrong lesson misleads every future
+  Agent A run.
+- **Value-filter the reviewer-log strictly.** Most APPROVE entries are
+  noise. The reader (Agent A) reads lessons every run — every line
+  must earn its place.
+- **Don't compact `reason: maintainer-rejected` skip-list entries.**
+  Each rejection is a specific maintainer decision.
+- **Don't ask the user questions.** Headless in CI. If neither
+  eligibility threshold is met, exit cleanly with no PR.
+- **One PR per run.** Bundle skip-list compaction AND lessons rewrite
+  in the same PR — the maintainer reviews monthly memory in one place.
