@@ -17,7 +17,12 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { TargetConfig } from '../src/types.js'
-import { cloudflareWorkersDeploy, renderWorkerEntry, renderWranglerToml } from '../src/deploy/cloudflare-workers.js'
+import {
+  cloudflareWorkersDeploy,
+  extractDeployUrl,
+  renderWorkerEntry,
+  renderWranglerToml,
+} from '../src/deploy/cloudflare-workers.js'
 import { DeployConfigError } from '../src/deploy/errors.js'
 
 describe('cloudflareWorkersDeploy() — construction', () => {
@@ -137,6 +142,47 @@ describe('renderWorkerEntry() — pure entry code generator', () => {
     expect(code).toContain("from 'gazetta/workers/cloudflare-r2'")
     expect(code).toContain('createWorker')
     expect(code).toContain('export default')
+  })
+})
+
+describe('extractDeployUrl() — wrangler stdout parser', () => {
+  it('prefers siteUrl match over telemetry banner', () => {
+    const stdout =
+      `Wrangler telemetry: https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n` +
+      `Published my-site triggers:\n` +
+      `  https://gazetta.studio/*\n` +
+      `Current Deployment ID: abc-123\n`
+    expect(extractDeployUrl(stdout, 'https://gazetta.studio')).toBe('https://gazetta.studio/*')
+  })
+
+  it('falls back to workers.dev when no siteUrl configured', () => {
+    const stdout =
+      `Wrangler telemetry: https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n` +
+      `Published my-site (3.45 sec)\n` +
+      `  https://my-site.account.workers.dev\n`
+    expect(extractDeployUrl(stdout, undefined)).toBe('https://my-site.account.workers.dev')
+  })
+
+  it('skips github.com telemetry URL even when siteUrl unset', () => {
+    const stdout =
+      `Wrangler telemetry: https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n` +
+      `Some other note: https://example.com/help\n`
+    // No workers.dev; falls through to first non-github URL.
+    expect(extractDeployUrl(stdout, undefined)).toBe('https://example.com/help')
+  })
+
+  it('strips trailing punctuation from matched URL', () => {
+    const stdout = `Published at https://gazetta.studio/.\n`
+    expect(extractDeployUrl(stdout, 'https://gazetta.studio')).toBe('https://gazetta.studio/')
+  })
+
+  it('returns undefined when stdout contains no URLs', () => {
+    expect(extractDeployUrl('No URLs here\n', undefined)).toBeUndefined()
+  })
+
+  it('returns undefined when only github.com URL present and no siteUrl/workers.dev', () => {
+    const stdout = `Telemetry: https://github.com/cloudflare/workers-sdk\n`
+    expect(extractDeployUrl(stdout, undefined)).toBeUndefined()
   })
 })
 
