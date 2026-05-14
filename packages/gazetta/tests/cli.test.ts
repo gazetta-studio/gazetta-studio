@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { resolve, join, dirname } from 'node:path'
 import { existsSync } from 'node:fs'
 import { mkdir, rm, writeFile, readdir } from 'node:fs/promises'
+import { REQUIRED_NODE_FLOOR } from '../src/node-floor.js'
 import { tempDir } from './_helpers/temp.js'
 
 // Test the helper functions from the CLI by extracting the logic
@@ -136,11 +137,11 @@ describe('runInit', () => {
     const pkg = JSON.parse(await import('node:fs').then(fs => fs.readFileSync(join(testDir, 'package.json'), 'utf-8')))
     expect(pkg.private).toBe(true)
     expect(pkg.type).toBe('module')
-    // Must match the repo's root engines floor (see repo-engines.test.ts). New
-    // sites created via `gazetta init` install write-file-atomic transitively;
+    // Must match the repo's root engines floor (single source: src/node-floor.ts).
+    // New sites created via `gazetta init` install write-file-atomic transitively;
     // a looser floor here would surface as a confusing EBADENGINE pointing at
     // a transitive dep on Node 22.0–22.22.1.
-    expect(pkg.engines.node).toBe('>=22.22.2')
+    expect(pkg.engines.node).toBe(REQUIRED_NODE_FLOOR)
     expect(pkg.scripts.dev).toBe('gazetta dev')
     expect(pkg.dependencies.react).toBeDefined()
     expect(pkg.dependencies.zod).toBeDefined()
