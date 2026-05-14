@@ -4,7 +4,8 @@ Repo-scoped bots that run on GitHub Actions cron schedules. Each bot:
 
 - Lives in its own subdirectory (`<bot-name>/`)
 - Has an `index.ts` entry point + a `prompt.md` for the headless Claude call
-- Shares helpers from `_lib/` (GitHub API wrapping via Octokit, Claude CLI invocation)
+- Shares cross-bot infrastructure from `_lib/` (GitHub API wrapping via Octokit, Claude CLI invocation, git-tree ops, reviewer-verdict parser)
+- Owns its bot-specific memory + parsers locally (per-bot `skip-list.ts`, `knip-parse.ts`, `stryker-parse.ts`, `past-pr.ts`) — different bots have different schemas, so memory doesn't leak across bot boundaries
 - Has a corresponding workflow at `.github/workflows/<bot-name>.yml`
 
 ## Layout
@@ -13,14 +14,19 @@ Repo-scoped bots that run on GitHub Actions cron schedules. Each bot:
 bots/
 ├── package.json              # one workspace, one entry per bot
 ├── tsconfig.json
-├── _lib/                     # shared modules — github, claude, replay
-│   ├── github.ts
+├── _lib/                     # cross-bot infrastructure — only modules used by 2+ bots
+│   ├── github.ts             # Octokit wrapper + repo identity
 │   ├── claude.ts             # claude -p wrapper; writes JSONL transcript
+│   ├── git-tree.ts           # local-tree git ops (reset, capture diff)
+│   ├── reviewer-verdict.ts   # parse APPROVE | REJECT | NEEDS_HUMAN from Agent B output
 │   └── replay.ts             # rerun past investigations against current prompt
 ├── transcripts/              # JSONL transcripts (gitignored; CI uploads as artifact)
-└── <bot-name>/
-    ├── index.ts              # entry point
-    └── prompt.md             # Claude prompt template
+└── <bot-name>/                       # per-bot — owns its memory + parsers
+    ├── index.ts                      # entry point
+    ├── skip-list.{ts,json}           # durable memory (when memoryful)
+    ├── lessons-learned.md            # cross-issue patterns (when applicable)
+    ├── knip-parse.ts / stryker-parse.ts / past-pr.ts  # bot-specific parsers
+    └── prompts/<phase>.md            # Claude prompt templates
 ```
 
 `bots/` is a top-level peer of `apps/`, `packages/`, `tools/`. They live at the
@@ -43,7 +49,7 @@ from `tools/` (developer/operator utilities run on demand).
 4. Add the npm script: `"<new-bot>": "tsx <new-bot>/index.ts"` in `package.json`
 5. Copy `.github/workflows/flake-watcher.yml` to `.github/workflows/<new-bot>.yml`; update the cron, the run command, and the description
 
-If three+ bots end up needing the same helper (e.g., posting structured comments, parsing test output), extract to `_lib/`. Until then, inline.
+If three+ bots end up needing the same helper (e.g., posting structured comments, parsing test output), extract to `_lib/`. Until then, inline — and if the helper is bot-specific (a parser for one tool's output, a memory shape with one bot's domain types), keep it under that bot's directory even if it grows large. Each bot owns its own memory and domain modules; `_lib/` is reserved for genuinely cross-bot infrastructure.
 
 ## Architecture: producer vs consumer — where does work live?
 
@@ -61,7 +67,7 @@ The single most important question when designing a new bot is **what work lives
 | Picking which fix to apply, which test to write | **Prompt (Claude)** | Judgment work; benefits from reading the actual code |
 | Deciding "the bug is too vague — apply ready-for-human and bail" | **Prompt (Claude)** | Self-awareness; needs to see the bug's repro to decide |
 
-**Why this matters:** mutation-watcher's first iteration asked Claude to parse a 3 MB Stryker HTML report (`mutation-watcher/prompt.md` step 1: "extract the JSON via grep + node -e"). Claude *did* parse it correctly — and exhausted its context window doing so, exiting before filing any issues. The fix was `bots/_lib/stryker-parse.ts` — 50 lines of TS that handle parsing, summarising, and per-file capping. Claude now consumes a small JSON summary per file (~few KB), one Claude call per file, and writes focused issue bodies. Same architecture pattern as triage-bot's per-issue Claude call.
+**Why this matters:** mutation-watcher's first iteration asked Claude to parse a 3 MB Stryker HTML report (`mutation-watcher/prompt.md` step 1: "extract the JSON via grep + node -e"). Claude *did* parse it correctly — and exhausted its context window doing so, exiting before filing any issues. The fix was `bots/mutation-watcher/stryker-parse.ts` — 50 lines of TS that handle parsing, summarising, and per-file capping. Claude now consumes a small JSON summary per file (~few KB), one Claude call per file, and writes focused issue bodies. Same architecture pattern as triage-bot's per-issue Claude call.
 
 **Symptoms that tell you the producer/consumer split is wrong:**
 
@@ -91,10 +97,10 @@ GITHUB_REPOSITORY=gazetta-studio/gazetta-studio GH_TOKEN=$(gh auth token) \
 | `flake-watcher` | Daily 02:00 UTC + workflow_dispatch | CI events (run_attempt >= 2) — not labels | New issue with `bug` + `flake` + `area: X` + `ready-for-agent` (+ `recurring-flake` when applicable) | **Producer** — self-classifies, bypasses triage |
 | `mutation-watcher` | `workflow_run` on Mutation completion + workflow_dispatch | Latest Mutation artifact — not labels | New issue with `bug` + `area: X` + `ready-for-agent` per source file with surviving mutants | **Producer** — self-classifies, bypasses triage |
 | `dead-code-watcher` | Weekly Sat 02:30 UTC + workflow_dispatch | knip JSON output (files, exports, types, deps) — not labels; ≥30-day stable filter | Delete-PR per safe finding (full pipeline, NOT delegated to fix-bot) OR skip-list-entry PR | **Producer** — autonomous fixer with durable memory + generator-critic reviewer loop |
-| `dead-code-watcher:compact` | Monthly 1st Sat 03:00 UTC + workflow_dispatch | bots/dead-code-watcher/skip-list.json | PR generalizing 3+ entries into 1 rule (memory compaction) | Memory compactor |
+| `bots-compact` | Monthly 1st Sat 03:00 UTC + workflow_dispatch | All memoryful bots' skip-lists (one job per bot) | Per-bot PRs: glob-rule compaction (dead-code-watcher), lessons-learned.md rewrite (fix-bot) | Memory compactor |
 | `triage-bot` | Daily 03:00 UTC + workflow_dispatch | Open issue lacking all of `bug`, `enhancement`, `triage-uncertain`, `ready-for-agent`, `ready-for-human`, `wontfix`, `needs-info` | One of `bug` / `enhancement` / `triage-uncertain` + `area: X`. Reproducible bug also gets `ready-for-agent`. | Classifier |
 | `discovery-prep-bot` | Daily 04:00 UTC + workflow_dispatch | `enhancement` AND lacks all of `ready-for-human`, `ready-for-agent`, `wontfix`, `needs-info` | Research comment + `ready-for-human` label | Researcher |
-| `fix-bot` | Daily 04:00 UTC + workflow_dispatch | `bug` + `ready-for-agent` AND lacks all of `ready-for-human`, `wontfix`, `needs-info` AND no prior fix-bot comment | EITHER draft PR (two commits: failing test + fix), OR stuck-comment + `ready-for-human` label | Implementer |
+| `fix-bot` | Daily 04:00 UTC + workflow_dispatch | `bug` + `ready-for-agent` AND lacks all of `ready-for-human`, `wontfix`, `needs-info` AND no `fix-bot-attempted` since reopen AND no skip-list match | PR (two commits: failing test + fix) on approve, skip-list entry on reject/needs-human, OR stuck-comment + `ready-for-human` on stuck path | Implementer — generator-critic reviewer loop + durable memory + lessons-learned |
 
 **Producer bots vs triage-bot.** Producer bots (`flake-watcher`,
 `mutation-watcher`, `dead-code-watcher`) consume CI signal or
@@ -130,24 +136,38 @@ ability to push code or modify the diff. Verdict line format
 `VERDICT: APPROVE|REJECT|NEEDS_HUMAN` followed by `Reasoning:` or
 `Note:` is parsed by the orchestrator.
 
-**Durable memory pattern.** Dead-code-watcher is the first bot with
-cross-run memory. Two layers:
+**Durable memory pattern.** Two bots have cross-run memory:
+dead-code-watcher and fix-bot. Each has its own per-bot skip-list
+file in JSON; the pattern is the same shape, the fingerprint type
+differs.
 
   - `bots/dead-code-watcher/skip-list.json` — durable "don't try
-    this again" decisions, edited via PR, version-controlled,
-    diff-readable. Each entry has a fingerprint + reason +
-    timestamp + provenance.
-  - Past-PR query (GitHub API) — the feedback loop: before
-    investigating a finding, the bot checks if there's a recent
-    PR for it. Closed-not-merged → mine the rejection reason →
-    add to skip-list. Open → wait. Merged → finding should be
-    gone (knip won't flag it next run anyway).
+    this finding again" decisions keyed by knip fingerprint.
+    Compaction generalizes 3+ entries into one glob-scoped rule.
+  - `bots/fix-bot/skip-list.json` — durable "don't try this issue
+    again" decisions keyed by GitHub issue number. Rules use label
+    or title-regex scope. Compaction here is different from
+    dead-code-watcher's — see lessons-learned below.
 
-The skip-list compacts monthly: ≥3 entries sharing a pattern get
-generalized into one rule with a glob scope. "Compaction" not
-"compression" — the result is smaller AND more powerful (the rule
-catches future findings of the same shape). Same mental model as
-how LLM session memory compacts.
+Each memoryful bot also has a Past-PR feedback loop (e.g. `bots/dead-code-watcher/past-pr.ts`):
+before investigating, the bot checks if there's a recent PR for
+this fingerprint. Closed-not-merged → mine the rejection reason →
+add to skip-list. Open → wait. Merged → no-op (the underlying
+issue should be gone). Mining happens inside Agent A's flow on
+retry attempts, not in the orchestrator's pre-pass.
+
+**Compaction differs per bot.**
+  - **dead-code-watcher's compactor** generalizes 3+ skip-list
+    entries sharing a pattern into one glob-scoped rule. The
+    skip-list shrinks AND becomes more powerful.
+  - **fix-bot's compactor** rewrites `bots/fix-bot/lessons-learned.md`
+    from cross-issue patterns. The skip-list stays per-issue
+    (most rejections are per-issue-unique); the lessons-learned
+    doc is loaded into Agent A's prompt every run and accumulates
+    the bot's understanding of recurring failure modes.
+
+Both run in the same `bots-compact.yml` workflow (one job per bot)
+on the first Saturday of each month.
 
 ### Pipeline shape (label-driven)
 

@@ -1,0 +1,125 @@
+name: Bots monthly compaction
+
+# Monthly memory compaction for all memoryful bots. One workflow,
+# one job per bot — each runs the bot's `:compact` script which reads
+# the bot's skip-list and consolidates it (per-bot semantics differ).
+#
+# Replaces the prior dead-code-watcher-compact.yml; consolidated here
+# so all compactors share one cron + one workflow_dispatch surface.
+#
+# Per-bot semantics:
+#   - dead-code-watcher:compact — find ≥3 skip-list entries sharing
+#     a pattern, replace with a glob rule.
+#   - fix-bot:compact — rewrite lessons-learned.md from cross-issue
+#     patterns in the skip-list (no glob rules; per-issue entries
+#     stay durable).
+on:
+  schedule:
+    # First Saturday of the month at 03:00 UTC = 05:00 CEST.
+    # Cron syntax `* * 1-7 * 6` means "Saturdays where day-of-month
+    # is 1-7" — i.e., the first Saturday. Stays 30 min after the
+    # weekly dead-code-watcher fires (02:30 UTC) so they don't
+    # collide on the same morning.
+    - cron: '0 3 1-7 * 6'
+  workflow_dispatch:
+    # Manual trigger for testing or one-off compaction.
+    inputs:
+      target:
+        description: 'Which compactor to run'
+        type: choice
+        options: [all, dead-code-watcher, fix-bot]
+        default: all
+
+jobs:
+  dead-code-watcher:
+    # Run on cron OR when dispatch input is 'all' / 'dead-code-watcher'.
+    if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == 'dead-code-watcher'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Configure git author
+        run: |
+          git config user.name 'dead-code-watcher'
+          git config user.email 'noreply@anthropic.com'
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install workspace deps
+        run: npm ci
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run dead-code-watcher:compact
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: npm run dead-code-watcher:compact -w @gazetta/bots
+
+      - name: Upload transcripts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dead-code-watcher-compact-transcripts
+          path: bots/transcripts/
+          if-no-files-found: ignore
+          retention-days: 90
+
+  fix-bot:
+    if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == 'fix-bot'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Configure git author
+        run: |
+          git config user.name 'fix-bot'
+          git config user.email 'noreply@anthropic.com'
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install workspace deps
+        run: npm ci
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run fix-bot:compact
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: npm run fix-bot:compact -w @gazetta/bots
+
+      - name: Upload transcripts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fix-bot-compact-transcripts
+          path: bots/transcripts/
+          if-no-files-found: ignore
+          retention-days: 90

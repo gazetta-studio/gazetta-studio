@@ -45,7 +45,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
 import { findWorkflowId, octokitFromEnv, repoFromEnv } from '../_lib/github.js'
-import { type FileSummary, parseStrykerReport, pathToArea, summarizeReport } from '../_lib/stryker-parse.js'
+import { type FileSummary, parseStrykerReport, pathToArea, summarizeReport } from './stryker-parse.js'
 import {
   printBanner,
   printCandidateHeader,
