@@ -60,6 +60,7 @@ import {
   type RepoIdentity,
 } from '../_lib/github.js'
 import { parseReviewerVerdict } from '../_lib/reviewer-verdict.js'
+import { extractLastAssistantText, extractSummary } from '../_lib/transcript.js'
 import {
   printBanner,
   printCandidateHeader,
@@ -432,14 +433,7 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     if (verdict.kind === 'approve') {
       printNotice(`✅ Reviewer APPROVED on attempt ${attempt}/${MAX_ATTEMPTS}: ${verdict.reasoning.slice(0, 120)}`)
       pushBranch(branchName)
-      openFixPR(
-        repo,
-        issueNumber,
-        issue.title,
-        branchName,
-        verdict.reasoning,
-        extractLastAssistantText(agentATranscript),
-      )
+      openFixPR(repo, issueNumber, issue.title, branchName, verdict.reasoning, extractSummary(agentATranscript))
       attemptOutcome = 'approved'
       break
     }
@@ -576,37 +570,6 @@ function recordSkipListEntry(
   if (added) {
     writeSkipList(SKIP_LIST_ABS, skipList)
     printNotice(`Recorded skip-list entry for #${fingerprint.issueNumber} (${opts.reason})`)
-  }
-}
-
-/**
- * Extract the last assistant text block from a JSONL transcript.
- * Returns empty string when no text block exists or the file can't
- * be read.
- */
-function extractLastAssistantText(transcriptPath: string): string {
-  try {
-    const lines = readFileSync(transcriptPath, 'utf-8')
-      .split('\n')
-      .filter(l => l.trim().length > 0)
-    let lastText = ''
-    for (const line of lines) {
-      try {
-        const event = JSON.parse(line)
-        if (event.type === 'assistant' && Array.isArray(event.message?.content)) {
-          for (const block of event.message.content) {
-            if (block.type === 'text' && typeof block.text === 'string') {
-              lastText = block.text
-            }
-          }
-        }
-      } catch {
-        // ignore malformed line
-      }
-    }
-    return lastText
-  } catch {
-    return ''
   }
 }
 

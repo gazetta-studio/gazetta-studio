@@ -55,8 +55,6 @@ construction).
   reviewer's specific feedback from your last attempt. Address it
   in this retry. If you can't address it without changing scope,
   switch to SKIP `needs-human` and explain.
-- `RUN_ID` — this watcher's GH Actions run ID (for outcome tags)
-
 ## Decision-log convention
 
 Articulate non-trivial choices inline with `> Decision: ...` text.
@@ -68,17 +66,6 @@ Especially load-bearing here:
 - Whether the test suite needs to be run before pushing
 
 Skip the trivial narration (don't say "now running git status").
-
-## Outcome tag convention
-
-Every PR body MUST end with:
-
-```
-<!-- dead-code-watcher: kind=$kind path=$path symbol=$symbol run=$RUN_ID -->
-```
-
-Substitute the actual values. This is how the feedback loop finds
-this PR on future runs.
 
 ## Process
 
@@ -206,10 +193,19 @@ EOF
 reviewer (Agent B) inspects your diff next; the orchestrator pushes
 + opens the PR only after the reviewer approves.
 
-If your last assistant message gives a clear summary (one paragraph:
-what you removed, what you checked, why you're confident), the
-orchestrator includes it in the PR body. So spend your last 5-10
-seconds writing a clear one-paragraph rationale BEFORE you finish.
+**Final message format — required.** Your last assistant message must
+end with a block in EXACTLY this shape:
+
+```
+SUMMARY:
+<2-4 sentences: what you removed, what you checked, why it's safe.
+Plain prose; no headings, no bullets, no code blocks inside the summary.>
+```
+
+The orchestrator extracts the text after `SUMMARY:` and includes it
+verbatim in the PR body. Anything else in your final message (commit
+output, protocol acknowledgments, follow-up notes) goes ABOVE the
+`SUMMARY:` block — only the marked summary lands in the PR.
 
 ### 4. SKIP path — add a skip-list entry
 
