@@ -2,7 +2,7 @@
 
 How operators deploy Gazetta to edge platforms and static hosts. `DeployAdapter` is the Pattern 1 Provider surface (per [ADR-0008](../../docs/adr/0008-provider-factory-returns-instance.md)) that swaps platform-specific deploy mechanics behind a uniform contract.
 
-**Status**: design pass complete (2026-05). Reference doc. Implementation phases sit in the Onboarding sprint (Tier 1 per [ROADMAP.md](../../ROADMAP.md)). Closes [#203](https://github.com/gazetta-studio/gazetta-studio/issues/203).
+**Status**: v1 shipped 2026-05-14 ([#203](https://github.com/gazetta-studio/gazetta-studio/issues/203)). `DeployAdapter` contract + `cloudflareWorkersDeploy()` + 2 validators + delete `target.worker` all merged. Verified end-to-end against `sites/gazetta.studio` — real Cloudflare deploy, live worker. Downstream adapters (#204 CF Pages+Functions, #206 Vercel Edge, #209 Netlify static, #208 GitHub Pages, etc.) each ship as their own PRs on the Onboarding sprint timeline.
 
 **Companion docs**:
 - [`design-deploy-implementation.md`](design-deploy-implementation.md) — 4-cut sequence for the v1 contract + Cloudflare refactor. Downstream adapters (#204, #206, #208, #209, etc.) each ship as their own small PRs after the contract lands.

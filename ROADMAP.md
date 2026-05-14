@@ -22,8 +22,8 @@ Priorities derive from [`docs/audits/cms-feature-audit.md`](docs/audits/cms-feat
 
 Reduce time-to-first-deploy for new operators. Closes the bulk of the deploy-adapters cluster:
 
-- [#203](https://github.com/gazetta-studio/gazetta-studio/issues/203) deploy adapter contract — design pass complete ([`design-deploy.md`](.claude/rules/design-deploy.md) + [`design-deploy-implementation.md`](.claude/rules/design-deploy-implementation.md) + [ADR-0010](docs/adr/0010-deploy-publish-independence.md)); 4-cut implementation (~5-6 days) ships the contract + Cloudflare refactor; unblocks the rest
-- 3 priority adapters proving the contract: [#204](https://github.com/gazetta-studio/gazetta-studio/issues/204) Cloudflare Pages+Functions, [#206](https://github.com/gazetta-studio/gazetta-studio/issues/206) Vercel Edge, [#209](https://github.com/gazetta-studio/gazetta-studio/issues/209) Netlify static
+- ✓ ~~[#203](https://github.com/gazetta-studio/gazetta-studio/issues/203) deploy adapter contract~~ — v1 shipped (2026-05-14). `DeployAdapter` Pattern 1 Provider surface + `cloudflareWorkersDeploy()` + 2 validators + delete `target.worker`. End-to-end verified against `sites/gazetta.studio` (real CF deploy + live worker). Durable design in [`design-deploy.md`](.claude/rules/design-deploy.md) + [ADR-0010](docs/adr/0010-deploy-publish-independence.md); operator guide in [`docs/deploy.md`](docs/deploy.md)
+- 3 priority adapters proving the contract: [#204](https://github.com/gazetta-studio/gazetta-studio/issues/204) Cloudflare Pages+Functions, [#206](https://github.com/gazetta-studio/gazetta-studio/issues/206) Vercel Edge, [#209](https://github.com/gazetta-studio/gazetta-studio/issues/209) Netlify static — each ships as a standalone PR against the v1 contract
 - [#213](https://github.com/gazetta-studio/gazetta-studio/issues/213) container deployment guide
 - [#79](https://github.com/gazetta-studio/gazetta-studio/issues/79) Docker example for `gazetta serve`
 - [#214](https://github.com/gazetta-studio/gazetta-studio/issues/214) first-run Cloudflare setup
@@ -229,6 +229,7 @@ All 19 `design-{feature}-implementation.md` docs shipped: ai, audit, auth-rbac, 
 | AdminCache abstraction | ✓ shipped (interface + `MemoryCache` + per-site + 6 test files) |
 | Audit primitive (v1 scope) | ✓ shipped (recorder + middleware + `HistoryAuditProvider`) |
 | Hooks lifecycle | ✓ shipped (factory contributions via `admin.hooks` per ADR-0009; 10 test files) |
+| Deploy adapter contract (#203) | ✓ shipped 2026-05-14 ([`design-deploy.md`](.claude/rules/design-deploy.md) + [ADR-0010](docs/adr/0010-deploy-publish-independence.md) + [`docs/deploy.md`](docs/deploy.md); `cloudflareWorkersDeploy()` + 2 validators + `target.worker` deleted; verified end-to-end against `sites/gazetta.studio` — real CF deploy, live worker on https://gazetta.studio) |
 | NotificationProvider (in-admin) | ☐ pending — see Next |
 
 **Plugin loader retired** per [ADR-0009](docs/adr/0009-no-plugin-runtime-factory-contributions.md). The locked plugin design pre-2026-05 was collapsed: Path X ([ADR-0008](docs/adr/0008-provider-factory-returns-instance.md)) covers Provider surfaces; Hooks Cut 9 ships factory contributions; Validators / Routes follow the contribution-array pattern.
