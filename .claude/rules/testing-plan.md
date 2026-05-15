@@ -71,11 +71,16 @@ class of failure that AI-assisted development is structurally prone to.
 | **Mutation testing** (StrykerJS, nightly) | Tests that pass without asserting anything meaningful | [`packages/gazetta/stryker.config.json`](../../packages/gazetta/stryker.config.json) + [`.github/workflows/mutation.yml`](../../.github/workflows/mutation.yml) |
 | **Property-based testing** (fast-check) | Boundary / Unicode / encoding edge cases AI's "safe middle" inputs miss | `packages/gazetta/tests/hash-sidecar-names.test.ts` is the reference example |
 
-**Mutation scope expansion (next):** StrykerJS today only mutates `hash.ts`
-(70% baseline, found one real survived mutant). Expand to AI-heavy modules
-where tautological tests are most likely. **Smallest-first** so the workflow
-calibrates (mutants-per-module, triage time, artifact retention) on a
-focused surface before tackling the largest:
+**Mutation scope expansion (next):** StrykerJS currently mutates the
+admin-API surface (`admin-api/**/*.ts`), `publish.ts`, `publish-rendered.ts`,
+the three history modules (`history-provider.ts`, `history-recorder.ts`,
+`history-restorer.ts`), and `alt/route-handler.ts` — see
+[`packages/gazetta/stryker.config.json`](../../packages/gazetta/stryker.config.json)
+for the current `mutate` glob. Nightly runtime ~1h 45m. Expand to
+AI-heavy modules where tautological tests are most likely.
+**Smallest-first** so the workflow calibrates (mutants-per-module, triage
+time, artifact retention) on a focused surface before tackling the
+largest:
 
 1. `packages/gazetta/src/hooks/registry.ts` — priority dispatch, error taxonomy. Smallest module; pure logic.
 2. `packages/gazetta/src/archive/` — helpers, aliases. Recent feature, all cuts AI-paired; focused surface.
