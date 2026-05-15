@@ -13,5 +13,7 @@ export function selectPurgeTargets(
   targets: Record<string, TargetConfig>,
   targetName: string | undefined,
 ): Array<[string, TargetConfig]> {
-  return Object.entries(targets)
+  if (targetName === undefined) return Object.entries(targets)
+  const config = targets[targetName]
+  return config === undefined ? [] : [[targetName, config]]
 }
