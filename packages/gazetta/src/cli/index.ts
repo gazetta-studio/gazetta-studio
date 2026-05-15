@@ -1010,7 +1010,8 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
 
   // Purge CDN cache per target
   const { resolveEnvVars } = await import('../targets.js')
-  for (const [name, config] of Object.entries(siteYaml.targets ?? {})) {
+  const { selectPurgeTargets } = await import('../publish-purge.js')
+  for (const [name, config] of selectPurgeTargets(siteYaml.targets ?? {}, targetName)) {
     const purge = config.cache?.purge
     if (!purge) continue
     if (purge.type === 'cloudflare') {
