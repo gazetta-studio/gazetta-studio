@@ -19,7 +19,7 @@ import type { SidecarState } from './sidecars.js'
 import { deriveRoute } from './site-loader.js'
 
 /** hreflang alternate for a single page — locale code + absolute URL. */
-export interface HreflangAlternate {
+interface HreflangAlternate {
   locale: string
   url: string
 }
