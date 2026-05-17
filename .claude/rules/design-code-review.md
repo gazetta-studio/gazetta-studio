@@ -285,9 +285,13 @@ Phase 2 — Pick top candidate  (TS)
   - Pick top remaining
 
 Phase 3 — Make the change  (Agent A)
-  - Generic agent-a.md prompt + injected candidate + lessons-learned.md
-  - Agent A: TDD-first ordering — failing test first, then implementation
-  - Pushes 2 commits to improve/<candidate-id> branch
+  - Orchestrator composes the shared agent-a.md base + the per-type
+    recipe from prompts/recipes/ (selected by `recipe-select.ts`)
+  - Recipes today: `tdd-first` (correctness/security/architecture/types/
+    comments/style) + `coverage-shape` (tests). New recipes land at
+    prompts/recipes/<shape>.md + one switch arm in `recipe-select.ts`
+  - Agent A follows the recipe's commit shape + anti-tautology
+    discipline; tdd-first emits 2 commits, coverage-shape emits 1
 
 Phase 4 — Review the diff  (Agent B — review-orchestrator skill)
   - Invoke review-orchestrator on git diff main...improve/<candidate-id>
