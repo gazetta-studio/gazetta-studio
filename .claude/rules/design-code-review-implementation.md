@@ -30,7 +30,7 @@ Four phases, each independently shippable. Risk increases per phase; each phase 
 |---|---|---|---|---|
 | **P1** | Skill family (6 angles + orchestrator + audit-area + dispatch.ts + glossary updates + ADRs) | Medium | ✓ | The skill contract works in isolation; angles produce useful findings; dispatch table fits real diffs |
 | **P2** | Fix-bot reviewer integration | Medium | ◐ | Cut 11 shipped (skill invocation wired + tested); Cut 12 deferred (replay infra gap); Cut 13 pending merge + first production runs |
-| **P3** | PR-comment trigger workflow | Low-medium | ☐ | Comment-driven invocation works; reaction emoji feedback; output formatting on a real PR thread |
+| **P3** | PR-comment trigger workflow | Low-medium | ◐ | Cuts 14+15 shipped (workflow + bot wrapper + grammar parser); Cut 16 (E2E on real PR) lands at PR merge |
 | **P4** | Review-bot (autonomous) | High | ☐ | Phase 0/1/2 composition; skip-list correctness; cross-run dedup at candidate level; full producer-bot pattern |
 
 ## Cut sequence — P1: Skill family
@@ -255,9 +255,9 @@ Tune dispatch table or severity thresholds if FP rate measurable.
 
 | # | Cut | Status | Risk | Validates |
 |---|---|---|---|---|
-| 14 | `.github/workflows/review-on-comment.yml` listening to `issue_comment` event on PRs | ☐ | Medium | Workflow shape; comment-grammar parser; reaction-emoji feedback |
-| 15 | Bot wrapper script that invokes the orchestrator skill headlessly and posts results | ☐ | Medium | Headless `claude -p` invocation of the orchestrator skill; output formatting |
-| 16 | E2E test on a real PR | ☐ | Low | Full workflow under real GitHub Actions conditions |
+| 14 | `.github/workflows/review-on-comment.yml` listening to `issue_comment` event on PRs (created + edited); reaction-emoji feedback; per-PR concurrency group | ✓ | Medium | Workflow shape; YAML validates; trigger filter correct |
+| 15 | Bot wrapper `bots/review-on-comment/index.ts` + comment-grammar parser (16 vitest tests); invokes orchestrator via Skill tool; posts result to PR with outcome tag | ✓ | Medium | Headless `claude -p` with `['Bash', 'Read', 'Grep', 'Glob', 'Skill']` allowed-tools; output formatting per design-code-review.md |
+| 16 | E2E test on a real PR | ☐ | Low | Lands when this PR opens — the comment trigger can review itself; verify reaction emoji + posted comment shape + outcome tag |
 
 ### Per-cut scope
 
