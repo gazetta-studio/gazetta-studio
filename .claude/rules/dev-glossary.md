@@ -185,13 +185,32 @@ own subdirectory with `index.ts` + `prompt.md`, shares helpers from
 unattended, skills are user-invoked.
 
 **Skill**:
-A user-invoked Claude Code surface, defined under `~/.claude/skills/<name>/`
-(global) or as a slash command in this project. Interactive: the user types
-`/<name>` and the skill walks them through a process step by step. Distinct
-from a Bot: skills are interactive, bots are autonomous. The interactive
-[`triage`](https://github.com/anthropics/claude-skills/tree/main/skills/triage)
-skill and the autonomous `triage-bot` cover the same domain at different
-audiences.
+A reusable Claude prompt body with defined input + output contracts.
+Lives under `.claude/skills/<name>/SKILL.md` (project-level, versioned
+with the repo) or `~/.claude/skills/<name>/SKILL.md` (global, cross-project).
+Invokable in three modes:
+
+- **Interactive** — user types `/<name>` in a Claude Code session; the
+  skill walks them through a process step by step. Example: the
+  [`triage`](https://github.com/anthropics/claude-skills/tree/main/skills/triage)
+  skill.
+- **Headless** — a Bot orchestrator passes the skill's prompt body to
+  `claude -p` non-interactively; orchestrator parses structured output
+  (e.g. JSONL findings fence, `VERDICT:` line).
+- **Sub-agent** — another Claude session spawns the skill via the
+  `Agent` tool; output appears as that agent's final message; the
+  parent session consumes it.
+
+The same SKILL.md serves all three modes; the skill's input + output
+contract is mode-agnostic. See [`bots/README.md`](../../bots/README.md)
+"Producer vs consumer" for the rule that determines what work belongs
+in the skill body (Claude judgment) vs the invoking orchestrator
+(deterministic parsing). Distinct from a Bot: Skills are reusable
+prompt artifacts; Bots are autonomous orchestrators that may invoke
+Skills among other steps. The interactive `triage` skill and the
+autonomous `triage-bot` cover the same domain at different audiences;
+the interactive [`review-orchestrator`](../skills/review-orchestrator/SKILL.md)
+skill and the autonomous `pr-review-bot` will follow the same pattern.
 
 **Transcript**:
 JSONL stream-json artifact written by [`bots/_lib/claude.ts`](../../bots/_lib/claude.ts)
