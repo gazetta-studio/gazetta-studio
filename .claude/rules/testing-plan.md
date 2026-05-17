@@ -71,24 +71,21 @@ class of failure that AI-assisted development is structurally prone to.
 | **Mutation testing** (StrykerJS, nightly) | Tests that pass without asserting anything meaningful | [`packages/gazetta/stryker.config.json`](../../packages/gazetta/stryker.config.json) + [`.github/workflows/mutation.yml`](../../.github/workflows/mutation.yml) |
 | **Property-based testing** (fast-check) | Boundary / Unicode / encoding edge cases AI's "safe middle" inputs miss | `packages/gazetta/tests/hash-sidecar-names.test.ts` is the reference example |
 
-**Mutation scope expansion (next):** StrykerJS currently mutates the
+**Mutation scope expansion:** StrykerJS currently mutates the
 admin-API surface (`admin-api/**/*.ts`), `publish.ts`, `publish-rendered.ts`,
 the three history modules (`history-provider.ts`, `history-recorder.ts`,
-`history-restorer.ts`), and `alt/route-handler.ts` — see
-[`packages/gazetta/stryker.config.json`](../../packages/gazetta/stryker.config.json)
-for the current `mutate` glob. Nightly runtime ~1h 45m. Expand to
-AI-heavy modules where tautological tests are most likely.
-**Smallest-first** so the workflow calibrates (mutants-per-module, triage
-time, artifact retention) on a focused surface before tackling the
-largest:
+`history-restorer.ts`), `alt/route-handler.ts`, and `hooks/registry.ts` —
+see [`packages/gazetta/stryker.config.json`](../../packages/gazetta/stryker.config.json)
+for the current `mutate` glob. Nightly runtime ~1h 45m; hard ceiling 3h
+workflow timeout.
 
-1. `packages/gazetta/src/hooks/registry.ts` — priority dispatch, error taxonomy. Smallest module; pure logic.
-2. `packages/gazetta/src/archive/` — helpers, aliases. Recent feature, all cuts AI-paired; focused surface.
-3. `packages/gazetta/src/audit/` — recorder dispatcher. Cross-cutting; medium surface.
-4. `packages/gazetta/src/validation/` — validators, scanner, save-delta. Largest surface; tackle once triage workflow is proven.
-
-Each lands as a separate `stryker.config.json` `mutate` glob extension, not a
-batch — survived mutants from one module need triage before adding the next.
+**Scope expansion is autonomous via `mutation-area-picker` bot** (per
+[`design-mutation-area-picker.md`](design-mutation-area-picker.md)). Weekly
+cron picks one module to ADD / SWAP / REMOVE from the portfolio under a
+runtime budget, using five risk-weighted signals (AI-pairing density,
+test/source LOC ratio, churn, flake correlation, bug-fix correlation).
+The bot opens a draft PR when its judgment says scope should change;
+exits silently otherwise. No human-curated next-list.
 
 Don't gate on score yet — observational metric until each module's baseline
 stabilises. Treat survived mutants as test-quality bugs.

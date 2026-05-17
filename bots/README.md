@@ -102,6 +102,12 @@ GITHUB_REPOSITORY=gazetta-studio/gazetta-studio GH_TOKEN=$(gh auth token) \
 | `discovery-prep-bot` | Daily 04:00 UTC + workflow_dispatch | `enhancement` AND lacks all of `ready-for-human`, `ready-for-agent`, `wontfix`, `needs-info` | Research comment + `ready-for-human` label | Researcher |
 | `fix-bot` | Daily 04:00 UTC + workflow_dispatch | `bug` + `ready-for-agent` AND lacks all of `ready-for-human`, `wontfix`, `needs-info` AND no `fix-bot-attempted` since reopen AND no skip-list match | PR (two commits: failing test + fix) on approve, skip-list entry on reject/needs-human, OR stuck-comment + `ready-for-human` on stuck path | Implementer — generator-critic reviewer loop + durable memory + lessons-learned |
 
+**Designed, not yet shipped:**
+
+| Bot | Trigger | Input | Output | Role |
+|---|---|---|---|---|
+| `mutation-area-picker` | Weekly Sun after Mutation run + workflow_dispatch | `stryker.config.json` + Stryker results + git/GitHub cross-references | Draft PR adding/swapping/removing one module in `mutate` glob, OR silent NOOP | **Strategic portfolio manager** — owns mutation scope under runtime budget. Design: [`.claude/rules/design-mutation-area-picker.md`](../.claude/rules/design-mutation-area-picker.md) |
+
 **Producer bots vs triage-bot.** Producer bots (`flake-watcher`,
 `mutation-watcher`, `dead-code-watcher`) consume CI signal or
 static-analysis output and self-classify their output, bypassing
