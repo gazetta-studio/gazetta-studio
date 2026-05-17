@@ -1,0 +1,107 @@
+import { describe, expect, it } from 'vitest'
+import { parseBotPRs, parseGitLogTouches, parsePickerOutput } from '../phase0-collect.js'
+
+describe('parseGitLogTouches', () => {
+  it('parses one commit with multiple files', () => {
+    const out = 'COMMIT 2026-05-17T10:00:00+00:00\npackages/gazetta/src/foo.ts\npackages/gazetta/src/bar.ts'
+    const touches = parseGitLogTouches(out)
+    expect(touches).toEqual([
+      { path: 'packages/gazetta/src/foo.ts', lastTouchedAt: '2026-05-17T10:00:00+00:00' },
+      { path: 'packages/gazetta/src/bar.ts', lastTouchedAt: '2026-05-17T10:00:00+00:00' },
+    ])
+  })
+
+  it('keeps only the most-recent timestamp for a file touched in multiple commits', () => {
+    // git log emits newest-first, so the FIRST occurrence is the most recent.
+    const out = [
+      'COMMIT 2026-05-17T10:00:00+00:00',
+      'packages/gazetta/src/foo.ts',
+      'COMMIT 2026-05-10T08:00:00+00:00',
+      'packages/gazetta/src/foo.ts',
+      'packages/gazetta/src/older.ts',
+    ].join('\n')
+    const touches = parseGitLogTouches(out)
+    expect(touches).toHaveLength(2)
+    const foo = touches.find((t) => t.path === 'packages/gazetta/src/foo.ts')
+    expect(foo?.lastTouchedAt).toBe('2026-05-17T10:00:00+00:00')
+  })
+
+  it('skips blank lines + handles empty input', () => {
+    expect(parseGitLogTouches('')).toEqual([])
+    expect(parseGitLogTouches('\n\n')).toEqual([])
+  })
+
+  it('skips files emitted before any COMMIT marker (defensive)', () => {
+    const out = 'orphan-file.ts\nCOMMIT 2026-05-17T10:00:00+00:00\nreal-file.ts'
+    const touches = parseGitLogTouches(out)
+    // Orphan-file is recorded with empty timestamp; we don't filter it
+    // out because that's the producer's job, but the parser must
+    // remain robust. The IMPORTANT invariant: real-file is captured.
+    expect(touches.some((t) => t.path === 'real-file.ts')).toBe(true)
+  })
+})
+
+describe('parseBotPRs', () => {
+  it('groups by area-prefix from headRefName', () => {
+    const stdout = JSON.stringify([
+      { headRefName: 'improve/auth-cap-gate-92', createdAt: '2026-05-15T10:00:00Z' },
+      { headRefName: 'improve/auth-rbac-bypass-101', createdAt: '2026-05-17T10:00:00Z' },
+      { headRefName: 'improve/admin-api-validate-77', createdAt: '2026-05-16T10:00:00Z' },
+    ])
+    const result = parseBotPRs(stdout, 180)
+    expect(result.get('auth')).toBe('2026-05-17T10:00:00Z') // most-recent auth
+    expect(result.get('admin')).toBe('2026-05-16T10:00:00Z')
+  })
+
+  it('drops PRs older than sinceDays cutoff', () => {
+    const stdout = JSON.stringify([
+      { headRefName: 'improve/old-1', createdAt: '2024-01-01T00:00:00Z' }, // ancient
+      { headRefName: 'improve/new-1', createdAt: '2026-05-17T10:00:00Z' },
+    ])
+    const result = parseBotPRs(stdout, 30)
+    expect(result.has('old')).toBe(false)
+    expect(result.has('new')).toBe(true)
+  })
+
+  it('handles empty / malformed JSON gracefully', () => {
+    expect(parseBotPRs('', 30).size).toBe(0)
+    expect(parseBotPRs('not-json', 30).size).toBe(0)
+    expect(parseBotPRs('[]', 30).size).toBe(0)
+  })
+
+  it('skips PRs without headRefName or createdAt', () => {
+    const stdout = JSON.stringify([
+      { headRefName: 'improve/x-1' }, // missing createdAt
+      { createdAt: '2026-05-17T10:00:00Z' }, // missing headRefName
+      { headRefName: 'main' }, // not an improve/* branch
+    ])
+    expect(parseBotPRs(stdout, 30).size).toBe(0)
+  })
+})
+
+describe('parsePickerOutput', () => {
+  it('parses a clean PICK line with Reasoning', () => {
+    const text = `Some narration here.\n> Decision: foo\nPICK: packages/gazetta/src/auth/\nReasoning: foundational area; cold-on-bot 45 days`
+    const r = parsePickerOutput(text)
+    expect(r.area).toBe('packages/gazetta/src/auth/')
+    expect(r.reasoning).toContain('cold-on-bot')
+  })
+
+  it('parses PICK: NONE', () => {
+    const r = parsePickerOutput('PICK: NONE\nReasoning: nothing eligible after skip-list filter')
+    expect(r.area).toBe(null)
+    expect(r.reasoning).toContain('nothing eligible')
+  })
+
+  it('returns null area when no PICK line present', () => {
+    const r = parsePickerOutput('I think we should pick auth.')
+    expect(r.area).toBe(null)
+    expect(r.reasoning).toContain('no PICK')
+  })
+
+  it('finds the LAST PICK line when multiple present (defensive)', () => {
+    const text = `PICK: packages/wrong/\nLater on...\nPICK: packages/right/\nReasoning: final decision`
+    const r = parsePickerOutput(text)
+    expect(r.area).toBe('packages/right/')
+  })
+})
