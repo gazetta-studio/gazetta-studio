@@ -111,14 +111,35 @@ export function expandGlob(globEntries: string[], allFiles: string[]): string[] 
 }
 
 /**
- * Estimate per-module runtime contribution in minutes.
- * Proxy heuristic: `srcLOC * 0.05` minutes per file. A 200-line
- * file ≈ 10 min of mutation time; a 50-line file ≈ 2.5 min. Real
- * Stryker timings vary by mutant density + test runner overhead;
- * this is a conservative upper bound for budget management. The
- * Future-direction note in the design doc is to read actual
- * per-file timing from Stryker's JSON output.
+ * Estimate per-module runtime in minutes. The factor argument is
+ * minutes-per-line, calibrated by the caller from the current
+ * scoped set's known runtime: `KNOWN_RUNTIME_MIN / SUM(LOC scoped)`.
+ *
+ * The first run on 2026-05-17 used a hardcoded `0.05` and produced
+ * 393 min estimate against a 105 min actual budget — ~3.75× too
+ * high. Self-calibration grounds the estimate in real data instead
+ * of guessing. Future direction is to read Stryker's per-file
+ * timing report directly; this is the simpler interim.
+ *
+ * Default factor when no calibration data exists: `0.013` —
+ * empirically derived from the first run (105 / 7870 LOC across
+ * the 8-entry mutate glob, expanded to 47 files). Used during
+ * bootstrap weeks before the bot has its own data; replaced by
+ * self-calibration once any scoped LOC sum is observed.
  */
-export function estimateRuntimeMinutes(srcLOC: number): number {
-  return srcLOC * 0.05
+export function estimateRuntimeMinutes(srcLOC: number, minutesPerLine = 0.013): number {
+  return srcLOC * minutesPerLine
+}
+
+/**
+ * Compute the calibration factor from the current scoped set's
+ * total LOC and a known total runtime. Returns minutes-per-line.
+ *
+ * If the total LOC is 0 (degenerate; empty mutate glob), returns
+ * the conservative default 0.013 so subsequent calls don't divide
+ * by zero.
+ */
+export function computeRuntimeCalibration(totalScopedLOC: number, knownRuntimeMin: number): number {
+  if (totalScopedLOC === 0) return 0.013
+  return knownRuntimeMin / totalScopedLOC
 }

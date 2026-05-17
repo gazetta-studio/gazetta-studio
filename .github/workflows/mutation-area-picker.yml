@@ -20,7 +20,11 @@ on:
   workflow_dispatch:
     inputs:
       budget_minutes:
-        description: 'Override MUTATION_BUDGET_MINUTES (default 105). Total nightly Stryker runtime budget.'
+        description: 'Override MUTATION_BUDGET_MINUTES (default 150). Max runtime the bot will grow the portfolio to.'
+        required: false
+        default: '150'
+      current_runtime_minutes:
+        description: 'Override MUTATION_CURRENT_RUNTIME_MINUTES (default 105). Observed nightly Stryker runtime — anchor for calibration.'
         required: false
         default: '105'
       inclusion_threshold:
@@ -95,7 +99,8 @@ jobs:
           GITHUB_RUN_ID: ${{ github.run_id }}
           # Fallback literals here MUST match the TypeScript defaults
           # in bots/mutation-area-picker/index.ts.
-          MUTATION_BUDGET_MINUTES: ${{ inputs.budget_minutes || '105' }}
+          MUTATION_BUDGET_MINUTES: ${{ inputs.budget_minutes || '150' }}
+          MUTATION_CURRENT_RUNTIME_MINUTES: ${{ inputs.current_runtime_minutes || '105' }}
           INCLUSION_THRESHOLD: ${{ inputs.inclusion_threshold || '0.4' }}
           EVICTION_THRESHOLD: ${{ inputs.eviction_threshold || '0.7' }}
         run: npm run mutation-area-picker -w @gazetta/bots
