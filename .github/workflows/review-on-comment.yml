@@ -1,0 +1,124 @@
+name: Review on PR comment
+
+# Reactive PR-comment review per design-code-review.md "PR-comment trigger
+# workflow". Fires on `issue_comment` events whose body contains
+# `@claude review` or `@claude audit`. Runs against PR comments only;
+# regular-issue comments are filtered out (different lifecycle owned by
+# triage / discovery-prep / fix bots).
+#
+# Grammar (locked in design-code-review.md Q-comment-trigger):
+#   @claude review                 -> full Phase 2 orchestrator on gh pr diff
+#   @claude review <angle> [...]   -> single-angle or selected-angle review
+#   @claude audit <path>           -> Phase 1 audit-area on the path
+#
+# Output: one PR comment with the orchestrator's structured findings
+# (markdown summary + JSONL findings fence) + outcome tag for future
+# replay-query support. Reaction-emoji feedback per Anthropic
+# claude-code-action convention (👀 starting, ✅ done, ❌ error).
+on:
+  issue_comment:
+    types: [created, edited]
+
+# Per-PR concurrency group — re-invoking on the same PR queues; cross-PR
+# parallelism is fine. Edits to a trigger comment also fire (types: edited)
+# so users can correct a typo without posting a new comment.
+concurrency:
+  group: review-on-comment-pr-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  review:
+    # Filter: PR comments only (issues don't have .pull_request); body must
+    # mention @claude review or @claude audit. The GitHub expression engine
+    # handles both at if-time so we don't waste a runner on irrelevant
+    # comments.
+    if: >
+      github.event.issue.pull_request != null &&
+      (contains(github.event.comment.body, '@claude review') ||
+       contains(github.event.comment.body, '@claude audit'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      # contents: read     — checkout the PR's head ref for `gh pr diff`
+      # pull-requests: write — post the review comment + edit it on retries
+      # issues: write      — react with 👀 / ✅ / ❌ (issue_comment reactions
+      #                       use the issues:write scope on PR comments too)
+      # actions: read      — for transcripts artifact upload
+      contents: read
+      pull-requests: write
+      issues: write
+      actions: read
+    steps:
+      - name: React 👀 (workflow started)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X POST \
+            "/repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
+            -H "Accept: application/vnd.github+json" \
+            -f content='eyes' || true
+
+      - uses: actions/checkout@v6
+        with:
+          # PR comments target the PR's head ref. We need the merge base
+          # for `git diff main...HEAD`-style commands; fetch-depth: 0
+          # keeps history available.
+          fetch-depth: 0
+          ref: ${{ github.event.issue.pull_request.head.ref || 'main' }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install workspace deps
+        # Need the workspace deps so tsx + the bots' dispatch.ts work.
+        # ~2 min cost — acceptable since reviews are reactive (one per
+        # comment), not high-frequency.
+        run: npm ci
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run review on comment
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          # Comment metadata for the wrapper script.
+          PR_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+        run: npm run review-on-comment -w @gazetta/bots
+        id: review
+
+      - name: React ✅ (success)
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X POST \
+            "/repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
+            -H "Accept: application/vnd.github+json" \
+            -f content='+1' || true
+
+      - name: React ❌ (failure)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X POST \
+            "/repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
+            -H "Accept: application/vnd.github+json" \
+            -f content='-1' || true
+
+      - name: Upload transcripts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: review-on-comment-transcripts
+          path: bots/transcripts/
+          if-no-files-found: ignore
+          retention-days: 90

@@ -14,6 +14,7 @@
     "fix-bot:compact": "tsx fix-bot/compact.ts",
     "dead-code-watcher": "tsx dead-code-watcher/index.ts",
     "dead-code-watcher:compact": "tsx dead-code-watcher/compact.ts",
+    "review-on-comment": "tsx review-on-comment/index.ts",
     "replay": "tsx _lib/replay.ts",
     "test": "vitest run"
   },
