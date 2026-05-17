@@ -419,9 +419,11 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
       prompt: reviewerPrompt,
       transcriptPath: reviewerTranscript,
       // Reviewer needs Bash to run the tautology check (git revert +
-      // vitest), Read to inspect source + rule files on demand.
+      // vitest), Read to inspect source + rule files on demand, and
+      // Skill to invoke /review-architecture + conditionally
+      // /review-security per design-code-review.md Step 3.
       // Explicitly NOT Write/Edit — reviewer doesn't modify code.
-      allowedTools: ['Bash', 'Read'],
+      allowedTools: ['Bash', 'Read', 'Skill'],
     })
     if (!bResult.success) {
       printWarning(`Agent B exited ${bResult.exitCode} on attempt ${attempt}; treating as needs-human.`)

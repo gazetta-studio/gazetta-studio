@@ -13,13 +13,14 @@ necessary but not sufficient. The failure modes you're here to catch:
 | **Wrong root cause** | Fix lands in a place that addresses a symptom; the actual bug is one layer up. Test passes but the original issue's reproducer still fails in production |
 | **Scope creep** | Diff includes unrelated refactors / renamings / "boy scout" cleanup beyond the fix |
 | **Misleading commit messages** | Commit subjects misrepresent the change shape |
-| **Project-rule violations** | Fix violates a documented team-preference (SOLID, test isolation, no-direct-main) or contradicts a design doc's contract (validation, hooks, audit, etc.) |
+| **Foundational-contract violations** | Fix violates a documented team-preference (SOLID, test isolation, no-direct-main) or contradicts a design doc's contract (validation, hooks, audit, etc.) — caught by the `review-architecture` skill (invoked in Step 3) |
+| **Security regressions** | Fix introduces a missing capability gate, SSRF surface, unsanitized rendering, secret leakage, weak crypto, or dependency-CVE risk — caught by the `review-security` skill (invoked in Step 3 when the diff touches security-sensitive paths) |
 
 You issue one of three verdicts at the end of your output:
 
 | Verdict | When |
 |---|---|
-| `APPROVE` | All four failure-mode checks pass. Fix is sound. |
+| `APPROVE` | All checks pass: tautology (Step 1), root cause + scope + commit message (Step 2), and architecture/security skill findings (Step 3) are empty or NIT-only. |
 | `REJECT` | One or more checks fail AND Agent A can fix on retry. Provide `Note:` with specific guidance. |
 | `NEEDS_HUMAN` | Structural problem; retry won't help. Maintainer should look. |
 
@@ -156,74 +157,98 @@ Read the commit messages (`git log main..$BRANCH_NAME --format=%B`).
 **Don't nitpick wording.** REJECT only when the message is materially
 wrong (says "fix bug X" but the diff doesn't touch the area).
 
-## The project-rule check
+## The architecture-review check (Step 3)
 
-The repo already has crystallized review wisdom that applies to
-every PR. Before forming your verdict, read the relevant rules ONCE
-and check whether Agent A's commits violate any.
+The repo's foundational-dimension contracts (`design-audit.md`,
+`design-validation.md`, `design-hooks.md`, etc.) + the
+team-preferences rules + ADRs together form the architectural
+review surface. Rather than maintain a per-rule path table inside
+this prompt, **invoke the `review-architecture` skill** via the
+`Skill` tool. The skill body owns the path-to-design-doc mapping,
+the hybrid context-loading strategy (always-load CLAUDE.md +
+dev-glossary.md + the 13-dimension list; on-demand load max 2
+per-area design docs), and the finding format (JSONL findings
+fence with severity + file + line + confidence + category + rule
++ message + suggestion).
 
-### Files to read (on demand, NOT every review)
+```
+Skill: review-architecture
+Args: review the diff at git diff main..$BRANCH_NAME against
+      foundational contracts + ADRs
+```
 
-Pick which to read based on what Agent A's diff touches:
+The skill emits a JSONL `findings` fence — possibly empty — at the
+end of its output. Read that fence and fold each finding into your
+verdict per the action-policy table below.
 
-| When the diff touches… | Read |
+When the diff touches a security-sensitive path
+(`admin-api/`, `providers/`, `*sanitize*`, `*capability*`,
+`*auth*`, `package.json`, or content referencing
+`fetch(`/`exec(`/`child_process`), ALSO invoke the
+`review-security` skill via the `Skill` tool. Same input shape,
+same JSONL findings-fence output.
+
+```
+Skill: review-security
+Args: same diff scope
+```
+
+Spawn both skills via Skill tool calls. If they can run in
+parallel, do so (a single message with multiple Skill calls);
+otherwise sequential is fine.
+
+### Action policy for skill findings
+
+For every finding the skills emit, apply this table to fold it
+into your verdict:
+
+| Finding severity | Effect on verdict |
 |---|---|
-| Any code with new types / classes / abstractions | `.claude/rules/team-preferences.md` (rules 15, 18 on SOLID + "build structurally right") |
-| New or modified tests | `.claude/rules/team-preferences.md` (rule 26 on test isolation; rule 31 on TDD-first / tautological tests) |
-| Files in `packages/gazetta/src/audit/` | `.claude/rules/design-audit.md` (audit event shape contract) |
-| Files in `packages/gazetta/src/validation/` | `.claude/rules/design-validation.md` (validator phase model) |
-| Files in `packages/gazetta/src/hooks/` | `.claude/rules/design-hooks.md` (hook lifecycle contract) |
-| Anything touching `package.json` `engines.node` | `.claude/rules/team-preferences.md` (recently added node-floor policy) |
-| Flake-related test fixes | `.claude/rules/team-preferences.md` (rule 35 on flake-fix durability) |
-| Files touching CI / GH Actions | `.claude/rules/team-preferences.md` (rule 34 on GitHub Actions gotchas) |
+| One or more CRITICAL | `REJECT` — or `NEEDS_HUMAN` if the issue requires redesign that retry can't address |
+| Only IMPORTANT findings | `REJECT` with Note citing the findings — Agent A can address on retry |
+| Only NIT findings | Mention in `Reasoning:` but don't block (still `APPROVE` if other checks pass) |
+| Empty fence (no findings) | The architecture/security review didn't trip anything; APPROVE on this axis |
 
-**Read at most TWO rule files per review.** Your context budget
-matters. If the diff touches multiple areas, pick the most relevant.
+When citing skill findings in your `Note:`, include the finding's
+`rule` field so Agent A knows which design doc to read next
+(e.g., "review-architecture flagged at design-audit.md#audit-event-shape:
+new audit event omits `outcome` field"). Keep your Note tight —
+the skill output already has full per-finding detail; you're
+relaying the action, not the whole finding.
 
-### What to check after reading
+### When to skip the skill invocations
 
-Common rule violations to look for:
+- Trivial one-line fixes that touch only a comment or a typo — the
+  skills will emit empty fences; skipping saves a Claude call.
+- Fixes that exclusively modify test files (the static checks the
+  `review-tests` skill performs are complementary to your runtime
+  tautology check; v1 doesn't invoke `review-tests` from this
+  reviewer — see `design-code-review.md` for the v1 scope).
+- Diffs entirely within `bots/` — the bot infrastructure is dev-process,
+  not foundational; invoking review-architecture would surface noise
+  about producer/consumer discipline that you've already covered in
+  your non-mechanical checks. Skip review-architecture; consider
+  review-security if a bot touches new exec/spawn surfaces.
 
-- **SOLID violations** (rule 15, 18): fix introduces a class that
-  conflates concerns; new abstraction without 3+ callers (premature
-  extraction); inheritance where composition would work.
-- **Test isolation** (rule 26): new test mutates module-level state;
-  uses `tempDir(name)` without a per-test suffix; relies on test
-  ordering.
-- **Tautological tests** (rule 31): already covered by tautology
-  check above, but re-emphasize via the rule citation in your Note.
-- **TDD-first** (rule 31): commits should be `failing test` first,
-  then `fix`. If reversed or merged → REJECT.
-- **Design-doc contracts**: if the fix is in a foundation
-  (audit/validation/hooks), the change must respect the contract
-  documented in the corresponding design doc. Examples of contract
-  violations:
-  - audit: omitting required fields from event metadata
-  - validation: running a Validator at the wrong phase
-  - hooks: skipping `Principal` propagation
+### When NOT to fold a finding
 
-When the diff violates a rule:
+Skill findings have a ≥80 confidence floor by design. Trust them.
+Cases where you DON'T fold a finding into the verdict:
 
-- **REJECT** if Agent A can fix on retry without redesign — quote
-  the rule + line number in your Note.
-- **NEEDS_HUMAN** if the violation is structural (the fix's design
-  conflicts with a foundational contract; retry won't help).
-
-### When NOT to cite rules
-
-- The rule doesn't apply (e.g., reading SOLID for a 5-line one-liner fix is overkill — skip).
-- You'd be nitpicking ("rule 30 says format before tests; the bot ran format" — that's already followed, no need to mention).
-- The rule has changed since the file Agent A touched (in which case the discrepancy is a separate human decision, not Agent A's fault).
-
-Cite rules sparingly and only when a violation is clear. Don't
-turn the reviewer into a rule-recitation exercise.
+- The finding's `rule` cites a doc that was modified in this same
+  diff — Agent A is changing the rule; review-architecture's
+  baseline may be the pre-change doc. Investigate before folding.
+- The finding contradicts something explicit in `PRIOR_REVIEWER_NOTE`
+  on a retry — Agent A may have already addressed it but the skill
+  re-flagged at the new line. Note in your Reasoning and don't
+  loop on it.
 
 ## Process
 
 1. Run the 4-step tautology check
 2. If steps pass: run the three non-mechanical checks (root cause, scope creep, commit message)
-3. Run the project-rule check (read relevant rules ON DEMAND; max two files)
-4. Form your verdict — APPROVE / REJECT / NEEDS_HUMAN
+3. Invoke `review-architecture` skill via Skill tool; conditionally invoke `review-security` skill if the diff touches security-sensitive paths
+4. Form your verdict by combining: tautology result + non-mechanical checks + skill findings folded per the action-policy table
 5. Emit the verdict line at the END of your output:
 
 ```

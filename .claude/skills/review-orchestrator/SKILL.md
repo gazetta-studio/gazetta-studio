@@ -1,7 +1,7 @@
 ---
 name: review-orchestrator
 description: Run the full code-review skill family on a diff — dispatches angle skills (review-diff / review-architecture / review-security / review-tests / review-types / review-comments) in parallel based on what the diff touches, then aggregates findings. Use for pre-commit / pre-PR review, PR-comment review, fix-bot reviewer verification, or autonomous review-bot's Agent B step.
-allowed-tools: Bash Read Grep Glob Agent
+allowed-tools: Bash Read Grep Glob Skill
 argument-hint: [--base <ref>] [--pr <N>]
 ---
 
@@ -48,9 +48,9 @@ It prints one angle name per line on stdout (e.g. `review-diff\nreview-tests\nre
 
 ### 2. Fan out — invoke angles in parallel
 
-For each angle name `dispatch.sh` emits, spawn it as a sub-agent via the `Agent` tool in a SINGLE message with multiple Agent calls. This is the parallel-fan-out pattern (per [Anthropic's GA Code Review architecture](https://claude.com/blog/code-review)).
+For each angle name `dispatch.sh` emits, invoke it as a skill via the `Skill` tool in a SINGLE message with multiple Skill calls. This is the parallel-fan-out pattern (per [Anthropic's GA Code Review architecture](https://claude.com/blog/code-review)).
 
-Each sub-agent invocation passes the diff payload as input.
+Each invocation passes the diff payload as input.
 
 ### 3. Parse — each angle's findings fence
 
