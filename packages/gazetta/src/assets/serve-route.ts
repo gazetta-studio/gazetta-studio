@@ -2,8 +2,10 @@
  * HTTP route: `GET /assets/*` — serve asset bytes from a storage provider.
  *
  * Thin adapter. Opens a `readStream` and pipes it to the response with
- * Content-Type + cache headers. Range request support lets `<video>`
- * seek and `<audio>` resume.
+ * Content-Type, cache, ETag, Content-Disposition, and CORS headers per
+ * the design-media.md "Asset serving" contract. Range request support
+ * lets `<video>` seek and `<audio>` resume; a matching `If-None-Match`
+ * short-circuits to 304 before any bytes are read.
  *
  * Mount this at the top level of the serving app (dev server,
  * `gazetta serve`), NOT under `/admin` — the resolver emits root-relative
@@ -21,6 +23,10 @@
  *   adapter says is right for the URLs it produces. Default
  *   (sharp adapter) returns `immutable` because hash-in-path is
  *   content-addressed: new bytes mean a new URL.
+ * - `X-Content-Type-Options: nosniff` + `Content-Disposition`
+ *   (`attachment` for non-embedded kinds) keep document uploads from
+ *   rendering inline in the asset origin.
+ * - `Access-Control-Allow-Origin: *` — assets are public in v1.
  */
 import { Hono } from 'hono'
 import { stream } from 'hono/streaming'
@@ -94,7 +100,20 @@ export function assetServeRoutes(resolveStorageOrOptions: AssetStorageResolver |
     // regardless of input; future per-input policy adapters will have
     // what they need.
     const adapter = opts.resolveAdapter ? await opts.resolveAdapter(targetName) : defaultSharpAdapter
-    const policy = adapter.cachePolicy(parseAssetUrlInput(path, ext))
+    const urlInput = parseAssetUrlInput(path, ext)
+    const policy = adapter.cachePolicy(urlInput)
+
+    // Content-addressed ETag: the 8-hex hash in the filename IS the
+    // validator. A filename without a hash suffix yields no ETag and
+    // no conditional handling (rather than an empty-quoted-string tag).
+    const etag = urlInput.hash ? `"${urlInput.hash}"` : undefined
+
+    if (etag && ifNoneMatches(c.req.header('if-none-match'), etag)) {
+      c.header('ETag', etag)
+      c.header('Cache-Control', policy.cacheControl)
+      if (policy.vary) c.header('Vary', policy.vary)
+      return c.body(null, 304)
+    }
 
     try {
       const bodyStream = await storage.readStream(storagePath, range)
@@ -102,6 +121,9 @@ export function assetServeRoutes(resolveStorageOrOptions: AssetStorageResolver |
       c.header('X-Content-Type-Options', 'nosniff')
       c.header('Cache-Control', policy.cacheControl)
       if (policy.vary) c.header('Vary', policy.vary)
+      if (etag) c.header('ETag', etag)
+      c.header('Content-Disposition', dispositionFor(mime))
+      c.header('Access-Control-Allow-Origin', '*')
       return stream(c, async out => {
         await out.pipe(bodyStream)
       })
@@ -151,4 +173,36 @@ function parseRange(header: string | undefined): { start: number; end: number } 
   const start = Number.parseInt(match[1], 10)
   const end = match[2] ? Number.parseInt(match[2], 10) : Number.POSITIVE_INFINITY
   return Number.isFinite(end) ? { start, end } : undefined
+}
+
+/**
+ * Evaluate `If-None-Match` against the asset's ETag. RFC 7232 §3.2
+ * mandates *weak comparison* for `If-None-Match`: a weak validator
+ * (`W/"tag"`) matches the strong form (`"tag"`) of the same opaque-tag.
+ * Strip the `W/` prefix from both the request token and the ETag before
+ * comparing, so a client or proxy sending the weak form still gets the
+ * 304. `*` matches any representation — the asset exists (`storage.exists`
+ * already passed), so it short-circuits to a match.
+ */
+function ifNoneMatches(header: string | undefined, etag: string): boolean {
+  if (!header) return false
+  if (header.trim() === '*') return true
+  const want = stripWeakPrefix(etag)
+  return header.split(',').some(token => stripWeakPrefix(token.trim()) === want)
+}
+
+function stripWeakPrefix(tag: string): string {
+  return tag.startsWith('W/') ? tag.slice(2) : tag
+}
+
+/**
+ * `Content-Disposition` per the asset's rendering contract. Embedded
+ * kinds (image/video/audio, rendered inline by templates) serve
+ * `inline`; everything else serves `attachment` so documents download
+ * rather than render in the asset origin. v1 infers the kind from the
+ * response MIME — reading the manifest's `kind` field is the
+ * authoritative upgrade once non-image MIMEs enter `MIME_BY_EXT`.
+ */
+function dispositionFor(mime: string): string {
+  return /^(?:image|video|audio)\//.test(mime) ? 'inline' : 'attachment'
 }
