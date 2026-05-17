@@ -139,14 +139,20 @@ artifact-handling on focused surfaces before tackling large ones. See
 [testing-plan.md](testing-plan.md).
 
 **Mutation-area-picker (strategic)**:
-Monthly bot that owns the `mutate` glob in `stryker.config.json`. Picks ONE
-module per month to add to the scope and opens a PR. Phase 1 follows
-`testing-plan.md`'s procedural next-list verbatim (autonomous but
-human-authored order); Phase 2 (after the list is exhausted) uses
-risk-weighted heuristic signals — AI-pairing density, test/source LOC
-ratio, churn, flake correlation, bug-fix correlation — to pick. Distinct
-from mutation-watcher (which consumes Stryker output) and from the
-mutation-target-prioritiser (tactical, per-cron).
+Weekly autonomous bot that owns the `mutate` glob in
+`stryker.config.json`. Manages a PORTFOLIO of mutated modules under a
+runtime budget (currently ~1h 45m, hard ceiling 3h). Picks one of
+ADD / SWAP / REMOVE / NOOP per cron based on risk-weighted heuristic
+signals (AI-pairing density, test/source LOC ratio, churn, flake
+correlation, bug-fix correlation) and empirical eviction per
+[ADR-0014](../../docs/adr/0014-mutation-eviction-by-empirical-evidence.md)
+(kill ratio sustained + fix rate met). Bootstrap weeks 1-4 do ADD-only.
+Opens a draft PR on acting weeks; exits silently on NOOP weeks. NO
+compactor in v1 — at ~52 decisions/year, signal volume is too thin to
+justify one; deferred until skip-list crosses 10 entries OR reviewer-log
+hits its 200-entry cache ceiling. Distinct from mutation-watcher
+(consumes Stryker output) and from the mutation-target-prioritiser
+(tactical, per-cron).
 
 **Mutation-target-prioritiser (tactical)**:
 Per-cron bot that re-ranks the "top-N actionable files" mutation-watcher
