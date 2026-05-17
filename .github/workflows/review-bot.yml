@@ -1,0 +1,112 @@
+name: Review bot
+
+# Autonomous code-improvement producer per design-code-review.md "Review-bot
+# (autonomous)". Daily cron picks an area, runs audit-area discovery, picks
+# the top candidate, Agent A implements + tests, Agent B reviews the diff,
+# orchestrator opens a PR on APPROVE.
+#
+# Status: SCAFFOLDING ONLY at first ship (P4 Cut 17). The pipeline phases
+# 0/1/2/3/4/5 are stubbed in index.ts; cuts 18+19 implement them. The
+# workflow ships now so the cron schedule + concurrency group + cache
+# layout are in place when the pipeline implementation lands.
+on:
+  schedule:
+    # 04:30 UTC daily = 06:30 CEST. Runs after fix-bot (04:00 UTC) so
+    # today's freshly-merged PRs are visible in the same morning's
+    # review-bot run. Daily skew lands the PR by ~09:00 CEST review
+    # window.
+    - cron: '30 4 * * *'
+  workflow_dispatch:
+    inputs:
+      area:
+        description: 'Optional: force a specific area to audit (otherwise Phase 0 picks)'
+        required: false
+      max_attempts:
+        description: 'Generator-critic loop cap (default 5)'
+        required: false
+        default: '5'
+      dry_run:
+        description: 'Set to 1 to run without taking any action (Phase 0/1 only)'
+        required: false
+        default: ''
+
+# Single-instance invariant per ADR-0011. The bot appends to a
+# cached reviewer-log.jsonl; two concurrent runs would race on the
+# cache. `cancel-in-progress: false` queues the second invocation;
+# never kills in-flight work. Literal group name 'review-bot' is
+# shared with the matching job in bots-compact.yml so the monthly
+# compactor cannot run concurrently with the daily bot.
+concurrency:
+  group: review-bot
+  cancel-in-progress: false
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 60
+    permissions:
+      # Read+write contents (push improve/<id> branches), read+write
+      # issues (post comments + apply labels if stuck), read+write PRs
+      # (open improvement PRs). Same widest-permission posture as fix-bot
+      # — only writes to improve/* branches, never main.
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Full history needed for branch creation + git diff main...
+          fetch-depth: 0
+
+      - name: Configure git author
+        run: |
+          git config user.name 'review-bot'
+          git config user.email 'noreply@anthropic.com'
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install workspace deps
+        run: npm ci
+
+      - name: Build gazetta package
+        # Some tests need the built package; build once up front.
+        run: npm run build -w packages/gazetta
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      # Restore the reviewer-log from cache. The bot appends Agent B
+      # verdicts on every loop iteration; the cache keeps the file
+      # across runs so the monthly compactor has cross-candidate signal
+      # to work with. Cache miss is fine — bot starts with empty log.
+      # Bump -v1 suffix if the JSONL schema changes.
+      - name: Restore reviewer-log cache
+        uses: actions/cache@v4
+        with:
+          path: bots/review-bot/reviewer-log.jsonl
+          key: review-bot-reviewer-log-v1
+
+      - name: Run review-bot
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          # Workflow_dispatch inputs forwarded; cron runs use defaults.
+          AREA: ${{ inputs.area }}
+          MAX_ATTEMPTS: ${{ inputs.max_attempts || '5' }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: npm run review-bot -w @gazetta/bots
+
+      - name: Upload transcripts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: review-bot-transcripts
+          path: bots/transcripts/
+          if-no-files-found: ignore
+          retention-days: 90
