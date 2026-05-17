@@ -46,7 +46,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { printBanner, printNotice, printRunSummary, printWarning } from '../_lib/ui.js'
 import { decide, type Decision, type ScopedModule, type UnMutatedCandidate } from './decision.js'
-import { discoverCandidates, estimateRuntimeMinutes, expandGlob } from './discover.js'
+import { computeRuntimeCalibration, discoverCandidates, estimateRuntimeMinutes, expandGlob } from './discover.js'
 import {
   appendReviewerLog,
   countWeeklyRuns,
@@ -85,8 +85,22 @@ const PER_RUN_BUDGET_MS = Number(process.env.BUDGET_MS ?? 10 * 60 * 1000)
  */
 const BOOTSTRAP_WEEKS = Number(process.env.BOOTSTRAP_WEEKS ?? '4')
 
-/** Total nightly Stryker budget in minutes. Hard ceiling is 180 (workflow timeout). */
-const BUDGET_MINUTES = Number(process.env.MUTATION_BUDGET_MINUTES ?? '105')
+/**
+ * Total nightly Stryker BUDGET in minutes — the max the bot is willing
+ * to let the portfolio grow to. Hard ceiling is 180 (workflow timeout);
+ * default 150 leaves 30 min variance margin.
+ */
+const BUDGET_MINUTES = Number(process.env.MUTATION_BUDGET_MINUTES ?? '150')
+
+/**
+ * The bot's anchor for runtime calibration: what the CURRENT nightly
+ * actually takes. The calibration factor is CURRENT ÷ scoped LOC; that
+ * factor then estimates per-module runtime consistently across scoped
+ * and candidate. Default 105 min = the observed 1h 45m nightly today.
+ * Operators bump this only when Stryker's true runtime changes
+ * meaningfully (different runner, different test suite).
+ */
+const CURRENT_RUNTIME_MINUTES = Number(process.env.MUTATION_CURRENT_RUNTIME_MINUTES ?? '105')
 
 /** Min inclusion score required to ADD a module. Default 0.4 per design doc. */
 const INCLUSION_THRESHOLD = Number(process.env.INCLUSION_THRESHOLD ?? '0.4')
@@ -161,32 +175,51 @@ async function main(): Promise<void> {
 
   // Compose scores across the candidate set
   const inclusionScores = composeInclusionScores(inclusionRawSignals)
-  // Pre-fetch LOC for runtime estimation
+  // Pre-fetch LOC for both candidates AND scoped (need scoped LOC FIRST for runtime calibration)
   const candidateLOCs = await Promise.all(candidatePaths.map(p => env.countLines(resolve(REPO_ROOT, p))))
+
+  // Step 5: Evaluate scoped modules. Compute the runtime-calibration
+  // factor BEFORE estimating any per-module runtime — calibration is
+  // anchored to the known nightly Stryker runtime against the current
+  // scoped LOC sum, so estimates stay grounded in reality instead of
+  // hardcoded LOC×constant guesses (the original 0.05 produced ~4×
+  // over-estimates; see first-run log 2026-05-17).
+  //
+  // Per-bot kill-ratio history is bootstrap-empty; in production this
+  // reads from the last N weekly Stryker run artifacts. For now we
+  // pass empty history per scoped module — evaluateEviction returns
+  // "history too short" which keeps everything in scope. The proper
+  // wire-up to gh run download lands as a future-direction item per
+  // the design doc.
+  const scopedFiles = expandGlob(currentGlob, await listAllSrcTsFiles())
+  printNotice(`Scoped modules (expanded from ${currentGlob.length} glob entries): ${scopedFiles.length}`)
+
+  // Compute calibration: KNOWN current nightly runtime / sum of scoped LOC.
+  // Anchored to actual observed runtime (CURRENT_RUNTIME_MINUTES), NOT
+  // the bot's growth budget. This way the factor stays grounded even
+  // as the bot expands the portfolio toward BUDGET.
+  const scopedLOCs = await Promise.all(scopedFiles.map(p => env.countLines(resolve(REPO_ROOT, p))))
+  const totalScopedLOC = scopedLOCs.reduce((a, b) => a + b, 0)
+  const minutesPerLine = computeRuntimeCalibration(totalScopedLOC, CURRENT_RUNTIME_MINUTES)
+  printNotice(
+    `Runtime calibration: ${totalScopedLOC} scoped LOC ÷ ${CURRENT_RUNTIME_MINUTES} min observed runtime = ${minutesPerLine.toFixed(4)} min/line`,
+  )
+
+  // Now build candidates + scoped with the calibrated factor.
   const unMutated: UnMutatedCandidate[] = candidatePaths.map((path, i) => ({
     modulePath: path,
     inclusionScore: inclusionScores[i],
-    estimatedRuntimeMinutes: estimateRuntimeMinutes(candidateLOCs[i]),
+    estimatedRuntimeMinutes: estimateRuntimeMinutes(candidateLOCs[i], minutesPerLine),
   }))
 
-  // Step 5: Evaluate eviction for each scoped module.
-  // Per-bot kill-ratio history is bootstrap-empty; in production this
-  // reads from the last N weekly Stryker run artifacts. For Cut 6 we
-  // pass empty history per scoped module — evaluateEviction returns
-  // "history too short" which keeps everything in scope. The proper
-  // wire-up to gh run download lands in Cut 7+ as a future-direction
-  // item per the design doc.
-  const scopedFiles = expandGlob(currentGlob, await listAllSrcTsFiles())
-  printNotice(`Scoped modules (expanded from ${currentGlob.length} glob entries): ${scopedFiles.length}`)
   const scoped: ScopedModule[] = await Promise.all(
-    scopedFiles.map(async path => {
+    scopedFiles.map(async (path, i) => {
       const evictionSignals = await collectEvictionSignals(env, path, [])
       const evaluation = evaluateEviction(evictionSignals)
-      const loc = await env.countLines(resolve(REPO_ROOT, path))
       return {
         modulePath: path,
         eviction: evaluation,
-        estimatedRuntimeMinutes: estimateRuntimeMinutes(loc),
+        estimatedRuntimeMinutes: estimateRuntimeMinutes(scopedLOCs[i], minutesPerLine),
       }
     }),
   )
