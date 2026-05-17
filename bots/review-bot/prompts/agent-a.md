@@ -9,7 +9,10 @@ on a fresh branch with TDD-first ordering.
 - `CANDIDATE_JSON` — the picked candidate (from audit-area's
   `candidates` fence). Fields: `area`, `type`, `severity`, `summary`,
   `suggested_action`, `rule`, `confidence`.
-- `BRANCH_NAME` — `improve/<candidate-id>` (orchestrator created it).
+- `BRANCH_NAME` — `improve/<candidate-id>`. The orchestrator has reset
+  the working tree to clean `main`; you create the branch yourself
+  with `git checkout -b $BRANCH_NAME 2>/dev/null || git checkout
+  $BRANCH_NAME` (same pattern fix-bot's Agent A uses).
 - `LESSONS_LEARNED` — content of `bots/review-bot/lessons-learned.md`
   at run time. Cross-candidate patterns the monthly compactor distilled.
 - `RUN_ID` — diagnostic only.
