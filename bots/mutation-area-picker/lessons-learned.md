@@ -1,29 +1,46 @@
 # Mutation-area-picker — lessons learned
 
-Cross-run patterns the monthly compactor surfaces from the reviewer-log
-into Agent A's prompt. The bot reads this file at the top of every cron
-run and uses the lessons to calibrate its decision-making.
+Cross-run patterns distilled from the reviewer-log. The bot reads this
+file at the top of every cron and uses the lessons to calibrate its
+decision-making.
 
-**Empty until the first monthly compactor run.** Compactor needs at least
-4 weekly runs of reviewer-log signal before it produces lessons; below
-that threshold the signal-to-noise ratio is too low.
+## Status: v1 placeholder — no compactor shipped
 
-What the compactor surfaces here:
+The bot is autonomous v1; the compactor that would maintain this file
+is **deliberately deferred** per
+[`.claude/rules/design-mutation-area-picker.md`](../../.claude/rules/design-mutation-area-picker.md)
+§"Memory". Reason: at the bot's weekly cadence (~52 decisions/year),
+signal volume is too thin to justify a monthly compactor right now.
+The runtime budget already self-compacts the working portfolio via
+SWAP/REMOVE actions; this file would compact CROSS-decision patterns,
+which is a different concern that earns its place when the data
+accumulates.
 
-- **Heuristic-weight calibration.** "AI-pairing density consistently
-  ranked first but those modules' post-mutation kill ratios stayed
-  under 0.6. Consider lowering weight from 0.30 to 0.20."
-- **Eviction patterns.** "Modules under `src/admin-api/routes/` reached
-  kill ratio 0.85 within 6 weeks consistently. Worth tightening the
-  4-week sustainment to 3 weeks for routes specifically?"
-- **Recurring rejection themes.** "Last 3 maintainer rejections all
-  cited 'pure type module — nothing to mutate.' Add a kind-detection
-  pre-filter."
+**Until the compactor ships, this file stays empty.** The bot's prompt
+still loads it (the load path is wired so adding a compactor later is
+additive).
 
-What the compactor does NOT surface here:
+## Manual recalibration today
 
-- Per-module rejection prose (that lives in skip-list.json's
-  reasonNote field; durable per-instance memory)
-- One-off observations from a single PR (wait for the pattern to
-  recur before promoting to a lesson)
-- Anything the bot's prompt already says (no duplication)
+If you observe a pattern that should become a lesson — e.g. weights
+consistently producing weak picks — edit this file by hand and commit.
+The bot reads it next cron. When the compactor lands, it will rewrite
+this file holistically from the reviewer-log.
+
+## Trigger to revisit compactor design
+
+Any one of:
+
+- **Skip-list grows past 10 entries** with visible glob-compactable
+  patterns. At that point we want generic glob rules (like
+  dead-code-watcher's compactor produces), not 10+ specific entries.
+- **Reviewer-log entries past 200** (the cache ceiling). We want
+  bounded cache via the `pruneReviewerLog` helper already imported by
+  the future compactor.
+- **Calibration drift visible** — bot consistently picks weak
+  candidates because heuristic weights are wrong; we want
+  lessons-learned to surface the recurring pattern.
+
+When any trigger fires, the compactor ships as ~150 LOC + a job in
+`bots-compact.yml`. The design surface is unchanged; only the
+implementation timing.
