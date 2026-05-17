@@ -304,13 +304,17 @@ async function phase1Discovery(area: string, runId: string): Promise<Candidate[]
   const transcriptPath = resolve(TRANSCRIPT_DIR, `discovery-${runId}.jsonl`)
   const prompt = `Invoke the \`audit-area\` skill via the Skill tool with the path argument \`${area}\`.
 
-After audit-area returns, emit ONLY its candidates fence to stdout. Do not add
-prose around it. The orchestrator parses the fence directly.
+Pass through audit-area's complete output verbatim — including the prose-with-
+\`> Decision: ...\` notes ABOVE the candidates fence that the skill's prompt
+requires. The orchestrator's TS parser extracts only the fence body (via
+\`extractCandidatesFence\`); the surrounding prose is preserved in the transcript
+for replay-loop diffability + maintainer review of what the skill considered
+before settling on the emitted candidates.
 
-If audit-area returns no candidates, emit an empty fence:
-
-\`\`\`candidates
-\`\`\`
+If audit-area returns no candidates, the skill emits an empty \`\`\`candidates\`\`\`
+fence with prose explaining what was checked. Pass that through too — the
+"no-candidates + reason" outcome is informative and the empty fence still
+parses correctly.
 `
   const result = await runClaude({
     prompt,
