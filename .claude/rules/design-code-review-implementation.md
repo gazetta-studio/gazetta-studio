@@ -26,12 +26,12 @@ Four phases, each independently shippable. Risk increases per phase; each phase 
 
 **Status legend**: ✓ shipped · ◐ in progress · ☐ pending
 
-| Phase | What | Risk | Validates |
-|---|---|---|---|
-| **P1** | Skill family (6 angles + orchestrator + audit-area + dispatch.ts + glossary updates + ADRs) | Medium | The skill contract works in isolation; angles produce useful findings; dispatch table fits real diffs |
-| **P2** | Fix-bot reviewer integration | Medium | Skills compose as sub-agents from another Claude session; severity-to-action mapping works in a bot context |
-| **P3** | PR-comment trigger workflow | Low-medium | Comment-driven invocation works; reaction emoji feedback; output formatting on a real PR thread |
-| **P4** | Review-bot (autonomous) | High | Phase 0/1/2 composition; skip-list correctness; cross-run dedup at candidate level; full producer-bot pattern |
+| Phase | What | Risk | Status | Validates |
+|---|---|---|---|---|
+| **P1** | Skill family (6 angles + orchestrator + audit-area + dispatch.ts + glossary updates + ADRs) | Medium | ✓ | The skill contract works in isolation; angles produce useful findings; dispatch table fits real diffs |
+| **P2** | Fix-bot reviewer integration | Medium | ☐ | Skills compose as sub-agents from another Claude session; severity-to-action mapping works in a bot context |
+| **P3** | PR-comment trigger workflow | Low-medium | ☐ | Comment-driven invocation works; reaction emoji feedback; output formatting on a real PR thread |
+| **P4** | Review-bot (autonomous) | High | ☐ | Phase 0/1/2 composition; skip-list correctness; cross-run dedup at candidate level; full producer-bot pattern |
 
 ## Cut sequence — P1: Skill family
 
@@ -39,16 +39,16 @@ Sequenced contract-first (output format, severity model), then orchestrator scaf
 
 | # | Cut | Status | Risk | Validates |
 |---|---|---|---|---|
-| 1 | ADRs (0012, 0013) + glossary updates (Review angle, Findings fence, Severity, Generator-critic loop, Skip-list) | ☐ | Low | Vocabulary + load-bearing decisions captured |
-| 2 | `review-orchestrator/SKILL.md` (skeleton) + `dispatch.ts` + vitest tests | ☐ | Medium | Dispatch shape; producer/consumer split; parallel sub-agent invocation pattern |
-| 3 | `review-diff/SKILL.md` (general baseline — the simplest angle) | ☐ | Low | Output format + finding shape against a real diff |
-| 4 | `review-comments/SKILL.md` (next-simplest — pure judgment, narrow scope) | ☐ | Low | Empty-fence behavior on diffs that don't touch comments |
-| 5 | `review-types/SKILL.md` (Zod-schema-aware) | ☐ | Medium | Type-introspection pattern (find `z.object`, `interface`, `type` in diff) |
-| 6 | `review-tests/SKILL.md` (TDD-ordering + static tautology + tier shape) | ☐ | Medium-high | Static check that doesn't duplicate fix-bot's runtime check |
-| 7 | `review-architecture/SKILL.md` (foundational dimensions; hybrid context load) | ☐ | High | Per-area design-doc loading; doesn't burn context; cites rules correctly |
-| 8 | `review-security/SKILL.md` (SSRF/capability/sanitization/secrets) | ☐ | High | Security-specific path + content patterns; CRITICAL severity assignment correctness |
-| 9 | `audit-area/SKILL.md` (Phase 1 discovery) | ☐ | Medium-high | Candidates fence schema; multi-angle internal lens application |
-| 10 | E2E: local CLI invocation of all 8 skills against a real synthetic diff; manual verification | ☐ | Low | Skill family works end-to-end before P2 integration |
+| 1 | ADRs (0012, 0013) + glossary updates (Skill broadened; review angle / findings fence / severity etc. land in subsequent cuts as needed) | ✓ | Low | Vocabulary + load-bearing decisions captured |
+| 2 | `review-orchestrator/SKILL.md` (skeleton) + `dispatch.ts` (via `bots/_lib/review-dispatch.ts`) + 46 vitest tests | ✓ | Medium | Dispatch shape; producer/consumer split; parallel sub-agent invocation pattern |
+| 3 | `review-diff/SKILL.md` (general baseline — the simplest angle) | ✓ | Low | Output format + finding shape against a real diff |
+| 4 | `review-comments/SKILL.md` (next-simplest — pure judgment, narrow scope) | ✓ | Low | Empty-fence behavior on diffs that don't touch comments |
+| 5 | `review-types/SKILL.md` (Zod-schema-aware) | ✓ | Medium | Type-introspection pattern (find `z.object`, `interface`, `type` in diff) |
+| 6 | `review-tests/SKILL.md` (TDD-ordering + static tautology + tier shape) | ✓ | Medium-high | Static check that doesn't duplicate fix-bot's runtime check |
+| 7 | `review-architecture/SKILL.md` (foundational dimensions; hybrid context load) | ✓ | High | Per-area design-doc loading; doesn't burn context; cites rules correctly |
+| 8 | `review-security/SKILL.md` (SSRF/capability/sanitization/secrets) | ✓ | High | Security-specific path + content patterns; CRITICAL severity assignment correctness |
+| 9 | `audit-area/SKILL.md` (Phase 1 discovery) | ✓ | Medium-high | Candidates fence schema; multi-angle internal lens application |
+| 10 | E2E: dispatch script + library invocation + 46 vitest pass; smoke test against branch diff + 4 synthetic inputs | ✓ | Low | Skill family works end-to-end before P2 integration |
 
 ### Per-cut scope
 
