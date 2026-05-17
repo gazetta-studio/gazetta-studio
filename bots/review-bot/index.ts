@@ -37,11 +37,17 @@
  * Single-instance invariant: workflow concurrency group 'review-bot'
  * with cancel-in-progress: false (per ADR-0011).
  */
-import { execFileSync, spawnSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
+import {
+  branchHasCommits as branchHasCommitsLib,
+  captureCommitMessages,
+  captureDiff,
+  resetToMain,
+} from '../_lib/git-tree.js'
 import { octokitFromEnv, repoFromEnv } from '../_lib/github.js'
 import { extractLastAssistantText } from '../_lib/transcript.js'
 import { printNotice, printWarning } from '../_lib/ui.js'
@@ -148,7 +154,10 @@ async function main(): Promise<void> {
   let approved = false
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     printNotice(`Attempt ${attempt}/${MAX_ATTEMPTS}: invoking Agent A (improve) on ${branchName}...`)
-    resetBranch(branchName)
+    // resetToMain (from _lib/git-tree) discards uncommitted state +
+    // deletes the in-flight branch + checks out main. Agent A's
+    // prompt creates the branch itself (`git checkout -b $BRANCH_NAME`).
+    resetToMain(branchName, { cwd: REPO_ROOT })
 
     const agentAResult = await phase3AgentA(candidate, branchName, attempt, priorReviewerNote, lessons, runId)
     if (!agentAResult.pushed) {
@@ -183,7 +192,18 @@ async function main(): Promise<void> {
 
     if (verdict.kind === 'approve') {
       printNotice(`Verdict: APPROVE. Pushing ${branchName} + opening PR...`)
-      await phase5Push(branchName, candidate, fingerprint, octokit, repo)
+      await phase5Push(
+        branchName,
+        candidate,
+        fingerprint,
+        {
+          attempt,
+          approveReasoning: verdict.reasoning,
+          agentASummary: agentAResult.summary ?? '(no summary)',
+        },
+        octokit,
+        repo,
+      )
       approved = true
       break
     }
@@ -371,20 +391,35 @@ If review-orchestrator emits an empty findings fence (no concerns ≥ 80 confide
 
 // --- Phase 5: push + open PR -----------------------------------------
 
+interface AttemptRecord {
+  attempt: number
+  approveReasoning: string
+  agentASummary: string
+}
+
 async function phase5Push(
   branchName: string,
   candidate: Candidate,
   fingerprint: Fingerprint,
+  attemptRecord: AttemptRecord,
   octokit: ReturnType<typeof octokitFromEnv>,
   repo: ReturnType<typeof repoFromEnv>,
 ): Promise<void> {
+  // Capture commit log + diff stat for the PR body (per fix-bot's
+  // structured-PR-body convention). Done BEFORE push so we read the
+  // local branch state, not the remote.
+  const commitMessages = captureCommitMessages(branchName, { cwd: REPO_ROOT })
+  const diffStat = captureDiffStat(branchName)
+
   // Push the branch
   execFileSync('git', ['push', '-u', 'origin', branchName, '--force-with-lease'], {
     cwd: REPO_ROOT,
     stdio: 'inherit',
   })
 
-  // Open the PR
+  // Open the PR with the structured body shape (mirrors fix-bot's
+  // sections: candidate context, what Agent A did, how Agent B
+  // reviewed, test plan).
   const title = `improve(${candidate.type}): ${candidate.summary.slice(0, 60)}`
   const body = `## Summary
 
@@ -394,23 +429,53 @@ Autonomous improvement proposed by review-bot.
 - **Type**: \`${candidate.type}\`
 - **Severity**: \`${candidate.severity}\`
 - **Rule cited**: \`${candidate.rule}\`
+- **Attempts**: ${attemptRecord.attempt} (generator-critic loop)
 
-## Candidate context (from audit-area)
+## Candidate context (from \`audit-area\`)
 
 ${candidate.summary}
 
-## Suggested action (Agent A's starting point)
-
+**Suggested action** (Agent A's starting point):
 ${candidate.suggested_action}
 
-## Review
+## What Agent A did
 
-Two commits expected on this branch:
-- A failing-test commit (TDD-first ordering per team-preferences rule 31)
-- The implementation that makes the test pass
+${attemptRecord.agentASummary}
 
-Agent B (review-orchestrator) approved the diff with no CRITICAL or
-IMPORTANT findings ≥ 80 confidence.
+### Commits
+
+\`\`\`
+${commitMessages || '(commit log unavailable)'}
+\`\`\`
+
+### Diff stat
+
+\`\`\`
+${diffStat || '(diff stat unavailable)'}
+\`\`\`
+
+## How Agent B reviewed
+
+Invoked \`review-orchestrator\` skill which fanned out to the
+applicable angle skills (per the dispatch table — see
+[\`bots/_lib/review-dispatch.ts\`](bots/_lib/review-dispatch.ts)).
+Findings were aggregated, deduped by \`(file, line, category)\`, and
+filtered to confidence ≥ 80.
+
+### Verdict reasoning
+
+${attemptRecord.approveReasoning}
+
+## Test plan
+
+- [ ] Inspect the failing-test commit; verify it captures the candidate's
+      problem (test should reasonably fail without the fix)
+- [ ] Inspect the fix commit; verify it addresses the test's assertion
+      narrowly (no scope creep)
+- [ ] Run \`npm test\` locally; verify both commits + the diff cleanly
+- [ ] If the candidate's \`type\` is security or architecture, eyeball
+      the corresponding design doc cited in \`rule\` to confirm the
+      change respects the contract
 
 ## Bot disclosure
 
@@ -429,23 +494,26 @@ IMPORTANT findings ≥ 80 confidence.
   printNotice(`PR opened for ${branchName}`)
 }
 
-// --- Branch helpers --------------------------------------------------
-
-function resetBranch(branchName: string): void {
-  // Hard-reset to main, recreate the branch. Defense-in-depth between
-  // attempts so prior Agent A partial work doesn't bleed into the next
-  // attempt. No-op on attempt 1.
-  spawnSync('git', ['checkout', 'main'], { cwd: REPO_ROOT, stdio: 'ignore' })
-  spawnSync('git', ['branch', '-D', branchName], { cwd: REPO_ROOT, stdio: 'ignore' })
-  execFileSync('git', ['checkout', '-b', branchName], { cwd: REPO_ROOT, stdio: 'ignore' })
+function captureDiffStat(branchName: string): string {
+  try {
+    return execFileSync('git', ['diff', `main...${branchName}`, '--stat'], {
+      cwd: REPO_ROOT,
+      encoding: 'utf-8',
+      maxBuffer: 1 * 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
+  } catch {
+    return ''
+  }
 }
 
+// --- Branch helpers --------------------------------------------------
+// Implementations live in bots/_lib/git-tree.ts (shared with fix-bot +
+// dead-code-watcher). This file imports them at the top and exposes
+// thin per-bot wrappers when needed.
+
 function branchHasCommits(branchName: string): boolean {
-  const r = spawnSync('git', ['log', '--oneline', `main..${branchName}`], {
-    cwd: REPO_ROOT,
-    encoding: 'utf-8',
-  })
-  return r.status === 0 && r.stdout.trim().length > 0
+  return branchHasCommitsLib(branchName, { cwd: REPO_ROOT })
 }
 
 main().catch((err) => {
