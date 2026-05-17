@@ -91,9 +91,9 @@ export function extractFindingsFence(text: string): string {
  *                 `rule` field starts with "design-".
  */
 export function applyActionPolicy(findings: readonly SkillFinding[]): ReviewBotVerdict {
-  const criticals = findings.filter((f) => f.severity === 'CRITICAL')
-  const importants = findings.filter((f) => f.severity === 'IMPORTANT')
-  const nits = findings.filter((f) => f.severity === 'NIT')
+  const criticals = findings.filter(f => f.severity === 'CRITICAL')
+  const importants = findings.filter(f => f.severity === 'IMPORTANT')
+  const nits = findings.filter(f => f.severity === 'NIT')
 
   if (criticals.length === 0 && importants.length === 0) {
     return {
@@ -106,7 +106,7 @@ export function applyActionPolicy(findings: readonly SkillFinding[]): ReviewBotV
   }
 
   if (criticals.length > 0) {
-    const designDocCited = criticals.some((f) => /design-[a-z-]+\.md/.test(f.rule))
+    const designDocCited = criticals.some(f => /design-[a-z-]+\.md/.test(f.rule))
     const note = formatNote(criticals, importants)
     return designDocCited
       ? { kind: 'needs-human', note, findings: criticals }

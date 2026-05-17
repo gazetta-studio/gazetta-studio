@@ -113,7 +113,7 @@ describe('scoreAreas — top-N selection with signals', () => {
       touch('docs/auth/c.md'),
     ]
     const result = scoreAreas(touches, noBotPRs, emptySkipList())
-    expect(result.map((c) => c.area)).not.toContain('docs/auth/')
+    expect(result.map(c => c.area)).not.toContain('docs/auth/')
   })
 
   it('drops areas containing skip-list entries', () => {
@@ -143,7 +143,7 @@ describe('scoreAreas — top-N selection with signals', () => {
     }
     const result = scoreAreas(touches, noBotPRs, skipList, { maxDepth: 4 })
     // The auth area is excluded; only admin remains
-    expect(result.map((c) => c.area)).toEqual(['apps/admin/src/'])
+    expect(result.map(c => c.area)).toEqual(['apps/admin/src/'])
   })
 
   it('cold-on-bot area beats freshly-touched-by-bot area at same activity', () => {

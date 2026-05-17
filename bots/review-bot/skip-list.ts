@@ -124,7 +124,11 @@ export function isSkipped(list: SkipList, fp: Fingerprint): boolean {
 }
 
 /** Append a new skip entry (idempotent — duplicate fingerprints skipped). */
-export function recordSkipListEntry(list: SkipList, fp: Fingerprint, opts: Omit<SkipEntry, 'fingerprint' | 'addedAt' | 'addedBy'>): SkipList {
+export function recordSkipListEntry(
+  list: SkipList,
+  fp: Fingerprint,
+  opts: Omit<SkipEntry, 'fingerprint' | 'addedAt' | 'addedBy'>,
+): SkipList {
   if (isSkipped(list, fp)) return list
   return {
     ...list,

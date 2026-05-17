@@ -14,14 +14,7 @@
  */
 
 export type CandidateSeverity = 'CRITICAL' | 'IMPORTANT' | 'NIT'
-export type CandidateType =
-  | 'security'
-  | 'architecture'
-  | 'tests'
-  | 'types'
-  | 'comments'
-  | 'style'
-  | 'correctness'
+export type CandidateType = 'security' | 'architecture' | 'tests' | 'types' | 'comments' | 'style' | 'correctness'
 
 export interface Candidate {
   area: string
@@ -98,7 +91,7 @@ export function rankCandidates(
   candidates: readonly Candidate[],
   isSkipped: (c: Candidate) => boolean = () => false,
 ): Candidate[] {
-  const eligible = candidates.filter((c) => c.confidence >= 80 && !isSkipped(c))
+  const eligible = candidates.filter(c => c.confidence >= 80 && !isSkipped(c))
   const severityRank: Record<CandidateSeverity, number> = { CRITICAL: 0, IMPORTANT: 1, NIT: 2 }
   return [...eligible].sort((a, b) => {
     const sevDelta = severityRank[a.severity] - severityRank[b.severity]

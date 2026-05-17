@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  applyActionPolicy,
-  extractFindingsFence,
-  parseFindingsFence,
-  type SkillFinding,
-} from '../verdict.js'
+import { applyActionPolicy, extractFindingsFence, parseFindingsFence, type SkillFinding } from '../verdict.js'
 
 const finding = (overrides: Partial<SkillFinding> = {}): SkillFinding => ({
   severity: 'IMPORTANT',
@@ -38,19 +33,22 @@ describe('extractFindingsFence', () => {
 
 describe('parseFindingsFence', () => {
   it('parses well-formed JSONL', () => {
-    const body = '{"severity":"CRITICAL","file":"a.ts","line":1,"confidence":92,"category":"security","rule":"design-auth.md","message":"x","suggestion":"y"}'
+    const body =
+      '{"severity":"CRITICAL","file":"a.ts","line":1,"confidence":92,"category":"security","rule":"design-auth.md","message":"x","suggestion":"y"}'
     const parsed = parseFindingsFence(body)
     expect(parsed).toHaveLength(1)
     expect(parsed[0]?.severity).toBe('CRITICAL')
   })
 
   it('skips malformed lines without crashing', () => {
-    const body = '{"severity":"CRITICAL","file":"a.ts","line":1,"confidence":92}\nnot-json\n{"severity":"NIT","file":"b.ts","line":2,"confidence":80}'
+    const body =
+      '{"severity":"CRITICAL","file":"a.ts","line":1,"confidence":92}\nnot-json\n{"severity":"NIT","file":"b.ts","line":2,"confidence":80}'
     expect(parseFindingsFence(body)).toHaveLength(2)
   })
 
   it('skips lines missing required fields', () => {
-    const body = '{"severity":"CRITICAL"}\n{"file":"a.ts","line":1}\n{"severity":"NIT","file":"a.ts","line":1,"confidence":80}'
+    const body =
+      '{"severity":"CRITICAL"}\n{"file":"a.ts","line":1}\n{"severity":"NIT","file":"a.ts","line":1,"confidence":80}'
     expect(parseFindingsFence(body)).toHaveLength(1)
   })
 
@@ -99,17 +97,13 @@ describe('applyActionPolicy — locked from design-code-review.md action-policy 
   })
 
   it('CRITICAL with non-design rule → REJECT (Agent A can retry)', () => {
-    const v = applyActionPolicy([
-      finding({ severity: 'CRITICAL', rule: 'team-preferences.md#15' }),
-    ])
+    const v = applyActionPolicy([finding({ severity: 'CRITICAL', rule: 'team-preferences.md#15' })])
     expect(v.kind).toBe('reject')
     if (v.kind === 'reject') expect(v.note).toContain('[CRITICAL]')
   })
 
   it('CRITICAL with design-doc rule → NEEDS_HUMAN (likely needs redesign)', () => {
-    const v = applyActionPolicy([
-      finding({ severity: 'CRITICAL', rule: 'design-auth-rbac.md#capability-gate' }),
-    ])
+    const v = applyActionPolicy([finding({ severity: 'CRITICAL', rule: 'design-auth-rbac.md#capability-gate' })])
     expect(v.kind).toBe('needs-human')
     if (v.kind === 'needs-human') {
       expect(v.note).toContain('[CRITICAL]')

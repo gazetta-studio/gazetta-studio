@@ -63,7 +63,9 @@ export function parseGitLogTouches(stdout: string): GitFileTouch[] {
  * starts with `improve/`. We list all PRs (open + closed) authored
  * on `improve/*` branches in the last 6 months and group by area.
  */
-export async function collectBotPRsByArea(opts: { run?: RunCmd; sinceDays?: number } = {}): Promise<Map<string, string>> {
+export async function collectBotPRsByArea(
+  opts: { run?: RunCmd; sinceDays?: number } = {},
+): Promise<Map<string, string>> {
   const run = opts.run ?? defaultRun
   const sinceDays = opts.sinceDays ?? 180
   // gh pr list returns JSON; we ask for headRefName + createdAt.

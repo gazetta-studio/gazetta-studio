@@ -39,7 +39,9 @@ describe('dispatch — locked behavior from design-code-review.md', () => {
   })
 
   it('fires review-architecture when packages/gazetta/src/validation/ is touched', () => {
-    expect(dispatch({ files: [{ path: 'packages/gazetta/src/validation/scanner.ts' }] })).toContain('review-architecture')
+    expect(dispatch({ files: [{ path: 'packages/gazetta/src/validation/scanner.ts' }] })).toContain(
+      'review-architecture',
+    )
   })
 
   it('fires review-architecture when a design-*.md is modified', () => {
@@ -69,7 +71,9 @@ describe('dispatch — locked behavior from design-code-review.md', () => {
   it('fires review-security when content includes fetch() call', () => {
     expect(
       dispatch({
-        files: [{ path: 'packages/gazetta/src/foo.ts', content: 'export async function f() {\n  return fetch(url);\n}' }],
+        files: [
+          { path: 'packages/gazetta/src/foo.ts', content: 'export async function f() {\n  return fetch(url);\n}' },
+        ],
       }),
     ).toContain('review-security')
   })
@@ -77,7 +81,9 @@ describe('dispatch — locked behavior from design-code-review.md', () => {
   it('fires review-types when content includes a z.object call', () => {
     expect(
       dispatch({
-        files: [{ path: 'packages/gazetta/src/foo.ts', content: 'export const schema = z.object({ name: z.string() })' }],
+        files: [
+          { path: 'packages/gazetta/src/foo.ts', content: 'export const schema = z.object({ name: z.string() })' },
+        ],
       }),
     ).toContain('review-types')
   })
@@ -102,10 +108,7 @@ describe('dispatch — locked behavior from design-code-review.md', () => {
 
   it('fires multiple angles when multiple file patterns hit', () => {
     const result = dispatch({
-      files: [
-        { path: 'packages/gazetta/src/audit/recorder.ts' },
-        { path: 'packages/gazetta/tests/audit.test.ts' },
-      ],
+      files: [{ path: 'packages/gazetta/src/audit/recorder.ts' }, { path: 'packages/gazetta/tests/audit.test.ts' }],
     })
     expect(result).toContain('review-diff')
     expect(result).toContain('review-architecture')
@@ -121,19 +124,16 @@ describe('dispatch — locked behavior from design-code-review.md', () => {
       ],
     })
     // Verify stable order matches the canonical ALL_ANGLES sequence.
-    const indices = result.map((a) => ALL_ANGLES.indexOf(a))
+    const indices = result.map(a => ALL_ANGLES.indexOf(a))
     const sorted = [...indices].sort((a, b) => a - b)
     expect(indices).toEqual(sorted)
   })
 
   it('dedupes when multiple files trigger the same angle', () => {
     const result = dispatch({
-      files: [
-        { path: 'packages/gazetta/tests/a.test.ts' },
-        { path: 'packages/gazetta/tests/b.test.ts' },
-      ],
+      files: [{ path: 'packages/gazetta/tests/a.test.ts' }, { path: 'packages/gazetta/tests/b.test.ts' }],
     })
-    const testsCount = result.filter((a) => a === ('review-tests' as Angle)).length
+    const testsCount = result.filter(a => a === ('review-tests' as Angle)).length
     expect(testsCount).toBe(1)
   })
 })

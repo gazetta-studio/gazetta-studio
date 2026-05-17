@@ -81,7 +81,7 @@ export function dispatch(input: DispatchInput): Angle[] {
     if (matchesComments(file)) fired.add('review-comments')
   }
 
-  return ALL_ANGLES.filter((a) => fired.has(a))
+  return ALL_ANGLES.filter(a => fired.has(a))
 }
 
 // --- Per-angle matchers -------------------------------------------------
@@ -187,11 +187,9 @@ export function matchesComments(file: DispatchFile): boolean {
   if (!file.content) return false
   // Detect change lines (diff +/-) that contain only comments.
   // We accept: //, /* */, * (continuation), #, <!-- -->.
-  const changeLines = file.content
-    .split('\n')
-    .filter((l) => /^[+-]/.test(l) && !/^[+-]{3}\s/.test(l)) // skip diff headers
+  const changeLines = file.content.split('\n').filter(l => /^[+-]/.test(l) && !/^[+-]{3}\s/.test(l)) // skip diff headers
   if (changeLines.length === 0) return false
-  return changeLines.every((l) => {
+  return changeLines.every(l => {
     const body = l.slice(1).trim()
     if (body === '') return true // blank line
     return /^(\/\/|\/\*|\*|#|<!--)/.test(body) || /-->$/.test(body) || /\*\/$/.test(body)
