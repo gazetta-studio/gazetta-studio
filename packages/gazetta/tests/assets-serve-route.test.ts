@@ -94,3 +94,61 @@ describe('assetServeRoutes', () => {
     expect([400, 404]).toContain(res.status)
   })
 })
+
+describe('assetServeRoutes — design-media.md "Asset serving" headers', () => {
+  it('sets ETag to the content hash parsed from the filename', async () => {
+    await seedAsset('hero-a3b2c1d4.jpg', await tinyJpeg())
+    const res = await buildApp().request('/assets/hero-a3b2c1d4.jpg')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('etag')).toBe('"a3b2c1d4"')
+  })
+
+  it('sets Access-Control-Allow-Origin to * (public assets in v1)', async () => {
+    await seedAsset('hero-a3b2c1d4.jpg', await tinyJpeg())
+    const res = await buildApp().request('/assets/hero-a3b2c1d4.jpg')
+    expect(res.headers.get('access-control-allow-origin')).toBe('*')
+  })
+
+  it('serves embedded image kinds with Content-Disposition: inline', async () => {
+    await seedAsset('hero-a3b2c1d4.jpg', await tinyJpeg())
+    const res = await buildApp().request('/assets/hero-a3b2c1d4.jpg')
+    expect(res.headers.get('content-disposition')).toBe('inline')
+  })
+
+  it('serves non-image (downloadable) kinds with Content-Disposition: attachment', async () => {
+    // A .pdf gets application/octet-stream from the v1 MIME table — a
+    // downloadable kind that must not render inline in the asset origin.
+    await seedAsset('report-a1b2c3d4.pdf', new Uint8Array([1, 2, 3, 4]))
+    const res = await buildApp().request('/assets/report-a1b2c3d4.pdf')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-disposition')).toBe('attachment')
+  })
+
+  it('returns 304 when If-None-Match carries the strong ETag', async () => {
+    await seedAsset('hero-a3b2c1d4.jpg', await tinyJpeg())
+    const res = await buildApp().request('/assets/hero-a3b2c1d4.jpg', {
+      headers: { 'if-none-match': '"a3b2c1d4"' },
+    })
+    expect(res.status).toBe(304)
+  })
+
+  it('returns 304 when If-None-Match carries the weak form of the ETag', async () => {
+    // RFC 7232 §3.2: If-None-Match uses weak comparison — a weak
+    // validator W/"<hash>" must match the strong form "<hash>" of the
+    // same opaque-tag. A client or proxy sending the weak form must
+    // still get the 304, not re-download the asset.
+    await seedAsset('hero-a3b2c1d4.jpg', await tinyJpeg())
+    const res = await buildApp().request('/assets/hero-a3b2c1d4.jpg', {
+      headers: { 'if-none-match': 'W/"a3b2c1d4"' },
+    })
+    expect(res.status).toBe(304)
+  })
+
+  it('serves 200 when If-None-Match does not match the ETag', async () => {
+    await seedAsset('hero-a3b2c1d4.jpg', await tinyJpeg())
+    const res = await buildApp().request('/assets/hero-a3b2c1d4.jpg', {
+      headers: { 'if-none-match': '"deadbeef"' },
+    })
+    expect(res.status).toBe(200)
+  })
+})
