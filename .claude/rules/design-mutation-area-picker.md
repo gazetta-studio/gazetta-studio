@@ -139,10 +139,33 @@ Per the project's "bots should have separate memory" rule (ADR-0011 + the v2 bot
 - **`bots/mutation-area-picker/skip-list.json`** — modules to never propose. Two entry types:
   - **never-mutate** — generated code, third-party shims, files where mutation testing is meaningless
   - **maintainer-rejected** — bot proposed it; maintainer closed the PR with a reason
-- **`bots/mutation-area-picker/reviewer-log.jsonl`** — every decision logged (ADD/SWAP/REMOVE/NOOP + reasoning). Read by monthly compactor.
-- **`bots/mutation-area-picker/lessons-learned.md`** — distilled patterns from compactor (e.g., "AI-pairing density correlates poorly with surviving-mutant count on this codebase; lowered to 0.15")
+- **`bots/mutation-area-picker/reviewer-log.jsonl`** — every decision logged (ADD/SWAP/REMOVE/NOOP + reasoning). Future compactor input.
+- **`bots/mutation-area-picker/lessons-learned.md`** — distilled patterns from a future compactor (e.g., "AI-pairing density correlates poorly with surviving-mutant count on this codebase; lowered to 0.15"). Empty placeholder in v1.
 
 Persisted via `actions/cache@v4` keyed `mutation-area-picker-reviewer-log-v1` (ADR-0011 pattern). Skip-list and lessons-learned are committed to repo via PR.
+
+**No compactor in v1 — deliberately deferred.** Unlike dead-code-watcher
+and fix-bot (which produce 100+ decisions per cron and accumulate
+skip-list entries quickly), mutation-area-picker produces ~1 decision per
+week. Skip-list growth is rate-limited to ~1-3 maintainer rejections per
+year at steady state; reviewer-log fills the 200-entry cache ceiling
+after ~4 years. Compactor value depends on signal volume; at this
+cadence, the volume isn't there.
+
+The portfolio itself self-compacts via SWAP/REMOVE actions (each cron's
+empirical eviction is continuous compaction of the working set, not a
+memory artifact). What a compactor WOULD do — distilling cross-decision
+patterns into prose — has too thin a signal to justify the ~150 LOC + a
+monthly `bots-compact.yml` job slot until the bot has been running for
+6+ months.
+
+**Triggers to revisit compactor design** — any one:
+- Skip-list grows past 10 entries with visible glob-compactable patterns
+- Reviewer-log entries accumulate past 200 (cache ceiling) and we want
+  bounded cache via the `pruneReviewerLog` helper
+- Calibration drift becomes obvious — bot consistently picks weak
+  candidates because heuristic weights are wrong; lessons-learned would
+  surface the recurring pattern
 
 ## PR shape
 
@@ -165,7 +188,7 @@ Persisted via `actions/cache@v4` keyed `mutation-area-picker-reviewer-log-v1` (A
 | Failure | Detection | Recovery |
 |---|---|---|
 | Wrong-pick module (low actual value) | Maintainer closes PR with reason | Bot reads close reason via past-PR feedback loop; adds to skip-list. Same pattern as dead-code-watcher. |
-| Weights miscalibrated (consistently bad picks) | Pattern across reviewer-log entries | Monthly compactor surfaces "we keep rejecting picks where signal X dominated" into lessons-learned. Operator adjusts env var weights based on the lesson. |
+| Weights miscalibrated (consistently bad picks) | Pattern across reviewer-log entries | Manual recalibration by reading the cached reviewer-log; operator adjusts env var weights. (Future compactor surfaces patterns automatically when it ships — triggers above.) |
 | Bot proposes ADD beyond budget | Wouldn't — bot estimates before proposing | N/A by construction |
 | Glob already at budget, no eviction-ripe module | NOOP fires; bot exits silently | Normal operation — wait for kill ratios to mature |
 | Bootstrap period bug | First 4 runs ADD only; eviction history accumulates | Document explicitly; bot's banner shows "bootstrap: week N/4" |
