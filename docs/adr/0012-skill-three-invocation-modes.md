@@ -6,7 +6,7 @@ A **Skill** is one prompt body with defined input + output contracts, invokable 
 
 - **Interactive** — user types `/<name>` in a Claude Code session; the skill walks them through a process step by step.
 - **Headless** — a Bot orchestrator passes the skill's prompt body to `claude -p` non-interactively; the orchestrator parses structured output (JSONL findings fence, `VERDICT:` line, etc.).
-- **Sub-agent** — another Claude session spawns the skill via the `Agent` tool; output appears as that agent's final message; the parent session consumes it.
+- **Sub-agent** — another Claude session spawns the skill via the `Skill` tool (the canonical skill-invocation surface) or, when the skill is registered as an agent subtype, via the `Agent` tool; output appears as that agent's final message; the parent session consumes it.
 
 The same SKILL.md serves all three modes. The skill's input + output contract is mode-agnostic — what the skill emits to stdout (prose + structured fence) is identical whether the caller is a human terminal, a bot's `claude -p` invocation, or a parent Claude's `Agent` tool. The skill body never branches on "am I running interactively or headlessly."
 
@@ -26,7 +26,7 @@ The producer/consumer rule from [`bots/README.md`](../../bots/README.md) determi
 
 A skill's frontmatter (`name`, `description`, `allowed-tools`, `argument-hint`) is the contract surface for interactive invocation (the user's slash-command UX comes from the frontmatter). The same frontmatter is read by sub-agent invocations (the `Agent` tool's description matching). Headless `claude -p` invocations also read frontmatter but care less about `argument-hint` since the orchestrator constructs arguments programmatically. None of these consumers re-write frontmatter; one source of truth.
 
-Skills can spawn other skills as sub-agents (mode #3). The `review-orchestrator` skill spawns each angle skill (`review-diff`, `review-security`, etc.) via the `Agent` tool with the angle name. This composition relies on the spawning Claude session having `Agent` tool access; we accept the constraint and document it in `review-orchestrator/SKILL.md` `allowed-tools`. Skills that aren't intended to be composed don't need `Agent` in their allowed-tools.
+Skills can spawn other skills as sub-agents (mode #3). The `review-orchestrator` skill spawns each angle skill (`review-diff`, `review-security`, etc.) via the `Skill` tool with the angle name. This composition relies on the spawning Claude session having `Skill` tool access; we accept the constraint and document it in `review-orchestrator/SKILL.md` `allowed-tools`. Skills that aren't intended to be composed don't need `Skill` in their allowed-tools. Bots invoking skills headlessly (per `bots/_lib/claude.ts`'s `--allowedTools` budget) include `Skill` in their tool list when they need to spawn skills — e.g., fix-bot's reviewer (Agent B) lists `['Bash', 'Read', 'Skill']` to invoke `review-architecture` and conditionally `review-security` per `design-code-review.md`.
 
 Existing bot reviewer prompts (`bots/fix-bot/prompts/reviewer.md`, `bots/dead-code-watcher/prompts/reviewer.md`) are arguably Skills under the broadened definition — reusable prompt bodies with defined contracts, invoked headlessly. We intentionally don't migrate them to `.claude/skills/` in this design pass; their `bots/{bot}/prompts/` location keeps them co-located with their bot-specific orchestrator and per-bot tests. A future cleanup could move them; the broadened definition opens the door without forcing the migration.
 
