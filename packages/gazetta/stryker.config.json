@@ -2,9 +2,15 @@
   "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker-js/master/packages/core/schema/stryker-schema.json",
   "_comment": "Mutation testing for high-stakes modules — history + admin-api + publish + alt/route-handler + hooks/registry. alt/route-handler.ts added per docs/audits/test-quality-with-ai.md cycle 1's adjacent finding (suggest-alt orchestration lives there, not in admin-api/routes/assets.ts). hooks/registry.ts added per testing-plan.md mutation-scope-expansion item 1 (priority dispatch + error taxonomy). See testing-plan.md.",
   "packageManager": "npm",
-  "reporters": ["html", "clear-text", "progress"],
+  "reporters": [
+    "html",
+    "clear-text",
+    "progress"
+  ],
   "testRunner": "vitest",
-  "checkers": ["typescript"],
+  "checkers": [
+    "typescript"
+  ],
   "tsconfigFile": "tsconfig.json",
   "coverageAnalysis": "perTest",
   "_comment_inPlace": "inPlace:true skips the sandbox copy. Several tests reference ../../examples/starter and ../../../apps — sandbox would orphan those paths. Stryker keeps originals in .stryker-tmp and restores them on exit.",
@@ -17,7 +23,8 @@
     "src/publish-rendered.ts",
     "src/admin-api/**/*.ts",
     "src/alt/route-handler.ts",
-    "src/hooks/registry.ts"
+    "src/hooks/registry.ts",
+    "src/cli/index.ts"
   ],
   "thresholds": {
     "high": 80,
