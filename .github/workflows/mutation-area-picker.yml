@@ -1,0 +1,101 @@
+name: Mutation area picker
+
+# Weekly autonomous bot that owns packages/gazetta/stryker.config.json's
+# mutate glob. Decides whether to ADD / SWAP / REMOVE one module under
+# the nightly runtime budget. Opens a draft PR when its judgment says
+# scope should change; exits silently on NOOP weeks.
+#
+# Eviction is empirical (per ADR-0014): kill ratio > 0.85 sustained 4w
+# AND > 70% of recent mutation-watcher issues closed-merged. First 4
+# weeks of operation are bootstrap (ADD only).
+#
+# Distinct from mutation-watcher (which consumes Stryker output and
+# files per-file issues) — this bot owns the upstream choice of WHAT
+# to mutate.
+on:
+  schedule:
+    # Sunday 03:30 UTC = 05:30 CEST. After Saturday's Stryker nightly
+    # so the bot has fresh kill-ratio data to read.
+    - cron: '30 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      budget_minutes:
+        description: 'Override MUTATION_BUDGET_MINUTES (default 105). Total nightly Stryker runtime budget.'
+        required: false
+        default: '105'
+      inclusion_threshold:
+        description: 'Override INCLUSION_THRESHOLD (default 0.4). Min score for ADD.'
+        required: false
+        default: '0.4'
+      eviction_threshold:
+        description: 'Override EVICTION_THRESHOLD (default 0.7). Min score for SWAP/REMOVE.'
+        required: false
+        default: '0.7'
+
+# Single-instance invariant for cache safety. The bot appends to a
+# cached reviewer-log.jsonl per ADR-0011; two concurrent runs would
+# race the cache (last-writer-wins would lose entries).
+# `cancel-in-progress: false` queues the second invocation until the
+# first completes — never kills in-flight work. The literal group
+# name 'mutation-area-picker' is shared with any future compactor
+# job in bots-compact.yml.
+concurrency:
+  group: mutation-area-picker
+  cancel-in-progress: false
+
+jobs:
+  pick:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 20
+    permissions:
+      # Read CI run history (for AI-pairing + churn from git log
+      # + flake/fix correlation from gh issue/pr list), read+write
+      # contents (push the scope-change branch), pull-requests:write
+      # (open the draft PR), issues:read (gh issue list signal).
+      actions: read
+      issues: read
+      pull-requests: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Need git log history for the AI-pairing + churn signals.
+          # 100 commits typically covers 90 days of activity at our cadence.
+          fetch-depth: 100
+
+      - name: Configure git author
+        run: |
+          git config user.name 'mutation-area-picker'
+          git config user.email 'noreply@anthropic.com'
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install workspace deps
+        run: npm ci
+
+      # Restore the reviewer-log from cache. The bot appends every
+      # weekly decision; the cache keeps the file across runs so
+      # countWeeklyRuns() can detect bootstrap-vs-post-bootstrap.
+      # Cache miss is fine — readReviewerLog returns []. Bump the
+      # -v1 suffix if the JSONL schema ever changes.
+      - name: Restore reviewer-log cache
+        uses: actions/cache@v4
+        with:
+          path: bots/mutation-area-picker/reviewer-log.jsonl
+          key: mutation-area-picker-reviewer-log-v1
+
+      - name: Run mutation-area-picker
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          # Fallback literals here MUST match the TypeScript defaults
+          # in bots/mutation-area-picker/index.ts.
+          MUTATION_BUDGET_MINUTES: ${{ inputs.budget_minutes || '105' }}
+          INCLUSION_THRESHOLD: ${{ inputs.inclusion_threshold || '0.4' }}
+          EVICTION_THRESHOLD: ${{ inputs.eviction_threshold || '0.7' }}
+        run: npm run mutation-area-picker -w @gazetta/bots

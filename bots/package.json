@@ -14,6 +14,8 @@
     "fix-bot:compact": "tsx fix-bot/compact.ts",
     "dead-code-watcher": "tsx dead-code-watcher/index.ts",
     "dead-code-watcher:compact": "tsx dead-code-watcher/compact.ts",
+    "mutation-area-picker": "tsx mutation-area-picker/index.ts",
+    "mutation-area-picker:compact": "tsx mutation-area-picker/compact.ts",
     "review-on-comment": "tsx review-on-comment/index.ts",
     "review-bot": "tsx review-bot/index.ts",
     "review-bot:compact": "tsx review-bot/compact.ts",
