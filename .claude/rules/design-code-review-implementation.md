@@ -31,7 +31,7 @@ Four phases, each independently shippable. Risk increases per phase; each phase 
 | **P1** | Skill family (6 angles + orchestrator + audit-area + dispatch.ts + glossary updates + ADRs) | Medium | ✓ | The skill contract works in isolation; angles produce useful findings; dispatch table fits real diffs |
 | **P2** | Fix-bot reviewer integration | Medium | ◐ | Cut 11 shipped (skill invocation wired + tested); Cut 12 deferred (replay infra gap); Cut 13 pending merge + first production runs |
 | **P3** | PR-comment trigger workflow | Low-medium | ◐ | Cuts 14+15 shipped (workflow + bot wrapper + grammar parser); Cut 16 (E2E on real PR) lands at PR merge |
-| **P4** | Review-bot (autonomous) | High | ☐ | Phase 0/1/2 composition; skip-list correctness; cross-run dedup at candidate level; full producer-bot pattern |
+| **P4** | Review-bot (autonomous) | High | ◐ | Scaffolding + workflow shipped (Cuts 17 + 20); pipeline phases (Cuts 18, 19, 22) deferred to follow-up sessions with real measurement |
 
 ## Cut sequence — P1: Skill family
 
@@ -299,12 +299,12 @@ Manual verification against a real test PR. Validate the comment posts, reaction
 
 | # | Cut | Status | Risk | Validates |
 |---|---|---|---|---|
-| 17 | `bots/review-bot/` scaffolding (`index.ts`, `prompts/agent-a.md`, `skip-list.{ts,json}`, `lessons-learned.md`, `past-pr.ts`, `compact.ts`, `reviewer-log.ts`) — mirror dead-code-watcher | ☐ | Medium | Bot infrastructure follows established pattern |
-| 18 | Phase 0 implementation: TS area-scorer + LLM area-picker | ☐ | High | Hybrid producer-consumer split for area selection; skip-list-aware |
-| 19 | Phase 1+2+3+4+5 integration: orchestrate audit-area → top candidate → Agent A → Agent B (review-orchestrator) → verdict → PR | ☐ | High | Full producer-bot pattern with generator-critic loop |
-| 20 | `.github/workflows/review-bot.yml` cron + concurrency group | ☐ | Low | Workflow runs daily; doesn't conflict with fix-bot |
-| 21 | First 5 production runs monitored; tune Phase 0 scoring + Phase 1 candidate ranking | ☐ | Medium | Real-world quality signal |
-| 22 | Compactor integration: add `bots-compact.yml` job for review-bot (monthly lessons-learned rewrite) | ☐ | Low | Long-term memory health |
+| 17 | `bots/review-bot/` scaffolding — `index.ts` (stub entry), `prompts/agent-a.md`, `skip-list.{ts,json}` (with 12 vitest tests), `lessons-learned.md`, npm script wiring | ✓ | Medium | Bot infrastructure follows established pattern; `past-pr.ts`, `compact.ts`, `reviewer-log.ts` deferred to cuts 18+19 (land alongside the phases that need them) |
+| 18 | Phase 0 implementation: TS area-scorer + LLM area-picker prompt + tests | ☐ | High | Hybrid producer-consumer split for area selection; skip-list-aware. **Deferred to follow-up session — needs measurement-driven scoring weights, not invented ones.** |
+| 19 | Phases 1-5 integration: audit-area → top candidate → Agent A → Agent B (review-orchestrator) → verdict → PR | ☐ | High | Full producer-bot pattern with generator-critic loop. **Deferred to follow-up — depends on Cut 18 + needs past-pr.ts + reviewer-log.ts which land here.** |
+| 20 | `.github/workflows/review-bot.yml` cron + concurrency group + cache | ✓ | Low | Workflow valid; cron 04:30 UTC (after fix-bot); concurrency group `review-bot` per ADR-0011; transcripts artifact configured. Workflow runs the stub cleanly; will run the real pipeline once cuts 18+19 land |
+| 21 | First 5 production runs monitored; tune Phase 0 scoring + Phase 1 candidate ranking | ☐ | Medium | Lands after Cut 18 deploys to production |
+| 22 | Compactor integration: add `bots-compact.yml` job for review-bot (monthly lessons-learned rewrite) | ☐ | Low | Depends on `compact.ts` which lands in Cut 19. **Deferred to follow-up.** |
 
 ### Per-cut scope
 
