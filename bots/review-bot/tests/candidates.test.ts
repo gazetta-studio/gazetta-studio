@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  type Candidate,
-  extractCandidatesFence,
-  parseCandidatesFence,
-  rankCandidates,
-} from '../candidates.js'
+import { type Candidate, extractCandidatesFence, parseCandidatesFence, rankCandidates } from '../candidates.js'
 
 const cand = (overrides: Partial<Candidate> = {}): Candidate => ({
   area: 'packages/gazetta/src/auth/',
@@ -19,8 +14,11 @@ const cand = (overrides: Partial<Candidate> = {}): Candidate => ({
 
 describe('extractCandidatesFence', () => {
   it('extracts JSONL body from a candidates fence', () => {
-    const text = 'Prose.\n\n```candidates\n{"area":"a/","type":"security","severity":"CRITICAL","summary":"x","confidence":92}\n```\nMore prose.'
-    expect(extractCandidatesFence(text)).toBe('{"area":"a/","type":"security","severity":"CRITICAL","summary":"x","confidence":92}')
+    const text =
+      'Prose.\n\n```candidates\n{"area":"a/","type":"security","severity":"CRITICAL","summary":"x","confidence":92}\n```\nMore prose.'
+    expect(extractCandidatesFence(text)).toBe(
+      '{"area":"a/","type":"security","severity":"CRITICAL","summary":"x","confidence":92}',
+    )
   })
 
   it('returns empty string when no fence present', () => {
@@ -35,7 +33,8 @@ describe('extractCandidatesFence', () => {
 
 describe('parseCandidatesFence', () => {
   it('parses a well-formed candidate', () => {
-    const body = '{"area":"packages/gazetta/src/auth/","type":"security","severity":"IMPORTANT","summary":"x","suggested_action":"y","confidence":85,"rule":"design-auth-rbac.md"}'
+    const body =
+      '{"area":"packages/gazetta/src/auth/","type":"security","severity":"IMPORTANT","summary":"x","suggested_action":"y","confidence":85,"rule":"design-auth-rbac.md"}'
     const parsed = parseCandidatesFence(body)
     expect(parsed).toHaveLength(1)
     expect(parsed[0]?.type).toBe('security')
@@ -78,7 +77,7 @@ describe('rankCandidates', () => {
   it('sorts CRITICAL > IMPORTANT > NIT', () => {
     const cs = [cand({ severity: 'NIT' }), cand({ severity: 'CRITICAL' }), cand({ severity: 'IMPORTANT' })]
     const ranked = rankCandidates(cs)
-    expect(ranked.map((c) => c.severity)).toEqual(['CRITICAL', 'IMPORTANT', 'NIT'])
+    expect(ranked.map(c => c.severity)).toEqual(['CRITICAL', 'IMPORTANT', 'NIT'])
   })
 
   it('within same severity, higher confidence wins', () => {
@@ -94,11 +93,8 @@ describe('rankCandidates', () => {
   })
 
   it('applies skip-list predicate as final filter', () => {
-    const cs = [
-      cand({ severity: 'CRITICAL', area: 'skipped/' }),
-      cand({ severity: 'IMPORTANT', area: 'kept/' }),
-    ]
-    const ranked = rankCandidates(cs, (c) => c.area === 'skipped/')
+    const cs = [cand({ severity: 'CRITICAL', area: 'skipped/' }), cand({ severity: 'IMPORTANT', area: 'kept/' })]
+    const ranked = rankCandidates(cs, c => c.area === 'skipped/')
     expect(ranked).toHaveLength(1)
     expect(ranked[0]?.area).toBe('kept/')
   })

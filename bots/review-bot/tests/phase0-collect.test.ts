@@ -22,7 +22,7 @@ describe('parseGitLogTouches', () => {
     ].join('\n')
     const touches = parseGitLogTouches(out)
     expect(touches).toHaveLength(2)
-    const foo = touches.find((t) => t.path === 'packages/gazetta/src/foo.ts')
+    const foo = touches.find(t => t.path === 'packages/gazetta/src/foo.ts')
     expect(foo?.lastTouchedAt).toBe('2026-05-17T10:00:00+00:00')
   })
 
@@ -37,7 +37,7 @@ describe('parseGitLogTouches', () => {
     // Orphan-file is recorded with empty timestamp; we don't filter it
     // out because that's the producer's job, but the parser must
     // remain robust. The IMPORTANT invariant: real-file is captured.
-    expect(touches.some((t) => t.path === 'real-file.ts')).toBe(true)
+    expect(touches.some(t => t.path === 'real-file.ts')).toBe(true)
   })
 })
 

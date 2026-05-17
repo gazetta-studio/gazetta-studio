@@ -69,7 +69,7 @@ export function parseCommentRequest(body: string): CommentRequest {
       if (unknown.length > 0) {
         return {
           kind: 'unrecognized',
-          reason: `unknown angle(s): ${unknown.join(', ')}. Valid: ${ALL_ANGLES.map((a) => a.replace(/^review-/, '')).join(', ')}`,
+          reason: `unknown angle(s): ${unknown.join(', ')}. Valid: ${ALL_ANGLES.map(a => a.replace(/^review-/, '')).join(', ')}`,
         }
       }
       if (angles.length === 0) {

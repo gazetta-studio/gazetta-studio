@@ -65,7 +65,7 @@ export function pruneReviewerLog(absolutePath: string, keepLast: number): { drop
   const all = readReviewerLog(absolutePath)
   if (all.length <= keepLast) return { dropped: 0, kept: all.length }
   const kept = all.slice(-keepLast)
-  writeFileSync(absolutePath, `${kept.map((e) => JSON.stringify(e)).join('\n')}\n`)
+  writeFileSync(absolutePath, `${kept.map(e => JSON.stringify(e)).join('\n')}\n`)
   return { dropped: all.length - keepLast, kept: kept.length }
 }
 

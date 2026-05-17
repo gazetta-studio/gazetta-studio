@@ -92,7 +92,7 @@ export function scoreAreas(
   // Group files by area at the configured depth.
   const areaTouches = new Map<string, number>()
   for (const touch of touches) {
-    if (!considerRoots.some((r) => touch.path.startsWith(r))) continue
+    if (!considerRoots.some(r => touch.path.startsWith(r))) continue
     const area = areaOf(touch.path, maxDepth)
     if (!area) continue
     areaTouches.set(area, (areaTouches.get(area) ?? 0) + 1)
@@ -183,7 +183,7 @@ function areaHasSkipListMatch(area: string, skipList: SkipList): boolean {
   // filter would skip it. Conservative: assume any matching rule
   // applies; downstream Phase 2 picks the actual candidate which
   // re-checks per its real type.
-  return skipList.rules.some((rule) => {
+  return skipList.rules.some(rule => {
     const ruleScope = rule.scope.endsWith('/') ? rule.scope : `${rule.scope}/`
     return ruleScope.startsWith(area) || area.startsWith(ruleScope.replace(/\*\*$/, '').replace(/\*+$/, ''))
   })

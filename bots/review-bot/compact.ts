@@ -165,7 +165,7 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
   })
 }
 
-main().catch((err) => {
+main().catch(err => {
   console.error('Fatal error:', err)
   process.exit(1)
 })

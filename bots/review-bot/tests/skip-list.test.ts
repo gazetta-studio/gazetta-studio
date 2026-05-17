@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  isSkipped,
-  matchGlob,
-  recordSkipListEntry,
-  type SkipList,
-} from '../skip-list.js'
+import { isSkipped, matchGlob, recordSkipListEntry, type SkipList } from '../skip-list.js'
 
 const emptyList = (): SkipList => ({ version: 1, entries: [], rules: [] })
 
@@ -118,7 +113,7 @@ describe('isSkipped', () => {
   })
 })
 
-describe('matchGlob (mirror of dead-code-watcher\'s globMatches)', () => {
+describe("matchGlob (mirror of dead-code-watcher's globMatches)", () => {
   it('matches exact path', () => {
     expect(matchGlob('packages/gazetta/src/foo.ts', 'packages/gazetta/src/foo.ts')).toBe(true)
   })

@@ -9,9 +9,9 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
-const config = JSON.parse(
-  readFileSync(new URL('../stryker.config.json', import.meta.url), 'utf-8'),
-) as { mutate: string[] }
+const config = JSON.parse(readFileSync(new URL('../stryker.config.json', import.meta.url), 'utf-8')) as {
+  mutate: string[]
+}
 
 describe('stryker mutation scope', () => {
   it('includes hooks/registry.ts (testing-plan.md scope-expansion item 1)', () => {
@@ -20,9 +20,7 @@ describe('stryker mutation scope', () => {
 
   it('every literal mutate path resolves to an existing source file', () => {
     const literals = config.mutate.filter(entry => !entry.includes('*'))
-    const missing = literals.filter(
-      entry => !existsSync(new URL(`../${entry}`, import.meta.url)),
-    )
+    const missing = literals.filter(entry => !existsSync(new URL(`../${entry}`, import.meta.url)))
     expect(missing).toEqual([])
   })
 })

@@ -58,7 +58,7 @@ describe('fix-bot reviewer prompt — structural contracts', () => {
     expect(processMatch, 'Process section missing').toBeTruthy()
     const body = processMatch![1]
     // Count numbered list items at the start of lines.
-    const numbered = body.split('\n').filter((l) => /^\d+\.\s/.test(l))
+    const numbered = body.split('\n').filter(l => /^\d+\.\s/.test(l))
     expect(numbered).toHaveLength(5)
   })
 

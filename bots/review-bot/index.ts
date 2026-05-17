@@ -52,12 +52,7 @@ import { octokitFromEnv, repoFromEnv } from '../_lib/github.js'
 import { extractLastAssistantText } from '../_lib/transcript.js'
 import { printNotice, printWarning } from '../_lib/ui.js'
 import { type AreaCandidate, scoreAreas } from './area-scorer.js'
-import {
-  type Candidate,
-  extractCandidatesFence,
-  parseCandidatesFence,
-  rankCandidates,
-} from './candidates.js'
+import { type Candidate, extractCandidatesFence, parseCandidatesFence, rankCandidates } from './candidates.js'
 import { collectBotPRsByArea, collectGitTouches, parsePickerOutput } from './phase0-collect.js'
 import { fingerprintToBranch, pastPROutcome } from './past-pr.js'
 import { appendReviewerLog } from './reviewer-log.js'
@@ -112,16 +107,16 @@ async function main(): Promise<void> {
   }
 
   // Phase 2 — pick top candidate
-  const ranked = rankCandidates(candidates, (c) =>
-    isSkipped(skipList, { area: c.area, type: c.type, rule: c.rule }),
-  )
+  const ranked = rankCandidates(candidates, c => isSkipped(skipList, { area: c.area, type: c.type, rule: c.rule }))
   if (ranked.length === 0) {
     printNotice('Phase 2: all candidates were skip-listed or low-confidence; exiting cleanly.')
     process.exit(0)
   }
   const candidate = ranked[0]!
   const fingerprint: Fingerprint = { area: candidate.area, type: candidate.type, rule: candidate.rule }
-  printNotice(`Phase 2: top candidate = ${candidate.type}/${candidate.severity} in ${candidate.area} — "${candidate.summary}"`)
+  printNotice(
+    `Phase 2: top candidate = ${candidate.type}/${candidate.severity} in ${candidate.area} — "${candidate.summary}"`,
+  )
 
   // Past-PR check
   const octokit = octokitFromEnv()
@@ -260,11 +255,14 @@ async function phase0AreaPick(skipList: SkipList, runId: string, dryRun: boolean
   return result.area
 }
 
-async function runPicker(candidates: readonly AreaCandidate[], runId: string): Promise<{ area: string | null; reasoning: string }> {
+async function runPicker(
+  candidates: readonly AreaCandidate[],
+  runId: string,
+): Promise<{ area: string | null; reasoning: string }> {
   const promptTemplate = readFileSync(PICKER_PROMPT_PATH, 'utf-8')
   const lessons = readFileSync(LESSONS_PATH, 'utf-8')
   const candidatesBlock = candidates
-    .map((c) => {
+    .map(c => {
       const cd = Number.isFinite(c.daysSinceBotTouched) ? `${Math.round(c.daysSinceBotTouched)}d` : 'never'
       return `- ${c.area} | touchedFiles=${c.touchedFiles} | bot-touched=${cd} | score=${c.score.toFixed(1)}`
     })
@@ -516,7 +514,7 @@ function branchHasCommits(branchName: string): boolean {
   return branchHasCommitsLib(branchName, { cwd: REPO_ROOT })
 }
 
-main().catch((err) => {
+main().catch(err => {
   printWarning(`review-bot failed: ${err instanceof Error ? err.message : String(err)}`)
   process.exit(1)
 })

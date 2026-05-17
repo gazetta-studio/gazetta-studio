@@ -221,7 +221,7 @@ async function main(): Promise<void> {
   await postReviewComment(body || '(empty response from review skill)', ctx)
 }
 
-main().catch((err) => {
+main().catch(err => {
   printWarning(`review-on-comment failed: ${err instanceof Error ? err.message : String(err)}`)
   process.exit(1)
 })
