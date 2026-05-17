@@ -41,7 +41,7 @@
  *   .github/workflows/mutation-area-picker.yml (weekly Sun after Mutation)
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { printBanner, printNotice, printRunSummary, printWarning } from '../_lib/ui.js'
@@ -379,8 +379,7 @@ function applyScopeChange(
 
   // Write with 2-space indent + trailing newline to match current file format.
   const written = `${JSON.stringify(parsed, null, 2)}\n`
-  // Avoid require here — use readFileSync's sister write
-  require('node:fs').writeFileSync(path, written)
+  writeFileSync(path, written)
   printNotice(`Updated stryker.config.json: ${currentGlob.length} → ${parsed.mutate.length} entries`)
 }
 
