@@ -29,7 +29,7 @@ Four phases, each independently shippable. Risk increases per phase; each phase 
 | Phase | What | Risk | Status | Validates |
 |---|---|---|---|---|
 | **P1** | Skill family (6 angles + orchestrator + audit-area + dispatch.ts + glossary updates + ADRs) | Medium | ✓ | The skill contract works in isolation; angles produce useful findings; dispatch table fits real diffs |
-| **P2** | Fix-bot reviewer integration | Medium | ☐ | Skills compose as sub-agents from another Claude session; severity-to-action mapping works in a bot context |
+| **P2** | Fix-bot reviewer integration | Medium | ◐ | Cut 11 shipped (skill invocation wired + tested); Cut 12 deferred (replay infra gap); Cut 13 pending merge + first production runs |
 | **P3** | PR-comment trigger workflow | Low-medium | ☐ | Comment-driven invocation works; reaction emoji feedback; output formatting on a real PR thread |
 | **P4** | Review-bot (autonomous) | High | ☐ | Phase 0/1/2 composition; skip-list correctness; cross-run dedup at candidate level; full producer-bot pattern |
 
@@ -209,8 +209,8 @@ Sequenced contract-first (output format, severity model), then orchestrator scaf
 
 | # | Cut | Status | Risk | Validates |
 |---|---|---|---|---|
-| 11 | Update `bots/fix-bot/prompts/reviewer.md` — replace Step 3 (project-rule check) with `review-architecture` invocation; add Step 3b (`review-security` if security-sensitive paths) | ☐ | High | Skills work as sub-agents from a headless Claude bot; severity-to-verdict mapping correct |
-| 12 | Run replay against past fix-bot reviewer runs (`npm run replay -w @gazetta/bots fix-bot <past-run-id>`) | ☐ | Medium | New reviewer prompt doesn't regress past good verdicts |
+| 11 | Update `bots/fix-bot/prompts/reviewer.md` — replace Step 3 (project-rule check) with `review-architecture` invocation; add Step 3b (`review-security` if security-sensitive paths); widen `allowedTools` to `['Bash', 'Read', 'Skill']` in `bots/fix-bot/index.ts`; 9-test structural smoke on the prompt | ✓ | High | Skills work via Skill tool from a headless Claude bot; severity-to-verdict mapping correct; 194/194 vitest pass |
+| 12 | Replay against past fix-bot reviewer runs | ◐ | Medium | DEFERRED — `bots/_lib/replay.ts` assumes single `prompt.md` per bot; fix-bot has two prompts (`prompts/agent-a.md` + `prompts/reviewer.md`). Real replay needs replay-loop support for multi-prompt bots OR a fix-bot-specific replay shim. Documented as known gap; revisit before P2 Cut 13 production rollout |
 | 13 | Ship in production (cron daily) — monitor first 5-10 reviews | ☐ | Medium | Real-world signal; tune confidence/severity if FP rate too high |
 
 ### Per-cut scope
