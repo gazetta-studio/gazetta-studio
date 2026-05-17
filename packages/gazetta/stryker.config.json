@@ -1,16 +1,10 @@
 {
   "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker-js/master/packages/core/schema/stryker-schema.json",
-  "_comment": "Mutation testing for high-stakes modules — history + admin-api + publish + alt/route-handler + hooks/registry. alt/route-handler.ts added per docs/audits/test-quality-with-ai.md cycle 1's adjacent finding (suggest-alt orchestration lives there, not in admin-api/routes/assets.ts). hooks/registry.ts added per testing-plan.md mutation-scope-expansion item 1 (priority dispatch + error taxonomy). See testing-plan.md.",
+  "_comment": "The mutate glob below is owned by the mutation-area-picker bot (per .claude/rules/design-mutation-area-picker.md). The bot makes weekly ADD/SWAP/REMOVE decisions under a runtime budget. Manual edits are fine but the bot will reconsider them on its next cron — propose a 'never-mutate' skip-list entry in bots/mutation-area-picker/skip-list.json if you want a module permanently off the table. Rationale for any individual module lives in the bot's reviewer-log.jsonl and lessons-learned.md; this file is just the working glob.",
   "packageManager": "npm",
-  "reporters": [
-    "html",
-    "clear-text",
-    "progress"
-  ],
+  "reporters": ["html", "clear-text", "progress"],
   "testRunner": "vitest",
-  "checkers": [
-    "typescript"
-  ],
+  "checkers": ["typescript"],
   "tsconfigFile": "tsconfig.json",
   "coverageAnalysis": "perTest",
   "_comment_inPlace": "inPlace:true skips the sandbox copy. Several tests reference ../../examples/starter and ../../../apps — sandbox would orphan those paths. Stryker keeps originals in .stryker-tmp and restores them on exit.",

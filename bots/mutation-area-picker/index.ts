@@ -377,9 +377,19 @@ function applyScopeChange(
     ]
   }
 
-  // Write with 2-space indent + trailing newline to match current file format.
+  // Write with 2-space indent + trailing newline. Biome's formatter
+  // single-lines short arrays where JSON.stringify multi-lines them,
+  // so the raw stringify output churns against the repo's canonical
+  // shape on every run. Pass through Biome to normalise.
   const written = `${JSON.stringify(parsed, null, 2)}\n`
   writeFileSync(path, written)
+  try {
+    execFileSync('npx', ['biome', 'format', '--write', path], { cwd: REPO_ROOT, stdio: 'inherit' })
+  } catch (err) {
+    // Non-fatal — file is committed in JSON.stringify shape if format fails.
+    // Maintainer can run biome locally before merge if it matters.
+    printWarning(`Biome format on stryker.config.json failed (non-fatal): ${err}`)
+  }
   printNotice(`Updated stryker.config.json: ${currentGlob.length} → ${parsed.mutate.length} entries`)
 }
 
