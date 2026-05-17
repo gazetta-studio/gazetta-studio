@@ -274,11 +274,13 @@ import { promisify } from 'node:util'
 const isMain = import.meta.url === `file://${process.argv[1]}` || fileURLToPath(import.meta.url) === process.argv[1]
 
 if (isMain) {
-  const execFileAsync = promisify(execFile)
-  const spawn: SpawnLike = async (cmd, args) => {
-    const { stdout } = await execFileAsync(cmd, [...args], { maxBuffer: 10 * 1024 * 1024 })
-    return stdout
-  }
-  const angles = await cliMain(process.argv.slice(2), spawn)
-  for (const a of angles) process.stdout.write(`${a}\n`)
+  void (async () => {
+    const execFileAsync = promisify(execFile)
+    const spawn: SpawnLike = async (cmd, args) => {
+      const { stdout } = await execFileAsync(cmd, [...args], { maxBuffer: 10 * 1024 * 1024 })
+      return stdout
+    }
+    const angles = await cliMain(process.argv.slice(2), spawn)
+    for (const a of angles) process.stdout.write(`${a}\n`)
+  })()
 }
