@@ -31,7 +31,7 @@ Four phases, each independently shippable. Risk increases per phase; each phase 
 | **P1** | Skill family (6 angles + orchestrator + audit-area + dispatch.ts + glossary updates + ADRs) | Medium | ✓ | The skill contract works in isolation; angles produce useful findings; dispatch table fits real diffs |
 | **P2** | Fix-bot reviewer integration | Medium | ◐ | Cut 11 shipped (skill invocation wired + tested); Cut 12 deferred (replay infra gap); Cut 13 pending merge + first production runs |
 | **P3** | PR-comment trigger workflow | Low-medium | ◐ | Cuts 14+15 shipped (workflow + bot wrapper + grammar parser); Cut 16 (E2E on real PR) lands at PR merge |
-| **P4** | Review-bot (autonomous) | High | ◐ | Scaffolding + workflow shipped (Cuts 17 + 20); pipeline phases (Cuts 18, 19, 22) deferred to follow-up sessions with real measurement |
+| **P4** | Review-bot (autonomous) | High | ✓ | All 5 code cuts shipped (17 scaffolding, 18 Phase 0, 19 full pipeline, 20 workflow, 22 compactor); Cut 21 (production tuning) lands after PR merge + first cron fire |
 
 ## Cut sequence — P1: Skill family
 
@@ -299,12 +299,12 @@ Manual verification against a real test PR. Validate the comment posts, reaction
 
 | # | Cut | Status | Risk | Validates |
 |---|---|---|---|---|
-| 17 | `bots/review-bot/` scaffolding — `index.ts` (stub entry), `prompts/agent-a.md`, `skip-list.{ts,json}` (with 12 vitest tests), `lessons-learned.md`, npm script wiring | ✓ | Medium | Bot infrastructure follows established pattern; `past-pr.ts`, `compact.ts`, `reviewer-log.ts` deferred to cuts 18+19 (land alongside the phases that need them) |
-| 18 | Phase 0 implementation: TS area-scorer + LLM area-picker prompt + tests | ☐ | High | Hybrid producer-consumer split for area selection; skip-list-aware. **Deferred to follow-up session — needs measurement-driven scoring weights, not invented ones.** |
-| 19 | Phases 1-5 integration: audit-area → top candidate → Agent A → Agent B (review-orchestrator) → verdict → PR | ☐ | High | Full producer-bot pattern with generator-critic loop. **Deferred to follow-up — depends on Cut 18 + needs past-pr.ts + reviewer-log.ts which land here.** |
-| 20 | `.github/workflows/review-bot.yml` cron + concurrency group + cache | ✓ | Low | Workflow valid; cron 04:30 UTC (after fix-bot); concurrency group `review-bot` per ADR-0011; transcripts artifact configured. Workflow runs the stub cleanly; will run the real pipeline once cuts 18+19 land |
-| 21 | First 5 production runs monitored; tune Phase 0 scoring + Phase 1 candidate ranking | ☐ | Medium | Lands after Cut 18 deploys to production |
-| 22 | Compactor integration: add `bots-compact.yml` job for review-bot (monthly lessons-learned rewrite) | ☐ | Low | Depends on `compact.ts` which lands in Cut 19. **Deferred to follow-up.** |
+| 17 | `bots/review-bot/` scaffolding — `index.ts`, `prompts/agent-a.md`, `skip-list.{ts,json}` (with 12 vitest tests), `lessons-learned.md`, npm script wiring | ✓ | Medium | Bot infrastructure follows established pattern |
+| 18 | Phase 0 implementation: TS area-scorer + LLM area-picker prompt + tests (15 area-scorer + 12 phase0-collect = 27 vitest tests) | ✓ | High | Hybrid producer-consumer split for area selection; skip-list-aware; smoke-tested DRY_RUN against real git history |
+| 19 | Phases 1-5 integration: `candidates.ts` + `verdict.ts` + `past-pr.ts` + `reviewer-log.ts` + full pipeline wiring in index.ts (14 candidates + 15 verdict + 8 past-pr = 37 vitest tests) | ✓ | High | Full producer-bot pattern with generator-critic loop; action-policy table from design-code-review.md applied: CRITICAL+design-doc → NEEDS_HUMAN; CRITICAL+other → REJECT (retry); IMPORTANT-only → REJECT; NIT/empty → APPROVE (push + open PR) |
+| 20 | `.github/workflows/review-bot.yml` cron + concurrency group + cache | ✓ | Low | Workflow valid; cron 04:30 UTC; concurrency group `review-bot` per ADR-0011 |
+| 21 | First 5 production runs monitored; tune Phase 0 scoring + Phase 1 candidate ranking | ☐ | Medium | Lands after PR merges + first daily cron fires |
+| 22 | Compactor integration: `compact.ts` + `prompts/compact.md` + `review-bot` job in `bots-compact.yml` (monthly lessons-learned rewrite) | ✓ | Low | Same shape as fix-bot compactor; prunes reviewer-log to bounded window after successful rewrite |
 
 ### Per-cut scope
 

@@ -13,6 +13,9 @@ name: Bots monthly compaction
 #   - fix-bot:compact — rewrite lessons-learned.md from cross-issue
 #     patterns in the skip-list (no glob rules; per-issue entries
 #     stay durable).
+#   - review-bot:compact — rewrite lessons-learned.md from cross-
+#     candidate patterns in the skip-list + reviewer-log (no glob
+#     rules; per-candidate entries stay durable).
 on:
   schedule:
     # First Saturday of the month at 03:00 UTC = 05:00 CEST.
@@ -27,7 +30,7 @@ on:
       target:
         description: 'Which compactor to run'
         type: choice
-        options: [all, dead-code-watcher, fix-bot]
+        options: [all, dead-code-watcher, fix-bot, review-bot]
         default: all
 
 jobs:
@@ -155,6 +158,69 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: fix-bot-compact-transcripts
+          path: bots/transcripts/
+          if-no-files-found: ignore
+          retention-days: 90
+
+  review-bot:
+    if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == 'review-bot'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    # Share concurrency group with the daily review-bot workflow. The
+    # compactor reads AND truncates the reviewer-log; racing with the
+    # daily bot would lose verdicts. Queue instead of cancel.
+    concurrency:
+      group: review-bot
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Configure git author
+        run: |
+          git config user.name 'review-bot'
+          git config user.email 'noreply@anthropic.com'
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install workspace deps
+        run: npm ci
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      # Restore reviewer-log from the same cache the daily review-bot
+      # writes to. The compactor reads recent entries, produces a
+      # lessons-learned rewrite, then PRUNES the file to a bounded
+      # window — actions/cache@v4 saves the truncated file on
+      # post-step, keeping the cache size bounded across months.
+      - name: Restore reviewer-log cache
+        uses: actions/cache@v4
+        with:
+          path: bots/review-bot/reviewer-log.jsonl
+          key: review-bot-reviewer-log-v1
+
+      - name: Run review-bot:compact
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: npm run review-bot:compact -w @gazetta/bots
+
+      - name: Upload transcripts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: review-bot-compact-transcripts
           path: bots/transcripts/
           if-no-files-found: ignore
           retention-days: 90

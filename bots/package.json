@@ -16,6 +16,7 @@
     "dead-code-watcher:compact": "tsx dead-code-watcher/compact.ts",
     "review-on-comment": "tsx review-on-comment/index.ts",
     "review-bot": "tsx review-bot/index.ts",
+    "review-bot:compact": "tsx review-bot/compact.ts",
     "replay": "tsx _lib/replay.ts",
     "test": "vitest run"
   },

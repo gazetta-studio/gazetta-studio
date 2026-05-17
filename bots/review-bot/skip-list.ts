@@ -171,3 +171,5 @@ export function matchGlob(pattern: string, candidate: string): boolean {
   }
   return new RegExp(`^${regex}$`).test(candidate)
 }
+
+export const SKIP_LIST_PATH = 'bots/review-bot/skip-list.json'
