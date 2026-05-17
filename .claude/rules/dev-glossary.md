@@ -138,6 +138,25 @@ Expanded smallest-first so the workflow calibrates triage-time and
 artifact-handling on focused surfaces before tackling large ones. See
 [testing-plan.md](testing-plan.md).
 
+**Mutation-area-picker (strategic)**:
+Monthly bot that owns the `mutate` glob in `stryker.config.json`. Picks ONE
+module per month to add to the scope and opens a PR. Phase 1 follows
+`testing-plan.md`'s procedural next-list verbatim (autonomous but
+human-authored order); Phase 2 (after the list is exhausted) uses
+risk-weighted heuristic signals — AI-pairing density, test/source LOC
+ratio, churn, flake correlation, bug-fix correlation — to pick. Distinct
+from mutation-watcher (which consumes Stryker output) and from the
+mutation-target-prioritiser (tactical, per-cron).
+
+**Mutation-target-prioritiser (tactical)**:
+Per-cron bot that re-ranks the "top-N actionable files" mutation-watcher
+investigates each run. Default ranking today is "highest surviving-mutant
+count first"; this bot widens that with cross-references (module
+importance, mutant class, churn). Designed-but-deferred surface — earns
+its place when actionable-file set grows large enough that count-only
+ranking misses high-value targets. Distinct from mutation-area-picker
+(strategic, monthly).
+
 **Tautological tests**:
 Tests written after observing the implementation's output, asserting on what
 was observed rather than what should be true. Pass without proving anything;
