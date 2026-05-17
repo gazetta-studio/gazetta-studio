@@ -55,6 +55,7 @@ import { type AreaCandidate, scoreAreas } from './area-scorer.js'
 import { type Candidate, extractCandidatesFence, parseCandidatesFence, rankCandidates } from './candidates.js'
 import { collectBotPRsByArea, collectGitTouches, parsePickerOutput } from './phase0-collect.js'
 import { fingerprintToBranch, pastPROutcome } from './past-pr.js'
+import { selectRecipe } from './recipe-select.js'
 import { appendReviewerLog } from './reviewer-log.js'
 import {
   type Fingerprint,
@@ -73,6 +74,7 @@ const LESSONS_PATH = resolve(HERE, 'lessons-learned.md')
 const REVIEWER_LOG_PATH = resolve(HERE, 'reviewer-log.jsonl')
 const PICKER_PROMPT_PATH = resolve(HERE, 'prompts', 'area-picker.md')
 const AGENT_A_PROMPT_PATH = resolve(HERE, 'prompts', 'agent-a.md')
+const RECIPES_DIR = resolve(HERE, 'prompts', 'recipes')
 const TRANSCRIPT_DIR = resolve(HERE, '..', 'transcripts', 'review-bot')
 
 const MAX_ATTEMPTS = Number(process.env.MAX_ATTEMPTS ?? '5')
@@ -157,6 +159,26 @@ async function main(): Promise<void> {
     const agentAResult = await phase3AgentA(candidate, branchName, attempt, priorReviewerNote, lessons, runId)
     if (!agentAResult.pushed) {
       printWarning(`Agent A did not push commits (RESULT: ${agentAResult.kind}). Recording skip + exiting.`)
+
+      // Append to reviewer-log even though Agent B never ran. The
+      // compactor reads this to surface cross-candidate patterns
+      // (e.g. "tests-class candidates with no failing-test driver
+      // route consistently STUCK before fix-bot rewrites the
+      // recipe table"). Without this append, the stuck-path is
+      // invisible to the monthly compactor — patterns can't form.
+      // verdict = 'needs-human' for stuck/crashed/no-commits per
+      // the reviewer-log schema (we have no Agent B verdict yet).
+      appendReviewerLog(REVIEWER_LOG_PATH, {
+        ts: new Date().toISOString(),
+        runId,
+        fingerprint,
+        fingerprintLabel: `${candidate.type}/${candidate.area}`,
+        attempt,
+        verdict: 'needs-human',
+        reasoning: `Agent A ${agentAResult.kind}: ${agentAResult.note}`,
+        agentASummary: `(no commits — ${agentAResult.kind})`,
+      })
+
       const updated = recordSkipListEntry(skipList, fingerprint, {
         reason: agentAResult.kind === 'stuck' ? 'stuck' : 'needs-human',
         reasonNote: agentAResult.note,
@@ -321,9 +343,14 @@ async function phase3AgentA(
   runId: string,
 ): Promise<AgentAResult> {
   const template = readFileSync(AGENT_A_PROMPT_PATH, 'utf-8')
+  const recipeName = selectRecipe(candidate.type)
+  const recipeTemplate = readFileSync(resolve(RECIPES_DIR, `${recipeName}.md`), 'utf-8')
   const candidateBlock = JSON.stringify(candidate, null, 2)
 
-  const prompt = `${template}\n\n# Inputs\n\nCANDIDATE_JSON:\n${candidateBlock}\n\nBRANCH_NAME=${branchName}\nATTEMPT=${attempt}\nMAX_ATTEMPTS=${MAX_ATTEMPTS}\n${priorReviewerNote ? `PRIOR_REVIEWER_NOTE=${priorReviewerNote}\n` : ''}LESSONS_LEARNED=\n${lessons}\n\nRUN_ID=${runId}\n`
+  // Compose: shared base + recipe contract for this candidate's type + injected inputs.
+  // The recipe is the load-bearing per-type discipline; the base is the
+  // shared scaffolding (inputs format, RESULT shape, stop conditions).
+  const prompt = `${template}\n\n## Recipe (composed by orchestrator for type=${candidate.type})\n\n${recipeTemplate}\n\n# Inputs\n\nCANDIDATE_JSON:\n${candidateBlock}\n\nRECIPE=${recipeName}\nBRANCH_NAME=${branchName}\nATTEMPT=${attempt}\nMAX_ATTEMPTS=${MAX_ATTEMPTS}\n${priorReviewerNote ? `PRIOR_REVIEWER_NOTE=${priorReviewerNote}\n` : ''}LESSONS_LEARNED=\n${lessons}\n\nRUN_ID=${runId}\n`
 
   const transcriptPath = resolve(TRANSCRIPT_DIR, `agent-a-${runId}-attempt${attempt}.jsonl`)
   const result = await runClaude({
@@ -357,10 +384,16 @@ async function phase3AgentA(
 }
 
 function extractResultSummary(text: string): string {
+  // RESULT: PUSHED can carry one of two shapes depending on recipe:
+  //   - tdd-first: Branch + Test commit + Fix commit
+  //   - coverage-shape (and other single-commit recipes): Branch + Commit + (optional) Counterfactuals
+  // Extract all known fields; concatenate the ones present.
   const branch = text.match(/^Branch:\s*(.+)$/m)?.[1]
   const test = text.match(/^Test commit:\s*(.+)$/m)?.[1]
   const fix = text.match(/^Fix commit:\s*(.+)$/m)?.[1]
-  return [branch, test, fix].filter(Boolean).join(' | ') || '(no summary)'
+  const single = text.match(/^Commit:\s*(.+)$/m)?.[1]
+  const counterfactuals = text.match(/^Counterfactuals:\s*(.+)$/m)?.[1]
+  return [branch, test, fix, single, counterfactuals].filter(Boolean).join(' | ') || '(no summary)'
 }
 
 // --- Phase 4: Agent B (review-orchestrator) --------------------------
