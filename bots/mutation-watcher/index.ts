@@ -271,6 +271,7 @@ async function fileOneIssue(
   const prompt = `${promptTemplate}
 
 PAYLOAD_JSON=${JSON.stringify(payload, null, 2)}
+CLOSED_FOLLOWUP_WINDOW_DAYS=${process.env.CLOSED_FOLLOWUP_WINDOW_DAYS ?? '30'}
 WATCHER_RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
 
   // Stage the payload to a file too — Claude can re-read it via Read

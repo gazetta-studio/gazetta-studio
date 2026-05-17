@@ -59,6 +59,13 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          # Days within which a closed prior issue suppresses re-filing.
+          # Beyond this window, the bot files a fresh issue referencing
+          # the prior one. Prevents the bot from steady-stating on the
+          # same top-N files forever after one fix cycle. Default 30d
+          # matches the monthly compactor cadence — humans have a full
+          # review cycle to react before the bot re-opens the surface.
+          CLOSED_FOLLOWUP_WINDOW_DAYS: '30'
         run: npm run mutation-watcher -w @gazetta/bots
 
       # Per-investigation JSONL transcripts. A future agent can run
