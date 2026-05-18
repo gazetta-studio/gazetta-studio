@@ -347,6 +347,14 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
     authProvider = buildAuthProvider(undefined)
   }
   app.use('/api/*', principalMiddleware(authProvider))
+  // The preview routes are mounted at `/preview/*` (outside `/api/*`)
+  // but render full page/fragment content — they need the same
+  // identity extraction so their capability gate has a Principal to
+  // check. Bearer-token (`authMiddleware`) is deliberately NOT applied
+  // here: the admin's preview iframe fetch doesn't carry the token,
+  // and upstream-identity (the configured trust mode) is what gates
+  // content reads.
+  app.use('/preview/*', principalMiddleware(authProvider))
 
   // Audit middleware — per design-audit.md "Recording timing".
   // Resolves admin.audit config; constructs the configured providers;
