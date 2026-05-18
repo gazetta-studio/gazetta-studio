@@ -7,6 +7,7 @@ import { resolveFragment, resolvePage } from '../../resolver.js'
 import { renderFragment, renderPage } from '../../renderer.js'
 import { defaultLocaleFor } from '../../locale.js'
 import type { SourceContext, SourceContextResolver } from '../source-context.js'
+import { requireCapability } from '../middleware/capability.js'
 
 const EMPTY_OVERRIDES: DraftOverrides = { content: {}, structural: {} }
 
@@ -19,12 +20,12 @@ export function previewRoutes(resolve: SourceContextResolver, templatesDir?: str
     c.header('Cache-Control', 'no-store')
   })
 
-  app.get('/preview/*', async c => {
+  app.get('/preview/*', requireCapability('read:pages'), async c => {
     const source = await resolve(c.req.query('target'))
     return renderPreview(c, source, EMPTY_OVERRIDES, templatesDir)
   })
 
-  app.post('/preview/*', async c => {
+  app.post('/preview/*', requireCapability('read:pages'), async c => {
     const source = await resolve(c.req.query('target'))
     const body = (await c.req.json()) as { overrides?: Partial<DraftOverrides> }
     const overrides: DraftOverrides = {
