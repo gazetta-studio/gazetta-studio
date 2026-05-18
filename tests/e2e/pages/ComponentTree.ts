@@ -99,14 +99,6 @@ export class ComponentTreePom {
   /**
    * Move a top-level row one position up. Uses the Alt+ArrowUp keyboard
    * shortcut (#105 — replaces the legacy move-up button).
-   *
-   * Direct event dispatch via `evaluate` instead of focus+keyboard.press:
-   * after a save cycle the v-for re-renders the block; Playwright's
-   * `focus()` can resolve against a freshly-attached element before
-   * Vue has finished its DOM patch, leaving focus on `body` and
-   * `keyboard.press` going to a no-op. Dispatching the keydown event
-   * synchronously on the handle's `closest('.top-level-block')` (where
-   * the listener lives) is deterministic and CI-cold-start safe.
    */
   async moveUp(name: string): Promise<void> {
     await this.dispatchAltArrow(name, 'ArrowUp')
@@ -117,28 +109,14 @@ export class ComponentTreePom {
     await this.dispatchAltArrow(name, 'ArrowDown')
   }
 
+  // Native focus + keyboard rather than a synthetic `dispatchEvent`:
+  // Playwright's `focus()` waits for actionability (visible, stable,
+  // attached) so the keypress can't land on a `.top-level-block` that the
+  // post-save `selection.reload()` re-render has detached mid-dispatch (#288).
   private async dispatchAltArrow(name: string, key: 'ArrowUp' | 'ArrowDown'): Promise<void> {
     const handle = this.page.locator(`[data-testid="drag-handle-${name}"]`)
-    await handle.waitFor({ state: 'visible', timeout: 10000 })
-    // `waitFor({ state: 'visible' })` doesn't imply "Vue's reactivity queue
-    // is flushed and event listeners are attached on the current DOM nodes."
-    // After a save cycle, `selection.reload()` schedules another v-for patch
-    // whose DOM nodes can attach mid-evaluate, so the synthetic keydown
-    // below fires against a detached `.top-level-block` listener and the
-    // store action never runs (#288). Two rAF rounds: the first rAF lets
-    // Vue's scheduler flush; the second ensures the resulting DOM commit
-    // has landed. Same mechanism Vue's `nextTick` uses internally.
-    await this.page.evaluate(
-      () =>
-        new Promise<void>(resolve => {
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-        }),
-    )
-    await handle.evaluate((el, k) => {
-      const block = el.closest('.top-level-block')
-      if (!block) throw new Error('drag handle is not inside a top-level block')
-      block.dispatchEvent(new KeyboardEvent('keydown', { key: k, altKey: true, bubbles: true, cancelable: true }))
-    }, key)
+    await handle.focus()
+    await this.page.keyboard.press(`Alt+${key}`)
   }
 
   // ---- Dialog surfaces (for assertions about the add flow) ----------
