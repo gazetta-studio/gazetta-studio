@@ -30,7 +30,7 @@
   },
   "devDependencies": {
     "@hono/vite-dev-server": "^0.25.3",
-    "@types/node": "^25.7.0",
+    "@types/node": "^25.9.0",
     "@vitejs/plugin-vue": "^6.0.6",
     "@vue/test-utils": "^2.4.10",
     "fake-indexeddb": "^6.2.5",
