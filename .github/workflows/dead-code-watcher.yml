@@ -88,7 +88,7 @@ jobs:
       # the design. Cache miss is fine — tailReviewerLog returns [].
       # Bump the -v1 suffix if the JSONL schema ever changes.
       - name: Restore reviewer-log cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: bots/dead-code-watcher/reviewer-log.jsonl
           key: dead-code-watcher-reviewer-log-v1
