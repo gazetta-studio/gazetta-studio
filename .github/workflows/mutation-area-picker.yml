@@ -87,7 +87,7 @@ jobs:
       # Cache miss is fine — readReviewerLog returns []. Bump the
       # -v1 suffix if the JSONL schema ever changes.
       - name: Restore reviewer-log cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: bots/mutation-area-picker/reviewer-log.jsonl
           key: mutation-area-picker-reviewer-log-v1
