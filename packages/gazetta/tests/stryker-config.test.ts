@@ -23,4 +23,17 @@ describe('stryker mutation scope', () => {
     const missing = literals.filter(entry => !existsSync(new URL(`../${entry}`, import.meta.url)))
     expect(missing).toEqual([])
   })
+
+  it('no literal mutate path is a shebang entrypoint', () => {
+    // Stryker's vitest runner instruments modules in-process. A `#!`
+    // entrypoint runs only as a spawned subprocess (e2e / CLI-smoke
+    // tests), so the runner never observes its mutants — every one
+    // survives as NoCoverage, producing pure noise rather than signal.
+    const literals = config.mutate.filter(entry => !entry.includes('*'))
+    const shebangEntrypoints = literals.filter(entry => {
+      const url = new URL(`../${entry}`, import.meta.url)
+      return existsSync(url) && readFileSync(url, 'utf-8').startsWith('#!')
+    })
+    expect(shebangEntrypoints).toEqual([])
+  })
 })
