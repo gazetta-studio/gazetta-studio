@@ -261,3 +261,85 @@ describe('createCloudflareAccessAuthProvider verification (Cut 4)', () => {
     ).rejects.toBeInstanceOf(AuthenticationError)
   })
 })
+
+describe('createCloudflareAccessAuthProvider role resolution (Cut 6 wiring)', () => {
+  it('resolves the role from the claim named by roleMapping.claim', async () => {
+    const { jwksFactory, sign } = await setup()
+    // Groups live under a NON-default claim name. A provider that
+    // hardcodes `payload.groups` would see nothing here and fall
+    // back to defaultRole — the regression this test guards.
+    const token = await sign(
+      { sub: 'user', 'custom/groups': ['cf-admins'] },
+      { iss: 'https://acme.cloudflareaccess.com' },
+    )
+    const provider = createCloudflareAccessAuthProvider({
+      teamDomain: 'acme',
+      jwksFactory,
+      roleMapping: {
+        claim: 'custom/groups',
+        map: { 'cf-admins': 'admin' },
+        defaultRole: 'viewer',
+      },
+    })
+    const principal = await provider.extractPrincipal(makeReq({ 'Cf-Access-Jwt-Assertion': token }))
+    expect(principal!.role).toBe('admin')
+    expect(principal!.capabilities).toContain('*')
+  })
+
+  it('falls back to roleMapping.defaultRole when no group matches', async () => {
+    const { jwksFactory, sign } = await setup()
+    const token = await sign(
+      { sub: 'user', groups: ['some-unmapped-group'] },
+      { iss: 'https://acme.cloudflareaccess.com' },
+    )
+    const provider = createCloudflareAccessAuthProvider({
+      teamDomain: 'acme',
+      jwksFactory,
+      roleMapping: {
+        claim: 'groups',
+        map: { 'cf-admins': 'admin' },
+        defaultRole: 'viewer',
+      },
+    })
+    const principal = await provider.extractPrincipal(makeReq({ 'Cf-Access-Jwt-Assertion': token }))
+    expect(principal!.role).toBe('viewer')
+  })
+
+  it('denies (throws) when no group matches and roleMapping has no defaultRole', async () => {
+    const { jwksFactory, sign } = await setup()
+    const token = await sign(
+      { sub: 'user', groups: ['some-unmapped-group'] },
+      { iss: 'https://acme.cloudflareaccess.com' },
+    )
+    const provider = createCloudflareAccessAuthProvider({
+      teamDomain: 'acme',
+      jwksFactory,
+      roleMapping: {
+        claim: 'groups',
+        map: { 'cf-admins': 'admin' },
+        // no defaultRole — unmatched principals are denied
+      },
+    })
+    await expect(provider.extractPrincipal(makeReq({ 'Cf-Access-Jwt-Assertion': token }))).rejects.toBeInstanceOf(
+      AuthenticationError,
+    )
+  })
+
+  it('resolves a custom role supplied via customRoles', async () => {
+    const { jwksFactory, sign } = await setup()
+    const token = await sign({ sub: 'user', groups: ['cf-translators'] }, { iss: 'https://acme.cloudflareaccess.com' })
+    const provider = createCloudflareAccessAuthProvider({
+      teamDomain: 'acme',
+      jwksFactory,
+      roleMapping: {
+        claim: 'groups',
+        map: { 'cf-translators': 'translator' },
+        defaultRole: 'viewer',
+      },
+      customRoles: { translator: ['read:pages', 'edit:locale-variants'] },
+    })
+    const principal = await provider.extractPrincipal(makeReq({ 'Cf-Access-Jwt-Assertion': token }))
+    expect(principal!.role).toBe('translator')
+    expect(principal!.capabilities).toEqual(['read:pages', 'edit:locale-variants'])
+  })
+})
