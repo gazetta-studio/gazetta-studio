@@ -44,10 +44,11 @@
  *     `jwksFactory` constructor option for unit tests.
  */
 import { jwtVerify, createRemoteJWKSet, type JWTPayload, type JWTVerifyGetKey } from 'jose'
-import type { Principal } from '../types.js'
+import type { Principal, RoleMapping } from '../types.js'
 import type { AuthIdentityProvider, AuthRequest } from '../provider.js'
 import { AuthenticationError, AuthConfigurationError } from '../errors.js'
 import { expandRole } from '../capabilities.js'
+import { resolveRole } from '../role-resolver.js'
 
 export interface CloudflareAccessConfig {
   /**
@@ -63,8 +64,25 @@ export interface CloudflareAccessConfig {
    * Access-protected apps in the same team domain.
    */
   audience?: string
-  /** Optional default role until Cut 6's role-resolver wires up. */
+  /**
+   * Role assigned when no `roleMapping` is configured. When
+   * `roleMapping` IS set, the resolved group → role mapping (and its
+   * own `defaultRole`) takes over and this field is unused.
+   */
   defaultRole?: string
+  /**
+   * Group-claim → role mapping from `site.config.ts admin.auth`.
+   * When set, the verified JWT's group list (read from the claim
+   * named by `roleMapping.claim`) is resolved to a Gazetta role
+   * instead of falling back to `defaultRole`.
+   */
+  roleMapping?: RoleMapping
+  /**
+   * Custom role declarations from `site.config.ts admin.auth.roles`,
+   * flattened to `name → capabilities`. Consulted by the role
+   * resolver when `roleMapping` points at a non-built-in role.
+   */
+  customRoles?: Readonly<Record<string, ReadonlyArray<string>>>
   /**
    * Internal: factory for the JWKS verifier. Tests inject a stub;
    * production calls `createRemoteJWKSet`.
@@ -138,15 +156,55 @@ export function createCloudflareAccessAuthProvider(config: CloudflareAccessConfi
         throw new AuthenticationError('Cloudflare Access JWT has no sub or identity_nonce claim')
       }
 
+      let role: string
+      let capabilities: ReadonlyArray<string>
+      if (config.roleMapping) {
+        // Read the group list from the operator-configured claim
+        // name — NOT a hardcoded `groups` field. Cloudflare emits
+        // group claims under whatever name the team's Access policy
+        // declares; reading the wrong key silently drops every
+        // mapping and falls back to defaultRole.
+        const groups = extractStringArray(payload[config.roleMapping.claim])
+        const resolved = resolveRole({
+          groups,
+          mapping: config.roleMapping,
+          customRoles: config.customRoles,
+        })
+        if (!resolved) {
+          // Valid identity, but no group matched and no defaultRole
+          // is configured — deny access per design-auth-rbac.md's
+          // "defaultRole: null means deny".
+          throw new AuthenticationError(
+            `Cloudflare Access principal "${id}" matched no role in roleMapping and no defaultRole is configured`,
+          )
+        }
+        role = resolved.name
+        capabilities = resolved.capabilities
+      } else {
+        role = defaultRole
+        capabilities = expandRole(defaultRole) ?? []
+      }
+
       return {
         id,
         email: payload.email,
-        role: defaultRole,
+        role,
         trustMode: 'cloudflare-access',
-        capabilities: expandRole(defaultRole) ?? [],
+        capabilities,
       }
     },
   }
+}
+
+/**
+ * Coerce an arbitrary JWT claim value into a clean `string[]`. The
+ * group claim is operator-named and operator-populated, so its shape
+ * isn't guaranteed — a missing claim, a scalar, or a mixed array all
+ * degrade to "no groups" rather than throwing.
+ */
+function extractStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is string => typeof item === 'string')
 }
 
 /**

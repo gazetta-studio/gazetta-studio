@@ -62,6 +62,12 @@ export function buildAuthProvider(config: AuthConfig | undefined): AuthIdentityP
       return createCloudflareAccessAuthProvider({
         teamDomain: config.teamDomain,
         audience: config.audience,
+        roleMapping: config.roleMapping,
+        // Flatten the `roles` block ({ name: { capabilities } }) onto
+        // the `name → capabilities` map the role resolver consumes.
+        customRoles: config.roles
+          ? Object.fromEntries(Object.entries(config.roles).map(([name, def]) => [name, def.capabilities]))
+          : undefined,
       })
     case 'azure-easy-auth':
       return createAzureEasyAuthProvider({})
