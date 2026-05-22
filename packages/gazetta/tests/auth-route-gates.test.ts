@@ -12,11 +12,14 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest'
 import { rm, cp } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import type { Hono } from 'hono'
+import { Hono } from 'hono'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
 import { createAdminApp } from '../src/admin-api/index.js'
 import { createSourceContext } from '../src/admin-api/source-context.js'
 import { loadSiteConfig, siteConfigToManifest } from '../src/config/loader.js'
+import { principalMiddleware, type PrincipalEnv } from '../src/admin-api/middleware/principal.js'
+import { validationRoutes } from '../src/admin-api/routes/validation.js'
+import type { AuthIdentityProvider, Principal } from '../src/auth/index.js'
 import { tempDir } from './_helpers/temp.js'
 
 // Reuse the starter fixture from admin-api.test.ts setup
@@ -114,5 +117,63 @@ describe('Cut 9 — admin-api route gates (none mode = admin role with *)', () =
     // Capability gate passed; route returns 400 for missing ?target
     // query. We just confirm it's not 401/403.
     expect([200, 400]).toContain(res.status)
+  })
+
+  it('GET /api/validation/issues → 200 (read:pages gate satisfied by *)', async () => {
+    const res = await app.request('/api/validation/issues')
+    expect(res.status).toBe(200)
+  })
+})
+
+// `GET /api/validation/issues` returns the full site issue list —
+// item paths + validator messages. It must carry the same
+// `read:pages` gate every peer read route (compare / fields / site /
+// templates) has. The none-mode suite above can only confirm the
+// route stays reachable under the admin baseline (`*` grants
+// everything); these suites use a custom provider to exercise the
+// 401 / 403 paths the gate is responsible for.
+
+function providerWithCaps(caps: string[], role = 'editor'): AuthIdentityProvider {
+  return {
+    trustMode: 'forwarded-user',
+    async extractPrincipal(): Promise<Principal> {
+      return { id: 'test-user', role, trustMode: 'forwarded-user', capabilities: caps }
+    },
+  }
+}
+
+const anonymousProvider: AuthIdentityProvider = {
+  trustMode: 'forwarded-user',
+  async extractPrincipal(): Promise<Principal | null> {
+    return null
+  },
+}
+
+function buildValidationApp(provider: AuthIdentityProvider) {
+  const inner = new Hono<PrincipalEnv>()
+  inner.use('/api/*', principalMiddleware(provider))
+  inner.route('/', validationRoutes({ scanner: null }))
+  return inner
+}
+
+describe('GET /api/validation/issues — read:pages capability gate', () => {
+  it('200 when the principal has read:pages', async () => {
+    const res = await buildValidationApp(providerWithCaps(['read:pages'])).request('/api/validation/issues')
+    expect(res.status).toBe(200)
+  })
+
+  it('403 when the authenticated principal lacks read:pages', async () => {
+    const res = await buildValidationApp(providerWithCaps([], 'editor')).request('/api/validation/issues')
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body.code).toBe('FORBIDDEN')
+    expect(body.missing).toEqual(['read:pages'])
+  })
+
+  it('401 when the request is anonymous (no upstream identity)', async () => {
+    const res = await buildValidationApp(anonymousProvider).request('/api/validation/issues')
+    expect(res.status).toBe(401)
+    const body = await res.json()
+    expect(body.code).toBe('UNAUTHENTICATED')
   })
 })
