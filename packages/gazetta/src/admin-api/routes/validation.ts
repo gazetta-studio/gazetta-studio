@@ -26,6 +26,7 @@
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import type { ScanEvent, ValidationScanner } from '../../validation/scanner.js'
+import { requireCapability } from '../middleware/capability.js'
 
 export interface ValidationRoutesOptions {
   /** Scanner instance shared across all routes. May be null when validation isn't enabled. */
@@ -38,8 +39,12 @@ export function validationRoutes(opts: ValidationRoutesOptions) {
   /**
    * GET /api/validation/issues — current issues. Returns an empty list when
    * no scanner is configured (validation disabled or pre-scan boot).
+   *
+   * Gated on `read:pages`: the issue list carries item paths + validator
+   * messages, so it follows the same capability gate as every peer read
+   * route (compare / fields / site / templates).
    */
-  app.get('/api/validation/issues', c => {
+  app.get('/api/validation/issues', requireCapability('read:pages'), c => {
     if (!opts.scanner) return c.json({ issues: [], total: 0 })
     const issues = opts.scanner.allIssues()
     return c.json({ issues, total: issues.length })
