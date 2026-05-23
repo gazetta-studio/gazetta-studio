@@ -18,7 +18,7 @@ import { createAdminApp } from '../src/admin-api/index.js'
 import { createSourceContext } from '../src/admin-api/source-context.js'
 import { loadSiteConfig, siteConfigToManifest } from '../src/config/loader.js'
 import { principalMiddleware, type PrincipalEnv } from '../src/admin-api/middleware/principal.js'
-import { validationRoutes } from '../src/admin-api/routes/validation.js'
+import { mountValidationSse, validationRoutes } from '../src/admin-api/routes/validation.js'
 import type { AuthIdentityProvider, Principal } from '../src/auth/index.js'
 import { tempDir } from './_helpers/temp.js'
 
@@ -172,6 +172,55 @@ describe('GET /api/validation/issues — read:pages capability gate', () => {
 
   it('401 when the request is anonymous (no upstream identity)', async () => {
     const res = await buildValidationApp(anonymousProvider).request('/api/validation/issues')
+    expect(res.status).toBe(401)
+    const body = await res.json()
+    expect(body.code).toBe('UNAUTHENTICATED')
+  })
+})
+
+// The peer SSE channel `GET /__validation` streams `ScanEvent`s
+// carrying item paths + validator messages — the same payload class
+// as `GET /api/validation/issues`. It's mounted on the OUTER Hono app
+// (not under `/api/*`), so the bearer-token + principal middleware
+// stacked on `/api/*` in `createAdminApp` do NOT reach it. After the
+// fix, `mountValidationSse(app, scanner, authProvider)` accepts the
+// configured auth provider and applies `principalMiddleware` +
+// `requireCapability('read:pages')` to the route itself — matching
+// the gate on the sibling polling route at validation.ts:47.
+
+function buildSseApp(provider: AuthIdentityProvider) {
+  const app = new Hono()
+  // Post-fix signature: mountValidationSse takes the authProvider as
+  // its third argument and wires principalMiddleware +
+  // requireCapability('read:pages') internally. Pre-fix, the third
+  // argument is silently ignored at runtime, leaving the route open
+  // — which is what makes the 401 / 403 assertions below fail until
+  // the gate ships.
+  mountValidationSse(app, null, provider)
+  return app
+}
+
+describe('GET /__validation — read:pages capability gate', () => {
+  it('200 when the principal has read:pages', async () => {
+    const res = await buildSseApp(providerWithCaps(['read:pages'])).request('/__validation')
+    expect(res.status).toBe(200)
+    // The SSE stream stays open after the initial "ready" frame; the
+    // handler sits in `while (!stream.aborted)`. Cancel the body so
+    // the abort fires, the subscriber disposer runs, and vitest's
+    // test-end cleanup doesn't have to chase a dangling promise.
+    await res.body?.cancel()
+  })
+
+  it('403 when the authenticated principal lacks read:pages', async () => {
+    const res = await buildSseApp(providerWithCaps([], 'editor')).request('/__validation')
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body.code).toBe('FORBIDDEN')
+    expect(body.missing).toEqual(['read:pages'])
+  })
+
+  it('401 when the request is anonymous (no upstream identity)', async () => {
+    const res = await buildSseApp(anonymousProvider).request('/__validation')
     expect(res.status).toBe(401)
     const body = await res.json()
     expect(body.code).toBe('UNAUTHENTICATED')
