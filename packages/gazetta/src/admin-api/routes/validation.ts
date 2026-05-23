@@ -26,7 +26,9 @@
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import type { ScanEvent, ValidationScanner } from '../../validation/scanner.js'
+import type { AuthIdentityProvider } from '../../auth/index.js'
 import { requireCapability } from '../middleware/capability.js'
+import { principalMiddleware } from '../middleware/principal.js'
 
 export interface ValidationRoutesOptions {
   /** Scanner instance shared across all routes. May be null when validation isn't enabled. */
@@ -65,9 +67,21 @@ export function validationRoutes(opts: ValidationRoutesOptions) {
  * re-fetch) instead of pushing the full diff in the event payload because
  * the issue set is small (~tens to hundreds of items at envelope) and a
  * fresh GET is simpler than diff reconciliation client-side.
+ *
+ * The route is gated on `read:pages` — same capability as the sibling
+ * polling route `GET /api/validation/issues` (validation.ts:47). The SSE
+ * channel streams `ScanEvent`s carrying item paths + validator messages,
+ * so its read-access requirement matches the polling route uniformly.
+ * `principalMiddleware` is applied here (not via the outer app's
+ * `/api/*` stack) because `/__validation` sits outside `/api/*` to
+ * match `/__reload`'s placement at the outer root.
  */
-export function mountValidationSse(app: Hono, scanner: ValidationScanner | null): void {
-  app.get('/__validation', async c => {
+export function mountValidationSse(
+  app: Hono,
+  scanner: ValidationScanner | null,
+  authProvider: AuthIdentityProvider,
+): void {
+  app.get('/__validation', principalMiddleware(authProvider), requireCapability('read:pages'), async c => {
     return streamSSE(c, async stream => {
       const queue: ScanEvent[] = []
       let resolveWaiter: (() => void) | null = null

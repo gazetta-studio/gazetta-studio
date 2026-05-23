@@ -2186,9 +2186,13 @@ async function setupCmsApi(
   // the browser EventSource (which connects without an `/admin/` prefix)
   // bypasses Vite's middleware and reaches the route. Same in prod for
   // consistency: a save from one tab updates the badge in every other
-  // tab without polling.
+  // tab without polling. The route streams ScanEvents (item paths +
+  // validator messages), so it's gated on `read:pages` internally —
+  // pass the same auth provider createAdminApp will resolve.
   const { mountValidationSse } = await import('../admin-api/routes/validation.js')
-  mountValidationSse(app, validationScanner)
+  const { resolveAuthProviderFromManifest } = await import('../auth/index.js')
+  const sseAuthProvider = resolveAuthProviderFromManifest(manifest?.admin?.auth)
+  mountValidationSse(app, validationScanner, sseAuthProvider)
   const cmsApp = createAdminApp({
     source,
     siteDir,
@@ -2235,8 +2239,13 @@ async function setupProductionMode(
   const hooks = await buildHooksRegistry({ contributions })
   const validationScanner = await buildValidationScanner({ source, templatesDir, manifest })
   // SSE channel at the outer app's root; see setupCmsApi for rationale.
+  // The route is gated on `read:pages` — pass the configured auth
+  // provider so anonymous + missing-capability requests are rejected
+  // before the stream opens.
   const { mountValidationSse } = await import('../admin-api/routes/validation.js')
-  mountValidationSse(app, validationScanner)
+  const { resolveAuthProviderFromManifest } = await import('../auth/index.js')
+  const sseAuthProvider = resolveAuthProviderFromManifest(manifest?.admin?.auth)
+  mountValidationSse(app, validationScanner, sseAuthProvider)
   // Mount CMS API inline at /admin (production mode — bundled editors/fields)
   const cmsApp = createAdminApp({
     source,
