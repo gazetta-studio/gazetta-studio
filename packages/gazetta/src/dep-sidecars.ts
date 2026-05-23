@@ -111,7 +111,7 @@ export function filenameToItemRef(filename: string): ItemRef | null {
 }
 
 /** Directory path for one target's sidecars under a relation. */
-export function depDir(rel: DepRelation, contentRoot: ContentRoot, targetName: string): string {
+function depDir(rel: DepRelation, contentRoot: ContentRoot, targetName: string): string {
   return contentRoot.path('.gazetta', rel.rootName, encodeRefName(targetName))
 }
 
