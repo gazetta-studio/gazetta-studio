@@ -4,7 +4,7 @@
  * Responsibility: load site.config.ts from the project site directory, build a
  * TargetRegistry from its targets, and derive a SourceContext pointing at
  * the default editable target. Callers compose these primitives; the admin
- * API and `createApp` runtime take over from there.
+ * API and `createServer` runtime take over from there.
  */
 
 import { dirname, join } from 'node:path'
