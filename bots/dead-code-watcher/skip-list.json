@@ -11,6 +11,16 @@
       "reasonNote": "Named in design-scale.md and design-scale-implementation.md as part of the in-flight provider-aware-concurrency migration. Cut 2 (pending) adds `recommendedConcurrency: 20` on the filesystem provider that 'matches existing DEFAULT_CONCURRENCY'; Cut 2's risk note shows `mapLimit(items, fn, DEFAULT_CONCURRENCY)` as the explicit-pass shape callers use until Cut 3 migrates them. Removing the export now would force re-adding it when scale Cut 2-3 lands.",
       "addedAt": "2026-05-14T14:11:53Z",
       "addedBy": "bot"
+    },
+    {
+      "fingerprint": {
+        "kind": "file",
+        "path": "packages/gazetta/src/cache/errors.ts"
+      },
+      "reason": "planned-feature",
+      "reasonNote": "Forward-compat scaffolding for the Cache foundation's `CacheError` taxonomy. design-cache.md Gap 5 defines the base class + `CacheConfigurationError` + `CacheSchemaError` with explicit reasoning ('Throws reserved for unrecoverable infrastructure errors per Universal Provider Requirement #6') and invites plugin authors writing v2 providers (Redis, Azure) to extend the base class. design-cache-implementation.md Cut 8 ships the types pre-Path-X-Phase-3 and lists the pending consumer wiring as 'throw `CacheConfigurationError` on bad config' in memory.ts. The file's own JSDoc states 'Two leaf classes today; more land as v2 providers ship and surface their own failure modes'. Deleting now would force re-creation when Cut 8's wiring lands and would force plugin providers to roll their own error hierarchy.",
+      "addedAt": "2026-05-23T00:00:00Z",
+      "addedBy": "bot"
     }
   ],
   "rules": []
