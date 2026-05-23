@@ -19,7 +19,7 @@ import {
 import { authMiddleware } from './middleware/auth.js'
 import { principalMiddleware } from './middleware/principal.js'
 import { auditMiddleware } from './middleware/audit.js'
-import { AuthConfigSchema, AuthConfigurationError, buildAuthProvider } from '../auth/index.js'
+import { resolveAuthProviderFromManifest } from '../auth/index.js'
 import {
   AuditConfigSchema,
   AuditConfigurationError,
@@ -330,22 +330,7 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   // we strict-parse it here against the typed AuthConfigSchema and
   // throw a clear AuthConfigurationError if the operator's block is
   // malformed.
-  const rawAuthBlock = source.manifest?.admin?.auth as unknown
-  let authProvider
-  if (rawAuthBlock !== undefined) {
-    const parsed = AuthConfigSchema.safeParse(rawAuthBlock)
-    if (!parsed.success) {
-      throw new AuthConfigurationError(
-        `Invalid admin.auth block in site.config.ts: ${parsed.error.issues
-          .map(i => `${i.path.join('.')}: ${i.message}`)
-          .join('; ')}`,
-      )
-    }
-    authProvider = buildAuthProvider(parsed.data)
-  } else {
-    // No admin.auth block — none mode (single-author / dev).
-    authProvider = buildAuthProvider(undefined)
-  }
+  const authProvider = resolveAuthProviderFromManifest(source.manifest?.admin?.auth)
   app.use('/api/*', principalMiddleware(authProvider))
   // The preview routes are mounted at `/preview/*` (outside `/api/*`)
   // but render full page/fragment content — they need the same
