@@ -141,7 +141,7 @@ export interface AnalyzerInput {
 import { animatedImageAnalyzer, staticImageAnalyzer } from './analyze-image.js'
 import { audioAnalyzer } from './analyze-audio.js'
 
-export const defaultAnalyzers: readonly UploadAnalyzer[] = [staticImageAnalyzer, animatedImageAnalyzer, audioAnalyzer]
+const defaultAnalyzers: readonly UploadAnalyzer[] = [staticImageAnalyzer, animatedImageAnalyzer, audioAnalyzer]
 
 /**
  * Run the matching analyzer(s) for the given MIME. Returns the
