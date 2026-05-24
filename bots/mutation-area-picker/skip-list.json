@@ -9,6 +9,15 @@
       "reasonNote": "CLI entrypoint (#!/usr/bin/env node) executed only as a spawned subprocess by e2e and CLI-smoke tests. Stryker's vitest runner instruments in-process, so it never observes this file's mutants — every one survives as NoCoverage (0% kill ratio). Mutating it produces noise, not signal.",
       "addedAt": "2026-05-19T00:00:00.000Z",
       "addedBy": "maintainer"
+    },
+    {
+      "fingerprint": {
+        "path": "packages/gazetta/src/index.ts"
+      },
+      "reason": "never-mutate",
+      "reasonNote": "Pure public-API re-export barrel. 259 lines, ~62 export statements, zero direct `export const`/`export function`/`export async function`. Every line is `export { X } from './foo.js'` or `export type { Y } from './foo.js'`. Stryker mutates string literals in the `from` paths, but no behavior test could catch those — the public-surface contract is 'this name is re-exported', covered by typecheck + import, not by runtime behavior. Mutants surface as NoCoverage noise without finding real test gaps. Same wrong-pick class as cli/index.ts but different mechanism: cli was shebang/subprocess invisibility; this is no-logic-to-mutate. Rejection context in #422.",
+      "addedAt": "2026-05-24T00:00:00.000Z",
+      "addedBy": "maintainer"
     }
   ],
   "rules": []
