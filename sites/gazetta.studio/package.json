@@ -6,7 +6,7 @@
     "dev": "tsx ../../packages/gazetta/src/cli/index.ts dev ."
   },
   "devDependencies": {
-    "@types/react": "^19.2.14",
+    "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "gazetta": "*",
     "react": "^19.2.6",
