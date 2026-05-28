@@ -152,3 +152,61 @@ describe('assetServeRoutes — design-media.md "Asset serving" headers', () => {
     expect(res.status).toBe(200)
   })
 })
+
+describe('assetServeRoutes — RFC 9110 §14 partial responses (video/audio seeking)', () => {
+  // Known 10-byte payload so range assertions are exact.
+  const tenBytes = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+
+  it('honors a satisfiable byte range with 206 + Content-Range + Accept-Ranges + sliced body', async () => {
+    // The current route serves the right bytes (it passes the range to
+    // readStream) but returns the WRONG envelope: status 200, no
+    // Content-Range, no Accept-Ranges — a malformed partial response per
+    // RFC 9110 §14.4. A range request the server honors MUST be 206 with
+    // Content-Range.
+    await seedAsset('clip-a1b2c3d4.bin', tenBytes)
+    const res = await buildApp().request('/assets/clip-a1b2c3d4.bin', {
+      headers: { range: 'bytes=2-5' },
+    })
+
+    expect(res.status).toBe(206)
+    // complete-length is `*` because StorageProvider exposes no size; the
+    // first/last byte positions come from the (satisfied) request range.
+    expect(res.headers.get('content-range')).toBe('bytes 2-5/*')
+    expect(res.headers.get('accept-ranges')).toBe('bytes')
+
+    const served = new Uint8Array(await res.arrayBuffer())
+    expect(Array.from(served)).toEqual([2, 3, 4, 5])
+  })
+
+  it('advertises Accept-Ranges: bytes on a full (non-range) response', async () => {
+    // Clients learn the route supports ranges from this header on the
+    // first full GET, then re-request with a Range. Without it, a strict
+    // client never attempts seeking.
+    await seedAsset('clip-a1b2c3d4.bin', tenBytes)
+    const res = await buildApp().request('/assets/clip-a1b2c3d4.bin')
+
+    expect(res.status).toBe(200)
+    expect(res.headers.get('accept-ranges')).toBe('bytes')
+    const served = new Uint8Array(await res.arrayBuffer())
+    expect(Array.from(served)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+  })
+
+  it('treats an open-ended bytes=N- range as ignored (200 full body, not a malformed partial)', async () => {
+    // Serving `bytes=N-` as a real 206 partial needs the file size to
+    // compute the last-byte position (StorageProvider has no size method),
+    // so the route deliberately ignores the Range and returns the full
+    // body — permitted by RFC 9110 §14.2. The contract here: it must NOT
+    // emit a 206 with a bogus/empty Content-Range, and must still advertise
+    // Accept-Ranges so the client can retry with a finite range.
+    await seedAsset('clip-a1b2c3d4.bin', tenBytes)
+    const res = await buildApp().request('/assets/clip-a1b2c3d4.bin', {
+      headers: { range: 'bytes=5-' },
+    })
+
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-range')).toBeNull()
+    expect(res.headers.get('accept-ranges')).toBe('bytes')
+    const served = new Uint8Array(await res.arrayBuffer())
+    expect(Array.from(served)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+  })
+})
