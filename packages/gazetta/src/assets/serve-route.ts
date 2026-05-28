@@ -124,6 +124,17 @@ export function assetServeRoutes(resolveStorageOrOptions: AssetStorageResolver |
       if (etag) c.header('ETag', etag)
       c.header('Content-Disposition', dispositionFor(mime))
       c.header('Access-Control-Allow-Origin', '*')
+      // Advertise range support on every response so `<video>`/`<audio>`
+      // clients know they can seek (RFC 9110 §14.3).
+      c.header('Accept-Ranges', 'bytes')
+      if (range) {
+        // A satisfied range MUST be a 206 with Content-Range (RFC 9110
+        // §14.4). complete-length is reported as `*` because the
+        // StorageProvider contract exposes no file size; the byte
+        // positions come from the (satisfied) request range.
+        c.header('Content-Range', `bytes ${range.start}-${range.end}/*`)
+        c.status(206)
+      }
       return stream(c, async out => {
         await out.pipe(bodyStream)
       })
@@ -165,14 +176,26 @@ function parseAssetUrlInput(path: string, ext: string): AssetUrlInput {
   }
 }
 
-/** Parse a byte-range HTTP header into the storage provider's `ByteRange`. */
+/**
+ * Parse a byte-range HTTP header into the storage provider's `ByteRange`.
+ *
+ * Returns a finite, satisfiable range only. Open-ended `bytes=N-` returns
+ * `undefined` so the caller ignores the Range and serves a full 200
+ * response (permitted by RFC 9110 §14.2). Honoring `bytes=N-` as a real
+ * 206 would require the last-byte position (`size-1`), and the
+ * `StorageProvider` contract exposes no file size — resolving it is a
+ * cross-cutting addition tracked separately. The caller still advertises
+ * `Accept-Ranges: bytes`, so a client wanting a partial re-requests with
+ * a finite range.
+ */
 function parseRange(header: string | undefined): { start: number; end: number } | undefined {
   if (!header) return undefined
   const match = /^bytes=(\d+)-(\d+)?$/.exec(header)
   if (!match) return undefined
   const start = Number.parseInt(match[1], 10)
-  const end = match[2] ? Number.parseInt(match[2], 10) : Number.POSITIVE_INFINITY
-  return Number.isFinite(end) ? { start, end } : undefined
+  if (!match[2]) return undefined
+  const end = Number.parseInt(match[2], 10)
+  return { start, end }
 }
 
 /**
