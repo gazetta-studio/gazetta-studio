@@ -128,6 +128,8 @@ Everything else (`## Spec`, `## Acceptance`) is passed to Agent A as prose conte
 
 **Mechanical cross-check loss vs F**: reviewer can't compare "files Agent A touched" to "files listed in YAML" because no YAML lists them. Mitigation: the cross-check was theater — the real test is rule 31's "revert the fix and the failing test still fails," which Agent B's reviewer loop runs regardless.
 
+**Refinement (Cut 5)**: cut sub-issue bodies include four standard sections — `## Spec`, `## Acceptance`, `## SOLID` (conditionally), `## Tests`. `## SOLID` and `## Tests` close the gap from retiring the impl-doc artifact (which previously required SOLID checks and tests per cut in its status table). See `feature-design-process.md` Phase 4 for the convention.
+
 ### Q3 — Dependency mechanism: regex-parse `**Depends on**:` with cron-tick validation
 
 **Decision**: Cut sub-issue body declares its dependencies via a one-line front-matter field:
@@ -455,6 +457,8 @@ Test tier values match [`testing-plan.md`](testing-plan.md) "Shape per sub-syste
 | **D. Placeholder in design doc; populated at filing time** | Adds a "filed yet?" ambiguity to cold-pickup; same drift risk as A but with extra mode confusion; A's "intent without status" cleaner |
 
 **Drift mitigation in A**: status column intentionally absent. If a future cut-sequence row needs to be removed (rejected mid-stream), edit the table; GitHub state catches up via sub-issue close. No two-place truth.
+
+**Refinement (Cut 5)**: the `## Cut sequence` table stays at 5 columns; per-cut SOLID lenses and specific test files live in the cut sub-issue body's `## SOLID` and `## Tests` sections. Table is the index; sub-issue body is the implementable spec.
 
 ## Design (high level, pending Q2)
 
