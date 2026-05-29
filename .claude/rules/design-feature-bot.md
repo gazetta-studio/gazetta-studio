@@ -2,7 +2,7 @@
 
 Autonomous bot that implements feature cuts following the project's design pass. Reads cut sub-issues from GitHub; ships one PR per cut.
 
-**Status**: design pass in progress (2026-05-30). Q1 + Q2 + Q3 locked; Q4-Q8 open. Implementation deferred until grilling completes.
+**Status**: design pass in progress (2026-05-30). Q1-Q4 locked; Q5-Q8 open. Implementation deferred until grilling completes.
 
 **Companion docs**:
 - [`.claude/rules/feature-design-process.md`](feature-design-process.md) — the design+implementation phases this bot operates within. **This bot's existence changes Phase 4 ("Implementation") materially — see "Process changes" below.**
@@ -160,6 +160,47 @@ Tolerates `#501, #502` / `#501 #502` / `none` / empty / missing line. No deps �
 | **F. GitHub Projects v2 custom field** | Introduces Projects v2 dependency (`has_projects: false` in this repo); Projects v2 cards aren't tied to issue close-state the way the bot needs; over-engineered. |
 | **A2 (tolerate bad refs)** | Silent-wait-forever on mistyped number; bot's job is structural correctness, malformed input should fail loud before Claude is invoked. |
 
+### Q4 — Cut ordering: oldest-first by default, opt-in `priority:high` label override
+
+**Decision**: Among unblocked cuts (those whose `**Depends on**` refs are all closed), the bot picks one per cron tick using two-axis sort:
+
+```ts
+const sorted = candidates.sort((a, b) => {
+  const aHigh = a.labels.includes('priority:high') ? 0 : 1
+  const bHigh = b.labels.includes('priority:high') ? 0 : 1
+  if (aHigh !== bHigh) return aHigh - bHigh
+  if (a.createdAt !== b.createdAt) return a.createdAt.localeCompare(b.createdAt)
+  return a.number - b.number  // deterministic tiebreaker for same-second creation
+})
+```
+
+**`priority:high` label** is opt-in; default is the absence of the label. Maintainer applies it when they want a specific cut to ship before older siblings (e.g., "the schema-migration cut needs to land before the dependent UI cuts even though it was filed later"). Within each tier, oldest-first prevents starvation.
+
+**Priority does NOT bypass dependencies**: a `priority:high` cut with unsatisfied `**Depends on**:` refs still waits for its deps to close. Priority orders the eligibility queue; deps determine eligibility.
+
+**Why** (over alternatives walked):
+
+1. **Consistency with bot ecosystem** — fix-bot already sorts oldest-first at `bots/fix-bot/index.ts:161`. Same default; same mental model ("bots work the queue starting from the oldest").
+2. **Escape hatch when intent matters** — `priority:high` is opt-in. Common case requires no thought; uncommon case requires one label flip.
+3. **No new axis to maintain stale** — risk labels would drift; tasklist order would create a second source of truth competing with body-declared deps; priority is "intent right now" and doesn't need ongoing curation.
+4. **Starvation-free** — within each tier, oldest-first means everything eventually ships.
+5. **Matches triage-bot's pattern** — silent default + opt-in label override is precedent.
+
+**Edge cases handled**:
+- `priority:high` + blocked deps → still waits for deps.
+- Same-second creation → deterministic tiebreaker by issue number ascending.
+- All cuts blocked → bot exits silently with "Inbox zero" (already fix-bot's pattern).
+
+**Rejected alternatives** (preserved):
+
+| Alternative | Why rejected |
+|---|---|
+| **A. Oldest-first only (no priority override)** | Can't express urgency; a high-priority cut filed today waits behind low-priority cuts from last week |
+| **B. Risk-first (low → high via `risk:` label)** | Human risk classification famously unreliable; delays high-value high-risk cuts; adds label-curation burden; doesn't match the real maintainer question ("what should ship next?") |
+| **C. Maintainer-orderable via tracking-issue tasklist** | Creates second source of truth competing with body-declared deps; extra GraphQL query per cron to fetch tasklists; sync-risk between body order and tasklist |
+| **D. `priority:` label alone (no oldest-first within tier)** | Without a stable tiebreaker, two `priority:high` cuts would race; no starvation guarantee within tier |
+| **F. Random selection** | Non-deterministic; hostile to maintainer prediction; trust-eroding |
+
 ## Design (high level, pending Q2)
 
 ### Bot pipeline
@@ -242,11 +283,10 @@ This bot operates on issues and PRs; doesn't write to the data layer. Most found
 
 ## Open questions
 
-1. **Q4 — cut ordering when multiple are unblocked**: oldest-first? Risk-first (low → high)? Maintainer-prioritizable via label or tracking-issue tasklist order? Pending.
-2. **Q5 — Agent A's prompt access to design doc**: does Agent A get the full design-{feature}.md as context, or just the cut sub-issue's spec narrative? Trade-off between context completeness and context burn.
-3. **Q6 — what happens when Agent A's tests for a cut depend on infrastructure from an unshipped earlier cut**: hard error (the dep is missing → spec is wrong → close cut with reason) vs. soft (skip + comment)? Pending.
-4. **Q7 — escalation taxonomy**: same `escalateToHuman` shape as fix-bot? New reason codes for cut-specific failure modes (e.g., `cut-spec-too-vague`, `cut-files-conflict-with-other-cut`)?
-5. **Q8 — interaction with existing impl-docs during migration**: bot tries to work an impl doc that hasn't been migrated yet — graceful skip vs. force migration? Likely "ignore non-issue impl docs; bot only sees sub-issues."
+1. **Q5 — Agent A's prompt access to design doc**: does Agent A get the full design-{feature}.md as context, or just the cut sub-issue's spec narrative? Trade-off between context completeness and context burn.
+2. **Q6 — what happens when Agent A's tests for a cut depend on infrastructure from an unshipped earlier cut**: hard error (the dep is missing → spec is wrong → close cut with reason) vs. soft (skip + comment)? Pending.
+3. **Q7 — escalation taxonomy**: same `escalateToHuman` shape as fix-bot? New reason codes for cut-specific failure modes (e.g., `cut-spec-too-vague`, `cut-files-conflict-with-other-cut`)?
+4. **Q8 — interaction with existing impl-docs during migration**: bot tries to work an impl doc that hasn't been migrated yet — graceful skip vs. force migration? Likely "ignore non-issue impl docs; bot only sees sub-issues."
 
 ## ADR candidacy
 
