@@ -2,7 +2,7 @@
 
 Autonomous bot that implements feature cuts following the project's design pass. Reads cut sub-issues from GitHub; ships one PR per cut.
 
-**Status**: design pass in progress (2026-05-30). Q1-Q7 locked; Q8 open. Implementation deferred until grilling completes.
+**Status**: design pass complete (2026-05-30). All Qs locked. Implementation pending.
 
 **Companion docs**:
 - [`.claude/rules/feature-design-process.md`](feature-design-process.md) — the design+implementation phases this bot operates within. **This bot's existence changes Phase 4 ("Implementation") materially — see "Process changes" below.**
@@ -359,6 +359,40 @@ interface SkipListEntry {
 | **A. Reuse fix-bot's taxonomy verbatim (all → `needs-human`)** | Compactor can't pattern-match common failure modes; loses the typed structure that enables forensic filtering and lessons generation |
 | **C. Tagged sub-categories in `reasonNote`** | Tags-in-prose drift over time; less reliable than typed enum; same complexity as B with weaker contract |
 
+### Q8 — Migration interaction: bot ignores non-issue impl docs
+
+**Decision**: Feature-bot's input is `gh issue list --label enhancement --label ready-for-agent` only. The bot does NOT read `.claude/rules/design-*-implementation.md` files. Un-migrated impl docs are invisible to the bot.
+
+**Migration path** (maintainer-driven, no flag day):
+- Maintainer (in Claude Code) says "migrate design-redirect-ui's impl doc to tracking + sub-issues."
+- Claude reads the impl doc, generates tracking issue body, generates per-cut sub-issue bodies (just-markdown per Q2), posts via `gh issue create`.
+- Maintainer reviews + closes the impl doc (replacing its content with a header pointing at the tracking issue + absorbing "Deferred items" / "Lessons learned" sections into `design-{feature}.md`).
+- Feature-bot picks up the newly-filed sub-issues on next cron.
+
+**Migration is per-feature and per-maintainer-decision**. Some impl docs migrate this week; some next month; some never (feature was abandoned). All paths work — bot only sees what's been migrated.
+
+**Edge cases handled**:
+- Impl doc with all `✓ shipped` cuts (feature done): no migration; impl doc retires to its lessons-learned section absorbed into design doc.
+- Impl doc with mixed ✓/◐/☐ cuts: only pending cuts become sub-issues; shipped ones stay as git-log history per existing prune-at-ship convention.
+- Forgotten impl doc that's not priority: stays where it is. Lifecycle is maintainer's decision, not bot's.
+
+**Why A (bot-ignores) over alternatives**:
+
+1. **Matches Q1's lock.** Tracking + sub-issues are the source of truth; bot only sees the new system.
+2. **No flag day required.** Incremental migration; bot works whenever sub-issues exist.
+3. **Bot stays focused.** Feature-bot implements cuts; migration is maintainer's judgment per impl doc (which cuts are still relevant, which need re-scoping, which are stale).
+4. **YAGNI on auto-migration tooling.** If hand-migrating 20+ docs via Claude Code becomes tedious, a `bots/feature-bot/migrate-impl-docs.ts` helper can be added later. Not a v1 dependency.
+
+**Process-doc update required**: `feature-design-process.md` Phase 4 rewrite to reference the tracking-issue + cut-sub-issue model instead of the impl-doc table. Lands alongside the first feature-bot Cut.
+
+**Rejected alternatives** (preserved):
+
+| Alternative | Why rejected |
+|---|---|
+| **B. Bot auto-migrates impl docs it can parse** | Producer/consumer rule violation (asking Claude to parse markdown table for content generation); splitting impl doc into design-doc-absorbed sections + sub-issue content needs maintainer judgment per row; bot-generated migration skips the "is this cut still relevant?" review step |
+| **C. Bot warns about un-migrated impl docs but doesn't act** | Notification spam at v1 ship (20 unmigrated docs = 20 reminder issues); bot becomes a migration nag, not an implementer; mission creep |
+| **D-only. Maintainer migration script as v1 requirement** | Extra tooling to ship + maintain; YAGNI until maintainer reports pain. (D stays as future additive option.) |
+
 ## Design (high level, pending Q2)
 
 ### Bot pipeline
@@ -441,7 +475,11 @@ This bot operates on issues and PRs; doesn't write to the data layer. Most found
 
 ## Open questions
 
-1. **Q8 — interaction with existing impl-docs during migration**: bot tries to work an impl doc that hasn't been migrated yet — graceful skip vs. force migration? Likely "ignore non-issue impl docs; bot only sees sub-issues."
+All design Qs resolved. Open items for implementation phase:
+
+1. **Cut sequencing for feature-bot's own implementation**: this design doc + ADR-0015 (Q1's load-bearing decision) + feature-bot itself need to ship as cuts. The cuts won't exist as sub-issues until feature-bot ships — chicken-and-egg. Likely shape: maintainer hand-implements Cut 1 (skeleton + tracking-issue + sub-issue scaffolding via Claude Code), THEN feature-bot can self-host on subsequent cuts. Plan during implementation kickoff.
+2. **`feature-design-process.md` rewrite**: Phase 4 references impl-doc tables that don't exist post-migration. Doc update lands alongside Cut 1.
+3. **Migration ordering**: which impl docs migrate first? Likely the active ones (ROADMAP Tier 1 / Tier 2 cuts); deferred items can stay un-migrated indefinitely.
 
 ## ADR candidacy
 
