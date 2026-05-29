@@ -2,7 +2,7 @@
 
 Autonomous bot that implements feature cuts following the project's design pass. Reads cut sub-issues from GitHub; ships one PR per cut.
 
-**Status**: design pass complete (2026-05-30). All Qs locked. Implementation pending.
+**Status**: design pass complete (2026-05-30). All 9 Qs locked. Implementation pending.
 
 **Companion docs**:
 - [`.claude/rules/feature-design-process.md`](feature-design-process.md) — the design+implementation phases this bot operates within. **This bot's existence changes Phase 4 ("Implementation") materially — see "Process changes" below.**
@@ -393,6 +393,69 @@ interface SkipListEntry {
 | **C. Bot warns about un-migrated impl docs but doesn't act** | Notification spam at v1 ship (20 unmigrated docs = 20 reminder issues); bot becomes a migration nag, not an implementer; mission creep |
 | **D-only. Maintainer migration script as v1 requirement** | Extra tooling to ship + maintain; YAGNI until maintainer reports pain. (D stays as future additive option.) |
 
+### Q9 — Cut sequence lives in design doc; state lives in GitHub
+
+**Decision**: Every `design-{feature}.md` gains a `## Cut sequence` section with a declarative table of cuts. The table is **intent only — no status column**. State (which cuts shipped, which are in progress) lives in GitHub sub-issue close-state, queryable on demand.
+
+**Table shape** (5 columns, simple markdown):
+
+```markdown
+## Cut sequence
+
+| # | What | Depends on | Test tier | Risk |
+|---|---|---|---|---|
+| 1 | Schema refinement (PageManifest + FragmentManifest) | — | unit-first | Low |
+| 2 | Audit enum extension | — | unit-first | Low |
+| 3 | POST /api/redirects route | 1, 2 | api-first | Medium |
+| 4 | CreateRedirectDialog.vue + SiteTree button | 3 | component | Medium |
+| ... |
+```
+
+Test tier values match [`testing-plan.md`](testing-plan.md) "Shape per sub-system": `unit-first`, `api-first`, `integration-first`, `e2e-first`, `component`, mixed values like `api+component`.
+
+**Why no status column**: status drift was the impl-doc's main failure mode. Separating intent (design doc) from state (GitHub) eliminates the two-place-truth problem.
+
+**Querying state** (when needed):
+- `gh issue list --label enhancement` searches by feature slug in body's `**Feature**:` field
+- Tracking issue's tasklist auto-checks as sub-issues close
+- Cold-pickup answer: "open the design doc for intent; open the tracking issue for state"
+
+**Issue-filing flow**:
+1. After grilling completes and design doc is on main, maintainer asks (in Claude Code): "open cuts for design-redirect-ui."
+2. Claude reads the `## Cut sequence` section.
+3. For each row, Claude renders a cut sub-issue body in Q2's just-markdown format:
+   - `**Feature**: redirect-ui`
+   - `**Depends on**: #501, #502` (mapping `Depends on` column values to filed sub-issue numbers as they're created)
+   - `## Spec` (narrative, sourced from the design doc's locked decisions for this cut's scope)
+   - `## Acceptance` (sourced from the design doc's locked decisions)
+4. Claude calls `gh issue create` per cut + opens tracking issue with the resulting tasklist.
+
+**Re-scoping a cut** (post-filing): maintainer edits the design doc's cut sequence + asks "sync cuts." Claude diffs against existing sub-issues and updates bodies that changed. Atomic intent-then-state propagation.
+
+**Why** (over alternatives, 18 POVs walked):
+
+1. **Cut sequence is itself a design decision** worth grilling — ordering, deps, test tier, risk. Generating it ad-hoc at filing time skips this rigor.
+2. **Deterministic re-filing.** Re-running "open cuts" against an unchanged design doc produces identical sub-issues. Non-deterministic generation (B) would race.
+3. **Single source of truth for intent.** Design doc has the answer to "what does this feature decompose into and why?" GitHub answers "what's actually shipped."
+4. **Cold-pickup readability.** Future-maintainer / contributor reads one file (design doc) to understand the whole feature including its decomposition. No "two artifacts to traverse."
+5. **PR reviewer one-hop context.** Reviewer of Cut 3's PR clicks #503 → sees spec narrative → can click back to design doc to see the cut's place in the sequence.
+6. **TDD-first alignment.** Test tier per cut row is a design-time commitment, not an implementation-time guess.
+7. **Foundational-checks distribution.** The cut sequence is where you decide WHICH cut closes Multi-instance check vs Locale check etc. Locked at grilling, not deferred.
+8. **Schema-evolution mechanical.** New foundational dimension lands → edit existing cut tables. Same shape across all design docs.
+9. **Long-term documentary value.** Feature shipped 2 years ago — the design doc's cut sequence still tells future-you "this feature was built in 7 cuts; here's the rationale."
+
+**Grilling protocol addition** (per `feature-design-process.md`): every design pass concludes with the cut-sequence Q. Maintainer + Claude grill the decomposition: what's Cut 1, what depends on what, what's the test tier, what's the risk gradient. Output: the cut sequence table.
+
+**Rejected alternatives** (preserved):
+
+| Alternative | Why rejected |
+|---|---|
+| **B. Generated at filing time, no durable artifact** | Non-deterministic; re-running prompt produces different cut counts; rigor of "cuts as design decisions" lost; documentary value zero |
+| **C. Cut sequence lives only in tracking-issue tasklist** | Conflates design intent with operational state in GitHub; cold-pickup readability degraded (two artifacts); re-scoping requires direct GitHub edits divorced from the design doc |
+| **D. Placeholder in design doc; populated at filing time** | Adds a "filed yet?" ambiguity to cold-pickup; same drift risk as A but with extra mode confusion; A's "intent without status" cleaner |
+
+**Drift mitigation in A**: status column intentionally absent. If a future cut-sequence row needs to be removed (rejected mid-stream), edit the table; GitHub state catches up via sub-issue close. No two-place truth.
+
 ## Design (high level, pending Q2)
 
 ### Bot pipeline
@@ -473,13 +536,28 @@ This bot operates on issues and PRs; doesn't write to the data layer. Most found
 - **Audit**: bot's actions logged via GitHub audit trail (issue events, PR events, workflow runs). No `action: 'feature-cut'` audit-log event needed.
 - **Review workflow** / **Hook** / **Render** / **Validation** / **Plugin** / **Cache** / **Offline** / **Collaboration**: N/A (bot doesn't traverse any of these surfaces).
 
-## Open questions
+## Cut sequence
 
-All design Qs resolved. Open items for implementation phase:
+| # | What | Depends on | Test tier | Risk |
+|---|---|---|---|---|
+| 1 | feature-bot skeleton: `bots/feature-bot/index.ts` + `prompts/per-cut.md` + `prompts/reviewer.md` + skip-list/reviewer-log infrastructure (copy from fix-bot, adapt to enhancement queue + 3-tier escalation) | — | unit-first | Medium |
+| 2 | Cut-sub-issue parser in `bots/_lib/cut-parser.ts`: extracts `**Feature**:` + `**Depends on**:` regex; validates referenced numbers at cron-tick; loud-fail on bad refs | 1 | unit-first | Low |
+| 3 | Generator-critic loop wiring: Agent A (per-cut.md) → Agent B (reviewer.md) → three-tier escalation (APPROVE/NEEDS_INPUT/NEEDS_HUMAN); reuses fix-bot's `escalateToHuman` pattern with extended skip-list reasons (Q7 enum) | 1, 2 | api-first | Medium-high |
+| 4 | `.github/workflows/feature-bot.yml`: daily cron 04:30 UTC; concurrency group; permissions; reviewer-log cache restore/save | 1, 3 | (deployment; smoke via dry-run) | Low |
+| 5 | `feature-design-process.md` Phase 4 rewrite: tracking-issue + cut-sub-issue model; impl-doc artifact retired; cut sequence section convention | — | (docs) | Low |
+| 6 | ADR-0015: impl-doc artifact retirement; Q1's load-bearing decision captured durably per `feature-design-process.md` "Where decisions live" criteria | 5 | (docs) | Low |
+| 7 | First production migration: hand-migrate `design-redirect-ui-implementation.md` (active feature, 7 cuts) to tracking + sub-issues via Claude Code; validates feature-bot end-to-end against a real cut | 4, 5 | (manual smoke) | Medium |
+| 8 | `bots/README.md` update: feature-bot row in active-bots table; `needs-info` docstring widening to cover maintainer-decision case (Q6 lock) | 1 | (docs) | Low |
 
-1. **Cut sequencing for feature-bot's own implementation**: this design doc + ADR-0015 (Q1's load-bearing decision) + feature-bot itself need to ship as cuts. The cuts won't exist as sub-issues until feature-bot ships — chicken-and-egg. Likely shape: maintainer hand-implements Cut 1 (skeleton + tracking-issue + sub-issue scaffolding via Claude Code), THEN feature-bot can self-host on subsequent cuts. Plan during implementation kickoff.
-2. **`feature-design-process.md` rewrite**: Phase 4 references impl-doc tables that don't exist post-migration. Doc update lands alongside Cut 1.
-3. **Migration ordering**: which impl docs migrate first? Likely the active ones (ROADMAP Tier 1 / Tier 2 cuts); deferred items can stay un-migrated indefinitely.
+Cuts 1-4 are bot infrastructure; can ship in parallel against an unrelated test feature. Cuts 5-8 land alongside the first real migration (Cut 7).
+
+**Bootstrap note** (chicken-and-egg): feature-bot can't implement its own Cut 1 since it doesn't exist yet. Cut 1 ships maintainer-driven via Claude Code. From Cut 2 onward, feature-bot can self-host — but won't have any cut sub-issues to work on until Cut 7's migration lands. So all of feature-bot's own cuts ship maintainer-driven; subsequent features get the bot.
+
+## Open questions for implementation
+
+1. **Reviewer prompt reuse**: fix-bot's `reviewer.md` runs tautology check + non-mechanical checks + project-rule check. Feature-bot's reviewer needs the same plus "did Agent A satisfy the cut's acceptance criteria?" Likely fork the prompt for feature-specific concerns; revisit during Cut 3.
+2. **Test name pinning per cut**: should the cut's `## Acceptance` section name the failing test file path explicitly? Helps Agent A's TDD-first discipline. Probably yes for high-risk cuts, optional for low-risk.
+3. **Migration ordering**: which existing impl docs migrate first after feature-bot ships? Active features (ROADMAP Tier 1 / Tier 2) take priority over deferred ones.
 
 ## ADR candidacy
 
