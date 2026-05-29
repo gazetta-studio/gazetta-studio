@@ -298,7 +298,21 @@ export async function getLabelAppliedAt(
   issueNumber: number,
   label: string,
 ): Promise<string | null> {
-  const { data } = await octokit.issues.listEvents({
+  // Idempotency check: the label must be CURRENTLY applied. A label
+  // applied historically then removed must NOT cause the caller to
+  // think the bot was attempted — that's the bug from 2026-05-29
+  // where removing `fix-bot-attempted` from issues #414/#415 didn't
+  // unblock retries because this helper kept returning the historical
+  // "labeled" timestamp.
+  const { data: issue } = await octokit.issues.get({ ...repo, issue_number: issueNumber })
+  const currentlyApplied = issue.labels.some(l => (typeof l === 'string' ? l : l.name) === label)
+  if (!currentlyApplied) return null
+
+  // Label is on the issue today; find when it was most recently applied
+  // (timeline can include multiple labeled/unlabeled pairs; the latest
+  // labeled event is the one that matters for the "since" comparison
+  // against issue reopens).
+  const { data: events } = await octokit.issues.listEvents({
     ...repo,
     issue_number: issueNumber,
     per_page: 100,
@@ -306,13 +320,17 @@ export async function getLabelAppliedAt(
   // Iterate newest-first; the most recent `labeled` event for this label wins.
   // Octokit's response is a union over event types; narrow via a shape check
   // since the discriminated-union narrowing isn't precise enough for TS.
-  for (let i = data.length - 1; i >= 0; i--) {
-    const ev = data[i] as { event: string; label?: { name?: string }; created_at: string }
+  for (let i = events.length - 1; i >= 0; i--) {
+    const ev = events[i] as { event: string; label?: { name?: string }; created_at: string }
     if (ev.event === 'labeled' && ev.label?.name === label) {
       return ev.created_at
     }
   }
-  return null
+  // Label is present on the issue but no labeled event matched in the
+  // last 100 events. Edge case: a very long timeline that exceeds the
+  // page size. Defensive — treat as "label applied at issue creation"
+  // by returning the issue's createdAt.
+  return issue.created_at
 }
 
 /**
