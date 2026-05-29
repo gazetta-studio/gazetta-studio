@@ -50,14 +50,33 @@
  *     job.
  *   - LSP: same `AuthIdentityProvider` shape as the other providers.
  */
-import type { Principal } from '../types.js'
+import type { Principal, RoleMapping } from '../types.js'
 import type { AuthIdentityProvider, AuthRequest } from '../provider.js'
 import { AuthenticationError } from '../errors.js'
 import { expandRole } from '../capabilities.js'
+import { resolveRole } from '../role-resolver.js'
 
 export interface AzureEasyAuthConfig {
-  /** Optional default role until Cut 6's role-resolver wires up. */
+  /**
+   * Role assigned when no `roleMapping` is configured. When
+   * `roleMapping` IS set, the resolved group → role mapping (and its
+   * own `defaultRole`) takes over and this field is unused.
+   */
   defaultRole?: string
+  /**
+   * Group → role mapping from `site.config.ts admin.auth`. Azure
+   * emits one claim per group/role under a `typ` named by the team's
+   * Easy Auth config (commonly `roles`); when set, every claim whose
+   * `typ` equals `roleMapping.claim` contributes its `val` to the
+   * group list resolved against the map.
+   */
+  roleMapping?: RoleMapping
+  /**
+   * Custom role declarations from `site.config.ts admin.auth.roles`,
+   * flattened to `name → capabilities`. Consulted by the role
+   * resolver when `roleMapping` points at a non-built-in role.
+   */
+  customRoles?: Readonly<Record<string, ReadonlyArray<string>>>
 }
 
 interface AzureClaim {
@@ -114,12 +133,36 @@ export function createAzureEasyAuthProvider(config: AzureEasyAuthConfig = {}): A
 
       const email = parsed.claims.find(c => c.typ === EMAIL_CLAIM)?.val
 
+      let role: string
+      let capabilities: ReadonlyArray<string>
+      if (config.roleMapping) {
+        // Azure emits one claim per group, all under the same `typ`;
+        // collect every matching claim's value.
+        const claimName = config.roleMapping.claim
+        const groups = parsed.claims.filter(c => c.typ === claimName).map(c => c.val)
+        const resolved = resolveRole({
+          groups,
+          mapping: config.roleMapping,
+          customRoles: config.customRoles,
+        })
+        if (!resolved) {
+          throw new AuthenticationError(
+            `azure-easy-auth principal "${id}" matched no role in roleMapping and no defaultRole is configured`,
+          )
+        }
+        role = resolved.name
+        capabilities = resolved.capabilities
+      } else {
+        role = defaultRole
+        capabilities = expandRole(defaultRole) ?? []
+      }
+
       return {
         id,
         email,
-        role: defaultRole,
+        role,
         trustMode: 'azure-easy-auth',
-        capabilities: expandRole(defaultRole) ?? [],
+        capabilities,
       }
     },
   }

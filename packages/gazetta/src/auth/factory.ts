@@ -43,6 +43,18 @@ import { createAwsCognitoAuthProvider } from './providers/aws-cognito.js'
 import { createTailscaleAuthProvider } from './providers/tailscale.js'
 
 /**
+ * Flatten the `roles` block ({ name: { capabilities } }) onto the
+ * `name → capabilities` map the role resolver consumes. Returns
+ * undefined when no custom roles are declared.
+ */
+function flattenRoles(
+  roles: Record<string, { capabilities: ReadonlyArray<string> }> | undefined,
+): Readonly<Record<string, ReadonlyArray<string>>> | undefined {
+  if (!roles) return undefined
+  return Object.fromEntries(Object.entries(roles).map(([name, def]) => [name, def.capabilities]))
+}
+
+/**
  * Build the configured `AuthIdentityProvider`. Returns the
  * `none`-mode provider when `config` is undefined (the default
  * when `site.config.ts` has no `admin.auth` block).
@@ -57,27 +69,33 @@ export function buildAuthProvider(config: AuthConfig | undefined): AuthIdentityP
       return createForwardedUserAuthProvider({
         trustedProxies: config.trustedProxies,
         allowAnyOrigin: config.allowAnyOrigin,
+        roleMapping: config.roleMapping,
+        customRoles: flattenRoles(config.roles),
       })
     case 'cloudflare-access':
       return createCloudflareAccessAuthProvider({
         teamDomain: config.teamDomain,
         audience: config.audience,
         roleMapping: config.roleMapping,
-        // Flatten the `roles` block ({ name: { capabilities } }) onto
-        // the `name → capabilities` map the role resolver consumes.
-        customRoles: config.roles
-          ? Object.fromEntries(Object.entries(config.roles).map(([name, def]) => [name, def.capabilities]))
-          : undefined,
+        customRoles: flattenRoles(config.roles),
       })
     case 'azure-easy-auth':
-      return createAzureEasyAuthProvider({})
+      return createAzureEasyAuthProvider({
+        roleMapping: config.roleMapping,
+        customRoles: flattenRoles(config.roles),
+      })
     case 'aws-cognito':
       return createAwsCognitoAuthProvider({
         region: config.region,
         audience: config.audience,
+        roleMapping: config.roleMapping,
+        customRoles: flattenRoles(config.roles),
       })
     case 'tailscale':
-      return createTailscaleAuthProvider({})
+      return createTailscaleAuthProvider({
+        roleMapping: config.roleMapping,
+        customRoles: flattenRoles(config.roles),
+      })
     default: {
       // Exhaustive check — the discriminated union should make
       // this unreachable, but defense-in-depth against an operator
