@@ -2,7 +2,7 @@
 
 Autonomous bot that implements feature cuts following the project's design pass. Reads cut sub-issues from GitHub; ships one PR per cut.
 
-**Status**: design pass in progress (2026-05-30). Q1-Q4 locked; Q5-Q8 open. Implementation deferred until grilling completes.
+**Status**: design pass in progress (2026-05-30). Q1-Q5 locked; Q6-Q8 open. Implementation deferred until grilling completes.
 
 **Companion docs**:
 - [`.claude/rules/feature-design-process.md`](feature-design-process.md) — the design+implementation phases this bot operates within. **This bot's existence changes Phase 4 ("Implementation") materially — see "Process changes" below.**
@@ -201,6 +201,45 @@ const sorted = candidates.sort((a, b) => {
 | **D. `priority:` label alone (no oldest-first within tier)** | Without a stable tiebreaker, two `priority:high` cuts would race; no starvation guarantee within tier |
 | **F. Random selection** | Non-deterministic; hostile to maintainer prediction; trust-eroding |
 
+### Q5 — Agent A's prompt access to design doc: read-on-instruction, no inlining
+
+**Decision**: The orchestrator does NOT inline the design doc in Agent A's prompt. Agent A's prompt has an explicit "READ these files first" directive that names the design doc path (derived from the cut sub-issue's `**Feature**:` field → `.claude/rules/design-{slug}.md`).
+
+Prompt directive shape (lives in `bots/feature-bot/prompts/per-cut.md`):
+
+```
+Before implementing, READ these in this order:
+1. The cut sub-issue body (provided below).
+2. The design doc at `.claude/rules/design-{feature}.md` — pay special
+   attention to Scope, Locked decisions, Foundational checks,
+   Distinctive choices.
+3. Any companion docs the design doc references (typically other
+   `.claude/rules/design-*.md` or `docs/adr/*.md`).
+4. The implementation files listed or implied by the cut spec.
+
+Only AFTER reading 1-3 do you begin writing code. The design doc's
+Locked decisions are NOT negotiable — implement to match them.
+```
+
+**Why** (over alternatives walked):
+
+1. **Matches fix-bot's Agent A pattern.** Existing fix-bot prompts use the same shape: "Read these files. Then implement." Reuse what works.
+2. **No prompt-bloat.** Design docs vary 300-1500 lines; inlining the full doc would burn context for cuts that don't need most of it.
+3. **No extraction brittleness.** Targeted-excerpt approaches (C/D variants) require knowing design-doc structure; if a future design doc has locked decisions at line 600 instead of line 100, those approaches break. Whole-file read is robust.
+4. **Forcing function for foundational checks.** "Pay attention to Foundational checks" in the prompt is a directive Claude responds to; implicit reliance on Claude's curiosity is weaker.
+5. **Composes with Q6 (next).** If Agent A discovers the cut spec is vague during the Read pass, it's already loaded the design doc and can decide intelligently whether to escalate or proceed.
+
+**Calibration path**: if real bot runs show Agent A skipping the design doc and implementing against partial intent, tighten the prompt (e.g., "If you haven't read the design doc, REJECT to your own session"). Same calibration the other bots' prompts iterate on.
+
+**Rejected alternatives** (preserved):
+
+| Alternative | Why rejected |
+|---|---|
+| **A. Just sub-issue body, Agent A reads on its own initiative** | Agent A may not read the design doc if spec narrative seems self-sufficient; misses foundational checks |
+| **B. Sub-issue body + full design doc inlined verbatim** | Context burn; design docs are 300-1500 lines, most irrelevant per cut; pre-loading is premature optimization vs. one Read tool call |
+| **C. Sub-issue body + targeted excerpt of design doc** | Extraction logic is bot infrastructure that drifts with design-doc convention changes; brittle |
+| **D. Sub-issue body + first N lines of design doc** | N is arbitrary; some design docs have key locks beyond any fixed truncation; same drift risk as C |
+
 ## Design (high level, pending Q2)
 
 ### Bot pipeline
@@ -283,10 +322,9 @@ This bot operates on issues and PRs; doesn't write to the data layer. Most found
 
 ## Open questions
 
-1. **Q5 — Agent A's prompt access to design doc**: does Agent A get the full design-{feature}.md as context, or just the cut sub-issue's spec narrative? Trade-off between context completeness and context burn.
-2. **Q6 — what happens when Agent A's tests for a cut depend on infrastructure from an unshipped earlier cut**: hard error (the dep is missing → spec is wrong → close cut with reason) vs. soft (skip + comment)? Pending.
-3. **Q7 — escalation taxonomy**: same `escalateToHuman` shape as fix-bot? New reason codes for cut-specific failure modes (e.g., `cut-spec-too-vague`, `cut-files-conflict-with-other-cut`)?
-4. **Q8 — interaction with existing impl-docs during migration**: bot tries to work an impl doc that hasn't been migrated yet — graceful skip vs. force migration? Likely "ignore non-issue impl docs; bot only sees sub-issues."
+1. **Q6 — what happens when Agent A's tests for a cut depend on infrastructure from an unshipped earlier cut**: hard error (the dep is missing → spec is wrong → close cut with reason) vs. soft (skip + comment)? Pending.
+2. **Q7 — escalation taxonomy**: same `escalateToHuman` shape as fix-bot? New reason codes for cut-specific failure modes (e.g., `cut-spec-too-vague`, `cut-files-conflict-with-other-cut`)?
+3. **Q8 — interaction with existing impl-docs during migration**: bot tries to work an impl doc that hasn't been migrated yet — graceful skip vs. force migration? Likely "ignore non-issue impl docs; bot only sees sub-issues."
 
 ## ADR candidacy
 
