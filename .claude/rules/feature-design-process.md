@@ -117,9 +117,40 @@ Ship in cuts via a GitHub **tracking issue** + N **cut sub-issues** per [`docs/a
 **Issue-filing flow** (after the design doc is on main):
 1. Maintainer asks (in Claude Code): "open cuts for `design-{feature}.md`."
 2. Claude reads the design doc's `## Cut sequence` table.
-3. For each row, Claude renders a cut sub-issue body (just-markdown shape — see [`design-feature-bot.md`](design-feature-bot.md) Q2) with `**Feature**:` + `**Depends on**:` front-matter, `## Spec`, `## Acceptance` sections.
+3. For each row, Claude renders a cut sub-issue body (just-markdown shape — see [`design-feature-bot.md`](design-feature-bot.md) Q2) with `**Feature**:` + `**Depends on**:` front-matter, then four sections: `## Spec`, `## Acceptance`, `## SOLID`, `## Tests`.
 4. Claude opens N cut sub-issues (labeled `enhancement` + `ready-for-agent` + `area: X`) + one tracking issue (labeled `enhancement` + `area: X` — NO `ready-for-agent`, so feature-bot ignores it) whose body is a tasklist of the sub-issues.
 5. Tracking issue auto-closes when all sub-issues close.
+
+**Cut sub-issue body sections** (the per-cut spec contract that feature-bot's Agent A consumes):
+
+```markdown
+**Feature**: <slug>
+**Depends on**: #N, #M  (or empty/none)
+
+## Spec
+<narrative — what to build, linking design-{feature}.md>
+
+## Acceptance
+<bullet list of testable outcomes>
+
+## SOLID
+<which SOLID lenses this cut commits to (SRP / OCP / LSP / ISP / DIP),
+with a sentence per applicable lens. Required for cuts touching new
+interfaces, new module boundaries, or new abstractions. Optional for
+pure-data-shape or pure-docs cuts where SOLID is N/A.>
+
+## Tests
+<bullet list of specific test files to add + behavior they pin.
+Goes deeper than the Cut sequence table's Test tier column —
+"api-first" is the tier; this section names the actual test files.>
+```
+
+`## SOLID` and `## Tests` close the gap from retiring `design-{feature}-implementation.md` — the old impl-doc required per-cut SOLID checks and tests in its status table. The new shape keeps those commitments at the sub-issue level (where Agent A reads them) rather than the table level (which stays at five columns for index-readability).
+
+Required vs optional:
+- `## Spec` and `## Acceptance` — always required (Agent A's "fail-loud-on-vague-spec" path closes the cut if missing or vague).
+- `## SOLID` — required for cuts introducing new interfaces, modules, or abstractions; optional for pure-data-shape or pure-docs cuts where SOLID is N/A.
+- `## Tests` — always required (rule 31 TDD-first ordering depends on naming the test files at design time, not implementation time).
 
 **Per-cut work** (whether shipped by feature-bot or maintainer-driven via Claude Code):
 - One PR per cut. The PR references the sub-issue via `Fixes #N`; merging the PR closes the sub-issue and ticks the tracking-issue tasklist.
@@ -178,7 +209,14 @@ Rules:
 - **Always recommend** — never ask "what do you think?" without a position
 - **Reasoning is mandatory** — not just "I prefer B" but "B because..."
 - **Capture as you go** — when a term is resolved, update CONTEXT.md inline; when a decision is made, capture in the design doc
-- **End with a Q-final on Cut sequence** — every design pass concludes with the cut-sequence Q: "what's the ordering, what depends on what, what's the test tier per cut, what's the risk gradient?" Output is the design doc's `## Cut sequence` section per [`docs/adr/0015-impl-doc-artifact-retires.md`](../../docs/adr/0015-impl-doc-artifact-retires.md): five-column markdown table (`#, What, Depends on, Test tier, Risk`), **no status column** (state lives in GitHub sub-issue close-state). Generating cuts ad-hoc at filing time skips the grilling rigor; locking them in the design doc makes the decomposition a design decision, not an implementation guess.
+- **End with a Q-final on Cut sequence** — every design pass concludes with the cut-sequence Q. For each cut, lock:
+  - Position in sequence + dependencies
+  - Test tier (per `testing-plan.md` "Shape per sub-system": `unit-first`, `api-first`, `integration-first`, `e2e-first`, `component`)
+  - Risk gradient (low / medium / medium-high / high)
+  - **SOLID lens** (per cut where applicable — which principle is load-bearing for this cut's structure; lands in the sub-issue body's `## SOLID` section)
+  - **Specific tests to write** (file paths + behavior they pin; not just the tier; lands in the sub-issue body's `## Tests` section)
+
+  Output is the design doc's `## Cut sequence` section per [`docs/adr/0015-impl-doc-artifact-retires.md`](../../docs/adr/0015-impl-doc-artifact-retires.md): five-column markdown table (`#, What, Depends on, Test tier, Risk`), **no status column** (state lives in GitHub sub-issue close-state) and **no SOLID/Tests columns** (per-cut SOLID + Tests detail lives in the sub-issue body, not the table; the table is the index, the sub-issue body is the implementable spec). Generating cuts ad-hoc at filing time skips the grilling rigor; locking them in the design doc makes the decomposition a design decision, not an implementation guess.
 
 The skill that codifies this: `grill-me` and `grill-with-docs` in `~/.claude/skills/`.
 
