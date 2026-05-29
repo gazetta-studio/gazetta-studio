@@ -3,9 +3,34 @@ import { getLabelAppliedAt, getReopenedAt, removeLabel } from '../github.js'
 
 const REPO = { owner: 'gazetta-studio', repo: 'gazetta-studio' }
 
-function makeOctokit(events: Array<{ event: string; label?: { name: string }; created_at: string }>) {
+/**
+ * Build a fake octokit. `currentLabels` is the issue's CURRENT labels
+ * (what `issues.get` returns); `events` is the historical timeline.
+ *
+ * The default `currentLabels` infers from the events — every `labeled`
+ * minus every later `unlabeled` for the same name. Tests that don't
+ * care about the current-state check can omit `currentLabels` and get
+ * the "current state matches history" behaviour.
+ */
+function makeOctokit(
+  events: Array<{ event: string; label?: { name: string }; created_at: string }>,
+  currentLabels?: string[],
+) {
+  const inferredLabels: string[] = (() => {
+    const set = new Set<string>()
+    for (const ev of events) {
+      if (!ev.label) continue
+      if (ev.event === 'labeled') set.add(ev.label.name)
+      else if (ev.event === 'unlabeled') set.delete(ev.label.name)
+    }
+    return [...set]
+  })()
+  const labels = currentLabels ?? inferredLabels
   return {
     issues: {
+      get: vi
+        .fn()
+        .mockResolvedValue({ data: { labels: labels.map(name => ({ name })), created_at: '2026-05-01T00:00:00Z' } }),
       listEvents: vi.fn().mockResolvedValue({ data: events }),
       removeLabel: vi.fn().mockResolvedValue({}),
     },
@@ -60,6 +85,45 @@ describe('getLabelAppliedAt', () => {
     ])
     const result = await getLabelAppliedAt(octokit, REPO, 288, 'fix-bot-attempted')
     expect(result).toBe('2026-05-11T08:00:00Z')
+  })
+
+  it('returns null when the label was applied historically but is NOT currently on the issue', async () => {
+    // Regression for the 2026-05-29 bug. After fix-bot's first attempt on
+    // #414 and #415 (May 23), the bot recorded `fix-bot-attempted`. On
+    // May 29 the maintainer removed the label to allow a retry. The
+    // helper kept returning the historical "labeled" timestamp because
+    // it only walked timeline events without checking the current label
+    // set — and the orchestrator's idempotency check (`if (attemptedAt)`)
+    // treated that as "label present, do not retry."
+    //
+    // Fix: check the issue's current labels first; only walk the timeline
+    // if the label is actually applied today.
+    const octokit = makeOctokit(
+      [
+        { event: 'labeled', label: { name: 'fix-bot-attempted' }, created_at: '2026-05-23T06:54:00Z' },
+        { event: 'unlabeled', label: { name: 'fix-bot-attempted' }, created_at: '2026-05-29T13:44:00Z' },
+      ],
+      ['bug', 'ready-for-agent'], // current labels — fix-bot-attempted has been removed
+    )
+    const result = await getLabelAppliedAt(octokit, REPO, 288, 'fix-bot-attempted')
+    expect(result).toBeNull()
+  })
+
+  it('returns the latest labeled timestamp when label was removed and re-applied', async () => {
+    // Maintainer removed → bot re-applied. Label IS currently on the
+    // issue. Should return the LATEST labeled event so the
+    // reopened-since-attempt comparison uses the right anchor.
+    const octokit = makeOctokit(
+      [
+        { event: 'labeled', label: { name: 'fix-bot-attempted' }, created_at: '2026-05-23T06:54:00Z' },
+        { event: 'unlabeled', label: { name: 'fix-bot-attempted' }, created_at: '2026-05-29T13:44:00Z' },
+        { event: 'labeled', label: { name: 'fix-bot-attempted' }, created_at: '2026-05-29T14:15:00Z' },
+      ],
+      // `currentLabels` defaults to the inferred set from the events;
+      // after labeled→unlabeled→labeled the inferred set has it.
+    )
+    const result = await getLabelAppliedAt(octokit, REPO, 288, 'fix-bot-attempted')
+    expect(result).toBe('2026-05-29T14:15:00Z')
   })
 })
 
