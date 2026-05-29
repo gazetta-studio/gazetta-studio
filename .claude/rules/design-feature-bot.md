@@ -2,7 +2,7 @@
 
 Autonomous bot that implements feature cuts following the project's design pass. Reads cut sub-issues from GitHub; ships one PR per cut.
 
-**Status**: design pass in progress (2026-05-30). Q1-Q6 locked; Q7-Q8 open. Implementation deferred until grilling completes.
+**Status**: design pass in progress (2026-05-30). Q1-Q7 locked; Q8 open. Implementation deferred until grilling completes.
 
 **Companion docs**:
 - [`.claude/rules/feature-design-process.md`](feature-design-process.md) — the design+implementation phases this bot operates within. **This bot's existence changes Phase 4 ("Implementation") materially — see "Process changes" below.**
@@ -13,7 +13,7 @@ Autonomous bot that implements feature cuts following the project's design pass.
 ## Scope
 
 **In v1:**
-- Bot reads GitHub "cut sub-issues" labeled `feature-cut` + `ready-for-agent`
+- Bot reads GitHub "cut sub-issues" labeled `enhancement` + `ready-for-agent` + `area: X` (no new labels — reuses existing vocabulary)
 - Picks the next cut whose dependencies are all closed
 - Generator-critic loop (Agent A implements, Agent B reviews) — same pattern as fix-bot + dead-code-watcher
 - TDD-first commit ordering per rule 31
@@ -28,7 +28,7 @@ Autonomous bot that implements feature cuts following the project's design pass.
 
 **Non-goals:**
 - Implementing features without a preceding design pass (that's not feature-bot's job; design grilling happens first per `feature-design-process.md`)
-- Replacing fix-bot (fix-bot handles `bug + ready-for-agent`; feature-bot handles `feature-cut + ready-for-agent` — disjoint label queues)
+- Replacing fix-bot (fix-bot handles `bug + ready-for-agent`; feature-bot handles `enhancement + ready-for-agent` — disjoint label queues via existing vocabulary)
 - Composing cut specs from prose backlog issues (the cut sub-issue's existence IS the gate that says "this work is design-passed and bot-ready")
 
 ## Locked decisions
@@ -38,9 +38,15 @@ Autonomous bot that implements feature cuts following the project's design pass.
 **Decision**: Cut sequencing moves from `.claude/rules/design-{feature}-implementation.md` tables to GitHub issues:
 
 1. **Design doc** (`design-{feature}.md`) — stays in `.claude/rules/`. Durable artifact per resumability contract (rule 22). Absorbs "Deferred items" + "Lessons learned" sections that previously lived in the impl doc.
-2. **Tracking issue** — labeled `feature-track` + `area: X`. Body is a tasklist of cut sub-issues. Auto-closes when all sub-issues close.
-3. **Cut sub-issue** — labeled `feature-cut` + `ready-for-agent` + `area: X` + `feature: {slug}`. Body contains the per-cut spec (Q2 — format pending).
-4. **Feature-bot input** — `gh issue list --label feature-cut --label ready-for-agent --state open` ordered oldest-first; pick the first whose dependency sub-issues are all closed.
+2. **Tracking issue** — labeled `enhancement` + `area: X` (no `ready-for-agent` — the tracking issue itself isn't implementable; its children are). Body is a tasklist of cut sub-issues. Auto-closes when all sub-issues close.
+3. **Cut sub-issue** — labeled `enhancement` + `ready-for-agent` + `area: X`. Body contains the per-cut spec (per Q2: just-markdown with `**Feature**:` and `**Depends on**:` front-matter).
+4. **Feature-bot input** — `gh issue list --label enhancement --label ready-for-agent --state open` (with standard exclusions: `ready-for-human`, `wontfix`, `needs-info`); pick the first whose dependency sub-issues are all closed.
+
+**Zero new labels.** Cut sub-issues use the existing `enhancement` + `ready-for-agent` + `area: X` vocabulary. Disambiguation is structural:
+- Fix-bot's queue (`bug + ready-for-agent`) doesn't overlap because cuts are `enhancement` not `bug`.
+- Discovery-prep-bot's queue (`enhancement` lacking `ready-for-agent`) doesn't overlap because cuts already have `ready-for-agent`.
+- Tracking issues (no `ready-for-agent`) are invisible to feature-bot's query — only cut sub-issues match.
+- Body's `**Feature**:` field is the feature slug; queries by feature use this content marker, not a per-feature label.
 
 The `design-{feature}-implementation.md` artifact type is **retired**. Existing impl docs migrate via one-time script (see "Migration" below).
 
@@ -160,34 +166,29 @@ Tolerates `#501, #502` / `#501 #502` / `none` / empty / missing line. No deps �
 | **F. GitHub Projects v2 custom field** | Introduces Projects v2 dependency (`has_projects: false` in this repo); Projects v2 cards aren't tied to issue close-state the way the bot needs; over-engineered. |
 | **A2 (tolerate bad refs)** | Silent-wait-forever on mistyped number; bot's job is structural correctness, malformed input should fail loud before Claude is invoked. |
 
-### Q4 — Cut ordering: oldest-first by default, opt-in `priority:high` label override
+### Q4 — Cut ordering: oldest-first, no priority label in v1
 
-**Decision**: Among unblocked cuts (those whose `**Depends on**` refs are all closed), the bot picks one per cron tick using two-axis sort:
+**Decision**: Among unblocked cuts (those whose `**Depends on**` refs are all closed), the bot picks one per cron tick using oldest-first sort:
 
 ```ts
 const sorted = candidates.sort((a, b) => {
-  const aHigh = a.labels.includes('priority:high') ? 0 : 1
-  const bHigh = b.labels.includes('priority:high') ? 0 : 1
-  if (aHigh !== bHigh) return aHigh - bHigh
   if (a.createdAt !== b.createdAt) return a.createdAt.localeCompare(b.createdAt)
   return a.number - b.number  // deterministic tiebreaker for same-second creation
 })
 ```
 
-**`priority:high` label** is opt-in; default is the absence of the label. Maintainer applies it when they want a specific cut to ship before older siblings (e.g., "the schema-migration cut needs to land before the dependent UI cuts even though it was filed later"). Within each tier, oldest-first prevents starvation.
+**No `priority:high` label in v1.** Default ordering is pure oldest-first; matches fix-bot's existing pattern exactly. YAGNI discipline — the override mechanism is deferred until concrete ordering pain surfaces.
 
-**Priority does NOT bypass dependencies**: a `priority:high` cut with unsatisfied `**Depends on**:` refs still waits for its deps to close. Priority orders the eligibility queue; deps determine eligibility.
+**If priority override pain surfaces later**: adding `priority:high` is an additive change (one label, one sort comparator update) that doesn't require re-architecting feature-bot.
 
-**Why** (over alternatives walked):
+**Why** (revised against rule 22 "every kind of work has a durable artifact" + label-namespace discipline):
 
-1. **Consistency with bot ecosystem** — fix-bot already sorts oldest-first at `bots/fix-bot/index.ts:161`. Same default; same mental model ("bots work the queue starting from the oldest").
-2. **Escape hatch when intent matters** — `priority:high` is opt-in. Common case requires no thought; uncommon case requires one label flip.
-3. **No new axis to maintain stale** — risk labels would drift; tasklist order would create a second source of truth competing with body-declared deps; priority is "intent right now" and doesn't need ongoing curation.
-4. **Starvation-free** — within each tier, oldest-first means everything eventually ships.
-5. **Matches triage-bot's pattern** — silent default + opt-in label override is precedent.
+1. **Zero new labels.** Reuses pure oldest-first which is fix-bot's existing default.
+2. **YAGNI** — the override case is hypothetical; if a real "I need this cut shipped first" pressure arises, the maintainer can either (a) close older sibling cuts temporarily, or (b) just wait for the next cron (cuts ship at ~1/day cadence; "shipped tomorrow vs. shipped today" rarely justifies new infrastructure).
+3. **Starvation-free** — oldest-first means everything eventually ships.
+4. **Bot ecosystem consistency** — matches fix-bot's `bots/fix-bot/index.ts:161` sort exactly.
 
 **Edge cases handled**:
-- `priority:high` + blocked deps → still waits for deps.
 - Same-second creation → deterministic tiebreaker by issue number ascending.
 - All cuts blocked → bot exits silently with "Inbox zero" (already fix-bot's pattern).
 
@@ -195,10 +196,9 @@ const sorted = candidates.sort((a, b) => {
 
 | Alternative | Why rejected |
 |---|---|
-| **A. Oldest-first only (no priority override)** | Can't express urgency; a high-priority cut filed today waits behind low-priority cuts from last week |
-| **B. Risk-first (low → high via `risk:` label)** | Human risk classification famously unreliable; delays high-value high-risk cuts; adds label-curation burden; doesn't match the real maintainer question ("what should ship next?") |
+| **B. Risk-first (low → high via `risk:` label)** | Human risk classification famously unreliable; delays high-value high-risk cuts; adds label-curation burden; new label costs |
 | **C. Maintainer-orderable via tracking-issue tasklist** | Creates second source of truth competing with body-declared deps; extra GraphQL query per cron to fetch tasklists; sync-risk between body order and tasklist |
-| **D. `priority:` label alone (no oldest-first within tier)** | Without a stable tiebreaker, two `priority:high` cuts would race; no starvation guarantee within tier |
+| **D. `priority:high` label override** | YAGNI — premature unless concrete ordering pain surfaces. Can be added additively when it does. Earlier grilling pass had locked this; revised to drop the new label after label-namespace audit. |
 | **F. Random selection** | Non-deterministic; hostile to maintainer prediction; trust-eroding |
 
 ### Q5 — Agent A's prompt access to design doc: read-on-instruction, no inlining
@@ -303,6 +303,62 @@ Maintainer recovery:
 
 **Missing-prereq case** (Agent A discovers required infrastructure isn't in the codebase even though `Depends on` refs are closed): this is NEEDS_HUMAN, not NEEDS_INPUT. The cut spec or prior-cut PR is wrong; reopening requires reconciliation, not a decision. Close + skip-list + `ready-for-human`.
 
+### Q7 — Skip-list reason codes: extend fix-bot's taxonomy with 4 feature-bot-specific reasons
+
+**Decision**: Feature-bot's skip-list extends fix-bot's existing reason enum with 4 new typed values. Internal bot data structure; not labels.
+
+```ts
+type SkipReason =
+  // Fix-bot's existing reasons (reused; same semantics across both bots)
+  | 'needs-human'           // generic / catch-all
+  | 'maintainer-rejected'   // past-PR feedback loop caught a closed-not-merged PR
+  | 'tautological-test'     // reviewer's tautology check failed
+  | 'wrong-root-cause'      // reviewer judged the fix targets wrong code
+  // Feature-bot additions
+  | 'missing-prereq'        // Agent A found required infrastructure absent despite closed deps
+  | 'spec-too-vague'        // cut spec doesn't describe enough for Agent A to interpret
+  | 'input-cycles-exceeded' // MAX_INPUT_REQUESTS=2 hit without resolution
+  | 'files-conflict'        // cut's files overlap with another in-flight cut's open PR
+```
+
+Schema in `bots/feature-bot/skip-list.ts` (mirrors fix-bot's existing shape):
+
+```ts
+interface SkipListEntry {
+  fingerprint: { issueNumber: number }
+  reason: SkipReason
+  reasonNote: string  // free-text detail
+  addedAt: string  // ISO timestamp
+  addedBy: 'bot' | 'maintainer'
+}
+```
+
+**Outcome tag format** on the skip-list-entry PR + sub-issue escalation comment includes the reason for forensic queries:
+
+```
+<!-- feature-bot: skip-entry issue=N reason=missing-prereq run=R -->
+```
+
+`gh issue list --search "feature-bot: skip-entry reason=missing-prereq"` cleanly filters by failure mode for compactor input and operator review.
+
+**Why an extended typed enum** over alternatives:
+
+1. **Compactor pattern recognition** — monthly bots-compact finds cross-finding patterns. Pattern-matching by typed reason is one comparison; pattern-matching by free-text note is many heuristics.
+2. **Forensic queries via outcome tags** — typed reason in the tag enables structured filtering without parsing comment bodies.
+3. **Four real failure modes** — `missing-prereq`, `spec-too-vague`, `input-cycles-exceeded`, `files-conflict` all surfaced during Q6 grilling as concrete scenarios. Not speculative.
+4. **Strictly typed** — TS union prevents typos; vitest tests against the enum directly.
+5. **Reuse where applicable** — `maintainer-rejected`, `tautological-test`, `wrong-root-cause` carry over from fix-bot because Agent B's reviewer runs the same checks. Rule 38 symmetric bots discipline.
+6. **`needs-human` stays as catch-all** for cases not matching any specific reason. Falls back gracefully if bot emits an unrecognized reason.
+
+**Note**: skip-list reasons are internal bot data, not labels. No GitHub-namespace impact. The corresponding labels (`needs-info` for NEEDS_INPUT, `ready-for-human` for NEEDS_HUMAN) are separate and stay reused per Q6's lock.
+
+**Rejected alternatives** (preserved):
+
+| Alternative | Why rejected |
+|---|---|
+| **A. Reuse fix-bot's taxonomy verbatim (all → `needs-human`)** | Compactor can't pattern-match common failure modes; loses the typed structure that enables forensic filtering and lessons generation |
+| **C. Tagged sub-categories in `reasonNote`** | Tags-in-prose drift over time; less reliable than typed enum; same complexity as B with weaker contract |
+
 ## Design (high level, pending Q2)
 
 ### Bot pipeline
@@ -385,8 +441,7 @@ This bot operates on issues and PRs; doesn't write to the data layer. Most found
 
 ## Open questions
 
-1. **Q7 — escalation taxonomy details**: Q6 locked the three tiers. Open detail: do we add new skip-list `reason` codes (`missing-prereq`, `spec-too-vague`, `input-cycles-exceeded`, `files-conflict-with-other-cut`) beyond fix-bot's existing taxonomy (`needs-human` / `maintainer-rejected` / `tautological-test` / `wrong-root-cause`)? Pending.
-2. **Q8 — interaction with existing impl-docs during migration**: bot tries to work an impl doc that hasn't been migrated yet — graceful skip vs. force migration? Likely "ignore non-issue impl docs; bot only sees sub-issues."
+1. **Q8 — interaction with existing impl-docs during migration**: bot tries to work an impl doc that hasn't been migrated yet — graceful skip vs. force migration? Likely "ignore non-issue impl docs; bot only sees sub-issues."
 
 ## ADR candidacy
 
