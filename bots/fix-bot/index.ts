@@ -59,8 +59,8 @@ import {
   repoFromEnv,
   type RepoIdentity,
 } from '../_lib/github.js'
-import { parseReviewerVerdict } from '../_lib/reviewer-verdict.js'
-import { extractLastAssistantText, extractSummary } from '../_lib/transcript.js'
+import { parseReviewerTranscript } from '../_lib/reviewer-verdict.js'
+import { collectAssistantTexts, extractSummary } from '../_lib/transcript.js'
 import {
   printBanner,
   printCandidateHeader,
@@ -427,7 +427,7 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     })
     if (!bResult.success) {
       printWarning(`Agent B exited ${bResult.exitCode} on attempt ${attempt}; treating as needs-human.`)
-      recordSkipListEntry(skipList, fingerprint, {
+      await escalateToHuman(octokit, repo, issueNumber, skipList, fingerprint, {
         reason: 'needs-human',
         reasonNote: `Reviewer crashed on attempt ${attempt}. See transcript ${reviewerTranscript}.`,
       })
@@ -436,8 +436,12 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     }
 
     // Parse the reviewer's final text block for the VERDICT line.
-    const reviewerLastText = extractLastAssistantText(reviewerTranscript)
-    const verdict = parseReviewerVerdict(reviewerLastText)
+    // Search Agent B's FULL transcript for the VERDICT line — not just the
+    // last block. Agent B is talkative; the verdict often lands in an
+    // earlier block followed by a "Forming verdict." closing comment that
+    // confused the original extractLastAssistantText-only parser.
+    const reviewerTexts = collectAssistantTexts(reviewerTranscript)
+    const verdict = parseReviewerTranscript(reviewerTexts)
 
     // Persist the verdict to reviewer-log.jsonl regardless of outcome.
     // The monthly compactor reads this raw signal and selects valuable
@@ -469,7 +473,7 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
 
     if (verdict.kind === 'needs-human') {
       printWarning(`⚠ Reviewer escalated to NEEDS_HUMAN: ${verdict.note.slice(0, 120)}`)
-      recordSkipListEntry(skipList, fingerprint, {
+      await escalateToHuman(octokit, repo, issueNumber, skipList, fingerprint, {
         reason: 'needs-human',
         reasonNote: `Reviewer verdict on attempt ${attempt}: ${verdict.note}`,
       })
@@ -491,7 +495,7 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
   } else {
     // Loop exhausted without convergence.
     printWarning(`Loop exhausted after ${MAX_ATTEMPTS} attempts — Agent A and reviewer didn't converge.`)
-    recordSkipListEntry(skipList, fingerprint, {
+    await escalateToHuman(octokit, repo, issueNumber, skipList, fingerprint, {
       reason: 'needs-human',
       reasonNote: `Agent A and reviewer didn't converge after ${MAX_ATTEMPTS} attempts. Last reviewer note: ${priorReviewerNote ?? '(none)'}`,
     })
@@ -578,17 +582,37 @@ fix shape.
 }
 
 /**
- * Append a skip-list entry + persist. Used by reviewer-escalation
- * paths to record decisions durably.
+ * Reviewer-loop escalation: the bot can't proceed and humans must
+ * intervene. Does FOUR things to make the failure visible:
+ *
+ *   1. Append entry to skip-list.json locally
+ *   2. Open a draft PR with that skip-list entry (so next run honors it)
+ *   3. Post a stuck-comment on the issue explaining why the bot stopped
+ *   4. Apply `ready-for-human` label (removes from fix-bot's queue)
+ *
+ * Without steps 2-4, the only memory of the bot's reviewer loop is the
+ * runner-local skip-list.json that vanishes on workflow teardown.
+ * That's the bug that caused #414/#415 to sit silently for 6 days
+ * after fix-bot's reviewer loop produced substantive (but
+ * unparseable) verdicts on 2026-05-23. See run 26325999185 + ADR
+ * trail for context.
+ *
+ * Best-effort throughout: a PR-creation failure doesn't block the
+ * issue-comment; a comment failure doesn't block the label. Workflow
+ * log + transcript artifact remain the forensic record either way.
  */
-function recordSkipListEntry(
+async function escalateToHuman(
+  octokit: ReturnType<typeof octokitFromEnv>,
+  repo: ReturnType<typeof repoFromEnv>,
+  issueNumber: number,
   skipList: SkipList,
   fingerprint: IssueFingerprint,
   opts: {
     reason: 'needs-human' | 'maintainer-rejected' | 'tautological-test' | 'wrong-root-cause'
     reasonNote: string
   },
-): void {
+): Promise<void> {
+  // Step 1: write skip-list locally
   const added = appendEntry(skipList, {
     fingerprint,
     reason: opts.reason,
@@ -599,6 +623,98 @@ function recordSkipListEntry(
   if (added) {
     writeSkipList(SKIP_LIST_ABS, skipList)
     printNotice(`Recorded skip-list entry for #${fingerprint.issueNumber} (${opts.reason})`)
+  }
+
+  // Step 2: open draft PR for the skip-list change so it lands on main.
+  // Otherwise the runner-local write evaporates at workflow teardown.
+  const dateStr = new Date().toISOString().slice(0, 10)
+  const skipBranch = `fix-bot-skip/${dateStr}-issue-${issueNumber}`
+  try {
+    execFileSync('git', ['checkout', '-b', skipBranch], { cwd: REPO_ROOT, stdio: 'inherit' })
+    execFileSync('git', ['add', SKIP_LIST_PATH], { cwd: REPO_ROOT, stdio: 'inherit' })
+    execFileSync(
+      'git',
+      [
+        'commit',
+        '-m',
+        `chore(skip-list): record ${opts.reason} for #${issueNumber}\n\n${opts.reasonNote.slice(0, 500)}`,
+      ],
+      { cwd: REPO_ROOT, stdio: 'inherit' },
+    )
+    execFileSync('git', ['push', '-u', 'origin', skipBranch], { cwd: REPO_ROOT, stdio: 'inherit' })
+    execFileSync(
+      'gh',
+      [
+        'pr',
+        'create',
+        '--draft',
+        '--title',
+        `chore(skip-list): record ${opts.reason} for #${issueNumber}`,
+        '--body',
+        `> *This was generated by AI during triage.*
+
+Adds a skip-list entry so fix-bot doesn't re-attempt issue #${issueNumber} on every cron.
+
+**Reason:** \`${opts.reason}\`
+
+**Note from the reviewer loop:**
+
+> ${opts.reasonNote.slice(0, 1500)}
+
+**What to do next:**
+
+Read the comment fix-bot just posted on #${issueNumber}. If the reviewer's reasoning looks right, either merge this PR (durable skip), close the underlying issue, or open the fix yourself based on the reviewer's analysis. If the reviewer was wrong, close this PR and reopen #${issueNumber} (or remove the \`ready-for-human\` label) to let fix-bot retry.
+
+<!-- fix-bot: skip-entry issue=${issueNumber} reason=${opts.reason} run=${process.env.GITHUB_RUN_ID ?? 'local'} -->`,
+      ],
+      { cwd: REPO_ROOT, stdio: 'inherit' },
+    )
+    printNotice(`Opened skip-list-entry PR for #${issueNumber}`)
+  } catch (err) {
+    printWarning(`Couldn't open skip-list PR for #${issueNumber}: ${err}`)
+  } finally {
+    try {
+      execFileSync('git', ['checkout', 'main'], { cwd: REPO_ROOT, stdio: 'inherit' })
+    } catch {
+      // best-effort
+    }
+  }
+
+  // Step 3 + 4: post stuck-comment + apply ready-for-human label so the
+  // issue moves off fix-bot's queue and gives the maintainer a single
+  // place to see what happened (rather than digging in workflow logs).
+  try {
+    const ghServer = process.env.GITHUB_SERVER_URL ?? 'https://github.com'
+    const repoSlug = `${repo.owner}/${repo.repo}`
+    const runId = process.env.GITHUB_RUN_ID ?? 'local'
+    const workflowRunUrl =
+      runId === 'local' ? '(local run — no workflow URL)' : `${ghServer}/${repoSlug}/actions/runs/${runId}`
+
+    const body = `> *This was generated by AI during triage.*
+
+⚠ **Fix-bot reviewer-loop escalation — needs human attention.**
+
+**Reason:** \`${opts.reason}\`
+
+**Note from the reviewer:**
+
+> ${opts.reasonNote.slice(0, 2000)}
+
+**Workflow run:** ${workflowRunUrl}
+
+I've stopped attempting this issue and applied \`ready-for-human\` (removing it from my queue). Next steps for the maintainer:
+
+1. **Read the reviewer's full reasoning** in the workflow run's transcript artifact (\`bots/transcripts/\`) — substantive analysis often lives there.
+2. **If the reviewer was right** — close this issue OR open the fix manually based on the reviewer's analysis.
+3. **If you want me to retry** — remove the \`ready-for-human\` label AND the \`fix-bot-attempted\` label. (Or close the skip-list-PR I just opened.)
+
+<!-- fix-bot: escalation issue=${issueNumber} reason=${opts.reason} run=${runId} -->`
+
+    await octokit.issues.createComment({ ...repo, issue_number: issueNumber, body })
+    await addLabel(octokit, repo, issueNumber, 'ready-for-human')
+    printNotice(`Posted escalation comment + applied ready-for-human on #${issueNumber}`)
+  } catch (err) {
+    printWarning(`Could not post escalation comment on #${issueNumber}: ${err}`)
   }
 }
 

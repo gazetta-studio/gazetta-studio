@@ -33,7 +33,7 @@
  *   .github/workflows/dead-code-watcher.yml (Sat 02:30 UTC)
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
@@ -42,8 +42,8 @@ import { branchHasCommits, captureCommitMessages, captureDiff, resetToMain } fro
 import { type Finding, filterStableFindings, type KnipReport, parseKnipReport, rankFindings } from './knip-parse.js'
 import { fingerprintToBranch, pastPROutcome } from './past-pr.js'
 import { appendReviewerLog, REVIEWER_LOG_PATH } from './reviewer-log.js'
-import { parseReviewerVerdict } from '../_lib/reviewer-verdict.js'
-import { extractLastAssistantText, extractSummary } from '../_lib/transcript.js'
+import { parseReviewerTranscript } from '../_lib/reviewer-verdict.js'
+import { collectAssistantTexts, extractSummary } from '../_lib/transcript.js'
 import {
   appendEntry,
   findSkipMatch,
@@ -403,9 +403,14 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
       return 'invoked-claude'
     }
 
-    // Parse the reviewer's final text block for the VERDICT line.
-    const reviewerLastText = extractLastAssistantText(reviewerTranscript)
-    const verdict = parseReviewerVerdict(reviewerLastText)
+    // Search Agent B's FULL transcript for the VERDICT line — not just
+    // the last block. Agent B is talkative; the verdict often lands in
+    // an earlier block followed by a "Forming verdict." closing comment.
+    // See fix-bot run 26325999185 (2026-05-23) where #414/#415 hit this
+    // and the bot recorded false NEEDS_HUMAN defaults on substantive
+    // reviews.
+    const reviewerTexts = collectAssistantTexts(reviewerTranscript)
+    const verdict = parseReviewerTranscript(reviewerTexts)
 
     // Persist the verdict to reviewer-log.jsonl regardless of outcome.
     // The monthly compactor reads this raw signal and selects valuable
