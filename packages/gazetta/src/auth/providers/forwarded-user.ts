@@ -36,11 +36,12 @@
  *   - DIP: takes parsed config (a `ForwardedUserConfig`) — doesn't
  *     read from `site.config.ts` directly.
  */
-import type { Principal } from '../types.js'
+import type { Principal, RoleMapping } from '../types.js'
 import type { AuthIdentityProvider, AuthRequest } from '../provider.js'
 import { AuthenticationError, AuthConfigurationError } from '../errors.js'
 import { ipMatchesAny, type ParsedRule, parseRules } from '../ip-match.js'
 import { expandRole } from '../capabilities.js'
+import { resolveRole } from '../role-resolver.js'
 
 export interface ForwardedUserConfig {
   /**
@@ -56,13 +57,26 @@ export interface ForwardedUserConfig {
    */
   allowAnyOrigin?: boolean
   /**
-   * Group claim → role mapping from the upstream layer's
-   * `X-Forwarded-Groups` header. Resolver (Cut 6) consumes this;
-   * the provider just exposes the raw groups via Principal.role.
-   * Until Cut 6 lands, the provider returns `role: 'editor'` as a
-   * sensible default — overridden once role-resolver wires up.
+   * Role assigned when no `roleMapping` is configured. When
+   * `roleMapping` IS set, the resolved group → role mapping (and its
+   * own `defaultRole`) takes over and this field is unused.
    */
   defaultRole?: string
+  /**
+   * Group → role mapping from `site.config.ts admin.auth`. The
+   * upstream proxy populates the standard `X-Forwarded-Groups`
+   * header (comma-separated); when set, that group list is resolved
+   * to a Gazetta role instead of falling back to `defaultRole`. The
+   * `roleMapping.claim` field is informational here — the header
+   * name is fixed by the reverse-proxy convention.
+   */
+  roleMapping?: RoleMapping
+  /**
+   * Custom role declarations from `site.config.ts admin.auth.roles`,
+   * flattened to `name → capabilities`. Consulted by the role
+   * resolver when `roleMapping` points at a non-built-in role.
+   */
+  customRoles?: Readonly<Record<string, ReadonlyArray<string>>>
 }
 
 /**
@@ -125,17 +139,38 @@ export function createForwardedUserAuthProvider(config: ForwardedUserConfig): Au
       }
 
       const email = req.headers.get('x-forwarded-email') ?? undefined
-      // Capabilities = the default role's built-in capability set.
-      // Group-claim → role mapping (via roleMapping config + the
-      // X-Forwarded-Groups header) is a follow-up. For v1 every
-      // authenticated forwarded-user gets the configured defaultRole's
-      // capabilities; operators wanting role-by-group set the
-      // roleMapping in admin.auth and override defaultRole.
-      const capabilities = expandRole(defaultRole) ?? []
+
+      let role: string
+      let capabilities: ReadonlyArray<string>
+      if (config.roleMapping) {
+        const groups = (req.headers.get('x-forwarded-groups') ?? '')
+          .split(',')
+          .map(g => g.trim())
+          .filter(Boolean)
+        const resolved = resolveRole({
+          groups,
+          mapping: config.roleMapping,
+          customRoles: config.customRoles,
+        })
+        if (!resolved) {
+          // Valid identity, but no group matched and no defaultRole
+          // is configured — deny per design-auth-rbac.md's
+          // "defaultRole: null means deny".
+          throw new AuthenticationError(
+            `forwarded-user principal "${user}" matched no role in roleMapping and no defaultRole is configured`,
+          )
+        }
+        role = resolved.name
+        capabilities = resolved.capabilities
+      } else {
+        role = defaultRole
+        capabilities = expandRole(defaultRole) ?? []
+      }
+
       return {
         id: user,
         email,
-        role: defaultRole,
+        role,
         trustMode: 'forwarded-user',
         capabilities,
       }

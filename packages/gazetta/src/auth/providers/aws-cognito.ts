@@ -29,10 +29,11 @@
  *   - DIP: jwksFactory injection point lets tests run without HTTP.
  */
 import { jwtVerify, type JWTPayload, type JWTVerifyGetKey } from 'jose'
-import type { Principal } from '../types.js'
+import type { Principal, RoleMapping } from '../types.js'
 import type { AuthIdentityProvider, AuthRequest } from '../provider.js'
 import { AuthenticationError, AuthConfigurationError } from '../errors.js'
 import { expandRole } from '../capabilities.js'
+import { resolveRole } from '../role-resolver.js'
 
 export interface AwsCognitoConfig {
   /**
@@ -46,8 +47,25 @@ export interface AwsCognitoConfig {
    * sharing the same user pool.
    */
   audience?: string
-  /** Optional default role until Cut 6's role-resolver wires up. */
+  /**
+   * Role assigned when no `roleMapping` is configured. When
+   * `roleMapping` IS set, the resolved group → role mapping (and its
+   * own `defaultRole`) takes over and this field is unused.
+   */
   defaultRole?: string
+  /**
+   * Group → role mapping from `site.config.ts admin.auth`. The
+   * verified JWT's group list (read from the claim named by
+   * `roleMapping.claim`, typically `cognito:groups`) is resolved to a
+   * Gazetta role instead of falling back to `defaultRole`.
+   */
+  roleMapping?: RoleMapping
+  /**
+   * Custom role declarations from `site.config.ts admin.auth.roles`,
+   * flattened to `name → capabilities`. Consulted by the role
+   * resolver when `roleMapping` points at a non-built-in role.
+   */
+  customRoles?: Readonly<Record<string, ReadonlyArray<string>>>
   /**
    * Internal: factory for the JWKS verifier. Tests inject a stub.
    * Production builds a fetch-based key resolver per AWS's
@@ -145,13 +163,45 @@ export function createAwsCognitoAuthProvider(config: AwsCognitoConfig): AuthIden
         throw new AuthenticationError('AWS Cognito JWT has no sub or username claim')
       }
 
+      let role: string
+      let capabilities: ReadonlyArray<string>
+      if (config.roleMapping) {
+        const groups = extractStringArray(payload[config.roleMapping.claim])
+        const resolved = resolveRole({
+          groups,
+          mapping: config.roleMapping,
+          customRoles: config.customRoles,
+        })
+        if (!resolved) {
+          throw new AuthenticationError(
+            `AWS Cognito principal "${id}" matched no role in roleMapping and no defaultRole is configured`,
+          )
+        }
+        role = resolved.name
+        capabilities = resolved.capabilities
+      } else {
+        role = defaultRole
+        capabilities = expandRole(defaultRole) ?? []
+      }
+
       return {
         id,
         email: payload.email,
-        role: defaultRole,
+        role,
         trustMode: 'aws-cognito',
-        capabilities: expandRole(defaultRole) ?? [],
+        capabilities,
       }
     },
   }
+}
+
+/**
+ * Coerce an arbitrary JWT claim value into a clean `string[]`. The
+ * group claim is operator-named and operator-populated, so its shape
+ * isn't guaranteed — a missing claim, a scalar, or a mixed array all
+ * degrade to "no groups" rather than throwing.
+ */
+function extractStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is string => typeof item === 'string')
 }
