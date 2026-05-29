@@ -12,6 +12,7 @@
     "discovery-prep-bot": "tsx discovery-prep-bot/index.ts",
     "fix-bot": "tsx fix-bot/index.ts",
     "fix-bot:compact": "tsx fix-bot/compact.ts",
+    "feature-bot": "tsx feature-bot/index.ts",
     "dead-code-watcher": "tsx dead-code-watcher/index.ts",
     "dead-code-watcher:compact": "tsx dead-code-watcher/compact.ts",
     "mutation-area-picker": "tsx mutation-area-picker/index.ts",
