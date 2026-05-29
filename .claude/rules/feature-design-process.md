@@ -48,7 +48,7 @@ Walk the design's primitives:
   - No publish-time aggregate manifests (per `feature-design-process.md` non-foundational disciplines — sidecars OR external-standard exception only)
   - Multi-instance discipline holds (per-edge state, not in-memory cross-instance cache)
 
-**Durable artifact**: the design doc's "Foundational checks" section explicitly answers the **Scale check** with named primitives + their walk costs + sidecar requirements. Cuts that need new sidecars are flagged in the implementation doc.
+**Durable artifact**: the design doc's "Foundational checks" section explicitly answers the **Scale check** with named primitives + their walk costs + sidecar requirements. Cuts that need new sidecars are flagged in the design doc's `## Cut sequence` section (and the corresponding cut sub-issue's `## Spec` when filed).
 
 ### 2c. Implementation-grilling
 
@@ -66,8 +66,8 @@ Capture what we're building, why, and the model.
 
 | File | Purpose | Required? |
 |---|---|---|
-| `.claude/rules/design-{feature}.md` | The design itself: scope, principles, model, distinctive choices, what's in/out of scope | **Required** |
-| `.claude/rules/design-{feature}-implementation.md` | Build plan: cut sequence, scope per cut, effort estimates, deferred items, status table | **Required** |
+| `.claude/rules/design-{feature}.md` | The design itself: scope, principles, model, distinctive choices, **cut sequence**, deferred items, lessons learned | **Required** |
+| GitHub tracking issue + N cut sub-issues | Operational state for in-flight cuts (filed from the design doc's `## Cut sequence` section per [`docs/adr/0015-impl-doc-artifact-retires.md`](../../docs/adr/0015-impl-doc-artifact-retires.md)) | **Required for in-flight work** — filed when implementation starts |
 | `.claude/rules/design-{feature}-reference.md` | Optional: fact-checked tooling specifics, library versions, citations | Optional — used when ≥ 5 external claims need version/licensing/citation; below that, inline citations in the design doc are clearer (see media-v1 for an example that warranted it) |
 | `docs/adr/NNNN-slug.md` | Architecture Decision Record | Optional — only when the decision passes the three ADR criteria (hard to reverse, surprising without context, real trade-off) |
 
@@ -79,6 +79,7 @@ Capture what we're building, why, and the model.
 - **Distinctive choices** — what we picked vs. what we rejected, with reasons. Future-you re-litigates without these.
 - **Foundational checks** — answer each of the 13 dimension gates (Scale / Theme / Locale / Auth+RBAC / Audit / Review / Hook / Render / Validation / Plugin / Cache / Offline / Collaboration) AND the **Multi-instance check** (see "Foundational dimensions" + "Non-foundational disciplines" below)
 - **UX check** (when feature has user-facing UI) — design must apply "Don't Make Me Think" principles per [team-preferences rule 23](team-preferences.md): absence-as-state, universal icons over jargon, same affordances regardless of system state, plain language, no help-tooltips-as-bandaid. Reference `design-offline.md`'s sync-state visibility section as the canonical example.
+- **Cut sequence** — declarative table of cuts that Phase 4 fans out into GitHub sub-issues. Five columns: `#, What, Depends on, Test tier, Risk`. **No status column** — state lives in GitHub sub-issue close-state per [`docs/adr/0015-impl-doc-artifact-retires.md`](../../docs/adr/0015-impl-doc-artifact-retires.md). See `design-feature-bot.md` and `design-redirect-ui.md` for example tables.
 - **Migration** — for existing sites if applicable
 - **Open questions** — known unresolved items
 - **Future directions** — placed at the end. Lists deferred capabilities, v1.5/v2 bets, and frontier ideas that aren't committed work. Above-the-section content is the current shipped/being-built model; below-the-section content is preserved thinking, not a promise. As versions ship, items rotate up into committed scope.
@@ -103,30 +104,37 @@ Per the `grill-with-docs` skill (`~/.claude/skills/grill-with-docs/SKILL.md`), t
 
 Renaming or removing a glossary term is itself an ADR — rename is by definition hard-to-reverse + surprising-without-context.
 
-**Required sections in a `design-{feature}-implementation.md`:**
-
-- **Status legend** (✓ shipped · ◐ in progress · ☐ pending)
-- **Status table** — one row per cut with: cut number, what, effort estimate, dependencies, status
-- **Per-cut scope** — files added/modified, tests, risk, what it doesn't catch yet
-- **Deferred items** — what's out of THIS feature scope; trigger to revisit
-- **SOLID checks per cut** — explicit; not implicit
-
-The status table updates as cuts ship. When the feature is fully shipped, the implementation doc is pruned — see "Lifecycle of an implementation doc" below.
+**The `design-{feature}-implementation.md` artifact type is retired** per [`docs/adr/0015-impl-doc-artifact-retires.md`](../../docs/adr/0015-impl-doc-artifact-retires.md). Cut tracking lives in GitHub (tracking issue + cut sub-issues); the design doc carries the durable Cut sequence + Deferred items + Lessons learned. See "Migration of legacy implementation docs" below for handling existing impl docs.
 
 **Naming convention**: `design-{feature}.md`. The prefix matters — it makes `grep .claude/rules/design-*.md` find every feature design.
 
-Two predecessor docs use the `-plan.md` suffix (`seo-plan.md`, `testing-plan.md`) and fuse design + implementation into one file. They migrate to the `design-{feature}.md` + `design-{feature}-implementation.md` split when the feature is next touched — splitting them cold without active context risks a bad split. Until then they stay as-is and remain auto-loaded via their `paths:` frontmatter. (`i18n-plan.md` was migrated to `design-i18n.md` in 2026-05 as part of the foundational-dimensions inventory; the design/implementation split happens when per-field translation #192 lands.)
+Two predecessor docs use the `-plan.md` suffix (`seo-plan.md`, `testing-plan.md`) and fuse design + implementation into one file. They migrate to the `design-{feature}.md` shape (with a Cut sequence section + tracking-issue + sub-issues for any remaining work) when the feature is next touched — splitting them cold without active context risks a bad split. Until then they stay as-is and remain auto-loaded via their `paths:` frontmatter. (`i18n-plan.md` was migrated to `design-i18n.md` in 2026-05 as part of the foundational-dimensions inventory; the cut tracking moves to GitHub when per-field translation #192 lands.)
 
 ### 4. Implementation
 
-Ship in cuts per the implementation doc. Each cut:
+Ship in cuts via a GitHub **tracking issue** + N **cut sub-issues** per [`docs/adr/0015-impl-doc-artifact-retires.md`](../../docs/adr/0015-impl-doc-artifact-retires.md). The design doc's `## Cut sequence` section (see Phase 3 below) is the intent; GitHub sub-issue close-state is the operational state.
 
-- Is independently rollback-able (per [team-preferences rule 17](team-preferences.md))
-- Has explicit SOLID checks (per [team-preferences rule 18](team-preferences.md))
-- Updates the status table on completion
-- Includes tests + docs + plan update
+**Issue-filing flow** (after the design doc is on main):
+1. Maintainer asks (in Claude Code): "open cuts for `design-{feature}.md`."
+2. Claude reads the design doc's `## Cut sequence` table.
+3. For each row, Claude renders a cut sub-issue body (just-markdown shape — see [`design-feature-bot.md`](design-feature-bot.md) Q2) with `**Feature**:` + `**Depends on**:` front-matter, `## Spec`, `## Acceptance` sections.
+4. Claude opens N cut sub-issues (labeled `enhancement` + `ready-for-agent` + `area: X`) + one tracking issue (labeled `enhancement` + `area: X` — NO `ready-for-agent`, so feature-bot ignores it) whose body is a tasklist of the sub-issues.
+5. Tracking issue auto-closes when all sub-issues close.
 
-**Durable artifacts**: code + commit messages + status table updates.
+**Per-cut work** (whether shipped by feature-bot or maintainer-driven via Claude Code):
+- One PR per cut. The PR references the sub-issue via `Fixes #N`; merging the PR closes the sub-issue and ticks the tracking-issue tasklist.
+- Each cut is independently rollback-able (per [team-preferences rule 17](team-preferences.md)).
+- Each cut has explicit SOLID checks (per [team-preferences rule 18](team-preferences.md)).
+- Tests + docs land in the same PR as the cut.
+
+**Feature-bot's role**: feature-bot picks the next unblocked cut sub-issue (oldest-first among those whose `**Depends on**:` refs are all closed) and ships one PR per cut. See [`design-feature-bot.md`](design-feature-bot.md) for the full bot contract.
+
+**At ship time** (final cut merges):
+- "Deferred items" + "Lessons learned" land in `design-{feature}.md` (the durable artifact) — these previously lived in the implementation doc.
+- Cut-by-cut detail stays as git-log history (recoverable via `git log --grep="<feature-tag>"`).
+- The tracking issue closes; the design doc's Cut sequence section becomes the documentary record of "how this feature was decomposed and why."
+
+**Durable artifacts**: code + commit messages + closed sub-issues + closed tracking issue + design-doc updates (Deferred items, Lessons learned).
 
 ### 5. Retrospective
 
@@ -170,6 +178,7 @@ Rules:
 - **Always recommend** — never ask "what do you think?" without a position
 - **Reasoning is mandatory** — not just "I prefer B" but "B because..."
 - **Capture as you go** — when a term is resolved, update CONTEXT.md inline; when a decision is made, capture in the design doc
+- **End with a Q-final on Cut sequence** — every design pass concludes with the cut-sequence Q: "what's the ordering, what depends on what, what's the test tier per cut, what's the risk gradient?" Output is the design doc's `## Cut sequence` section per [`docs/adr/0015-impl-doc-artifact-retires.md`](../../docs/adr/0015-impl-doc-artifact-retires.md): five-column markdown table (`#, What, Depends on, Test tier, Risk`), **no status column** (state lives in GitHub sub-issue close-state). Generating cuts ad-hoc at filing time skips the grilling rigor; locking them in the design doc makes the decomposition a design decision, not an implementation guess.
 
 The skill that codifies this: `grill-me` and `grill-with-docs` in `~/.claude/skills/`.
 
@@ -188,7 +197,7 @@ ADRs are warranted only when ALL three are true:
 
 The skill's `ADR-FORMAT.md` lists what qualifies in concrete terms (architectural shape, technology lock-in, boundary decisions, deliberate deviations from the obvious path, constraints not visible in code, rejected alternatives where the rejection is non-obvious). Refer to it when deciding.
 
-Most decisions don't pass this bar. The design doc carries the rationale; ADRs are the durable backstop for the load-bearing few.
+Most decisions don't pass this bar. The design doc carries the rationale; ADRs are the durable backstop for the load-bearing few. Example: [`docs/adr/0015-impl-doc-artifact-retires.md`](../../docs/adr/0015-impl-doc-artifact-retires.md) — the artifact-shape decision retiring `design-{feature}-implementation.md` in favor of GitHub tracking-issue + cut-sub-issues. Passes all three criteria: hard to reverse (migrating sub-issues back to markdown tables has bounded but real cost), surprising without context (future readers wonder why the impl-doc artifact disappeared), real trade-off (alternatives walked: impl-doc walker, hybrid, any-open-issue).
 
 **Legacy:** `design-decisions.md` (18 entries) predates this two-tier model. Treat it like the `-plan.md` predecessors — lazy migration when a relevant feature is next touched: entries either move to that feature's "Distinctive choices" section or get promoted to ADRs. No new entries land in `design-decisions.md`.
 
@@ -257,41 +266,31 @@ Every GitHub issue (bug or enhancement) is classified into a ROADMAP bucket at f
 
 Unclassified issues are a bug in the process. The retroactive sweep that established this discipline is documented in ROADMAP.md; going forward, every new issue's body should reference its bucket.
 
-## Lifecycle of an implementation doc
+## Migration of legacy implementation docs
 
-`design-{feature}-implementation.md` is a working document. It carries cut-by-cut detail, status, file lists, and per-cut SOLID notes — useful while the feature is being built, noise once it ships.
+The `design-{feature}-implementation.md` artifact type is **retired** per [`docs/adr/0015-impl-doc-artifact-retires.md`](../../docs/adr/0015-impl-doc-artifact-retires.md). New features do not produce one; cut tracking lives in GitHub (tracking issue + cut sub-issues) and the design doc's `## Cut sequence` section is the durable intent.
 
-**Trigger**: the same commit that ships the last cut also prunes the doc. The ship is the prune. No "we'll clean it up later" — that doesn't happen.
+**Existing impl docs** in `.claude/rules/design-*-implementation.md` migrate **maintainer-driven** via Claude Code chat — there is no flag day, and feature-bot does not auto-migrate them (per [`design-feature-bot.md`](design-feature-bot.md) Q8). Un-migrated impl docs are invisible to feature-bot's queue.
 
-**What the prune removes:**
-- Cut-by-cut status table (git log is the source of truth for cut history)
-- Per-cut scope sections (files added, tests written, risk notes)
-- Foundation grilling notes that have been absorbed into the design doc
-- Any "in progress" or "pending" annotations
+**Per-feature migration recipe** (run when the feature is next touched):
+1. Maintainer asks (in Claude Code): "migrate `design-{feature}-implementation.md` to tracking + sub-issues."
+2. Claude reads the impl doc; for each `☐ pending` cut row, generates a cut sub-issue body in just-markdown shape (per [`design-feature-bot.md`](design-feature-bot.md) Q2). Cuts already `✓ shipped` stay as git-log history and do NOT become sub-issues.
+3. Claude opens the tracking issue (whose body is a tasklist of the new sub-issues) and the N cut sub-issues via `gh issue create`.
+4. Maintainer absorbs the impl doc's "Deferred items" + "Lessons learned" sections into `design-{feature}.md`, then deletes the impl doc (or replaces its content with a header pointing at the tracking issue, depending on review preference).
+5. Maintainer adds (or refines) the `## Cut sequence` section in `design-{feature}.md` so the durable intent matches the filed sub-issues.
 
-**What the prune keeps:**
-- A header line: "{Feature} v1 shipped {date}; see [`design-{feature}.md`](design-{feature}.md) for the durable design."
-- **Deferred items** — what was scoped out of this version, with triggers to revisit. This survives because v1.5/v2 planning needs it.
-- **Lessons learned** — non-obvious things the implementation surfaced that the design doc didn't predict. Survives so the next feature design pass can avoid the same surprises.
-- **Open implementation questions** that are still open after ship (rare; usually they're answered or moved to deferred).
+**Lifecycle of cut state after migration**:
+- Active feature → tracking issue open + some sub-issues open. Design doc carries the Cut sequence intent.
+- Feature ships → all sub-issues close → tracking issue auto-closes. Design doc absorbs "Deferred items" + "Lessons learned." Git log carries per-cut history.
+- No "implementation doc" exists at any phase — the artifact type is gone.
 
-**Why prune at ship time, not later:**
-
-| Option | Why we don't do it |
-|---|---|
-| Leave doc as historical record | Implementation docs accumulate; `grep design-*.md` returns shipped detail mixed with active design. The signal-to-noise ratio decays. |
-| Move to `archive/` folder | Adds a navigation step ("is this active or archived?") for every doc in the design corpus. Not worth it for a small repo. |
-| Defer cleanup to a follow-up | Doesn't happen. The shipping commit is the only moment when the author has the full context to do this well. |
-
-**The design doc (`design-{feature}.md`) is not pruned.** It carries the durable model, distinctive choices, and rationale for the shipped feature. Future readers go there to understand what the feature is and why; they go to git log to understand how it was built cut-by-cut.
-
-**Example**: when media v1 fully ships, `design-media-implementation.md` will be pruned to ~30 lines: a header pointing at `design-media.md`, the existing "out of v1" deferred-items table, the "adjacent capabilities reserved for v1.5/v2" section, and a small lessons-learned section. The 11-row status table, the foundation grilling notes, and the per-cut detail all go away — they're recoverable from git log against the `media-v1-slice` branch.
+**Why not auto-migrate**: parsing markdown tables to decide which cuts are still relevant requires maintainer judgment (some rows may be stale; some need re-scoping; some are dead). Bot-generated migration would skip that review step. Maintainer-driven keeps migration honest and bounded.
 
 ## Versioning a design doc
 
 `design-{feature}.md` describes the version that's currently shipped or being built. When a successor version is designed:
 
-- **Extension (v1.5 adds capabilities to v1)**: edit `design-{feature}.md` in place. Items from "Future directions" rotate up into committed scope; the design doc absorbs the new capabilities. The implementation doc for the v1.5 work is a fresh `design-{feature}-implementation.md` (the v1 one was pruned at v1 ship time).
+- **Extension (v1.5 adds capabilities to v1)**: edit `design-{feature}.md` in place. Items from "Future directions" rotate up into committed scope; the design doc absorbs the new capabilities. The v1.5 work gets its own tracking issue + cut sub-issues (no separate implementation doc).
 - **Supersession (v2 diverges meaningfully from v1)**: fork the doc. Rename the v1 design to `design-{feature}-v1.md` with a header pointing at the new `design-{feature}.md`. The new file describes v2 from a clean slate. Rare — most version bumps are extensions.
 
 The choice between extension and supersession is a judgment call made when v2 grilling starts, not predicated on a rule. If you're not sure, default to extension — superseded docs are noise unless v1 and v2 genuinely tell different stories.
@@ -302,8 +301,9 @@ The full picture:
 
 | Work kind | Durable artifact |
 |---|---|
-| Feature design | `.claude/rules/design-{feature}.md` + `-implementation.md` |
-| Reference doc (one-time decision with ongoing operator/author concerns) | `.claude/rules/design-{feature}.md` (no `-implementation.md`; companion to the ADR; `design-config.md` is the canonical example) |
+| Feature design | `.claude/rules/design-{feature}.md` (includes `## Cut sequence` section; absorbs Deferred items + Lessons learned at ship time) |
+| Cut sub-issue (GitHub issue body) | One GitHub issue per cut (labeled `enhancement` + `ready-for-agent` + `area: X`), referenced by a per-feature tracking issue. Closes when the implementing PR merges. See [`docs/adr/0015-impl-doc-artifact-retires.md`](../../docs/adr/0015-impl-doc-artifact-retires.md). |
+| Reference doc (one-time decision with ongoing operator/author concerns) | `.claude/rules/design-{feature}.md` (companion to the ADR; `design-config.md` is the canonical example) |
 | Architecture decision (load-bearing) | `docs/adr/NNNN-slug.md` |
 | Domain language (terms, vocabulary) | `CONTEXT.md` + ADRs for load-bearing splits |
 | External research / audit | `docs/audits/{topic}.md` |
@@ -311,13 +311,15 @@ The full picture:
 | Strategic non-goal | `docs/non-goals.md` |
 | Validated lesson / feedback | `team-preferences.md` (numbered rule) |
 | Process convention | `feature-design-process.md` (this file) |
-| Implementation work | code + commit messages + design-impl status update |
+| Implementation work | code + commit messages + closed cut sub-issue |
 | Refactor / TODO | GitHub issue with full body, not a doc |
 | Hygiene / one-off ops | commit message |
 
 When a piece of work doesn't fit one of these, ask which kind it actually is. Usually it's masquerading as a different kind.
 
 ## Example: how the validation feature was designed
+
+> Historical example — produced under the pre-ADR-0015 model where cut sequencing lived in a separate `design-{feature}-implementation.md`. Under the current model, the 6-cut sequence below would live in a `## Cut sequence` section of `design-validation.md` itself, and cuts would be filed as GitHub tracking issue + sub-issues.
 
 Reference flow that produced [`design-validation.md`](design-validation.md) + [`design-validation-implementation.md`](design-validation-implementation.md):
 
@@ -340,6 +342,8 @@ Reference flow that produced [`design-validation.md`](design-validation.md) + [`
 The whole thing was pickup-able cold by a new session because the durable artifacts captured both **what** and **why**.
 
 ## Example: how the AI alt-text feature was implemented
+
+> Historical example — produced under the pre-ADR-0015 model. Under the current model, the 9-cut sequence below would live in `design-ai.md`'s `## Cut sequence` section, and per-cut work would be tracked as GitHub sub-issues rather than a status table.
 
 Reference flow that produced [`design-ai.md`](design-ai.md) + [`design-ai-implementation.md`](design-ai-implementation.md) + 9 commits of code:
 
