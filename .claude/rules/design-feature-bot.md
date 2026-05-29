@@ -2,7 +2,7 @@
 
 Autonomous bot that implements feature cuts following the project's design pass. Reads cut sub-issues from GitHub; ships one PR per cut.
 
-**Status**: design pass in progress (2026-05-30). Q1 + Q2 locked; Q3-Q8 open. Implementation deferred until grilling completes.
+**Status**: design pass in progress (2026-05-30). Q1 + Q2 + Q3 locked; Q4-Q8 open. Implementation deferred until grilling completes.
 
 **Companion docs**:
 - [`.claude/rules/feature-design-process.md`](feature-design-process.md) — the design+implementation phases this bot operates within. **This bot's existence changes Phase 4 ("Implementation") materially — see "Process changes" below.**
@@ -122,6 +122,44 @@ Everything else (`## Spec`, `## Acceptance`) is passed to Agent A as prose conte
 
 **Mechanical cross-check loss vs F**: reviewer can't compare "files Agent A touched" to "files listed in YAML" because no YAML lists them. Mitigation: the cross-check was theater — the real test is rule 31's "revert the fix and the failing test still fails," which Agent B's reviewer loop runs regardless.
 
+### Q3 — Dependency mechanism: regex-parse `**Depends on**:` with cron-tick validation
+
+**Decision**: Cut sub-issue body declares its dependencies via a one-line front-matter field:
+
+```markdown
+**Feature**: redirect-ui
+**Depends on**: #501, #502
+```
+
+Bot's TS orchestrator parses one regex per cut:
+
+```ts
+const dependsOnLine = body.match(/^\*\*Depends on\*\*:\s*(.+)$/m)?.[1] ?? ''
+const depNumbers = [...dependsOnLine.matchAll(/#(\d+)/g)].map(m => Number(m[1]))
+```
+
+Tolerates `#501, #502` / `#501 #502` / `none` / empty / missing line. No deps → cut is immediately eligible.
+
+**Validation at cron-tick (loud-fail on bad refs)**: each referenced number must be an open or closed `feature-cut` issue. On mismatch (mistyped number, non-cut issue, self-reference) the bot posts a "your sub-issue references an invalid dependency #N — check the depends-on line" comment + skips the cut. Same loud-failure pattern as fix-bot's existing input validation.
+
+**Why** (over alternatives walked):
+1. **Single source of truth.** Sub-issue body declares everything about the cut, including its position in the dependency graph. No second axis (labels, Projects, sub-issue parent/child) to keep in sync.
+2. **Matches Q2's "just markdown" lock.** Dependency syntax IS markdown text; no schema, no special field.
+3. **Edits natural.** Remove a dep = edit the body. Same path the maintainer already uses.
+4. **Parallelizable.** Cuts with empty `Depends on` compete for bot attention; cuts with deps wait. Solves the serial-order limitation tasklist-ordering would impose.
+5. **Loud-fail at cron-tick** beats silent-wait-forever on a mistyped number. Catches errors before Claude burns context.
+
+**Rejected alternatives** (preserved):
+
+| Alternative | Why rejected |
+|---|---|
+| **B. GitHub sub-issue parent/child API** | Sub-issue API has one parent-child axis only; doesn't model sibling cut→cut deps. Platform doesn't support it. |
+| **C. Tracking-issue tasklist order = serial dependency** | Loses parallelizability; real impl docs have parallel cut paths (e.g., design-hooks Cuts 4/5/6 against unrelated handlers); forced serial wastes bot time. |
+| **D. GitHub `Fixes`/`Closes` cross-reference syntax** | Effectively the same as A but with GitHub's bidirectional informational link decoration; doesn't gate anything; no functional difference. |
+| **E. Label-per-dependency (`blocked-by:#501`)** | Label-namespace pollution (300+ labels at scale); no native "remove label X when issue Y closes" automation; would need a webhook or daily reconciliation pass. |
+| **F. GitHub Projects v2 custom field** | Introduces Projects v2 dependency (`has_projects: false` in this repo); Projects v2 cards aren't tied to issue close-state the way the bot needs; over-engineered. |
+| **A2 (tolerate bad refs)** | Silent-wait-forever on mistyped number; bot's job is structural correctness, malformed input should fail loud before Claude is invoked. |
+
 ## Design (high level, pending Q2)
 
 ### Bot pipeline
@@ -204,12 +242,11 @@ This bot operates on issues and PRs; doesn't write to the data layer. Most found
 
 ## Open questions
 
-1. **Q3 — dependency mechanism**: chosen shape is `**Depends on**: #501, #502` parsed by regex from sub-issue body. Open variant: also use GitHub's native sub-issue parent/child relationship (verified available in this repo) as a redundant signal? Or treat tracking-issue tasklist order as implicit dependency? Pending grilling.
-2. **Q4 — cut ordering when multiple are unblocked**: oldest-first? Risk-first (low → high)? Maintainer-prioritizable via label or tracking-issue tasklist order? Pending.
-3. **Q5 — Agent A's prompt access to design doc**: does Agent A get the full design-{feature}.md as context, or just the cut sub-issue's spec narrative? Trade-off between context completeness and context burn.
-4. **Q6 — what happens when Agent A's tests for a cut depend on infrastructure from an unshipped earlier cut**: hard error (the dep is missing → spec is wrong → close cut with reason) vs. soft (skip + comment)? Pending.
-5. **Q7 — escalation taxonomy**: same `escalateToHuman` shape as fix-bot? New reason codes for cut-specific failure modes (e.g., `cut-spec-too-vague`, `cut-files-conflict-with-other-cut`)?
-6. **Q8 — interaction with existing impl-docs during migration**: bot tries to work an impl doc that hasn't been migrated yet — graceful skip vs. force migration? Likely "ignore non-issue impl docs; bot only sees sub-issues."
+1. **Q4 — cut ordering when multiple are unblocked**: oldest-first? Risk-first (low → high)? Maintainer-prioritizable via label or tracking-issue tasklist order? Pending.
+2. **Q5 — Agent A's prompt access to design doc**: does Agent A get the full design-{feature}.md as context, or just the cut sub-issue's spec narrative? Trade-off between context completeness and context burn.
+3. **Q6 — what happens when Agent A's tests for a cut depend on infrastructure from an unshipped earlier cut**: hard error (the dep is missing → spec is wrong → close cut with reason) vs. soft (skip + comment)? Pending.
+4. **Q7 — escalation taxonomy**: same `escalateToHuman` shape as fix-bot? New reason codes for cut-specific failure modes (e.g., `cut-spec-too-vague`, `cut-files-conflict-with-other-cut`)?
+5. **Q8 — interaction with existing impl-docs during migration**: bot tries to work an impl doc that hasn't been migrated yet — graceful skip vs. force migration? Likely "ignore non-issue impl docs; bot only sees sub-issues."
 
 ## ADR candidacy
 
