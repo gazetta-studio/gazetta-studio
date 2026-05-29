@@ -2,7 +2,7 @@
 
 Autonomous bot that implements feature cuts following the project's design pass. Reads cut sub-issues from GitHub; ships one PR per cut.
 
-**Status**: design pass in progress (2026-05-30). Q1-Q5 locked; Q6-Q8 open. Implementation deferred until grilling completes.
+**Status**: design pass in progress (2026-05-30). Q1-Q6 locked; Q7-Q8 open. Implementation deferred until grilling completes.
 
 **Companion docs**:
 - [`.claude/rules/feature-design-process.md`](feature-design-process.md) — the design+implementation phases this bot operates within. **This bot's existence changes Phase 4 ("Implementation") materially — see "Process changes" below.**
@@ -240,6 +240,69 @@ Locked decisions are NOT negotiable — implement to match them.
 | **C. Sub-issue body + targeted excerpt of design doc** | Extraction logic is bot infrastructure that drifts with design-doc convention changes; brittle |
 | **D. Sub-issue body + first N lines of design doc** | N is arbitrary; some design docs have key locks beyond any fixed truncation; same drift risk as C |
 
+### Q6 — Escalation taxonomy: three-tier (APPROVE / NEEDS_INPUT / NEEDS_HUMAN), reuse existing labels
+
+**Decision**: Agent A has three terminal states. Two existing labels carry the bot ecosystem's semantics; no new labels needed.
+
+| Tier | Trigger | Action | Label applied | Cron-time effect |
+|---|---|---|---|---|
+| **APPROVE** | implementation done; Agent B approved | open PR | (none on sub-issue; PR opens) | sub-issue closes when PR merges |
+| **NEEDS_INPUT** | design decision required to proceed | post structured Q + recommendation; reset working tree | `needs-info` (reused) | bot excludes via existing `--no-label needs-info` filter |
+| **NEEDS_HUMAN** | stuck — cannot proceed even with input; or MAX_INPUT_REQUESTS exceeded | close sub-issue; skip-list entry (via PR); `escalateToHuman` comment | `ready-for-human` (existing fix-bot pattern) | sub-issue closed; bot excludes via existing filters |
+
+**`needs-info` semantic widening**: the label currently means "need information to proceed; bot must exclude from queue." Existing usage is reporter-info (triage-bot's "could not reproduce" cases). Widening: include maintainer-decision cases (feature-bot's NEEDS_INPUT). The comment thread carries specifics; the label gates the queue uniformly.
+
+`bots/README.md` clarification (one-line edit, lands with feature-bot Cut 1):
+
+```
+needs-info  →  bot must exclude from queue; requires additional information
+              to proceed. May be: info from the issue reporter (triage-bot's
+              "could not reproduce") OR a design decision from the maintainer
+              (feature-bot's NEEDS_INPUT escalation). Comment thread carries
+              specifics; remove the label to re-trigger bot processing.
+```
+
+**NEEDS_INPUT structured-question format** (Agent A's final block):
+
+```
+NEEDS_INPUT: <one-line question>
+Options:
+  - <option 1 with reasoning>
+  - <option 2 with reasoning>
+  - <option 3 if applicable>
+Recommendation: <option N because ...>
+```
+
+Orchestrator posts this verbatim as a sub-issue comment with outcome tag `<!-- feature-bot: needs-input issue=N run=R -->`, applies `needs-info` label, resets working tree, moves on to next candidate.
+
+Maintainer recovery:
+- Read the comment, decide.
+- Reply with the answer (or just remove the `needs-info` label).
+- Next cron picks up the sub-issue; Agent A re-runs with the comment thread in context.
+
+**MAX_INPUT_REQUESTS=2 per cut**: after two NEEDS_INPUT cycles on the same cut (counted via outcome-tag query on prior bot comments), the orchestrator escalates to NEEDS_HUMAN instead. Prevents bot-loop of repeated questions.
+
+**Why reuse `needs-info` over inventing `awaiting-input`** (10 POVs walked):
+
+1. **Bot ecosystem consistency** — `needs-info` is already in fix-bot's exclusion filter at `bots/_lib/github.ts:98`. Free queue-filtering; no cross-bot coordination.
+2. **Existing semantics already maintainer-side** — `needs-info`'s docstring says "applied by maintainer" without specifying who supplies info. Widening is a 5-word edit.
+3. **Zero current usage** — verified no issues currently carry `needs-info` (`gh issue list --label needs-info` returned empty). Widening doesn't conflict with prior data.
+4. **Rule 38 symmetric audit** — when fix-bot wants NEEDS_INPUT later, it inherits the same label and pattern. Cargo-cult discipline.
+5. **Cold-pickup developer** — one concept ("info needed to proceed") rather than two near-synonyms.
+6. **Outcome tags already provide forensic filtering** — `gh issue list --search "feature-bot: needs-input"` cleanly answers the "which cuts blocked on me?" question without a separate label.
+
+**Rejected alternatives** (preserved):
+
+| Alternative | Why rejected |
+|---|---|
+| **A1. Hard-error only (close sub-issue on any blocking question)** | Misclassifies "I need a decision" as "this cut is broken"; closes legitimate cuts; high friction to reopen |
+| **A2. Invent `awaiting-input` label** | Two near-synonyms; cross-bot coordination cost; pressure to invent more parallel labels for future cases (Agent B input, prereq-missing input, etc.) |
+| **A3. Overload `ready-for-human`** | Loses the "stuck, give up" vs. "waiting on decision" distinction; existing fix-bot semantics break |
+| **A4. Comment-only, no label** | Bot's cron-time query still picks up the sub-issue; bot re-asks same question; loops |
+| **A5. Open separate "design question" cross-linked issue** | Fragmentation; discoverability ↓; maintainer juggles 2 issues per question |
+
+**Missing-prereq case** (Agent A discovers required infrastructure isn't in the codebase even though `Depends on` refs are closed): this is NEEDS_HUMAN, not NEEDS_INPUT. The cut spec or prior-cut PR is wrong; reopening requires reconciliation, not a decision. Close + skip-list + `ready-for-human`.
+
 ## Design (high level, pending Q2)
 
 ### Bot pipeline
@@ -322,9 +385,8 @@ This bot operates on issues and PRs; doesn't write to the data layer. Most found
 
 ## Open questions
 
-1. **Q6 — what happens when Agent A's tests for a cut depend on infrastructure from an unshipped earlier cut**: hard error (the dep is missing → spec is wrong → close cut with reason) vs. soft (skip + comment)? Pending.
-2. **Q7 — escalation taxonomy**: same `escalateToHuman` shape as fix-bot? New reason codes for cut-specific failure modes (e.g., `cut-spec-too-vague`, `cut-files-conflict-with-other-cut`)?
-3. **Q8 — interaction with existing impl-docs during migration**: bot tries to work an impl doc that hasn't been migrated yet — graceful skip vs. force migration? Likely "ignore non-issue impl docs; bot only sees sub-issues."
+1. **Q7 — escalation taxonomy details**: Q6 locked the three tiers. Open detail: do we add new skip-list `reason` codes (`missing-prereq`, `spec-too-vague`, `input-cycles-exceeded`, `files-conflict-with-other-cut`) beyond fix-bot's existing taxonomy (`needs-human` / `maintainer-rejected` / `tautological-test` / `wrong-root-cause`)? Pending.
+2. **Q8 — interaction with existing impl-docs during migration**: bot tries to work an impl doc that hasn't been migrated yet — graceful skip vs. force migration? Likely "ignore non-issue impl docs; bot only sees sub-issues."
 
 ## ADR candidacy
 
