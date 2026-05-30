@@ -69,7 +69,7 @@ export function buildAssetUrl(input: BuildAssetUrlInput): string {
  * helper is just a prefix composer — keeps siteUrl normalization in
  * one place.
  */
-export function buildVariantUrl(variantPath: string, siteUrl?: string): string {
+function buildVariantUrl(variantPath: string, siteUrl?: string): string {
   const path = `${ASSETS_URL_PREFIX}/${variantPath}`
   if (!siteUrl) return path
   const base = siteUrl.endsWith('/') ? siteUrl.slice(0, -1) : siteUrl
