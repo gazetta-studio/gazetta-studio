@@ -89,13 +89,27 @@ describe('extractSummary', () => {
     )
   })
 
-  it('stops at the first blank-line boundary inside the SUMMARY block', () => {
-    // Prevents trailing chatter ("Now I will...") from being included
-    // when the agent keeps talking after the marker.
+  it('captures the full block including subsections separated by blank lines', () => {
+    // Per PR #456 fix: the SUMMARY block carries subsections (e.g.
+    // `Runtime exercise:`) separated from the lead prose by blank lines.
+    // The whole block must reach the PR body so the maintainer sees
+    // the per-path proof, not just the prose intro.
     const path = writeJsonl([
-      assistant('SUMMARY:\nRemoved foo.ts; no callers.\n\nNow I will run the tests and commit.'),
+      assistant('SUMMARY:\nRemoved foo.ts; no callers.\n\nRuntime exercise:\nBullet 1, happy path: input=X, output=Y'),
     ])
-    expect(extractSummary(path)).toBe('Removed foo.ts; no callers.')
+    expect(extractSummary(path)).toBe(
+      'Removed foo.ts; no callers.\n\nRuntime exercise:\nBullet 1, happy path: input=X, output=Y',
+    )
+  })
+
+  it('extracts SUMMARY when it appears mid-message followed by other content', () => {
+    // The SUMMARY marker can sit inside a longer assistant message.
+    // We capture from the marker to the end of THAT message — trailing
+    // narration after the marker is intentional content (e.g., subsections).
+    const path = writeJsonl([
+      assistant('Working on it.\n\nSUMMARY:\nThe cut shipped clean.\n\nRuntime exercise:\nAll 4 paths passed.'),
+    ])
+    expect(extractSummary(path)).toBe('The cut shipped clean.\n\nRuntime exercise:\nAll 4 paths passed.')
   })
 
   it('returns empty string when no assistant text exists', () => {

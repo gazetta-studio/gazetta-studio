@@ -56,25 +56,37 @@ export function extractLastAssistantText(transcriptPath: string): string {
  *   SUMMARY:
  *   <2-4 sentences describing the change>
  *
- * We walk every assistant `text` block (newest first) and return the
- * content after the LAST `SUMMARY:` marker. Falls back to the final
- * assistant message when no marker is present — keeps the bot working
- * against older transcripts and against responses that miss the
- * convention (which still happens occasionally in practice).
+ *   Runtime exercise:
+ *   <per-bullet, per-path input + actual output>
+ *
+ * We walk every assistant `text` block (newest first) and return all
+ * content after the LAST `SUMMARY:` marker — including subsections
+ * like `Runtime exercise:` that are separated from the lead prose by
+ * blank lines. Falls back to the final assistant message when no
+ * marker is present — keeps the bot working against older transcripts
+ * and against responses that miss the convention (which still happens
+ * occasionally in practice).
  *
  * History: the dead-code-watcher v2 run on 2026-05-14 (PR #376) showed
- * why this matters. Agent A's last text block was "Committed locally
- * on ... not pushing per generator-critic instructions" — agent
- * narrating its own protocol. The substantive summary was in an
- * EARLIER block, so the PR body led with protocol verbiage instead
- * of the change description. The SUMMARY: marker fixes the positional
- * ambiguity.
+ * why the marker matters — Agent A's last text block was protocol
+ * narration ("Committed locally..."), so the substantive summary in
+ * an earlier block was lost. The feature-bot run on 2026-05-30
+ * (PR #456) showed why we need the WHOLE block, not just the lead
+ * paragraph: Agent A's `Runtime exercise:` subsection — the proof
+ * that the cut works on every path — was truncated because the
+ * regex stopped at the first blank line.
  */
 export function extractSummary(transcriptPath: string): string {
   const all = collectAssistantTexts(transcriptPath)
   for (let i = all.length - 1; i >= 0; i--) {
-    const match = all[i].match(/SUMMARY:\s*\n?([\s\S]*?)(?:\n\n|\n*$)/i)
-    if (match?.[1]?.trim()) return match[1].trim()
+    const text = all[i]
+    const idx = text.search(/SUMMARY:\s*\n?/i)
+    if (idx === -1) continue
+    const afterMarker = text
+      .slice(idx)
+      .replace(/^SUMMARY:\s*\n?/i, '')
+      .trim()
+    if (afterMarker) return afterMarker
   }
   return all.at(-1) ?? ''
 }
