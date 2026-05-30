@@ -21,6 +21,17 @@
       "reasonNote": "Forward-compat scaffolding for the Cache foundation's `CacheError` taxonomy. design-cache.md Gap 5 defines the base class + `CacheConfigurationError` + `CacheSchemaError` with explicit reasoning ('Throws reserved for unrecoverable infrastructure errors per Universal Provider Requirement #6') and invites plugin authors writing v2 providers (Redis, Azure) to extend the base class. design-cache-implementation.md Cut 8 ships the types pre-Path-X-Phase-3 and lists the pending consumer wiring as 'throw `CacheConfigurationError` on bad config' in memory.ts. The file's own JSDoc states 'Two leaf classes today; more land as v2 providers ship and surface their own failure modes'. Deleting now would force re-creation when Cut 8's wiring lands and would force plugin providers to roll their own error hierarchy.",
       "addedAt": "2026-05-23T00:00:00Z",
       "addedBy": "bot"
+    },
+    {
+      "fingerprint": {
+        "kind": "export",
+        "path": "packages/gazetta/src/assets/preprocess.ts",
+        "symbol": "defaultPreprocessors"
+      },
+      "reason": "planned-feature",
+      "reasonNote": "OCP extension seam for the upload-preprocessor registry. The file's top-of-module JSDoc explicitly enumerates planned future preprocessors that will extend this registry: 'HEIC: transcode to JPEG (browsers can't display HEIC) — future', 'Animated GIF: extract first frame as poster, set `animated` manifest flag — future', 'JPEG with EXIF: apply orientation, strip personal metadata — future'. The export pairs with `runPreprocessors`'s default-parameter pattern (line 111: `preprocessors: readonly UploadPreprocessor[] = defaultPreprocessors`) — that pattern only makes sense as a named exported registry callers can compose against via `[...defaultPreprocessors, customPreprocessor]`. Two consumers (ingest.ts:100, ingest-locale.ts:90) document the `preprocessors?` input field's default behavior by referencing `defaultPreprocessors` by name in JSDoc. The file's SOLID-lenses section explicitly calls out 'OCP: adding a format = new module + register; ingest unchanged' — the registry IS the registration point. Deleting now and re-introducing when the first future preprocessor lands would force JSDoc churn at three locations + re-promotion of the const. Cost of keeping: one named const.",
+      "addedAt": "2026-05-30T06:02:04Z",
+      "addedBy": "bot"
     }
   ],
   "rules": []
