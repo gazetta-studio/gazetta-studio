@@ -11,10 +11,12 @@ import {
   AuditError,
   AuditTransportError,
   DEFAULT_AUDIT_CONFIG,
+  type AuditAction,
   type AuditConfig,
   type AuditEvent,
   type AuditQuery,
 } from '../src/audit/index.js'
+import { AuditActionSchema, AuditEventSchema } from '../src/admin-api/schemas/audit.js'
 
 describe('AuditConfigSchema (Cut 1)', () => {
   it('accepts the minimal history-provider config', () => {
@@ -149,5 +151,81 @@ describe('Type-level shape (Cut 1)', () => {
     // Compile-time check: parsed config matches the AuditConfig type.
     const cfg: AuditConfig = AuditConfigSchema.parse({ provider: 'history' })
     expect(cfg.provider).toBe('history')
+  })
+})
+
+describe('AuditAction "create-redirect" (Cut 2 of redirect-ui per design-redirect-ui.md Q7)', () => {
+  // Per design-redirect-ui.md Q7 lock — closed-enum-additive extension.
+  // Manual Redirect creation gets its own action verb (matching the
+  // soft-delete pattern of archive/unarchive/purge/rename) rather
+  // than a `metadata.manual: true` flag on `archive`. The AuditQuery
+  // closed-enum discriminator is what makes "show all manual
+  // redirects last week" forensically reliable.
+
+  it('AuditAction type union accepts "create-redirect"', () => {
+    const action: AuditAction = 'create-redirect'
+    expect(action).toBe('create-redirect')
+  })
+
+  it('AuditEvent compiles with action "create-redirect" + metadata.aliasOf', () => {
+    const event: AuditEvent = {
+      timestamp: '2026-05-14T15:00:00Z',
+      actor: { id: 'alice', role: 'editor', trustMode: 'cloudflare-access' },
+      action: 'create-redirect',
+      outcome: 'success',
+      scope: { kind: 'page', name: 'old-products' },
+      metadata: { aliasOf: 'products/featured' },
+    }
+    const round = JSON.parse(JSON.stringify(event))
+    expect(round.action).toBe('create-redirect')
+    expect(round.metadata.aliasOf).toBe('products/featured')
+  })
+
+  it('AuditEvent supports fragment-kind create-redirect with metadata.aliasOf', () => {
+    // Per Q6 lock — both pages and fragments in v1.
+    const event: AuditEvent = {
+      timestamp: '2026-05-14T15:00:00Z',
+      actor: { id: 'bob', role: 'editor', trustMode: 'cloudflare-access' },
+      action: 'create-redirect',
+      outcome: 'success',
+      scope: { kind: 'fragment', name: 'old-header' },
+      metadata: { aliasOf: 'header' },
+    }
+    expect(event.scope.kind).toBe('fragment')
+  })
+})
+
+describe('AuditActionSchema (Cut 2 of redirect-ui)', () => {
+  it('parses "create-redirect" successfully', () => {
+    const r = AuditActionSchema.safeParse('create-redirect')
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data).toBe('create-redirect')
+  })
+
+  it('AuditEventSchema parses a create-redirect event with metadata.aliasOf', () => {
+    const event = {
+      timestamp: '2026-05-14T15:00:00Z',
+      actor: { id: 'alice', role: 'editor', trustMode: 'cloudflare-access' },
+      action: 'create-redirect',
+      outcome: 'success',
+      scope: { kind: 'page', name: 'old-products' },
+      metadata: { aliasOf: 'products/featured' },
+    }
+    const r = AuditEventSchema.safeParse(event)
+    expect(r.success).toBe(true)
+    if (r.success) {
+      expect(r.data.action).toBe('create-redirect')
+      expect(r.data.metadata?.aliasOf).toBe('products/featured')
+    }
+  })
+
+  it('rejects unknown action "create-redirect-typo" (closed-enum preserved)', () => {
+    const r = AuditActionSchema.safeParse('create-redirect-typo')
+    expect(r.success).toBe(false)
+  })
+
+  it('rejects unknown action "create-alias" (closed-enum preserved)', () => {
+    const r = AuditActionSchema.safeParse('create-alias')
+    expect(r.success).toBe(false)
   })
 })
