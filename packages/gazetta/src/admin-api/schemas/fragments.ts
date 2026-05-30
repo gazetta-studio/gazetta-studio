@@ -9,7 +9,13 @@ import { z } from 'zod'
 /** Summary used in list responses (GET /api/fragments). */
 export const FragmentSummarySchema = z.object({
   name: z.string(),
-  template: z.string(),
+  /**
+   * Template name. Optional because archived fragments may omit it
+   * (per design-redirect-ui.md Q2 sub-decision A1). Live fragments
+   * always set this — the persisted-manifest refinement guarantees
+   * presence for non-archived rows.
+   */
+  template: z.string().optional(),
   locales: z.array(z.string()).optional(),
   /** Archive state per design-soft-delete.md Q1 A1. See pages schema. */
   archived: z.boolean().optional(),
@@ -33,3 +39,32 @@ export const CreateFragmentResponseSchema = z.object({
   name: z.string(),
 })
 export type CreateFragmentResponse = z.infer<typeof CreateFragmentResponseSchema>
+
+/**
+ * Persisted shape of a fragment manifest (`fragment.json`) — what's
+ * stored on disk. Distinct from `CreateFragmentRequestSchema` (the
+ * create-fragment contract), which always requires a template. Same
+ * rationale as `PageManifestSchema` (see pages.ts): `template` is
+ * conditionally optional via `.refine` so archive-only fragments —
+ * created by a rename composition (`archive + alias`) or by the
+ * manual-redirect feature (per design-redirect-ui.md Q6) — round-trip
+ * through the schema without a sentinel template value.
+ */
+export const FragmentManifestSchema = z
+  .object({
+    template: z.string().min(1).optional(),
+    content: z.record(z.string(), z.unknown()).optional(),
+    components: z.array(z.unknown()).optional(),
+    // Archive fields per design-soft-delete.md Q1 A1.
+    archived: z.boolean().optional(),
+    archivedAt: z.string().optional(),
+    archivedBy: z.string().optional(),
+    aliasOf: z.string().optional(),
+    // Forward-compat passthrough for review-workflow.
+    reviewState: z.string().optional(),
+  })
+  .refine(data => data.archived === true || typeof data.template === 'string', {
+    message: 'Live fragments require a template; archived fragments may omit it',
+    path: ['template'],
+  })
+export type FragmentManifestParsed = z.infer<typeof FragmentManifestSchema>

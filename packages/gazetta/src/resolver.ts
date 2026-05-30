@@ -151,6 +151,18 @@ async function resolveFragmentRef(fragmentName: string, ctx: ResolveContext): Pr
   // Cast: lookup callback only returns Site fragment entries which carry `dir`.
   const fragment = resolution.manifest as FragmentManifest & { dir: string }
 
+  // After `resolveFragmentArchiveAlias` the returned manifest is live
+  // (the alias chain has been followed; archived-without-alias surfaced
+  // as ArchivedNoAliasError). Template must be present at this point;
+  // defensive throw catches an invariant break before it produces a
+  // confusing template-loader error.
+  if (typeof fragment.template !== 'string') {
+    ctx.path.pop()
+    ctx.visited.delete(key)
+    throw new Error(
+      `Fragment "@${fragmentName}" resolved to a manifest with no template; this should not happen after alias resolution`,
+    )
+  }
   const loaded = await loadTemplate(ctx.site.storage, ctx.templatesDir, fragment.template)
   const children: ResolvedComponent[] = []
   if (fragment.components) {
@@ -225,6 +237,14 @@ export async function resolveFragment(
   }
   const fragment = resolution.manifest as FragmentManifest & { dir: string }
 
+  // Live fragment guaranteed by `resolveFragmentArchiveAlias` (per the
+  // same invariant as `resolveComponent`'s fragment branch above).
+  if (typeof fragment.template !== 'string') {
+    throw new Error(
+      `Fragment "${fragmentName}" resolved to a manifest with no template; this should not happen after alias resolution`,
+    )
+  }
+
   const templatesDir = site.templatesDir
   const ctx: ResolveContext = {
     site,
@@ -287,6 +307,14 @@ export async function resolvePage(
     resolvedThemes,
   }
 
+  // Archived pages (per design-soft-delete.md) are intercepted before
+  // `resolvePage` is called — the publish flow short-circuits via
+  // `isArchived(page)` and emits an archive marker instead. Reaching
+  // this point with a missing template is a structural bug; surface it
+  // loudly rather than passing `undefined` into the template loader.
+  if (typeof page.template !== 'string') {
+    throw new Error(`Page "${pageName}" has no template; archived pages should not be passed to resolvePage`)
+  }
   const loaded = await loadTemplate(site.storage, templatesDir, page.template)
   const children: ResolvedComponent[] = []
   if (page.components) {

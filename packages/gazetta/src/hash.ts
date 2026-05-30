@@ -141,9 +141,14 @@ export interface HashManifestOptions {
  * Result: 8 hex chars.
  */
 export function hashManifest(manifest: PageManifest | FragmentManifest, opts: HashManifestOptions): string {
-  const rootHash = opts.templateHashes.get(manifest.template)
+  // Archived manifests may omit `template` (per design-redirect-ui.md
+  // Q2 — schema refinement makes template conditionally optional when
+  // `archived: true`). The hash still serializes deterministically:
+  // missing template normalizes to null, same as content/components do.
+  const template = manifest.template
+  const rootHash = template !== undefined ? opts.templateHashes.get(template) : undefined
   const normalized = {
-    template: rootHash ? `${manifest.template}#${rootHash}` : manifest.template,
+    template: template !== undefined ? (rootHash ? `${template}#${rootHash}` : template) : null,
     content: manifest.content ?? null,
     components: substituteHashes(manifest.components, opts.templateHashes, opts.fragmentHashes) ?? null,
   }

@@ -113,9 +113,19 @@ export interface ArchiveFields {
   aliasOf?: string
 }
 
-/** Component manifest (base) */
+/**
+ * Component manifest (base).
+ *
+ * `template` is optional at the type level — per design-redirect-ui.md
+ * Q2 sub-decision A1, archived manifests (`archived: true`) may omit
+ * the template field. Live manifests still require it; the
+ * `PageManifestSchema` / `FragmentManifestSchema` refinements enforce
+ * this at parse time. Consumers reading `template` must guard for
+ * `undefined` when the manifest could be archived (or know via
+ * narrowing that the path runs on live items only).
+ */
 export interface ComponentManifest extends ArchiveFields {
-  template: string
+  template?: string
   content?: Record<string, unknown>
   components?: ComponentEntry[]
 }

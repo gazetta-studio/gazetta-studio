@@ -15,10 +15,7 @@
  * page creation still requires a template.
  */
 import { describe, expect, it } from 'vitest'
-import {
-  CreatePageRequestSchema,
-  PageManifestSchema,
-} from '../src/admin-api/schemas/pages.js'
+import { CreatePageRequestSchema, PageManifestSchema } from '../src/admin-api/schemas/pages.js'
 import { FragmentManifestSchema } from '../src/admin-api/schemas/fragments.js'
 
 describe('PageManifestSchema — archive-aware template requirement', () => {
