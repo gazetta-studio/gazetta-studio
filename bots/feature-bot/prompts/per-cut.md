@@ -103,7 +103,97 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
    ```
 4. Implement the cut. Verify GREEN.
 5. Run the wider test suite. Confirm no regressions.
-6. Commit:
+6. **RUNTIME EXERCISE — prove the code works on every execution path.**
+
+   After tests pass, run the code with concrete inputs that prove EACH
+   execution path the acceptance criteria imply. Most acceptance bullets
+   have more than one path: the happy path, every error / refusal /
+   rejection path, and any branching the spec describes (validation
+   modes, capability gates, conflict outcomes, etc.). Each path is its
+   own proof; one happy-path run isn't enough.
+
+   This is comprehension-grounding, not tautology-creating: declare
+   expected outputs FROM acceptance criteria BEFORE running; iterate
+   impl if observed ≠ expected.
+
+   For each acceptance bullet, enumerate the paths it implies:
+   - **Happy path** — the bullet's primary success surface
+   - **Error / rejection paths** — every error code, refusal, 4xx, or
+     "blocks when" the bullet (or its referenced spec) names
+   - **Conditional branches** — when the bullet says "if X then A else
+     B," both arms are paths
+   - **State-shape variants** — if the bullet exercises a structure
+     that varies (locale variants, archived vs. live, capability
+     present vs. absent), each variant is a path
+
+   For each path:
+   - Construct an input that exercises specifically that path
+   - Write down the EXPECTED output derived from the bullet (status
+     code, response shape, file contents, error message, audit entry,
+     whatever the bullet promises for that path)
+   - Run the code. **Use whatever runs the code** — pick the cheapest
+     shape that exercises the path:
+     - `node -e '...'` one-liner against an exported helper
+     - `node --input-type=module -e '...'` for ESM-only modules
+     - A `tmp-exercise.ts` / `tmp-exercise.mjs` script that boots
+       `createAdminApp()` and fires requests, logging responses
+     - A direct CLI invocation (`npx gazetta <command>`) for CLI cuts
+     - A shell pipeline orchestrating multiple steps
+     - Anything else that gets real bytes through the code
+     **Do NOT use vitest / unit tests as the runtime exercise.** Tests
+     are the TDD contract (committed, kept, run by CI); the runtime
+     exercise is comprehension-grounding (throwaway, never committed).
+     Mixing them defeats the anti-tautology purpose — the test you
+     would have written to "prove" the path is the same test that
+     might be tautological in the first place.
+     If you create temp files for the exercise, prefix them `tmp-` (or
+     put them under `/tmp/`) and **delete them before committing** —
+     they MUST NOT appear in the diff. The exercise output goes in
+     the `SUMMARY:` block; whatever produced it is throwaway.
+   - Capture the ACTUAL output (paste verbatim into your notes)
+   - Compare actual ≠ expected → impl is wrong on this path → iterate
+   - Compare actual = expected → path validated
+
+   A bullet is only proved when **every path it implies has its own
+   captured input + actual output**. A bullet with three error paths
+   needs at least four exercises (one happy + three error). A bullet
+   with no errors and no branches may be one exercise.
+
+   **Use the exercise to discover edge cases the spec didn't enumerate.**
+   While exercising the cut, probe boundaries the acceptance bullets
+   don't mention explicitly. Common edge cases worth a try:
+   - Empty / null / undefined inputs
+   - Boundary values (0, max, off-by-one)
+   - Unicode / encoding edge cases
+   - Concurrent / race conditions (when multi-instance discipline applies)
+   - Locale variants (when `design-i18n.md` applies)
+   - Theme variants (when `design-themes.md` applies)
+   - Every error path the acceptance criteria implies (one input per
+     error code)
+
+   For each edge case the exercise surfaces:
+   - **Spec-addressed + test-covered**: nothing to do; the exercise just
+     confirms behavior matches the existing test.
+   - **Spec-silent + behavior obvious + low-risk**: add a test for it
+     (this strengthens the test suite without dragging in spec
+     ambiguity).
+   - **Spec-silent + behavior uncertain OR contradicts another rule**:
+     emit `NEEDS_INPUT` per Q6 lock, citing the discovered edge case.
+     Don't guess; ask.
+
+   **Capture the exercise output in your `SUMMARY:` block** under a
+   `Runtime exercise:` heading. Show each acceptance bullet, then each
+   path of that bullet with its input + actual output. Use brief prose;
+   the orchestrator surfaces this in the PR body for maintainer review.
+
+7. **Refine your tests** if the exercise surfaced edge cases worth
+   covering. Tests-first (per rule 31) pinned the acceptance contract;
+   tests added after the exercise pin the edge cases the spec didn't
+   enumerate. Amend the test commit (`git commit --amend`) to include
+   the new test cases — keep them in the failing-test commit so the
+   TDD-first ordering is preserved.
+
+8. Commit:
    ```bash
    git add <impl files>
    git commit -m "feat(<area>): cut #$ISSUE_NUMBER — <short summary>
@@ -114,13 +204,19 @@ Closes #$ISSUE_NUMBER
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
    ```
-7. End with a `SUMMARY:` block as your last output:
+9. End with a `SUMMARY:` block as your last output:
 
    ```
    SUMMARY:
    <2-4 sentences: what the cut delivered, how the failing test pins it,
    which design-doc locked decisions it implements. Plain prose; no
    headings, no bullets, no code blocks inside the summary.>
+
+   Runtime exercise:
+   <For each acceptance bullet, list each execution path it implies
+   (happy + every error / branch / variant) with the input you ran and
+   the actual output. Keep it under ~50 lines total. The orchestrator
+   includes this in the PR body for maintainer review.>
    ```
 
 The orchestrator extracts `SUMMARY:` and puts it in the PR body.

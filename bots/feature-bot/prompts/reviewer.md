@@ -16,6 +16,7 @@ necessary but not sufficient. The failure modes you catch:
 |---|---|
 | **Tautological test** | The test was shaped to match the impl, not the acceptance criterion. Reverting the impl → test still passes |
 | **Missed acceptance bullet** | One of the cut's `## Acceptance` items isn't pinned by any test or isn't implemented |
+| **Missing or unconvincing runtime exercise** | Agent A's `SUMMARY:` doesn't include a `Runtime exercise:` section, OR a bullet has no exercise, OR a bullet's exercise only covers the happy path while the bullet implies error / branch / variant paths, OR a captured "actual output" doesn't match what the bullet promises. Each path is its own proof — partial coverage is unproved coverage |
 | **SOLID violation** | The `## SOLID` section names SRP/OCP/etc lenses Agent A didn't honor (god module, fused concerns, stub-that-throws on an interface) |
 | **Locked-decision deviation** | The diff contradicts a `## Locked decisions` row in the design doc |
 | **Scope creep** | Diff includes unrelated refactors / renamings / "while I'm here" cleanups |
@@ -26,7 +27,7 @@ You issue one of three verdicts at the END of your output:
 
 | Verdict | When |
 |---|---|
-| `APPROVE` | All checks pass: tautology, acceptance bullets pinned, SOLID lenses honored, locked decisions match, scope tight. |
+| `APPROVE` | All checks pass: tautology, acceptance bullets pinned, runtime exercise proves each bullet, SOLID lenses honored, locked decisions match, scope tight. |
 | `REJECT` | One or more checks fail AND Agent A can fix on retry. Provide `Note:` with specific guidance. |
 | `NEEDS_HUMAN` | Structural problem; retry won't help. Maintainer should look. |
 
@@ -132,6 +133,48 @@ The acceptance section is the cut's contract with the maintainer.
 Skipping a bullet is grounds for REJECT regardless of how clean the
 diff otherwise looks.
 
+## The runtime-exercise check
+
+**Agent A must prove the code works on every execution path** — not
+just that tests pass, but that real inputs produce the outputs the
+acceptance bullets promise, for each path each bullet implies. The
+`Runtime exercise:` section in Agent A's `SUMMARY:` block is that
+proof. A bullet with three error paths needs four proofs (happy + three
+error). A bullet with two branches needs two proofs. One per path.
+
+Read Agent A's final `SUMMARY:` block. Look for the `Runtime exercise:`
+subsection. For each acceptance bullet:
+
+1. **Enumerate the paths the bullet implies.** Re-read the bullet (and
+   the spec it references). List the paths:
+   - The happy path (always)
+   - Each error / refusal / rejection the bullet names
+   - Each conditional arm (when the bullet says "if X then A else B,"
+     both A and B are paths)
+   - Each state-shape variant (locale, archived vs. live, capability
+     present vs. absent — when the bullet's surface varies by these)
+2. **Check coverage.** Does Agent A's exercise show each path with its
+   own input + actual output?
+3. **Check correctness.** For each captured output, does it match what
+   the bullet promises for that specific path?
+4. **Check input quality.** A trivial smoke ("function returned without
+   throwing") doesn't prove a path. The path's discriminator should be
+   visible in the input.
+
+| State | Effect |
+|---|---|
+| Every bullet's every path has its own exercise + outputs match promises | OK |
+| `Runtime exercise:` section missing entirely | **REJECT** — "Re-run with the runtime exercise per the per-cut prompt's APPROVE-path step 6. The exercise IS the proof the cut delivers." |
+| Some bullets have no exercise | **REJECT** — name which bullets are unproven |
+| A bullet has happy-path proof but error / branch / variant paths are unproven | **REJECT** — list the unproven paths ("Bullet 2 implies 409 on live-name collision + 409 on archived-name collision + 409 on missing alias target; only the happy path was exercised") |
+| A captured output doesn't match its bullet's promise | **REJECT** — name the path + cite the mismatch ("Bullet 3 says 201 on success; exercise showed 200") |
+| Exercise present but trivial / unconvincing | **REJECT** — name what a real exercise would show |
+
+The runtime exercise is the bridge between "tests pass" (which can be
+tautological) and "the cut actually delivers what was promised on every
+path it touches." Agent A demonstrates comprehension by proving each
+path; the reviewer verifies the demonstration was real and complete.
+
 ## The SOLID check (Cut 5 refinement)
 
 If the cut sub-issue has a `## SOLID` section, read it. The section
@@ -182,6 +225,24 @@ After the four above pass, also check:
   all of them. The cut prompt explicitly forbids "while I'm here"
   cleanups.
 
+Also check for leftover runtime-exercise scratch:
+- Files starting with `tmp-` (e.g. `tmp-exercise.ts`, `tmp-exercise.mjs`,
+  `tmp-exercise.sh`)
+- Any obvious throwaway harness whose only purpose is exercising the
+  cut at runtime
+
+These MUST NOT appear in the diff. **REJECT** with note to remove
+them — they belonged in Agent A's local working tree only.
+
+Separately: if a test file in the diff looks like it was written as
+the runtime exercise rather than as a real TDD test (e.g.,
+`tests/exercise-cut.test.ts` with only `console.log` style assertions,
+or a test that just prints values rather than asserting on them), that
+violates the anti-tautology discipline. The runtime exercise is
+throwaway proof; tests are the durable spec. **REJECT** with note to
+either delete the file (it was a runtime exercise) or rewrite it as
+real assertions (it was meant to be a test).
+
 ### Commit message accuracy
 
 Read the commit messages (`git log main..$BRANCH_NAME --format=%B`).
@@ -197,15 +258,17 @@ wrong (says one thing but the diff does another).
 
 1. Run the 4-step tautology check
 2. Run the acceptance check (every bullet pinned)
-3. Run the SOLID check (when `## SOLID` is present)
-4. Run the locked-decisions check (against the design doc)
-5. Run the non-mechanical checks (scope, commit messages)
-6. Form your verdict and emit the verdict line at the END:
+3. Run the runtime-exercise check (Agent A proved the code works)
+4. Run the SOLID check (when `## SOLID` is present)
+5. Run the locked-decisions check (against the design doc)
+6. Run the non-mechanical checks (scope, commit messages)
+7. Form your verdict and emit the verdict line at the END:
 
 ```
 VERDICT: APPROVE
 Reasoning: <one paragraph why the cut is sound — name the load-bearing
-checks that passed>
+checks that passed, including which runtime-exercise outputs prove
+which acceptance bullets>
 ```
 
 ```
