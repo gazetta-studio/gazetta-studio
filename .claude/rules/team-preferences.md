@@ -242,6 +242,10 @@ Validated approaches and things to avoid. Each entry: rule, then why.
 
    Example: soft-delete Cut 14's `reviewState` field — the helper functions (`buildAutoWithdrawEvent`, `archiveReviewMetadata`) had passing unit tests, but the route-level integration tests failed because `parsePageManifest` whitelisted fields and dropped `reviewState`. Required adding `parseReviewFields` passthrough alongside `parseArchiveFields`. The integration test caught the gap; without it, the forward-compat code would have been silently dead until review-workflow shipped.
 
+   **Symmetric pattern — when RETIRING an artifact, audit each contract it carried.** Same projection-layer principle, reversed direction. When deleting or replacing a document / module / mechanism, list every distinct requirement the old artifact carried; promote each to its new home explicitly. Don't assume the replacement covers them implicitly — it usually doesn't.
+
+   Example: ADR-0015 retired the `design-{feature}-implementation.md` artifact. The old impl doc carried at least 5 distinct contracts: cut-by-cut status tracking, per-cut SOLID checks, per-cut Tests enumeration, deferred-items list, lessons-learned. Cut 5's first commit replaced Phase 4 of `feature-design-process.md` with the new tracking-issue + sub-issue model and preserved cut tracking (via GitHub state) + deferred items (via Cut 7's consolidation), but **silently dropped the per-cut SOLID + Tests requirement.** Caught at PR review by the maintainer asking "do we still have SOLID check and other requirements for cuts?" Closed via commit `ac77dc3` adding the sub-issue body convention (`## SOLID`, `## Tests` sections). The discipline that would have caught this at design time: when shipping the retirement, enumerate the artifact's contracts and confirm each one's new home BEFORE merging.
+
 31. **TDD-first ordering when delegating to AI agents.** When asking Claude (or any agent) to add or fix behavior in a non-trivial module, write the test first in its own commit, confirm it fails, then ask the agent to implement. Tell the agent explicitly "do not modify the failing tests" — agents will otherwise weaken assertions to make red turn green.
 
    **Why:** the dominant failure mode of AI-generated tests is **tautological assertions** — the agent writes implementation first, observes the output, then writes tests that assert on the observed output. The test passes; it proves nothing. ThoughtWorks Tech Radar (Vol 34, "AI-aided test-first development") and Anthropic's own engineering posture converge on TDD ordering as the single highest-leverage correctness pattern with AI. Industry-cited mutation scores on LLM-generated tests written-after-implementation hover around 20% — meaning ~80% of injected faults survive the test suite.
@@ -313,7 +317,26 @@ Validated approaches and things to avoid. Each entry: rule, then why.
 
    **(d) `git rebase` auto-drops cherry-pick equivalents.** When a stacked PR's parent merges, rebasing the child onto fresh main makes git skip the parent's commits via patch-id detection (`warning: skipped previously applied commit XXX`). No interactive rebase needed; no manual `git drop`. The opposite — `--reapply-cherry-picks` — preserves them, but the default is what you want for stacked-PR cleanup. Reference example: today's #325 → #326 → #327 chain cleaned up with three plain `git rebase origin/main` calls.
 
-   **Why this rule earns a number:** today's `/review-prs` session lost ~30 minutes across cycles of "why isn't CI firing?" (a + b), "did the test really fail?" (c), and "how do I unstack this?" (d). Each gotcha is documented somewhere in GitHub's docs but the docs don't surface them together; you only discover them via the failure mode. Centralizing them here means the next session reads one rule instead of rediscovering four.
+   **(e) Monitor commands polling `gh pr checks` must filter to the latest run.** Operational discipline that flows from (c). When watching a PR's CI completion with a poll loop, a bare `gh pr checks <N> --json name,bucket` query returns checks across ALL runs — cancelled + current + everything. The naïve "all non-pending" exit condition (`all(.bucket != "pending")`) evaluates true the moment the older cancelled run's jobs settle, even though the current run still has 10 pending jobs. Monitor exits early; you miss the actual completion.
+
+   The fix: filter to the highest run ID before evaluating completion:
+
+   ```bash
+   while true; do
+     s=$(gh pr checks <N> --json name,bucket,link)
+     # Group by run ID; pick the max (current run)
+     latest=$(jq -r '[.[] | (.link | capture("runs/(?<id>[0-9]+)").id) | tonumber] | max' <<<"$s")
+     current=$(jq --arg rid "$latest" '[.[] | select(.link | contains("runs/" + $rid))]' <<<"$s")
+     jq -e 'length > 0 and all(.bucket != "pending")' <<<"$current" >/dev/null && break
+     sleep 30
+   done
+   ```
+
+   Simpler alternative if you know the run ID up front: poll `gh run view <run-id> --json status,conclusion` instead. One run = no ambiguity.
+
+   **This gotcha is rule-34(c)'s operational consequence**, not a separate failure mode. Captured separately because the discipline is enforced at Monitor-command-write time, not at result-inspection time.
+
+   **Why this rule earns a number:** today's `/review-prs` session lost ~30 minutes across cycles of "why isn't CI firing?" (a + b), "did the test really fail?" (c), and "how do I unstack this?" (d). Subsection (e) cost ~5 minutes more in the feature-bot-validation session — Monitor exited early TWICE on the same PR because the poll didn't filter by runId. Each gotcha is documented somewhere in GitHub's docs but the docs don't surface them together; you only discover them via the failure mode. Centralizing them here means the next session reads one rule instead of rediscovering five.
 
 35. **Flake fixes that pass CI on the first run are not proven.** Rule 31's "verify by reverting and confirming the test fails" doesn't catch race conditions — the race doesn't reproduce locally on demand, and a single green CI run is consistent with the flake simply not firing this time. Before merging a flake-fix PR, verify durability under shard-load conditions:
 
@@ -358,3 +381,21 @@ Validated approaches and things to avoid. Each entry: rule, then why.
    The cost wasn't just the 6 days of confusion — it was the lost ~$10 of Claude API work whose conclusions are only retrievable via transcript archaeology. Symmetric-bot audit on PR #384 day would have caught this in 10 minutes.
 
    **Pairs with rule 18 (build structurally right from the start):** if a pattern needs an escalation path in one bot, assume it needs the same path in every bot sharing the pattern. Cargo-cult the helper into siblings preemptively when its absence would be a silent-failure mode.
+
+39. **Self-audit before claiming confidence.** When you've recommended a structural choice without enumerating the alternatives walked, the recommendation is at-risk. Before stating "confident" or "ready to ship," check: did I list 2-3 alternatives? Did I name the specific failure mode that disqualifies each rejected option? If only one option survives the walk, ask honestly: "did I evaluate alternatives or take the path of least resistance?"
+
+   **Where this fires:**
+   - Design grilling (per rule 25): every Q's lock must enumerate rejected alternatives.
+   - Mid-implementation recommendations: when you say "I'll pick X" or "let's go with X," name the Y and Z you rejected.
+   - "Confident" claims: the maintainer-side prompt "are you confident?" earns a permanent place in your self-audit. The right answer is "yes, because I walked these 3 alternatives and X wins on these axes" — NOT just "yes."
+   - Mid-session re-grilling: when the user prompts "look from all POV," that IS the audit. Don't recommend without doing it.
+
+   **Signal that the rule is being violated:** a recommendation states only what was picked, not what was rejected. Or a "confident" answer doesn't survive a second "are you confident?" prompt. Both are the same shape: locking without grilling.
+
+   **Why:** AI agents (Claude included) are pattern-matchers, not deliberators by default. The "calibrated confidence" research from Anthropic + the broader LLM-evaluation literature converges on this: confidence without enumerated alternatives is rationalization, not analysis. Capturing the discipline as a numbered preference makes it explicit instead of implicit, and rule-39 citations in design docs / PR review comments create a forcing function.
+
+   **Example — this session's pendulum.** During the design grilling for feature-bot's cut sub-issue body format (Q2), I flipped 5 times across consecutive turns: A → G → C → D → F → D. Each individual flip was reasoned, but the trajectory was lossy. The maintainer asked "are you confident?" twice; I downgraded my answer the second time and caught a real hole (un-fact-checked claim about front-matter YAML being conventional in GitHub issue bodies). The discipline that would have prevented the pendulum: each recommendation explicitly lists alternatives + their failure modes BEFORE locking. Cited in commit message when the rule lands.
+
+   **Pairs with rule 25 (grill design docs the same as code — never lock a Q without enumerated rejected alternatives):** rule 25 is the design-time discipline; rule 39 is its operational consequence across the full session (design + implementation + review + retrospective phases). Same shape; broader scope.
+
+   **Pairs with rule 27 (label assertion provenance):** un-graded confidence and un-labeled assertions are the same failure mode — claims without grounding. Rule 27 makes you cite the source ("verified against X"); rule 39 makes you cite the alternatives walked. Together: a recommendation reads as "I chose A over B, C because [failure modes]; A is grounded in [source]."
