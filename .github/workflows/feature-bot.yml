@@ -1,0 +1,139 @@
+name: Feature bot
+
+# Implements feature cuts via the generator-critic loop.
+#
+# Picks the next unblocked cut sub-issue (`enhancement` + `ready-for-agent`,
+# `**Depends on**` refs all closed) and opens one PR per cut. Three-tier
+# escalation: APPROVE (PR opens), NEEDS_INPUT (needs-info label + question
+# comment), NEEDS_HUMAN (ready-for-human label + sub-issue closed).
+#
+# Two trigger modes:
+#   - Cron (daily 04:30 UTC): scans unblocked candidates per the input contract
+#   - workflow_dispatch with `issue` input: attempt one specific sub-issue
+#
+# Bot opens PRs as DRAFT; maintainer reviews, marks ready, and merges. Bot
+# never merges (per rule 33).
+#
+# Design: .claude/rules/design-feature-bot.md
+# Concurrency invariant: ADR-0011 (single-instance via group: feature-bot)
+on:
+  schedule:
+    # 04:30 UTC daily = 06:30 CEST / 05:30 CET. Runs AFTER fix-bot's 04:00
+    # so today's freshly-shipped fixes don't race with feature-bot's branch
+    # ops, and so the maintainer's morning review window sees both bots'
+    # output in one pass.
+    - cron: '30 4 * * *'
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: 'Optional: attempt one specific cut sub-issue (otherwise scans unblocked candidates)'
+        required: false
+      max_attempts:
+        description: 'Generator-critic loop cap (default 5; lower for cost-bounded testing)'
+        required: false
+        default: '5'
+      budget_ms:
+        description: 'Per-run wall-clock budget in ms (default 3000000 = 50min)'
+        required: false
+        default: '3000000'
+      dry_run:
+        description: 'Set to "1" to scan candidates and exit before invoking Claude'
+        required: false
+        default: ''
+
+# Single-instance invariant for cache safety. The bot appends to a
+# cached reviewer-log.jsonl; two concurrent runs would race on the
+# cache (last-writer-wins would lose entries). `cancel-in-progress:
+# false` queues the second invocation until the first completes —
+# never kills in-flight work. The literal group name 'feature-bot' is
+# shared with the matching job in bots-compact.yml so the monthly
+# compactor cannot run concurrently with the daily bot.
+concurrency:
+  group: feature-bot
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 60
+    permissions:
+      # Read CI run history (for past-PR feedback loop), read+write issues
+      # (apply labels, post comments, close sub-issues), read+write PRs
+      # (open cut PRs as drafts; open skip-list-entry PRs on NEEDS_HUMAN),
+      # read+write contents (push cut branches). Only writes to feature
+      # cut branches, never main (rule 33).
+      actions: read
+      issues: write
+      pull-requests: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Need full history for branch creation + force-with-lease and
+          # for capturing diffs across past-PR feedback queries.
+          fetch-depth: 0
+
+      - name: Configure git author
+        run: |
+          git config user.name 'feature-bot'
+          git config user.email 'noreply@anthropic.com'
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install workspace deps
+        # Full install required because the bot runs real tests during
+        # the reviewer-loop verification of each attempt. ~2 min cost
+        # amortized across the run.
+        run: npm ci
+
+      - name: Build gazetta package
+        # Some tests need the built package; build once up front.
+        run: npm run build -w packages/gazetta
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      # Restore the reviewer-log from cache. The bot appends Agent B
+      # verdicts on every loop iteration; the cache keeps the file
+      # across runs so the monthly compactor has cross-issue signal
+      # to work with. See bots/README.md "Reviewer-log persistence".
+      # Cache miss is fine — tailReviewerLog returns []. Bump the
+      # -v1 suffix if the JSONL schema ever changes.
+      - name: Restore reviewer-log cache
+        uses: actions/cache@v5
+        with:
+          path: bots/feature-bot/reviewer-log.jsonl
+          key: feature-bot-reviewer-log-v1
+
+      - name: Run feature-bot
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          # Empty when input not provided — the bot treats empty as cron
+          # mode (scan unblocked candidates) and treats a numeric value
+          # as manual one-issue mode.
+          ISSUE_NUMBER: ${{ inputs.issue }}
+          # Optional overrides via workflow_dispatch inputs. The fallback
+          # literals here MUST match the TypeScript defaults in
+          # bots/feature-bot/index.ts — when manual dispatch provides no
+          # value, GH Actions evaluates `inputs.X` to '' and the `||`
+          # selects the literal.
+          MAX_ATTEMPTS: ${{ inputs.max_attempts || '5' }}
+          BUDGET_MS: ${{ inputs.budget_ms || '3000000' }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: npm run feature-bot -w @gazetta/bots
+
+      - name: Upload transcripts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: feature-bot-transcripts
+          path: bots/transcripts/
+          if-no-files-found: ignore
+          retention-days: 90
