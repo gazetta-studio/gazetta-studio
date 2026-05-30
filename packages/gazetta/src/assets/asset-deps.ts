@@ -75,8 +75,4 @@ export function applyAssetRefsDiff(
 
 // Re-export the generic types/utilities so asset-side callers don't
 // need to import from two modules.
-export {
-  itemRefToFilename,
-  type DepRelation,
-  type ItemRef,
-} from '../dep-sidecars.js'
+export { type DepRelation, type ItemRef } from '../dep-sidecars.js'
