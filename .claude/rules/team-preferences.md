@@ -2,6 +2,14 @@
 
 Validated approaches and things to avoid. Each entry: rule, then why.
 
+## Tag convention
+
+Rules tagged `[local]` apply only to interactive Claude Code sessions (the maintainer working directly). Bots (feature-bot, fix-bot, dead-code-watcher, etc.) MUST exclude these rules from their context — bot prompts cite team-preferences with an "EXCEPT rules tagged `[local]`" clause.
+
+Why: some rules describe processes bots structurally cannot do (research, grilling, releases, four-phase discipline). A bot honoring rule 25 ("grill design docs") could try to "grill" something inappropriately; excluding them prevents misapplication.
+
+Default for new rules: untagged (apply universally). Add `[local]` only when bot application would be structurally wrong, not just irrelevant. Rules that self-gate via their body's conditional clauses (e.g., "When fixing a bug in one bot...") don't need a tag — Claude correctly ignores them when the condition doesn't match.
+
 1. **No auto-save in CMS.** Edits stay in memory until explicit save. Preview uses POST with draft content overrides.
    Why: Auto-save doesn't fit the CMS UX — content authors need control over when changes are persisted.
 
@@ -24,7 +32,7 @@ Validated approaches and things to avoid. Each entry: rule, then why.
 8. **Update docs in the same commit as the feature.** When adding or changing user-facing behavior, update getting-started.md and gazetta.studio docs in the same commit. Don't leave docs as a follow-up.
    Why: Docs that lag behind the code mislead users and create extra issues to track.
 
-9. **npm release: bump version, lockfile, commit, tag — all together, AND match CI's Node version.**
+9. **npm release: bump version, lockfile, commit, tag — all together, AND match CI's Node version.** `[local]`
    When bumping the gazetta package version, first verify local Node matches CI's Node (currently 22, per `.github/workflows/publish.yml`). Then:
    ```
    npm version <patch|minor|major> -w packages/gazetta
@@ -127,7 +135,7 @@ Validated approaches and things to avoid. Each entry: rule, then why.
 
    Example: I claimed "Contentful has contentful-merge for content models" — fact-check found no such feature in official docs. Would have proposed Gazetta features pattern-matching a thing that doesn't exist. Caught before commitment.
 
-21. **Research informs design; design absorbs the conclusions; the research itself stays durable.**
+21. **Research informs design; design absorbs the conclusions; the research itself stays durable.** `[local]`
    When deep research feeds into a design decision, capture the research durably — competitive context, fact-check findings, rejected alternatives — somewhere reusable. The design doc absorbs the conclusions; the research itself shouldn't die in a transcript.
 
    Where research goes:
@@ -172,7 +180,7 @@ Validated approaches and things to avoid. Each entry: rule, then why.
 
    Example (Cut 5 of soft-delete): purge-blocked check needs "any archive aliasing this name." Walking 5K manifests = bad; per-edge `.gazetta/alias-targets/{target}/{archive}` sidecar = `readDir`-fast. Pattern consistent with existing `asset-refs` and `fragment-deps`.
 
-25. **Grill design docs the same as code — never lock a Q without enumerated rejected alternatives.** "We discussed it" isn't a justification; "we walked the alternatives and rejected each for documented reasons" is. When a design lock has only one option enumerated, that's a smell — re-grill before shipping.
+25. **Grill design docs the same as code — never lock a Q without enumerated rejected alternatives.** `[local]` "We discussed it" isn't a justification; "we walked the alternatives and rejected each for documented reasons" is. When a design lock has only one option enumerated, that's a smell — re-grill before shipping.
 
    **How to apply:** before writing a Q's lock paragraph, list at least 2-3 alternatives. For each rejection, name the specific failure mode that disqualifies it. If only one option survives the walk, ask honestly: "did I actually evaluate alternatives or take the path of least resistance?" If the latter, re-grill.
 
@@ -207,7 +215,7 @@ Validated approaches and things to avoid. Each entry: rule, then why.
 
    Example: `design-scheduling.md` Q6 (admin UX) — drafted detailed surfaces (publish dialog tab, archive modal option, visibility metadata, schedule chip, dashboard) based on intuition + training-data pattern matching. Asked "are you satisfied with UX research?" Honest answer was no. Re-locked Q6 to commit only structural decisions ("publish dialog gains schedule capability") and explicitly defer detailed UX to a focused research pass. The relabel was the fix.
 
-28. **Every feature follows the four-phase + retrospective discipline.** Per [`feature-design-process.md`](feature-design-process.md): Discovery → UX-grilling → 5K-envelope gate → Implementation-grilling → Design → Implementation → Retrospective. The grilling step splits in two: UX surface gets its own pass before implementation grilling, with a 5K-envelope gate between them.
+28. **Every feature follows the four-phase + retrospective discipline.** `[local]` Per [`feature-design-process.md`](feature-design-process.md): Discovery → UX-grilling → 5K-envelope gate → Implementation-grilling → Design → Implementation → Retrospective. The grilling step splits in two: UX surface gets its own pass before implementation grilling, with a 5K-envelope gate between them.
 
    **Why split UX from implementation grilling:** UX choices made inside implementation grilling get compromised by implementation convenience. Same lesson as `design-scheduling.md` Q6 — when UX is implicit inside the design Qs, intuition fills the gap. Separate UX-grilling forces explicit time on the user-facing surface.
 
