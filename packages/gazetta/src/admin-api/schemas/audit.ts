@@ -31,6 +31,9 @@ export const AuditActionSchema = z.enum([
   'unarchive',
   'purge',
   'rename',
+  // Redirect UI extension per design-redirect-ui.md Q7 lock.
+  // Closed-enum-additive — `metadata.aliasOf` carries the alias target.
+  'create-redirect',
 ])
 export type AuditActionWire = z.infer<typeof AuditActionSchema>
 

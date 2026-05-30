@@ -40,6 +40,12 @@
  * `archive` / `unarchive` / `purge` / `rename` — each maps to one
  * user action; `rename` is recorded as a single composite event with
  * `metadata.fromName` for forensic reconstruction (per Q8 M4 lock).
+ *
+ * Redirect UI (per design-redirect-ui.md Q7) extends with
+ * `create-redirect` — Manual Redirect creation (standalone, not
+ * composed during a rename). The closed-enum discriminator over
+ * `metadata.manual: true` keeps `AuditQuery.action` forensic queries
+ * reliable ("show all manual redirects last week").
  */
 export type AuditAction =
   | 'save'
@@ -54,6 +60,7 @@ export type AuditAction =
   | 'rename'
   | 'review-withdraw'
   | 'ai-suggest-alt'
+  | 'create-redirect'
 
 /**
  * Closed enum of outcomes. Locked: every recording site supplies
