@@ -80,12 +80,19 @@ export function extractSummary(transcriptPath: string): string {
   const all = collectAssistantTexts(transcriptPath)
   for (let i = all.length - 1; i >= 0; i--) {
     const text = all[i]
-    const idx = text.search(/SUMMARY:\s*\n?/i)
-    if (idx === -1) continue
-    const afterMarker = text
-      .slice(idx)
-      .replace(/^SUMMARY:\s*\n?/i, '')
-      .trim()
+    // Match the LAST `SUMMARY:` marker at line-start (anchored via \m).
+    // Two refinements over the naive search:
+    //   1) Line-start anchor (`^...\m`) excludes in-prose mentions like
+    //      "I'll emit the `SUMMARY:` block now" — those have backticks
+    //      or other characters in front, not a newline.
+    //   2) LAST occurrence (we iterate right-to-left over matches) —
+    //      agents sometimes preview the marker in prose then re-emit it
+    //      as the conventional terminator.
+    const matches = [...text.matchAll(/^SUMMARY:\s*\n?/gim)]
+    if (matches.length === 0) continue
+    const last = matches[matches.length - 1]
+    const start = (last.index ?? 0) + last[0].length
+    const afterMarker = text.slice(start).trim()
     if (afterMarker) return afterMarker
   }
   return all.at(-1) ?? ''

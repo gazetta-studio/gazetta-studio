@@ -112,6 +112,21 @@ describe('extractSummary', () => {
     expect(extractSummary(path)).toBe('The cut shipped clean.\n\nRuntime exercise:\nAll 4 paths passed.')
   })
 
+  it('ignores in-prose SUMMARY: mentions and uses the conventional line-start marker', () => {
+    // Reproduces the bug surfaced by feature-bot attempt 3 of cut #445:
+    // Agent A's narration referenced the marker in a backtick-quoted
+    // phrase ("the proper `SUMMARY:` block...") BEFORE emitting the
+    // real one at line-start. The first-match regex grabbed the
+    // in-prose mention and returned garbage. Line-anchored (^...\m)
+    // + take-last-match fixes both axes.
+    const path = writeJsonl([
+      assistant(
+        'I will now emit the proper `SUMMARY:` block.\n\n```\nSUMMARY:\nThe cut shipped clean.\n\nRuntime exercise:\nAll paths verified.\n```',
+      ),
+    ])
+    expect(extractSummary(path)).toBe('The cut shipped clean.\n\nRuntime exercise:\nAll paths verified.\n```')
+  })
+
   it('returns empty string when no assistant text exists', () => {
     expect(extractSummary(writeJsonl([]))).toBe('')
   })
