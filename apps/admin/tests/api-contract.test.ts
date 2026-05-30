@@ -109,8 +109,20 @@ describe('POST /api/pages contract', () => {
       expect(PageSummarySchema.safeParse(entry).success).toBe(true)
     })
 
+    it('accepts an archived entry without a template', () => {
+      // Per design-redirect-ui.md Q2 sub-decision A1: archived pages
+      // may omit `template`. Summary rows reflect this — the field
+      // is optional at the listing level so archived items round-trip
+      // through `/api/pages` without a sentinel.
+      const archived = { name: 'old-page', route: '/old-page', archived: true, aliasOf: 'new-page' }
+      expect(PageSummarySchema.safeParse(archived).success).toBe(true)
+    })
+
     it('rejects entries missing required fields', () => {
-      expect(PageSummarySchema.safeParse({ name: 'home', route: '/' }).success).toBe(false)
+      // `name` and `route` are still required at the listing level —
+      // they identify the row regardless of archive state.
+      expect(PageSummarySchema.safeParse({ name: 'home' }).success).toBe(false)
+      expect(PageSummarySchema.safeParse({ route: '/' }).success).toBe(false)
     })
   })
 
@@ -181,9 +193,20 @@ describe('POST /api/fragments contract', () => {
       expect(FragmentSummarySchema.safeParse(entry).success).toBe(true)
     })
 
+    it('accepts an archived entry without a template', () => {
+      // Same shape as PageSummary's archived case (per
+      // design-redirect-ui.md Q2 sub-decision A1). Fragment redirects
+      // are listed without a template in the GET /api/fragments
+      // response.
+      const archived = { name: 'old-header', archived: true, aliasOf: 'header' }
+      expect(FragmentSummarySchema.safeParse(archived).success).toBe(true)
+    })
+
     it('rejects entries missing required fields', () => {
-      expect(FragmentSummarySchema.safeParse({ name: 'header' }).success).toBe(false)
+      // `name` remains required at the listing level — it identifies
+      // the row regardless of archive state.
       expect(FragmentSummarySchema.safeParse({ template: 'header-layout' }).success).toBe(false)
+      expect(FragmentSummarySchema.safeParse({}).success).toBe(false)
     })
   })
 })
