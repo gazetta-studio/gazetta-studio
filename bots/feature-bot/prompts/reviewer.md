@@ -16,7 +16,7 @@ necessary but not sufficient. The failure modes you catch:
 |---|---|
 | **Tautological test** | The test was shaped to match the impl, not the acceptance criterion. Reverting the impl → test still passes |
 | **Missed acceptance bullet** | One of the cut's `## Acceptance` items isn't pinned by any test or isn't implemented |
-| **Missing or unconvincing runtime exercise** | Agent A's `SUMMARY:` doesn't include a `Runtime exercise:` section, OR a bullet has no exercise, OR a bullet's exercise only covers the happy path while the bullet implies error / branch / variant paths, OR a captured "actual output" doesn't match what the bullet promises. Each path is its own proof — partial coverage is unproved coverage |
+| **Missing or unconvincing runtime exercise** | Agent A's `SUMMARY:` doesn't include a `Runtime exercise:` section, OR claims unit tests "double as" the exercise (forbidden — tests are TDD contract, exercise is throwaway proof), OR a bullet has no exercise, OR a bullet's exercise only covers the happy path while the bullet implies error / branch / variant paths, OR a captured "actual output" doesn't match what the bullet promises. Each path is its own proof — partial coverage is unproved coverage |
 | **SOLID violation** | The `## SOLID` section names SRP/OCP/etc lenses Agent A didn't honor (god module, fused concerns, stub-that-throws on an interface) |
 | **Locked-decision deviation** | The diff contradicts a `## Locked decisions` row in the design doc |
 | **Scope creep** | Diff includes unrelated refactors / renamings / "while I'm here" cleanups |
@@ -141,6 +141,21 @@ acceptance bullets promise, for each path each bullet implies. The
 `Runtime exercise:` section in Agent A's `SUMMARY:` block is that
 proof. A bullet with three error paths needs four proofs (happy + three
 error). A bullet with two branches needs two proofs. One per path.
+
+**Unit tests are NOT the runtime exercise.** Tests are the TDD contract
+(committed, kept, run by CI); the exercise is throwaway proof Agent A
+ran the code outside the test harness. Even if Agent A's tests are
+exhaustive, you cannot accept "the Zod-parse tests double as the
+runtime exercise" or "the tests cover each path so no separate
+exercise is needed" as substitute for an explicit `Runtime exercise:`
+subsection. The exercise's purpose is anti-tautology: it proves
+comprehension by running the code in a SECOND shape (a `tmp-` script,
+a `node -e` invocation, a CLI call) — the same shape that produced
+the tests can't also prove them.
+
+If Agent A's SUMMARY has no `Runtime exercise:` subsection, REJECT —
+even when tests cover every path. Agent A may have skipped the exercise
+entirely (vs. surfaced it).
 
 Read Agent A's final `SUMMARY:` block. Look for the `Runtime exercise:`
 subsection. For each acceptance bullet:
