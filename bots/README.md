@@ -101,6 +101,7 @@ GITHUB_REPOSITORY=gazetta-studio/gazetta-studio GH_TOKEN=$(gh auth token) \
 | `triage-bot` | Daily 03:00 UTC + workflow_dispatch | Open issue lacking all of `bug`, `enhancement`, `triage-uncertain`, `ready-for-agent`, `ready-for-human`, `wontfix`, `needs-info` | One of `bug` / `enhancement` / `triage-uncertain` + `area: X`. Reproducible bug also gets `ready-for-agent`. | Classifier |
 | `discovery-prep-bot` | Daily 04:00 UTC + workflow_dispatch | `enhancement` AND lacks all of `ready-for-human`, `ready-for-agent`, `wontfix`, `needs-info` | Research comment + `ready-for-human` label | Researcher |
 | `fix-bot` | Daily 04:00 UTC + workflow_dispatch | `bug` + `ready-for-agent` AND lacks all of `ready-for-human`, `wontfix`, `needs-info` AND no `fix-bot-attempted` since reopen AND no skip-list match | PR (two commits: failing test + fix) on approve, skip-list entry on reject/needs-human, OR stuck-comment + `ready-for-human` on stuck path | Implementer — generator-critic reviewer loop + durable memory + lessons-learned |
+| `feature-bot` | Daily 04:30 UTC + workflow_dispatch | `enhancement` + `ready-for-agent` AND lacks all of `ready-for-human`, `wontfix`, `needs-info` AND `**Depends on**:` refs all closed | PR (failing test + impl commits) on APPROVE, sub-issue closed + skip-list entry on NEEDS_HUMAN, sub-issue comment + `needs-info` label on NEEDS_INPUT | Implementer — feature cuts via generator-critic reviewer loop + durable memory + lessons-learned. See [design-feature-bot.md](../.claude/rules/design-feature-bot.md). |
 | `mutation-area-picker` | Weekly Sun 03:30 UTC + workflow_dispatch | `stryker.config.json` + git/GitHub cross-references (AI-pairing, churn, flake, fix-rate) | Draft PR adding/swapping/removing one module in `mutate` glob, OR silent NOOP | **Strategic portfolio manager** — owns mutation scope under runtime budget. Design: [`.claude/rules/design-mutation-area-picker.md`](../.claude/rules/design-mutation-area-picker.md). Empirical eviction per [ADR-0014](../docs/adr/0014-mutation-eviction-by-empirical-evidence.md). |
 
 **Producer bots vs triage-bot.** Producer bots (`flake-watcher`,
@@ -119,10 +120,13 @@ difference is whether the bot can complete the loop end-to-end.
 Dead-code-watcher can because deletion's "test" is "existing tests
 pass" — fix-bot's TDD-first contract doesn't compose with deletion.
 
-**Generator-critic loop pattern.** Dead-code-watcher is the first bot
-with two Claude agents in series. Agent A (cleanup) investigates and
+**Generator-critic loop pattern.** Dead-code-watcher was the first bot
+with two Claude agents in series. Fix-bot and feature-bot follow the
+same pattern. Agent A (cleanup / implementation) investigates and
 makes changes locally; Agent B (reviewer) inspects the diff fresh —
-no shared transcript — and votes APPROVE / REJECT / NEEDS_HUMAN.
+no shared transcript — and votes APPROVE / REJECT / NEEDS_HUMAN
+(feature-bot also has a NEEDS_INPUT verdict — see
+[design-feature-bot.md](../.claude/rules/design-feature-bot.md) Q6).
 On REJECT, the orchestrator resets the working tree and re-runs
 Agent A with the reviewer's specific note. Up to `MAX_ATTEMPTS`
 iterations (default 5, configurable) before the bot gives up and
@@ -137,9 +141,9 @@ ability to push code or modify the diff. Verdict line format
 `VERDICT: APPROVE|REJECT|NEEDS_HUMAN` followed by `Reasoning:` or
 `Note:` is parsed by the orchestrator.
 
-**Durable memory pattern.** Two bots have cross-run memory:
-dead-code-watcher and fix-bot. Each has three memory surfaces, each
-with its own persistence model:
+**Durable memory pattern.** Three bots have cross-run memory:
+dead-code-watcher, fix-bot, and feature-bot. Each has three memory
+surfaces, each with its own persistence model:
 
   - **`skip-list.json`** (per-bot, committed to repo) — durable
     "don't try this again" decisions. dead-code-watcher's is keyed
@@ -265,11 +269,21 @@ gh issue list --label ready-for-human
 # What's queued for fix-bot?
 gh issue list --label ready-for-agent
 
-# What needs reporter clarification?
+# What's waiting on info or a maintainer decision? (see "needs-info semantics" below)
 gh issue list --label needs-info
 ```
 
 `ready-for-human` is shared between discovery-prep-bot ("research done, grilling can start") and fix-bot ("stuck — needs human"). Disambiguate by reading the most recent bot comment's outcome tag.
+
+**`needs-info` semantics (widened for feature-bot).** The label means "bot
+must exclude from queue; requires additional information to proceed." Two
+sources of the information may be: (1) the issue reporter (triage-bot's
+"could not reproduce" path) OR (2) a design decision from the maintainer
+(feature-bot's NEEDS_INPUT escalation when Agent A hits a question it
+can't resolve from the cut spec + design doc). The comment thread carries
+specifics in both cases. Remove the label (or have the bot remove it on
+its next cron after the comment thread resolves) to re-trigger bot
+processing.
 
 Each bot is independent. Failures are isolated (per-bot try/catch + workflow `continue-on-error`). No chained workflow_dispatch — each bot's cron is the trigger, the issue's label state is the input.
 
