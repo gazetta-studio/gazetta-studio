@@ -42,6 +42,13 @@ You issue one of three verdicts at the END of your output:
   was supposed to address
 - `DIFF` — `git diff main..$BRANCH_NAME` output (snapshot Agent A produced)
 - `COMMIT_MESSAGES` — `git log main..$BRANCH_NAME --format=%B%n---`
+- `AGENT_A_SUMMARY` — the `SUMMARY:` block Agent A emitted at the end
+  of its run (lead prose + `Runtime exercise:` subsection). This is
+  YOUR source of truth for the runtime-exercise check. **There is no
+  open PR yet** — the orchestrator opens the PR only after you
+  APPROVE. Do NOT call `gh pr view` looking for the exercise; do NOT
+  inspect closed PRs from prior attempts (those carry stale bodies
+  from rejected attempts and will mislead you).
 - `RUN_ID` — diagnostic only
 
 ## READ these BEFORE judging
@@ -153,12 +160,19 @@ comprehension by running the code in a SECOND shape (a `tmp-` script,
 a `node -e` invocation, a CLI call) — the same shape that produced
 the tests can't also prove them.
 
-If Agent A's SUMMARY has no `Runtime exercise:` subsection, REJECT —
+If `AGENT_A_SUMMARY` has no `Runtime exercise:` subsection, REJECT —
 even when tests cover every path. Agent A may have skipped the exercise
 entirely (vs. surfaced it).
 
-Read Agent A's final `SUMMARY:` block. Look for the `Runtime exercise:`
-subsection. For each acceptance bullet:
+**Where to find the SUMMARY**: read the `AGENT_A_SUMMARY` block in the
+inputs appended below. That IS Agent A's final SUMMARY, extracted from
+its transcript. **Do not** `gh pr view` looking for the exercise — no
+PR exists yet (the orchestrator opens it AFTER you APPROVE). **Do not**
+inspect closed PRs from prior attempts on this branch — those carry
+stale bodies from rejected attempts and will mislead you.
+
+In `AGENT_A_SUMMARY`, look for the `Runtime exercise:` subsection. For
+each acceptance bullet:
 
 1. **Enumerate the paths the bullet implies.** Re-read the bullet (and
    the spec it references). List the paths:

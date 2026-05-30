@@ -389,6 +389,7 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
           )
           printTranscriptPath(reviewerTranscript)
 
+          const agentASummary = extractSummary(agentATranscript)
           const reviewerPrompt = `${reviewerPromptTemplate}
 
 ISSUE_NUMBER=${issueNumber}
@@ -404,6 +405,9 @@ ${diff}
 
 COMMIT_MESSAGES=
 ${commitMessages}
+
+AGENT_A_SUMMARY=
+${agentASummary || '(no SUMMARY block captured from Agent A — REJECT with note: your run did not emit a SUMMARY block; emit one per the per-cut prompt APPROVE-path step 9)'}
 
 RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
 
