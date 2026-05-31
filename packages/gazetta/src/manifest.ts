@@ -68,12 +68,20 @@ function parseComponents(raw: unknown): ComponentEntry[] | undefined {
 
 export async function parsePageManifest(storage: StorageProvider, filePath: string): Promise<PageManifest> {
   const raw = parseJson(await storage.readFile(filePath), filePath)
-  if (typeof raw.template !== 'string') {
+  // Template is required for live pages; optional for archived pages
+  // (per design-redirect-ui.md Q2 sub-decision A1 — conditional schema
+  // refinement). The renderer short-circuits archived items via
+  // `if (isArchived(page)) return publishArchiveMarker(...)` so the
+  // template field never gets read for archived manifests; requiring
+  // it here would force Manual Redirect creation to invent a sentinel
+  // template ("__redirect__"), which the design explicitly rejects.
+  const archived = raw.archived === true
+  if (!archived && typeof raw.template !== 'string') {
     throw new Error(`Invalid page.json at ${filePath}: missing required "template" field`)
   }
   return {
     route: '',
-    template: raw.template as string,
+    template: (typeof raw.template === 'string' ? raw.template : undefined) as string,
     content: raw.content as Record<string, unknown> | undefined,
     components: parseComponents(raw.components),
     metadata: raw.metadata as import('./types.js').PageMetadata | undefined,
@@ -85,11 +93,16 @@ export async function parsePageManifest(storage: StorageProvider, filePath: stri
 
 export async function parseFragmentManifest(storage: StorageProvider, filePath: string): Promise<FragmentManifest> {
   const raw = parseJson(await storage.readFile(filePath), filePath)
-  if (typeof raw.template !== 'string') {
+  // Same conditional contract as parsePageManifest above — template is
+  // required for live fragments; archived fragments may omit it. The
+  // alias-aware renderer resolves `@archived` references to their
+  // aliasOf target's manifest, never executing the archive's template.
+  const archived = raw.archived === true
+  if (!archived && typeof raw.template !== 'string') {
     throw new Error(`Invalid fragment.json at ${filePath}: missing required "template" field`)
   }
   return {
-    template: raw.template,
+    template: (typeof raw.template === 'string' ? raw.template : undefined) as string,
     content: raw.content as Record<string, unknown> | undefined,
     components: parseComponents(raw.components),
     ...parseArchiveFields(raw),

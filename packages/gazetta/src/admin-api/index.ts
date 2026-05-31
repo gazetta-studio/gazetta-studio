@@ -46,6 +46,7 @@ import { validationRoutes } from './routes/validation.js'
 import { healthRoutes } from './routes/health.js'
 import { archiveRoutes } from './routes/archive.js'
 import { renameRoutes } from './routes/rename.js'
+import { redirectRoutes } from './routes/redirects.js'
 import { warnOnCapabilityGaps } from '../runtime/capability-gap-warnings.js'
 import { HookRegistry, type HookContribution } from '../hooks/index.js'
 
@@ -413,6 +414,12 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   // means specific suffixes register first.
   app.route('/', archiveRoutes(resolveSource, { scanner: opts.validationScanner ?? null }))
   app.route('/', renameRoutes(resolveSource))
+  // Manual Redirect creation (`POST /api/{page,fragment}-redirects`). Per
+  // `design-redirect-ui.md` Q2, two parallel routes with literal
+  // capability gates + a shared handler body. Registers BEFORE the
+  // greedy `pages` / `fragments` matchers — same first-match-wins
+  // consideration as archive + rename above.
+  app.route('/', redirectRoutes(resolveSource))
   app.route(
     '/',
     pageRoutes(resolveSource, validators, templatesDir, {
