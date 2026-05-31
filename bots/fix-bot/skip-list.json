@@ -1,5 +1,15 @@
 {
   "version": 1,
-  "entries": [],
+  "entries": [
+    {
+      "fingerprint": {
+        "issueNumber": 463
+      },
+      "reason": "needs-human",
+      "reasonNote": "Reviewer verdict on attempt 1: Reviewer output did not contain a recognizable \"VERDICT: APPROVE|REJECT|NEEDS_HUMAN\" line. Raw output: I'll review this fix-bot output for issue #463. Let me run the tautology check and other verifications.\n\n> Decision (Step 1): Two commits in correct order — test first (`5d581a6`), fix second (`15c6337`). Commit shape is right.\n\n> Decision (Step 2): Test FAILS after revert — all 4 test cases fail with `ENOENT: lookup-manifest.ts` and `archive.ts should import lookupManifest from lookup-manifest.js`. The test exercises the structural contract (definition-count + imports + dispatch) that only exis",
+      "addedAt": "2026-05-31T11:43:27.305Z",
+      "addedBy": "bot"
+    }
+  ],
   "rules": []
 }
