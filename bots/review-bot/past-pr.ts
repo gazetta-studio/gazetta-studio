@@ -52,7 +52,21 @@ export type PastOutcome =
  *     → `improve/tests-apps--admin--src-26`
  */
 export function fingerprintToBranch(fp: Fingerprint): string {
-  const safeArea = fp.area.replace(/\/$/, '').replace(/\//g, '--')
+  // Sanitize area for use in a git branch name. Git refs cannot contain
+  // whitespace, parens, or other special chars. Slashes have a separate
+  // meaning (path separators); replace with `--` first to preserve the
+  // path structure visually, then collapse any remaining ref-hostile
+  // characters to `-`. audit-area sometimes emits paired-target areas
+  // like `packages/gazetta/tests/ (paired against ...)` — the post-slash
+  // sanitization must catch the spaces + parens.
+  const safeArea = fp.area
+    .replace(/\/$/, '')
+    // Sanitize ref-hostile chars BEFORE converting slashes to `--`,
+    // otherwise the `--` separator gets collapsed by the subsequent
+    // single-dash sanitization. Order matters: any character that's
+    // not alphanumeric, slash, or dash → dash. THEN slashes → `--`.
+    .replace(/[^a-zA-Z0-9/\-]/g, '-')
+    .replace(/\//g, '--')
   // Prefer the anchor (`#capability-gate`), fall back to the last path
   // segment (`design-audit.md`), then strip .md and sanitize.
   // `split('#').pop()` always returns a string (the whole rule when no #),
