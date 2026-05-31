@@ -31,6 +31,29 @@ describe('fingerprintToBranch', () => {
     expect(branch).toMatch(/^improve\/architecture-packages--gazetta--src--audit-design-audit/)
   })
 
+  it('sanitizes spaces and parens in area (reproduces review-bot run 26707064619 push crash)', () => {
+    // audit-area sometimes emits a paired-target area with spaces and
+    // parens, e.g. `packages/gazetta/tests/ (paired against
+    // packages/gazetta/src/validation/validators/)`. The 07:56 review-bot
+    // cron on 2026-05-31 reached APPROVE but crashed at `git push` with
+    // `fatal: invalid refspec` because the branch name carried the
+    // unsanitized text verbatim. Git refs cannot contain spaces or parens.
+    const fp: Fingerprint = {
+      area: 'packages/gazetta/tests/ (paired against packages/gazetta/src/validation/validators/)',
+      type: 'tests',
+      rule: 'testing-plan.md#pyramid',
+    }
+    const branch = fingerprintToBranch(fp)
+    // Git refspec invariant — no whitespace, no parens, no other
+    // ref-hostile characters in the branch.
+    expect(branch).not.toMatch(/[\s()~^:?*[\\]/)
+    // Sanity: still starts with the right prefix
+    expect(branch).toMatch(/^improve\/tests-/)
+    // Sanity: paired-target context still visible in some shape (not
+    // completely erased)
+    expect(branch).toMatch(/paired|packages/)
+  })
+
   it('sanitizes non-alphanumeric characters in rule tail', () => {
     const fp: Fingerprint = {
       area: 'packages/gazetta/src/foo/',
