@@ -414,7 +414,18 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
           const bResult = await runClaude({
             prompt: reviewerPrompt,
             transcriptPath: reviewerTranscript,
-            allowedTools: ['Bash', 'Read', 'Skill'],
+            // Reviewer needs:
+            //   - Bash for tautology check (git revert + vitest)
+            //   - Read for source + rule files on demand
+            //   - Agent for delegating review-architecture +
+            //     review-security to subagents (keeps the skills'
+            //     heavy context out of Agent B's window — same
+            //     pattern fix-bot adopted in #471 after the VERDICT
+            //     line was getting eaten by the findings fence)
+            //   - Skill kept so the subagents (spawned via Agent)
+            //     can invoke the skills they need
+            // Explicitly NOT Write/Edit — reviewer doesn't modify code.
+            allowedTools: ['Bash', 'Read', 'Agent', 'Skill'],
           })
           if (!bResult.success) {
             printWarning(`Agent B exited ${bResult.exitCode} on attempt ${attempt}; treating as needs-human.`)
