@@ -432,6 +432,17 @@ verbatim in the PR body. Anything else in your final message (commit
 output, protocol acknowledgments, follow-up notes) goes ABOVE the
 `SUMMARY:` block — only the marked summary lands in the PR.
 
+**Keep the SUMMARY block tight.** The five sections above (prose, Mode,
+Runtime exercise, Wider suite, optional Discovered) are the full
+contract. Do NOT append parenthetical "Also verified:" / "Also
+checked:" / "Sanity-check:" lines describing process artifacts (tsc
+clean, grep confirmed N callers, no regressions in adjacent suites).
+That work is implicit in the wider-suite line + the fact that you
+emitted SUMMARY at all. Including it bloats the PR body without
+adding signal a reviewer can act on. If you genuinely discovered an
+issue that needs follow-up, that's a `Discovered:` entry — give it
+the structured surface, don't bury it in a parenthetical.
+
 The orchestrator also passes your full SUMMARY block (including
 `Runtime exercise:`, `Wider suite:`, and `Discovered:`) to Agent B as
 the `AGENT_A_SUMMARY` input. Agent B verifies the declared `Mode:`
