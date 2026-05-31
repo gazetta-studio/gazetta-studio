@@ -134,12 +134,11 @@ async function main(): Promise<void> {
   }
   if (past.state === 'rejected') {
     printNotice(`Past-PR check: PR #${past.prNumber} was rejected; recording skip-list entry + skipping.`)
-    const updated = recordSkipListEntry(skipList, fingerprint, {
+    await openSkipListPR(octokit, repo, skipList, fingerprint, {
       reason: 'maintainer-rejected',
       reasonNote: past.reasonNote,
       refPR: past.prNumber,
     })
-    writeSkipList(SKIPLIST_PATH, updated)
     process.exit(0)
   }
 
@@ -179,11 +178,10 @@ async function main(): Promise<void> {
         agentASummary: `(no commits — ${agentAResult.kind})`,
       })
 
-      const updated = recordSkipListEntry(skipList, fingerprint, {
+      await openSkipListPR(octokit, repo, skipList, fingerprint, {
         reason: agentAResult.kind === 'stuck' ? 'stuck' : 'needs-human',
         reasonNote: agentAResult.note,
       })
-      writeSkipList(SKIPLIST_PATH, updated)
       process.exit(0)
     }
 
@@ -238,21 +236,19 @@ async function main(): Promise<void> {
         // any future push/PR-create failure (network, auth, permissions,
         // remote rejection, etc.).
         printWarning(`Push + PR creation failed for ${branchName}: ${err}`)
-        const updated = recordSkipListEntry(skipList, fingerprint, {
+        await openSkipListPR(octokit, repo, skipList, fingerprint, {
           reason: 'needs-human',
           reasonNote: `Agent A + Agent B succeeded (verdict APPROVE) but push or PR creation crashed: ${err}. Branch state is local; maintainer can inspect or recover.`,
         })
-        writeSkipList(SKIPLIST_PATH, updated)
         process.exit(0)
       }
     }
     if (verdict.kind === 'needs-human') {
       printWarning(`Verdict: NEEDS_HUMAN. Recording skip-list entry + exiting.`)
-      const updated = recordSkipListEntry(skipList, fingerprint, {
+      await openSkipListPR(octokit, repo, skipList, fingerprint, {
         reason: 'needs-human',
         reasonNote: verdict.note,
       })
-      writeSkipList(SKIPLIST_PATH, updated)
       process.exit(0)
     }
     // REJECT — loop with the reviewer's note for Agent A.
@@ -262,14 +258,135 @@ async function main(): Promise<void> {
 
   if (!approved) {
     printWarning(`Loop exhausted after ${MAX_ATTEMPTS} attempts. Recording skip-list entry + exiting.`)
-    const updated = recordSkipListEntry(skipList, fingerprint, {
+    await openSkipListPR(octokit, repo, skipList, fingerprint, {
       reason: 'needs-human',
       reasonNote: `Agent A and reviewer did not converge after ${MAX_ATTEMPTS} attempts. Last reviewer note: ${priorReviewerNote ?? '(none)'}`,
     })
-    writeSkipList(SKIPLIST_PATH, updated)
   }
 
   process.exit(0)
+}
+
+// --- Persistent skip-list landing -----------------------------------
+
+/**
+ * Record a skip-list entry locally AND open a draft PR landing it on
+ * main. Without the PR step the runner-local write evaporates at job
+ * teardown — the next cron's fresh clone reads the committed HEAD,
+ * sees no entry, re-picks the same candidate, redoes all the work,
+ * and crashes again on the same root cause.
+ *
+ * Mirrors fix-bot's `escalateToHuman` shape (the rule-38 reference).
+ * fix-bot's `bots/fix-bot/index.ts` opens a `fix-bot-skip/...` branch
+ * + draft PR titled `chore(skip-list): record <reason> for #<N>`. This
+ * helper uses `review-bot-skip/...` branches; everything else is
+ * structurally identical.
+ *
+ * Best-effort: the git ops and PR creation are wrapped so this helper
+ * itself doesn't crash the bot if (say) the network is down. The
+ * local write always happens first so even on PR-creation failure
+ * the runner-tree state reflects intent.
+ */
+export interface SkipListPROptions {
+  reason: 'needs-human' | 'maintainer-rejected' | 'stuck'
+  reasonNote: string
+  refPR?: number
+  /**
+   * Override the repo root for git ops. Defaults to REPO_ROOT.
+   * Tests pass a tempdir to exercise the commit boundary without
+   * touching the real repo.
+   */
+  cwd?: string
+  /**
+   * Override the skip-list path. Defaults to SKIPLIST_PATH (in
+   * `bots/review-bot/skip-list.json`). Tests pass a path inside
+   * `cwd` so the local-write step lands in the test's git tree.
+   */
+  skipListPath?: string
+  /**
+   * Override the skip-list path RELATIVE TO `cwd` for the `git add`
+   * step. Defaults to `bots/review-bot/skip-list.json`. Tests pass
+   * `skip-list.json` because the tempdir has the file at root.
+   */
+  skipListRelPath?: string
+}
+
+export async function openSkipListPR(
+  octokit: ReturnType<typeof octokitFromEnv>,
+  repo: ReturnType<typeof repoFromEnv>,
+  skipList: SkipList,
+  fingerprint: Fingerprint,
+  opts: SkipListPROptions,
+): Promise<void> {
+  const cwd = opts.cwd ?? REPO_ROOT
+  const skipListPath = opts.skipListPath ?? SKIPLIST_PATH
+  const skipListRelPath = opts.skipListRelPath ?? 'bots/review-bot/skip-list.json'
+
+  // Step 1: local write (working tree).
+  const updated = recordSkipListEntry(skipList, fingerprint, {
+    reason: opts.reason,
+    reasonNote: opts.reasonNote,
+    ...(opts.refPR !== undefined ? { refPR: opts.refPR } : {}),
+  })
+  writeSkipList(skipListPath, updated)
+  printNotice(`Recorded skip-list entry for ${fingerprint.type}/${fingerprint.area} (${opts.reason})`)
+
+  // Step 2: branch + commit + push + PR so the entry lands on main.
+  const dateStr = new Date().toISOString().slice(0, 10)
+  const safeArea = fingerprint.area
+    .replace(/\/$/, '')
+    .replace(/[^a-zA-Z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60)
+  const skipBranch = `review-bot-skip/${dateStr}-${fingerprint.type}-${safeArea}`
+  try {
+    execFileSync('git', ['checkout', '-b', skipBranch], { cwd, stdio: 'inherit' })
+    execFileSync('git', ['add', skipListRelPath], { cwd, stdio: 'inherit' })
+    execFileSync(
+      'git',
+      [
+        'commit',
+        '-m',
+        `chore(skip-list): record ${opts.reason} for ${fingerprint.type}/${fingerprint.area}\n\n${opts.reasonNote.slice(0, 500)}`,
+      ],
+      { cwd, stdio: 'inherit' },
+    )
+    execFileSync('git', ['push', '-u', 'origin', skipBranch], { cwd, stdio: 'inherit' })
+
+    await octokit.pulls.create({
+      ...repo,
+      title: `chore(skip-list): record ${opts.reason} for ${fingerprint.type}/${fingerprint.area}`,
+      head: skipBranch,
+      base: 'main',
+      draft: true,
+      body: `> *This was generated by AI during review-bot's autonomous run.*
+
+Adds a skip-list entry so review-bot doesn't re-pick the same candidate on every cron.
+
+**Reason:** \`${opts.reason}\`
+**Fingerprint:** \`${fingerprint.type}\` in \`${fingerprint.area}\` (rule: \`${fingerprint.rule}\`)
+
+**Note from the orchestrator:**
+
+> ${opts.reasonNote.slice(0, 1500)}
+
+**What to do next:**
+
+If the reason looks right, merge this PR (durable skip). If the reason looks wrong (the bot misjudged), close this PR and the next cron will re-pick the candidate.
+
+<!-- review-bot: skip-entry fingerprint=${fingerprint.type}/${fingerprint.area}/${fingerprint.rule} reason=${opts.reason} run=${process.env.GITHUB_RUN_ID ?? 'local'} -->`,
+    })
+    printNotice(`Opened skip-list PR for ${fingerprint.type}/${fingerprint.area}`)
+  } catch (err) {
+    printWarning(`Couldn't open skip-list PR for ${fingerprint.type}/${fingerprint.area}: ${err}`)
+  } finally {
+    try {
+      execFileSync('git', ['checkout', 'main'], { cwd, stdio: 'inherit' })
+    } catch {
+      // best-effort
+    }
+  }
 }
 
 // --- Phase 0 ---------------------------------------------------------
