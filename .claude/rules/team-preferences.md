@@ -407,3 +407,20 @@ Default for new rules: untagged (apply universally). Add `[local]` only when bot
    **Pairs with rule 25 (grill design docs the same as code — never lock a Q without enumerated rejected alternatives):** rule 25 is the design-time discipline; rule 39 is its operational consequence across the full session (design + implementation + review + retrospective phases). Same shape; broader scope.
 
    **Pairs with rule 27 (label assertion provenance):** un-graded confidence and un-labeled assertions are the same failure mode — claims without grounding. Rule 27 makes you cite the source ("verified against X"); rule 39 makes you cite the alternatives walked. Together: a recommendation reads as "I chose A over B, C because [failure modes]; A is grounded in [source]."
+
+40. **Route bot tasks by task shape, not by `bug`/`enhancement` label.** `[local]` Fix-bot handles **one-shot atomic tasks** — no sequencing, no design doc, single PR. Feature-bot handles **sequenced cuts of a designed feature** — depends on prior cuts, follows `design-{feature}.md`, lives under a tracking issue with a `**Feature**:` front-matter field on the sub-issue.
+
+   The labels (`bug + ready-for-agent` vs `enhancement + ready-for-agent`) are a forwarding mechanism, not the load-bearing axis. The load-bearing axis is task shape:
+   - **One-shot** (refactor, hygiene, SOLID/DRY violation, rule-15 extraction trigger, missing-test backfill, small enhancement without design doc) → `bug + ready-for-agent` → fix-bot
+   - **Cut of designed feature** (references a `design-{feature}.md`, depends on other cuts, part of a tracking issue) → `enhancement + ready-for-agent` → feature-bot
+
+   **Why:** SOLID/DRY violations, missing tests per rule 4, format violations per rule 30 are "bugs" in the rule-contract sense even though they read like enhancements. The codebase being out of compliance with a team-preferences rule IS the bug; the fix is restoring compliance. Fix-bot's TDD-first contract still applies — the "failing test" pins a structural contract (e.g., "exactly one `lookupManifest` definition exists" + "the three route files import from it") instead of a behavior contract.
+
+   **How to apply:**
+   - When triaging a new `ready-for-agent` issue, ask: "is this a cut of a designed feature, or one-shot?" One-shot → `bug` label. Cut → `enhancement` label + must reference a design doc via `**Feature**:` front-matter, and must live under a tracking issue.
+   - When relabeling an issue between the two queues, the relabel itself is the routing decision — don't implement directly to bypass the question.
+   - Mistakes are correctable: relabel, the cron picks up the new queue next run.
+
+   **Why this rule earns a number:** issue #463 (extract triplicated `lookupManifest` after #461 crossed rule 15's 3-caller threshold) initially landed as `enhancement` and got routed to feature-bot — where it stalled because feature-bot's parser rejects bodies without `**Feature**:`. The implicit rule (`enhancement` → feature-bot, `bug` → fix-bot) treated the labels as primary. The actual primary is task shape; the labels exist to forward to the right bot.
+
+   **Pairs with rule 31 (TDD-first when delegating):** structural tests (assert N copies of X exist before fix, 1 copy after) are a legitimate TDD shape for non-behavior cuts. The TDD contract is "the test fails when the impl is reverted" — that holds for structural assertions, not just behavior assertions.
