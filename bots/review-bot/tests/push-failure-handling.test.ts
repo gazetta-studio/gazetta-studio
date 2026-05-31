@@ -34,16 +34,20 @@ describe('review-bot phase5Push failure handling', () => {
     const source = await readFile(INDEX_PATH, 'utf8')
 
     // The APPROVE-verdict branch must call phase5Push inside a try
-    // block; the catch must record a needs-human skip-list entry
-    // before exiting. We assert the structural shape with a single
-    // multi-line regex that captures the contract:
+    // block; the catch must route through openSkipListPR (which writes
+    // skip-list locally AND opens a draft PR to commit the entry to
+    // main — the persistence layer added in the rule-38 follow-up).
+    // We assert the structural shape with a single multi-line regex
+    // that captures the contract:
     //
     //   try {
     //     await phase5Push(...)
     //     ...
     //   } catch (err) {
     //     ...
-    //     recordSkipListEntry(skipList, fingerprint, { reason: 'needs-human', ... })
+    //     await openSkipListPR(octokit, repo, skipList, fingerprint, {
+    //       reason: 'needs-human', ...
+    //     })
     //     ...
     //     process.exit(0)
     //   }
@@ -51,11 +55,11 @@ describe('review-bot phase5Push failure handling', () => {
     // We don't pin the exact whitespace / variable names — just the
     // load-bearing structural invariant.
     const approvePath = source.match(
-      /verdict\.kind === 'approve'[\s\S]*?try \{[\s\S]*?await phase5Push\([\s\S]*?\} catch \([\s\S]*?recordSkipListEntry\([\s\S]*?reason: 'needs-human'[\s\S]*?process\.exit\(0\)[\s\S]*?\}/,
+      /verdict\.kind === 'approve'[\s\S]*?try \{[\s\S]*?await phase5Push\([\s\S]*?\} catch \([\s\S]*?openSkipListPR\([\s\S]*?reason: 'needs-human'[\s\S]*?process\.exit\(0\)[\s\S]*?\}/,
     )
     expect(
       approvePath,
-      'phase5Push call must be wrapped in try/catch that records needs-human + exits cleanly',
+      'phase5Push call must be wrapped in try/catch that routes through openSkipListPR (durable persistence) + exits cleanly',
     ).toBeTruthy()
   })
 })
