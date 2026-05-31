@@ -181,8 +181,8 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
      emit `NEEDS_INPUT` per Q6 lock, citing the discovered edge case.
      Don't guess; ask.
 
-   **Capture the exercise output in your `SUMMARY:` block** under a
-   `Runtime exercise:` heading. Show each acceptance bullet, then each
+   **Capture the exercise output in your `SUMMARY:` block** (step 10) under
+   a `Runtime exercise:` heading. Show each acceptance bullet, then each
    path of that bullet with its input + actual output. Use brief prose;
    the orchestrator surfaces this in the PR body for maintainer review.
 
@@ -193,7 +193,24 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
    the new test cases — keep them in the failing-test commit so the
    TDD-first ordering is preserved.
 
-8. Commit:
+8. **Format the diff with Biome** before committing the impl. Per
+   [team-preferences.md rule 30](../../.claude/rules/team-preferences.md),
+   format must run before commit — otherwise CI's `format` check
+   fails and the maintainer has to push a follow-up format-only
+   commit (which adds noise + bypasses the CI gate). Run:
+   ```bash
+   npm run format
+   ```
+   Biome reformats unstaged + staged files in place (~150ms). If
+   Biome touched the failing-test file (step 7's amend already
+   landed), re-amend the test commit to roll the reformat into it
+   — DO NOT make a separate format commit:
+   ```bash
+   git add <test files>
+   git commit --amend --no-edit
+   ```
+
+9. Commit:
    ```bash
    git add <impl files>
    git commit -m "feat(<area>): cut #$ISSUE_NUMBER — <short summary>
@@ -204,7 +221,7 @@ Closes #$ISSUE_NUMBER
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
    ```
-9. End with a `SUMMARY:` block as your last output:
+10. End with a `SUMMARY:` block as your last output:
 
    ```
    SUMMARY:
