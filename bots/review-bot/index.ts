@@ -209,20 +209,42 @@ async function main(): Promise<void> {
 
     if (verdict.kind === 'approve') {
       printNotice(`Verdict: APPROVE. Pushing ${branchName} + opening PR...`)
-      await phase5Push(
-        branchName,
-        candidate,
-        fingerprint,
-        {
-          attempt,
-          approveReasoning: verdict.reasoning,
-          agentASummary: agentAResult.summary ?? '(no summary)',
-        },
-        octokit,
-        repo,
-      )
-      approved = true
-      break
+      try {
+        await phase5Push(
+          branchName,
+          candidate,
+          fingerprint,
+          {
+            attempt,
+            approveReasoning: verdict.reasoning,
+            agentASummary: agentAResult.summary ?? '(no summary)',
+          },
+          octokit,
+          repo,
+        )
+        approved = true
+        break
+      } catch (err) {
+        // git push or PR creation crashed AFTER Agent A + Agent B both
+        // succeeded — the work is done locally but couldn't ship. Without
+        // this catch the throw escapes uncaught, the bot crashes with
+        // exit 1, no skip-list entry is recorded, and the next cron
+        // redoes all of Agent A + Agent B work + crashes again on the
+        // same root cause. Record needs-human + exit cleanly so the
+        // maintainer can investigate. See review-bot run 26707064619
+        // (2026-05-31) where an unsanitized branch name caused
+        // `fatal: invalid refspec` at push time; the fix (#477) closed
+        // the root cause but the bot still needs graceful handling for
+        // any future push/PR-create failure (network, auth, permissions,
+        // remote rejection, etc.).
+        printWarning(`Push + PR creation failed for ${branchName}: ${err}`)
+        const updated = recordSkipListEntry(skipList, fingerprint, {
+          reason: 'needs-human',
+          reasonNote: `Agent A + Agent B succeeded (verdict APPROVE) but push or PR creation crashed: ${err}. Branch state is local; maintainer can inspect or recover.`,
+        })
+        writeSkipList(SKIPLIST_PATH, updated)
+        process.exit(0)
+      }
     }
     if (verdict.kind === 'needs-human') {
       printWarning(`Verdict: NEEDS_HUMAN. Recording skip-list entry + exiting.`)
