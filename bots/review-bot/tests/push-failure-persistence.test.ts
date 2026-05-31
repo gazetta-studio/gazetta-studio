@@ -116,6 +116,14 @@ describe('review-bot push-failure skip-list PERSISTENCE (proves e79befb ineffect
     const git = (...args: string[]) => execFileSync('git', args, { cwd: dir, env, stdio: 'pipe' })
     git('init', '-q')
     git('checkout', '-q', '-b', 'main')
+    // Set repo-local git author config so the helper's child git
+    // processes (which inherit process.env, NOT the test's local env
+    // spread) can commit. Repo-local config takes precedence over env;
+    // this works whether the runner has git author configured globally
+    // or not. CI runs without global config — verified by run
+    // #26716176290's `git commit` failure.
+    git('config', 'user.name', 't')
+    git('config', 'user.email', 't@t')
     writeSkipList(skipPath, { version: 1, entries: [], rules: [] })
     git('add', 'skip-list.json')
     git('commit', '-q', '-m', 'init empty skip-list')
