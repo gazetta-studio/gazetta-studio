@@ -17,7 +17,8 @@
     "src/publish-rendered.ts",
     "src/admin-api/**/*.ts",
     "src/alt/route-handler.ts",
-    "src/hooks/registry.ts"
+    "src/hooks/registry.ts",
+    "src/assets/asset-deps.ts"
   ],
   "thresholds": {
     "high": 80,
