@@ -184,6 +184,45 @@ bug doesn't reproduce). Don't push it. Either:
 - If you've genuinely tried 2-3 shapes and can't capture the bug, go
   to step 8 (stuck-comment + ready-for-human)
 
+**3d. Structural bug (rule-15 extraction trigger; rule-30 format
+discipline; SOLID/DRY violation; missing-test backfill):** the "bug"
+is a structural invariant the codebase fails to satisfy, not a
+runtime misbehavior. The failing test pins the invariant.
+
+**Write the MINIMUM test that pins what the compiler can't catch.**
+TypeScript already enforces import resolution, export presence, type
+signatures. Don't write tests for things the compiler will fail on
+during build — those tests don't add coverage. Pin ONLY the
+invariants `tsc` would let through:
+
+- **Rule-15 extractions**: pin "no inline copies remain in
+  consumers." (Compiler doesn't care if a route file shadows an
+  imported helper with a private function of the same name.) Plus
+  the behavior of the new helper if it has runtime branches.
+- **Rule-30 format**: pin "format check passes" via a test that
+  runs `npm run format:check` and asserts exit code 0 — not a
+  per-file format assertion.
+- **SOLID/DRY**: pin the structural invariant (one definition, one
+  module, one canonical path) — not the per-consumer wiring (the
+  compiler catches that).
+- **Missing-test backfill**: pin the behavior that previously had no
+  test, not the meta-fact that "a test exists."
+
+**Anti-pattern to avoid: tests that duplicate what `tsc` already
+enforces.** A test "shared module exports `lookupManifest`" is
+shadowed by the compiler: if the export were missing, the consumers
+fail at build. Similarly "archive.ts imports lookupManifest from the
+shared module" — TypeScript would fail if the import path were
+wrong. These tests aren't WRONG, they're over-coverage; the
+compiler is the load-bearing check, the test duplicates it. Reserve
+test surface for invariants the compiler can't enforce.
+
+**Rough sizing**: a rule-15 extraction needs ~1 structural test
+("no inline copies remain") + 1-3 behavior tests (one per runtime
+branch). Not one structural test per consumer; not separate tests
+for "module exports X" + "consumer imports from Y" — those are one
+compile-time gate, not two test surfaces.
+
 **Contract-defining constants live in `src/`, not in tests.** If your
 test asserts against a literal value that also appears in production
 code (e.g. `expect(pkg.engines.node).toBe('>=22.22.2')` when the CLI
