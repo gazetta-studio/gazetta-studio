@@ -47,10 +47,7 @@ import { rebuildAssetRefs } from '../../assets/asset-deps.js'
 import { rebuildFragmentDeps } from '../../fragment-deps.js'
 import type { ItemRef } from '../../dep-sidecars.js'
 import { deriveRoute } from '../../site-loader.js'
-import {
-  CreateRedirectRequestSchema,
-  type CreateRedirectResponse,
-} from '../schemas/redirects.js'
+import { CreateRedirectRequestSchema, type CreateRedirectResponse } from '../schemas/redirects.js'
 import type { ComponentManifest, FragmentManifest, PageManifest } from '../../types.js'
 
 type RedirectKind = 'page' | 'fragment'
@@ -500,11 +497,7 @@ async function purgeExisting(
  * `archived-name-conflict.ts`'s `pickAsideName` — kept inline because
  * the existing helper isn't exported.
  */
-async function pickAsideName(
-  source: SourceContext,
-  binding: KindBinding,
-  name: string,
-): Promise<string> {
+async function pickAsideName(source: SourceContext, binding: KindBinding, name: string): Promise<string> {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
   const base = `${name}-archived-${today}`
   let candidate = base
@@ -551,4 +544,3 @@ async function moveArchiveAside(
     rebuildFragmentDeps(source.contentRoot, newRef, null, carried),
   ])
 }
-

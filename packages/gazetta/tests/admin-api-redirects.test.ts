@@ -45,7 +45,10 @@ function setup(opts: SetupOpts = {}) {
     'pages/home/page.json': JSON.stringify({ template: 'page-default', content: {} }),
     'pages/about/page.json': JSON.stringify({ template: 'page-default', content: {} }),
     'pages/products/featured/page.json': JSON.stringify({ template: 'page-default', content: {} }),
-    'pages/products/featured/page.fr.json': JSON.stringify({ template: 'page-default', content: { title: 'En vedette' } }),
+    'pages/products/featured/page.fr.json': JSON.stringify({
+      template: 'page-default',
+      content: { title: 'En vedette' },
+    }),
     // Existing live fragment + alias target for fragment redirects.
     'fragments/header/fragment.json': JSON.stringify({ template: 'header-layout', content: {} }),
     'fragments/footer/fragment.json': JSON.stringify({ template: 'footer-layout', content: {} }),
