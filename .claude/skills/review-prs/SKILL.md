@@ -109,13 +109,22 @@ Mixed test files — where SOME `it()` blocks read source files but OTHERS impor
 - **Behavior tests**: import the symbol from the production module, call it with real inputs, assert on outputs. These exercise runtime branches and catch real regressions.
 - **Structural invariant tests the compiler CANNOT catch**: "no inline copies of `lookupManifest` remain in route files" — the compiler allows shadow definitions; this test is the load-bearing rule-15 enforcement. Note: this IS a file-content test, BUT it pins an invariant TypeScript can't enforce. Keep it.
 
-The distinction:
+The distinction — **drift PROBABILITY through normal work, not drift POSSIBILITY in principle** (per team-preferences rule 41):
 - File-content test that pins something the codebase's CURRENT state already proves (imports resolve, exports exist, symbols are defined) → **proof-of-work; drop**
-- File-content test that pins something that could SILENTLY drift (shadow definitions, deprecated-API absence, "no calls to X remain") → **keep, it's enforcing a rule the compiler doesn't**
+- File-content test that pins something a developer could RE-INTRODUCE WITHOUT NOTICING during normal edits ("no `console.log` in production", "no calls to deprecated `oldApi()` remain" — every careless add re-breaks it) → **keep, or better, make it a lint rule**
+- File-content test that pins something that only drifts via a DELIBERATE, against-the-grain action ("no inline copy of `lookupManifest` shadows the import we also kept") → **drop**. Nobody re-adds a shadow definition by accident; the production diff is the proof the extraction happened, and the bot's 4-step revert+rerun already validated the cut. Re-asserting on every CI run via brittle regex (blind to renames / arrow-fn rewrites / reformatting) is proof-of-work redundancy.
+
+The sharper test: "would the compiler or a lint rule be the right home for this, AND is the drift it guards against something a developer would do without noticing?" If a developer would never accidentally do it → **prune the block, keep the behavior tests**. If it's genuinely drift-prone → file a follow-up to replace the regex-over-source assertion with an ESLint `no-restricted-syntax` rule (string-matching source enforces the *spelling*, not the *invariant*).
+
+**`Mode: structural` one-shot extraction cuts are the canonical prune case.** rule-15 extractions, dead-code removals, and rename-the-helper refactors all produce file-content tests whose only job was to be red-before-green. Once the bot validated the cut, that job is done. (Reference: PR #474, 2026-05-31 — the skill's earlier "keep compiler-invisible invariants" phrasing kept a proof-of-work block the maintainer correctly flagged for pruning. Rule 41 was the retrospective fix.)
 
 ### Process
 
-This workflow EDITS a bot's PR branch + force-pushes — destructive and irreversible from the maintainer's review surface. **Every step requires explicit human confirmation, not a default-yes prompt.**
+**Default to an additive commit, not a rebase-and-amend (per team-preferences rule 42).** When the maintainer confirms pruning, the lighter path is usually right: edit the test file, commit the change as a NEW commit on top of the bot's untouched commits, plain `git push`. This leaves the bot's commits byte-identical, fires the `synchronize` CI event normally (your account identity, not `GITHUB_TOKEN`), and keeps the bot's transcript-referenced SHAs valid. Verify the trimmed test file still fails red-before-green (move the production module aside, confirm the remaining tests fail; restore) — the contract must survive the prune.
+
+**The amend/force-push path below is the EXCEPTION** — reach for it only when the edit must live INSIDE the bot's failing-test commit for the TDD contract to hold (e.g. the test file is commit 1 of 2 and you're removing a block that was part of what made commit 1 red). For "drop a redundant block" the additive commit is simpler and non-destructive. (If you START additive and later amend YOUR OWN top commit — not the bot's — `--force-with-lease` is fine; you're rewriting your commit, not the bot's history.)
+
+The rest of this section covers the destructive amend path. This workflow EDITS a bot's PR branch + force-pushes — destructive and irreversible from the maintainer's review surface. **Every step requires explicit human confirmation, not a default-yes prompt.**
 
 When you spot a proof-of-work candidate:
 
