@@ -422,12 +422,18 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     const bResult = await runClaude({
       prompt: reviewerPrompt,
       transcriptPath: reviewerTranscript,
-      // Reviewer needs Bash to run the tautology check (git revert +
-      // vitest), Read to inspect source + rule files on demand, and
-      // Skill to invoke /review-architecture + conditionally
-      // /review-security per design-code-review.md Step 3.
+      // Reviewer needs:
+      //   - Bash for tautology check (git revert + vitest)
+      //   - Read for source + rule files on demand
+      //   - Agent for delegating review-architecture + review-security
+      //     to subagents (keeps the skills' heavy context out of Agent
+      //     B's window — without this delegation the skills' findings
+      //     fence reads as a natural terminator and Agent B stops
+      //     before emitting the required VERDICT: line; see #469)
+      //   - Skill kept so the subagents (spawned via Agent) can invoke
+      //     the skills they need
       // Explicitly NOT Write/Edit — reviewer doesn't modify code.
-      allowedTools: ['Bash', 'Read', 'Skill'],
+      allowedTools: ['Bash', 'Read', 'Agent', 'Skill'],
     })
     if (!bResult.success) {
       printWarning(`Agent B exited ${bResult.exitCode} on attempt ${attempt}; treating as needs-human.`)

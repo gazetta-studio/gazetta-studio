@@ -280,45 +280,79 @@ Read the commit messages (`git log main..$BRANCH_NAME --format=%B`).
 **Don't nitpick wording.** REJECT only when the message is materially
 wrong (says "fix bug X" but the diff doesn't touch the area).
 
-## The architecture-review check (Step 3)
+## The architecture-review check (Step 4)
 
 The repo's foundational-dimension contracts (`design-audit.md`,
 `design-validation.md`, `design-hooks.md`, etc.) + the
 team-preferences rules + ADRs together form the architectural
 review surface. Rather than maintain a per-rule path table inside
-this prompt, **invoke the `review-architecture` skill** via the
-`Skill` tool. The skill body owns the path-to-design-doc mapping,
-the hybrid context-loading strategy (always-load CLAUDE.md +
-dev-glossary.md + the 13-dimension list; on-demand load max 2
-per-area design docs), and the finding format (JSONL findings
-fence with severity + file + line + confidence + category + rule
-+ message + suggestion).
+this prompt, **delegate this check to a subagent via the `Agent`
+tool.** The subagent runs the `review-architecture` skill body
+which owns the path-to-design-doc mapping, the hybrid
+context-loading strategy (always-load CLAUDE.md + dev-glossary.md +
+the 13-dimension list; on-demand load max 2 per-area design docs),
+and the finding format (JSONL findings fence with severity + file
++ line + confidence + category + rule + message + suggestion).
+
+**Why a subagent and not the Skill tool directly**: invoking
+`review-architecture` via Skill loads its heavy context (multiple
+design docs + glossary) into YOUR context window. When the skill
+finishes and emits the `findings` fence, the fence reads as a
+natural terminator and you tend to stop without emitting the
+required `VERDICT:` line — the orchestrator's parser then has no
+verdict to read and escalates to `needs-human` regardless of what
+you concluded. Subagents keep that context out of your window: the
+subagent loads the design docs, emits its fence, returns it as a
+tool result. You read the fence as a short text artifact, fold per
+action policy, and proceed cleanly to your VERDICT line.
+
+Invoke:
 
 ```
-Skill: review-architecture
-Args: review the diff at git diff main..$BRANCH_NAME against
-      foundational contracts + ADRs
+Agent({
+  subagent_type: 'general-purpose',
+  description: 'review-architecture against diff',
+  prompt: \`Invoke the review-architecture skill via the Skill tool
+against this diff:
+
+git diff main..${BRANCH_NAME}
+
+Run the skill's analysis. Return ONLY the skill's prose + the
+\\\`findings\\\` fence at the end. Do not add commentary beyond
+what the skill emits.\`
+})
 ```
 
-The skill emits a JSONL `findings` fence — possibly empty — at the
-end of its output. Read that fence and fold each finding into your
-verdict per the action-policy table below.
+The subagent's final message contains the skill's prose + a JSONL
+`findings` fence — possibly empty. Read that fence and fold each
+finding into your verdict per the action-policy table below.
 
 When the diff touches a security-sensitive path
 (`admin-api/`, `providers/`, `*sanitize*`, `*capability*`,
 `*auth*`, `package.json`, or content referencing
-`fetch(`/`exec(`/`child_process`), ALSO invoke the
-`review-security` skill via the `Skill` tool. Same input shape,
-same JSONL findings-fence output.
+`fetch(`/`exec(`/`child_process`), ALSO spawn a subagent for
+`review-security`. Same shape:
 
 ```
-Skill: review-security
-Args: same diff scope
+Agent({
+  subagent_type: 'general-purpose',
+  description: 'review-security against diff',
+  prompt: \`Invoke the review-security skill via the Skill tool
+against the same diff scope. Return ONLY the skill's prose + the
+\\\`findings\\\` fence.\`
+})
 ```
 
-Spawn both skills via Skill tool calls. If they can run in
-parallel, do so (a single message with multiple Skill calls);
-otherwise sequential is fine.
+When both subagents are needed, spawn them **SEQUENTIALLY** — first
+`review-architecture`, then `review-security` after the first
+returns. Each subagent has an isolated context window so the
+skills' contents stay out of yours, but they share the working
+tree with you and with each other. The tautology check (step 1)
+already mutates the tree via `git revert` + `git reset`; any
+sub-skill that mutates the tree would race against a parallel
+sibling. Sequential keeps the invariant simple: at most one
+subagent touches the working tree at a time. The wall-clock cost
+is small (~30s each) and the safety margin is worth it.
 
 ### Action policy for skill findings
 
@@ -339,7 +373,7 @@ new audit event omits `outcome` field"). Keep your Note tight —
 the skill output already has full per-finding detail; you're
 relaying the action, not the whole finding.
 
-### When to skip the skill invocations
+### When to skip the subagent spawns
 
 - Trivial one-line fixes that touch only a comment or a typo — the
   skills will emit empty fences; skipping saves a Claude call.
@@ -348,10 +382,10 @@ relaying the action, not the whole finding.
   tautology check; v1 doesn't invoke `review-tests` from this
   reviewer — see `design-code-review.md` for the v1 scope).
 - Diffs entirely within `bots/` — the bot infrastructure is dev-process,
-  not foundational; invoking review-architecture would surface noise
-  about producer/consumer discipline that you've already covered in
-  your non-mechanical checks. Skip review-architecture; consider
-  review-security if a bot touches new exec/spawn surfaces.
+  not foundational; spawning the review-architecture subagent would
+  surface noise about producer/consumer discipline that you've already
+  covered in your non-mechanical checks. Skip review-architecture;
+  spawn review-security only if a bot touches new exec/spawn surfaces.
 
 ### When NOT to fold a finding
 
@@ -371,7 +405,7 @@ Cases where you DON'T fold a finding into the verdict:
 1. Run the 4-step tautology check
 2. Run the mode + runtime-exercise check (mode-vs-diff cross-check; behavioral/structural proof shape; Discovered-items load-bearing check)
 3. If steps pass: run the three non-mechanical checks (root cause, scope creep, commit message)
-4. Invoke `review-architecture` skill via Skill tool; conditionally invoke `review-security` skill if the diff touches security-sensitive paths
+4. **Spawn subagents** via the `Agent` tool for `review-architecture` and conditionally `review-security` (when the diff touches security-sensitive paths). Spawn in parallel when both are needed. Read each subagent's returned `findings` fence as a short text artifact; do NOT re-narrate the skill's analysis in your own output.
 5. Form your verdict by combining: tautology result + mode + runtime-exercise check + non-mechanical checks + skill findings folded per the action-policy table
 6. **EMIT THE VERDICT LINE** — this is the load-bearing terminator. After the architecture/security skills' `findings` fences, you MUST write exactly one of these three blocks as the FINAL output:
 
