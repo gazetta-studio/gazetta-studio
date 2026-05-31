@@ -42,12 +42,53 @@ describe('feature-bot reviewer prompt — structural contracts', () => {
     expect(prompt).toMatch(/security-sensitive path/)
   })
 
-  it('documents sequential (not parallel) subagent spawning', () => {
-    // The tautology check (step 1) mutates the working tree (git revert
-    // + git reset). Sub-skills must not race with each other or the main
-    // flow on tree state — sequential keeps "at most one subagent
-    // touches the tree at a time" as the invariant.
-    expect(prompt).toMatch(/SEQUENTIALLY|sequential/)
+  it('documents parallel spawning in the body section (bold IN PARALLEL)', () => {
+    // Both skills are read-only by contract (`allowed-tools: Bash Read
+    // Grep Glob` in their SKILL.md — no Write, no Edit). They can't
+    // race on tree state. Parallel keeps wall-clock to ~30s instead
+    // of ~60s.
+    //
+    // Anchor on the bold **IN PARALLEL** declaration. A loose substring
+    // search (`/parallel/i`) would still pass if a refactor flipped
+    // step 7 to "SEQUENTIALLY" but left "parallel" elsewhere in the
+    // rationale — exactly the regression this test should catch.
+    expect(prompt).toMatch(/\*\*IN PARALLEL\*\*/)
+  })
+
+  it('documents parallel spawning in the Process step list too', () => {
+    // Process step 7 carries the actionable instruction; the body
+    // section carries the rationale. They must agree — a body that
+    // says "parallel" with a step list that says "sequential" gives
+    // the reviewer contradictory guidance (the failure mode that
+    // shipped in fix-bot's reviewer.md pre-#480).
+    expect(prompt).toMatch(/^\d+\.\s+\*\*Spawn subagents\*\*[\s\S]*?IN PARALLEL/m)
+  })
+
+  it('keeps the "When to skip the subagent spawns" guardrail subsection', () => {
+    // Lists conditions under which review-architecture / review-security
+    // delegation is skipped (trivial docs cuts, pure data-shape cuts,
+    // bots/-only diffs). Silent removal would cause the reviewer to
+    // always spawn subagents — wasted API budget on diffs that don't
+    // benefit + context burn.
+    expect(prompt).toMatch(/### When to skip the subagent spawns/)
+  })
+
+  it('keeps the "When NOT to fold a finding" guardrail subsection', () => {
+    // Carve-outs where the reviewer should NOT route a skill-emitted
+    // finding into the verdict (e.g., finding cites a doc modified in
+    // the same diff; finding contradicts an explicit PRIOR_REVIEWER_NOTE
+    // on retry). Silent removal would cause false REJECTs Agent A
+    // can't address.
+    expect(prompt).toMatch(/### When NOT to fold a finding/)
+  })
+
+  it('Rules section lists Agent + Skill among allowed tools (not just Bash + Read)', () => {
+    // The orchestrator's reviewer allowedTools includes 'Agent' and
+    // 'Skill' (see bots/feature-bot/index.ts). The prompt's Rules
+    // section must reflect this — otherwise the reviewer reads
+    // "Bash + Read only" at the end and treats the new subagent
+    // delegation (Process step 7) as forbidden, defeating the pattern.
+    expect(prompt).toMatch(/Bash[\s\S]{0,50}Read[\s\S]{0,50}Agent[\s\S]{0,50}Skill/)
   })
 
   it('documents the severity-to-verdict action policy table', () => {

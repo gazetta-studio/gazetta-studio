@@ -348,16 +348,21 @@ against the same diff scope. Return ONLY the skill's prose + the
 })
 ```
 
-When both subagents are needed, spawn them **SEQUENTIALLY** — first
-`review-architecture`, then `review-security` after the first
-returns. Each subagent has an isolated context window so the skills'
-contents stay out of yours, but they share the working tree with you
-and with each other. The tautology check (step 1) already mutates the
-tree via `git revert` + `git reset`; any sub-skill that mutates the
-tree would race against a parallel sibling. Sequential keeps the
-invariant simple: at most one subagent touches the working tree at a
-time. The wall-clock cost is small (~30s each) and the safety margin
-is worth it.
+When both subagents are needed, spawn them **IN PARALLEL** — a single
+message with two `Agent` tool calls. Each subagent has an isolated
+context window so the skills' contents stay out of yours, and both
+skills are read-only by contract (`review-architecture` and
+`review-security` declare `allowed-tools: Bash Read Grep Glob` in
+their SKILL.md — no `Write`, no `Edit`, no tree mutation). They share
+the working tree with you on read, but the tautology check (step 1)
+already restored the tree to clean origin state before this step
+runs, and read-only subagents can't change that. Parallel keeps
+wall-clock to ~30s instead of ~60s.
+
+If a future review-* skill is ever changed to mutate the working
+tree (adding `Write` / `Edit` to its `allowed-tools`), flip back
+to sequential — the invariant "at most one subagent touches the
+tree at a time" matters only when at least one of them writes.
 
 ### Action policy for skill findings
 
@@ -412,7 +417,7 @@ Cases where you DON'T fold a finding into the verdict:
 4. Run the SOLID check (when `## SOLID` is present)
 5. Run the locked-decisions check (against the design doc)
 6. Run the non-mechanical checks (scope, commit messages)
-7. **Spawn subagents** via the `Agent` tool for `review-architecture` and conditionally `review-security` (when the diff touches security-sensitive paths). Spawn SEQUENTIALLY (architecture first, then security). Read each subagent's returned `findings` fence as a short text artifact; do NOT re-narrate the skill's analysis in your own output.
+7. **Spawn subagents** via the `Agent` tool for `review-architecture` and conditionally `review-security` (when the diff touches security-sensitive paths). Spawn IN PARALLEL when both are needed — a single message with two `Agent` tool calls; both skills are read-only by contract (`allowed-tools: Bash Read Grep Glob` in their SKILL.md). Read each subagent's returned `findings` fence as a short text artifact; do NOT re-narrate the skill's analysis in your own output.
 8. Form your verdict by combining all checks + skill findings folded per the action-policy table. **Emit the verdict line at the END:**
 
 ```
@@ -458,7 +463,7 @@ Note: <why a human needs to look — what's structurally questionable>
 
 - DO NOT push, comment on PRs, or open new PRs. Your output IS the
   verdict; the orchestrator acts on it.
-- DO NOT modify code. You have `Bash` + `Read` only; no `Write` or `Edit`.
+- DO NOT modify code. You have `Bash`, `Read`, `Agent`, and `Skill` (the last two for spawning the `review-architecture` / `review-security` subagents per Process step 7); no `Write` or `Edit`.
 - DO NOT approve when uncertain. REJECT or NEEDS_HUMAN are safer
   defaults.
 - DO emit the `VERDICT:` line as your FINAL output. The orchestrator
