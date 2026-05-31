@@ -98,6 +98,7 @@ import {
 } from '../schemas/archive.js'
 import type { ComponentManifest, FragmentManifest, PageManifest } from '../../types.js'
 import { archiveReviewMetadata, buildAutoWithdrawEvent, stripReviewStateForRestore } from './archive-review.js'
+import { lookupManifest } from '../lookup-manifest.js'
 
 type ItemKind = 'page' | 'fragment'
 
@@ -213,7 +214,7 @@ export async function handleArchive(
   const source = await resolve(c.req.query('target'))
   const site = await loadSiteFromSource(source)
 
-  const manifest = lookupManifest(site, handle, name)
+  const manifest = lookupManifest(site, handle.scopeKind, name)
   if (!manifest) return c.json({ error: `${handle.label} "${name}" not found` }, 404)
 
   // Schema-validate body — same MCP discipline as other admin-API
@@ -348,7 +349,7 @@ async function handleUnarchive(
   const source = await resolve(c.req.query('target'))
   const site = await loadSiteFromSource(source)
 
-  const manifest = lookupManifest(site, handle, name)
+  const manifest = lookupManifest(site, handle.scopeKind, name)
   if (!manifest) return c.json({ error: `${handle.label} "${name}" not found` }, 404)
 
   // Already live? Idempotent — same rationale as archive's idempotent
@@ -413,7 +414,7 @@ async function handleSetAlias(
   const source = await resolve(c.req.query('target'))
   const site = await loadSiteFromSource(source)
 
-  const manifest = lookupManifest(site, handle, name)
+  const manifest = lookupManifest(site, handle.scopeKind, name)
   if (!manifest) return c.json({ error: `${handle.label} "${name}" not found` }, 404)
 
   if (manifest.archived !== true) {
@@ -492,7 +493,7 @@ export async function handlePurge(
   const source = await resolve(c.req.query('target'))
   const site = await loadSiteFromSource(source)
 
-  const manifest = lookupManifest(site, handle, name)
+  const manifest = lookupManifest(site, handle.scopeKind, name)
   if (!manifest) return c.json({ error: `${handle.label} "${name}" not found` }, 404)
 
   // Per Q4 lock D1: refuse on aliases AND live refs (one 409 with
@@ -577,14 +578,6 @@ export async function handlePurge(
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────
-
-function lookupManifest(
-  site: import('../../site-loader.js').Site,
-  handle: ItemHandle,
-  name: string,
-): (PageManifest | FragmentManifest) | undefined {
-  return handle.scopeKind === 'page' ? site.pages.get(name) : site.fragments.get(name)
-}
 
 function collectLocaleVariants(
   site: import('../../site-loader.js').Site,

@@ -66,6 +66,7 @@ import { requireCapability } from '../middleware/capability.js'
 import type { AuditEnv } from '../middleware/audit.js'
 import type { ItemRef } from '../../dep-sidecars.js'
 import { readArchivesAliasing, rebuildArchiveAliases } from '../../archive-aliases.js'
+import { lookupManifest } from '../lookup-manifest.js'
 import { rebuildAssetRefs } from '../../assets/asset-deps.js'
 import { rebuildFragmentDeps } from '../../fragment-deps.js'
 import {
@@ -151,13 +152,13 @@ async function handleRename(c: Context<AuditEnv>, resolve: SourceContextResolver
   }
 
   // Look up the source manifest.
-  const fromManifest = lookupManifest(site, handle, fromName)
+  const fromManifest = lookupManifest(site, handle.scopeKind, fromName)
   if (!fromManifest) {
     return c.json({ error: `${handle.label} "${fromName}" not found` }, 404)
   }
 
   // Conflict checks (Q3 C1) — distinct 409 codes for the two flavors.
-  const toManifest = lookupManifest(site, handle, toName)
+  const toManifest = lookupManifest(site, handle.scopeKind, toName)
   if (toManifest) {
     if (toManifest.archived === true) {
       const body: ArchivedNameConflict = {
@@ -255,14 +256,6 @@ async function handleRename(c: Context<AuditEnv>, resolve: SourceContextResolver
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────
-
-function lookupManifest(
-  site: import('../../site-loader.js').Site,
-  handle: ItemHandle,
-  name: string,
-): (PageManifest | FragmentManifest) | undefined {
-  return handle.scopeKind === 'page' ? site.pages.get(name) : site.fragments.get(name)
-}
 
 /**
  * Create the new manifest + all locale variants. Each variant is

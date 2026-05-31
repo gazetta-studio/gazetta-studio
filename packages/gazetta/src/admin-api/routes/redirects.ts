@@ -49,6 +49,7 @@ import type { ItemRef } from '../../dep-sidecars.js'
 import { deriveRoute } from '../../site-loader.js'
 import { CreateRedirectRequestSchema, type CreateRedirectResponse } from '../schemas/redirects.js'
 import type { ComponentManifest, FragmentManifest, PageManifest } from '../../types.js'
+import { lookupManifest } from '../lookup-manifest.js'
 
 type RedirectKind = 'page' | 'fragment'
 
@@ -158,7 +159,7 @@ async function handleCreateRedirect(
   // shortcut from a creation dialog; operator's deliberate two-step
   // (archive-or-rename first, then create redirect) protects against
   // accidental live-page removal.
-  const existing = lookupManifest(site, binding, from)
+  const existing = lookupManifest(site, binding.kind, from)
   if (existing && existing.archived !== true) {
     return c.json(
       {
@@ -183,7 +184,7 @@ async function handleCreateRedirect(
   // Alias target existence check. `to` must resolve to a live page or
   // fragment of the same kind. Cross-kind aliases (e.g., a page-redirect
   // pointing at a fragment) aren't valid runtime targets.
-  const aliasTarget = lookupManifest(site, binding, to)
+  const aliasTarget = lookupManifest(site, binding.kind, to)
   if (!aliasTarget || aliasTarget.archived === true) {
     return c.json(
       {
@@ -230,14 +231,6 @@ function normalizeFromName(input: string): string {
 
 function containsWildcard(name: string): boolean {
   return /\[[^\]]+\]/.test(name)
-}
-
-function lookupManifest(
-  site: import('../../site-loader.js').Site,
-  binding: KindBinding,
-  name: string,
-): (PageManifest | FragmentManifest) | undefined {
-  return binding.kind === 'page' ? site.pages.get(name) : site.fragments.get(name)
 }
 
 /**
