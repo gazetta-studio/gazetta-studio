@@ -343,16 +343,21 @@ against the same diff scope. Return ONLY the skill's prose + the
 })
 ```
 
-When both subagents are needed, spawn them **SEQUENTIALLY** — first
-`review-architecture`, then `review-security` after the first
-returns. Each subagent has an isolated context window so the
-skills' contents stay out of yours, but they share the working
-tree with you and with each other. The tautology check (step 1)
-already mutates the tree via `git revert` + `git reset`; any
-sub-skill that mutates the tree would race against a parallel
-sibling. Sequential keeps the invariant simple: at most one
-subagent touches the working tree at a time. The wall-clock cost
-is small (~30s each) and the safety margin is worth it.
+When both subagents are needed, spawn them **IN PARALLEL** — a single
+message with two `Agent` tool calls. Each subagent has an isolated
+context window so the skills' contents stay out of yours, and both
+skills are read-only by contract (`review-architecture` and
+`review-security` declare `allowed-tools: Bash Read Grep Glob` in
+their SKILL.md — no `Write`, no `Edit`, no tree mutation). They share
+the working tree with you on read, but the tautology check (step 1)
+already restored the tree to clean origin state before this step
+runs, and read-only subagents can't change that. Parallel keeps
+wall-clock to ~30s instead of ~60s.
+
+If a future review-* skill is ever changed to mutate the working
+tree (adding `Write` / `Edit` to its `allowed-tools`), flip back
+to sequential — the invariant "at most one subagent touches the
+tree at a time" matters only when at least one of them writes.
 
 ### Action policy for skill findings
 
@@ -405,7 +410,7 @@ Cases where you DON'T fold a finding into the verdict:
 1. Run the 4-step tautology check
 2. Run the mode + runtime-exercise check (mode-vs-diff cross-check; behavioral/structural proof shape; Discovered-items load-bearing check)
 3. If steps pass: run the three non-mechanical checks (root cause, scope creep, commit message)
-4. **Spawn subagents** via the `Agent` tool for `review-architecture` and conditionally `review-security` (when the diff touches security-sensitive paths). Spawn in parallel when both are needed. Read each subagent's returned `findings` fence as a short text artifact; do NOT re-narrate the skill's analysis in your own output.
+4. **Spawn subagents** via the `Agent` tool for `review-architecture` and conditionally `review-security` (when the diff touches security-sensitive paths). Spawn IN PARALLEL when both are needed — a single message with two `Agent` tool calls; both skills are read-only by contract (`allowed-tools: Bash Read Grep Glob` in their SKILL.md). Read each subagent's returned `findings` fence as a short text artifact; do NOT re-narrate the skill's analysis in your own output.
 5. Form your verdict by combining: tautology result + mode + runtime-exercise check + non-mechanical checks + skill findings folded per the action-policy table
 6. **EMIT THE VERDICT LINE** — this is the load-bearing terminator. After the architecture/security skills' `findings` fences, you MUST write exactly one of these three blocks as the FINAL output:
 
@@ -454,7 +459,7 @@ Note: <why a human needs to look — what's structurally questionable>
 ## Rules
 
 - DO NOT push, comment on existing PRs, or open new PRs. Your output IS the verdict; the orchestrator acts on it.
-- DO NOT modify code. You have `Bash` + `Read` only; no `Write` or `Edit`.
+- DO NOT modify code. You have `Bash`, `Read`, `Agent`, and `Skill` (the last two for spawning the `review-architecture` / `review-security` subagents per Process step 4); no `Write` or `Edit`.
 - DO NOT speculate about what Agent A "probably meant." Review the diff and commits as-is.
 - DO NOT approve when you're uncertain. REJECT or NEEDS_HUMAN are safer defaults.
 - **DO emit the `VERDICT: (APPROVE|REJECT|NEEDS_HUMAN)` line as your FINAL output.** The orchestrator parses it via regex; without it your entire review is discarded and the orchestrator escalates to `needs-human` automatically. The verdict line is the single non-negotiable artifact of your review.

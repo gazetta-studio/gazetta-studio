@@ -85,4 +85,51 @@ describe('fix-bot reviewer prompt — structural contracts', () => {
     // early termination before emitting VERDICT. See #469 + follow-up.
     expect(prompt).toMatch(/via the `Agent`\s*\n?\s*tool/)
   })
+
+  it('documents parallel spawning in the body section (bold IN PARALLEL)', () => {
+    // Both review-architecture and review-security are read-only by
+    // contract (`allowed-tools: Bash Read Grep Glob` in their SKILL.md
+    // — no Write, no Edit, no tree mutation). They can't race. Parallel
+    // keeps wall-clock to ~30s instead of ~60s.
+    //
+    // Anchor on the bold **IN PARALLEL** declaration. A loose substring
+    // search would still pass if a refactor flipped step 4 to
+    // "SEQUENTIALLY" but left "parallel" elsewhere in the rationale.
+    expect(prompt).toMatch(/\*\*IN PARALLEL\*\*/)
+  })
+
+  it('documents parallel spawning in the Process step list too', () => {
+    // Process step 4 carries the actionable instruction; the body
+    // section carries the rationale. They must agree — a body that
+    // says "parallel" with a step list that says "sequential" is
+    // exactly the contradiction fix-bot's reviewer.md shipped with
+    // pre-#480; the audit during #480 surfaced it and fixed both.
+    expect(prompt).toMatch(/^\d+\.\s+\*\*Spawn subagents\*\*[\s\S]*?IN PARALLEL/m)
+  })
+
+  it('keeps the "When to skip the subagent spawns" guardrail subsection', () => {
+    // Lists conditions where review-architecture / review-security
+    // delegation is skipped (trivial one-line fixes, test-only diffs,
+    // bots/-only diffs). Silent removal would cause the reviewer to
+    // always spawn subagents — wasted API budget + context burn.
+    expect(prompt).toMatch(/### When to skip the subagent spawns/)
+  })
+
+  it('keeps the "When NOT to fold a finding" guardrail subsection', () => {
+    // Carve-outs where the reviewer should NOT route a skill-emitted
+    // finding into the verdict (e.g., finding cites a doc modified in
+    // the same diff; finding contradicts an explicit PRIOR_REVIEWER_NOTE
+    // on retry). Silent removal would cause false REJECTs Agent A
+    // can't address.
+    expect(prompt).toMatch(/### When NOT to fold a finding/)
+  })
+
+  it('Rules section lists Agent + Skill among allowed tools (not just Bash + Read)', () => {
+    // The orchestrator's reviewer allowedTools includes 'Agent' and
+    // 'Skill' (see bots/fix-bot/index.ts). The prompt's Rules section
+    // must reflect this — otherwise the reviewer reads "Bash + Read
+    // only" at the end and treats the new subagent delegation
+    // (Process step 4) as forbidden, defeating the pattern.
+    expect(prompt).toMatch(/Bash[\s\S]{0,50}Read[\s\S]{0,50}Agent[\s\S]{0,50}Skill/)
+  })
 })
