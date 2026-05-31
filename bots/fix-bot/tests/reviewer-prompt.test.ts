@@ -50,16 +50,20 @@ describe('fix-bot reviewer prompt — structural contracts', () => {
     expect(prompt).toMatch(/VERDICT: NEEDS_HUMAN/)
   })
 
-  it('keeps the Process list with five steps', () => {
+  it('keeps the Process list with six steps', () => {
     // Process section enumerates the steps the reviewer follows.
-    // Should be five numbered items: tautology / non-mechanical /
-    // skill invocations / form verdict / emit VERDICT line.
+    // Six numbered items: tautology / mode+runtime-exercise /
+    // non-mechanical / skill invocations / form verdict / emit VERDICT.
+    // (Mode + runtime-exercise added per fix-bot runtime-exercise
+    // discipline mirroring feature-bot's #455 — runtime exercise proves
+    // the fix works on every fix-touched path; without it, "tests pass"
+    // can be tautological.)
     const processMatch = prompt.match(/## Process\n\n([\s\S]+?)(?=\n##|\n```)/)
     expect(processMatch, 'Process section missing').toBeTruthy()
     const body = processMatch![1]
     // Count numbered list items at the start of lines.
     const numbered = body.split('\n').filter(l => /^\d+\.\s/.test(l))
-    expect(numbered).toHaveLength(5)
+    expect(numbered).toHaveLength(6)
   })
 
   it('does NOT contain the old project-rule check section header', () => {

@@ -397,6 +397,7 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     )
     printTranscriptPath(reviewerTranscript)
 
+    const agentASummary = extractSummary(agentATranscript)
     const reviewerPrompt = `${reviewerPromptTemplate}
 
 ISSUE_NUMBER=${issueNumber}
@@ -412,6 +413,9 @@ ${diff}
 
 COMMIT_MESSAGES=
 ${commitMessages}
+
+AGENT_A_SUMMARY=
+${agentASummary || '(no SUMMARY block captured from Agent A — REJECT with note: your run did not emit a SUMMARY block; emit one per the per-issue prompt step 7)'}
 
 RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
 
@@ -457,7 +461,7 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
         attempt,
         verdict: verdict.kind === 'approve' ? 'approve' : verdict.kind === 'needs-human' ? 'needs-human' : 'reject',
         reasoning: verdict.kind === 'approve' ? verdict.reasoning : verdict.note,
-        agentASummary: extractSummary(agentATranscript),
+        agentASummary,
       })
     } catch (err) {
       printWarning(`reviewer-log append failed (non-fatal): ${err}`)
@@ -466,7 +470,7 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     if (verdict.kind === 'approve') {
       printNotice(`✅ Reviewer APPROVED on attempt ${attempt}/${MAX_ATTEMPTS}: ${verdict.reasoning.slice(0, 120)}`)
       pushBranch(branchName)
-      openFixPR(repo, issueNumber, issue.title, branchName, verdict.reasoning, extractSummary(agentATranscript))
+      openFixPR(repo, issueNumber, issue.title, branchName, verdict.reasoning, agentASummary)
       attemptOutcome = 'approved'
       break
     }
@@ -552,8 +556,10 @@ ${agentASummary || '(no Agent A summary captured)'}
 ${reviewerReasoning || '(no reviewer reasoning captured)'}
 
 The reviewer ran the tautology check (revert fix → test must fail; re-apply
-fix → test must pass) plus the non-mechanical checks (root cause, scope
-creep, commit message) and the project-rule check.
+fix → test must pass), verified Agent A's declared \`Mode:\` matches the
+diff (behavioral / structural / mixed), checked the runtime exercise
+proves each fix-touched path (when behavioral), and ran the non-mechanical
+checks (root cause, scope creep, commit message).
 
 ## Verification
 
@@ -573,7 +579,17 @@ fix shape.
   try {
     execFileSync(
       'gh',
-      ['pr', 'create', '--title', `fix: ${issueTitle} (#${issueNumber})`, '--body', body, '--head', branchName],
+      [
+        'pr',
+        'create',
+        '--draft',
+        '--title',
+        `fix: ${issueTitle} (#${issueNumber})`,
+        '--body',
+        body,
+        '--head',
+        branchName,
+      ],
       { cwd: REPO_ROOT, stdio: 'inherit' },
     )
   } catch (err) {
