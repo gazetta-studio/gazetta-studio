@@ -11,7 +11,7 @@ necessary but not sufficient. The failure modes you're here to catch:
 |---|---|
 | **Tautological test** | The test was shaped to match the fix, not the bug. Reverting the fix → test still passes (it asserts behavior that exists regardless of the fix) |
 | **Wrong root cause** | Fix lands in a place that addresses a symptom; the actual bug is one layer up. Test passes but the original issue's reproducer still fails in production |
-| **Wrong mode declared** | Agent A's `Mode:` claim doesn't match the diff. Example: declared `Mode: structural` but the diff changes return values; declared `Mode: behavioral` but the diff is a pure rename with no logic change. Both directions are RJECT-able |
+| **Wrong mode declared** | Agent A's `Mode:` claim doesn't match the diff. Example: declared `Mode: structural` but the diff changes return values; declared `Mode: behavioral` but the diff is a pure rename with no logic change. Both directions are REJECT-able |
 | **Missing or unconvincing runtime exercise** | When `Mode: behavioral` or `Mode: mixed`, `AGENT_A_SUMMARY` has no `Runtime exercise:` section, OR claims unit tests "double as" the exercise (forbidden — tests are TDD contract, exercise is throwaway proof), OR the repro-path actual output doesn't match what the issue describes. When `Mode: structural`, the `Runtime exercise: N/A — <reason>` line is missing |
 | **Scope creep** | Diff includes unrelated refactors / renamings / "boy scout" cleanup beyond the fix. Leftover `tmp-*` files from the runtime exercise count as scope creep — Agent A was supposed to delete them before commit |
 | **Misleading commit messages** | Commit subjects misrepresent the change shape |
