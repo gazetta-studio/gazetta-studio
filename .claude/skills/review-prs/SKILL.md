@@ -24,6 +24,67 @@ Walk every open PR. For each, do a real review (not a summary). Always ask befor
 
 3. **After all PRs reviewed**, summarize what was done + what's outstanding.
 
+## Reading bot-authored PRs
+
+Some PRs are opened by autonomous bots (fix-bot, feature-bot, dead-code-watcher). They carry structured body sections you should read explicitly — these are the bot's proof-of-work, and the maintainer's job is to verify the bot's claims match the diff.
+
+### Detect bot authorship
+
+Bot-authored PRs end with an HTML-comment marker:
+
+| Marker | Bot |
+|---|---|
+| `<!-- fix-bot: issue=N run=R -->` | fix-bot |
+| `<!-- feature-bot: issue=N run=R -->` | feature-bot |
+| `<!-- dead-code-watcher: ... -->` | dead-code-watcher |
+
+PRs without a bot marker are maintainer-authored or external — read the PR body as prose.
+
+### What the bot's PR body contains
+
+After the bot identifier, both fix-bot and feature-bot inject Agent A's verbatim SUMMARY block under `## What Agent A did`. The SUMMARY contains:
+
+```
+<2-4 sentence prose>
+
+Mode: behavioral | structural | mixed         (fix-bot only — feature-bot cuts are always behavioral by design)
+
+Runtime exercise:
+<per-bullet, per-path input + actual output>
+
+Wider suite: <pass>/<total> pass; exit code <N>
+
+Discovered: (optional; omit when empty)
+- <one-line description of adjacent pre-existing bug observed during exercise>
+```
+
+### What to check in each section
+
+**Mode** (fix-bot): cross-check the declared mode against the diff:
+- `behavioral` → diff should change runtime behavior (logic, conditions, return values, status codes). Pure extraction / rename / comment-rot = mode is wrong.
+- `structural` → diff should have NO behavior change. Any changed return value, conditional, or status code = mode is wrong.
+- `mixed` → diff has both; verify each part.
+
+Agent B already does this check; you're the second pair of eyes. If you see a mismatch, that's grounds to push back even when Agent B approved.
+
+**Runtime exercise**: for `behavioral` / `mixed` modes, verify:
+- Repro path output matches what the linked issue says should happen
+- Wider suite shows zero failures (`/<N> pass; exit code 0`)
+- If the fix touches symmetric surfaces (page+fragment kinds, etc.), both are exercised
+
+For `structural` mode, the line reads `Runtime exercise: N/A — <reason>`. That's expected. The failing test pins the structural invariant; no behavioral surface to exercise.
+
+**Discovered**: each entry is a candidate follow-up issue. The bot intentionally surfaces these instead of widening scope. Treat them as input to the "Follow-up issues" workflow below.
+
+### Anti-patterns to catch
+
+These are reasons to push back on a bot PR even if Agent B approved:
+
+- **Tests-double-as-exercise**: SUMMARY's `Runtime exercise:` cites unit tests instead of a real runtime exercise. The exercise must be throwaway proof (`node -e`, `tmp-` script, CLI invocation). Tests are the TDD contract; the exercise is comprehension-grounding; mixing them defeats the anti-tautology purpose.
+- **Mode-vs-diff mismatch**: declared `structural` but the diff changes behavior, OR declared `behavioral` but the diff is pure refactor. Either direction is a real problem; push back.
+- **Discovered items that are load-bearing**: a `Discovered:` entry that's actually the incomplete-fix case the bot should have addressed in-scope. Push back with "this isn't a follow-up; finish the fix."
+- **Leftover `tmp-*` files**: the runtime exercise's scratch script appears in the diff. Bot was supposed to delete before commit. Push back.
+
 ## Fact-check load-bearing claims (rule 20)
 
 Don't trust the PR body's root-cause description without verifying it. For every claim that drives the fix, check it against actual code:
@@ -93,8 +154,15 @@ Before recommending, consider:
 
 - **Is the fix structurally right?** Per rule 18 — patches vs. structural corrections. If the PR's fix is a patch around a deeper bug, push back or file a follow-up.
 - **Does it match the project's conventions?** Per the project's CLAUDE.md and `.claude/rules/team-preferences.md`.
-- **Does CI catch what matters?** Green CI is necessary but not sufficient — flake-fix PRs especially can pass CI by luck.
+- **Does CI catch what matters?** Green CI is necessary but not sufficient — flake-fix PRs especially can pass CI by luck. Per rule 35, flake-fix PRs need `--repeat-each=5` durability proof.
 - **Is there a stacked PR?** Don't recommend merging if there's a parent that should land first.
+
+For bot-authored PRs (see "Reading bot-authored PRs" above), also:
+
+- **Does the declared `Mode:` match the diff?** Pure refactors must be `structural`; behavior-changing fixes must be `behavioral` or `mixed`. Agent B already checked this; you're the second pair of eyes.
+- **Does the runtime exercise actually prove the fix works?** For `behavioral` / `mixed` modes, the repro path's actual output must match the linked issue's expected behavior.
+- **Are `Discovered:` items genuinely adjacent (not incomplete-fix dodges)?** If a discovered item is what the bot should have fixed in-scope, push back instead of accepting + filing follow-up.
+- **Are there leftover `tmp-*` files in the diff?** The runtime exercise's scratch should never appear in commits.
 
 ## Merge protocol
 
@@ -105,24 +173,47 @@ When merging:
 - Solo maintainer with branch protection requiring 1 review: add `--admin` after explicit user confirmation
 - After merge, `git checkout main && git pull --rebase origin main`
 
+Bot-authored PRs (fix-bot, feature-bot) open as **draft** by design. Before merging:
+- Verify the bot-PR checks above pass (Mode-vs-diff, runtime-exercise output, no `tmp-*` leakage)
+- Mark ready with `gh pr ready <N>` — this triggers any workflows gated on `ready_for_review`
+- Wait for CI on the now-ready PR before merging
+
 If two PRs are both green and unrelated:
 - Merge sequentially, not batched — keeps blame attribution clean if main breaks
 - After first merge, second PR may need rebase; check `gh pr view <N> --json mergeable`
 
+Doc-only PRs (per memory: `*.md`-only diffs by the maintainer) may admin-rebase-merge immediately without CI wait. Bot doc-only PRs still go through CI — the bot's PR-body claims need verification.
+
 ## Follow-up issues
 
-When a PR mitigates but doesn't fix the underlying cause, file a follow-up so the real fix doesn't get lost:
+Two sources feed this workflow:
+
+1. **PR-driven** — a PR mitigates but doesn't fix the underlying cause; file a follow-up so the real fix doesn't get lost.
+2. **Bot-discovered** — a bot-authored PR's `Discovered:` block names adjacent pre-existing bugs the bot observed while exercising its fix. The bot deliberately surfaced these instead of widening scope. Harvest each entry as a candidate follow-up.
+
+For each candidate (either source), decide whether it warrants an issue. Skip if the discovered item is too vague to act on or already covered by an open issue (`gh issue list --search "<term>"` first).
+
+### Routing the new issue (rule 40)
+
+Pick labels by **task shape**, not by the source bot's domain:
+
+- **One-shot** (refactor, hygiene, SOLID/DRY fix, missing-test backfill, small enhancement without a design doc) → `bug + ready-for-agent` → fix-bot picks it up
+- **Cut of designed feature** (references a `design-{feature}.md`, depends on other cuts, under a tracking issue) → `enhancement + ready-for-agent` → feature-bot picks it up
+
+Don't default to `flake` — that label is for tests intermittently failing, not for every test-adjacent issue. Apply `flake` only when the discovered behavior actually IS a CI flake.
+
+### Issue body template
 
 ```bash
-gh issue create --title "..." --label flake,bug,ready-for-agent --body "$(cat <<'EOF'
+gh issue create --title "..." --label bug,ready-for-agent --body "$(cat <<'EOF'
 ## Context
-<PR # mitigated symptom; root cause analysis below>
+<PR # exercised; the real cause / adjacent finding is below>
 
-## Why <PR> didn't close the root cause
-<the actual fact-checked race / behavior>
+## Why this needs a separate fix
+<the fact-checked race / behavior / structural gap>
 
 ## Recommended fix
-<the structurally right approach>
+<the structurally right approach; cite team-preferences rule if applicable>
 
 ## Acceptance criteria
 <what the fix must demonstrate>
@@ -133,7 +224,7 @@ EOF
 )"
 ```
 
-**Label hygiene** (gazetta-specific): fix-bot picks up `bug` + `ready-for-agent`. If you want fix-bot to handle it, apply both labels at creation. If you want triage-bot to look first, apply neither (triage-bot's input is "no classification labels yet"). Don't apply `bug` without `ready-for-agent` — that lands the issue in limbo (triage-bot ignores it; fix-bot won't either).
+**Label hygiene reminder** (gazetta-specific): fix-bot picks up `bug + ready-for-agent`; feature-bot picks up `enhancement + ready-for-agent`. If neither, triage-bot looks first (input is "no classification labels yet"). Don't apply `bug` without `ready-for-agent` — lands the issue in limbo (triage-bot ignores it; fix-bot won't either). Per rule 40, the load-bearing axis is task shape, not the source bot.
 
 ## Output discipline
 
