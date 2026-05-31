@@ -27,13 +27,18 @@ describe('fix-bot reviewer prompt — structural contracts', () => {
     expect(prompt).toMatch(/### Commit message accuracy/)
   })
 
-  it('invokes review-architecture skill in Step 3 (replaces previous project-rule check)', () => {
-    expect(prompt).toMatch(/## The architecture-review check \(Step 3\)/)
-    expect(prompt).toMatch(/Skill: review-architecture/)
+  it('delegates review-architecture to a subagent in Step 4 (replaces previous project-rule check)', () => {
+    // Step 4 (numbered after mode + runtime-exercise was added in Step 2).
+    // Spawned via Agent tool, not invoked directly via Skill — keeps the
+    // skill's heavy context out of Agent B's window so the findings
+    // fence doesn't read as a natural terminator. See #469 + follow-up.
+    expect(prompt).toMatch(/## The architecture-review check \(Step 4\)/)
+    expect(prompt).toMatch(/review-architecture/)
+    expect(prompt).toMatch(/Agent\(\{/)
   })
 
-  it('conditionally invokes review-security skill in Step 3', () => {
-    expect(prompt).toMatch(/Skill: review-security/)
+  it('conditionally spawns review-security subagent in Step 4', () => {
+    expect(prompt).toMatch(/review-security/)
     expect(prompt).toMatch(/security-sensitive path/)
   })
 
@@ -73,7 +78,11 @@ describe('fix-bot reviewer prompt — structural contracts', () => {
     expect(prompt).not.toMatch(/## The project-rule check/)
   })
 
-  it('declares Skill tool as needed (documented in prose)', () => {
-    expect(prompt).toMatch(/via the `Skill` tool/)
+  it('declares Agent tool as needed (documented in prose)', () => {
+    // Reviewer spawns subagents via the Agent tool for review-architecture
+    // and review-security; this isolates the skills' heavy context from
+    // Agent B's window so the findings fence doesn't pull Agent B toward
+    // early termination before emitting VERDICT. See #469 + follow-up.
+    expect(prompt).toMatch(/via the `Agent`\s*\n?\s*tool/)
   })
 })
