@@ -249,6 +249,121 @@ cd packages/gazetta && npx vitest run
 If anything else turned red, your fix is too broad. Either narrow it
 or stop and escalate (step 8).
 
+### 5.5. RUNTIME EXERCISE — prove the fix works on the fix-touched paths
+
+After tests pass, you need to **prove the fix actually does what the
+issue describes** — not just that your test passes (which can be
+tautological). The proof discipline depends on what kind of fix this
+is.
+
+**First, declare the mode in your head (and later in your SUMMARY):**
+
+- **`Mode: behavioral`** — the fix changes runtime behavior. Example:
+  fixing a 500 → 201 status code; changing default values; correcting
+  a comparison; fixing a race. The fix has a visible runtime surface.
+
+- **`Mode: structural`** — the fix changes structure but not behavior.
+  Example: extracting a duplicated helper to satisfy rule 15;
+  reorganizing imports; renaming for clarity. The fix is a refactor;
+  the failing test pins a structural invariant (count of definitions,
+  presence of import, etc.).
+
+- **`Mode: mixed`** — the fix has both. Example: fixing a bug AND
+  extracting a helper while you're there. Pure-behavioral fixes that
+  also touch comments are still `behavioral`; only invoke `mixed` when
+  there's a load-bearing structural change alongside the behavioral
+  one.
+
+**If `Mode: behavioral` or `Mode: mixed`**, run a runtime exercise:
+
+1. **Repro path** (required) — exercise the input from the issue's
+   reproduction steps. Capture the actual output. Compare against
+   what the issue says should happen:
+   - Construct the input the issue describes (request payload, function
+     args, state setup)
+   - Write down the EXPECTED output from the issue body (status code,
+     return value, error message, etc.)
+   - Run the code. Use whatever runs it — `node -e '...'`, a
+     `tmp-exercise.mjs` script, a CLI invocation, a shell pipeline.
+     **Do NOT use vitest / unit tests as the exercise** — tests are the
+     TDD contract (committed, kept, run by CI); the exercise is
+     throwaway proof Agent A ran the code outside the test harness.
+     Mixing them defeats the anti-tautology purpose.
+   - If you create temp files for the exercise, prefix them `tmp-`
+     (or put them under `/tmp/`) and **delete them before committing**
+     — they MUST NOT appear in the diff.
+   - Compare actual = expected → repro path validated.
+   - Compare actual ≠ expected → fix is wrong → iterate.
+
+2. **Wider suite** (required) — `cd packages/gazetta && npx vitest run`.
+   Capture pass count / fail count / exit code. This is the regression
+   net for adjacent surfaces with existing test coverage.
+
+3. **Adjacent / symmetric paths** (conditional) — if the fix touches
+   paired surfaces (e.g., page-redirects + fragment-redirects share a
+   handler; both kinds of a discriminated union), exercise each. One
+   input + actual output per paired surface. Omit this bullet when the
+   fix has only one surface.
+
+**Use the exercise to discover edge cases WITHIN the fix surface.**
+While exercising the repro path, probe boundaries of the new logic
+the fix introduces:
+- Empty / null / undefined for inputs the fix's branches touch
+- Boundary values for any numeric / size / count the fix introduces
+- Each error path the fix's new conditions imply
+
+For each edge case the exercise surfaces:
+- **Within fix surface, fix incomplete on this input**: the fix isn't
+  done. Iterate on the fix to cover the case. Add a test for it
+  alongside the repro test — amend the failing-test commit
+  (`git commit --amend`) so the TDD-first ordering is preserved.
+- **Within fix surface, fix handles it correctly**: nothing to do; the
+  exercise confirmed coverage.
+- **Adjacent pre-existing bug observed (not part of the reported
+  issue)**: do NOT widen scope. Note it in your SUMMARY's
+  `Discovered:` block (see step 7). The maintainer's `/review-prs`
+  flow files follow-up issues; Agent A does not file separate issues
+  unprompted.
+
+**If `Mode: structural`**, the failing test you wrote in step 3
+already encodes the proof (e.g., "exactly 1 `lookupManifest`
+definition exists"; "no import of removed module remains"). The
+4-step tautology check the reviewer runs proves the assertion
+fails-before / passes-after. The runtime exercise becomes:
+
+1. **Runtime exercise: N/A — structural fix; <one-line reason>**
+   (declare explicitly, not omit). Example reasons:
+   - "Extraction-only refactor; failing test pins definition count;
+     no behavioral surface to exercise."
+   - "Import-rewrite only; failing test pins import presence; runtime
+     unchanged."
+2. **Wider suite** (still required) — `npx vitest run`. A "pure
+   refactor" claim should produce zero behavioral test failures; if
+   any fail, the refactor wasn't pure → iterate or escalate.
+3. **Verify no usage sites were missed** — for refactors that touch
+   multiple callers, `grep` for the symbol's pre-extraction call shape
+   to confirm all sites moved. One-line confirmation in SUMMARY.
+
+### 5.6. Format the diff with Biome before committing the fix
+
+Per [team-preferences.md rule 30](../../.claude/rules/team-preferences.md),
+format must run before commit — otherwise CI's \`format\` check
+fails and the maintainer has to push a follow-up format-only commit.
+
+\`\`\`bash
+npm run format
+\`\`\`
+
+Biome reformats unstaged + staged files in place (~150ms). If
+Biome touched the failing-test file (already committed in step 4),
+re-amend the test commit to roll the reformat into it — DO NOT
+make a separate format commit:
+
+\`\`\`bash
+git add <test files>
+git commit --amend --no-edit
+\`\`\`
+
 ### 6. Commit the fix
 
 **Pick the commit scope from WHAT YOU CHANGED, not from where the
@@ -294,12 +409,34 @@ SUMMARY:
 <2-4 sentences: what the bug was, what your fix does, why the failing
 test pins it. Plain prose; no headings, no bullets, no code blocks
 inside the summary.>
+
+Mode: behavioral | structural | mixed
+
+Runtime exercise:
+<For Mode=behavioral or mixed: list each fix-touched path with the
+input you ran and the actual output. For Mode=structural: write
+"N/A — structural fix; <one-line reason naming the structural
+invariant the test pins>". Keep it under ~40 lines total.>
+
+Wider suite: <pass count>/<total> pass; exit code <N>
+
+Discovered: (optional; omit when empty)
+- <one-line description of an adjacent pre-existing bug observed while
+  exercising the fix; include file:line + symptom + suggested action.
+  These surface in the PR body for /review-prs follow-up; don't widen
+  this PR's scope to address them.>
 ```
 
-The orchestrator extracts the text after `SUMMARY:` and includes it
+The orchestrator extracts everything after `SUMMARY:` and includes it
 verbatim in the PR body. Anything else in your final message (commit
 output, protocol acknowledgments, follow-up notes) goes ABOVE the
 `SUMMARY:` block — only the marked summary lands in the PR.
+
+The orchestrator also passes your full SUMMARY block (including
+`Runtime exercise:`, `Wider suite:`, and `Discovered:`) to Agent B as
+the `AGENT_A_SUMMARY` input. Agent B verifies the declared `Mode:`
+matches the diff and checks the exercise output against the issue's
+reported behavior.
 
 ---
 

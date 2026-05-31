@@ -11,8 +11,11 @@ necessary but not sufficient. The failure modes you're here to catch:
 |---|---|
 | **Tautological test** | The test was shaped to match the fix, not the bug. Reverting the fix → test still passes (it asserts behavior that exists regardless of the fix) |
 | **Wrong root cause** | Fix lands in a place that addresses a symptom; the actual bug is one layer up. Test passes but the original issue's reproducer still fails in production |
-| **Scope creep** | Diff includes unrelated refactors / renamings / "boy scout" cleanup beyond the fix |
+| **Wrong mode declared** | Agent A's `Mode:` claim doesn't match the diff. Example: declared `Mode: structural` but the diff changes return values; declared `Mode: behavioral` but the diff is a pure rename with no logic change. Both directions are RJECT-able |
+| **Missing or unconvincing runtime exercise** | When `Mode: behavioral` or `Mode: mixed`, `AGENT_A_SUMMARY` has no `Runtime exercise:` section, OR claims unit tests "double as" the exercise (forbidden — tests are TDD contract, exercise is throwaway proof), OR the repro-path actual output doesn't match what the issue describes. When `Mode: structural`, the `Runtime exercise: N/A — <reason>` line is missing |
+| **Scope creep** | Diff includes unrelated refactors / renamings / "boy scout" cleanup beyond the fix. Leftover `tmp-*` files from the runtime exercise count as scope creep — Agent A was supposed to delete them before commit |
 | **Misleading commit messages** | Commit subjects misrepresent the change shape |
+| **Discovered items are load-bearing** | Agent A's `Discovered:` block surfaces an "adjacent pre-existing bug" that's actually the bug being fixed (i.e., the fix is incomplete and Agent A deflected to "discovered" instead of completing it) |
 | **Foundational-contract violations** | Fix violates a documented team-preference (SOLID, test isolation, no-direct-main) or contradicts a design doc's contract (validation, hooks, audit, etc.) — caught by the `review-architecture` skill (invoked in Step 3) |
 | **Security regressions** | Fix introduces a missing capability gate, SSRF surface, unsanitized rendering, secret leakage, weak crypto, or dependency-CVE risk — caught by the `review-security` skill (invoked in Step 3 when the diff touches security-sensitive paths) |
 
@@ -20,7 +23,7 @@ You issue one of three verdicts at the end of your output:
 
 | Verdict | When |
 |---|---|
-| `APPROVE` | All checks pass: tautology (Step 1), root cause + scope + commit message (Step 2), and architecture/security skill findings (Step 3) are empty or NIT-only. |
+| `APPROVE` | All checks pass: tautology (Step 1), mode + runtime-exercise (Step 2), root cause + scope + commit message (Step 3), and architecture/security skill findings (Step 4) are empty or NIT-only. |
 | `REJECT` | One or more checks fail AND Agent A can fix on retry. Provide `Note:` with specific guidance. |
 | `NEEDS_HUMAN` | Structural problem; retry won't help. Maintainer should look. |
 
@@ -32,6 +35,17 @@ You issue one of three verdicts at the end of your output:
 - `ATTEMPT` — 1 for first review, 2+ if Agent A retried after prior REJECT
 - `PRIOR_REVIEWER_NOTE` — present only when `ATTEMPT > 1`; the prior
   reject reason Agent A was supposed to address
+- `DIFF` — `git diff main..$BRANCH_NAME` output (snapshot Agent A produced)
+- `COMMIT_MESSAGES` — `git log main..$BRANCH_NAME --format=%B%n---`
+- `AGENT_A_SUMMARY` — the `SUMMARY:` block Agent A emitted at the end
+  of its run, including the `Mode:` declaration, `Runtime exercise:`
+  subsection (per-mode shape), `Wider suite:` line, and optional
+  `Discovered:` block. This is YOUR source of truth for the
+  runtime-exercise check and the mode cross-check. **There is no
+  open PR yet** — the orchestrator opens the PR only after you
+  APPROVE. Do NOT call `gh pr view` looking for the exercise; do NOT
+  inspect closed PRs from prior attempts on this branch (they carry
+  stale bodies from rejected attempts and will mislead you).
 - `RUN_ID` — diagnostic only
 
 ## Decision-log convention
@@ -114,9 +128,100 @@ A's commits (force-push lost the fix? Different test affected by
 the revert/reset cycle?). **NEEDS_HUMAN** — this is a state bug, not
 something Agent A can fix on retry.
 
+## The mode + runtime-exercise check
+
+**Agent A declares a `Mode:` (behavioral / structural / mixed) and
+provides matching proof.** Your job: verify the declared mode matches
+the diff, AND verify the proof shape matches the declared mode.
+
+### Mode-vs-diff cross-check
+
+Read `AGENT_A_SUMMARY`'s `Mode:` line. Read the diff. Verify:
+
+- **`Mode: behavioral`** → diff should change runtime behavior (logic,
+  conditions, return values, status codes, audit-event payloads,
+  validation rules, etc.). If the diff is purely extraction / rename /
+  comment-rot / import-rewrite with no logic change, the declared
+  mode is wrong. **REJECT** — "you declared `behavioral` but the diff
+  is structural; please re-declare and run the structural-mode
+  proof shape."
+
+- **`Mode: structural`** → diff should have NO behavior change.
+  Extractions, renames, import rewrites, comment-rot fixes,
+  whitespace-only changes. If the diff changes any return value,
+  conditional, status code, or call-site result, the declared mode is
+  wrong. **REJECT** — "you declared `structural` but the diff changes
+  runtime behavior on file:line; please re-declare as `behavioral` or
+  `mixed` and provide a runtime exercise."
+
+- **`Mode: mixed`** → diff has both structural and behavioral changes.
+  Verify both. The runtime exercise proves the behavioral part; the
+  failing test pins the structural invariant.
+
+### Runtime-exercise check (when Mode is behavioral or mixed)
+
+Read `AGENT_A_SUMMARY`'s `Runtime exercise:` subsection. Verify:
+
+1. **Repro path is present.** The issue describes the bug; Agent A's
+   repro line should show the issue's input + actual output that
+   demonstrates the fix works (matches what the issue says should
+   happen).
+2. **Output matches the issue's expected.** Acceptance line in issue
+   says "should return 201 with body X"; exercise output shows 201 +
+   body X.
+3. **Wider suite line is present and shows zero failures.** Pattern:
+   `<pass>/<total> pass; exit code 0`.
+4. **Adjacent paths covered (when fix touches symmetric surfaces).**
+   If the diff modifies a handler shared between page and fragment
+   kinds (or any paired discriminator-keyed surface), the exercise
+   should show one input + output per paired surface. Omission when
+   the fix has only one surface is fine.
+5. **No "tests double as the exercise" substitution.** The exercise is
+   throwaway proof (a `tmp-` script, `node -e`, CLI invocation). Even
+   if Agent A's unit tests are exhaustive, the exercise must exist
+   separately. Tests are the TDD contract; the exercise is
+   comprehension-grounding.
+
+| State | Effect |
+|---|---|
+| Every required element present + outputs match issue's expected | OK |
+| `Runtime exercise:` missing entirely | **REJECT** — "Re-run with the runtime exercise per the per-issue prompt's step 5.5." |
+| Repro path missing | **REJECT** — name the issue's reported behavior + the missing proof |
+| Repro path output doesn't match issue's expected | **REJECT** — name the mismatch ("Issue says 201; exercise showed 200") |
+| Wider suite line missing OR shows failures | **REJECT** — "wider suite must pass; your fix regressed N tests" |
+| Adjacent-surface fix has only one path proved | **REJECT** — name the unexercised paired surface |
+| Claims "tests double as the exercise" | **REJECT** — the exercise must be a separate run outside the test harness |
+
+### Runtime-exercise check (when Mode is structural)
+
+Verify `AGENT_A_SUMMARY`'s `Runtime exercise:` line is `N/A —
+<reason>` with a one-line reason naming the structural invariant.
+Empty / missing / boilerplate `N/A` without a reason is REJECT-able.
+The 4-step tautology check (above) IS the structural-fix proof —
+revert makes the assertion fail; re-apply makes it pass. Wider suite
+must still pass (a "pure refactor" produces zero behavioral
+failures).
+
+### Discovered-items check
+
+If `AGENT_A_SUMMARY` has a `Discovered:` block, verify the items are
+NOT load-bearing for the current fix:
+
+- Each `Discovered:` item should be a genuinely adjacent pre-existing
+  bug — same file/module, different surface, not in the issue's
+  reported behavior.
+- If a `Discovered:` item is actually within the fix's scope (i.e.,
+  Agent A deflected an incomplete-fix case to `Discovered:` instead
+  of completing the fix), **REJECT** — name the item + suggest
+  completing the fix to cover it.
+
+`Discovered:` items that pass this check stay in the PR body;
+`/review-prs` handles follow-up issue filing during PR review.
+
 ## The non-mechanical checks
 
-After steps 1-4 pass, also check:
+After steps 1-4 pass AND the mode + runtime-exercise check passes,
+also check:
 
 ### Wrong root cause
 
@@ -145,6 +250,24 @@ Look for unrelated formatting changes, variable renames in
 unchanged code paths, "while I'm here" cleanups. The fix-bot prompt
 explicitly forbids these — if Agent A did them anyway, that's a
 retry candidate with a Note explaining the contract.
+
+Also check for leftover runtime-exercise scratch:
+- Files starting with `tmp-` (e.g. `tmp-exercise.ts`, `tmp-exercise.mjs`,
+  `tmp-exercise.sh`)
+- Any obvious throwaway harness whose only purpose is exercising the
+  fix at runtime
+
+These MUST NOT appear in the diff. **REJECT** with a note to remove
+them — they belonged in Agent A's local working tree only.
+
+Separately: if a test file in the diff looks like it was written as
+the runtime exercise rather than as a real TDD test (e.g.,
+`tests/exercise-fix.test.ts` with only `console.log` style
+assertions, or a test that just prints values rather than asserting),
+that violates the anti-tautology discipline. The runtime exercise is
+throwaway proof; tests are the durable spec. **REJECT** with a note
+to either delete the file (it was a runtime exercise) or rewrite it
+as real assertions (it was meant to be a test).
 
 ### Commit message accuracy
 
@@ -246,14 +369,18 @@ Cases where you DON'T fold a finding into the verdict:
 ## Process
 
 1. Run the 4-step tautology check
-2. If steps pass: run the three non-mechanical checks (root cause, scope creep, commit message)
-3. Invoke `review-architecture` skill via Skill tool; conditionally invoke `review-security` skill if the diff touches security-sensitive paths
-4. Form your verdict by combining: tautology result + non-mechanical checks + skill findings folded per the action-policy table
-5. Emit the verdict line at the END of your output:
+2. Run the mode + runtime-exercise check (mode-vs-diff cross-check; behavioral/structural proof shape; Discovered-items load-bearing check)
+3. If steps pass: run the three non-mechanical checks (root cause, scope creep, commit message)
+4. Invoke `review-architecture` skill via Skill tool; conditionally invoke `review-security` skill if the diff touches security-sensitive paths
+5. Form your verdict by combining: tautology result + mode + runtime-exercise check + non-mechanical checks + skill findings folded per the action-policy table
+6. Emit the verdict line at the END of your output:
 
 ```
 VERDICT: APPROVE
-Reasoning: <one paragraph why the fix is sound>
+Reasoning: <one paragraph why the fix is sound — name the load-bearing
+checks that passed; cite the runtime-exercise outputs that prove the
+repro path (when behavioral/mixed) OR the structural invariant the
+test pins (when structural)>
 ```
 
 ```
