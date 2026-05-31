@@ -85,6 +85,74 @@ These are reasons to push back on a bot PR even if Agent B approved:
 - **Discovered items that are load-bearing**: a `Discovered:` entry that's actually the incomplete-fix case the bot should have addressed in-scope. Push back with "this isn't a follow-up; finish the fix."
 - **Leftover `tmp-*` files**: the runtime exercise's scratch script appears in the diff. Bot was supposed to delete before commit. Push back.
 
+## Pruning proof-of-work tests in bot PRs
+
+Bot-authored PRs with `Mode: structural` sometimes include tests that exist only to prove the bot DID the structural work — not to assert ongoing invariants the codebase needs. These are "proof-of-work" tests: they read production source files with `readFile` / `readdir` and regex-match the source text. Useful at TDD-contract time (Agent A's failing-test commit had to fail before the fix landed); operationally redundant once the diff is on main.
+
+### Detection criterion
+
+A test is a proof-of-work candidate when ALL its `it()` blocks have assertions matching the shape:
+
+```ts
+const source = await readFile(join(__dirname, '..', 'src', '...'), 'utf8')
+expect(source).toMatch(/.../)
+// or:
+expect(matchCount).toBe(N)
+```
+
+— reading a path under `src/` (or any production source dir) and regex-asserting its content. Test files that ONLY do this can be deleted; the production diff itself is the load-bearing proof.
+
+Mixed test files — where SOME `it()` blocks read source files but OTHERS import the symbol and call it with real inputs (`await import(...)` + `expect(fn(arg)).toBe(...)`) — keep the behavior tests, drop only the file-content `it()` blocks.
+
+### What to keep
+
+- **Behavior tests**: import the symbol from the production module, call it with real inputs, assert on outputs. These exercise runtime branches and catch real regressions.
+- **Structural invariant tests the compiler CANNOT catch**: "no inline copies of `lookupManifest` remain in route files" — the compiler allows shadow definitions; this test is the load-bearing rule-15 enforcement. Note: this IS a file-content test, BUT it pins an invariant TypeScript can't enforce. Keep it.
+
+The distinction:
+- File-content test that pins something the codebase's CURRENT state already proves (imports resolve, exports exist, symbols are defined) → **proof-of-work; drop**
+- File-content test that pins something that could SILENTLY drift (shadow definitions, deprecated-API absence, "no calls to X remain") → **keep, it's enforcing a rule the compiler doesn't**
+
+### Process
+
+This workflow EDITS a bot's PR branch + force-pushes — destructive and irreversible from the maintainer's review surface. **Every step requires explicit human confirmation, not a default-yes prompt.**
+
+When you spot a proof-of-work candidate:
+
+1. **Surface the candidates inline** — list each proof-of-work test in your review output with file path + line numbers + per-test rationale ("test on `tests/foo.test.ts:42` reads `src/admin-api/lookup-manifest.ts` and regex-matches the export; the compiler already enforces this; safe to drop"). Do NOT propose action yet.
+2. **AskUserQuestion: "Do you want me to prune these tests from PR #N?"** with options "Yes, proceed with pruning" / "No, leave the PR as-is" / "Skip specific tests". If the user picks No or Skip, do NOT touch the branch. Default behavior on uncertainty is leave-as-is.
+3. **On explicit Yes**: confirm a SECOND time before running destructive commands. State exactly what you're about to do: "I will checkout `fix/issue-NNN`, delete tests X/Y/Z from `<file>`, amend the failing-test commit, force-push to the bot's branch. The fix commit will be rebased on top unchanged. Proceed?" Wait for an explicit "yes" / "go" / "proceed" — not just "ok" (too ambiguous given this is destructive).
+4. **On second confirm**: `gh pr checkout <N>` to switch to the bot's branch.
+5. Edit the test file to delete the confirmed tests.
+6. **Re-verify the TDD contract.** Run `git revert HEAD --no-edit` to revert the fix commit, then `npx vitest run <test-file>` — must FAIL. Then `git reset --hard origin/<branch>` to restore, then `npx vitest run <test-file>` — must PASS. If the contract no longer holds (test commit doesn't fail in isolation), the dropped tests WERE load-bearing; abort, restore the branch (`git reset --hard origin/<branch>`), and report to the maintainer.
+7. **Amend the failing-test commit, not main.** The test commit (commit 1 of 2) needs the edit; the fix commit (commit 2) stays untouched. Shape:
+   ```bash
+   git rebase -i HEAD~2          # mark commit 1 (test) as `edit`
+   # edit the test file; remove the proof-of-work it() blocks
+   git add <test-file>
+   git commit --amend --no-edit
+   git rebase --continue          # re-applies commit 2 on top
+   ```
+8. Re-run the 4-step tautology check on the rebased branch to confirm: test commit fails in isolation, fix commit turns it green.
+9. **Third confirmation before force-pushing.** "Tautology check passed on the rebased branch. Force-push to `<branch>`?" Wait for explicit yes.
+10. `git push --force-with-lease` to the bot's branch. The PR auto-updates.
+11. Verify CI re-runs green before recommending merge.
+
+### Why three confirmation gates
+
+Force-pushing to a PR branch is destructive: it rewrites history the bot's transcripts reference + invalidates any in-flight CI runs + can confuse future bot retries that expect a specific commit SHA. The three gates correspond to three irreversible thresholds:
+
+- **Gate 1 (AskUserQuestion)**: maintainer learns about the pruning candidates and chooses whether to engage at all. Default-no.
+- **Gate 2 (second confirm before checkout)**: maintainer reviews the exact commands the skill will run. Last chance before the working tree changes.
+- **Gate 3 (third confirm before force-push)**: maintainer reviews the rebased state + the tautology-check evidence. Last chance before the remote branch changes.
+
+If the maintainer says "ok" at gate 1 but doesn't explicitly authorize the force-push, you've still done useful work (local branch edited + verified) but the remote PR is untouched. They can inspect the local result, then explicitly confirm or roll back.
+
+### When NOT to prune
+
+- The bot PR has only ONE test file and ALL its `it()` blocks are file-content checks → don't delete the whole file; the failing-test contract requires SOMETHING red-before-fix. Either keep one minimal structural assertion OR open a follow-up to fix the prompt that produced this shape (fix-bot's per-issue.md sub-case 3d should already steer it correctly).
+- Mode: behavioral or mixed → behavioral fixes shouldn't have proof-of-work tests in the first place; if you see them, that's a signal the bot misclassified Mode. Push back on the PR with a Note rather than editing.
+
 ## Fact-check load-bearing claims (rule 20)
 
 Don't trust the PR body's root-cause description without verifying it. For every claim that drives the fix, check it against actual code:
