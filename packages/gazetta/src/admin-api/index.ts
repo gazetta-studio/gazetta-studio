@@ -25,10 +25,10 @@ import {
   AuditConfigurationError,
   createHistoryAuditProvider,
   DEFAULT_AUDIT_CONFIG,
-  pruneAuditEvents,
   type AuditConfig,
   type AuditProvider,
 } from '../audit/index.js'
+import { runAuditPrune } from './audit-prune-runner.js'
 import { siteRoutes } from './routes/site.js'
 import { pageRoutes } from './routes/pages.js'
 import { fragmentRoutes } from './routes/fragments.js'
@@ -481,19 +481,14 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
     (auditConfig.retention.events !== undefined || auditConfig.retention.maxAgeMonths)
   ) {
     const retentionConfig = auditConfig.retention
-    const runPrune = async () => {
-      try {
-        await pruneAuditEvents(source.storage, {
+    const runPrune = () =>
+      runAuditPrune({
+        storage: source.storage,
+        retentionConfig: {
           events: retentionConfig.events,
           maxAgeMonths: retentionConfig.maxAgeMonths ?? null,
-        })
-      } catch {
-        // Pruner failures fail-open per Universal Provider Requirement
-        // #5 — audit accumulates until next successful prune. Operator
-        // monitoring sees the failure via structured log (TODO when
-        // logging foundation lands; v1 swallows silently).
-      }
-    }
+        },
+      })
     // Boot pass.
     void runPrune()
     // 6-hour interval (21_600_000 ms). unref() so the process can exit
