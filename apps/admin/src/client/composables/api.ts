@@ -39,6 +39,8 @@ import {
   type AuditQueryFilter,
   type AuditQueryResponse,
   type ValidationIssue,
+  type CreateRedirectRequest,
+  type CreateRedirectResponse,
 } from '../api/client.js'
 
 // ---- Pages -----------------------------------------------------------------
@@ -137,6 +139,26 @@ export interface HistoryApi {
 export const HISTORY_API: InjectionKey<HistoryApi> = Symbol('HistoryApi')
 export function useHistoryApi(): HistoryApi {
   return inject(HISTORY_API, api)
+}
+
+// ---- Redirects ------------------------------------------------------------
+
+export interface RedirectsApi {
+  /** POST /api/page-redirects. `opts.onConflict` resolves the
+   *  ARCHIVED_NAME_CONFLICT prompt's chosen action. */
+  createPageRedirect(
+    data: CreateRedirectRequest,
+    opts?: { onConflict?: 'restore' | 'replace' | 'moveAside' },
+  ): Promise<CreateRedirectResponse>
+  /** POST /api/fragment-redirects. Same shape; capability is `edit:fragments`. */
+  createFragmentRedirect(
+    data: CreateRedirectRequest,
+    opts?: { onConflict?: 'restore' | 'replace' | 'moveAside' },
+  ): Promise<CreateRedirectResponse>
+}
+export const REDIRECTS_API: InjectionKey<RedirectsApi> = Symbol('RedirectsApi')
+export function useRedirectsApi(): RedirectsApi {
+  return inject(REDIRECTS_API, api)
 }
 
 // ---- Audit ----------------------------------------------------------------

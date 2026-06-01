@@ -11,6 +11,7 @@ import { useValidationScannerStore } from '../stores/validationScanner.js'
 import { usePagesApi, useFragmentsApi } from '../composables/api.js'
 import CreatePageDialog from './CreatePageDialog.vue'
 import CreateFragmentDialog from './CreateFragmentDialog.vue'
+import CreateRedirectDialog from './CreateRedirectDialog.vue'
 import FragmentBlastRadius from './FragmentBlastRadius.vue'
 
 interface SiteNode {
@@ -42,6 +43,7 @@ const fragmentsApi = useFragmentsApi()
 const selectedKey = ref<string | null>(null)
 const showCreatePage = ref(false)
 const showCreateFragment = ref(false)
+const showCreateRedirect = ref(false)
 /**
  * Per `design-soft-delete.md` Q7 J1: tree filter toggle, count badge,
  * hidden when zero. Filter is local UI state (not site state) per
@@ -271,11 +273,15 @@ async function handleDelete(node: SiteNode, e: Event) {
         data-testid="new-page" @click="showCreatePage = true" />
       <Button icon="pi pi-plus" label="New fragment" text size="small"
         data-testid="new-fragment" @click="showCreateFragment = true" />
+      <Button icon="pi pi-plus" label="New redirect" text size="small"
+        data-testid="sitetree-new-redirect-button" @click="showCreateRedirect = true" />
     </div>
     <CreatePageDialog v-if="showCreatePage" :visible="showCreatePage"
       @close="showCreatePage = false" />
     <CreateFragmentDialog v-if="showCreateFragment" :visible="showCreateFragment"
       @close="showCreateFragment = false" />
+    <CreateRedirectDialog v-if="showCreateRedirect" :visible="showCreateRedirect"
+      @close="showCreateRedirect = false" />
   </div>
 </template>
 
