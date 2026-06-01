@@ -240,6 +240,8 @@ import type {
   ListHistoryResponse as ListHistoryResponseShape,
   RestoreRevisionResponse as RestoreRevisionResponseShape,
   FetchResponse as FetchResponseShape,
+  CreateRedirectRequest as CreateRedirectRequestShape,
+  CreateRedirectResponse as CreateRedirectResponseShape,
   AuditEventWire,
   AuditExternalSinkWire,
   AuditQueryResponseWire,
@@ -271,6 +273,8 @@ export type RevisionOperation = RevisionOperationShape
 export type ListHistoryResponse = ListHistoryResponseShape
 export type RestoreRevisionResponse = RestoreRevisionResponseShape
 export type FetchResponse = FetchResponseShape
+export type CreateRedirectRequest = CreateRedirectRequestShape
+export type CreateRedirectResponse = CreateRedirectResponseShape
 export type AuditEvent = AuditEventWire
 export type AuditExternalSink = AuditExternalSinkWire
 export type AuditQueryResponse = AuditQueryResponseWire
@@ -459,6 +463,41 @@ export const api = {
       `/history/restore?target=${encodeURIComponent(target)}&id=${encodeURIComponent(revisionId)}`,
       { method: 'POST' },
     ),
+  /**
+   * Manual Redirect creation (page kind). Per `design-redirect-ui.md` Q2:
+   * POST /api/page-redirects with body `{ from, to }`. Capability: `edit:pages`.
+   *
+   * `opts.onConflict` mirrors `createPage` — when the requested `from` name
+   * collides with an existing archive, the first call returns 409
+   * ARCHIVED_NAME_CONFLICT (thrown as `ArchivedNameConflictError`); the
+   * dialog morphs to ArchivedNameConflictPrompt, author chooses Restore /
+   * Replace / Move-aside, and the second call carries the chosen mode.
+   *
+   * Errors:
+   *   - 400 INVALID            — wildcard from-route, from='home', etc.
+   *   - 403 FORBIDDEN          — missing edit:pages
+   *   - 409 LIVE_NAME_CONFLICT — from is a live page
+   *   - 409 ARCHIVED_NAME_CONFLICT (typed) — needs onConflict resolution
+   *   - 409 ALIAS_TARGET_NOT_FOUND — to doesn't exist as a live page
+   */
+  createPageRedirect: (data: CreateRedirectRequest, opts?: { onConflict?: 'restore' | 'replace' | 'moveAside' }) => {
+    const qs = opts?.onConflict ? `?onConflict=${opts.onConflict}` : ''
+    return request<CreateRedirectResponse>(`/page-redirects${qs}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+  /** Manual Redirect creation (fragment kind). Capability: `edit:fragments`. */
+  createFragmentRedirect: (
+    data: CreateRedirectRequest,
+    opts?: { onConflict?: 'restore' | 'replace' | 'moveAside' },
+  ) => {
+    const qs = opts?.onConflict ? `?onConflict=${opts.onConflict}` : ''
+    return request<CreateRedirectResponse>(`/fragment-redirects${qs}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
   /** List assets on the active target. Empty array when the target has none. */
   listAssets: () => request<AssetSummary[]>('/assets'),
   /** Fetch a single asset's summary by name. 404s when the asset doesn't exist. */
