@@ -14,10 +14,10 @@
  *   - On 409 LIVE_NAME_CONFLICT / ALIAS_TARGET_NOT_FOUND / 400 INVALID:
  *     inline error message; dialog stays open
  *   - On 409 ARCHIVED_NAME_CONFLICT: morphs body in place to the existing
- *     ArchivedNameConflictPrompt (mirrors CreatePageDialog's pattern). The
- *     resolution (Restore / Replace / Move-aside) re-issues the POST with
- *     `?onConflict=<mode>` — Restore unarchives the existing archive;
- *     Replace purges + creates new; Move-aside renames the old archive.
+ *     ArchivedNameConflictPrompt — shared via `useArchivedConflict` with the
+ *     two CreatePageDialog / CreateFragmentDialog siblings (#486).
+ *     Resolution (Restore / Replace / Move-aside) re-issues the POST with
+ *     `?onConflict=<mode>`.
  *   - Esc / Cancel button → close
  */
 import { computed, onMounted, onUnmounted, ref } from 'vue'
@@ -27,11 +27,8 @@ import InputText from 'primevue/inputtext'
 import RadioButton from 'primevue/radiobutton'
 import { useRedirectsApi } from '../composables/api.js'
 import { useSiteStore } from '../stores/site.js'
-import {
-  ArchivedNameConflictError,
-  type ArchivedNameConflictDetails,
-  type CreateRedirectRequest,
-} from '../api/client.js'
+import { useArchivedConflict } from '../composables/useArchivedConflict.js'
+import type { CreateRedirectRequest } from '../api/client.js'
 import ArchivedNameConflictPrompt from './ArchivedNameConflictPrompt.vue'
 
 const props = defineProps<{ visible: boolean }>()
@@ -43,17 +40,6 @@ const redirectsApi = useRedirectsApi()
 const kind = ref<'page' | 'fragment'>('page')
 const fromInput = ref('')
 const toInput = ref('')
-const creating = ref(false)
-const error = ref<string | null>(null)
-
-/**
- * Archived-name-conflict prompt state per design-soft-delete.md Q5 I3 +
- * design-redirect-ui.md Q4 (archived-name collision reuses the soft-delete
- * prompt). When the create POST returns 409 ARCHIVED_NAME_CONFLICT, the
- * dialog body morphs in place to show the three-option prompt; the outer
- * Dialog chrome stays.
- */
-const conflict = ref<ArchivedNameConflictDetails | null>(null)
 
 /**
  * Match design-redirect-ui.md Q4: derive route only for display preview;
@@ -88,60 +74,44 @@ const aliasTargetSuggestions = computed(() => {
   return aliasTargetOptions.value.filter(name => name.toLowerCase().includes(query)).slice(0, 8)
 })
 
+/**
+ * Archived-name-conflict morph wiring per design-soft-delete.md Q5 I3 +
+ * design-redirect-ui.md Q4. Shared with CreatePageDialog and
+ * CreateFragmentDialog via `useArchivedConflict` (#486). The closure
+ * reads `kind`, `fromInput`, `toInput` at call time so toggling the
+ * kind between the initial attempt and a resolution still routes the
+ * replay through the right API method.
+ */
+const {
+  conflict,
+  error,
+  busy: creating,
+  run,
+  handleResolve,
+  handleConflictCancel,
+} = useArchivedConflict({
+  attempt: opts => {
+    const body: CreateRedirectRequest = {
+      from: fromInput.value.trim(),
+      to: toInput.value.trim().replace(/^\/+/, ''),
+    }
+    return kind.value === 'page'
+      ? redirectsApi.createPageRedirect(body, opts)
+      : redirectsApi.createFragmentRedirect(body, opts)
+  },
+  onSuccess: async () => {
+    await site.reload()
+    emit('close')
+  },
+})
+
 const canSubmit = computed(
   () => !creating.value && fromInput.value.trim().length > 0 && toInput.value.trim().length > 0,
 )
 
 async function handleSubmit() {
   if (!canSubmit.value) return
-  await postRedirect()
-}
-
-async function postRedirect(opts?: { onConflict?: 'restore' | 'replace' | 'moveAside' }) {
-  creating.value = true
-  error.value = null
-  const body: CreateRedirectRequest = {
-    from: fromInput.value.trim(),
-    to: toInput.value.trim().replace(/^\/+/, ''),
-  }
-  try {
-    if (kind.value === 'page') {
-      await redirectsApi.createPageRedirect(body, opts)
-    } else {
-      await redirectsApi.createFragmentRedirect(body, opts)
-    }
-    await site.reload()
-    emit('close')
-  } catch (err) {
-    if (err instanceof ArchivedNameConflictError) {
-      // Morph the dialog body into the conflict prompt; keep the dialog
-      // chrome open. The author resolves via Restore / Replace / Move-
-      // aside; resolution re-runs `postRedirect({ onConflict: mode })`.
-      conflict.value = err.archive
-    } else {
-      error.value = (err as Error).message
-    }
-  } finally {
-    creating.value = false
-  }
-}
-
-/**
- * Author chose Restore / Replace / Move-aside. Re-issue the create POST
- * with the chosen mode; on success close the dialog and reload the site
- * listing. On error, surface the message in place; the conflict prompt
- * stays so the author can pick differently.
- *
- * Mirrors CreatePageDialog.handleResolve — the dialog is the orchestrator;
- * the API method threads `?onConflict=...` through to the server.
- */
-async function handleResolve(mode: 'restore' | 'replace' | 'moveAside') {
-  await postRedirect({ onConflict: mode })
-}
-
-function handleConflictCancel() {
-  conflict.value = null
-  error.value = null
+  await run()
 }
 
 /**
