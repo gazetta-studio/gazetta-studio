@@ -1,5 +1,17 @@
 {
   "version": 1,
-  "entries": [],
+  "entries": [
+    {
+      "fingerprint": {
+        "area": "packages/gazetta/src/admin-api/routes/publish.ts",
+        "type": "correctness",
+        "rule": "admin-api/routes/publish.ts:160"
+      },
+      "addedAt": "2026-06-02T09:00:01.336Z",
+      "addedBy": "bot",
+      "reason": "stuck",
+      "reasonNote": "TDD-first doesn't fit this NIT-severity dead-code-and-misleading-comment cleanup. The fix is \"delete 1 unused line + 3 lines of wrong comment\" — a structural change with no observable behavior shift (the surrounding `.catch` block at lines 164-167 masks any difference; downstream consumers either tolerate the degenerate empty-Map fallback or independently call `resolve()` themselves). The three test shapes available all fail load-bearing criteria: source-text regex is rule-41 proof-of-work that pins spelling not invariant; mock-resolver behavioral test pins implementation detail (\"getTargets must not call resolve\") rather than external contract and would block legitimate future refactors; no natural observable-behavior assertion exists. Premise verified correct via reading `createTargetRegistry`'s signature (takes only configs, not source) and auditing both resolver implementations for side effects (`staticSourceResolver` has none; `registrySourceResolver` only memoizes its own cache which `getTargets` never reads). Recommended maintainer action: apply the candidate's first suggestion directly — delete publish.ts:160 (the `bootstrapSource` binding) and publish.ts:145-147 (the misleading comment block). Self-evident 4-line cleanup at PR review; no generator-critic ceremony warranted."
+    }
+  ],
   "rules": []
 }
