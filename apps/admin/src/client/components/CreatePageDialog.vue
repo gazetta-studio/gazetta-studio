@@ -6,7 +6,7 @@ import InputText from 'primevue/inputtext'
 import Listbox from 'primevue/listbox'
 import { usePagesApi, useTemplatesApi } from '../composables/api.js'
 import { useSiteStore } from '../stores/site.js'
-import { ArchivedNameConflictError, type ArchivedNameConflictDetails } from '../api/client.js'
+import { useArchivedConflict } from '../composables/useArchivedConflict.js'
 import ArchivedNameConflictPrompt from './ArchivedNameConflictPrompt.vue'
 
 const props = defineProps<{ visible: boolean }>()
@@ -18,16 +18,6 @@ const templatesApi = useTemplatesApi()
 const templates = ref<Array<{ name: string }>>([])
 const selectedTemplate = ref<string | null>(null)
 const pageName = ref('')
-const creating = ref(false)
-const error = ref<string | null>(null)
-
-/**
- * Archived-name-conflict prompt state per design-soft-delete.md Q5
- * I3. When the create POST returns 409 ARCHIVED_NAME_CONFLICT, the
- * dialog body morphs in place to show the three-option prompt; the
- * outer Dialog chrome stays.
- */
-const conflict = ref<ArchivedNameConflictDetails | null>(null)
 
 const derivedRoute = computed(() => {
   const name = pageName.value.trim().toLowerCase().replace(/\s+/g, '-')
@@ -43,53 +33,32 @@ function normalizedName(): string {
   return pageName.value.trim().toLowerCase().replace(/\s+/g, '-').replace(/\/+/g, '/')
 }
 
+/**
+ * Archived-name-conflict morph wiring per design-soft-delete.md Q5 I3.
+ * Extracted to `useArchivedConflict` at the rule-15 3-caller threshold
+ * (#486); shared with CreateFragmentDialog + CreateRedirectDialog. The
+ * composable owns the `conflict` ref, the try/catch that routes
+ * `ArchivedNameConflictError` into the morph prompt vs. surfacing other
+ * messages as `error`, and the resolution-replay loop.
+ */
+const {
+  conflict,
+  error,
+  busy: creating,
+  run,
+  handleResolve,
+  handleConflictCancel,
+} = useArchivedConflict({
+  attempt: opts => pagesApi.createPage({ name: normalizedName(), template: selectedTemplate.value as string }, opts),
+  onSuccess: async () => {
+    await site.load()
+    emit('close')
+  },
+})
+
 async function handleCreate() {
   if (!selectedTemplate.value || !pageName.value.trim()) return
-  creating.value = true
-  error.value = null
-  try {
-    await pagesApi.createPage({ name: normalizedName(), template: selectedTemplate.value })
-    await site.load()
-    emit('close')
-  } catch (err) {
-    if (err instanceof ArchivedNameConflictError) {
-      // Morph the dialog body into the conflict prompt; keep the
-      // dialog chrome open. The author resolves via Restore /
-      // Replace / Move-aside; the resolution call retries the same
-      // create POST with `?onConflict=`.
-      conflict.value = err.archive
-    } else {
-      error.value = (err as Error).message
-    }
-  } finally {
-    creating.value = false
-  }
-}
-
-/**
- * Author chose Restore / Replace / Move-aside. Re-issue the create
- * POST with the chosen mode; on success close the dialog and reload
- * the site listing. On error, surface the message in place; the
- * conflict prompt stays so the author can pick differently.
- */
-async function handleResolve(mode: 'restore' | 'replace' | 'moveAside') {
-  if (!selectedTemplate.value || !conflict.value) return
-  creating.value = true
-  error.value = null
-  try {
-    await pagesApi.createPage({ name: normalizedName(), template: selectedTemplate.value }, { onConflict: mode })
-    await site.load()
-    emit('close')
-  } catch (err) {
-    error.value = (err as Error).message
-  } finally {
-    creating.value = false
-  }
-}
-
-function handleConflictCancel() {
-  conflict.value = null
-  error.value = null
+  await run()
 }
 </script>
 

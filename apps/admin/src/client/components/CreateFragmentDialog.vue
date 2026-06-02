@@ -6,7 +6,7 @@ import InputText from 'primevue/inputtext'
 import Listbox from 'primevue/listbox'
 import { useFragmentsApi, useTemplatesApi } from '../composables/api.js'
 import { useSiteStore } from '../stores/site.js'
-import { ArchivedNameConflictError, type ArchivedNameConflictDetails } from '../api/client.js'
+import { useArchivedConflict } from '../composables/useArchivedConflict.js'
 import ArchivedNameConflictPrompt from './ArchivedNameConflictPrompt.vue'
 
 const props = defineProps<{ visible: boolean }>()
@@ -18,11 +18,6 @@ const templatesApi = useTemplatesApi()
 const templates = ref<Array<{ name: string }>>([])
 const selectedTemplate = ref<string | null>(null)
 const fragmentName = ref('')
-const creating = ref(false)
-const error = ref<string | null>(null)
-
-/** Same morph-in-place pattern as CreatePageDialog. */
-const conflict = ref<ArchivedNameConflictDetails | null>(null)
 
 onMounted(async () => {
   templates.value = await templatesApi.getTemplates()
@@ -32,46 +27,26 @@ function normalizedName(): string {
   return fragmentName.value.trim().toLowerCase().replace(/\s+/g, '-')
 }
 
+/** Shared morph-in-place wiring per useArchivedConflict (#486). */
+const {
+  conflict,
+  error,
+  busy: creating,
+  run,
+  handleResolve,
+  handleConflictCancel,
+} = useArchivedConflict({
+  attempt: opts =>
+    fragmentsApi.createFragment({ name: normalizedName(), template: selectedTemplate.value as string }, opts),
+  onSuccess: async () => {
+    await site.load()
+    emit('close')
+  },
+})
+
 async function handleCreate() {
   if (!selectedTemplate.value || !fragmentName.value.trim()) return
-  creating.value = true
-  error.value = null
-  try {
-    await fragmentsApi.createFragment({ name: normalizedName(), template: selectedTemplate.value })
-    await site.load()
-    emit('close')
-  } catch (err) {
-    if (err instanceof ArchivedNameConflictError) {
-      conflict.value = err.archive
-    } else {
-      error.value = (err as Error).message
-    }
-  } finally {
-    creating.value = false
-  }
-}
-
-async function handleResolve(mode: 'restore' | 'replace' | 'moveAside') {
-  if (!selectedTemplate.value || !conflict.value) return
-  creating.value = true
-  error.value = null
-  try {
-    await fragmentsApi.createFragment(
-      { name: normalizedName(), template: selectedTemplate.value },
-      { onConflict: mode },
-    )
-    await site.load()
-    emit('close')
-  } catch (err) {
-    error.value = (err as Error).message
-  } finally {
-    creating.value = false
-  }
-}
-
-function handleConflictCancel() {
-  conflict.value = null
-  error.value = null
+  await run()
 }
 </script>
 
