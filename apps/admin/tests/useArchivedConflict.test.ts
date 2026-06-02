@@ -5,24 +5,15 @@
  * resolution wiring; consumers supply the kind-specific POST attempt
  * + the success side effects.
  *
- * Tests pin two surfaces:
- *
- *   1. Runtime behavior of the composable (catches
- *      ArchivedNameConflictError, sets `conflict` ref, `handleResolve`
- *      re-issues with `onConflict`, `handleConflictCancel` resets,
- *      busy flag tracks the in-flight attempt) — these are the
- *      runtime branches the compiler can't enforce.
- *
- *   2. Structural invariant: all three Create*Dialog components
- *      import `useArchivedConflict`. A future Create dialog touching
- *      the same conflict surface must consume the composable, not
- *      reimplement the catch+morph wiring inline. The compiler
- *      doesn't catch this — a dialog could drop the import and add
- *      its own `ref<ArchivedNameConflictDetails | null>` shadow copy
- *      without any build failure.
+ * Tests pin the runtime behavior of the composable (catches
+ * ArchivedNameConflictError, sets `conflict` ref, `handleResolve`
+ * re-issues with `onConflict`, `handleConflictCancel` resets, busy
+ * flag tracks the in-flight attempt) — the runtime branches the
+ * compiler can't enforce. The three dialogs consuming it are the
+ * production diff's proof of the extraction (#486); re-asserting that
+ * via source-text regex is rule-41 proof-of-work, so it's not pinned
+ * here.
  */
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { ArchivedNameConflictError } from '../src/client/api/client.js'
 import { useArchivedConflict } from '../src/client/composables/useArchivedConflict.js'
@@ -159,26 +150,5 @@ describe('useArchivedConflict — handleConflictCancel', () => {
 
     handle.handleConflictCancel()
     expect(handle.error.value).toBeNull()
-  })
-})
-
-// ---------------------------------------------------------------------------
-// Structural invariant — all three Create*Dialog components consume the
-// composable. Prevents the regression where a future dialog reimplements
-// the inline catch + morph wiring instead of going through the seam.
-// ---------------------------------------------------------------------------
-
-const DIALOG_PATHS = [
-  'apps/admin/src/client/components/CreatePageDialog.vue',
-  'apps/admin/src/client/components/CreateFragmentDialog.vue',
-  'apps/admin/src/client/components/CreateRedirectDialog.vue',
-]
-
-const REPO_ROOT = join(__dirname, '..', '..', '..')
-
-describe('useArchivedConflict — structural invariant', () => {
-  it.each(DIALOG_PATHS)('%s imports useArchivedConflict', relativePath => {
-    const source = readFileSync(join(REPO_ROOT, relativePath), 'utf8')
-    expect(source).toMatch(/from\s+['"][^'"]*useArchivedConflict[^'"]*['"]/)
   })
 })
