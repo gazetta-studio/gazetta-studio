@@ -195,9 +195,13 @@ onUnmounted(() => {
         </datalist>
         <span v-if="toPreview" class="create-hint">Will redirect to: {{ toPreview }}</span>
       </div>
-
-      <p v-if="error" class="create-error" data-testid="create-redirect-error">{{ error }}</p>
     </div>
+
+    <!-- Lifted out of `.create-content` so the message is visible both
+         in the form view AND when the body has morphed to the conflict
+         prompt — a re-issued conflict-resolution POST can fail with a
+         non-archived error (transport, fresh LIVE_NAME_CONFLICT, etc.). -->
+    <p v-if="error" class="create-error" data-testid="create-redirect-error">{{ error }}</p>
 
     <template v-if="!conflict" #footer>
       <Button
@@ -223,7 +227,7 @@ onUnmounted(() => {
 .create-label-row { font-size: 0.75rem; text-transform: uppercase; color: var(--color-muted); letter-spacing: 0.03em; }
 .create-input { width: 100%; }
 .create-hint { font-size: 0.75rem; color: var(--color-muted); }
-.create-error { color: var(--color-danger-fg, #f87171); font-size: 0.875rem; margin: 0; }
+.create-error { color: var(--color-danger-fg, #f87171); font-size: 0.875rem; margin: 0.75rem 0 0; }
 
 .create-kind-row { display: flex; gap: 1rem; align-items: center; }
 .create-kind-option { display: flex; gap: 0.375rem; align-items: center; cursor: pointer; font-size: 0.875rem; }
