@@ -283,6 +283,57 @@ describe('CreateRedirectDialog', () => {
     wrapper.unmount()
   })
 
+  it('on conflict-resolution failure surfaces error inline AND keeps the conflict prompt visible', async () => {
+    // Regression test for #485. The component's docstring (handleResolve)
+    // promises: "On error, surface the message in place; the conflict
+    // prompt stays so the author can pick differently." Without the fix,
+    // the inline error lived inside the form branch (v-else) and was
+    // invisible while the conflict prompt was rendered.
+    seedSite()
+    const conflict: ArchivedNameConflictDetails = {
+      kind: 'page',
+      name: 'old-products',
+      aliasOf: 'discontinued',
+    }
+    // First call: 409 ARCHIVED_NAME_CONFLICT → morph to prompt.
+    // Second call (resolution attempt): non-archived error → must show
+    // the message inline while keeping the prompt up.
+    const createPage = vi
+      .fn()
+      .mockRejectedValueOnce(new ArchivedNameConflictError(conflict))
+      .mockRejectedValueOnce(new Error('Server unavailable (500)'))
+    const api = makeRedirectsApi({ createPageRedirect: createPage })
+    const wrapper = mountDialog(api)
+    await flushPromises()
+
+    ;(document.querySelector('[data-testid="create-redirect-from-input"]') as HTMLInputElement).value = 'old-products'
+    document.querySelector('[data-testid="create-redirect-from-input"]')!.dispatchEvent(new Event('input'))
+    ;(document.querySelector('[data-testid="create-redirect-to-input"]') as HTMLInputElement).value =
+      'products/featured'
+    document.querySelector('[data-testid="create-redirect-to-input"]')!.dispatchEvent(new Event('input'))
+    await wrapper.vm.$nextTick()
+    ;(document.querySelector('[data-testid="create-redirect-submit"]') as HTMLButtonElement).click()
+    await flushPromises()
+
+    // Morph happened — conflict prompt is visible.
+    expect(document.querySelector('[data-testid="archived-name-conflict-prompt"]')).not.toBeNull()
+
+    // Operator picks Restore; the re-issued POST rejects with a non-
+    // archived error. The error must surface and the prompt must stay.
+    ;(document.querySelector('[data-testid="conflict-continue-restore"]') as HTMLButtonElement).click()
+    await flushPromises()
+
+    expect(createPage).toHaveBeenCalledTimes(2)
+
+    const errorEl = document.querySelector('[data-testid="create-redirect-error"]')
+    expect(errorEl, 'inline error must be rendered after a conflict-resolution failure').not.toBeNull()
+    expect(errorEl?.textContent ?? '').toContain('Server unavailable')
+
+    // Author can still pick a different resolution.
+    expect(document.querySelector('[data-testid="archived-name-conflict-prompt"]')).not.toBeNull()
+    wrapper.unmount()
+  })
+
   it('on 409 ALIAS_TARGET_NOT_FOUND shows inline error', async () => {
     seedSite()
     const createPage = vi.fn().mockRejectedValue(new Error('The page "ghost" does not exist as live content.'))
