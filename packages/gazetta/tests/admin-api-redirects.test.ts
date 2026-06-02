@@ -476,3 +476,167 @@ describe('POST /api/fragment-redirects — capability gate (Q8 lock: edit:fragme
     expect(body.role).toBe('viewer')
   })
 })
+
+/**
+ * Request-validation prologue tests — backfill coverage for the JSON-parse
+ * + Zod-safeParse branches at the top of `handleCreateRedirect`
+ * (`packages/gazetta/src/admin-api/routes/redirects.ts` lines 105-123).
+ *
+ * Mutation testing surfaced 8 surviving NoCoverage mutants in this prologue
+ * (Stryker run 26744337081, captured in issue #484): empty catch block,
+ * collapsed JSON-error body, empty INVALID code/error literals, and a
+ * `issues.map(...)` arrow-function whose projection was untested. The
+ * production code is already correct; this block pins the shape so the
+ * mutants can no longer survive silently.
+ *
+ * Both routes share `handleCreateRedirect`, so each scenario runs through
+ * both `/api/page-redirects` and `/api/fragment-redirects` — keeps a single
+ * source of truth for the prologue's contract.
+ */
+describe('POST /api/page-redirects — request validation (kills NoCoverage mutants)', () => {
+  beforeEach(() => setup())
+
+  it('returns 400 INVALID with "Invalid JSON body" when the body is not valid JSON', async () => {
+    const res = await app.request('/api/page-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: 'not-json{',
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as Record<string, unknown>
+    // Kills StringLiteral mutants on lines 111: code and error must be
+    // the exact strings the production code emits.
+    expect(body.code).toBe('INVALID')
+    expect(body.error).toBe('Invalid JSON body')
+  })
+
+  it('returns 400 INVALID with "Invalid request body" + issues[] when both fields are missing', async () => {
+    const res = await app.request('/api/page-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as Record<string, unknown>
+    // Kills StringLiteral mutants on lines 117-118 + ObjectLiteral on 116-120.
+    expect(body.code).toBe('INVALID')
+    expect(body.error).toBe('Invalid request body')
+    // Kills the ArrowFunction mutant on line 119
+    // (`issues.map(i => ({ path: i.path.join('.'), message: i.message }))`
+    // → `() => undefined`). The projection MUST yield typed entries with
+    // path + message strings, not nulls / undefineds.
+    expect(Array.isArray(body.issues)).toBe(true)
+    const issues = body.issues as Array<{ path: string; message: string }>
+    expect(issues).toHaveLength(2)
+    const paths = issues.map(i => i.path).sort()
+    expect(paths).toEqual(['from', 'to'])
+    for (const issue of issues) {
+      expect(typeof issue.message).toBe('string')
+      expect(issue.message.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('returns 400 INVALID with a single issue when only "from" is missing', async () => {
+    const res = await app.request('/api/page-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: 'products/featured' }),
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.code).toBe('INVALID')
+    expect(body.error).toBe('Invalid request body')
+    const issues = body.issues as Array<{ path: string; message: string }>
+    expect(issues).toHaveLength(1)
+    expect(issues[0].path).toBe('from')
+    expect(typeof issues[0].message).toBe('string')
+    expect(issues[0].message.length).toBeGreaterThan(0)
+  })
+
+  it('returns 400 INVALID with a single issue when only "to" is missing', async () => {
+    const res = await app.request('/api/page-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'old-products' }),
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.code).toBe('INVALID')
+    expect(body.error).toBe('Invalid request body')
+    const issues = body.issues as Array<{ path: string; message: string }>
+    expect(issues).toHaveLength(1)
+    expect(issues[0].path).toBe('to')
+    expect(typeof issues[0].message).toBe('string')
+    expect(issues[0].message.length).toBeGreaterThan(0)
+  })
+
+  it('returns 400 INVALID with issues[] when "from" is an empty string (min(1) violation)', async () => {
+    const res = await app.request('/api/page-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: '', to: 'products/featured' }),
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.code).toBe('INVALID')
+    expect(body.error).toBe('Invalid request body')
+    const issues = body.issues as Array<{ path: string; message: string }>
+    expect(issues).toHaveLength(1)
+    expect(issues[0].path).toBe('from')
+    expect(typeof issues[0].message).toBe('string')
+    expect(issues[0].message.length).toBeGreaterThan(0)
+  })
+
+  it('returns 400 INVALID with issues[] when "from" is not a string (wrong type)', async () => {
+    const res = await app.request('/api/page-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 42, to: 'products/featured' }),
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.code).toBe('INVALID')
+    expect(body.error).toBe('Invalid request body')
+    const issues = body.issues as Array<{ path: string; message: string }>
+    expect(issues).toHaveLength(1)
+    expect(issues[0].path).toBe('from')
+    expect(typeof issues[0].message).toBe('string')
+    expect(issues[0].message.length).toBeGreaterThan(0)
+  })
+})
+
+describe('POST /api/fragment-redirects — request validation (kills NoCoverage mutants)', () => {
+  beforeEach(() => setup())
+
+  it('returns 400 INVALID with "Invalid JSON body" when the body is not valid JSON', async () => {
+    const res = await app.request('/api/fragment-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: 'not-json{',
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.code).toBe('INVALID')
+    expect(body.error).toBe('Invalid JSON body')
+  })
+
+  it('returns 400 INVALID with "Invalid request body" + issues[] when both fields are missing', async () => {
+    const res = await app.request('/api/fragment-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.code).toBe('INVALID')
+    expect(body.error).toBe('Invalid request body')
+    const issues = body.issues as Array<{ path: string; message: string }>
+    expect(issues).toHaveLength(2)
+    const paths = issues.map(i => i.path).sort()
+    expect(paths).toEqual(['from', 'to'])
+    for (const issue of issues) {
+      expect(typeof issue.message).toBe('string')
+      expect(issue.message.length).toBeGreaterThan(0)
+    }
+  })
+})
