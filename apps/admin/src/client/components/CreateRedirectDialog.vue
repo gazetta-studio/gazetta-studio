@@ -28,9 +28,11 @@ import RadioButton from 'primevue/radiobutton'
 import { useRedirectsApi } from '../composables/api.js'
 import { useSiteStore } from '../stores/site.js'
 import {
+  api,
   ArchivedNameConflictError,
   type ArchivedNameConflictDetails,
   type CreateRedirectRequest,
+  type TargetInfo,
 } from '../api/client.js'
 import ArchivedNameConflictPrompt from './ArchivedNameConflictPrompt.vue'
 
@@ -45,6 +47,25 @@ const fromInput = ref('')
 const toInput = ref('')
 const creating = ref(false)
 const error = ref<string | null>(null)
+
+/**
+ * Per-target capability info — surface #2 of the four-point
+ * capability-gap UX pattern (per `feature-design-process.md` non-
+ * foundational disciplines + `design-soft-delete.md` Q10 lock).
+ *
+ * Manual Redirects are bytes-identical on disk to Rename Redirects
+ * (archive manifest with `aliasOf`), so the same capability gap
+ * applies: plain-static targets (no worker, no `redirects.format`)
+ * can't emit the 301 redirect. The author sees the gap inline before
+ * confirming — informational, not blocking; the operator may
+ * legitimately accept the limitation. The other three surfaces
+ * (boot validate / scanner / publish gate) cover downstream.
+ *
+ * Mirrors `ArchiveModal.vue`'s pattern: load /api/targets at mount,
+ * compute the gapped subset, render a warning row only when the
+ * gap set is non-empty (Krug rule 23 — absence is the state).
+ */
+const targets = ref<TargetInfo[]>([])
 
 /**
  * Archived-name-conflict prompt state per design-soft-delete.md Q5 I3 +
@@ -87,6 +108,21 @@ const aliasTargetSuggestions = computed(() => {
   if (!query) return aliasTargetOptions.value.slice(0, 8)
   return aliasTargetOptions.value.filter(name => name.toLowerCase().includes(query)).slice(0, 8)
 })
+
+/**
+ * Targets that can't serve redirects — drives the warning row.
+ * Krug-aligned: only render rows that need attention; empty list ⇒
+ * no warning section at all.
+ */
+const targetsWithGaps = computed(() =>
+  targets.value
+    .filter(t => t.capabilities.gaps.some(g => g.capability === 'redirects'))
+    .map(t => ({
+      name: t.name,
+      environment: t.environment,
+      gaps: t.capabilities.gaps,
+    })),
+)
 
 const canSubmit = computed(
   () => !creating.value && fromInput.value.trim().length > 0 && toInput.value.trim().length > 0,
@@ -157,8 +193,16 @@ function onKeydown(event: KeyboardEvent) {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   document.addEventListener('keydown', onKeydown)
+  // Load per-target capability info — surface #2. Failure leaves
+  // targets empty; we degrade silently rather than blocking the
+  // dialog over a transient /api/targets error.
+  try {
+    targets.value = await api.getTargets()
+  } catch {
+    targets.value = []
+  }
 })
 
 onUnmounted(() => {
@@ -226,6 +270,33 @@ onUnmounted(() => {
         <span v-if="toPreview" class="create-hint">Will redirect to: {{ toPreview }}</span>
       </div>
 
+      <!--
+        Capability-gap surface #2 — per-target warnings only when the
+        target can't serve 301 redirects. Krug rule 23: absence is
+        the "all good" state; only render rows that need attention.
+        The warning is informational (Cut 5 acceptance): the operator
+        can still submit. Worker-served targets fire the redirect;
+        plain-static targets fall through to the host's natural 404.
+      -->
+      <div v-if="targetsWithGaps.length > 0" class="create-gaps" data-testid="redirect-capability-gaps">
+        <p class="create-gaps-title">
+          <i class="pi pi-exclamation-triangle" /> Some targets won't emit this redirect
+        </p>
+        <ul class="create-gaps-list">
+          <li v-for="t in targetsWithGaps" :key="t.name">
+            <strong>{{ t.name }}</strong> <span class="env-tag">({{ t.environment }})</span>:
+            <span v-for="gap in t.gaps" :key="gap.capability" class="gap-reason">
+              {{ gap.reason }}
+            </span>
+          </li>
+        </ul>
+        <p class="create-gaps-note">
+          You can still create the redirect — see
+          <a href="https://gazetta.studio/docs/runtime-capabilities" target="_blank" rel="noopener">runtime capabilities</a>
+          for resolution paths.
+        </p>
+      </div>
+
       <p v-if="error" class="create-error" data-testid="create-redirect-error">{{ error }}</p>
     </div>
 
@@ -257,4 +328,12 @@ onUnmounted(() => {
 
 .create-kind-row { display: flex; gap: 1rem; align-items: center; }
 .create-kind-option { display: flex; gap: 0.375rem; align-items: center; cursor: pointer; font-size: 0.875rem; }
+
+.create-gaps { background: var(--color-warning-bg); border: 1px solid var(--color-warning-fg); border-radius: 4px; padding: 0.75rem; }
+.create-gaps-title { margin: 0 0 0.5rem; font-weight: 600; font-size: 0.875rem; color: var(--color-warning-fg); display: flex; align-items: center; gap: 0.375rem; }
+.create-gaps-list { margin: 0; padding-left: 1.25rem; font-size: 0.8125rem; color: var(--color-fg); }
+.create-gaps-list li { margin-bottom: 0.25rem; }
+.gap-reason { font-style: italic; }
+.env-tag { font-size: 0.75rem; color: var(--color-muted); }
+.create-gaps-note { margin: 0.5rem 0 0; font-size: 0.75rem; color: var(--color-muted); }
 </style>
