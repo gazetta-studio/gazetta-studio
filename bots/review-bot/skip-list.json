@@ -11,6 +11,17 @@
       "addedBy": "bot",
       "reason": "stuck",
       "reasonNote": "TDD-first doesn't fit this NIT-severity dead-code-and-misleading-comment cleanup. The fix is \"delete 1 unused line + 3 lines of wrong comment\" — a structural change with no observable behavior shift (the surrounding `.catch` block at lines 164-167 masks any difference; downstream consumers either tolerate the degenerate empty-Map fallback or independently call `resolve()` themselves). The three test shapes available all fail load-bearing criteria: source-text regex is rule-41 proof-of-work that pins spelling not invariant; mock-resolver behavioral test pins implementation detail (\"getTargets must not call resolve\") rather than external contract and would block legitimate future refactors; no natural observable-behavior assertion exists. Premise verified correct via reading `createTargetRegistry`'s signature (takes only configs, not source) and auditing both resolver implementations for side effects (`staticSourceResolver` has none; `registrySourceResolver` only memoizes its own cache which `getTargets` never reads). Recommended maintainer action: apply the candidate's first suggestion directly — delete publish.ts:160 (the `bootstrapSource` binding) and publish.ts:145-147 (the misleading comment block). Self-evident 4-line cleanup at PR review; no generator-critic ceremony warranted."
+    },
+    {
+      "fingerprint": {
+        "area": "packages/gazetta/tests/",
+        "type": "architecture",
+        "rule": "team-preferences.md#15"
+      },
+      "addedAt": "2026-06-03T09:24:58.018Z",
+      "addedBy": "bot",
+      "reason": "stuck",
+      "reasonNote": "This candidate is a mechanical structural refactor (replace three inline `memoryStorage(initial)` impls with thin wrappers around the shared `sharedMemoryStorage()` + `.seed()` helper, matching `manifest-locale.test.ts:18-27`). TDD-first does not fit: a behavior test would not change outcome before vs after — the validators don't change, and the existing `validation.test.ts` / `validation-scanner.test.ts` / `validation-alt-required.test.ts` suites are themselves the behavior contract this refactor must preserve. A structural file-content test pinning \"no inline `memoryStorage` definitions in these files\" would be proof-of-work that rule 41 says to prune; a developer would not naturally re-add an inline impl when the shared helper is established. The candidate's premise is sound and high-confidence (verified: 41-line, 33-line, 33-line inline impls; `as StorageProvider` cast at validation.test.ts:68 is load-bearing because of missing bytes/stream methods). Recommended maintainer action: apply by hand (or via fix-bot routed as `bug + ready-for-agent` per team-preferences rule 40 — SOLID/DRY violations are \"bugs\" in the rule-contract sense). Order per the candidate's `suggested_action`: `validation.test.ts` first (smallest blast radius, also clears the `as StorageProvider` cast), then `validation-scanner.test.ts` + `validation-alt-required.test.ts`. The change is bounded (~100 LOC removed, three 9-line wrappers added) and the existing test suites' green status is the regression proof."
     }
   ],
   "rules": []
