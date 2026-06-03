@@ -31,15 +31,15 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",
-    "@biomejs/biome": "^2.4.15",
+    "@biomejs/biome": "^2.4.16",
     "@playwright/test": "^1.60.0",
-    "@storybook/addon-a11y": "^10.3.6",
-    "@storybook/addon-themes": "^10.3.6",
-    "@storybook/vue3-vite": "^10.3.6",
-    "knip": "6.13.1",
+    "@storybook/addon-a11y": "^10.4.2",
+    "@storybook/addon-themes": "^10.4.2",
+    "@storybook/vue3-vite": "^10.4.2",
+    "knip": "6.15.0",
     "playwright": "^1.59.1",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "storybook": "^10.3.6"
   },
   "overrides": {
