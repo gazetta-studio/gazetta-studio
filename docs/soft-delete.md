@@ -157,6 +157,81 @@ POST /api/pages?onConflict=restore
 { "name": "landing", "template": "page-default" }
 ```
 
+## Manual redirect creation
+
+Most redirects appear as a side effect of rename — the old name is archived with `aliasOf: <new>`, the new name is created live, and visitors to the old URL get a 301 to the new one. Manual Redirects let an operator skip that path and create the archived-with-alias manifest directly, without an existing page that's being renamed away from.
+
+Use cases:
+
+- A marketing campaign URL (`/promo`) that should redirect to the current featured product (`/products/featured`)
+- A redirect for a URL that was published outside Gazetta (printed material, partner site, analytics-discovered 404) — point it at the closest live page
+- A short-lived alias during a campaign before the canonical page is renamed
+
+The mechanism is the same archived-with-`aliasOf` manifest you get from rename — same HTML marker, same `_redirects` host-glue entry, same Show-archived row in the site tree.
+
+### From the admin UI
+
+The SiteTree's create-affordance row gains a "+ New redirect" button alongside "+ New page" and "+ New fragment". Click it to open the **Create Redirect** dialog:
+
+1. **Kind** — toggle between Page and Fragment. Defaults to Page.
+2. **Redirect from** — accepts either a URL (`/old-products`) or a name (`old-products`). Both produce a manifest at `pages/old-products/page.json`. The dialog previews the resolved route below the input so you can confirm before submitting.
+3. **Redirect to** — the live page or fragment to redirect to. The input has a native autocomplete that suggests matching live items.
+4. **Create redirect** — submits; the dialog closes on success and the new archive appears in the site tree under the "Show archived" toggle.
+
+Capability gates: `edit:pages` for page redirects, `edit:fragments` for fragments. The same capability that creates and edits live content creates redirects — redirect creation adds state without destroying any (see `design-redirect-ui.md` Q8).
+
+### From the API
+
+```
+POST /api/page-redirects
+Content-Type: application/json
+
+{ "from": "old-products", "to": "products/featured" }
+```
+
+Returns `201 { ok: true, from, to, kind: "page", route, targetRoute }` on success.
+
+Same shape for fragments:
+
+```
+POST /api/fragment-redirects
+Content-Type: application/json
+
+{ "from": "old-header", "to": "header" }
+```
+
+Per Q4 of `design-redirect-ui.md`, the `from` field is normalized:
+
+- Leading slashes are stripped (`/old-products` → `old-products`)
+- `:param` is converted to `[param]` (Hono syntax → Gazetta dir naming)
+- Then the result is checked against the wildcard reject (route patterns are out of v1)
+
+### Conflict handling
+
+| Situation | Server response | Resolution |
+|---|---|---|
+| `from` is a live page | `409 LIVE_NAME_CONFLICT` | Archive or rename the live page first, then create the redirect. **No destructive shortcut** from the create dialog. |
+| `from` is already an archive | `409 ARCHIVED_NAME_CONFLICT` | Same three-option prompt as page creation: Restore (default) / Replace / Move aside. Pass `?onConflict=restore \| replace \| moveAside` from a programmatic client. |
+| `to` doesn't exist as a live page/fragment | `409 ALIAS_TARGET_NOT_FOUND` | Pick a different alias target. |
+| `from` is `"home"` | `400 INVALID` | The site root is reserved — use a worker-side route for root rewrites. |
+| `from` contains `[param]` (after normalize) | `400 INVALID` | Wildcard from-routes are out of v1; configure the worker route directly. |
+
+### Target capability gap
+
+The runtime mechanism (HTML marker → 301) requires a worker-served target. The Create Redirect dialog surfaces per-target badges when the active site has targets that can't emit redirects:
+
+> ⚠ Some targets won't emit this redirect
+> · **github-pages** (production): plain-static target has no worker and no `_redirects` configured
+> · **s3-static** (production): plain-static target has no worker and no `_redirects` configured
+
+The operator can still submit — the manifest is identical regardless of target capability — but visitors on those targets get the host's natural 404 instead of a 301. Configure `redirects: { format: 'cloudflare' | 'netlify' | 'json' }` on the target (see [runtime capabilities](runtime-capabilities.md)) OR switch to a worker-served deployment.
+
+### Audit
+
+Each Manual Redirect creation emits `action: 'create-redirect'` with `metadata.aliasOf` set — distinct from the `rename` event that emits during a rename composition. Forensic queries can answer "which redirects were manually created vs. composed from rename" by filtering on the action enum (see `design-redirect-ui.md` Q7).
+
+For background and rejected alternatives (why a single endpoint vs. two, why `edit:pages` vs. `delete:pages`, why no destructive shortcut), see [`design-redirect-ui.md`](../.claude/rules/design-redirect-ui.md).
+
 ## CLI
 
 The `gazetta archive` subcommand lets you script archive operations against any target. Useful for cron-based retention, bulk migrations, or CI automation.

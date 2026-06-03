@@ -28,10 +28,6 @@ Reduce time-to-first-deploy for new operators. Closes the bulk of the deploy-ada
 - [#79](https://github.com/gazetta-studio/gazetta-studio/issues/79) Docker example for `gazetta serve`
 - [#214](https://github.com/gazetta-studio/gazetta-studio/issues/214) first-run Cloudflare setup
 
-### Manual redirect creation in admin (1 week)
-
-[#364](https://github.com/gazetta-studio/gazetta-studio/issues/364). Design pass complete 2026-05-14; see [`design-redirect-ui.md`](.claude/rules/design-redirect-ui.md) + [`design-redirect-ui-implementation.md`](.claude/rules/design-redirect-ui-implementation.md). Implementation pending in [#364](https://github.com/gazetta-studio/gazetta-studio/issues/364) (7 cuts: schema refinement, audit enum, route, dialog + tree button, conflict UX, capability-gap, e2e + docs).
-
 ### Creation UX design pass
 
 [#103](https://github.com/gazetta-studio/gazetta-studio/issues/103) page/fragment/component creation UX — needs Discovery + UX-grilling pass per [`feature-design-process.md`](.claude/rules/feature-design-process.md). Labeled `ready-for-human`; design before implementation.
@@ -262,6 +258,7 @@ Closes [#40](https://github.com/gazetta-studio/gazetta-studio/issues/40).
 - ✓ [#105](https://github.com/gazetta-studio/gazetta-studio/issues/105) component ordering UX — drag-and-drop (`@formkit/drag-and-drop` in `ComponentTree.vue`); closed 2026-05-08
 - ✓ [#82](https://github.com/gazetta-studio/gazetta-studio/issues/82) breadcrumb navigation — closed 2026-05-09
 - ✓ [#45](https://github.com/gazetta-studio/gazetta-studio/issues/45) component duplication — closed 2026-05-08
+- ✓ [#364](https://github.com/gazetta-studio/gazetta-studio/issues/364) manual redirect creation in admin — 7 cuts shipped 2026-06; see [`design-redirect-ui.md`](.claude/rules/design-redirect-ui.md) and [`docs/soft-delete.md`](docs/soft-delete.md) "Manual redirect creation"
 - ☐ [#103](https://github.com/gazetta-studio/gazetta-studio/issues/103) creation UX — see Now
 
 ## Hygiene
