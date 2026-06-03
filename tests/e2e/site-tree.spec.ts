@@ -1,7 +1,8 @@
 import { test, expect } from './fixtures'
 import { SiteTreePom } from './pages/SiteTree'
-import { mkdir, writeFile, rm } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { rmSafe } from './_helpers/rm-safe.js'
 
 test.describe('SiteTree dirty indicators', () => {
   test('shows orange dot only for items that differ from the picked target', async ({ page, testSite }) => {
@@ -9,7 +10,7 @@ test.describe('SiteTree dirty indicators', () => {
     // (the store skips firstPublish-only targets in favor of one with real
     // data). Mark home as clean (real hash), leave others as added.
     const stagingDir = join(testSite.projectDir, 'sites/main/dist/staging')
-    await rm(stagingDir, { recursive: true, force: true })
+    await rmSafe(stagingDir)
     const homeHashDir = join(stagingDir, 'pages/home')
     await mkdir(homeHashDir, { recursive: true })
     // Use a wrong hash so home is "modified" — easy to assert dot present
@@ -39,7 +40,7 @@ test.describe('SiteTree dirty indicators', () => {
     // do get dots (firstPublish). That's the inverse — if our store picks a
     // target with firstPublish=true as a last resort, every node is dirty.
     const stagingDir = join(testSite.projectDir, 'sites/main/dist/staging')
-    await rm(stagingDir, { recursive: true, force: true })
+    await rmSafe(stagingDir)
     await page.goto('/admin')
     const tree = new SiteTreePom(page)
     // First-publish path → every page dirty

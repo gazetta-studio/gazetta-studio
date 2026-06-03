@@ -2,8 +2,8 @@ import { test, expect } from './fixtures'
 import { openEditor } from './helpers'
 import { SiteTreePom } from './pages/SiteTree'
 import { ComponentTreePom } from './pages/ComponentTree'
-import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
+import { rmSafe } from './_helpers/rm-safe.js'
 
 test.describe('Target switch preserves preview', () => {
   /**
@@ -93,7 +93,7 @@ test.describe('Target switch preserves preview', () => {
 
 test.describe('Target switch with missing item', () => {
   async function wipeStaging(projectDir: string) {
-    await rm(join(projectDir, 'sites/main/dist/staging'), { recursive: true, force: true })
+    await rmSafe(join(projectDir, 'sites/main/dist/staging'))
   }
 
   test('item missing on destination drops focus to root with a back-toast', async ({ page, testSite }) => {

@@ -1,9 +1,10 @@
 import { test as base, type Page } from '@playwright/test'
-import { cp, mkdir, rm } from 'node:fs/promises'
+import { cp, mkdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawn, type ChildProcess } from 'node:child_process'
+import { rmSafe } from './_helpers/rm-safe.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '../..')
@@ -76,7 +77,7 @@ export const test = base.extend<{ page: Page }, { testSite: TestSite; baseURL: s
       const projectDir = resolve(workerDir, 'project')
       const port = 3100 + workerInfo.workerIndex
 
-      await rm(workerDir, { recursive: true, force: true })
+      await rmSafe(workerDir)
       await mkdir(workerDir, { recursive: true })
       await cp(starterDir, projectDir, {
         recursive: true,
@@ -135,7 +136,7 @@ export const test = base.extend<{ page: Page }, { testSite: TestSite; baseURL: s
         server.kill('SIGTERM')
         await new Promise<void>(resolveP => server.once('exit', () => resolveP()))
         // Always clean — Playwright preserves test-results/ for debugging separately
-        await rm(workerDir, { recursive: true, force: true }).catch(() => {})
+        await rmSafe(workerDir).catch(() => {})
       }
     },
     { scope: 'worker' },

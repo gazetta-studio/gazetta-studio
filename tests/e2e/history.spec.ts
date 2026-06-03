@@ -1,8 +1,8 @@
 import { test, expect } from './fixtures'
 import { openEditor } from './helpers'
 import { ComponentTreePom } from './pages/ComponentTree'
-import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
+import { rmSafe } from './_helpers/rm-safe.js'
 
 test.describe('Undo last save', () => {
   test('save toast offers Undo; clicking it reverts the content', async ({ page }) => {
@@ -83,7 +83,7 @@ test.describe('History panel', () => {
   test('history panel shows "no revisions" on a target with no history', async ({ page, testSite }) => {
     // Staging exists but hasn't been published to — no .gazetta/history/.
     // Need to wipe first in case earlier tests published.
-    await rm(join(testSite.projectDir, 'sites/main/dist/staging/.gazetta'), { recursive: true, force: true })
+    await rmSafe(join(testSite.projectDir, 'sites/main/dist/staging/.gazetta'))
     await page.goto('/admin')
     // Switch to staging via the top-bar menu.
     await page.locator('[data-testid="active-target-indicator"]').click()
