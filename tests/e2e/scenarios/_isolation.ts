@@ -11,8 +11,9 @@
  * SRP: this module owns "what needs to be clean between scenarios".
  * Each helper does one thing; `resetScenarioState` composes them.
  */
-import { readFile, writeFile, rm } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { rmSafe } from '../_helpers/rm-safe.js'
 
 /**
  * Pristine content of local's home page — the baseline every scenario
@@ -76,10 +77,10 @@ export async function restorePristineHome(projectDir: string): Promise<void> {
  */
 export async function wipeAllTargetDists(projectDir: string): Promise<void> {
   const sitesMain = join(projectDir, 'sites/main')
-  await Promise.all(TARGET_DIST_DIRS.map(d => rm(join(sitesMain, d), { recursive: true, force: true })))
+  await Promise.all(TARGET_DIST_DIRS.map(d => rmSafe(join(sitesMain, d))))
   // local's content dir also has a .gazetta/history/ from prior tests — wipe
   // that too so history-touching scenarios start from zero revisions.
-  await rm(join(sitesMain, 'targets/local/.gazetta'), { recursive: true, force: true })
+  await rmSafe(join(sitesMain, 'targets/local/.gazetta'))
 }
 
 /**

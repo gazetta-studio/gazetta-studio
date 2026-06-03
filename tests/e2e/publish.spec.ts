@@ -2,8 +2,9 @@ import { test, expect } from './fixtures'
 import { openEditor } from './helpers'
 import { PublishPanelPom } from './pages/PublishPanel'
 import { SiteTreePom } from './pages/SiteTree'
-import { mkdir, writeFile, rm } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { rmSafe } from './_helpers/rm-safe.js'
 
 test.describe('Publish panel', () => {
   // Staging target's storage path is ./dist/staging relative to sites/main
@@ -15,7 +16,7 @@ test.describe('Publish panel', () => {
     await writeFile(join(dir, `.${hash}.hash`), '')
   }
   async function wipe(projectDir: string) {
-    await rm(stagingDir(projectDir), { recursive: true, force: true })
+    await rmSafe(stagingDir(projectDir))
   }
 
   test('opens with local as source and destinations listed', async ({ page, testSite: _ }) => {
@@ -124,7 +125,7 @@ test.describe('Publish panel', () => {
     // esi-test is the dynamic target — fragments appear as first-publish
     // items there. Wipe first so we get a clean fan-out.
     const esiDir = join(testSite.projectDir, 'sites/main/dist/esi-test')
-    await rm(esiDir, { recursive: true, force: true })
+    await rmSafe(esiDir)
 
     const panel = new PublishPanelPom(page)
     await panel.open()
