@@ -22,50 +22,15 @@ import type { Validator, ValidatorInput } from '../src/validation/types.js'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { memoryStorage as sharedMemoryStorage } from './_helpers/memory-storage.js'
 
-// ---- In-memory storage helper ------------------------------------------
-
+// Thin wrapper over the shared helper — pre-seeds with text entries so
+// each test reads "given these manifests on disk, …" without re-explaining
+// the mock construction.
 function memoryStorage(initial: Record<string, string> = {}): StorageProvider {
-  const files = new Map(Object.entries(initial))
-  return {
-    async readFile(path) {
-      const v = files.get(path)
-      if (v === undefined) throw new Error(`ENOENT: ${path}`)
-      return v
-    },
-    async writeFile(path, content) {
-      files.set(path, content as string)
-    },
-    async readDir(path) {
-      const prefix = path.endsWith('/') ? path : `${path}/`
-      const entries = new Map<string, { isDirectory: boolean }>()
-      for (const k of files.keys()) {
-        if (!k.startsWith(prefix)) continue
-        const rest = k.slice(prefix.length)
-        const slash = rest.indexOf('/')
-        if (slash === -1) entries.set(rest, { isDirectory: false })
-        else entries.set(rest.slice(0, slash), { isDirectory: true })
-      }
-      return [...entries.entries()].map(([name, info]) => ({ name, ...info }))
-    },
-    async exists(path) {
-      if (files.has(path)) return true
-      const prefix = path.endsWith('/') ? path : `${path}/`
-      for (const k of files.keys()) {
-        if (k.startsWith(prefix)) return true
-      }
-      return false
-    },
-    async mkdir() {
-      // no-op for memory storage
-    },
-    async rm(path) {
-      const prefix = path.endsWith('/') ? path : `${path}/`
-      for (const k of [...files.keys()]) {
-        if (k === path || k.startsWith(prefix)) files.delete(k)
-      }
-    },
-  } as StorageProvider
+  const s = sharedMemoryStorage()
+  s.seed(initial)
+  return s
 }
 
 // ---- Site factories ----------------------------------------------------
