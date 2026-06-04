@@ -11,42 +11,18 @@ import { dirname, resolve } from 'node:path'
 import type { PageManifest, StorageProvider } from '../src/types.js'
 import type { Site } from '../src/site-loader.js'
 import { altRequired } from '../src/validation/validators/alt-required.js'
+import { memoryStorage as sharedMemoryStorage } from './_helpers/memory-storage.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const templatesDir = resolve(here, 'fixtures/templates-altreq')
 
+// Thin wrapper over the shared helper — pre-seeds with text entries so
+// each test reads "given these manifests on disk, …" without re-explaining
+// the mock construction.
 function memoryStorage(initial: Record<string, string> = {}): StorageProvider {
-  const files = new Map(Object.entries(initial))
-  return {
-    async readFile(path) {
-      const v = files.get(path)
-      if (v === undefined) throw new Error(`ENOENT: ${path}`)
-      return v
-    },
-    async writeFile(path, content) {
-      files.set(path, content as string)
-    },
-    async readDir() {
-      return []
-    },
-    async exists(path) {
-      return files.has(path)
-    },
-    async mkdir() {},
-    async rm(path) {
-      files.delete(path)
-    },
-    async readBytes() {
-      throw new Error('not used in test')
-    },
-    async writeBytes() {},
-    async readStream() {
-      throw new Error('not used in test')
-    },
-    async writeStream() {
-      throw new Error('not used in test')
-    },
-  }
+  const s = sharedMemoryStorage()
+  s.seed(initial)
+  return s
 }
 
 function buildSite(): Site {

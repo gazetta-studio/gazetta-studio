@@ -17,41 +17,17 @@ import { createMemoryCache } from '../src/cache/memory.js'
 import { createValidatorRegistry } from '../src/validation/registry.js'
 import { createValidationScanner } from '../src/validation/scanner.js'
 import type { Issue, Validator } from '../src/validation/types.js'
+import { memoryStorage as sharedMemoryStorage } from './_helpers/memory-storage.js'
 
 // ---- helpers --------------------------------------------------------------
 
+// Thin wrapper over the shared helper — pre-seeds with text entries so
+// each test reads "given these manifests on disk, …" without re-explaining
+// the mock construction.
 function memoryStorage(initial: Record<string, string> = {}): StorageProvider {
-  const files = new Map(Object.entries(initial))
-  return {
-    async readFile(path) {
-      const v = files.get(path)
-      if (v === undefined) throw new Error(`ENOENT: ${path}`)
-      return v
-    },
-    async writeFile(path, content) {
-      files.set(path, content as string)
-    },
-    async readDir() {
-      return []
-    },
-    async exists(path) {
-      return files.has(path)
-    },
-    async mkdir() {},
-    async rm(path) {
-      files.delete(path)
-    },
-    async readBytes() {
-      throw new Error('not used in test')
-    },
-    async writeBytes() {},
-    async readStream() {
-      throw new Error('not used in test')
-    },
-    async writeStream() {
-      throw new Error('not used in test')
-    },
-  }
+  const s = sharedMemoryStorage()
+  s.seed(initial)
+  return s
 }
 
 function buildSite(opts: { pages?: Record<string, PageManifest>; fragments?: Record<string, FragmentManifest> }): Site {
