@@ -2,14 +2,16 @@
 
 How operators create Manual Redirects via the admin UI. Companion to [`design-redirects.md`](design-redirects.md) — that doc is the reference for the redirect mechanism (HTML markers, `_redirects` host-glue, 301-only-in-v1). This doc covers the specific feature of operator-driven redirect creation without a preceding rename.
 
-**Status**: design pass complete (2026-05-14). Implementation: see [`design-redirect-ui-implementation.md`](design-redirect-ui-implementation.md).
+**Status**: design pass complete (2026-05-14); 6 implementation cuts shipped (2026-06).
 
 **Companion docs:**
 - [`design-redirects.md`](design-redirects.md) — consolidated redirect reference (the mechanism)
 - [`design-soft-delete.md`](design-soft-delete.md) — owner of archive primitives + capability-gap UX
-- [`feature-design-process.md`](feature-design-process.md) — defines design-doc + implementation-doc artifact pattern
+- [`feature-design-process.md`](feature-design-process.md) — defines the design-doc + tracking-issue + cut-sub-issue artifact pattern
+- [`../../docs/adr/0015-impl-doc-artifact-retires.md`](../../docs/adr/0015-impl-doc-artifact-retires.md) — the implementation-doc retirement decision
 - [`../../CONTEXT.md`](../../CONTEXT.md) — domain glossary: Archive, Alias, Redirect, Pure Soft-Delete entries
-- Tracked in [#364](https://github.com/gazetta-studio/gazetta-studio/issues/364)
+- Original ask: [#364](https://github.com/gazetta-studio/gazetta-studio/issues/364)
+- Tracking issue (cut sub-issues): [#451](https://github.com/gazetta-studio/gazetta-studio/issues/451)
 
 ## Scope
 
@@ -240,19 +242,50 @@ Closed-enum-additive (matches soft-delete's pattern of `archive`/`unarchive`/`pu
 
 ## Distinctive choices
 
-- **Schema refinement over sentinel template**: cleanest reflection of runtime reality (archived pages never have template executed). Tribal knowledge avoided.
+- **Schema refinement over sentinel template**: cleanest reflection of runtime reality (archived pages never have template executed). Tribal knowledge avoided. Cut 1 locked `z.refine` (predicate-based) over `z.discriminatedUnion` (cleaner narrowing, more verbose) — refine's diff was smaller and the runtime check is single-predicate.
+- **Two routes (`/api/page-redirects` + `/api/fragment-redirects`), not single `/api/redirects` + dynamic capability**: Cut 3 locked path (a) — two routes share the handler body but each has a literal `requireCapability('edit:pages')` / `requireCapability('edit:fragments')` middleware. Splits the URL surface but each gate is literal. A single route with body-driven capability would require a one-off bespoke middleware reading the body before the gate — high coupling for marginal URL-shape gain.
 - **No `/admin/redirects` page in v1**: tree+filter handles list view. Dedicated page lands additively if demand surfaces.
 - **Hard-refuse on live collision (no shortcut)**: blast-radius protection. Operator's two-step protects against silent live-page removal.
+- **Edge cases hard-refused at the route layer**: `from === 'home'` (would redirect `/`, footgun) → `400 INVALID`; from-route containing `[param]` (dynamic route segment, would need wildcard semantics) → `400 INVALID`. Wildcard / regex from-routes are deferred per the deferred-items table; rejecting at the route layer keeps the v1 surface honest about what it covers.
+- **Form labels: "Redirect from" / "Redirect to"**: Cut 4 picked parallel-structure labels over "URL that should redirect" / "Where it should go" (most plain) and "Source URL" / "Destination URL" (technical). Parallel labels beat varied wording for scannability.
 - **Edit-class capability, not delete-class**: matches PATCH alias precedent. Adds state, doesn't destroy.
 - **Closed-enum-additive for audit discriminator**: pattern consistency with soft-delete.
+
+## Cut sequence
+
+| # | What | Depends on | Test tier | Risk |
+|---|---|---|---|---|
+| 1 | Schema refinement (`PageManifest.template` + `FragmentManifest.template` conditionally optional when `archived: true`) | — | unit-first | Low |
+| 2 | Audit action enum extension (`'create-redirect'`) | — | unit-first | Low |
+| 3 | `POST /api/page-redirects` + `POST /api/fragment-redirects` routes + edge-case rejections (`home`, `[param]`) | 1, 2 | api-first | Medium |
+| 4 | `CreateRedirectDialog.vue` + SiteTree "+ New redirect" button + conflict UX | 3 | component | Medium-high |
+| 5 | Capability-gap UX integration (boot validate / author modal / scanner / publish gate) | 4 | component + unit | Low |
+| 6 | E2E test + docs (manual redirect creation walkthrough) | 5 | e2e-first | Low |
+
+State (which cuts shipped / are in flight) lives in GitHub sub-issue close-state on the tracking issue (#451), not in this table.
 
 ## Migration
 
 No migration. Existing rename-via-soft-delete continues unchanged. Manual Redirects are a new operation that uses already-shipped primitives.
 
-## Open implementation questions
+## Validation gate (definition of done)
 
-1. **Conditional schema refinement shape.** Zod `.refine` vs `z.discriminatedUnion` — which is cleaner for "template required when not archived"? Pick at implementation time after seeing the diff.
-2. **`alias` autocomplete data source.** Server-side route or client-side query against existing site store? Client-side is faster; revisit if 5K-page envelope makes autocomplete-on-keypress slow.
-3. **Krug-test the form copy.** Labels per bot's research note: "URL that should redirect" vs "Redirect from" + "Redirect to" / "Source URL" + "Destination URL". Lands during implementation Cut 3 (dialog).
-4. **Capability-gap modal copy.** When active target is plain-static: "On this target, manual redirects won't fire — switch to a worker-capable target, or configure `_redirects` format." Draft + test during implementation Cut 3.
+- All 6 implementation cuts shipped
+- Manual test: create a redirect from `/old` to `/new`; publish; verify worker emits 301 from old route
+- Manual test: create redirect with live-name collision → 409 with clear message; no destructive shortcut visible
+- Manual test: create redirect with archived-name collision → soft-delete Q5 prompt fires
+- Manual test: capability-gap warning visible on plain-static target
+- Audit log shows `create-redirect` event for each creation
+- Operator can create a redirect in <30 seconds (per [#364](https://github.com/gazetta-studio/gazetta-studio/issues/364) acceptance criterion)
+
+## Deferred items
+
+| Item | Trigger to revisit |
+|---|---|
+| Dedicated `/admin/redirects` list page | Operator demand for bulk import / 404-log-to-redirect / volume past tree-filter ergonomics |
+| Bulk CSV import | WordPress-style operator demand |
+| 404-log-to-redirect path | Gazetta gains a 404 log primitive |
+| Wildcard / regex from-routes | Operator demand for URL-pattern redirects |
+| Conditional redirects (login state, browser, etc.) | Strategic non-fit candidate; not currently demand-driven |
+| 302 / scheduled / time-bounded redirects | Scheduling primitive implementation ships; compose then |
+| Per-locale redirect creation | Per-locale archive demand surfaces |

@@ -114,12 +114,40 @@ Two predecessor docs use the `-plan.md` suffix (`seo-plan.md`, `testing-plan.md`
 
 Ship in cuts via a GitHub **tracking issue** + N **cut sub-issues** per [`docs/adr/0015-impl-doc-artifact-retires.md`](../../docs/adr/0015-impl-doc-artifact-retires.md). The design doc's `## Cut sequence` section (see Phase 3 below) is the intent; GitHub sub-issue close-state is the operational state.
 
+**Pre-filing cut audit.**
+
+Before filing cuts as sub-issues, walk the impl doc (or design doc's `## Cut sequence` table) and audit each cut for bot-readiness. The audit catches gaps that would otherwise surface as feature-bot's `NEEDS_INPUT` cycles or wasted attempts.
+
+Per-cut audit checklist:
+- **Scope size**: rough LOC estimate. <500 LOC = clean for one PR. >1000 LOC = consider splitting before filing.
+- **Open Qs in impl doc**: any unresolved Qs that the bot would have to make judgment calls on? Each open Q is a NEEDS_INPUT cycle (24h cron + maintainer answer). Pre-grill: promote impl-doc `Recommendation:` lines to locks, OR resolve the Q inline in the sub-issue body's `## Spec`. Don't ship cuts with bot-facing open Qs.
+- **Judgment-heavy specs**: cuts whose entire tests section is "Open questions" (e.g., the original Cut 5 of redirect-ui — "edge case: from-route is `home` — what's the UX?") are NOT implementation cuts; they're grilling cuts. Either re-grill them into concrete decisions OR fold them into adjacent cuts that have concrete server-side / UI rules to implement.
+- **Test specificity**: does the cut spec name specific test files and behaviors, or is it vague? Per [team-preferences rule 31](team-preferences.md) + the design-doc Cut sequence Q9 lock, the sub-issue's `## Tests` section names actual test file paths and behaviors. Vague test sections create tautological-test risk.
+- **SOLID applicability**: pure-data-shape or pure-docs cuts: `## SOLID` is N/A. New interfaces / module boundaries / abstractions: `## SOLID` is REQUIRED — name the load-bearing lens.
+
+Output of the audit: pre-grilled list of Qs to promote-to-lock, pre-flagged cuts to fold, locked specs ready for filing. The redirect-ui migration (2026-06) was the first to apply this audit and surfaced its rules — it caught the original Cut 5 ("Conflict UX edge cases" — judgment-heavy) and folded its rejections into the actual Cut 3.
+
+**When to fold cuts.**
+
+Some impl-doc cuts are best folded into adjacent cuts during the migration rather than filed as standalone sub-issues. Signals that justify folding:
+- The impl doc itself says "may fold into Cut N" or similar deferral language
+- The cut's entire scope is judgment calls / edge cases / "verify the existing pattern" work
+- The cut's tests are open questions, not concrete behaviors to pin
+- The cut would mostly modify the same files as an adjacent cut (revertability per [team-preferences rule 17](team-preferences.md) isn't compromised by folding when the work is naturally co-located)
+
+When folding, name the absorbed scope explicitly in the target cut's `## Spec` ("absorbs old Cut N's edge-case rejections"). Future readers see the consolidation in one place. The redirect-ui migration folded its impl-doc Cut 5 (edge-case rejections) into the actual Cut 3 routes work — `home` and `[param]` rejections became 400-INVALID branches in the route handler rather than a standalone "edge case UX" cut.
+
 **Issue-filing flow** (after the design doc is on main):
 1. Maintainer asks (in Claude Code): "open cuts for `design-{feature}.md`."
 2. Claude reads the design doc's `## Cut sequence` table.
 3. For each row, Claude renders a cut sub-issue body (just-markdown shape — see [`design-feature-bot.md`](design-feature-bot.md) Q2) with `**Feature**:` + `**Depends on**:` front-matter, then four sections: `## Spec`, `## Acceptance`, `## SOLID`, `## Tests`.
 4. Claude opens N cut sub-issues (labeled `enhancement` + `ready-for-agent` + `area: X`) + one tracking issue (labeled `enhancement` + `area: X` — NO `ready-for-agent`, so feature-bot ignores it) whose body is a tasklist of the sub-issues.
-5. Tracking issue auto-closes when all sub-issues close.
+5. **Claude links each cut sub-issue as a native sub-issue of the tracking issue via the GraphQL `addSubIssue` mutation.** The markdown tasklist alone does NOT establish parent/child relationship — it renders checkboxes but doesn't auto-check on issue close, and GitHub's "Sub-issues" panel stays empty. Required command per cut sub-issue:
+   ```bash
+   gh api graphql -f query='mutation { addSubIssue(input: { issueId: "<parent-node-id>", subIssueId: "<child-node-id>" }) { subIssue { number title } } }'
+   ```
+   Get node IDs via `gh api graphql -f query='{ repository(owner:..., name:...) { issue(number: N) { id } } }'`. The mutation is idempotent — re-running on already-linked sub-issues is safe. The redirect-ui migration (2026-06) was the first to surface this gap — the original tracking issue #451 carried a markdown tasklist but its Sub-issues panel was empty until the `addSubIssue` calls landed.
+6. Tracking issue auto-closes when all sub-issues close.
 
 **Cut sub-issue body sections** (the per-cut spec contract that feature-bot's Agent A consumes):
 
@@ -159,6 +187,17 @@ Required vs optional:
 - Tests + docs land in the same PR as the cut.
 
 **Feature-bot's role**: feature-bot picks the next unblocked cut sub-issue (oldest-first among those whose `**Depends on**:` refs are all closed) and ships one PR per cut. See [`design-feature-bot.md`](design-feature-bot.md) for the full bot contract.
+
+**The consolidation cut.**
+
+Every feature migration ends with a consolidation cut — the implementation-doc-retirement work itself. This cut:
+- Depends on all prior bot-driven cuts (so it ships LAST)
+- Migrates `## Deferred items`, `## Validation gate`, and surviving open Qs from impl doc → design doc per [`docs/adr/0015-impl-doc-artifact-retires.md`](../../docs/adr/0015-impl-doc-artifact-retires.md)
+- Adds the `## Cut sequence` table to the design doc per the Q9 lock in [`design-feature-bot.md`](design-feature-bot.md)
+- Replaces impl doc contents with a one-line pointer to the design doc
+- Optionally amends `feature-design-process.md` if the migration surfaced new process gaps (as Cut 7 of redirect-ui did with the `addSubIssue` and audit-checklist additions in this section)
+
+The consolidation cut is filed as `enhancement` + `ready-for-agent` like any other cut. Feature-bot picks it up; maintainer reviews the docs PR.
 
 **At ship time** (final cut merges):
 - "Deferred items" + "Lessons learned" land in `design-{feature}.md` (the durable artifact) — these previously lived in the implementation doc.
