@@ -1,17 +1,23 @@
 /**
  * Wire-level primitives shared by every API module.
  *
- * This file owns exactly three concerns:
+ * This file owns:
  *   - the API base URL derivation (`/admin/api`, `/cms/api`, `/api`)
  *   - the active-target injection (`?target=<name>`) — a cross-cutting
  *     concern that every endpoint honors
- *   - the bearer-token header — same story
+ *
+ * Auth headers are NOT set client-side. Per design-auth-rbac.md, Gazetta
+ * consumes upstream identity from configured request headers populated
+ * by the platform's auth layer (Cloudflare Access, Azure Easy Auth,
+ * forwarded-user via reverse proxy, etc.). `authHeaders()` is kept as a
+ * pass-through so callers stay uniform; do NOT source tokens from
+ * sessionStorage / localStorage / cookies here.
  *
  * Nothing here is endpoint-specific. If a behavior would change between
  * "pages API" and "assets API," it does not belong here.
  *
  * Other API modules (`client.ts`, `assets.ts`) import these helpers rather
- * than redefining fetch + auth + target plumbing per module.
+ * than redefining fetch + active-target plumbing per module.
  */
 
 // API is relative to the CMS base path. `import.meta.env.BASE_URL` resolves
@@ -51,11 +57,13 @@ export function getActiveTarget(): string | null {
   return activeTargetProvider?.() ?? null
 }
 
-/** Build the auth headers for a fetch call. Pass-through when no token. */
+/**
+ * Auth headers for a fetch call. Pass-through by design — see file header.
+ * Kept as a function (not deleted entirely) so the many callers stay
+ * uniform if auth-header injection ever moves here from a wrapper layer.
+ */
 export function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
-  const token = sessionStorage.getItem('gazetta_token')
-  if (!token) return extra
-  return { ...extra, Authorization: `Bearer ${token}` }
+  return extra
 }
 
 /** Build the full absolute URL for an API path, including the active target. */
