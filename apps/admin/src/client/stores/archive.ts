@@ -25,7 +25,7 @@
  */
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { API_BASE } from '../api/_request.js'
+import { apiUrl, authHeaders } from '../api/_request.js'
 
 export type ArchiveStatus =
   | 'idle'
@@ -270,15 +270,17 @@ class PurgeBlockedError extends Error {
 
 // ─── HTTP wrappers ─────────────────────────────────────────────────────
 // Inline rather than parking on `api/client.ts` because the routes are
-// archive-specific lifecycle ops, not the page/fragment CRUD shape.
+// archive-specific lifecycle ops, not the page/fragment CRUD shape. Wire
+// plumbing (active-target injection via `apiUrl()`, header pass-through
+// via `authHeaders()`) lives in `_request.ts` — see its file header for
+// why same-origin admin doesn't need `credentials: 'include'`.
 
 async function postArchive(kind: 'page' | 'fragment', name: string, aliasOf?: string): Promise<ArchiveSuccess> {
-  const url = `${API_BASE}/${kind}s/${encodeURIComponent(name)}/archive`
+  const path = `/${kind}s/${encodeURIComponent(name)}/archive`
   const body = aliasOf ? JSON.stringify({ aliasOf }) : undefined
-  const res = await fetch(url, {
+  const res = await fetch(apiUrl(path), {
     method: 'POST',
-    credentials: 'include',
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    headers: authHeaders(body ? { 'Content-Type': 'application/json' } : {}),
     body,
   })
   if (!res.ok) throw await readError(res, `Archive ${kind} "${name}"`)
@@ -286,16 +288,22 @@ async function postArchive(kind: 'page' | 'fragment', name: string, aliasOf?: st
 }
 
 async function postUnarchive(kind: 'page' | 'fragment', name: string): Promise<UnarchiveSuccess> {
-  const url = `${API_BASE}/${kind}s/${encodeURIComponent(name)}/unarchive`
-  const res = await fetch(url, { method: 'POST', credentials: 'include' })
+  const path = `/${kind}s/${encodeURIComponent(name)}/unarchive`
+  const res = await fetch(apiUrl(path), {
+    method: 'POST',
+    headers: authHeaders(),
+  })
   if (!res.ok) throw await readError(res, `Unarchive ${kind} "${name}"`)
   return (await res.json()) as UnarchiveSuccess
 }
 
 async function deletePurge(kind: 'page' | 'fragment', name: string, force?: boolean): Promise<PurgeSuccess> {
   const qs = force ? '?force=true' : ''
-  const url = `${API_BASE}/${kind}s/${encodeURIComponent(name)}/purge${qs}`
-  const res = await fetch(url, { method: 'DELETE', credentials: 'include' })
+  const path = `/${kind}s/${encodeURIComponent(name)}/purge${qs}`
+  const res = await fetch(apiUrl(path), {
+    method: 'DELETE',
+    headers: authHeaders(),
+  })
   if (!res.ok) {
     if (res.status === 409) {
       const body = (await res.json().catch(() => null)) as {
@@ -317,11 +325,10 @@ async function deletePurge(kind: 'page' | 'fragment', name: string, force?: bool
 }
 
 async function patchAlias(kind: 'page' | 'fragment', name: string, aliasOf: string | null): Promise<void> {
-  const url = `${API_BASE}/${kind}s/${encodeURIComponent(name)}/alias`
-  const res = await fetch(url, {
+  const path = `/${kind}s/${encodeURIComponent(name)}/alias`
+  const res = await fetch(apiUrl(path), {
     method: 'PATCH',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ aliasOf }),
   })
   if (!res.ok) throw await readError(res, `Set alias for ${kind} "${name}"`)
