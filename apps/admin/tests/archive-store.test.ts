@@ -9,9 +9,10 @@
  * Per rule 26 (test-isolation paranoia): each test gets a fresh
  * Pinia + a fresh fetch mock.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useArchiveStore, type ArchiveTarget } from '../src/client/stores/archive.js'
+import { setActiveTargetProvider } from '../src/client/api/_request.js'
 
 const fetchMock = vi.fn()
 
@@ -20,6 +21,13 @@ beforeEach(() => {
   fetchMock.mockReset()
   // Stub global fetch — the store calls fetch directly via API_BASE.
   vi.stubGlobal('fetch', fetchMock)
+})
+
+afterEach(() => {
+  // _request.ts active-target provider is module-level; reset to null
+  // after every test so cross-test leakage can't masquerade as a passing
+  // assertion (rule 26).
+  setActiveTargetProvider(null)
 })
 
 const live: ArchiveTarget = { kind: 'page', name: 'landing', archived: false }
@@ -230,5 +238,137 @@ describe('useArchiveStore — Cut 12 setAlias + restoreBlocker', () => {
     expect(store.status).toBe('purge-blocked')
     expect(store.blockedAliases).toEqual([])
     expect(store.blockedLiveRefs).toEqual([{ kind: 'page', name: 'still-here' }])
+  })
+})
+
+/**
+ * Wire-level plumbing contract — the archive store's HTTP wrappers must
+ * route through `_request.ts`'s `apiUrl()` (active-target injection) and
+ * `authHeaders()` (the documented header pass-through seam) like every
+ * other admin API module. Without this, an operator with `active=staging`
+ * clicks Archive and the server (which reads `c.req.query('target')` and
+ * falls back to the default when absent) silently mutates the DEFAULT
+ * target instead of staging — a misroute that produces no error and is
+ * only visible by inspecting which target ended up dirty.
+ *
+ * The cited rule is `apps/admin/src/client/api/_request.ts:1-21`'s file
+ * header — every API module imports `apiUrl` + `authHeaders` and never
+ * builds raw `${API_BASE}/...` URLs.
+ */
+describe('useArchiveStore — wire-level plumbing (active-target + headers)', () => {
+  it('archive POST routes through apiUrl(): URL carries ?target= when active target is set', async () => {
+    setActiveTargetProvider(() => 'staging')
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ok: true, name: 'landing', archivedAt: '2026-05-09T00:00:00Z' }),
+    })
+    const store = useArchiveStore()
+    store.askArchive(live)
+    await store.confirmArchive({})
+    const url = String(fetchMock.mock.calls[0][0])
+    expect(url).toMatch(/[?&]target=staging(?:&|$)/)
+  })
+
+  it('unarchive POST routes through apiUrl(): URL carries ?target= when active target is set', async () => {
+    setActiveTargetProvider(() => 'production')
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ok: true, name: 'old-landing' }),
+    })
+    const store = useArchiveStore()
+    await store.unarchive(archived)
+    const url = String(fetchMock.mock.calls[0][0])
+    expect(url).toMatch(/[?&]target=production(?:&|$)/)
+  })
+
+  it('purge DELETE routes through apiUrl(): URL carries ?target= when active target is set', async () => {
+    setActiveTargetProvider(() => 'staging')
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ok: true, name: 'old-landing' }),
+    })
+    const store = useArchiveStore()
+    store.askPurge(archived)
+    await store.confirmPurge()
+    const url = String(fetchMock.mock.calls[0][0])
+    expect(url).toMatch(/[?&]target=staging(?:&|$)/)
+  })
+
+  it('purge DELETE preserves ?force=true alongside the injected ?target=', async () => {
+    setActiveTargetProvider(() => 'staging')
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ok: true, name: 'old-landing' }),
+    })
+    const store = useArchiveStore()
+    store.askPurge(archived)
+    await store.confirmPurge({ force: true })
+    const url = String(fetchMock.mock.calls[0][0])
+    expect(url).toContain('force=true')
+    expect(url).toMatch(/[?&]target=staging(?:&|$)/)
+  })
+
+  it('patchAlias PATCH routes through apiUrl(): URL carries ?target= when active target is set', async () => {
+    setActiveTargetProvider(() => 'staging')
+    // PATCH alias
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) })
+    // Retry purge (so setAlias resolves cleanly without surfacing as error)
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ok: true, name: 'old-landing' }),
+    })
+    const store = useArchiveStore()
+    store.askPurge(archived)
+    await store.setAlias({ kind: 'page', name: 'old-landing' }, null)
+    const patchUrl = String(fetchMock.mock.calls[0][0])
+    expect(patchUrl).toMatch(/[?&]target=staging(?:&|$)/)
+  })
+
+  it('does not send credentials: "include" on archive (same-origin admin; auth lives in upstream headers, not cookies)', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ok: true, name: 'landing', archivedAt: '2026-05-09T00:00:00Z' }),
+    })
+    const store = useArchiveStore()
+    store.askArchive(live)
+    await store.confirmArchive({})
+    const init = fetchMock.mock.calls[0][1] as RequestInit
+    expect(init.credentials).toBeUndefined()
+  })
+
+  it('does not send credentials: "include" on unarchive', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ok: true, name: 'old-landing' }),
+    })
+    const store = useArchiveStore()
+    await store.unarchive(archived)
+    const init = fetchMock.mock.calls[0][1] as RequestInit
+    expect(init.credentials).toBeUndefined()
+  })
+
+  it('does not send credentials: "include" on purge', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ok: true, name: 'old-landing' }),
+    })
+    const store = useArchiveStore()
+    store.askPurge(archived)
+    await store.confirmPurge()
+    const init = fetchMock.mock.calls[0][1] as RequestInit
+    expect(init.credentials).toBeUndefined()
+  })
+
+  it('does not send credentials: "include" on patchAlias', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) })
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ok: true, name: 'old-landing' }),
+    })
+    const store = useArchiveStore()
+    store.askPurge(archived)
+    await store.setAlias({ kind: 'page', name: 'old-landing' }, null)
+    const init = fetchMock.mock.calls[0][1] as RequestInit
+    expect(init.credentials).toBeUndefined()
   })
 })
