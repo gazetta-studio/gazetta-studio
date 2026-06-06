@@ -12,14 +12,7 @@
  * by the publish flow (target) the same way asset-refs is written.
  */
 import type { ContentRoot } from './content-root.js'
-import {
-  type DepRelation,
-  type ItemRef,
-  type ManifestLike,
-  applyDepDiff,
-  rebuildItemDeps,
-  readDepsFor,
-} from './dep-sidecars.js'
+import { type DepRelation, type ItemRef, type ManifestLike, rebuildItemDeps, readDepsFor } from './dep-sidecars.js'
 import { collectFragmentRefs } from './sidecars.js'
 
 /** The fragment-deps relation: extract `@fragment` references from a manifest. */
@@ -41,14 +34,4 @@ export function rebuildFragmentDeps(
   newManifest: ManifestLike | null,
 ): Promise<void> {
   return rebuildItemDeps(FRAGMENT_DEPS, contentRoot, item, oldManifest, newManifest)
-}
-
-/** Apply a pre-computed diff (used in tests + cases where caller has the sets already). */
-export function applyFragmentDepsDiff(
-  contentRoot: ContentRoot,
-  item: ItemRef,
-  oldFragments: ReadonlySet<string>,
-  newFragments: ReadonlySet<string>,
-): Promise<void> {
-  return applyDepDiff(FRAGMENT_DEPS, contentRoot, item, oldFragments, newFragments)
 }
