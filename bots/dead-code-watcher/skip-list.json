@@ -43,6 +43,17 @@
       "reasonNote": "Load-bearing internal helper for a public-API type. `HasEmbeddedBrand<T>` is used at types.ts:409 by the `Content<T>` type mapper, which IS exported as part of the public `gazetta/schema` surface (re-exported from packages/gazetta/src/schema/index.ts:36 and documented as the canonical usage pattern in its top-of-file JSDoc — template authors write `TemplateFunction<Content<z.infer<typeof schema>>>`). Deleting `HasEmbeddedBrand` would break `Content<T>` and the public schema API; tests in packages/gazetta/tests/schema-content.test.ts cover this composition end-to-end across all three branded asset kinds. The type is also part of a deliberately parallel triad with `HasDownloadableBrand` and `HasFontBrand` (declared on adjacent lines with identical structure, sharing one section comment that frames them as 'Brand detection for Content<T>' and explicitly calls out 'If Zod v5 changes brand representation, update only this module'). The trio forms one coherent brand-detection module — splitting one out would break the parallelism that makes future Zod-version migrations a single localized edit. Knip flagged it because no external file imports it directly, but the internal use by an exported type is what makes it load-bearing.",
       "addedAt": "2026-06-06T00:00:00Z",
       "addedBy": "bot"
+    },
+    {
+      "fingerprint": {
+        "kind": "type",
+        "path": "packages/gazetta/src/schema/types.ts",
+        "symbol": "HasDownloadableBrand"
+      },
+      "reason": "needs-human",
+      "reasonNote": "Knip false positive — the type is used at line 411 in the same module, inside the `Content<T>` type mapper (`: HasDownloadableBrand<T> extends true ? ResolvedDownloadableAsset : ...`). Deleting it would break the type-level `Content<T>` cascade and the build. Knip flagged it as 'unused export' because no OTHER file imports it (the type is only used within its declaration file). The proper resolution is a refactor — drop the `export` keyword from all three brand predicates (`HasEmbeddedBrand`, `HasDownloadableBrand`, `HasFontBrand`) so they become file-scoped — but the per-finding prompt says 'this bot deletes; it doesn't redesign,' so refactor is out of scope. The three types form an intentional coherent triple: the file's own comment block at lines 374-389 explicitly calls them out as a group ('If Zod v5 changes brand representation, update only the `Has*Brand` predicates') and they are exported symmetrically. Maintainer judgment is needed on whether to: (a) drop `export` on all three (most likely correct — they're internal to `Content<T>`'s implementation and not re-exported from `schema/index.ts`), (b) leave as-is (cheap, type-level only, no runtime cost), or (c) promote to public API by adding to `schema/index.ts`'s re-export list (if external type authors writing utilities like `IsAssetRef<T>` would benefit). Note: knip flagged only this one of the triple; if knip is configured to nudge toward file-scoping unused exports, then `HasEmbeddedBrand` and `HasFontBrand` should be flagged too — the asymmetry may itself be a knip quirk. None of the three are in `packages/gazetta/package.json`'s `./schema` exports map (verified — `schema/index.ts` re-exports a curated set that excludes the `Has*Brand` predicates).",
+      "addedAt": "2026-06-06T00:00:00Z",
+      "addedBy": "bot"
     }
   ],
   "rules": []
