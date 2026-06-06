@@ -32,6 +32,17 @@
       "reasonNote": "OCP extension seam for the upload-preprocessor registry. The file's top-of-module JSDoc explicitly enumerates planned future preprocessors that will extend this registry: 'HEIC: transcode to JPEG (browsers can't display HEIC) — future', 'Animated GIF: extract first frame as poster, set `animated` manifest flag — future', 'JPEG with EXIF: apply orientation, strip personal metadata — future'. The export pairs with `runPreprocessors`'s default-parameter pattern (line 111: `preprocessors: readonly UploadPreprocessor[] = defaultPreprocessors`) — that pattern only makes sense as a named exported registry callers can compose against via `[...defaultPreprocessors, customPreprocessor]`. Two consumers (ingest.ts:100, ingest-locale.ts:90) document the `preprocessors?` input field's default behavior by referencing `defaultPreprocessors` by name in JSDoc. The file's SOLID-lenses section explicitly calls out 'OCP: adding a format = new module + register; ingest unchanged' — the registry IS the registration point. Deleting now and re-introducing when the first future preprocessor lands would force JSDoc churn at three locations + re-promotion of the const. Cost of keeping: one named const.",
       "addedAt": "2026-05-30T06:02:04Z",
       "addedBy": "bot"
+    },
+    {
+      "fingerprint": {
+        "kind": "type",
+        "path": "packages/gazetta/src/schema/types.ts",
+        "symbol": "HasEmbeddedBrand"
+      },
+      "reason": "public-api",
+      "reasonNote": "Load-bearing internal helper for a public-API type. `HasEmbeddedBrand<T>` is used at types.ts:409 by the `Content<T>` type mapper, which IS exported as part of the public `gazetta/schema` surface (re-exported from packages/gazetta/src/schema/index.ts:36 and documented as the canonical usage pattern in its top-of-file JSDoc — template authors write `TemplateFunction<Content<z.infer<typeof schema>>>`). Deleting `HasEmbeddedBrand` would break `Content<T>` and the public schema API; tests in packages/gazetta/tests/schema-content.test.ts cover this composition end-to-end across all three branded asset kinds. The type is also part of a deliberately parallel triad with `HasDownloadableBrand` and `HasFontBrand` (declared on adjacent lines with identical structure, sharing one section comment that frames them as 'Brand detection for Content<T>' and explicitly calls out 'If Zod v5 changes brand representation, update only this module'). The trio forms one coherent brand-detection module — splitting one out would break the parallelism that makes future Zod-version migrations a single localized edit. Knip flagged it because no external file imports it directly, but the internal use by an exported type is what makes it load-bearing.",
+      "addedAt": "2026-06-06T00:00:00Z",
+      "addedBy": "bot"
     }
   ],
   "rules": []
