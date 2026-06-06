@@ -32,7 +32,7 @@ export interface AssetsUploadStoreOptions {
   uploadLocaleBytes?: UploadLocaleBytes
 }
 
-export type UploadStatus = 'queued' | 'uploading' | 'success' | 'error'
+type UploadStatus = 'queued' | 'uploading' | 'success' | 'error'
 
 /** What kind of upload this entry represents. */
 export type UploadKind = 'default' | 'locale-bytes'
