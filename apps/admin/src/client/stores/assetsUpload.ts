@@ -35,7 +35,7 @@ export interface AssetsUploadStoreOptions {
 type UploadStatus = 'queued' | 'uploading' | 'success' | 'error'
 
 /** What kind of upload this entry represents. */
-export type UploadKind = 'default' | 'locale-bytes'
+type UploadKind = 'default' | 'locale-bytes'
 
 export interface UploadEntry {
   id: string
