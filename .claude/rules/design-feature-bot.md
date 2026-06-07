@@ -16,7 +16,7 @@ Autonomous bot that implements feature cuts following the project's design pass.
 - Bot reads GitHub "cut sub-issues" labeled `enhancement` + `ready-for-agent` + `area: X` (no new labels — reuses existing vocabulary)
 - Picks the next cut whose dependencies are all closed
 - Generator-critic loop (Agent A implements, Agent B reviews) — same pattern as fix-bot + dead-code-watcher
-- Agent A flow: tests → impl → SOLID research+fix loop → test-quality pass → runtime exercise (no TDD-first; soft two-commit shape; Agent B is the sole anti-tautology gate — see the loop in "Design" below)
+- Agent A flow: tests → impl → SOLID research+fix loop → runtime validation → improve/fix tests (no TDD-first; soft two-commit shape; Agent B is the sole anti-tautology gate — see the loop in "Design" below)
 - One PR per cut
 - Durable memory: skip-list + reviewer-log (same shape as fix-bot)
 
@@ -475,10 +475,13 @@ Cron (daily 04:30 UTC, after fix-bot at 04:00):
     ↓
 4. Generator-critic loop (max 5 attempts):
    - Agent A: tests commit → impl (GREEN) → **SOLID research+fix loop
-     (≤3 converge rounds)** → **test-quality pass (logic-direct,
-     data-driven, de-dup, schema-smell)** → runtime exercise → push.
-     Both passes roll into the impl commit; tests live in the tests
-     commit (soft two-commit shape for B's revert check).
+     (≤3 converge rounds)** → **runtime validation (prove every path)**
+     → **improve/fix tests (logic-direct, data-driven, de-dup,
+     schema-smell, + edge cases the exercise surfaced)** → push. Tests
+     improvement comes AFTER runtime validation so it's informed by what
+     the exercise found. SOLID fixes roll into the impl commit; all
+     tests live in the tests commit (soft two-commit shape for B's
+     revert check).
    - Agent B: review diff, vote APPROVE / REJECT / NEEDS_HUMAN —
      runs the **tautology check (the SOLE anti-tautology gate)**,
      **independently judges SOLID**, and **scrutinizes test removals**
