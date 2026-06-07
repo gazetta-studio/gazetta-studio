@@ -19,6 +19,25 @@
 import { z } from 'zod'
 
 /**
+ * Content review-workflow config (`reviewWorkflow:` block at site or
+ * target level). Per `design-review-workflow.md` "Configuration" +
+ * "Locked invariants". All four fields are optional with documented
+ * defaults; per-target overrides inherit per-field via
+ * `resolveReviewWorkflow` at runtime.
+ *
+ * Strict — adding a new field requires extending the schema (avoids
+ * silent typo acceptance for forward-compat changes).
+ */
+export const reviewWorkflowSchema = z
+  .object({
+    enabled: z.boolean().default(false),
+    requiredApprovers: z.number().int().positive().default(1),
+    allowSelfApproval: z.boolean().default(true),
+    invalidateOnSave: z.enum(['content-diff', 'always']).default('content-diff'),
+  })
+  .strict()
+
+/**
  * Locale code per BCP 47 — accepts `en`, `en-gb`, `pt-br`, etc.
  * Permissive; downstream resolves the canonical form.
  */
@@ -69,6 +88,13 @@ export const SiteConfigSchema = z
      */
     ai: z.record(z.string(), z.unknown()).optional(),
     altText: z.record(z.string(), z.unknown()).optional(),
+    /**
+     * Site-level content review-workflow config. Tight-validated here
+     * (the block has a small, structured shape); per-target overrides
+     * remain loose-typed under `targets` (validated downstream by
+     * `resolveReviewWorkflow`).
+     */
+    reviewWorkflow: reviewWorkflowSchema.optional(),
     systemPages: z.array(z.string()).optional(),
     /**
      * Per-target configurations. Keys are target names; values are

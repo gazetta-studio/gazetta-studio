@@ -357,6 +357,36 @@ export interface TargetConfig {
    * stop the ship.
    */
   publishAudit?: PublishAuditConfig
+  /**
+   * Per-target content review-workflow override. When absent, the
+   * target inherits the site-level `reviewWorkflow` config (per-field,
+   * via `resolveReviewWorkflow`). Specifying it here overrides
+   * individual fields; absent fields still inherit.
+   *
+   * Per design-review-workflow.md "Configuration": the same shape as
+   * the site-level block — review is per-content (NOT per-target), so
+   * the target-level override exists primarily for environment-specific
+   * tuning (e.g., staging accepts single-approver content review;
+   * production requires two).
+   */
+  reviewWorkflow?: ReviewWorkflowConfig
+  /**
+   * Per-target publish-approval gate. When `true`, every publish event
+   * to this target requires an explicit publish-request → approve flow
+   * (capabilities `publish:request` + `publish:approve`) beyond the
+   * content review state. Independent of `reviewWorkflow.enabled` —
+   * archetypes C and D in design-review-workflow.md enable this on
+   * production-only.
+   */
+  requiresPublishApproval?: boolean
+  /**
+   * Number of distinct approvers required for each publish request on
+   * this target. Snapshotted on the publish request at submission time;
+   * subsequent config changes don't retroactively apply. Required to be
+   * a positive integer when present. Default (when `requiresPublishApproval`
+   * is true but this is omitted) is `1`.
+   */
+  requiredPublishApprovers?: number
 }
 
 /**
@@ -501,6 +531,39 @@ export interface AltTextTargetConfig {
   }
 }
 
+/**
+ * Content review-workflow configuration. Same shape at site-level and
+ * target-level (Cut 1); target-level fields override site-level
+ * per-field via `resolveReviewWorkflow`. Per
+ * design-review-workflow.md "Configuration" + "Locked invariants":
+ *
+ *   - `enabled` — whether content on this target traverses the review
+ *     state machine (`draft` → `pending-review` → `approved`). Default
+ *     `false` (archetype A — review off).
+ *   - `requiredApprovers` — count of distinct approvers needed to move
+ *     to `approved`. Snapshotted at submit time; subsequent config
+ *     changes don't retroactively apply (SOC 2-friendly). Default `1`.
+ *   - `allowSelfApproval` — when `true`, an actor with both
+ *     `review:submit` and `review:approve` may approve their own
+ *     submission. Default `true` for solo / small-team ergonomics;
+ *     compliance archetype E sets `false`.
+ *   - `invalidateOnSave` — granularity of approval invalidation. With
+ *     `'content-diff'` (default), only logical content changes drop
+ *     approval back to draft. With `'always'` (compliance), every save
+ *     invalidates.
+ *
+ * Per the locked invariant, review is per-content (not per-target);
+ * per-target overrides exist for environment-specific tuning. The
+ * publish-side gate is governed by `requiresPublishApproval` /
+ * `requiredPublishApprovers` on the target, NOT by this block.
+ */
+export interface ReviewWorkflowConfig {
+  enabled?: boolean
+  requiredApprovers?: number
+  allowSelfApproval?: boolean
+  invalidateOnSave?: 'content-diff' | 'always'
+}
+
 /** Per-target asset upload policy. */
 export interface AssetUploadConfig {
   /**
@@ -637,6 +700,13 @@ export interface SiteManifest {
    * (either here or inherited from `ai:`) means AI alt is configured.
    */
   altText?: AltTextSiteConfig
+  /**
+   * Site-level content review-workflow config. Per-target overrides
+   * (`TargetConfig.reviewWorkflow`) inherit per-field via
+   * `resolveReviewWorkflow`. Absent = review off everywhere unless a
+   * target sets its own (archetype A in design-review-workflow.md).
+   */
+  reviewWorkflow?: ReviewWorkflowConfig
   systemPages?: string[]
   targets?: Record<string, TargetConfig>
   /**
