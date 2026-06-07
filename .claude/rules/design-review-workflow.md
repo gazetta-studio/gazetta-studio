@@ -280,9 +280,9 @@ This is *not* the design-system work deferred by [`css-theming.md`](css-theming.
 **Consequence for the cut sequence:** two foundational UI cuts prepend the UX cuts —
 
 1. **Extract `<StateBadge>` + story** (cheap; additive; SiteTree/ComponentTree may opt in via Boy-Scout later, not required)
-2. **Extract `<Banner>` + Storybook setup + story** (moderate; additive; shipped banners untouched)
+2. **Extract `<Banner>` + story** (moderate; additive; shipped banners untouched; Storybook already installed — add the story following `ArchiveBanner.stories.ts`)
 
-— after which cuts 8–10 become compositions (story specs below). The cut specs become "build component X to match `X.stories.tsx`," and the bot implements to green stories. These two cuts land in the design doc's `## Cut sequence` table when the impl doc is migrated to the tracking-issue + sub-issue model.
+— after which cuts 8–10 become compositions (story specs below). The cut specs become "build component X to match `X.stories.ts`," and the bot implements to green stories. (Storybook already ships in this repo — `@storybook/vue3-vite` + existing `.stories.ts` files including `ArchiveBanner.stories.ts` as the banner precedent; these cuts add stories, they don't set up tooling.) These two cuts land in the design doc's `## Cut sequence` table when the impl doc is migrated to the tracking-issue + sub-issue model.
 
 ### UX surface decisions (UX-grill 2026-06-07)
 
@@ -329,7 +329,7 @@ The cross-content approver queue (Cut 13) is **not** part of the gate cut — ap
 
 ## Cut sequence
 
-Reshaped from the retired impl doc's 15-cut sequence during the migration to the tracking-issue + cut-sub-issue model (2026-06-07), integrating the UX-grilling decisions. Three changes from the original 15: (1) two additive UI-primitive cuts (`<StateBadge>`, `<Banner>` + Storybook) prepend the UX work; (2) one upfront `ready-for-human` story-authoring cut produces the `.stories.tsx` files that are the bot's executable spec (per [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md) — human authors stories, bot implements components); (3) UX cuts 8/10 reshaped per the locked story specs (ReviewActions folded into ReviewBanner; publish-gate as PublishPanel destination rows). 19 cuts total.
+Reshaped from the retired impl doc's 15-cut sequence during the migration to the tracking-issue + cut-sub-issue model (2026-06-07), integrating the UX-grilling decisions. Three changes from the original 15: (1) two additive UI-primitive cuts (`<StateBadge>`, `<Banner>`) prepend the UX work; (2) one upfront `ready-for-human` story-authoring cut produces the `.stories.ts` files that are the bot's executable spec (per [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md) — human authors stories, bot implements components; Storybook already ships, so this is convention not tooling); (3) UX cuts 8/10 reshaped per the locked story specs (ReviewActions folded into ReviewBanner; publish-gate as PublishPanel destination rows). 19 cuts total.
 
 State lives in GitHub sub-issue close-state; this table is intent only (no status column). `agent` = feature-bot; `human` = maintainer-authored (story authoring is design, not bot work).
 
@@ -343,8 +343,8 @@ State lives in GitHub sub-issue close-state; this table is intent only (no statu
 | 6 | Audit integration (4 content-review actions + outcomes) | 4 | agent | api-first | Low |
 | 7 | Admin API routes (`submit`/`approve`/`reject`/`withdraw` + `GET`) | 4, 5, 6 | agent | api-first | Medium |
 | 8 | **Extract `<StateBadge>` primitive + story** (additive; SiteTree/ComponentTree may opt in via Boy-Scout later) | — | agent | component | Low |
-| 9 | **Extract `<Banner>` primitive + Storybook setup + story** (additive; 4 shipped banners untouched) | — | agent | component | Medium |
-| 10 | **Author all review-workflow `.stories.tsx`** from the locked specs (ReviewBanner ×9 + ReviewRejectDialog + PublishPanel-gate ×5) | 8, 9 | **human** | (stories are the spec) | Medium |
+| 9 | **Extract `<Banner>` primitive + story** (additive; 4 shipped banners untouched; Storybook already installed — add the story following `ArchiveBanner.stories.ts`) | — | agent | component | Medium |
+| 10 | **Author all review-workflow `.stories.ts`** from the locked specs (ReviewBanner ×9 + ReviewRejectDialog + PublishPanel-gate ×5) | 8, 9 | **human** | (stories are the spec) | Medium |
 | 11 | ReviewBanner.vue (= `<Banner>` + `<Button>`s; ReviewActions folded in) + ReviewRejectDialog + SiteTree state badge — to green stories | 7, 10 | agent | component | High |
 | 12 | Publish-approval state machine + per-target opt-in (`requiresPublishApproval`) | 4 | agent | api-first | High |
 | 13 | Publish-approval admin API (request/approve/reject/withdraw on publish events) | 12 | agent | api-first | High |
