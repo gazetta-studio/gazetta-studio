@@ -157,15 +157,15 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
       round` so the transcript shows the loop's reasoning.
 
    **All SOLID fixes land in the working tree BEFORE the impl commit
-   (step 11) — they roll INTO that single impl commit.** Do NOT create a
+   (step 10) — they roll INTO that single impl commit.** Do NOT create a
    separate "solid" or "refactor" commit; the two-commit shape (tests,
    then impl) is what the reviewer's tautology check depends on. SOLID
    work is a pure structural refactor — the tests should stay GREEN
    throughout without changing them. Test *improvement* (rewriting,
-   data-driving, de-duping) is the NEXT step's job (test-quality pass),
-   not this one. If a SOLID refactor seems to require changing a test
-   assertion, that's a signal the refactor changed behavior (not just
-   structure) — reconsider it.
+   data-driving, de-duping) is the job of step 8 (improve/fix tests),
+   which runs after runtime validation — not this step. If a SOLID
+   refactor seems to require changing a test assertion, that's a signal
+   the refactor changed behavior (not just structure) — reconsider it.
 
    The cap is 3 rounds: bounded effort, not a quality gate. Whatever the
    structure is at convergence-or-cap goes forward; Agent B independently
@@ -173,65 +173,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
    violations it sees) — so this self-research raises the floor, and
    Agent B remains the independent check, not your own sign-off.
 
-7. **TEST-QUALITY PASS — make the tests test logic, directly, without redundancy.**
-
-   Your tests are GREEN and the structure is SOLID-clean. Now improve
-   the TESTS themselves. You have full authority to rewrite, restructure,
-   and remove tests here — there is no frozen failing-test to protect
-   (anti-tautology is Agent B's job, see below). Apply four checks:
-
-   a. **No schema-only-by-accident tests.** A test that only asserts "the
-      Zod schema accepts/rejects this shape" is a *smell to investigate*,
-      not an automatic deletion. Ask: **is the schema THE logic of this
-      cut, or does it guard behavior the test should exercise instead?**
-      - Config/schema cut (the schema IS the deliverable — e.g.
-        "accepts archetypes A–E, rejects `requiredApprovers: 0`"):
-        schema-acceptance IS the logic. KEEP it.
-      - Schema guards real behavior downstream (a resolver, a handler,
-        a state transition): rewrite the test to exercise THAT behavior
-        directly, not just the schema gate.
-
-   b. **Tests exercise logic directly.** Each test should call the
-      function / hit the route / drive the state machine and assert on
-      its OUTPUT, SIDE EFFECTS, or ERRORS — not on incidental shape or
-      on strings you copied from your own impl. Rewrite any test that
-      asserts on observed-output-of-my-own-code (tautological shape)
-      into one that asserts the behavior the spec promises.
-
-   c. **Convert repetitive tests to data-driven.** When several tests
-      run the same logic with different inputs/expected-outputs, collapse
-      them into one `it.each([...])` (or `describe.each`) table. One
-      table row per case; the assertion body written once. This makes
-      the cases scannable and the intent obvious.
-
-   d. **Remove redundant tests.** Delete a test only when another test
-      provably covers the same behavior. Before deleting, satisfy
-      yourself the surviving test would fail for the same reason the
-      deleted one would (otherwise it's not redundant — it's
-      load-bearing; keep it).
-
-   After all edits: **re-run the cut's tests + the wider suite — all
-   GREEN.** Amend the **tests commit** (`git commit --amend`) so the
-   two-commit shape (tests, then impl) holds for Agent B's revert check.
-
-   **Authority + the residual risk (recorded decision, 2026-06-07):**
-   You have unbounded authority to rewrite and remove tests here. Agent
-   B is the anti-tautology gate (it reverts your impl and re-runs the
-   surviving tests). **Known limitation:** B verifies the *surviving*
-   tests are load-bearing but cannot detect a test you *removed* that
-   would have caught a real bug — removed coverage is invisible to the
-   revert check. Do NOT exploit this: never remove a test to make the
-   suite easier to pass. Remove only genuine duplicates (check d). B
-   will scrutinize suspicious removals (tests deleted in the same diff
-   that adds the code they'd cover) and REJECT if it smells like
-   dropping coverage to pass.
-
-   **Capture what you did** in the SUMMARY's `Test-quality:` block: which
-   tests you rewrote (and why — schema-only / not-logic-direct), which
-   you made data-driven, which you removed (and the surviving test that
-   keeps the coverage).
-
-8. **RUNTIME EXERCISE — prove the code works on every execution path.**
+7. **RUNTIME EXERCISE — prove the code works on every execution path.**
 
    After tests pass, run the code with concrete inputs that prove EACH
    execution path the acceptance criteria imply. Most acceptance bullets
@@ -309,20 +251,76 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
      emit `NEEDS_INPUT` per Q6 lock, citing the discovered edge case.
      Don't guess; ask.
 
-   **Capture the exercise output in your `SUMMARY:` block** (step 12) under
+   **Capture the exercise output in your `SUMMARY:` block** (step 11) under
    a `Runtime exercise:` heading. Show each acceptance bullet, then each
    path of that bullet with its input + actual output. Use brief prose;
    the orchestrator surfaces this in the PR body for maintainer review.
 
-9. **Refine your tests** if the exercise surfaced edge cases worth
-   covering. The test-quality pass (step 7) already made the tests
-   logic-direct and non-redundant; here you add tests for edge cases the
-   runtime exercise discovered that the spec didn't enumerate. Amend the
-   **tests commit** (`git commit --amend`) to include the new cases —
-   keep all tests in the tests commit so the two-commit shape (tests,
-   then impl) holds for Agent B's revert check.
+8. **IMPROVE / FIX TESTS — make them test logic directly, add what the exercise found, cut redundancy.**
 
-10. **Format the diff with Biome** before committing the impl. Per
+   Now — *after* runtime validation, so you're informed by what the
+   exercise actually surfaced — improve the TESTS. You have full
+   authority to rewrite, restructure, add, and remove tests here (there
+   is no frozen failing-test to protect — anti-tautology is Agent B's
+   job, see below). Do both the quality pass and the edge-case additions:
+
+   a. **No schema-only-by-accident tests.** A test that only asserts "the
+      Zod schema accepts/rejects this shape" is a *smell to investigate*,
+      not an automatic deletion. Ask: **is the schema THE logic of this
+      cut, or does it guard behavior the test should exercise instead?**
+      - Config/schema cut (the schema IS the deliverable — e.g.
+        "accepts archetypes A–E, rejects `requiredApprovers: 0`"):
+        schema-acceptance IS the logic. KEEP it.
+      - Schema guards real behavior downstream (a resolver, a handler,
+        a state transition): rewrite the test to exercise THAT behavior
+        directly, not just the schema gate.
+
+   b. **Tests exercise logic directly.** Each test should call the
+      function / hit the route / drive the state machine and assert on
+      its OUTPUT, SIDE EFFECTS, or ERRORS — not on incidental shape or
+      on strings you copied from your own impl. Rewrite any test that
+      asserts on observed-output-of-my-own-code (tautological shape)
+      into one that asserts the behavior the spec promises.
+
+   c. **Add the edge cases the runtime exercise discovered.** Step 7
+      probed boundaries the spec didn't enumerate (empty/null, off-by-one,
+      locale/theme variants, every error path). Add a test for each
+      spec-silent edge case whose behavior the exercise confirmed.
+
+   d. **Convert repetitive tests to data-driven.** When several tests
+      run the same logic with different inputs/expected-outputs, collapse
+      them into one `it.each([...])` (or `describe.each`) table. One
+      table row per case; the assertion body written once.
+
+   e. **Remove redundant tests.** Delete a test only when another test
+      provably covers the same behavior. Before deleting, satisfy
+      yourself the surviving test would fail for the same reason the
+      deleted one would (otherwise it's not redundant — it's
+      load-bearing; keep it).
+
+   After all edits: **re-run the cut's tests + the wider suite — all
+   GREEN.** Amend the **tests commit** (`git commit --amend`) so the
+   two-commit shape (tests, then impl) holds for Agent B's revert check.
+
+   **Authority + the residual risk (recorded decision, 2026-06-07):**
+   You have unbounded authority to rewrite and remove tests here. Agent
+   B is the anti-tautology gate (it reverts your impl and re-runs the
+   surviving tests). **Known limitation:** B verifies the *surviving*
+   tests are load-bearing but cannot detect a test you *removed* that
+   would have caught a real bug — removed coverage is invisible to the
+   revert check. Do NOT exploit this: never remove a test to make the
+   suite easier to pass. Remove only genuine duplicates (check e). B
+   will scrutinize suspicious removals (tests deleted in the same diff
+   that adds the code they'd cover) and REJECT if it smells like
+   dropping coverage to pass.
+
+   **Capture what you did** in the SUMMARY's `Test-quality:` block: which
+   tests you rewrote (and why — schema-only / not-logic-direct), which
+   edge-case tests you added from the exercise, which you made
+   data-driven, which you removed (and the surviving test that keeps the
+   coverage).
+
+9. **Format the diff with Biome** before committing the impl. Per
    [team-preferences.md rule 30](../../.claude/rules/team-preferences.md),
    format must run before commit — otherwise CI's `format` check
    fails and the maintainer has to push a follow-up format-only
@@ -331,7 +329,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
    npm run format
    ```
    Biome reformats unstaged + staged files in place (~150ms). If
-   Biome touched the test file (step 9's amend already
+   Biome touched the test file (step 8's amend already
    landed), re-amend the test commit to roll the reformat into it
    — DO NOT make a separate format commit:
    ```bash
@@ -339,7 +337,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
    git commit --amend --no-edit
    ```
 
-11. Commit:
+10. Commit:
    ```bash
    git add <impl files>
    git commit -m "feat(<area>): cut #$ISSUE_NUMBER — <short summary>
@@ -350,7 +348,7 @@ Closes #$ISSUE_NUMBER
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
    ```
-12. End with a `SUMMARY:` block as your last output:
+11. End with a `SUMMARY:` block as your last output:
 
    ```
    SUMMARY:
