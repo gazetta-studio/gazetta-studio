@@ -24,6 +24,25 @@ The trade accepted: fewer cuts (no separate human story-authoring cut) at the co
 
 The bottleneck for feature-bot on UX cuts was never "the bot can't write Vue" — it was "the bot would *invent* UX." The fix is to lock the UX states in the design doc (human, at UX-grill time); the bot then transcribes that table into story + component in one cut, gated by the story running green. The independent spec is the design-doc table, not the story file.
 
+## The validation stack for a UX cut (what each layer catches)
+
+A UX cut is gated by four layers, none of which is pixel-level visual regression (deliberately — see below):
+
+| Layer | Catches | Where |
+|---|---|---|
+| `@storybook/test-runner` | story renders in every state without throwing; `play()` interactions; a11y violations | CI gate (hard-blocks) |
+| Vue Test Utils unit tests | DOM structure, props, conditional rendering, emitted events, testids/copy per state | CI gate (hard-blocks) |
+| Reviewer tautology check | the tests are load-bearing (revert→fail→reapply→pass) | bot loop |
+| **Agent B visual self-check** | **gross visual failures** — invisible elements (color = background), overflow, collapsed/wrong layout | **bot loop (advisory verdict, not a CI gate)** |
+
+### Agent B visual self-check — scope and honest limitation
+
+The reviewer (Agent B) renders each new/changed story (built Storybook static, served locally), screenshots it via a Playwright helper in `bots/_lib` (reusing the `tools/mcp-dev` screenshot logic — base64 to Claude's vision), and judges it against the design-doc state table, factoring the verdict into APPROVE/REJECT.
+
+**This is a sanity self-check, not a visual-regression gate.** It is an LLM judging rendered output against a *prose* state table, with **no independent known-good baseline image**. It reliably catches *gross* failures (a button that renders invisible, text overflowing its container, a collapsed layout) but is *lenient* on the fine-grained things pixel-diffing would catch (4px misalignment, slightly-off color, wrong font weight). Agent B checking Agent A's output is less self-grading than A-checks-A, but it is still LLM visual judgment.
+
+**Why it lives in the bot loop, not as a CI gate:** an LLM "looks right" verdict is too lenient and non-deterministic to *block a merge*. As an advisory input to Agent B's REJECT decision it raises the floor (the bot self-corrects gross failures before opening the PR) without pretending to be a deterministic gate. **The real visual gate remains human PR review.** Pixel-level visual-regression (`toHaveScreenshot` / Chromatic) stays deferred per `css-theming.md` "Visual testing (deferred)" — this self-check does not reverse that deferral; it's a different, weaker, cheaper thing.
+
 ## Why Storybook over the alternatives
 
 Three approaches for *where the bot's UX spec lives* were walked from maintainer / bot / ROADMAP / process / cold-pickup POVs. (Setup cost is **zero** for the Storybook option — it already ships; the earlier draft's "high setup cost" was the false-premise error corrected above.)

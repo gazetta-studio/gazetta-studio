@@ -346,15 +346,16 @@ State lives in GitHub sub-issue close-state; this table is intent only (no statu
 | 8 | **Extract `<StateBadge>` primitive + its `.stories.ts`** (additive; SiteTree/ComponentTree may opt in via Boy-Scout later) | 10 | agent | component | Low |
 | 9 | **Extract `<Banner>` primitive + its `.stories.ts`** (additive; 4 shipped banners untouched; follow `ArchiveBanner.stories.ts`) | 10 | agent | component | Medium |
 | 10 | **Wire `@storybook/test-runner` into CI** so `.stories.ts` execute green (not view-only) — the gate every UX cut relies on | — | agent | api-first | Low |
-| 11 | ReviewBanner.vue (= `<Banner>` + `<Button>`s; ReviewActions folded in) + ReviewRejectDialog + SiteTree state badge + **their `.stories.ts` (transcribed from the design-doc state table) running green** | 7, 8, 9, 10 | agent | component | High |
+| 11 | ReviewBanner.vue (= `<Banner>` + `<Button>`s; ReviewActions folded in) + ReviewRejectDialog + SiteTree state badge + **their `.stories.ts` (transcribed from the design-doc state table) running green** | 7, 8, 9, 10, 20 | agent | component | High |
 | 12 | Publish-approval state machine + per-target opt-in (`requiresPublishApproval`) | 4 | agent | api-first | High |
 | 13 | Publish-approval admin API (request/approve/reject/withdraw on publish events) | 12 | agent | api-first | High |
-| 14 | Publish-approval gate UX — PublishPanel destination rows + **their `.stories.ts` (5 states from the design-doc table) running green** | 8, 10, 13 | agent | component | High |
+| 14 | Publish-approval gate UX — PublishPanel destination rows + **their `.stories.ts` (5 states from the design-doc table) running green** | 8, 10, 13, 20 | agent | component | High |
 | 15 | Combined "Submit & approve" + "Publish-request & approve" buttons | 11, 14 | agent | component | Low |
 | 16 | Constructive errors (`409 NO_APPROVER_AVAILABLE`; boot config validation; helpful 403s) | 7, 13 | agent | api-first | Low |
 | 17 | Pending review queue (cross-content "what's waiting for me"; `GET /api/review/pending`; paginated) | 7 | agent | api+component | Medium |
 | 18 | Hook integration (10 review-lifecycle phases per `design-hooks.md`) | 4, 12 | agent | api-first | Medium |
 | 19 | Docs (`docs/review-workflow.md` 5 archetypes) + consolidation (retire impl doc → this design doc; ROADMAP; CLAUDE.md) | all | agent | (docs) | Low |
+| 20 | **Agent B visual self-check infra** — `bots/_lib` screenshot helper (Playwright, reuse `tools/mcp-dev` logic) + `build-storybook` step in `feature-bot.yml` + reviewer-prompt contract (screenshot each new/changed story → visual verdict vs design-doc state table → factor into APPROVE/REJECT) | 10 | agent | (bot infra) | Medium |
 
 **Notes on the reshape:**
 - **No separate human story-authoring cut.** Per [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md) (second revision), the human spec is the locked state table in this design doc (UX-grill output); the bot **transcribes** it into `.stories.ts` *within* each component cut and implements the component to it. The story runs green under `@storybook/test-runner`. The independent spec is the design-doc table + each cut's `## Acceptance`, not a hand-authored story file — bounded tautology risk, accepted because the tables are locked first.
@@ -363,6 +364,7 @@ State lives in GitHub sub-issue close-state; this table is intent only (no statu
 - Cut 11 folds `ReviewActions.vue` into `ReviewBanner.vue` (the 9 stories encode all button logic) and adds the SiteTree badge via `<StateBadge>`; it authors `ReviewBanner.stories.ts` + `ReviewRejectDialog.stories.ts` from the design-doc state table.
 - Cut 14 is PublishPanel destination-row states (5 stories), not a new surface.
 - Cut 17 is the cross-content queue — distinct from cut 14's per-content gate (the UX-grill walk surfaced this split).
+- Cut 20 adds **Agent B visual self-check** (per [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md) "validation stack"): the reviewer screenshots each new/changed story and judges it against the design-doc state table, factoring into APPROVE/REJECT. It catches *gross* visual failures (invisible element, overflow, collapsed layout) — an advisory bot-loop check, **not** a CI gate and **not** pixel-regression (LLM-judges-prose, no baseline; the real visual gate stays human PR review). UX cuts 11 + 14 depend on it so the reviewer can visually check them. Pairs with Cut 10 (story-runner). Depends only on Cut 10 (needs `build-storybook` working).
 - Cut 19 absorbs the old Cut 15 docs + the consolidation work (retiring the impl doc per [ADR-0015](../../docs/adr/0015-impl-doc-artifact-retires.md)).
 
 ## Migration
