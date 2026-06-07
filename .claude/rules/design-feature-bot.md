@@ -16,7 +16,7 @@ Autonomous bot that implements feature cuts following the project's design pass.
 - Bot reads GitHub "cut sub-issues" labeled `enhancement` + `ready-for-agent` + `area: X` (no new labels — reuses existing vocabulary)
 - Picks the next cut whose dependencies are all closed
 - Generator-critic loop (Agent A implements, Agent B reviews) — same pattern as fix-bot + dead-code-watcher
-- Agent A flow: tests → impl → SOLID research+fix loop → runtime validation → improve/fix tests (no TDD-first; soft two-commit shape; Agent B is the sole anti-tautology gate — see the loop in "Design" below)
+- Agent A flow: tests → impl → SOLID research+fix loop → runtime validation → improve/fix tests → verify comments (rot-proof bar) (no TDD-first; soft two-commit shape; Agent B is the sole anti-tautology gate — see the loop in "Design" below)
 - One PR per cut
 - Durable memory: skip-list + reviewer-log (same shape as fix-bot)
 
@@ -477,7 +477,9 @@ Cron (daily 04:30 UTC, after fix-bot at 04:00):
    - Agent A: tests commit → impl (GREEN) → **SOLID research+fix loop
      (≤3 converge rounds)** → **runtime validation (prove every path)**
      → **improve/fix tests (logic-direct, data-driven, de-dup,
-     schema-smell, + edge cases the exercise surfaced)** → push. Tests
+     schema-smell, + edge cases the exercise surfaced)** → **verify
+     comments (rot-proof bar — every comment survives an arbitrary
+     rewrite, else rewrite to the WHY or delete)** → push. Test
      improvement comes AFTER runtime validation so it's informed by what
      the exercise found. SOLID fixes roll into the impl commit; all
      tests live in the tests commit (soft two-commit shape for B's
