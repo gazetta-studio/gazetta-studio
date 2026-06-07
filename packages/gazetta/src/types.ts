@@ -344,6 +344,42 @@ export interface TargetConfig {
    */
   altText?: AltTextTargetConfig
   /**
+   * Per-target review workflow override. Overrides the site-level block
+   * wholesale (no per-field merge) when present; absent inherits from
+   * `SiteManifest.reviewWorkflow` via `resolveReviewWorkflow`.
+   *
+   * Per `design-review-workflow.md` "Locked invariants": review is a
+   * per-content concern (state lives on the source manifest). Per-target
+   * `reviewWorkflow` exists so different targets can apply different
+   * approval policies — e.g., staging uses 1-approver self-approval while
+   * production runs the archetype-E 2-approver 4-eyes policy.
+   */
+  reviewWorkflow?: ReviewWorkflowConfig
+  /**
+   * Per-target publish-approval gate (separate from content review).
+   * When true, publish events to this target require explicit publish
+   * approval beyond content review (per `design-review-workflow.md`
+   * "Per-target publish approval" lock).
+   *
+   * Distinct from `reviewWorkflow` — content review gates the source
+   * manifest's lifecycle; this gates publish-event delivery to THIS
+   * target. Common pattern: production with `requiresPublishApproval:
+   * true` + staging without (publish to staging is friction-free; prod
+   * requires the gate).
+   *
+   * Default: false (publish proceeds without approval).
+   */
+  requiresPublishApproval?: boolean
+  /**
+   * Number of publish-approval votes required before a publish event to
+   * this target can fire. Positive integer; default 1.
+   *
+   * Only honored when `requiresPublishApproval: true`. Snapshotted on
+   * the publish request at request time (matches `ReviewWorkflowConfig`'s
+   * `requiredApprovers` lock — policy at decision time is documented).
+   */
+  requiredPublishApprovers?: number
+  /**
    * Per-target publish-audit gate (Validation Cut 4). Drives the
    * pre-publish modal in the admin and the server-side publish gate.
    *
@@ -501,6 +537,47 @@ export interface AltTextTargetConfig {
   }
 }
 
+/**
+ * Review workflow configuration. Carries the content-review state machine's
+ * policy fields (per `design-review-workflow.md` "Locked invariants" + Cut 1).
+ *
+ * Set at site level via `SiteManifest.reviewWorkflow` for site-wide defaults,
+ * or at target level via `TargetConfig.reviewWorkflow` to override per target.
+ *
+ * Absence = review is off (matches archetype A — solo). Operators enable by
+ * setting `enabled: true` somewhere in the chain (site or target).
+ *
+ * `requiredApprovers` is snapshotted at submit time per the design's locked
+ * "explicit-action invariant" — subsequent config changes don't rewrite
+ * in-flight reviews. The runtime resolver consumes the snapshot, not this
+ * config block, for any item already in `pending-review`.
+ *
+ * `invalidateOnSave: 'content-diff'` (default) only invalidates approval
+ * when logical content changes; `'always'` invalidates on every save for
+ * compliance archetypes (E).
+ */
+export interface ReviewWorkflowConfig {
+  /** Whether review is required on this scope. Default: false. */
+  enabled?: boolean
+  /**
+   * Number of approvals required before content reaches `approved` state.
+   * Positive integer; default 1.
+   */
+  requiredApprovers?: number
+  /**
+   * Whether the submitter can be one of the approvers. Default true (archetypes
+   * A/B). Compliance archetype E sets false to enforce 4-eyes.
+   */
+  allowSelfApproval?: boolean
+  /**
+   * What saves invalidate an existing `approved` state back to `draft`.
+   * - `'content-diff'` (default): only logical content changes invalidate.
+   *   Metadata-only edits (alt text on a referenced asset, etc.) don't.
+   * - `'always'`: every save invalidates. Compliance-friendly.
+   */
+  invalidateOnSave?: 'content-diff' | 'always'
+}
+
 /** Per-target asset upload policy. */
 export interface AssetUploadConfig {
   /**
@@ -562,6 +639,29 @@ export function isHistoryEnabled(target: TargetConfig): boolean {
 export function getHistoryRetention(target: TargetConfig): number {
   const raw = target.history?.retention ?? DEFAULT_HISTORY_RETENTION
   return raw > 0 ? raw : 1
+}
+
+/**
+ * Effective review workflow config for a target. Per the design's
+ * "Configuration" lock: per-target block overrides site-level wholesale
+ * (no per-field merge — operators set the whole block when they want
+ * different policy on a target). Absence at both layers returns
+ * `undefined`, which downstream consumers treat as review-off
+ * (archetype A — solo).
+ *
+ * Pure resolver; no defaults applied. Callers that need a fully-
+ * populated block parse it through `reviewWorkflowSchema` (which fills
+ * in field defaults) or read `enabled` explicitly with `?? false`.
+ *
+ * The "wholesale override" rule matches the design doc's example
+ * configurations: each target's reviewWorkflow block is a complete
+ * policy specification, not a partial overlay. Per-field merge would
+ * make it harder to reason about what's in effect (operator sees the
+ * target block AND the site block, has to mentally combine); wholesale
+ * override means the target block is THE policy when set.
+ */
+export function resolveReviewWorkflow(target: TargetConfig, site: SiteManifest): ReviewWorkflowConfig | undefined {
+  return target.reviewWorkflow ?? site.reviewWorkflow
 }
 
 /**
@@ -637,6 +737,18 @@ export interface SiteManifest {
    * (either here or inherited from `ai:`) means AI alt is configured.
    */
   altText?: AltTextSiteConfig
+  /**
+   * Site-level review workflow defaults. Per-target overrides under
+   * `targets.{name}.reviewWorkflow` shadow this value wholesale; absent
+   * target blocks inherit it via `resolveReviewWorkflow`.
+   *
+   * Absent at both layers = review off (archetype A, solo). Per
+   * `design-review-workflow.md` "Configuration" + archetype walkthrough:
+   * the common pattern is to set this at site level for archetypes B/D/E
+   * (review on across the site) and override only specific targets when
+   * their policy differs (e.g., compliance-grade prod, lighter staging).
+   */
+  reviewWorkflow?: ReviewWorkflowConfig
   systemPages?: string[]
   targets?: Record<string, TargetConfig>
   /**
