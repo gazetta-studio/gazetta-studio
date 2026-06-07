@@ -37,6 +37,33 @@ const ThemeNameSchema = z.string().regex(/^[a-z][a-z0-9-]*$/, {
 })
 
 /**
+ * Review-workflow configuration (`reviewWorkflow:` at site or target level).
+ *
+ * Closed shape per design-review-workflow.md "Configuration" + locked
+ * invariants:
+ *   - `enabled` defaults to `false` (opt-in; archetype A — solo — leaves it off).
+ *   - `requiredApprovers` is a positive integer; defaults to 1.
+ *     Snapshotted at submit time per the locked "policy-at-decision-time"
+ *     invariant, but validation of the config shape itself happens here.
+ *   - `allowSelfApproval` defaults to `true`; archetypes A/B/C need it,
+ *     archetype E (compliance) sets it false.
+ *   - `invalidateOnSave` is a closed enum (`content-diff` | `always`);
+ *     default `content-diff` only invalidates approval on real content
+ *     changes. Compliance archetype E opts into `always`.
+ *
+ * Strict shape — unknown fields are rejected so misspelled keys fail at
+ * config load rather than silently inheriting the default.
+ */
+export const reviewWorkflowSchema = z
+  .object({
+    enabled: z.boolean().default(false),
+    requiredApprovers: z.number().int().positive().default(1),
+    allowSelfApproval: z.boolean().default(true),
+    invalidateOnSave: z.enum(['content-diff', 'always']).default('content-diff'),
+  })
+  .strict()
+
+/**
  * Per-site config — `sites/{name}/site.config.ts` (or `site.config.ts`
  * at project root for flat layouts).
  *
@@ -69,6 +96,12 @@ export const SiteConfigSchema = z
      */
     ai: z.record(z.string(), z.unknown()).optional(),
     altText: z.record(z.string(), z.unknown()).optional(),
+    /**
+     * Site-level review-workflow config. Per-target blocks override per
+     * field via `resolveReviewWorkflow(target, site)` at use time; both
+     * site and target use the same `reviewWorkflowSchema` shape.
+     */
+    reviewWorkflow: reviewWorkflowSchema.optional(),
     systemPages: z.array(z.string()).optional(),
     /**
      * Per-target configurations. Keys are target names; values are

@@ -357,6 +357,71 @@ export interface TargetConfig {
    * stop the ship.
    */
   publishAudit?: PublishAuditConfig
+  /**
+   * Per-target review-workflow override. Inherits from site-level
+   * `reviewWorkflow` when absent (per
+   * `resolveReviewWorkflow(target, site)`). Mid-team archetypes (D)
+   * may leave site-level `enabled: true` and not override at all;
+   * compliance archetype (E) may use the same shape at both levels.
+   */
+  reviewWorkflow?: ReviewWorkflowConfig
+  /**
+   * Per-target publish-approval opt-in. When `true`, publish events
+   * on this target require explicit approval beyond content review.
+   * Per design-review-workflow.md "Locked invariants" — per-target
+   * publish approval is independent of per-content review.
+   *
+   * Common pattern: production targets set `true`; staging leaves
+   * unset (defaults to `false`).
+   */
+  requiresPublishApproval?: boolean
+  /**
+   * How many publish approvals are required when
+   * `requiresPublishApproval` is true. Per design's locked invariant,
+   * snapshotted at publish-request time. Default: 1.
+   */
+  requiredPublishApprovers?: number
+}
+
+/**
+ * Review-workflow config shape (used at site level and per target).
+ * Per design-review-workflow.md "Configuration":
+ *
+ *   - `enabled` opt-in flag; archetypes A (solo) and C (release-focus
+ *     only) leave it off.
+ *   - `requiredApprovers` snapshotted at submit time (not enforced
+ *     here; this is the config shape).
+ *   - `allowSelfApproval` toggles whether an actor with both
+ *     `review:submit` and `review:approve` can approve their own
+ *     submission.
+ *   - `invalidateOnSave` chooses when an in-flight or completed
+ *     approval is invalidated by a save: only on content-diff
+ *     (default) or always (compliance archetype E).
+ *
+ * All fields optional with defaults documented in
+ * `reviewWorkflowSchema`. The runtime type carries the same fields
+ * with explicit defaults at use time.
+ */
+export interface ReviewWorkflowConfig {
+  enabled?: boolean
+  requiredApprovers?: number
+  allowSelfApproval?: boolean
+  invalidateOnSave?: 'content-diff' | 'always'
+}
+
+/**
+ * Resolve a target's effective review-workflow config: target's own
+ * block wins, falling back to the site-level block, falling back to
+ * `undefined` (no review workflow configured).
+ *
+ * Block-level inheritance (not per-field) per design's "Locked
+ * invariants" — a target that overrides one field must restate the
+ * others it cares about. Keeps the snapshotted-at-submit-time policy
+ * unambiguous: a target's reviewWorkflow IS the whole policy when
+ * present.
+ */
+export function resolveReviewWorkflow(target: TargetConfig, site: SiteManifest): ReviewWorkflowConfig | undefined {
+  return target.reviewWorkflow ?? site.reviewWorkflow
 }
 
 /**
@@ -637,6 +702,14 @@ export interface SiteManifest {
    * (either here or inherited from `ai:`) means AI alt is configured.
    */
   altText?: AltTextSiteConfig
+  /**
+   * Site-level review-workflow config. Per-target blocks
+   * (`TargetConfig.reviewWorkflow`) override at use time via
+   * `resolveReviewWorkflow(target, site)`. Absent at both levels =
+   * archetype A (solo) — no review state machine, save publishes
+   * directly.
+   */
+  reviewWorkflow?: ReviewWorkflowConfig
   systemPages?: string[]
   targets?: Record<string, TargetConfig>
   /**
