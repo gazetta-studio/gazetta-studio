@@ -16,7 +16,7 @@ Autonomous bot that implements feature cuts following the project's design pass.
 - Bot reads GitHub "cut sub-issues" labeled `enhancement` + `ready-for-agent` + `area: X` (no new labels — reuses existing vocabulary)
 - Picks the next cut whose dependencies are all closed
 - Generator-critic loop (Agent A implements, Agent B reviews) — same pattern as fix-bot + dead-code-watcher
-- TDD-first commit ordering per rule 31
+- Agent A flow: tests → impl → SOLID research+fix loop → test-quality pass → runtime exercise (no TDD-first; soft two-commit shape; Agent B is the sole anti-tautology gate — see the loop in "Design" below)
 - One PR per cut
 - Durable memory: skip-list + reviewer-log (same shape as fix-bot)
 
@@ -97,7 +97,7 @@ Bot's TS orchestrator parses two one-line key-value fields via regex:
 - `**Feature**: <slug>` → picks the right design doc reference
 - `**Depends on**: #N, #M` (optional) → cron-time gate; skip until all referenced sub-issues close
 
-Everything else (`## Spec`, `## Acceptance`) is passed to Agent A as prose context. Agent A is responsible for reading the linked design doc, deciding files + tests, and writing TDD-first commits.
+Everything else (`## Spec`, `## Acceptance`) is passed to Agent A as prose context. Agent A is responsible for reading the linked design doc, deciding files + tests, and committing in the soft two-commit shape (tests, then impl).
 
 **Schema enforcement** lives in Agent A's prompt discipline, not at filing time:
 - If `## Spec` or `## Acceptance` is missing or vague → Agent A fails loud, posts "spec incomplete" comment on the sub-issue + closes with reason. Reviewer-loop's existing escalation mechanism handles it.
@@ -474,25 +474,44 @@ Cron (daily 04:30 UTC, after fix-bot at 04:00):
 3. Pick oldest unblocked cut.
     ↓
 4. Generator-critic loop (max 5 attempts):
-   - Agent A: write failing test commit → impl → **SOLID research+fix
-     loop (≤3 converge rounds) on its own diff, rolled into the impl
-     commit** → push branch
+   - Agent A: tests commit → impl (GREEN) → **SOLID research+fix loop
+     (≤3 converge rounds)** → **test-quality pass (logic-direct,
+     data-driven, de-dup, schema-smell)** → runtime exercise → push.
+     Both passes roll into the impl commit; tests live in the tests
+     commit (soft two-commit shape for B's revert check).
    - Agent B: review diff, vote APPROVE / REJECT / NEEDS_HUMAN —
-     **independently judges SOLID** (declared lenses + violations A's
-     self-research missed); A self-grading is the bias B covers
+     runs the **tautology check (the SOLE anti-tautology gate)**,
+     **independently judges SOLID**, and **scrutinizes test removals**
+     (the removed-coverage backstop).
    - APPROVE → open PR; REJECT → reset + retry with reviewer note;
      NEEDS_HUMAN → close sub-issue + post-comment + skip-list entry
 
-   **SOLID research is Agent A self-work, not a separate agent.** Walked
-   the alternatives (2026-06-07): a separate SOLID agent between A and B
-   was rejected because (a) editing the diff mid-loop breaks the clean
-   test+impl commit shape the reviewer's tautology check depends on,
-   (b) "fresh eyes" from a separate Claude session is weak — same model,
-   cleared context, not a real second reviewer, and (c) the genuine
-   independent SOLID check already exists at Agent B. So A researches +
-   fixes its own structure (discovery, not just honoring the cut's
-   declared `## SOLID` lenses), converging in ≤3 rounds; B remains the
-   independent judge.
+   **No TDD-first discipline on Agent A (2026-06-07 change).** Agent A
+   no longer writes-failing-test-first or keeps tests frozen — it builds
+   and freely rewrites/removes tests (the test-quality pass). The
+   anti-tautology guarantee moves ENTIRELY to Agent B's revert check
+   (revert impl → tests must fail → reapply → pass). A soft two-commit
+   shape (tests, then impl) is kept ONLY so B's `revert HEAD` cleanly
+   separates impl from tests.
+
+   **SOLID research is Agent A self-work, not a separate agent.** A
+   separate SOLID agent between A and B was rejected because (a) editing
+   the diff mid-loop breaks the two-commit shape B's revert depends on,
+   (b) "fresh eyes" from a separate Claude session is weak (same model,
+   cleared context), and (c) the independent SOLID check already exists
+   at Agent B. A researches + fixes its own structure (discovery, not
+   just the declared `## SOLID` lenses), converging in ≤3 rounds.
+
+   **The test-quality pass has unbounded edit authority — recorded
+   residual risk.** A may rewrite (schema-only-smell → logic-direct),
+   data-drive (`it.each`), and REMOVE tests. Agent B's revert check
+   proves *surviving* tests are load-bearing but is **blind to removed
+   coverage** (a deleted test that would have caught a bug). Mitigations:
+   A is told never to remove a test to ease passing (only genuine
+   duplicates), and B scrutinizes suspicious removals (test deleted in
+   the same diff that adds the code it covers). Best-effort, not a
+   guarantee — the maintainer accepted this risk to get autonomous
+   test-quality improvement.
     ↓
 5. PR opens with Fixes #<cut-sub-issue-N>. Merge closes sub-issue,
    advances tracking issue tasklist.

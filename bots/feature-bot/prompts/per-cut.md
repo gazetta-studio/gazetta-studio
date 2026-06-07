@@ -66,20 +66,32 @@ This is non-negotiable. Read these in this order:
 Only AFTER reading 1-3 do you begin writing code. The design doc's
 Locked decisions are the contract you implement.
 
-## TDD-FIRST CONTRACT
+## TEST + COMMIT CONTRACT
 
-**Your first commit MUST be a failing test that pins the cut's
-acceptance criteria** (per `team-preferences.md` rule 31).
+You write tests and implementation for the cut. You do NOT have to write
+tests first or keep them frozen — you may rewrite, restructure, and
+improve tests freely (see the test-quality step). Anti-tautology is
+**not** your discipline to self-enforce; it is **Agent B's job** — the
+reviewer independently verifies your tests are load-bearing (revert the
+implementation, the tests must fail; reapply, they must pass).
 
-Read the cut sub-issue body's `## Tests` section — it names the
-specific test files to write. Write those tests first. Verify they
-FAIL locally. Then implement. Verify they PASS locally. Two commits,
-in this order: test, then implementation.
+Two requirements only:
 
-DO NOT modify the failing tests during implementation. The orchestrator
-verifies via reviewer that reverting the impl commit re-fails the tests
-— if you weakened the assertions to make red → green, the reviewer's
-tautology check will catch it and REJECT.
+1. **Cover the cut's `## Tests` section.** It names the specific test
+   files + behaviors to test. Your final test set must exercise them.
+2. **Soft two-commit shape — tests, then implementation.** Make a tests
+   commit, then an implementation commit. This is NOT a red-first ritual
+   (you don't need to commit failing tests before writing code); it
+   exists so Agent B's tautology check can cleanly separate "the tests"
+   from "the implementation" by reverting the impl commit. Keep test
+   files in the tests commit and source files in the impl commit. If the
+   test-quality step rewrites tests after the impl is written, amend the
+   tests commit (`git commit --amend`) so the two-commit shape holds.
+
+Write tests that exercise BEHAVIOR — call the function, assert on its
+output / side effects / errors. The reviewer will revert your impl and
+expect them to fail; tests that pass against reverted impl are
+tautological and get REJECTED.
 
 ## Three terminal states (per Q6 lock)
 
@@ -89,17 +101,19 @@ discovered.
 ### APPROVE path (most common — happy path)
 
 1. Read inputs + design doc + companion docs (mandatory).
-2. Write failing tests per `## Tests`. Verify RED.
-3. Commit:
+2. Write tests per `## Tests` — exercise the behaviors it names. (No
+   red-first requirement; write them before or alongside the impl as
+   suits you. They'll be refined in the test-quality step regardless.)
+3. Commit the tests:
    ```bash
    git checkout -b $BRANCH_NAME 2>/dev/null || git checkout $BRANCH_NAME
    git add <test files>
-   git commit -m "test: failing tests for cut #$ISSUE_NUMBER ($FEATURE_SLUG)
+   git commit -m "test: tests for cut #$ISSUE_NUMBER ($FEATURE_SLUG)
 
-Captures the acceptance criteria from cut #$ISSUE_NUMBER as failing tests.
-The impl follows in the next commit; this commit is RED in CI.
+Tests the behaviors from cut #$ISSUE_NUMBER's ## Tests section.
+The impl follows in the next commit.
 
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
    ```
 4. Implement the cut. Verify GREEN.
 5. Run the wider test suite. Confirm no regressions.
@@ -143,13 +157,15 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
       round` so the transcript shows the loop's reasoning.
 
    **All SOLID fixes land in the working tree BEFORE the impl commit
-   (step 10) — they roll INTO that single impl commit.** Do NOT create a
-   separate "solid" or "refactor" commit; the two-commit shape (test,
-   then impl) is what the reviewer's tautology check depends on. Do NOT
-   touch the failing-test commit's assertions during SOLID work — if a
-   structural change genuinely requires a different test shape, that's a
-   signal to reconsider the change (or emit NEEDS_INPUT), not to weaken
-   the test.
+   (step 11) — they roll INTO that single impl commit.** Do NOT create a
+   separate "solid" or "refactor" commit; the two-commit shape (tests,
+   then impl) is what the reviewer's tautology check depends on. SOLID
+   work is a pure structural refactor — the tests should stay GREEN
+   throughout without changing them. Test *improvement* (rewriting,
+   data-driving, de-duping) is the NEXT step's job (test-quality pass),
+   not this one. If a SOLID refactor seems to require changing a test
+   assertion, that's a signal the refactor changed behavior (not just
+   structure) — reconsider it.
 
    The cap is 3 rounds: bounded effort, not a quality gate. Whatever the
    structure is at convergence-or-cap goes forward; Agent B independently
@@ -157,7 +173,65 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
    violations it sees) — so this self-research raises the floor, and
    Agent B remains the independent check, not your own sign-off.
 
-7. **RUNTIME EXERCISE — prove the code works on every execution path.**
+7. **TEST-QUALITY PASS — make the tests test logic, directly, without redundancy.**
+
+   Your tests are GREEN and the structure is SOLID-clean. Now improve
+   the TESTS themselves. You have full authority to rewrite, restructure,
+   and remove tests here — there is no frozen failing-test to protect
+   (anti-tautology is Agent B's job, see below). Apply four checks:
+
+   a. **No schema-only-by-accident tests.** A test that only asserts "the
+      Zod schema accepts/rejects this shape" is a *smell to investigate*,
+      not an automatic deletion. Ask: **is the schema THE logic of this
+      cut, or does it guard behavior the test should exercise instead?**
+      - Config/schema cut (the schema IS the deliverable — e.g.
+        "accepts archetypes A–E, rejects `requiredApprovers: 0`"):
+        schema-acceptance IS the logic. KEEP it.
+      - Schema guards real behavior downstream (a resolver, a handler,
+        a state transition): rewrite the test to exercise THAT behavior
+        directly, not just the schema gate.
+
+   b. **Tests exercise logic directly.** Each test should call the
+      function / hit the route / drive the state machine and assert on
+      its OUTPUT, SIDE EFFECTS, or ERRORS — not on incidental shape or
+      on strings you copied from your own impl. Rewrite any test that
+      asserts on observed-output-of-my-own-code (tautological shape)
+      into one that asserts the behavior the spec promises.
+
+   c. **Convert repetitive tests to data-driven.** When several tests
+      run the same logic with different inputs/expected-outputs, collapse
+      them into one `it.each([...])` (or `describe.each`) table. One
+      table row per case; the assertion body written once. This makes
+      the cases scannable and the intent obvious.
+
+   d. **Remove redundant tests.** Delete a test only when another test
+      provably covers the same behavior. Before deleting, satisfy
+      yourself the surviving test would fail for the same reason the
+      deleted one would (otherwise it's not redundant — it's
+      load-bearing; keep it).
+
+   After all edits: **re-run the cut's tests + the wider suite — all
+   GREEN.** Amend the **tests commit** (`git commit --amend`) so the
+   two-commit shape (tests, then impl) holds for Agent B's revert check.
+
+   **Authority + the residual risk (recorded decision, 2026-06-07):**
+   You have unbounded authority to rewrite and remove tests here. Agent
+   B is the anti-tautology gate (it reverts your impl and re-runs the
+   surviving tests). **Known limitation:** B verifies the *surviving*
+   tests are load-bearing but cannot detect a test you *removed* that
+   would have caught a real bug — removed coverage is invisible to the
+   revert check. Do NOT exploit this: never remove a test to make the
+   suite easier to pass. Remove only genuine duplicates (check d). B
+   will scrutinize suspicious removals (tests deleted in the same diff
+   that adds the code they'd cover) and REJECT if it smells like
+   dropping coverage to pass.
+
+   **Capture what you did** in the SUMMARY's `Test-quality:` block: which
+   tests you rewrote (and why — schema-only / not-logic-direct), which
+   you made data-driven, which you removed (and the surviving test that
+   keeps the coverage).
+
+8. **RUNTIME EXERCISE — prove the code works on every execution path.**
 
    After tests pass, run the code with concrete inputs that prove EACH
    execution path the acceptance criteria imply. Most acceptance bullets
@@ -195,7 +269,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
      - A shell pipeline orchestrating multiple steps
      - Anything else that gets real bytes through the code
      **Do NOT use vitest / unit tests as the runtime exercise.** Tests
-     are the TDD contract (committed, kept, run by CI); the runtime
+     are the committed suite (kept, run by CI); the runtime
      exercise is comprehension-grounding (throwaway, never committed).
      Mixing them defeats the anti-tautology purpose — the test you
      would have written to "prove" the path is the same test that
@@ -235,19 +309,20 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
      emit `NEEDS_INPUT` per Q6 lock, citing the discovered edge case.
      Don't guess; ask.
 
-   **Capture the exercise output in your `SUMMARY:` block** (step 11) under
+   **Capture the exercise output in your `SUMMARY:` block** (step 12) under
    a `Runtime exercise:` heading. Show each acceptance bullet, then each
    path of that bullet with its input + actual output. Use brief prose;
    the orchestrator surfaces this in the PR body for maintainer review.
 
-8. **Refine your tests** if the exercise surfaced edge cases worth
-   covering. Tests-first (per rule 31) pinned the acceptance contract;
-   tests added after the exercise pin the edge cases the spec didn't
-   enumerate. Amend the test commit (`git commit --amend`) to include
-   the new test cases — keep them in the failing-test commit so the
-   TDD-first ordering is preserved.
+9. **Refine your tests** if the exercise surfaced edge cases worth
+   covering. The test-quality pass (step 7) already made the tests
+   logic-direct and non-redundant; here you add tests for edge cases the
+   runtime exercise discovered that the spec didn't enumerate. Amend the
+   **tests commit** (`git commit --amend`) to include the new cases —
+   keep all tests in the tests commit so the two-commit shape (tests,
+   then impl) holds for Agent B's revert check.
 
-9. **Format the diff with Biome** before committing the impl. Per
+10. **Format the diff with Biome** before committing the impl. Per
    [team-preferences.md rule 30](../../.claude/rules/team-preferences.md),
    format must run before commit — otherwise CI's `format` check
    fails and the maintainer has to push a follow-up format-only
@@ -256,7 +331,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
    npm run format
    ```
    Biome reformats unstaged + staged files in place (~150ms). If
-   Biome touched the failing-test file (step 8's amend already
+   Biome touched the test file (step 9's amend already
    landed), re-amend the test commit to roll the reformat into it
    — DO NOT make a separate format commit:
    ```bash
@@ -264,7 +339,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
    git commit --amend --no-edit
    ```
 
-10. Commit:
+11. Commit:
    ```bash
    git add <impl files>
    git commit -m "feat(<area>): cut #$ISSUE_NUMBER — <short summary>
@@ -275,7 +350,7 @@ Closes #$ISSUE_NUMBER
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
    ```
-11. End with a `SUMMARY:` block as your last output:
+12. End with a `SUMMARY:` block as your last output:
 
    ```
    SUMMARY:
@@ -289,6 +364,13 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
    separate module (SRP). Round 2: converged, no new findings." If no
    issues were found in round 1, say "Converged round 1 — no SOLID
    findings." Keep it to ≤3 lines.>
+
+   Test-quality:
+   <What the test-quality pass did: tests rewritten (schema-only→logic /
+   not-logic-direct→behavior), tests made data-driven (it.each), tests
+   removed (name the surviving test that keeps the coverage). If nothing
+   needed changing, say "Tests already logic-direct + non-redundant; no
+   changes." Keep it to ≤3 lines.>
 
    Runtime exercise:
    <For each acceptance bullet, list each execution path it implies
@@ -362,23 +444,27 @@ The orchestrator records a skip-list entry with the reason code, posts
 an escalation comment, applies `ready-for-human`, closes the sub-issue.
 Future crons honor the skip-list and don't re-attempt.
 
-## Anti-tautology discipline
+## Anti-tautology — Agent B's gate, not yours to self-enforce
 
-The failing tests you commit are the spec. They MUST fail when the
-impl commit is reverted. If your "fix" is just "edit the test until it
-matches the code," the reviewer's tautology check will catch it and
-REJECT. The reviewer runs:
+You may write, rewrite, and remove tests freely (you don't keep a frozen
+failing-test). But your tests MUST genuinely exercise behavior, because
+**Agent B independently verifies it** — it reverts your impl commit and
+re-runs the tests, which MUST fail; then re-applies and they MUST pass:
 
 ```bash
-git revert HEAD --no-edit              # revert impl
+git revert HEAD --no-edit              # revert impl (last commit)
 cd packages/gazetta && npx vitest run  # tests MUST fail here
 git reset --hard origin/$BRANCH_NAME   # re-apply
 cd packages/gazetta && npx vitest run  # tests MUST pass here
 ```
 
-Both halves must hold. Write tests that exercise BEHAVIOR — call the
-function, assert on its output, on its side effects, on errors it
-throws. Don't assert on observed strings from your own impl.
+(This is why the impl is the LAST commit — soft two-commit convention.)
+Both halves must hold or B REJECTS. So write tests that exercise
+BEHAVIOR — call the function, assert on its output, side effects, errors
+— not on observed strings from your own impl. A test that passes against
+reverted impl is tautological and gets REJECTED. **Never remove a test
+to make the suite easier to pass:** B scrutinizes removals and the
+removed-coverage gap is a known risk you must not exploit.
 
 ## Conventions
 
@@ -393,9 +479,13 @@ throws. Don't assert on observed strings from your own impl.
 
 ## Rules
 
-- **TDD-first is non-negotiable.** Failing test commit BEFORE impl
-  commit, always.
-- **DO NOT modify the failing tests during impl.** That's tautology.
+- **Soft two-commit shape: tests commit, then impl commit.** Not a
+  red-first ritual — it's so Agent B can revert the impl to run its
+  tautology check. The impl must be the LAST commit.
+- **Tests must exercise behavior, not echo your impl.** Agent B's
+  revert check is the gate; tautological tests get REJECTED.
+- **Never remove a test to ease passing.** Remove only genuine
+  duplicates (test-quality step check d).
 - **DO NOT push or open the PR.** The orchestrator does that after
   reviewer approval.
 - **Never push to main.** Always to `$BRANCH_NAME`.
