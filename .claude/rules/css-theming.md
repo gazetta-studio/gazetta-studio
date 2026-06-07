@@ -191,7 +191,7 @@ We tried a Playwright `toHaveScreenshot` baseline for PublishDialog and dropped 
 |---|---|
 | Catch unintended visual changes in core admin | Playwright `toHaveScreenshot` with CI-generated baselines. Gate to `process.platform === 'linux'` and commit only Linux PNGs. Regenerate via `docker run mcr.microsoft.com/playwright:vX.Y.Z-jammy ... --update-snapshots` |
 | Explore component variants while designing | The existing `/admin/dev` playground. Extend with fixture props if needed. |
-| Design-system-level visual review | Storybook or Histoire. Not worth the setup until there are 40+ components or a design-systems contributor |
+| Design-system-level visual review | Storybook or Histoire. (This row spoke only to *visual-regression* review — still deferred.) Storybook is now adopted for a **different** use case — design-then-spec-then-bot-execute for admin-shell components — per [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md). That ADR carries the DevPlayground-vs-Storybook coherence split. |
 | Site developers catching their own regressions | They write their own Playwright tests against the running admin using our `data-testid` attributes |
 
 **When to reintroduce:**
