@@ -22,6 +22,17 @@
       "addedBy": "bot",
       "reason": "stuck",
       "reasonNote": "This candidate is a mechanical structural refactor (replace three inline `memoryStorage(initial)` impls with thin wrappers around the shared `sharedMemoryStorage()` + `.seed()` helper, matching `manifest-locale.test.ts:18-27`). TDD-first does not fit: a behavior test would not change outcome before vs after — the validators don't change, and the existing `validation.test.ts` / `validation-scanner.test.ts` / `validation-alt-required.test.ts` suites are themselves the behavior contract this refactor must preserve. A structural file-content test pinning \"no inline `memoryStorage` definitions in these files\" would be proof-of-work that rule 41 says to prune; a developer would not naturally re-add an inline impl when the shared helper is established. The candidate's premise is sound and high-confidence (verified: 41-line, 33-line, 33-line inline impls; `as StorageProvider` cast at validation.test.ts:68 is load-bearing because of missing bytes/stream methods). Recommended maintainer action: apply by hand (or via fix-bot routed as `bug + ready-for-agent` per team-preferences rule 40 — SOLID/DRY violations are \"bugs\" in the rule-contract sense). Order per the candidate's `suggested_action`: `validation.test.ts` first (smallest blast radius, also clears the `as StorageProvider` cast), then `validation-scanner.test.ts` + `validation-alt-required.test.ts`. The change is bounded (~100 LOC removed, three 9-line wrappers added) and the existing test suites' green status is the regression proof."
+    },
+    {
+      "fingerprint": {
+        "area": "apps/admin/src/client/",
+        "type": "architecture",
+        "rule": "design-logging.md#structured-logging-mandatory"
+      },
+      "addedAt": "2026-06-07T08:13:19.574Z",
+      "addedBy": "bot",
+      "reason": "stuck",
+      "reasonNote": "The candidate offers two structurally-different resolutions ((a) ship a browser-side structured logger + migrate 9 callsites, (b) scope `design-logging.md` to server-side + document browser-tier guidance) and explicitly tells the maintainer to \"pick.\" Neither path admits a non-tautological failing test: option (a)'s only natural test is a static grep over `apps/admin/src/client/`, which is the proof-of-work pattern `team-preferences.md` rule 41 warns against keeping post-merge; option (b) is docs-only with no testable behavior. The drift is real (9 `console.warn` / `console.error` callsites in `apps/admin/src/client/`, plus a self-flagged TODO at `main.ts:77-83`), but resolving it requires a design grilling Q on `design-logging.md`'s scope — server-only or client-inclusive — and that choice composes with `design-offline.md` Cut 12's OfflineBanner work in ways a one-shot implementation can't pre-decide. Recommended maintainer action: open a short grilling Q on `design-logging.md` (a / b / \"scope to server + add a 'browser-tier guidance' paragraph deferring to OfflineBanner + future toast surface\"), lock the answer in the design doc, then either spec the client logger as its own designed feature or land the 20-30 line docs clarification (and reconcile the now-partially-obsolete `main.ts:77-83` TODO against shipped Cut 12)."
     }
   ],
   "rules": []
