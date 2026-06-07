@@ -68,29 +68,33 @@ Locked decisions are the contract you implement.
 
 ## TEST + COMMIT CONTRACT
 
-You write tests and implementation for the cut. You do NOT have to write
-tests first or keep them frozen — you may rewrite, restructure, and
-improve tests freely (see the test-quality step). Anti-tautology is
-**not** your discipline to self-enforce; it is **Agent B's job** — the
-reviewer independently verifies your tests are load-bearing (revert the
-implementation, the tests must fail; reapply, they must pass).
+You write tests and implementation for the cut. You do NOT write tests
+first or keep them frozen — you may rewrite, restructure, and improve
+tests freely (see the test-quality step). Anti-tautology is **not** your
+discipline to self-enforce; it is **Agent B's job** — the reviewer
+independently verifies your tests are load-bearing (it reverts your impl
+files, the tests must fail; restore, they must pass).
 
-Two requirements only:
+**Commit ONCE, at the very end, only after every check has passed.** Do
+all your work in the working tree — write tests + impl, run the suite,
+SOLID research+fix, runtime validation, improve/fix tests, verify
+comments — and make **a single commit** (tests + impl together) as the
+final step. Do NOT commit incrementally; do NOT make a separate tests
+commit; do NOT amend. The cut is one atomic change = one commit.
+
+Two requirements:
 
 1. **Cover the cut's `## Tests` section.** It names the specific test
    files + behaviors to test. Your final test set must exercise them.
-2. **Soft two-commit shape — tests, then implementation.** Make a tests
-   commit, then an implementation commit. This is NOT a red-first ritual
-   (you don't need to commit failing tests before writing code); it
-   exists so Agent B's tautology check can cleanly separate "the tests"
-   from "the implementation" by reverting the impl commit. Keep test
-   files in the tests commit and source files in the impl commit. If the
-   test-quality step rewrites tests after the impl is written, amend the
-   tests commit (`git commit --amend`) so the two-commit shape holds.
+2. **One commit, made last.** Build → all checks green → format → commit.
+   Agent B separates your test files from impl files BY PATH (test files
+   = `*.test.ts` / `*.spec.ts` / under `tests/`) to run its check, so you
+   don't need any special commit shape — just keep test code in test
+   files and implementation in source files, as usual.
 
 Write tests that exercise BEHAVIOR — call the function, assert on its
-output / side effects / errors. The reviewer will revert your impl and
-expect them to fail; tests that pass against reverted impl are
+output / side effects / errors. Agent B will revert your impl files and
+expect the tests to fail; tests that pass against reverted impl are
 tautological and get REJECTED.
 
 ## Three terminal states (per Q6 lock)
@@ -101,20 +105,13 @@ discovered.
 ### APPROVE path (most common — happy path)
 
 1. Read inputs + design doc + companion docs (mandatory).
-2. Write tests per `## Tests` — exercise the behaviors it names. (No
-   red-first requirement; write them before or alongside the impl as
-   suits you. They'll be refined in the test-quality step regardless.)
-3. Commit the tests:
+2. Create the branch (no commit yet — you commit once, at the end):
    ```bash
    git checkout -b $BRANCH_NAME 2>/dev/null || git checkout $BRANCH_NAME
-   git add <test files>
-   git commit -m "test: tests for cut #$ISSUE_NUMBER ($FEATURE_SLUG)
-
-Tests the behaviors from cut #$ISSUE_NUMBER's ## Tests section.
-The impl follows in the next commit.
-
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
    ```
+3. Write tests per `## Tests` — exercise the behaviors it names. (Write
+   them before or alongside the impl as suits you; they'll be refined in
+   the test-quality step. Do NOT commit them yet.)
 4. Implement the cut. Verify GREEN.
 5. Run the wider test suite. Confirm no regressions.
 6. **SOLID RESEARCH + FIX — improve the structure you just wrote (converge, ≤3 rounds).**
@@ -156,16 +153,14 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
       new findings)` or `> Decision: SOLID round N fixed <X>; another
       round` so the transcript shows the loop's reasoning.
 
-   **All SOLID fixes land in the working tree BEFORE the impl commit
-   (step 11) — they roll INTO that single impl commit.** Do NOT create a
-   separate "solid" or "refactor" commit; the two-commit shape (tests,
-   then impl) is what the reviewer's tautology check depends on. SOLID
-   work is a pure structural refactor — the tests should stay GREEN
-   throughout without changing them. Test *improvement* (rewriting,
-   data-driving, de-duping) is the job of step 8 (improve/fix tests),
-   which runs after runtime validation — not this step. If a SOLID
-   refactor seems to require changing a test assertion, that's a signal
-   the refactor changed behavior (not just structure) — reconsider it.
+   **SOLID fixes happen in the working tree — nothing is committed yet
+   (you commit once, at the end, step 11).** SOLID work is a pure
+   structural refactor — the tests should stay GREEN throughout without
+   changing them. Test *improvement* (rewriting, data-driving, de-duping)
+   is the job of step 8 (improve/fix tests), which runs after runtime
+   validation — not this step. If a SOLID refactor seems to require
+   changing a test assertion, that's a signal the refactor changed
+   behavior (not just structure) — reconsider it.
 
    The cap is 3 rounds: bounded effort, not a quality gate. Whatever the
    structure is at convergence-or-cap goes forward; Agent B independently
@@ -299,8 +294,8 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
       load-bearing; keep it).
 
    After all edits: **re-run the cut's tests + the wider suite — all
-   GREEN.** Amend the **tests commit** (`git commit --amend`) so the
-   two-commit shape (tests, then impl) holds for Agent B's revert check.
+   GREEN.** (Still nothing committed — all edits stay in the working
+   tree until the single commit at step 11.)
 
    **Authority + the residual risk (recorded decision, 2026-06-07):**
    You have unbounded authority to rewrite and remove tests here. Agent
@@ -341,32 +336,26 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
      design linkage (design-doc section or `ADR-NNNN`), or a warning.
    - **Resolved TODO/FIXME → remove.**
 
-   Comment edits go into whichever commit owns the file (test file →
-   amend the tests commit; source → the impl commit). Re-run the suite
-   (comments don't change behavior, but confirm no fat-fingered code
-   line). **Capture in the SUMMARY's `Comments:` block** what you
-   fixed/removed (one line; "no changes" if clean).
+   Comment edits stay in the working tree (still nothing committed).
+   Re-run the suite (comments don't change behavior, but confirm no
+   fat-fingered code line). **Capture in the SUMMARY's `Comments:`
+   block** what you fixed/removed (one line; "no changes" if clean).
 
-10. **Format the diff with Biome** before committing the impl. Per
+10. **Format with Biome** before the commit. Per
    [team-preferences.md rule 30](../../.claude/rules/team-preferences.md),
-   format must run before commit — otherwise CI's `format` check
-   fails and the maintainer has to push a follow-up format-only
-   commit (which adds noise + bypasses the CI gate). Run:
+   format must run before commit — otherwise CI's `format` check fails.
+   Run:
    ```bash
    npm run format
    ```
-   Biome reformats unstaged + staged files in place (~150ms). If
-   Biome touched the test file (step 8's amend already
-   landed), re-amend the test commit to roll the reformat into it
-   — DO NOT make a separate format commit:
-   ```bash
-   git add <test files>
-   git commit --amend --no-edit
-   ```
+   Biome reformats the working tree in place (~150ms). Nothing to amend —
+   the reformat is just more uncommitted working-tree change that rolls
+   into the single commit at step 11.
 
-11. Commit:
+11. **Make the single commit** — tests + impl together, the only commit
+   for this cut:
    ```bash
-   git add <impl files>
+   git add -A
    git commit -m "feat(<area>): cut #$ISSUE_NUMBER — <short summary>
 
 <one-paragraph what changed + why per the design doc>
@@ -481,17 +470,19 @@ Future crons honor the skip-list and don't re-attempt.
 
 You may write, rewrite, and remove tests freely (you don't keep a frozen
 failing-test). But your tests MUST genuinely exercise behavior, because
-**Agent B independently verifies it** — it reverts your impl commit and
-re-runs the tests, which MUST fail; then re-applies and they MUST pass:
+**Agent B independently verifies it** — from your single commit it
+separates impl files from test files BY PATH (test files = `*.test.ts` /
+`*.spec.ts` / under `tests/`), reverts only the impl files, re-runs the
+tests (which MUST fail), then restores (they MUST pass):
 
 ```bash
-git revert HEAD --no-edit              # revert impl (last commit)
+# (Agent B's check, sketch) — revert impl only, keep tests in place
+git checkout HEAD~1 -- <impl files>    # or stash the non-test paths
 cd packages/gazetta && npx vitest run  # tests MUST fail here
-git reset --hard origin/$BRANCH_NAME   # re-apply
+git checkout HEAD -- <impl files>      # restore
 cd packages/gazetta && npx vitest run  # tests MUST pass here
 ```
 
-(This is why the impl is the LAST commit — soft two-commit convention.)
 Both halves must hold or B REJECTS. So write tests that exercise
 BEHAVIOR — call the function, assert on its output, side effects, errors
 — not on observed strings from your own impl. A test that passes against
@@ -512,13 +503,13 @@ removed-coverage gap is a known risk you must not exploit.
 
 ## Rules
 
-- **Soft two-commit shape: tests commit, then impl commit.** Not a
-  red-first ritual — it's so Agent B can revert the impl to run its
-  tautology check. The impl must be the LAST commit.
+- **Commit ONCE, at the very end, after all checks pass.** Tests + impl
+  in a single commit. No incremental commits, no separate tests commit,
+  no amend. Agent B separates tests from impl by path for its check.
 - **Tests must exercise behavior, not echo your impl.** Agent B's
   revert check is the gate; tautological tests get REJECTED.
 - **Never remove a test to ease passing.** Remove only genuine
-  duplicates (test-quality step check d).
+  duplicates (test-quality step check e).
 - **DO NOT push or open the PR.** The orchestrator does that after
   reviewer approval.
 - **Never push to main.** Always to `$BRANCH_NAME`.

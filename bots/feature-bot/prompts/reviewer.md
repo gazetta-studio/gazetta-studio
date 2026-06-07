@@ -75,33 +75,57 @@ follow your verification.
 
 Run this procedure every time, in this exact order:
 
-### Step 1: confirm both commits exist on the branch
+### Step 1: classify the commit's files into impl vs tests (by path)
+
+Agent A makes **one commit** (tests + impl together). List its files and
+split them by path:
 
 ```bash
-git log main..$BRANCH_NAME --oneline
+git log main..$BRANCH_NAME --oneline           # expect ONE commit
+git show --stat --name-only HEAD
 ```
 
-Expected: 2 commits — a tests commit (prefixed `test:`) FIRST, then an
-implementation commit (`feat:`/`fix:`/`refactor:`/etc.) as HEAD. Agent A
-is no longer red-first, but the **soft two-commit shape is still
-required** so that reverting HEAD (step 2) cleanly removes the impl and
-leaves the tests. If anything else (1 commit, 3+ commits, impl not last):
-**REJECT** with a note that the commit shape breaks the revert check.
+- **Test files** = paths matching `*.test.ts`, `*.spec.ts`, or under a
+  `tests/` directory (per the repo's test-location convention).
+- **Impl files** = everything else in the commit.
 
-### Step 2: revert the impl commit; test must FAIL
+Edge cases:
+- **More than one commit:** acceptable as long as you can still split by
+  path; classify the union of all the branch's changed files. (Agent A is
+  told to make one commit; extra commits aren't a hard REJECT, but note
+  it.)
+- **No test files in the commit:** the cut's `## Tests` contract is unmet
+  → **REJECT** ("no tests for this cut").
+- **No impl files (tests-only / docs-only cut):** the tautology check is
+  N/A — skip steps 2-4, note "tautology check N/A (no impl to revert)",
+  proceed to the other checks.
+- **A "test helper" lives outside `tests/`** (e.g. a fixture imported by
+  tests): if reverting an "impl" file breaks test *imports* rather than
+  test *assertions*, it's test-support — treat it as a test file, restore
+  it, and re-run.
+
+### Step 2: revert ONLY the impl files; tests must FAIL
+
+Restore the impl files to their pre-cut state while leaving the tests in
+place, then run the tests:
 
 ```bash
-git revert --no-edit HEAD
-cd packages/gazetta && npx vitest run <path-to-the-new-test-files>
+git checkout main -- <impl files>             # revert impl only; tests stay
+cd packages/gazetta && npx vitest run <path-to-the-test-files>
 ```
 
 **Expected: the tests FAIL.** That proves the tests exercise behavior
-the impl changes — a real spec, not a tautology.
+the impl provides — a real spec, not a tautology.
 
-If tests PASS after reverting: **REJECT** with a Note that names the
-specific assertion: "The test on line N still passes after reverting
-the impl on line M. Please write a test that asserts behavior that
-fails without the impl."
+If tests PASS after reverting the impl: **REJECT** with a Note that names
+the specific assertion: "The test on line N still passes with the impl
+reverted. Write a test that asserts behavior that fails without the
+impl."
+
+(If reverting an impl file makes a test fail to *compile/import* rather
+than *assert-fail*, that file was test-support — restore it per the Step 1
+edge case and re-run; don't count a compile error as the tautology
+failure.)
 
 ### Step 3: verify the failure matches the cut's acceptance criteria
 
@@ -117,11 +141,11 @@ If the failure mode is generic (timeout, "undefined is not a function")
 and doesn't match acceptance: the test might exercise the wrong thing.
 **REJECT** with a Note describing the mismatch.
 
-### Step 4: re-apply the impl; tests must PASS
+### Step 4: restore the impl; tests must PASS
 
 ```bash
-git reset --hard origin/$BRANCH_NAME
-cd packages/gazetta && npx vitest run <path-to-the-new-test-files>
+git checkout HEAD -- <impl files>      # restore (or: git reset --hard origin/$BRANCH_NAME)
+cd packages/gazetta && npx vitest run <path-to-the-test-files>
 ```
 
 **Expected: tests PASS.** Confirms the impl actually implements the
