@@ -37,8 +37,11 @@ UX-grilling pass) authors the stories; the bot implements the component to
 satisfy them. This makes [team-preferences.md rule 31](team-preferences.md)
 (TDD-first when delegating to AI) cover UI: the story is the failing spec, the
 implementation turns it green. The cut sub-issue's `## Tests` section then
-reads "component renders correctly for every state in `X.stories.tsx`." Per
+reads "component renders correctly for every state in `X.stories.ts`." Per
 [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md).
+Storybook already ships in the repo (`@storybook/vue3-vite`, `.stories.ts`
+files like `ArchiveBanner.stories.ts`) — story-as-spec is a workflow
+convention, not a tooling adoption.
 
 **DevPlayground vs Storybook** (the two component-isolation surfaces):
 Two surfaces, no overlap, per [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md).
