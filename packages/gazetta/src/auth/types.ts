@@ -153,6 +153,11 @@ export const RESERVED_CAPABILITY_PREFIXES = [
  * that Gazetta routes gate on. Plugin-contributed capabilities
  * (when plugin foundation ships) extend via plugin-scoped prefixes
  * — they don't overlap this list.
+ *
+ * Review + publish-approval capabilities (`review:submit`,
+ * `review:approve`, `publish:request`, `publish:approve`) compose
+ * with `design-review-workflow.md`'s state machine — see its
+ * "Capability additions" section.
  */
 export type BuiltInCapability =
   // Read
@@ -172,6 +177,12 @@ export type BuiltInCapability =
   // Publish — narrowed by environment per design-auth-rbac.md
   | 'publish:non-production'
   | 'publish:production'
+  // Publish-approval — review-workflow gates
+  | 'publish:request'
+  | 'publish:approve'
+  // Review-workflow content gates
+  | 'review:submit'
+  | 'review:approve'
   // Configure
   | 'configure:site'
   | 'configure:targets'
@@ -182,15 +193,69 @@ export type BuiltInCapability =
   | 'edit:*'
   | 'delete:*'
   | 'publish:*'
+  | 'review:*'
   | '*'
+
+/**
+ * Runtime mirror of `BuiltInCapability` for config-load validation.
+ * TypeScript types vanish at runtime; this `Set` is what
+ * `isKnownCapability` consults to reject undefined-but-syntactically-
+ * valid capabilities in custom-role declarations (e.g., `review:foo`).
+ *
+ * Plugin-scoped capabilities (`@org/feature:action`) bypass this
+ * gate — they're checked structurally by `isKnownCapability` via
+ * the `@` prefix.
+ *
+ * Keep in sync with `BuiltInCapability` above. The compile-time
+ * `BuiltInCapability` cast on the array literal is the discipline:
+ * adding a new built-in capability requires adding it to both
+ * places or TypeScript fails the build.
+ */
+export const BUILT_IN_CAPABILITIES: ReadonlySet<BuiltInCapability> = new Set<BuiltInCapability>([
+  'read:pages',
+  'read:fragments',
+  'read:assets',
+  'read:audit-log',
+  'edit:pages',
+  'edit:fragments',
+  'edit:assets',
+  'edit:locale-variants',
+  'delete:pages',
+  'delete:fragments',
+  'delete:assets',
+  'publish:non-production',
+  'publish:production',
+  'publish:request',
+  'publish:approve',
+  'review:submit',
+  'review:approve',
+  'configure:site',
+  'configure:targets',
+  'restore:history',
+  'read:*',
+  'edit:*',
+  'delete:*',
+  'publish:*',
+  'review:*',
+  '*',
+])
 
 /**
  * Built-in role aliases — predefined as capability sets. Custom
  * roles in `site.config.ts admin.auth.roles` declare capabilities
  * directly.
+ *
+ * `reviewer` + `publisher` are minimal additive roles: each carries
+ * only the review-workflow capabilities its name implies. Operators
+ * who want a "reviewer with read access" compose a custom role
+ * (e.g., `['read:*', 'review:approve']`) in `site.config.ts`. Per
+ * `design-auth-rbac.md`'s single-role-per-principal model, the
+ * built-ins are minimum building blocks, not full functional roles.
  */
 export const BUILT_IN_ROLES: Readonly<Record<string, ReadonlyArray<BuiltInCapability>>> = {
   admin: ['*'],
-  editor: ['read:*', 'edit:*', 'publish:non-production'],
+  editor: ['read:*', 'edit:*', 'publish:non-production', 'review:submit'],
+  reviewer: ['review:approve'],
+  publisher: ['publish:request', 'publish:approve'],
   viewer: ['read:*'],
 }

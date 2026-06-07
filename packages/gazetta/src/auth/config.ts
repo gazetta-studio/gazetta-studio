@@ -24,6 +24,7 @@
  *     existing variants unchanged.
  */
 import { z } from 'zod'
+import { isKnownCapability } from './capabilities.js'
 import { RESERVED_CAPABILITY_PREFIXES } from './types.js'
 
 /**
@@ -34,7 +35,27 @@ import { RESERVED_CAPABILITY_PREFIXES } from './types.js'
  */
 const capabilityRegex = /^(\*|[a-zA-Z@][a-zA-Z0-9@/_-]*:[a-zA-Z*][a-zA-Z0-9_-]*)$/
 
-const capabilitySchema = z.string().regex(capabilityRegex, 'Capability must be either "*" or "<prefix>:<rest>"')
+/**
+ * Capabilities are validated in two layers:
+ *
+ *   1. The regex pins the structural shape (`<prefix>:<rest>` or `*`).
+ *      Catches obvious typos like `"editpages"` (missing colon).
+ *   2. `isKnownCapability` enforces the closed built-in capability
+ *      set — `review:foo` is structurally valid but not a known
+ *      capability, so the schema rejects it. Plugin-scoped
+ *      capabilities (`@org/...`) bypass the closed check by design.
+ *
+ * Both layers run; the regex provides a clear up-front error for
+ * malformed strings, and the closed-set check catches undefined
+ * built-ins that would otherwise silently never grant anything.
+ */
+const capabilitySchema = z
+  .string()
+  .regex(capabilityRegex, 'Capability must be either "*" or "<prefix>:<rest>"')
+  .refine(isKnownCapability, {
+    message:
+      'Unknown capability. Built-in capabilities are a closed set; plugin-supplied capabilities must use the scoped `@org/...` prefix.',
+  })
 
 /**
  * Custom role definition — operator-declared in `site.config.ts`.

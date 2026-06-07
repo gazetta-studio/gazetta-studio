@@ -20,7 +20,29 @@
  *   - DIP: middleware depends on this helper, not on the BUILT_IN_ROLES
  *     constant.
  */
-import { BUILT_IN_ROLES, type BuiltInCapability } from './types.js'
+import { BUILT_IN_CAPABILITIES, BUILT_IN_ROLES, type BuiltInCapability } from './types.js'
+
+/**
+ * Test whether a capability string is part of the closed built-in
+ * capability vocabulary OR is a plugin-scoped capability.
+ *
+ * Plugin-scoped capabilities use `@org/feature:action` shape and are
+ * recognized structurally by the `@` prefix — the schema doesn't try
+ * to validate which plugin owns the prefix; the plugin contract
+ * surfaces that.
+ *
+ * Used by `AuthConfigSchema` to reject custom-role declarations that
+ * reference syntactically-valid but undefined capabilities like
+ * `review:foo`. Without this gate, operator typos would silently
+ * land as never-granted capabilities — failure mode "the route
+ * always returns 403 and nobody knows why."
+ */
+export function isKnownCapability(capability: string): boolean {
+  // Plugin-scoped capabilities pass through — recognized by the
+  // leading `@` per the plugin design's scoped-prefix convention.
+  if (capability.startsWith('@')) return true
+  return BUILT_IN_CAPABILITIES.has(capability as BuiltInCapability)
+}
 
 /**
  * Privacy-sensitive capabilities that prefix wildcards do NOT
