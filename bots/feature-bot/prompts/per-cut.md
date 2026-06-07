@@ -68,34 +68,23 @@ Locked decisions are the contract you implement.
 
 ## TEST + COMMIT CONTRACT
 
-You write tests and implementation for the cut. You do NOT write tests
-first or keep them frozen — you may rewrite, restructure, and improve
-tests freely (see the test-quality step). Anti-tautology is **not** your
-discipline to self-enforce; it is **Agent B's job** — the reviewer
-independently verifies your tests are load-bearing (it reverts your impl
-files, the tests must fail; restore, they must pass).
+You write tests and implementation freely — no test-first, no frozen
+tests, rewrite as you go. Anti-tautology is **Agent B's** job, not yours:
+it reverts your impl files and checks the tests then fail.
 
-**Commit ONCE, at the very end, only after every check has passed.** Do
-all your work in the working tree — write tests + impl, run the suite,
-SOLID research+fix, runtime validation, improve/fix tests, verify
-comments — and make **a single commit** (tests + impl together) as the
-final step. Do NOT commit incrementally; do NOT make a separate tests
-commit; do NOT amend. The cut is one atomic change = one commit.
+**Commit ONCE, at the very end, after every check passes.** Everything —
+tests, impl, SOLID fixes, test improvements, comment edits — stays in the
+working tree until the final step, then lands as one commit. No
+incremental commits, no separate tests commit, no amend.
 
-Two requirements:
-
-1. **Cover the cut's `## Tests` section.** It names the specific test
-   files + behaviors to test. Your final test set must exercise them.
-2. **One commit, made last.** Build → all checks green → format → commit.
-   Agent B separates your test files from impl files BY PATH (test files
-   = `*.test.ts` / `*.spec.ts` / under `tests/`) to run its check, so you
-   don't need any special commit shape — just keep test code in test
-   files and implementation in source files, as usual.
+You must **cover the cut's `## Tests` section** (the test files +
+behaviors it names). No special commit shape is needed — Agent B
+separates tests from impl by path (`*.test.ts` / `*.spec.ts` / `tests/**`),
+so just keep test code in test files and implementation in source files.
 
 Write tests that exercise BEHAVIOR — call the function, assert on its
-output / side effects / errors. Agent B will revert your impl files and
-expect the tests to fail; tests that pass against reverted impl are
-tautological and get REJECTED.
+output / side effects / errors. Tests that pass with the impl reverted
+are tautological and get REJECTED (see "Anti-tautology" below).
 
 ## Three terminal states (per Q6 lock)
 
@@ -368,9 +357,9 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
    ```
    SUMMARY:
-   <2-4 sentences: what the cut delivered, how the failing test pins it,
-   which design-doc locked decisions it implements. Plain prose; no
-   headings, no bullets, no code blocks inside the summary.>
+   <2-4 sentences: what the cut delivered, how the tests pin it, which
+   design-doc locked decisions it implements. Plain prose; no headings,
+   no bullets, no code blocks inside the summary.>
 
    (Blocks below mirror Agent A's step order: SOLID → runtime → tests → comments.)
 
