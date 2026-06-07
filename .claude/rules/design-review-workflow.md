@@ -327,6 +327,42 @@ Each action button has an in-flight `:loading` variant (the `archive.status === 
 
 The cross-content approver queue (Cut 13) is **not** part of the gate cut — approvers acting on *this* content's publish do so inline in `PublishPanel`; finding pending requests *across all content* is the queue's job.
 
+## Cut sequence
+
+Reshaped from the retired impl doc's 15-cut sequence during the migration to the tracking-issue + cut-sub-issue model (2026-06-07), integrating the UX-grilling decisions. Three changes from the original 15: (1) two additive UI-primitive cuts (`<StateBadge>`, `<Banner>` + Storybook) prepend the UX work; (2) one upfront `ready-for-human` story-authoring cut produces the `.stories.tsx` files that are the bot's executable spec (per [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md) — human authors stories, bot implements components); (3) UX cuts 8/10 reshaped per the locked story specs (ReviewActions folded into ReviewBanner; publish-gate as PublishPanel destination rows). 19 cuts total.
+
+State lives in GitHub sub-issue close-state; this table is intent only (no status column). `agent` = feature-bot; `human` = maintainer-authored (story authoring is design, not bot work).
+
+| # | Cut | Depends on | By | Test tier | Risk |
+|---|---|---|---|---|---|
+| 1 | `reviewWorkflow` config schema (Zod) on target + site; archetype A–E examples | — | agent | unit-first | Low |
+| 2 | Capability vocab (`review:submit`/`approve`, `publish:request`/`approve`) wired into RBAC | — | agent | unit-first | Low |
+| 3 | Per-edge sidecar storage (`.gazetta/review/{kind}/{name}/state.json` + per-approver) | 1 | agent | unit-first | Medium |
+| 4 | Review state machine (`draft → pending-review → approved`, explicit-action invariant) | 2, 3 | agent | unit-first | High |
+| 5 | Save-handler integration (`pending-review` 409s edits; `invalidateOnSave` policies) | 4 | agent | api-first | Medium |
+| 6 | Audit integration (4 content-review actions + outcomes) | 4 | agent | api-first | Low |
+| 7 | Admin API routes (`submit`/`approve`/`reject`/`withdraw` + `GET`) | 4, 5, 6 | agent | api-first | Medium |
+| 8 | **Extract `<StateBadge>` primitive + story** (additive; SiteTree/ComponentTree may opt in via Boy-Scout later) | — | agent | component | Low |
+| 9 | **Extract `<Banner>` primitive + Storybook setup + story** (additive; 4 shipped banners untouched) | — | agent | component | Medium |
+| 10 | **Author all review-workflow `.stories.tsx`** from the locked specs (ReviewBanner ×9 + ReviewRejectDialog + PublishPanel-gate ×5) | 8, 9 | **human** | (stories are the spec) | Medium |
+| 11 | ReviewBanner.vue (= `<Banner>` + `<Button>`s; ReviewActions folded in) + ReviewRejectDialog + SiteTree state badge — to green stories | 7, 10 | agent | component | High |
+| 12 | Publish-approval state machine + per-target opt-in (`requiresPublishApproval`) | 4 | agent | api-first | High |
+| 13 | Publish-approval admin API (request/approve/reject/withdraw on publish events) | 12 | agent | api-first | High |
+| 14 | Publish-approval gate UX — PublishPanel destination rows (5 stories) — to green stories | 10, 13 | agent | component | High |
+| 15 | Combined "Submit & approve" + "Publish-request & approve" buttons | 11, 14 | agent | component | Low |
+| 16 | Constructive errors (`409 NO_APPROVER_AVAILABLE`; boot config validation; helpful 403s) | 7, 13 | agent | api-first | Low |
+| 17 | Pending review queue (cross-content "what's waiting for me"; `GET /api/review/pending`; paginated) | 7 | agent | api+component | Medium |
+| 18 | Hook integration (10 review-lifecycle phases per `design-hooks.md`) | 4, 12 | agent | api-first | Medium |
+| 19 | Docs (`docs/review-workflow.md` 5 archetypes) + consolidation (retire impl doc → this design doc; ROADMAP; CLAUDE.md) | all | agent | (docs) | Low |
+
+**Notes on the reshape:**
+- Cuts 8, 9 (primitives) have no deps — they run in parallel with the data-shape cuts 1–7. The bot can pick them up immediately.
+- Cut 10 (stories) is the single `ready-for-human` gate. Both UX component cuts (11, 14) depend on it. It depends on the primitives (8, 9) existing so stories compose real components.
+- Cut 11 folds the old Cut 8's `ReviewActions.vue` into `ReviewBanner.vue` (the 9 stories encode all button logic) and adds the SiteTree badge via `<StateBadge>`.
+- Cut 14 (old Cut 10) is PublishPanel destination-row states, not a new surface.
+- Cut 17 (old Cut 13) is the cross-content queue — distinct from cut 14's per-content gate (the UX-grill walk surfaced this split).
+- Cut 19 absorbs the old Cut 15 docs + the consolidation work (retiring the impl doc per [ADR-0015](../../docs/adr/0015-impl-doc-artifact-retires.md)).
+
 ## Migration
 
 Targets without `reviewWorkflow.enabled` continue today's behavior (no review). Adding the flag opts in. Existing items become `draft` by default; items already published stay `published`.
