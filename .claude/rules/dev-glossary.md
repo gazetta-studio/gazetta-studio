@@ -28,6 +28,29 @@ convenience. Walks actor scenarios, flow sketches, "what can I remove?"
 (Krug-aligned), failure-mode UX, capability-gap surfaces. Output: the design
 doc's "UX check" section.
 
+**Story-as-spec** (design-then-spec-then-bot-execute):
+The pattern for getting feature-bot to implement UX cuts reliably. The bot
+is fine at *implementing* Vue components but bad at *designing* them — so the
+UX design decision is moved into a prior, human-authored, executable artifact:
+a Storybook story enumerating the component's states. The human (or a
+UX-grilling pass) authors the stories; the bot implements the component to
+satisfy them. This makes [team-preferences.md rule 31](team-preferences.md)
+(TDD-first when delegating to AI) cover UI: the story is the failing spec, the
+implementation turns it green. The cut sub-issue's `## Tests` section then
+reads "component renders correctly for every state in `X.stories.tsx`." Per
+[ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md).
+
+**DevPlayground vs Storybook** (the two component-isolation surfaces):
+Two surfaces, no overlap, per [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md).
+**DevPlayground** (`/admin/dev`) — template live-preview *with real content*;
+template-developer turf ("does my template render this page correctly?").
+**Storybook** — admin-shell component states (banners, dialogs, badges,
+action bars) *as design + bot spec*; CMS-developer turf ("what are this
+component's states, and is its implementation correct against them?"). A
+component goes in Storybook when it's admin chrome with discrete states a
+human designs and a bot implements; in DevPlayground when it's a content
+template previewed against author content.
+
 **5K-envelope gate**:
 Pre-implementation checkpoint validating that proposed primitives hold at
 the documented operating envelope (5,000 pages, 20,000 assets, 50 components
