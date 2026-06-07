@@ -26,7 +26,7 @@
  *   2. Checks idempotency via `decideIdempotency`.
  *   3. Loads lessons-learned (currently empty placeholder).
  *   4. Generator-critic loop (MAX_ATTEMPTS=5):
- *      - Agent A reads design doc + cut body, commits TDD-first.
+ *      - Agent A reads design doc + cut body, builds + self-checks, then one commit.
  *      - Agent A signals: APPROVE_IMPLICIT (commits) / NEEDS_INPUT / NEEDS_HUMAN.
  *      - On APPROVE_IMPLICIT: Agent B reviews + verdicts.
  *      - `routeAttemptOutcome` decides the next step.
@@ -111,7 +111,7 @@ async function main(): Promise<void> {
   printBanner({
     name: 'feature-bot',
     tagline: 'implementer (Cut 3 — generator-critic loop)',
-    purpose: 'Implement `enhancement + ready-for-agent` cut sub-issues with TDD-first commit ordering.',
+    purpose: 'Implement `enhancement + ready-for-agent` cut sub-issues (build → SOLID → runtime validation → improve tests → verify comments → one commit).',
     inputs: [
       'Open issues with `enhancement` AND `ready-for-agent`',
       'AND no `ready-for-human` / `wontfix` / `needs-info`',
@@ -576,9 +576,10 @@ Implements cut #${issueNumber} for the \`${featureSlug}\` feature.
 
 Closes #${issueNumber}.
 
-After implementation by Agent A and independent review by Agent B
-(both Claude Code sessions), this PR ships the cut as a TDD-first
-two-commit contract.
+Implemented by Agent A, then independently reviewed by Agent B (both
+Claude Code sessions). Agent A's flow: write tests + impl, SOLID
+research+fix, runtime validation, improve/fix tests, verify comments —
+then one atomic commit.
 
 ## What Agent A did
 
@@ -588,19 +589,16 @@ ${agentASummary || '(no Agent A summary captured)'}
 
 ${reviewerReasoning || '(no reviewer reasoning captured)'}
 
-The reviewer ran the tautology check (revert impl → tests fail; re-apply
-→ tests pass), verified each cut sub-issue \`## Acceptance\` bullet is
-pinned, checked the \`## SOLID\` declarations (when present), and
-verified the diff implements the design doc's Locked decisions.
+Agent B is the sole anti-tautology gate: it separated impl from tests by
+path, reverted only the impl (tests must fail), restored (tests must
+pass), verified each \`## Acceptance\` bullet is pinned, independently
+checked SOLID, scrutinized any test removals, and verified the diff
+implements the design doc's Locked decisions.
 
 ## Verification
 
-This PR has two commits:
-
-1. **Failing tests** — pin the cut's acceptance criteria
-2. **Implementation** — minimal change that turns tests green
-
-CI re-verifies both commits.
+One atomic commit (tests + impl together). CI re-runs the full suite;
+Agent B's revert check already proved the tests are load-bearing.
 
 ## What if this is wrong?
 

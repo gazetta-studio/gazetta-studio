@@ -498,6 +498,12 @@ checks that passed, including which runtime-exercise outputs prove
 which acceptance bullets>
 ```
 
+The `Reasoning:` line is **required on APPROVE**, not optional — the
+orchestrator puts it in the PR's "Reviewer's assessment" section, so
+omitting it leaves that section blank. Even a clean approve needs one
+sentence ("tautology check held — reverting impl failed N load-bearing
+tests; all acceptance bullets pinned; SOLID lenses honored").
+
 ```
 VERDICT: REJECT
 Note: <specific, actionable feedback Agent A can use on retry — cite
