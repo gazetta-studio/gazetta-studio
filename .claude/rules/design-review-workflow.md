@@ -282,7 +282,50 @@ This is *not* the design-system work deferred by [`css-theming.md`](css-theming.
 1. **Extract `<StateBadge>` + story** (cheap; additive; SiteTree/ComponentTree may opt in via Boy-Scout later, not required)
 2. **Extract `<Banner>` + Storybook setup + story** (moderate; additive; shipped banners untouched)
 
-— after which cuts 8–10 become compositions: ReviewBanner = `<Banner>` + `<Button>`s; ReviewActions = `<Button>` group; tree state badge = `<StateBadge>`; publish-approval gate composes the same. The cut specs become "build component X to match `X.stories.tsx`," and the bot implements to green stories. These two cuts land in the design doc's `## Cut sequence` table when the impl doc is migrated to the tracking-issue + sub-issue model.
+— after which cuts 8–10 become compositions (story specs below). The cut specs become "build component X to match `X.stories.tsx`," and the bot implements to green stories. These two cuts land in the design doc's `## Cut sequence` table when the impl doc is migrated to the tracking-issue + sub-issue model.
+
+### UX surface decisions (UX-grill 2026-06-07)
+
+Three surfaces were grilled into locked story specs. Each named story = one Storybook story = one bot spec variant.
+
+**Surface 1 — `ReviewBanner.vue`** (= `<Banner>` + inline `<Button>` actions; mounts above the editor à la `ArchiveBanner`; renders only when the active target has `reviewWorkflow.enabled` — absence-as-state otherwise). **`ReviewActions` is folded in** — no separate component. The design doc's earlier two-component naming was unjustified enumeration (rule 25); every POV (discoverability, SRP, bot-risk, Krug) favored fusion, matching the `ArchiveBanner` precedent where the banner hosts its own actions. The 9 stories below *are* the action spec (each names its buttons); a separate `ReviewActions.vue` would only add a coordination bug class (banner/actions out of sync) that fusion eliminates by construction.
+
+Root testid `review-banner` with `data-state` (the `OfflineBanner` pattern). The 9 stories enumerate content-state × actor-capability × config; **draft has two visible variants** — clean (fresh/withdrawn, no message) vs. with-note (rejected or auto-invalidated, shows the reason). The rejected variant is load-bearing: without it the author never sees *why* content bounced (the hole the first-draft matrix missed).
+
+| Story | Content state | Viewer | Severity / copy | Buttons (testid) |
+|---|---|---|---|---|
+| `DraftClean` | draft (fresh/withdrawn) | has `review:submit` | info — "Draft — not yet submitted for review." | **Submit for review** (`review-submit`); + **Submit & approve** (`review-submit-approve`) when also `review:approve` + `allowSelfApproval` + `requiredApprovers:1` |
+| `DraftRejected` | draft (post-reject) | has `review:submit` | warning — "Changes requested by {actor}: '{comment}'." | **Submit for review** (`review-submit`) |
+| `DraftInvalidated` | draft (was approved, edited) | has `review:submit` | info — "Approval cleared by your edit. Re-submit when ready." | **Submit for review** (`review-submit`) |
+| `DraftNoCap` | draft | lacks `review:submit` | info — "Draft. You don't have permission to submit for review." | none |
+| `PendingAsSubmitter` | pending-review | submitter | warning — "Pending review — submitted {time}. Editing is locked until reviewed." | **Withdraw** (`review-withdraw`) |
+| `PendingAsApprover` | pending-review | has `review:approve`, not voted | warning — "Pending review — {N} of {required} approvals." | **Approve** (`review-approve`), **Reject** (`review-reject` → `ReviewRejectDialog`) |
+| `PendingApproverVoted` | pending-review | has `review:approve`, voted, threshold unmet | warning — "You approved. Waiting for {remaining} more." | none (no retraction — see below) |
+| `PendingSelfNoSelfApproval` | pending-review | submitter w/ `review:approve`, `allowSelfApproval:false` | warning — "Your submission — you can't approve your own content." | **Withdraw** (`review-withdraw`) |
+| `PendingReadOnly` | pending-review | no review caps | warning — "Pending review — {N} of {required} approvals." | none |
+| `Approved` | approved | any | success — "Approved {time} by {actor}." | none (publish is a separate surface) |
+
+Each action button has an in-flight `:loading` variant (the `archive.status === 'unarchiving'` pattern) — stories include the loading state for `PendingAsApprover` (approving / rejecting) and `DraftClean` (submitting).
+
+**`ReviewRejectDialog.vue`** (small companion) — a PrimeVue `Dialog` with a required textarea + **Reject** (`review-reject-confirm`) / **Cancel** (`review-reject-cancel`). Reject comment is mandatory (locked invariant); a dialog (not inline-expand) matches how the codebase does confirmable actions and keeps the banner clean.
+
+**Q-A — no approval retraction in v1.** Once cast, an approval is final while `pending-review`. The audit enum has no `review-unapprove`; adding one is scope creep. An approver who changes their mind rejects instead (reject-after-own-approve is the escape hatch). `PendingApproverVoted` therefore shows no action.
+
+**Q-B — no "reopen to draft" button on `Approved`.** Editing approved content auto-invalidates it back to draft via `invalidateOnSave` (default `content-diff`). An explicit reopen button is redundant — the author just edits, and the save knocks it to `DraftInvalidated`. The banner stays purely informational when approved.
+
+**Surface 2 — folded into Surface 1** (see above).
+
+**Surface 3 — publish-approval gate = extend `PublishPanel` destination rows** (only when a target has `requiresPublishApproval: true`). Per-content gate, composed into the shipped `PublishPanel` (not a new top-level surface). The walk revealed this is distinct from the cross-content "what's waiting for me" approver queue — that queue is its own concern (the existing `### Pending review queue at scale` + `/api/reviews?action=publish-pending`), serving *both* content-review and publish-approval pending lists, and lands as its own cut. Stories = `PublishPanel` destination row in each publish-approval state:
+
+| Story | Destination-row state | Shows |
+|---|---|---|
+| `DestNoGate` | target without `requiresPublishApproval` | normal **Publish** |
+| `DestRequestable` | gated, viewer has `publish:request`, no open request | **Request publish approval** (`publish-request`) |
+| `DestPending` | gated, request open, threshold unmet | `<StateBadge>` "Pending {N}/{required}"; **Approve**/**Reject** (`publish-approve`/`publish-reject`) inline when viewer has `publish:approve` |
+| `DestApproved` | gated, threshold met | `<StateBadge>` "Approved"; **Publish** enabled |
+| `DestNoCap` | gated, viewer lacks `publish:request` | `<StateBadge>` "Requires publish approval" (informational) |
+
+The cross-content approver queue (Cut 13) is **not** part of the gate cut — approvers acting on *this* content's publish do so inline in `PublishPanel`; finding pending requests *across all content* is the queue's job.
 
 ## Migration
 
