@@ -266,6 +266,24 @@ How review workflow composes with each of the other 12 foundational dimensions p
 - When collaboration ships, approver behavior expands: "leave non-blocking comments on content + approve" or "reject with reason" (current path).
 - Combined-action ("Submit & approve") UX stays as-is; collaboration adds the conversation layer alongside, not replacing the state machine.
 
+## UX implementation foundation (Storybook + primitives)
+
+Decided 2026-06-07 during the UX-grilling pass (Phase 2a, which the original design pass skipped — that's why cuts 8–10 were High-risk). Per [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md), the review-workflow UI components are designed as **Storybook stories** that become feature-bot's executable spec. Two additive UI primitives are extracted first so the review components compose named, typed building blocks rather than re-deriving banner/badge markup from prose (verified extraction-cheap + additive against the shipped admin in a recon pass):
+
+- **`<StateBadge variant color label? tooltip?>`** — extracts the dot/pill pattern duplicated verbatim across `SiteTree.vue` + `ComponentTree.vue` (dirty dot, validation dot, locale pill). **Cheap, pure-CSS DRY.** The review-state SiteTree badge (Cut 8) consumes it.
+- **`<Banner severity role icon? :dismissible>` + content/actions slots** — extracts the icon+message+actions+dismiss skeleton shared by `ValidationBanner` / `ArchiveBanner` / `OfflineBanner` / `StorageQuotaBanner`. **Moderate, ~30–40 LOC, strictly additive** — the four shipped banners are **not** refactored onto it (recon confirmed migration is non-mandatory; ValidationBanner's nested issue-list resists generic slots, so leaving it inline is correct). ReviewBanner (Cut 8) is the first consumer.
+
+**No `<ActionButton>` primitive.** PrimeVue `<Button>` is already the de-facto action-button primitive — conventions (label/icon/`size="small"`/severity/`:loading`/`data-testid`) are uniform across the admin. The review components use `<Button>` directly; stories cite its conventions.
+
+This is *not* the design-system work deferred by [`css-theming.md`](css-theming.md): no token taxonomy, no primitive library, no refactor of shipped components. Two additive primitives, scoped to what review-workflow needs, justified by *bot-codegen reliability* (a different rationale than the visual-regression rationale that deferral addressed).
+
+**Consequence for the cut sequence:** two foundational UI cuts prepend the UX cuts —
+
+1. **Extract `<StateBadge>` + story** (cheap; additive; SiteTree/ComponentTree may opt in via Boy-Scout later, not required)
+2. **Extract `<Banner>` + Storybook setup + story** (moderate; additive; shipped banners untouched)
+
+— after which cuts 8–10 become compositions: ReviewBanner = `<Banner>` + `<Button>`s; ReviewActions = `<Button>` group; tree state badge = `<StateBadge>`; publish-approval gate composes the same. The cut specs become "build component X to match `X.stories.tsx`," and the bot implements to green stories. These two cuts land in the design doc's `## Cut sequence` table when the impl doc is migrated to the tracking-issue + sub-issue model.
+
 ## Migration
 
 Targets without `reviewWorkflow.enabled` continue today's behavior (no review). Adding the flag opts in. Existing items become `draft` by default; items already published stay `published`.
