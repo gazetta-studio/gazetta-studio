@@ -117,8 +117,12 @@ describe('capabilityGrants (Cut 6)', () => {
 describe('expandRole (Cut 6)', () => {
   it('expands built-in roles', () => {
     expect(expandRole('admin')).toEqual(['*'])
-    expect(expandRole('editor')).toEqual(['read:*', 'edit:*', 'publish:non-production'])
+    // editor gains `review:submit` with the review-workflow Cut 2 (#516).
+    expect(expandRole('editor')).toEqual(['read:*', 'edit:*', 'publish:non-production', 'review:submit'])
     expect(expandRole('viewer')).toEqual(['read:*'])
+    // New built-in roles aliasing the review-workflow capabilities.
+    expect(expandRole('reviewer')).toEqual(['review:approve'])
+    expect(expandRole('publisher')).toEqual(['publish:request', 'publish:approve'])
   })
 
   it('expands custom roles when supplied', () => {
