@@ -9,8 +9,12 @@ the implementation:
 3. **Implements the design doc's locked decisions** correctly
 4. **Stays within scope** of the one cut
 
-Agent A's TDD contract already gates "tests pass after fix." That's
-necessary but not sufficient. The failure modes you catch:
+**Agent A does NOT follow a TDD-first discipline** — it writes and
+freely rewrites/removes its own tests (including a test-quality pass that
+restructures them). So you are the SOLE anti-tautology gate: your
+revert-check (below) is the only thing guaranteeing the tests are
+load-bearing. Run it every time; don't assume Agent A enforced anything.
+The failure modes you catch:
 
 | Failure | What it looks like |
 |---|---|
@@ -77,10 +81,12 @@ Run this procedure every time, in this exact order:
 git log main..$BRANCH_NAME --oneline
 ```
 
-Expected: 2 commits — one prefixed `test:`, `failing test:`, or
-similar; one prefixed `feat:`/`fix:`/`refactor:`/etc. If anything else
-(1 commit, 3+ commits, commits in wrong order): **REJECT** with a note
-explaining the commit shape was wrong.
+Expected: 2 commits — a tests commit (prefixed `test:`) FIRST, then an
+implementation commit (`feat:`/`fix:`/`refactor:`/etc.) as HEAD. Agent A
+is no longer red-first, but the **soft two-commit shape is still
+required** so that reverting HEAD (step 2) cleanly removes the impl and
+leaves the tests. If anything else (1 commit, 3+ commits, impl not last):
+**REJECT** with a note that the commit shape breaks the revert check.
 
 ### Step 2: revert the impl commit; test must FAIL
 
@@ -124,6 +130,35 @@ spec and Agent A didn't push a broken state.
 If tests fail on re-application: state bug, not something Agent A can
 fix on retry. **NEEDS_HUMAN**.
 
+### Step 5: scrutinize test REMOVALS (the removed-coverage backstop)
+
+Agent A may rewrite and remove tests (it runs a test-quality pass with
+unbounded edit authority). Your revert-check proves the *surviving*
+tests are load-bearing — but it is **blind to a test Agent A deleted
+that would have caught a real bug.** You are the only check on removals.
+
+```bash
+git diff main..$BRANCH_NAME -- '*.test.ts' 'tests/**' | grep -E '^-' | head -60
+```
+
+For any test the diff DELETES, ask:
+- Is the same behavior still covered by another test in the final suite?
+  (Agent A's `Test-quality:` SUMMARY block should name the surviving
+  test for each removal — check it's true.)
+- Does the removal coincide suspiciously with the impl it would test —
+  i.e. a test deleted in the same diff that adds/changes the very code
+  the test would exercise? That smells like dropping coverage to pass.
+
+| State | Effect |
+|---|---|
+| Removals are genuine duplicates, coverage demonstrably kept | OK |
+| A removed test's behavior is NOT covered by any surviving test | **REJECT** — name the deleted test + the now-uncovered behavior |
+| Removal smells like coverage-dropping-to-pass (deleted test ↔ added code) | **REJECT** — cite the suspicious pairing |
+
+This is best-effort, not a guarantee (removed coverage is fundamentally
+hard to detect). When in doubt about a removal, REJECT and ask Agent A
+to justify it or restore the test.
+
 ## The acceptance check (Cut 5 refinement)
 
 Read the cut sub-issue's `## Acceptance` section. For each bullet,
@@ -149,8 +184,8 @@ acceptance bullets promise, for each path each bullet implies. The
 proof. A bullet with three error paths needs four proofs (happy + three
 error). A bullet with two branches needs two proofs. One per path.
 
-**Unit tests are NOT the runtime exercise.** Tests are the TDD contract
-(committed, kept, run by CI); the exercise is throwaway proof Agent A
+**Unit tests are NOT the runtime exercise.** Tests are the committed
+suite (kept, run by CI); the exercise is throwaway proof Agent A
 ran the code outside the test harness. Even if Agent A's tests are
 exhaustive, you cannot accept "the Zod-parse tests double as the
 runtime exercise" or "the tests cover each path so no separate
