@@ -191,7 +191,7 @@ We tried a Playwright `toHaveScreenshot` baseline for PublishDialog and dropped 
 |---|---|
 | Catch unintended visual changes in core admin | Playwright `toHaveScreenshot` with CI-generated baselines. Gate to `process.platform === 'linux'` and commit only Linux PNGs. Regenerate via `docker run mcr.microsoft.com/playwright:vX.Y.Z-jammy ... --update-snapshots` |
 | Explore component variants while designing | The existing `/admin/dev` playground. Extend with fixture props if needed. |
-| Design-system-level visual review | Storybook or Histoire. (This row spoke only to *visual-regression* review — still deferred.) Storybook is now adopted for a **different** use case — design-then-spec-then-bot-execute for admin-shell components — per [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md). That ADR carries the DevPlayground-vs-Storybook coherence split. |
+| Design-system-level visual review | **Storybook is installed** (`@storybook/vue3-vite`, `npm run storybook`, existing `.stories.ts` files) — this "not worth the setup until 40+ components" note is stale; disregard it. Storybook's role + the DevPlayground-vs-Storybook coherence split are defined in [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md) (stories as bot-executable UX specs). Dedicated *visual-regression* (`toHaveScreenshot`) testing remains deferred per the rows above — that's a separate concern from component stories. |
 | Site developers catching their own regressions | They write their own Playwright tests against the running admin using our `data-testid` attributes |
 
 **When to reintroduce:**
