@@ -37,6 +37,54 @@ const ThemeNameSchema = z.string().regex(/^[a-z][a-z0-9-]*$/, {
 })
 
 /**
+ * Review-workflow configuration block per design-review-workflow.md
+ * "Configuration". Strict; closed enums; defaults applied at parse time.
+ *
+ *   - `enabled` (default false) — gates the entire feature; off = today's
+ *     publish-without-review path.
+ *   - `requiredApprovers` (positive int, default 1) — snapshotted at
+ *     submit time per the locked invariant; subsequent config changes
+ *     affect future submissions only.
+ *   - `allowSelfApproval` (default true) — solo / small-team archetypes
+ *     (A, B) need it; compliance archetype E opts out.
+ *   - `invalidateOnSave` ('content-diff' | 'always', default 'content-diff')
+ *     — only logical content changes invalidate approval by default;
+ *     compliance archetype E opts into 'always'.
+ *
+ * Surface only — no runtime behavior yet. State machine, sidecars,
+ * validators, audit emission land in subsequent cuts.
+ */
+export const reviewWorkflowSchema = z
+  .object({
+    enabled: z.boolean().default(false),
+    requiredApprovers: z.number().int().positive().default(1),
+    allowSelfApproval: z.boolean().default(true),
+    invalidateOnSave: z.enum(['content-diff', 'always']).default('content-diff'),
+  })
+  .strict()
+
+/**
+ * Strict schema for the review-related fields on `TargetConfig`. Carries
+ * the per-target publish-approval opt-in (per the locked invariant
+ * "per-target publish approval opt-in via targets.{name}.requiresPublishApproval")
+ * plus an optional per-target `reviewWorkflow` override that overrides
+ * the site-level config atomically.
+ *
+ * Loose-passthrough for unknown fields so consumers can validate any
+ * `TargetConfig` shape without enumerating every existing target field
+ * (storage, transforms, deploy, etc.). The SiteConfigSchema's `targets:`
+ * field stays loose for backward compatibility; consumers needing strict
+ * validation of the review-related fields use this schema directly.
+ */
+export const targetSchema = z
+  .object({
+    reviewWorkflow: reviewWorkflowSchema.optional(),
+    requiresPublishApproval: z.boolean().optional(),
+    requiredPublishApprovers: z.number().int().positive().optional(),
+  })
+  .passthrough()
+
+/**
  * Per-site config — `sites/{name}/site.config.ts` (or `site.config.ts`
  * at project root for flat layouts).
  *
@@ -63,6 +111,13 @@ export const SiteConfigSchema = z
       })
       .optional(),
     defaultOgImage: z.string().optional(),
+    /**
+     * Site-level review-workflow config. Targets inherit when their
+     * own `reviewWorkflow` is unset (atomic — target.reviewWorkflow,
+     * when present, replaces the site-level config wholesale per
+     * `resolveReviewWorkflowConfig` in `types.ts`).
+     */
+    reviewWorkflow: reviewWorkflowSchema.optional(),
     /**
      * AI cross-task block. Validated downstream by the alt adapter
      * factory; here we only check it's an object when present.

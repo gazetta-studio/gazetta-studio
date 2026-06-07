@@ -357,6 +357,33 @@ export interface TargetConfig {
    * stop the ship.
    */
   publishAudit?: PublishAuditConfig
+  /**
+   * Per-target review-workflow override. When set, replaces the
+   * site-level `reviewWorkflow` atomically (per
+   * `resolveReviewWorkflowConfig`); when absent, the target inherits
+   * the site-level config.
+   *
+   * Cut 1 surface only — state machine, save-handler integration,
+   * audit emission, and admin API routes land in subsequent cuts.
+   */
+  reviewWorkflow?: ReviewWorkflowConfig
+  /**
+   * When true, publish events on this target require an explicit
+   * publish-approval beyond content review (per the locked
+   * "per-target publish approval opt-in" invariant in
+   * design-review-workflow.md). Independent of `reviewWorkflow` —
+   * a target can require publish approval without enabling content
+   * review (archetype C "small team release focus").
+   */
+  requiresPublishApproval?: boolean
+  /**
+   * Number of distinct approvers required for a publish event on
+   * this target when `requiresPublishApproval: true`. Snapshotted
+   * at publish-request time; subsequent config changes affect future
+   * requests only. Positive integer; defaults to 1 when omitted at
+   * the runtime level (the resolver applies that default).
+   */
+  requiredPublishApprovers?: number
 }
 
 /**
@@ -501,6 +528,32 @@ export interface AltTextTargetConfig {
   }
 }
 
+/**
+ * Review-workflow configuration block per design-review-workflow.md
+ * "Configuration". Lives at site level (`SiteManifest.reviewWorkflow`)
+ * or per-target (`TargetConfig.reviewWorkflow`); the per-target value
+ * overrides the site-level value atomically when present.
+ *
+ * All four fields carry defaults at the Zod-schema layer
+ * (`reviewWorkflowSchema` in `config/schemas.ts`); the interface marks
+ * them required because by the time a `ReviewWorkflowConfig` instance
+ * reaches the runtime it has flowed through the schema (or the operator
+ * wrote them literally). The locked invariants:
+ *   - `requiredApprovers` is snapshotted at submit time; mid-flight
+ *     config changes affect future submissions only.
+ *   - `allowSelfApproval: false` denies the submitter their own approval
+ *     at click-time (403) — enforced in the API routes cut (#7).
+ *   - `invalidateOnSave: 'content-diff'` invalidates approval only when
+ *     the manifest's logical content hash changes; `'always'` invalidates
+ *     on every save (compliance archetype E).
+ */
+export interface ReviewWorkflowConfig {
+  enabled: boolean
+  requiredApprovers: number
+  allowSelfApproval: boolean
+  invalidateOnSave: 'content-diff' | 'always'
+}
+
 /** Per-target asset upload policy. */
 export interface AssetUploadConfig {
   /**
@@ -543,6 +596,26 @@ export function getEnvironment(target: TargetConfig): TargetEnvironment {
  */
 export function isEditable(target: TargetConfig): boolean {
   return target.editable ?? getEnvironment(target) === 'local'
+}
+
+/**
+ * Resolve the effective review-workflow config for a target by walking
+ * the inheritance chain (target → site → undefined). Atomic per design-
+ * review-workflow.md "Configuration" — a per-target `reviewWorkflow`
+ * replaces the site-level value wholesale; no field-by-field merge.
+ *
+ * Returns `undefined` when neither rung carries a config; callers treat
+ * that as "review workflow off for this target" (matches archetype A
+ * "Solo — review off").
+ *
+ * Pure function — no side effects, safe to call at any phase (boot,
+ * submit-time snapshot, render, validator, etc.).
+ */
+export function resolveReviewWorkflowConfig(
+  site: SiteManifest,
+  target: TargetConfig,
+): ReviewWorkflowConfig | undefined {
+  return target.reviewWorkflow ?? site.reviewWorkflow
 }
 
 /** Default retention: keep the last 50 revisions. Matches design-publishing.md. */
@@ -637,6 +710,13 @@ export interface SiteManifest {
    * (either here or inherited from `ai:`) means AI alt is configured.
    */
   altText?: AltTextSiteConfig
+  /**
+   * Site-level review-workflow config. Targets inherit when their own
+   * `reviewWorkflow` is unset (atomic override per
+   * `resolveReviewWorkflowConfig`). Absent at both rungs = review
+   * workflow off for the entire site.
+   */
+  reviewWorkflow?: ReviewWorkflowConfig
   systemPages?: string[]
   targets?: Record<string, TargetConfig>
   /**
