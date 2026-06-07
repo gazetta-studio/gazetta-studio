@@ -157,7 +157,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
       round` so the transcript shows the loop's reasoning.
 
    **All SOLID fixes land in the working tree BEFORE the impl commit
-   (step 10) — they roll INTO that single impl commit.** Do NOT create a
+   (step 11) — they roll INTO that single impl commit.** Do NOT create a
    separate "solid" or "refactor" commit; the two-commit shape (tests,
    then impl) is what the reviewer's tautology check depends on. SOLID
    work is a pure structural refactor — the tests should stay GREEN
@@ -251,7 +251,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
      emit `NEEDS_INPUT` per Q6 lock, citing the discovered edge case.
      Don't guess; ask.
 
-   **Capture the exercise output in your `SUMMARY:` block** (step 11) under
+   **Capture the exercise output in your `SUMMARY:` block** (step 12) under
    a `Runtime exercise:` heading. Show each acceptance bullet, then each
    path of that bullet with its input + actual output. Use brief prose;
    the orchestrator surfaces this in the PR body for maintainer review.
@@ -320,7 +320,34 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
    data-driven, which you removed (and the surviving test that keeps the
    coverage).
 
-9. **Format the diff with Biome** before committing the impl. Per
+9. **VERIFY COMMENTS — every comment must be impossible to rot.**
+
+   Review **every comment in the files this cut touched** (yours and
+   pre-existing — a deliberate Boy-Scout exception to "stay minimal":
+   comment cleanup is cheap and zero-risk). Apply the `review-comments`
+   skill's rot-proof bar.
+
+   The bar is not "accurate today" — it is **"survives an arbitrary
+   rewrite of the code beneath it."** For each comment ask: *if someone
+   rewrites this code, does the comment go stale?*
+
+   - **Yes → rot-prone.** Rewrite it to the durable WHY behind it, or
+     delete it if there's no durable why. Rot-prone = restates what the
+     code does, describes the current algorithm, or names volatile
+     anchors (local symbol names, line numbers, "the function below",
+     example outputs).
+   - **No → keep.** Survives only if it states something the code can't:
+     a non-obvious WHY, an externally-imposed constraint, a durable
+     design linkage (design-doc section or `ADR-NNNN`), or a warning.
+   - **Resolved TODO/FIXME → remove.**
+
+   Comment edits go into whichever commit owns the file (test file →
+   amend the tests commit; source → the impl commit). Re-run the suite
+   (comments don't change behavior, but confirm no fat-fingered code
+   line). **Capture in the SUMMARY's `Comments:` block** what you
+   fixed/removed (one line; "no changes" if clean).
+
+10. **Format the diff with Biome** before committing the impl. Per
    [team-preferences.md rule 30](../../.claude/rules/team-preferences.md),
    format must run before commit — otherwise CI's `format` check
    fails and the maintainer has to push a follow-up format-only
@@ -337,7 +364,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
    git commit --amend --no-edit
    ```
 
-10. Commit:
+11. Commit:
    ```bash
    git add <impl files>
    git commit -m "feat(<area>): cut #$ISSUE_NUMBER — <short summary>
@@ -348,13 +375,15 @@ Closes #$ISSUE_NUMBER
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
    ```
-11. End with a `SUMMARY:` block as your last output:
+12. End with a `SUMMARY:` block as your last output:
 
    ```
    SUMMARY:
    <2-4 sentences: what the cut delivered, how the failing test pins it,
    which design-doc locked decisions it implements. Plain prose; no
    headings, no bullets, no code blocks inside the summary.>
+
+   (Blocks below mirror Agent A's step order: SOLID → runtime → tests → comments.)
 
    SOLID research:
    <One line per round: what each round found + fixed, and the round it
@@ -363,6 +392,12 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
    issues were found in round 1, say "Converged round 1 — no SOLID
    findings." Keep it to ≤3 lines.>
 
+   Runtime exercise:
+   <For each acceptance bullet, list each execution path it implies
+   (happy + every error / branch / variant) with the input you ran and
+   the actual output. Keep it under ~50 lines total. The orchestrator
+   includes this in the PR body for maintainer review.>
+
    Test-quality:
    <What the test-quality pass did: tests rewritten (schema-only→logic /
    not-logic-direct→behavior), tests made data-driven (it.each), tests
@@ -370,11 +405,11 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
    needed changing, say "Tests already logic-direct + non-redundant; no
    changes." Keep it to ≤3 lines.>
 
-   Runtime exercise:
-   <For each acceptance bullet, list each execution path it implies
-   (happy + every error / branch / variant) with the input you ran and
-   the actual output. Keep it under ~50 lines total. The orchestrator
-   includes this in the PR body for maintainer review.>
+   Comments:
+   <What the comment-verification pass did: rot-prone comments rewritten
+   to the durable WHY, redundant/restate-obvious comments removed,
+   resolved TODOs removed. If nothing needed changing, say "Comments
+   already rot-proof; no changes." Keep it to ≤2 lines.>
    ```
 
 The orchestrator extracts `SUMMARY:` and puts it in the PR body.
