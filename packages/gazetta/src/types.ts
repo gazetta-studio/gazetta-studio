@@ -334,6 +334,38 @@ export interface TargetConfig {
    */
   redirects?: RedirectsConfig
   /**
+   * Per-target review-workflow override. Inherits site-level
+   * `reviewWorkflow:` per-field when absent; per the design doc the
+   * runtime resolves the most-specific value at use time.
+   *
+   * Common pattern: tighter requiredApprovers on production than
+   * staging (e.g., site requires 1, production overrides to 2).
+   */
+  reviewWorkflow?: ReviewWorkflowConfig
+  /**
+   * Per-target publish-approval gate. When `true`, a publish to this
+   * target requires an explicit publish-approval audit event beyond
+   * content-review approval. Independent of `reviewWorkflow.enabled`
+   * — operators can run release-management approvals without content
+   * review (archetype C in design-review-workflow.md).
+   *
+   * Default: false (publish proceeds without approval).
+   */
+  requiresPublishApproval?: boolean
+  /**
+   * How many approvers a publish request needs before it can ship.
+   * Snapshotted at publish-request time (per design-review-workflow.md
+   * locked invariant) — subsequent config changes affect future
+   * requests only.
+   *
+   * Default when `requiresPublishApproval: true` and this field unset:
+   * 1 (single-approver gate). Compliance archetype E sets 2 for
+   * 4-eyes principle on prod.
+   *
+   * Must be a positive integer when set.
+   */
+  requiredPublishApprovers?: number
+  /**
    * Per-target alt-text behavior overrides. Inherits site-level
    * `altText:` block; only behavior fields can be overridden
    * (`auto`, `maxImageEdge`, `model`). Provider and credentials are
@@ -400,6 +432,37 @@ export interface PublishAuditConfig {
    * stop production deployments.
    */
   strict?: boolean
+}
+
+/**
+ * Review-workflow configuration block (`reviewWorkflow:` in
+ * `site.config.ts` at site level OR per target). Per
+ * design-review-workflow.md "Configuration" + locked invariants:
+ *
+ *   - `enabled`: turn the workflow on. When false (default), saves
+ *     and publishes proceed without the review state machine.
+ *   - `requiredApprovers`: how many distinct approvers a submission
+ *     needs before it transitions to `approved`. Positive integer;
+ *     default 1. Snapshotted at submit time — subsequent config
+ *     changes affect future submissions only.
+ *   - `allowSelfApproval`: when true, an actor with both `review:submit`
+ *     and `review:approve` may submit-and-approve their own content
+ *     in one step (the combined "Submit & approve" button). When
+ *     false, the submitter is blocked from approving their own
+ *     submission (compliance archetype E uses this).
+ *   - `invalidateOnSave`: when an `approved` item is edited, which
+ *     edits invalidate the approval. `'content-diff'` (default)
+ *     invalidates only when the content hash changes; `'always'`
+ *     invalidates on every save (compliance archetype E uses this).
+ *
+ * Site- and target-level blocks can coexist; the runtime resolves
+ * the most-specific value per-field. Cut 1 only validates shape.
+ */
+export interface ReviewWorkflowConfig {
+  enabled?: boolean
+  requiredApprovers?: number
+  allowSelfApproval?: boolean
+  invalidateOnSave?: 'content-diff' | 'always'
 }
 
 /**
@@ -638,6 +701,12 @@ export interface SiteManifest {
    */
   altText?: AltTextSiteConfig
   systemPages?: string[]
+  /**
+   * Site-level review-workflow defaults. Per-target blocks override
+   * per-field; absent target block means inherit. Absent here AND on
+   * every target = review off site-wide.
+   */
+  reviewWorkflow?: ReviewWorkflowConfig
   targets?: Record<string, TargetConfig>
   /**
    * AdminCache instance for the L4 admin / origin-server cache. Operators

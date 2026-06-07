@@ -37,6 +37,25 @@ const ThemeNameSchema = z.string().regex(/^[a-z][a-z0-9-]*$/, {
 })
 
 /**
+ * Review-workflow config block — accepted at site level
+ * (`reviewWorkflow:` on SiteConfig) AND at target level
+ * (`targets.X.reviewWorkflow`). Per design-review-workflow.md Cut 1:
+ * pure shape validation; the runtime resolves the fallback chain
+ * (target > site, per-field) at use time.
+ *
+ * Strict (`.strict()`) so typos like `requiredAprovers` fail loud
+ * rather than silently dropping into runtime fallback.
+ */
+export const ReviewWorkflowConfigSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    requiredApprovers: z.number().int().positive().optional(),
+    allowSelfApproval: z.boolean().optional(),
+    invalidateOnSave: z.enum(['content-diff', 'always']).optional(),
+  })
+  .strict()
+
+/**
  * Per-site config — `sites/{name}/site.config.ts` (or `site.config.ts`
  * at project root for flat layouts).
  *
@@ -71,11 +90,33 @@ export const SiteConfigSchema = z
     altText: z.record(z.string(), z.unknown()).optional(),
     systemPages: z.array(z.string()).optional(),
     /**
-     * Per-target configurations. Keys are target names; values are
-     * TargetConfig shapes validated downstream by storage providers,
-     * transform adapters, etc.
+     * Site-level review-workflow defaults. Per-target blocks override
+     * per-field at runtime; absent here AND on every target = review
+     * off site-wide. Per design-review-workflow.md Cut 1 (this cut):
+     * shape only — no runtime resolution.
      */
-    targets: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
+    reviewWorkflow: ReviewWorkflowConfigSchema.optional(),
+    /**
+     * Per-target configurations. Keys are target names; values are
+     * TargetConfig shapes. Three review-workflow fields are typed
+     * here (per Cut 1's ISP lens — narrow strictly-validated per-target
+     * shape); everything else (storage, transforms, environment,
+     * siteUrl, altText, etc.) passes through unchanged for downstream
+     * provider validation. Forward-compatible with future foundations
+     * via `.passthrough()`.
+     */
+    targets: z
+      .record(
+        z.string(),
+        z
+          .object({
+            reviewWorkflow: ReviewWorkflowConfigSchema.optional(),
+            requiresPublishApproval: z.boolean().optional(),
+            requiredPublishApprovers: z.number().int().positive().optional(),
+          })
+          .passthrough(),
+      )
+      .optional(),
     /**
      * AdminCache instance (Path X — operator constructs via factory call,
      * e.g., `cache: memoryCache({...})`). Validated downstream by checking
