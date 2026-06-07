@@ -16,7 +16,7 @@ Autonomous bot that implements feature cuts following the project's design pass.
 - Bot reads GitHub "cut sub-issues" labeled `enhancement` + `ready-for-agent` + `area: X` (no new labels — reuses existing vocabulary)
 - Picks the next cut whose dependencies are all closed
 - Generator-critic loop (Agent A implements, Agent B reviews) — same pattern as fix-bot + dead-code-watcher
-- Agent A flow: tests → impl → SOLID research+fix loop → runtime validation → improve/fix tests → verify comments (rot-proof bar) (no TDD-first; soft two-commit shape; Agent B is the sole anti-tautology gate — see the loop in "Design" below)
+- Agent A flow: tests → impl → SOLID research+fix loop → runtime validation → improve/fix tests → verify comments (rot-proof bar) → ONE commit at the end (no TDD-first; single atomic commit; Agent B is the sole anti-tautology gate, separating impl from tests by path — see the loop in "Design" below)
 - One PR per cut
 - Durable memory: skip-list + reviewer-log (same shape as fix-bot)
 
@@ -97,7 +97,7 @@ Bot's TS orchestrator parses two one-line key-value fields via regex:
 - `**Feature**: <slug>` → picks the right design doc reference
 - `**Depends on**: #N, #M` (optional) → cron-time gate; skip until all referenced sub-issues close
 
-Everything else (`## Spec`, `## Acceptance`) is passed to Agent A as prose context. Agent A is responsible for reading the linked design doc, deciding files + tests, and committing in the soft two-commit shape (tests, then impl).
+Everything else (`## Spec`, `## Acceptance`) is passed to Agent A as prose context. Agent A is responsible for reading the linked design doc, deciding files + tests, and making one atomic commit (tests + impl) once all its checks pass.
 
 **Schema enforcement** lives in Agent A's prompt discipline, not at filing time:
 - If `## Spec` or `## Acceptance` is missing or vague → Agent A fails loud, posts "spec incomplete" comment on the sub-issue + closes with reason. Reviewer-loop's existing escalation mechanism handles it.
@@ -474,16 +474,16 @@ Cron (daily 04:30 UTC, after fix-bot at 04:00):
 3. Pick oldest unblocked cut.
     ↓
 4. Generator-critic loop (max 5 attempts):
-   - Agent A: tests commit → impl (GREEN) → **SOLID research+fix loop
+   - Agent A: write tests + impl (GREEN) → **SOLID research+fix loop
      (≤3 converge rounds)** → **runtime validation (prove every path)**
      → **improve/fix tests (logic-direct, data-driven, de-dup,
      schema-smell, + edge cases the exercise surfaced)** → **verify
      comments (rot-proof bar — every comment survives an arbitrary
-     rewrite, else rewrite to the WHY or delete)** → push. Test
+     rewrite, else rewrite to the WHY or delete)** → **ONE commit** (all
+     work stays uncommitted in the working tree until every check passes,
+     then a single atomic commit of tests + impl) → push. Test
      improvement comes AFTER runtime validation so it's informed by what
-     the exercise found. SOLID fixes roll into the impl commit; all
-     tests live in the tests commit (soft two-commit shape for B's
-     revert check).
+     the exercise found.
    - Agent B: review diff, vote APPROVE / REJECT / NEEDS_HUMAN —
      runs the **tautology check (the SOLE anti-tautology gate)**,
      **independently judges SOLID**, and **scrutinizes test removals**
@@ -493,19 +493,25 @@ Cron (daily 04:30 UTC, after fix-bot at 04:00):
 
    **No TDD-first discipline on Agent A (2026-06-07 change).** Agent A
    no longer writes-failing-test-first or keeps tests frozen — it builds
-   and freely rewrites/removes tests (the test-quality pass). The
-   anti-tautology guarantee moves ENTIRELY to Agent B's revert check
-   (revert impl → tests must fail → reapply → pass). A soft two-commit
-   shape (tests, then impl) is kept ONLY so B's `revert HEAD` cleanly
-   separates impl from tests.
+   and freely rewrites/removes tests (the test-quality pass), commits
+   nothing until all checks pass, then makes ONE atomic commit. The
+   anti-tautology guarantee lives ENTIRELY at Agent B's revert check
+   (revert the impl files → tests must fail → restore → pass). Agent B
+   separates impl from tests **by path** (test files = `*.test.ts` /
+   `*.spec.ts` / `tests/**`), so no special commit shape is needed —
+   reverting `git checkout main -- <impl files>` leaves the tests in
+   place. (The earlier soft-two-commit scaffolding was dropped in favor
+   of this path-based separation, which is simpler and commit-count-
+   agnostic.)
 
    **SOLID research is Agent A self-work, not a separate agent.** A
    separate SOLID agent between A and B was rejected because (a) editing
-   the diff mid-loop breaks the two-commit shape B's revert depends on,
-   (b) "fresh eyes" from a separate Claude session is weak (same model,
-   cleared context), and (c) the independent SOLID check already exists
-   at Agent B. A researches + fixes its own structure (discovery, not
-   just the declared `## SOLID` lenses), converging in ≤3 rounds.
+   the diff mid-loop would muddy the single-commit / path-based revert B
+   relies on, (b) "fresh eyes" from a separate Claude session is weak
+   (same model, cleared context), and (c) the independent SOLID check
+   already exists at Agent B. A researches + fixes its own structure
+   (discovery, not just the declared `## SOLID` lenses), converging in
+   ≤3 rounds.
 
    **The test-quality pass has unbounded edit authority — recorded
    residual risk.** A may rewrite (schema-only-smell → logic-direct),
