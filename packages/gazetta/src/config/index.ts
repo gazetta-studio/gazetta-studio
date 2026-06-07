@@ -15,7 +15,7 @@ export { defineSite, defineGazetta } from './define.js'
 // `SiteManifest` / `GazettaManifest` (runtime shapes from `gazetta`).
 // Internal callers in `packages/gazetta/src/config/` import `SiteConfig`
 // / `GazettaConfig` from `./types.js` directly.
-export { SiteConfigSchema, GazettaConfigSchema } from './schemas.js'
+export { SiteConfigSchema, GazettaConfigSchema, reviewWorkflowSchema } from './schemas.js'
 export {
   ConfigError,
   ConfigValidationError,

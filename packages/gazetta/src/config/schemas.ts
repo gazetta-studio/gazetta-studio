@@ -37,6 +37,39 @@ const ThemeNameSchema = z.string().regex(/^[a-z][a-z0-9-]*$/, {
 })
 
 /**
+ * Review workflow configuration block (`reviewWorkflow:` at site or target level).
+ *
+ * Per `design-review-workflow.md` "Configuration": four narrow fields capturing
+ * the content review state machine's policy (NOT the publish-approval gate —
+ * that's `requiresPublishApproval` + `requiredPublishApprovers` at target level).
+ *
+ * Defaults match the design doc's archetype A (solo): off when absent. When the
+ * block is present without explicit values, the field defaults compose into a
+ * permissive 1-approver self-approval-allowed configuration suited to small teams.
+ *
+ * Locked invariants enforced here:
+ *   - `requiredApprovers` is positive integer (zero is structurally meaningless;
+ *     `enabled: false` is the way to disable review).
+ *   - `invalidateOnSave` is closed enum (`'content-diff' | 'always'`); future
+ *     modes ('never', custom-validators) extend additively.
+ *
+ * Exported separately so downstream consumers (validators, route handlers,
+ * tests) can parse against it without going through the full SiteConfigSchema.
+ */
+export const reviewWorkflowSchema = z
+  .object({
+    /** Off by default; site/target opts in by setting true. */
+    enabled: z.boolean().default(false),
+    /** Number of approvals required before content can be marked approved. */
+    requiredApprovers: z.number().int().positive().default(1),
+    /** Whether the submitter can be one of the approvers. */
+    allowSelfApproval: z.boolean().default(true),
+    /** What kinds of save invalidate a prior approval back to draft. */
+    invalidateOnSave: z.enum(['content-diff', 'always']).default('content-diff'),
+  })
+  .strict()
+
+/**
  * Per-site config — `sites/{name}/site.config.ts` (or `site.config.ts`
  * at project root for flat layouts).
  *
@@ -69,6 +102,18 @@ export const SiteConfigSchema = z
      */
     ai: z.record(z.string(), z.unknown()).optional(),
     altText: z.record(z.string(), z.unknown()).optional(),
+    /**
+     * Site-level review workflow defaults. Per-target blocks under
+     * `targets.{name}.reviewWorkflow` override wholesale when present;
+     * absent target blocks inherit this value via `resolveReviewWorkflow`.
+     *
+     * Strict-parsed via `reviewWorkflowSchema`; bad shapes fail at site-config
+     * load with field-path errors. Targets aren't strict-parsed here (the
+     * `targets:` field is loose-typed to keep SiteConfigSchema stable across
+     * foundation additions); per-target review-workflow values are caught at
+     * TS edit time via `TargetConfig` interface typing.
+     */
+    reviewWorkflow: reviewWorkflowSchema.optional(),
     systemPages: z.array(z.string()).optional(),
     /**
      * Per-target configurations. Keys are target names; values are
