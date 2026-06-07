@@ -28,20 +28,24 @@ convenience. Walks actor scenarios, flow sketches, "what can I remove?"
 (Krug-aligned), failure-mode UX, capability-gap surfaces. Output: the design
 doc's "UX check" section.
 
-**Story-as-spec** (design-then-spec-then-bot-execute):
-The pattern for getting feature-bot to implement UX cuts reliably. The bot
-is fine at *implementing* Vue components but bad at *designing* them — so the
-UX design decision is moved into a prior, human-authored, executable artifact:
-a Storybook story enumerating the component's states. The human (or a
-UX-grilling pass) authors the stories; the bot implements the component to
-satisfy them. This makes [team-preferences.md rule 31](team-preferences.md)
-(TDD-first when delegating to AI) cover UI: the story is the failing spec, the
-implementation turns it green. The cut sub-issue's `## Tests` section then
-reads "component renders correctly for every state in `X.stories.ts`." Per
-[ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md).
-Storybook already ships in the repo (`@storybook/vue3-vite`, `.stories.ts`
-files like `ArchiveBanner.stories.ts`) — story-as-spec is a workflow
-convention, not a tooling adoption.
+**Story-as-spec** (lock-states-in-design-doc → bot-transcribes-per-cut):
+The pattern for getting feature-bot to implement UX cuts reliably. The bot is
+fine at *implementing* Vue components but bad at *designing* them — so the UX
+design decision is locked **in the design doc** (the state table: every
+component state with exact copy + `data-testid`s) during the UX-grilling pass.
+Within each component cut, the bot **transcribes** that locked table into the
+component's `.stories.ts` *and* implements the `.vue` to satisfy it; the story
+runs green under `@storybook/test-runner` in CI. The independent human spec is
+the design-doc table (plus the cut's `## Acceptance`), **not** a hand-authored
+story file — so the bot authoring both story and component is bounded-tautology,
+not free invention. This makes [team-preferences.md rule 31](team-preferences.md)
+(TDD-first when delegating to AI) cover UI: the design-doc state table is the
+failing spec, the story+component turn it green. Per
+[ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md) (whose
+correction history records why the earlier "human authors the story" framing
+was revised). Storybook already ships (`@storybook/vue3-vite`,
+`ArchiveBanner.stories.ts`); the only added infra is `@storybook/test-runner`
+so stories execute rather than view-only.
 
 **DevPlayground vs Storybook** (the two component-isolation surfaces):
 Two surfaces, no overlap, per [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md).
