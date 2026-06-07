@@ -474,10 +474,25 @@ Cron (daily 04:30 UTC, after fix-bot at 04:00):
 3. Pick oldest unblocked cut.
     ↓
 4. Generator-critic loop (max 5 attempts):
-   - Agent A: write failing test commit → write fix commit → push branch
-   - Agent B: review diff, vote APPROVE / REJECT / NEEDS_HUMAN
+   - Agent A: write failing test commit → impl → **SOLID research+fix
+     loop (≤3 converge rounds) on its own diff, rolled into the impl
+     commit** → push branch
+   - Agent B: review diff, vote APPROVE / REJECT / NEEDS_HUMAN —
+     **independently judges SOLID** (declared lenses + violations A's
+     self-research missed); A self-grading is the bias B covers
    - APPROVE → open PR; REJECT → reset + retry with reviewer note;
      NEEDS_HUMAN → close sub-issue + post-comment + skip-list entry
+
+   **SOLID research is Agent A self-work, not a separate agent.** Walked
+   the alternatives (2026-06-07): a separate SOLID agent between A and B
+   was rejected because (a) editing the diff mid-loop breaks the clean
+   test+impl commit shape the reviewer's tautology check depends on,
+   (b) "fresh eyes" from a separate Claude session is weak — same model,
+   cleared context, not a real second reviewer, and (c) the genuine
+   independent SOLID check already exists at Agent B. So A researches +
+   fixes its own structure (discovery, not just honoring the cut's
+   declared `## SOLID` lenses), converging in ≤3 rounds; B remains the
+   independent judge.
     ↓
 5. PR opens with Fixes #<cut-sub-issue-N>. Merge closes sub-issue,
    advances tracking issue tasklist.

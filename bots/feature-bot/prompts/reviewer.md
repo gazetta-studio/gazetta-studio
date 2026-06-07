@@ -225,6 +225,18 @@ For each lens declared, look at the diff. Did Agent A honor it?
 When `## SOLID` is absent, this check is N/A — pure-data-shape and
 pure-docs cuts often don't have SOLID concerns.
 
+**Agent A self-researched SOLID before you — you are still the
+independent gate.** Per the per-cut prompt, Agent A runs a SOLID
+research+fix loop (≤3 converge rounds) on its own diff and reports it in
+the `SOLID research:` block of `AGENT_A_SUMMARY`. That raises the floor;
+it does NOT replace your check — A grading its own structure is the bias
+this check exists to cover. Read A's `SOLID research:` summary for
+context (what it claims to have fixed), then verify the diff yourself
+against the declared lenses AND any violation A's self-research missed.
+If A's summary says "converged, no findings" but you see a clear
+SRP/LSP/etc violation, REJECT — A's self-research was incomplete, which
+is exactly why you run independently.
+
 ## The locked-decisions check
 
 Read the design doc's `## Locked decisions` (or "Q1 / Q2 / ..." section).

@@ -103,7 +103,61 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
    ```
 4. Implement the cut. Verify GREEN.
 5. Run the wider test suite. Confirm no regressions.
-6. **RUNTIME EXERCISE — prove the code works on every execution path.**
+6. **SOLID RESEARCH + FIX — improve the structure you just wrote (converge, ≤3 rounds).**
+
+   Your implementation is GREEN, but "passes tests" ≠ "well-structured."
+   Before proving paths, research your OWN diff for SOLID problems and
+   fix them. This is **discovery**, not just honoring the cut's declared
+   `## SOLID` lenses — find structural smells the cut spec didn't name.
+
+   Run up to **3 rounds**. Each round:
+
+   a. **Research the diff with each SOLID lens.** Read your `git diff`
+      and ask, per lens:
+      - **SRP** — does any module/function you added or grew now have
+        more than one reason to change? (e.g. a route handler that also
+        owns validation logic; a file fusing two concerns.)
+      - **OCP** — to add the next variant (validator, provider, adapter,
+        state), would someone edit a switch/if-chain you wrote, or drop
+        in a new file? Prefer the latter where the design implies growth.
+      - **LSP** — any stub that throws `not implemented` to satisfy an
+        interface? Any subtype that can't stand in for its base? That's
+        a capability that should be a separate interface + type guard.
+      - **ISP** — did you add a wide interface where consumers only use
+        part? Split it.
+      - **DIP** — does a high-level module you touched depend on a
+        concrete low-level one where an injected abstraction belongs?
+      Emit a one-line `> Decision:` per real finding (what + which lens).
+
+   b. **Fix what you found**, in the working tree. Stay within the cut's
+      scope — SOLID fixes refine the structure of THIS cut's code; they
+      do NOT refactor adjacent code you didn't touch (that's scope creep,
+      per the Conventions below). Re-run the cut's tests + wider suite;
+      they MUST stay GREEN. A SOLID fix that breaks a test means the fix
+      is wrong — revert it and reconsider.
+
+   c. **Convergence check.** If this round found NO new SOLID issues,
+      STOP — you've converged. Otherwise continue to the next round
+      (up to 3 total). State `> Decision: SOLID converged (round N, no
+      new findings)` or `> Decision: SOLID round N fixed <X>; another
+      round` so the transcript shows the loop's reasoning.
+
+   **All SOLID fixes land in the working tree BEFORE the impl commit
+   (step 10) — they roll INTO that single impl commit.** Do NOT create a
+   separate "solid" or "refactor" commit; the two-commit shape (test,
+   then impl) is what the reviewer's tautology check depends on. Do NOT
+   touch the failing-test commit's assertions during SOLID work — if a
+   structural change genuinely requires a different test shape, that's a
+   signal to reconsider the change (or emit NEEDS_INPUT), not to weaken
+   the test.
+
+   The cap is 3 rounds: bounded effort, not a quality gate. Whatever the
+   structure is at convergence-or-cap goes forward; Agent B independently
+   judges SOLID (it checks the declared `## SOLID` lenses + flags
+   violations it sees) — so this self-research raises the floor, and
+   Agent B remains the independent check, not your own sign-off.
+
+7. **RUNTIME EXERCISE — prove the code works on every execution path.**
 
    After tests pass, run the code with concrete inputs that prove EACH
    execution path the acceptance criteria imply. Most acceptance bullets
@@ -181,19 +235,19 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
      emit `NEEDS_INPUT` per Q6 lock, citing the discovered edge case.
      Don't guess; ask.
 
-   **Capture the exercise output in your `SUMMARY:` block** (step 10) under
+   **Capture the exercise output in your `SUMMARY:` block** (step 11) under
    a `Runtime exercise:` heading. Show each acceptance bullet, then each
    path of that bullet with its input + actual output. Use brief prose;
    the orchestrator surfaces this in the PR body for maintainer review.
 
-7. **Refine your tests** if the exercise surfaced edge cases worth
+8. **Refine your tests** if the exercise surfaced edge cases worth
    covering. Tests-first (per rule 31) pinned the acceptance contract;
    tests added after the exercise pin the edge cases the spec didn't
    enumerate. Amend the test commit (`git commit --amend`) to include
    the new test cases — keep them in the failing-test commit so the
    TDD-first ordering is preserved.
 
-8. **Format the diff with Biome** before committing the impl. Per
+9. **Format the diff with Biome** before committing the impl. Per
    [team-preferences.md rule 30](../../.claude/rules/team-preferences.md),
    format must run before commit — otherwise CI's `format` check
    fails and the maintainer has to push a follow-up format-only
@@ -202,7 +256,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
    npm run format
    ```
    Biome reformats unstaged + staged files in place (~150ms). If
-   Biome touched the failing-test file (step 7's amend already
+   Biome touched the failing-test file (step 8's amend already
    landed), re-amend the test commit to roll the reformat into it
    — DO NOT make a separate format commit:
    ```bash
@@ -210,7 +264,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
    git commit --amend --no-edit
    ```
 
-9. Commit:
+10. Commit:
    ```bash
    git add <impl files>
    git commit -m "feat(<area>): cut #$ISSUE_NUMBER — <short summary>
@@ -221,13 +275,20 @@ Closes #$ISSUE_NUMBER
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
    ```
-10. End with a `SUMMARY:` block as your last output:
+11. End with a `SUMMARY:` block as your last output:
 
    ```
    SUMMARY:
    <2-4 sentences: what the cut delivered, how the failing test pins it,
    which design-doc locked decisions it implements. Plain prose; no
    headings, no bullets, no code blocks inside the summary.>
+
+   SOLID research:
+   <One line per round: what each round found + fixed, and the round it
+   converged. e.g. "Round 1: split route handler's validation into a
+   separate module (SRP). Round 2: converged, no new findings." If no
+   issues were found in round 1, say "Converged round 1 — no SOLID
+   findings." Keep it to ≤3 lines.>
 
    Runtime exercise:
    <For each acceptance bullet, list each execution path it implies
