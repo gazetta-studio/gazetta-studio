@@ -11,13 +11,13 @@ name: Discovery prep bot
 # file. The label is the idempotency contract.
 on:
   schedule:
-    # 04:00 UTC daily = 06:00 CEST / 05:00 CET. Runs after triage-bot
-    # (03:00 UTC) so today's freshly-classified enhancements are visible
-    # this morning, not tomorrow. Parallel with fix-bot (also 04:00 UTC)
-    # — they consume different label sets (enhancement vs bug + ready-
-    # for-agent) so no race. Worst-case skew lands results by ~09:00
-    # CEST, the maintainer's review window.
-    - cron: '0 4 * * *'
+    # 03:47 UTC daily (~05:47 CEST / 04:47 CET). Runs after triage-bot
+    # (03:00 UTC) so today's freshly-classified enhancements are visible,
+    # and just before fix-bot (04:03) / feature-bot (04:17) which consume
+    # its research. Off the contended :00/:30 cron minutes (GitHub
+    # deprioritizes those under load — the old 04:00 cluster was getting
+    # skipped). Lands well before the 10:00 CET review window.
+    - cron: '47 3 * * *'
   workflow_dispatch:
     inputs:
       issue:
