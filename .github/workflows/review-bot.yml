@@ -11,11 +11,12 @@ name: Review bot
 # layout are in place when the pipeline implementation lands.
 on:
   schedule:
-    # 04:30 UTC daily = 06:30 CEST. Runs after fix-bot (04:00 UTC) so
-    # today's freshly-merged PRs are visible in the same morning's
-    # review-bot run. Daily skew lands the PR by ~09:00 CEST review
+    # 04:31 UTC daily (~06:31 CEST / 05:31 CET). Runs last in the producer
+    # chain, after fix-bot (04:03) + feature-bot (04:17). Off the contended
+    # :00/:30 cron minutes (GitHub deprioritizes those under load — the old
+    # 04:30 cluster was getting skipped). Lands before the 10:00 CET review
     # window.
-    - cron: '30 4 * * *'
+    - cron: '31 4 * * *'
   workflow_dispatch:
     inputs:
       area:
