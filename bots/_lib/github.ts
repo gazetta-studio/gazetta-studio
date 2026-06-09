@@ -137,9 +137,18 @@ export interface IssueSummary {
  * Excludes pull requests — Octokit returns PRs in this endpoint by default
  * because GitHub treats them as a kind of issue. Filtered out here.
  *
+ * Paginates so the client-side `excludeAny` filter operates on the full
+ * result set, not a 100-issue head. The server-side `labels=` prefilter is
+ * an intersection match; bots like triage-bot have an empty `requireAll`
+ * AND a large `excludeAny`, so at envelope a single 100-issue page can
+ * easily be dominated by already-classified issues — silently returning an
+ * empty queue while fresh candidates wait on page 2. `pageBudget` caps the
+ * worst case (default 5 pages = 500 issues) so the helper still has a
+ * bounded cost.
+ *
  * No since-filter: the label-driven exclude-set already narrows candidates
  * to "issues that need work this run." Re-checking already-processed
- * issues at the API level is cheap (one bounded list call per cron); the
+ * issues at the API level is cheap (a few bounded list calls per cron); the
  * since-filter would save ~30s per cron at the cost of a stranded-backlog
  * failure mode. Not worth the complexity. Maintainer who wants to
  * re-enqueue an issue removes its completion label — the next cron picks
@@ -149,30 +158,40 @@ export async function findIssuesByLabels(
   octokit: Octokit,
   repo: RepoIdentity,
   options: { requireAll?: readonly string[]; excludeAny: readonly string[] },
+  paginationOptions: { pageBudget?: number } = {},
 ): Promise<IssueSummary[]> {
   const requireAll = options.requireAll ?? []
-  const { data } = await octokit.issues.listForRepo({
-    ...repo,
-    state: 'open',
-    per_page: 100,
-    // Server-side prefilter when at least one required label exists. Octokit
-    // takes a comma-separated string. Issues here have ALL of these labels
-    // (intersection), which matches our requireAll semantics.
-    ...(requireAll.length > 0 ? { labels: requireAll.join(',') } : {}),
-  })
+  const pageBudget = paginationOptions.pageBudget ?? 5
+  const perPage = 100
 
   const out: IssueSummary[] = []
-  for (const issue of data) {
-    if (issue.pull_request) continue // skip PRs
-    const labels = issue.labels.map(l => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean)
-    if (labels.some(l => (options.excludeAny as readonly string[]).includes(l))) continue
-    out.push({
-      number: issue.number,
-      title: issue.title,
-      labels,
-      createdAt: issue.created_at,
-      authorLogin: issue.user?.login ?? null,
+  for (let page = 1; page <= pageBudget; page++) {
+    const { data } = await octokit.issues.listForRepo({
+      ...repo,
+      state: 'open',
+      per_page: perPage,
+      page,
+      // Server-side prefilter when at least one required label exists. Octokit
+      // takes a comma-separated string. Issues here have ALL of these labels
+      // (intersection), which matches our requireAll semantics.
+      ...(requireAll.length > 0 ? { labels: requireAll.join(',') } : {}),
     })
+
+    for (const issue of data) {
+      if (issue.pull_request) continue // skip PRs
+      const labels = issue.labels.map(l => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean)
+      if (labels.some(l => (options.excludeAny as readonly string[]).includes(l))) continue
+      out.push({
+        number: issue.number,
+        title: issue.title,
+        labels,
+        createdAt: issue.created_at,
+        authorLogin: issue.user?.login ?? null,
+      })
+    }
+
+    // Partial page = no more results upstream; don't waste an extra call.
+    if (data.length < perPage) break
   }
   return out
 }
