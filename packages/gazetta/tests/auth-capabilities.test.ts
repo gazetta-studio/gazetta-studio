@@ -117,7 +117,9 @@ describe('capabilityGrants (Cut 6)', () => {
 describe('expandRole (Cut 6)', () => {
   it('expands built-in roles', () => {
     expect(expandRole('admin')).toEqual(['*'])
-    expect(expandRole('editor')).toEqual(['read:*', 'edit:*', 'publish:non-production'])
+    expect(expandRole('editor')).toEqual(['read:*', 'edit:*', 'publish:non-production', 'review:submit'])
+    expect(expandRole('reviewer')).toEqual(['read:*', 'review:approve'])
+    expect(expandRole('publisher')).toEqual(['read:*', 'publish:request', 'publish:approve'])
     expect(expandRole('viewer')).toEqual(['read:*'])
   })
 

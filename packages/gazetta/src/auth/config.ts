@@ -24,6 +24,7 @@
  *     existing variants unchanged.
  */
 import { z } from 'zod'
+import { isKnownCapability } from './capabilities.js'
 import { RESERVED_CAPABILITY_PREFIXES } from './types.js'
 
 /**
@@ -34,7 +35,22 @@ import { RESERVED_CAPABILITY_PREFIXES } from './types.js'
  */
 const capabilityRegex = /^(\*|[a-zA-Z@][a-zA-Z0-9@/_-]*:[a-zA-Z*][a-zA-Z0-9_-]*)$/
 
-const capabilitySchema = z.string().regex(capabilityRegex, 'Capability must be either "*" or "<prefix>:<rest>"')
+/**
+ * Two gates: shape (regex) then semantics (`isKnownCapability`).
+ *
+ * The regex catches malformed strings ("not a capability"); the
+ * refine catches reserved-prefix typos (`review:foo`,
+ * `read:nonsense`). Plugin-scoped namespaces (`@my-org/...`) pass
+ * the refine — only reserved built-in prefixes get the closed-set
+ * check.
+ */
+const capabilitySchema = z
+  .string()
+  .regex(capabilityRegex, 'Capability must be either "*" or "<prefix>:<rest>"')
+  .refine(isKnownCapability, {
+    message:
+      'Unknown capability. Reserved-prefix capabilities (read:, edit:, delete:, publish:, configure:, review:, restore:) must be one of the built-in capabilities; plugin-scoped capabilities use a namespace prefix (e.g., "@my-org/search:rebuild-index").',
+  })
 
 /**
  * Custom role definition — operator-declared in `site.config.ts`.

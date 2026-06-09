@@ -20,7 +20,7 @@
  *   - DIP: middleware depends on this helper, not on the BUILT_IN_ROLES
  *     constant.
  */
-import { BUILT_IN_ROLES, type BuiltInCapability } from './types.js'
+import { BUILT_IN_ROLES, type BuiltInCapability, KNOWN_CAPABILITIES, RESERVED_CAPABILITY_PREFIXES } from './types.js'
 
 /**
  * Privacy-sensitive capabilities that prefix wildcards do NOT
@@ -99,4 +99,38 @@ export function expandRole(
     return BUILT_IN_ROLES[roleName] as ReadonlyArray<BuiltInCapability>
   }
   return null
+}
+
+/**
+ * Validate that a capability string is one the runtime recognizes.
+ *
+ * Three classes:
+ *
+ *   - **Built-in** (in `KNOWN_CAPABILITIES`) → known. Includes
+ *     exact-match literals (`read:pages`) AND wildcards (`read:*`,
+ *     `*`).
+ *   - **Plugin-scoped** (prefix starts with `@`, not in
+ *     `RESERVED_CAPABILITY_PREFIXES`) → known by convention.
+ *     Plugins extend the vocabulary via their own namespace; the
+ *     plugin foundation (when shipped) is responsible for
+ *     validating its own capabilities at registration time.
+ *   - **Reserved-prefix but not built-in** (e.g., `review:foo`,
+ *     `read:nonsense`) → unknown. These look like core
+ *     capabilities but aren't in the closed set — almost always
+ *     an operator typo or stale config.
+ *
+ * Consumed by the Zod refinement on `capabilitySchema` in
+ * `config.ts` to reject unknown reserved-prefix capabilities at
+ * site-config parse time. Strict-mode-vs-warn behavior (per
+ * design-auth-rbac.md "Custom-role capability validation") is a
+ * future polish; v1 hard-rejects.
+ */
+export function isKnownCapability(capability: string): boolean {
+  if (KNOWN_CAPABILITIES.has(capability as BuiltInCapability)) return true
+  // Plugin-scoped capabilities use namespaces outside the reserved
+  // set; if the prefix isn't reserved, treat as plugin-extensible.
+  const colonIdx = capability.indexOf(':')
+  if (colonIdx <= 0) return false
+  const prefix = capability.slice(0, colonIdx)
+  return !(RESERVED_CAPABILITY_PREFIXES as readonly string[]).includes(prefix)
 }

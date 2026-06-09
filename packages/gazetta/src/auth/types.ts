@@ -172,6 +172,12 @@ export type BuiltInCapability =
   // Publish — narrowed by environment per design-auth-rbac.md
   | 'publish:non-production'
   | 'publish:production'
+  // Publish — request/approve gating per design-review-workflow.md
+  | 'publish:request'
+  | 'publish:approve'
+  // Review workflow per design-review-workflow.md
+  | 'review:submit'
+  | 'review:approve'
   // Configure
   | 'configure:site'
   | 'configure:targets'
@@ -182,15 +188,79 @@ export type BuiltInCapability =
   | 'edit:*'
   | 'delete:*'
   | 'publish:*'
+  | 'review:*'
   | '*'
+
+/**
+ * Runtime registry of every built-in capability literal — the
+ * source of truth for "is this a known capability?" checks at
+ * config load. Mirrors `BuiltInCapability` exactly; adding a new
+ * built-in capability requires updating both the type union (for
+ * compile-time checks) and this set (for runtime parse-time
+ * rejection of unknown reserved-prefix capabilities like
+ * `review:foo`).
+ *
+ * Why a separate runtime set rather than deriving from the type
+ * union: TypeScript erases types at runtime, so the Zod refinement
+ * in `config.ts` needs concrete strings. Plugin-scoped capabilities
+ * (`@my-org/...`) bypass this set entirely — the reserved-prefix
+ * check in `isKnownCapability` skips them.
+ */
+export const KNOWN_CAPABILITIES: ReadonlySet<BuiltInCapability> = new Set<BuiltInCapability>([
+  // Read
+  'read:pages',
+  'read:fragments',
+  'read:assets',
+  'read:audit-log',
+  // Edit
+  'edit:pages',
+  'edit:fragments',
+  'edit:assets',
+  'edit:locale-variants',
+  // Delete
+  'delete:pages',
+  'delete:fragments',
+  'delete:assets',
+  // Publish
+  'publish:non-production',
+  'publish:production',
+  'publish:request',
+  'publish:approve',
+  // Review
+  'review:submit',
+  'review:approve',
+  // Configure
+  'configure:site',
+  'configure:targets',
+  // History
+  'restore:history',
+  // Wildcards
+  'read:*',
+  'edit:*',
+  'delete:*',
+  'publish:*',
+  'review:*',
+  '*',
+])
 
 /**
  * Built-in role aliases — predefined as capability sets. Custom
  * roles in `site.config.ts admin.auth.roles` declare capabilities
  * directly.
+ *
+ * `reviewer` and `publisher` carry `read:*` alongside their
+ * action capabilities because an approver who can't read the
+ * content they're approving can't actually approve. Their
+ * existence as separate roles (rather than e.g. an editor with
+ * `review:approve` added) gives operators clean role names to
+ * map from upstream group claims for the common review/publish
+ * separation patterns documented in
+ * `design-review-workflow.md`'s archetype recipes.
  */
 export const BUILT_IN_ROLES: Readonly<Record<string, ReadonlyArray<BuiltInCapability>>> = {
   admin: ['*'],
-  editor: ['read:*', 'edit:*', 'publish:non-production'],
+  editor: ['read:*', 'edit:*', 'publish:non-production', 'review:submit'],
+  reviewer: ['read:*', 'review:approve'],
+  publisher: ['read:*', 'publish:request', 'publish:approve'],
   viewer: ['read:*'],
 }

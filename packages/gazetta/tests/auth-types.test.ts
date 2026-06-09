@@ -119,10 +119,10 @@ describe('BUILT_IN_ROLES', () => {
     expect(BUILT_IN_ROLES.viewer).toEqual(['read:*'])
   })
 
-  it('the three built-in role names are stable', () => {
+  it('built-in role names are stable', () => {
     // Pin the names so consumers can rely on them; renaming any of
     // these is an audit-log + role-mapping breaking change.
-    expect(Object.keys(BUILT_IN_ROLES).sort()).toEqual(['admin', 'editor', 'viewer'])
+    expect(Object.keys(BUILT_IN_ROLES).sort()).toEqual(['admin', 'editor', 'publisher', 'reviewer', 'viewer'])
   })
 })
 

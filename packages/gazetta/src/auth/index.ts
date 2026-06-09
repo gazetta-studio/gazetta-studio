@@ -11,7 +11,7 @@ export type {
   TrustMode,
   BuiltInCapability,
 } from './types.js'
-export { BUILT_IN_ROLES, RESERVED_CAPABILITY_PREFIXES } from './types.js'
+export { BUILT_IN_ROLES, KNOWN_CAPABILITIES, RESERVED_CAPABILITY_PREFIXES } from './types.js'
 export { AuthError, AuthConfigurationError, AuthenticationError, AuthorizationError } from './errors.js'
 export { AuthConfigSchema, isReservedPrefix, type AuthConfig } from './config.js'
 export { noneAuthProvider, UNKNOWN_ACTOR_ID } from './providers/none.js'
@@ -21,6 +21,6 @@ export { createAzureEasyAuthProvider, type AzureEasyAuthConfig } from './provide
 export { createAwsCognitoAuthProvider, type AwsCognitoConfig } from './providers/aws-cognito.js'
 export { createTailscaleAuthProvider, type TailscaleConfig } from './providers/tailscale.js'
 export { ipMatchesAny, parseRule, parseRules, type ParsedRule } from './ip-match.js'
-export { capabilityGrants, expandRole } from './capabilities.js'
+export { capabilityGrants, expandRole, isKnownCapability } from './capabilities.js'
 export { resolveRole, validateCustomRoles, type ResolveRoleArgs, type ResolvedRole } from './role-resolver.js'
 export { buildAuthProvider, resolveAuthProviderFromManifest } from './factory.js'
