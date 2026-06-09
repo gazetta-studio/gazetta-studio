@@ -1,4 +1,14 @@
 {
   "version": 1,
-  "entries": []
+  "entries": [
+    {
+      "fingerprint": {
+        "issueNumber": 517
+      },
+      "reason": "wrong-root-cause",
+      "reasonNote": "Reviewer voted REJECT but provided no Note: explanation. Cannot retry without feedback.",
+      "addedAt": "2026-06-09T08:26:28.594Z",
+      "addedBy": "bot"
+    }
+  ]
 }
