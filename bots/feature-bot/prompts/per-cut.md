@@ -94,10 +94,16 @@ discovered.
 ### APPROVE path (most common — happy path)
 
 1. Read inputs + design doc + companion docs (mandatory).
-2. Create the branch (no commit yet — you commit once, at the end):
+2. Create the branch fresh from `origin/main` (no commit yet — you commit
+   once, at the end). **Force-reset it to `origin/main`** so a re-attempt
+   never builds on a stale leftover branch from a prior run:
    ```bash
-   git checkout -b $BRANCH_NAME 2>/dev/null || git checkout $BRANCH_NAME
+   git fetch origin main
+   git checkout -B $BRANCH_NAME origin/main
    ```
+   (`-B` creates-or-resets; combined with `origin/main` this discards any
+   local OR remote stale state on `$BRANCH_NAME`. Do NOT `git reset --hard
+   origin/$BRANCH_NAME` — that would re-adopt the stale remote branch.)
 3. Write tests per `## Tests` — exercise the behaviors it names. (Write
    them before or alongside the impl as suits you; they'll be refined in
    the test-quality step. Do NOT commit them yet.)

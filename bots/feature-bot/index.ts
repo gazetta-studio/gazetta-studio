@@ -555,7 +555,17 @@ async function countPriorInputCycles(
 
 function pushBranch(branchName: string): void {
   try {
-    execFileSync('git', ['push', '-u', 'origin', branchName], { cwd: REPO_ROOT, stdio: 'inherit' })
+    // Force-with-lease so a freshly-built branch (created from origin/main
+    // this run) always replaces any STALE leftover of the same name on
+    // origin from a prior run. A plain `git push` would be rejected as
+    // non-fast-forward against a diverged stale branch and the PR would
+    // then point at the stale commits (the bug behind #550). `--force-
+    // with-lease` is safe here: feature-bot owns `feat/cut-NNN` branches,
+    // and lease still guards against clobbering a push we didn't expect.
+    execFileSync('git', ['push', '-u', '--force-with-lease', 'origin', branchName], {
+      cwd: REPO_ROOT,
+      stdio: 'inherit',
+    })
   } catch (err) {
     printWarning(`git push ${branchName} failed: ${err}`)
   }
