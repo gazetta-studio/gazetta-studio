@@ -91,6 +91,17 @@ const TRANSCRIPTS_DIR = resolve(HERE, '../transcripts')
 const RUN_TIMESTAMP = new Date().toISOString().replace(/[:.]/g, '-').replace(/Z$/, 'Z')
 
 const PER_RUN_BUDGET_MS = Number(process.env.BUDGET_MS ?? 50 * 60 * 1000)
+// Per-CUT wall-clock budget, checked at the top of each generator-critic
+// attempt. The per-RUN budget above only fires BETWEEN candidates, so a
+// single thrashing cut (e.g. an RBAC cut whose Agent-A pipeline +
+// Agent-B architecture-review subagent + retries exceed the budget within
+// one cut) would otherwise run until the workflow's `timeout-minutes: 60`
+// HARD-KILLS it mid-attempt — producing NO PR, NO escalation, no record
+// (the #516 failure mode, 2026-06-09). Capping per-cut well under the
+// 60-min wall converts that silent kill into a graceful NEEDS_HUMAN
+// escalation ("cut exceeds time budget — likely too large; split it").
+const PER_CUT_BUDGET_MS = Number(process.env.CUT_BUDGET_MS ?? 45 * 60 * 1000)
+const PROCESS_START = Date.now()
 const MAX_ATTEMPTS = Number(process.env.MAX_ATTEMPTS ?? '5')
 const MAX_INPUT_CYCLES = Number(process.env.MAX_INPUT_CYCLES ?? '2')
 
@@ -326,6 +337,32 @@ async function fixOneCut(
   let finalOutcome: 'approved' | 'escalated' | 'needs-input-posted' | 'loop-exhausted' = 'loop-exhausted'
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    // Per-cut deadline guard. Without this, a thrashing cut runs until the
+    // workflow's 60-min hard kill, producing nothing (the #516 failure
+    // mode). Check BEFORE each attempt: if we'd likely not finish another
+    // generator-critic round before the budget, stop and escalate so the
+    // cut is recorded as needing human attention (probably too large —
+    // split it) instead of vanishing into a silent timeout.
+    //
+    // LIMITATION: this fires only BETWEEN attempts. A single attempt
+    // (one Agent A pipeline + one Agent B review) that alone exceeds the
+    // budget still gets hard-killed mid-attempt — the guard can't
+    // interrupt an in-flight runClaude. It catches the common multi-
+    // attempt-thrash case; per-call timeouts on runClaude are the fuller
+    // fix if single-attempt overruns recur.
+    const cutElapsed = Date.now() - PROCESS_START
+    if (cutElapsed > PER_CUT_BUDGET_MS) {
+      printWarning(
+        `Per-cut budget exhausted for #${issueNumber} (${Math.round(cutElapsed / 1000)}s > ${Math.round(PER_CUT_BUDGET_MS / 1000)}s) after ${attempt - 1} attempt(s). Escalating before the workflow hard-kill.`,
+      )
+      resetToMain(branchName, { cwd: REPO_ROOT })
+      await escalateToHuman(octokit, repo, issueNumber, skipList, fingerprint, {
+        reason: 'needs-human',
+        reasonNote: `Cut exceeded the per-cut time budget (${Math.round(PER_CUT_BUDGET_MS / 60000)} min) after ${attempt - 1} generator-critic attempt(s) without an APPROVE. The cut is likely too large or the loop is thrashing — consider splitting it into smaller cuts or tightening its spec. (Stopped before the workflow's 60-min hard-kill to leave a record instead of a silent timeout.)`,
+      })
+      finalOutcome = 'escalated'
+      break
+    }
     printNotice(`Attempt ${attempt}/${MAX_ATTEMPTS}: invoking Agent A…`)
     resetToMain(branchName, { cwd: REPO_ROOT })
 
