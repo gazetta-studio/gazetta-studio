@@ -510,6 +510,15 @@ Note: <specific, actionable feedback Agent A can use on retry — cite
 the failing check + the location>
 ```
 
+The `Note:` line is **required on REJECT, never omit it.** Agent A
+retries using your Note as its only feedback; a REJECT with no Note is
+unactionable and the orchestrator escalates the cut to NEEDS_HUMAN
+(a dead-end for a possibly-fixable cut). If you're rejecting, you have a
+reason — write it: the failing check + where + what would fix it. "Tests
+pass but the schema is missing the `enabled` field per the design doc's
+Configuration block" is actionable; a bare `VERDICT: REJECT` burns the
+cut.
+
 ```
 VERDICT: NEEDS_HUMAN
 Note: <why a human needs to look — what's structurally questionable>
