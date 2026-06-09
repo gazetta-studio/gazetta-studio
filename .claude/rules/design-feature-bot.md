@@ -504,6 +504,17 @@ Cron (daily 04:30 UTC, after fix-bot at 04:00):
    of this path-based separation, which is simpler and commit-count-
    agnostic.)
 
+   **Deterministic branch start (2026-06-09 fix).** Each attempt builds
+   the `feat/cut-NNN` branch fresh from `origin/main` (`git checkout -B
+   $BRANCH_NAME origin/main`) and pushes with `--force-with-lease`, so a
+   re-attempt NEVER builds on a stale leftover branch of the same name
+   from a prior run. The bug this fixes (#550): a leftover remote
+   `feat/cut-516` from an earlier run was reused — Agent A's `checkout`
+   landed on it and the plain `git push` (rejected as non-fast-forward
+   against the diverged stale branch) left the PR pointing at the stale
+   commits, even though the PR body was freshly (and contradictorily)
+   generated. Re-attempts are now reproducible from clean main.
+
    **SOLID research is Agent A self-work, not a separate agent.** A
    separate SOLID agent between A and B was rejected because (a) editing
    the diff mid-loop would muddy the single-commit / path-based revert B
