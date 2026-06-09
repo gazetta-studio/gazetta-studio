@@ -578,6 +578,46 @@ export interface ReviewWorkflowConfig {
   invalidateOnSave?: 'content-diff' | 'always'
 }
 
+/**
+ * Content review state per `design-review-workflow.md` "State machine" lock.
+ * Three states; transitions are explicit-action only (no time-based daemons).
+ */
+export type ReviewState = 'draft' | 'pending-review' | 'approved'
+
+/**
+ * Persisted review state for one content item. Lives in the source-side
+ * sidecar at `.gazetta/review/{kind}/{name}/state.json` (per the design's
+ * Storage shape section). The per-approver count is NOT in this file — it's
+ * derived from `readDir` of the sibling `approvers/` directory at decision
+ * time, which is the multi-instance-correct path (per-edge sidecar pattern,
+ * same as asset-refs / fragment-deps).
+ *
+ * Snapshot semantics:
+ *   - `requiredApprovers` captures the policy in effect at submit time, so
+ *     mid-flight config changes don't rewrite already-pending reviews.
+ *   - `submittedAt` / `submittedBy` record the actor that pushed the item
+ *     into `pending-review`; populated on submit, preserved through approve.
+ *   - `approvedAt` is the timestamp of the Nth approver's sidecar write that
+ *     met the threshold.
+ *   - `approverComments` captures optional approver-provided notes; the
+ *     per-approver sidecar itself stays zero-byte, so concurrent comment
+ *     writes from different approvers don't race on byte content. Comments
+ *     live here for "show me alice's note" reads without a second I/O.
+ */
+export interface ReviewSidecar {
+  state: ReviewState
+  /** ISO 8601 timestamp when the item entered `pending-review`. */
+  submittedAt?: string
+  /** Actor id (matches `AuditActor.id`) of the submitter. */
+  submittedBy?: string
+  /** ISO 8601 timestamp when the item entered `approved`. */
+  approvedAt?: string
+  /** Snapshot of `requiredApprovers` from review config at submit time. */
+  requiredApprovers?: number
+  /** Optional approver-provided notes, keyed by actor id. */
+  approverComments?: Record<string, string>
+}
+
 /** Per-target asset upload policy. */
 export interface AssetUploadConfig {
   /**
