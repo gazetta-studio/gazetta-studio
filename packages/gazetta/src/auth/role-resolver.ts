@@ -27,7 +27,8 @@
  *   - DIP: providers pass the resolved groups; this module doesn't
  *     know about JWT claims or HTTP headers.
  */
-import { expandRole } from './capabilities.js'
+import { expandRole, KNOWN_CAPABILITIES } from './capabilities.js'
+import { isReservedPrefix } from './config.js'
 import { BUILT_IN_ROLES, type RoleMapping } from './types.js'
 
 export interface ResolveRoleArgs {
@@ -97,17 +98,41 @@ export function resolveRole(args: ResolveRoleArgs): ResolvedRole | null {
  * Q3: unknown capabilities flagged; reserved built-in role names
  * cannot be redeclared.
  *
+ * Two classes of issues:
+ *
+ *   1. Role-name collision with `BUILT_IN_ROLES` (admin / editor /
+ *      viewer). The closed built-in set is a foundational lock.
+ *
+ *   2. Unknown capability under a reserved prefix (`read:foo`,
+ *      `review:foo`, etc.). The reserved prefixes are owned by
+ *      Gazetta; capabilities under them MUST come from the
+ *      `KNOWN_CAPABILITIES` set. Plugin-scoped capabilities
+ *      (`@my-org/search:rebuild-index`) are NOT reserved-prefix
+ *      and pass through without validation here — their shape
+ *      is checked by the config-load regex.
+ *
  * Returns the list of validation issues; empty array means valid.
  * Caller decides strict-mode (throw) vs warn-mode (log) per
  * `admin.auth.strict`.
  */
 export function validateCustomRoles(customRoles: Readonly<Record<string, ReadonlyArray<string>>>): string[] {
   const issues: string[] = []
-  for (const name of Object.keys(customRoles)) {
+  for (const [name, capabilities] of Object.entries(customRoles)) {
     if (name in BUILT_IN_ROLES) {
       issues.push(
         `Custom role "${name}" conflicts with a built-in role. Choose a different name; built-in roles can't be redefined.`,
       )
+    }
+    for (const cap of capabilities) {
+      // Plugin-scoped capabilities (e.g. '@my-org/search:rebuild-index')
+      // sit outside Gazetta's reserved prefixes — their shape is
+      // gated at config-load and they don't need vocabulary lookup.
+      if (!isReservedPrefix(cap)) continue
+      if (!KNOWN_CAPABILITIES.has(cap)) {
+        issues.push(
+          `Custom role "${name}" declares unknown capability "${cap}". Reserved-prefix capabilities must come from the built-in vocabulary; plugin-supplied capabilities use scoped prefixes like "@my-org/...:".`,
+        )
+      }
     }
   }
   return issues

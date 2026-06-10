@@ -117,7 +117,10 @@ describe('capabilityGrants (Cut 6)', () => {
 describe('expandRole (Cut 6)', () => {
   it('expands built-in roles', () => {
     expect(expandRole('admin')).toEqual(['*'])
-    expect(expandRole('editor')).toEqual(['read:*', 'edit:*', 'publish:non-production'])
+    // editor carries review:submit per design-review-workflow.md
+    // "Capability additions": the editor archetype can push work
+    // into the review workflow without an admin role bump.
+    expect(expandRole('editor')).toEqual(['read:*', 'edit:*', 'publish:non-production', 'review:submit'])
     expect(expandRole('viewer')).toEqual(['read:*'])
   })
 
