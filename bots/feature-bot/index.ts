@@ -122,7 +122,8 @@ async function main(): Promise<void> {
   printBanner({
     name: 'feature-bot',
     tagline: 'implementer (Cut 3 — generator-critic loop)',
-    purpose: 'Implement `enhancement + ready-for-agent` cut sub-issues (build → SOLID → runtime validation → improve tests → verify comments → one commit).',
+    purpose:
+      'Implement `enhancement + ready-for-agent` cut sub-issues (build → SOLID → runtime validation → improve tests → verify comments → one commit).',
     inputs: [
       'Open issues with `enhancement` AND `ready-for-agent`',
       'AND no `ready-for-human` / `wontfix` / `needs-info`',
