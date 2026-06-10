@@ -14,11 +14,11 @@ const PROMPT_PATH = resolve(__dirname, '..', 'prompts', 'reviewer.md')
 const prompt = readFileSync(PROMPT_PATH, 'utf-8')
 
 describe('feature-bot reviewer prompt — structural contracts', () => {
-  it('keeps the four-step tautology check', () => {
-    expect(prompt).toMatch(/### Step 1: confirm both commits exist/)
-    expect(prompt).toMatch(/### Step 2: revert the impl commit/)
+  it('keeps the four-step path-based tautology check', () => {
+    expect(prompt).toMatch(/### Step 1: classify the commit's files into impl vs tests/)
+    expect(prompt).toMatch(/### Step 2: revert ONLY the impl files/)
     expect(prompt).toMatch(/### Step 3: verify the failure matches/)
-    expect(prompt).toMatch(/### Step 4: re-apply/)
+    expect(prompt).toMatch(/### Step 4: restore the impl/)
   })
 
   it('keeps the acceptance + runtime-exercise + SOLID + locked-decisions sections', () => {
