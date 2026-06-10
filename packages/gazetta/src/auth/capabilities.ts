@@ -23,6 +23,56 @@
 import { BUILT_IN_ROLES, type BuiltInCapability } from './types.js'
 
 /**
+ * Closed set of built-in capability strings. Mirrors the
+ * `BuiltInCapability` type union at the runtime layer so
+ * `validateCustomRoles` can flag unknown reserved-prefix
+ * capabilities at config-load (per design-auth-rbac.md Q3:
+ * "Custom-role capability validation at site-load: unknown
+ * capabilities flagged").
+ *
+ * Plugin-supplied capabilities use plugin-scoped prefixes
+ * (`@my-org/search:rebuild-index`) and do NOT appear in this
+ * set — the validator distinguishes them by reserved-prefix
+ * check (see `isReservedPrefix` in `config.ts`).
+ */
+export const KNOWN_CAPABILITIES: ReadonlySet<string> = new Set([
+  // Read
+  'read:pages',
+  'read:fragments',
+  'read:assets',
+  'read:audit-log',
+  // Edit
+  'edit:pages',
+  'edit:fragments',
+  'edit:assets',
+  'edit:locale-variants',
+  // Delete
+  'delete:pages',
+  'delete:fragments',
+  'delete:assets',
+  // Publish
+  'publish:non-production',
+  'publish:production',
+  'publish:request',
+  'publish:approve',
+  // Review workflow
+  'review:submit',
+  'review:approve',
+  // Configure
+  'configure:site',
+  'configure:targets',
+  // History
+  'restore:history',
+  // Wildcards
+  'read:*',
+  'edit:*',
+  'delete:*',
+  'publish:*',
+  'review:*',
+  '*',
+] satisfies BuiltInCapability[])
+
+/**
  * Privacy-sensitive capabilities that prefix wildcards do NOT
  * grant. Per design-auth-rbac.md's "Audit-log read access is its
  * own capability — viewers don't see audit by default", and the

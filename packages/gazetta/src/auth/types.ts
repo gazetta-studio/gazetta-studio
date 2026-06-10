@@ -169,9 +169,20 @@ export type BuiltInCapability =
   | 'delete:pages'
   | 'delete:fragments'
   | 'delete:assets'
-  // Publish — narrowed by environment per design-auth-rbac.md
+  // Publish — narrowed by environment per design-auth-rbac.md;
+  // request/approve gate the per-target publish-approval workflow
+  // (design-review-workflow.md "Capability additions").
   | 'publish:non-production'
   | 'publish:production'
+  | 'publish:request'
+  | 'publish:approve'
+  // Review workflow — per-content review-state transitions
+  // (design-review-workflow.md "Capability additions"). `editor`
+  // built-in gains `review:submit`; `review:approve` and the
+  // publish-approval pair are reserved for operator-defined
+  // custom roles (e.g. `reviewer`, `publisher` archetypes B-E).
+  | 'review:submit'
+  | 'review:approve'
   // Configure
   | 'configure:site'
   | 'configure:targets'
@@ -182,15 +193,28 @@ export type BuiltInCapability =
   | 'edit:*'
   | 'delete:*'
   | 'publish:*'
+  | 'review:*'
   | '*'
 
 /**
  * Built-in role aliases — predefined as capability sets. Custom
  * roles in `site.config.ts admin.auth.roles` declare capabilities
  * directly.
+ *
+ * Per design-auth-rbac.md's foundational lock, this map is the
+ * closed set `{ admin, editor, viewer }`. `reviewer` / `publisher`
+ * archetypes from `design-review-workflow.md` are CUSTOM roles
+ * operators declare in `admin.auth.roles` — they don't appear
+ * here. Adding them would break the lock (and the resolver's
+ * `BUILT_IN_ROLES` regression guard at config-load).
+ *
+ * `editor` carries `review:submit` so the editor archetype can
+ * push their work into the review workflow without an admin
+ * role bump; `review:approve` lives on operator-defined
+ * `reviewer` custom roles.
  */
 export const BUILT_IN_ROLES: Readonly<Record<string, ReadonlyArray<BuiltInCapability>>> = {
   admin: ['*'],
-  editor: ['read:*', 'edit:*', 'publish:non-production'],
+  editor: ['read:*', 'edit:*', 'publish:non-production', 'review:submit'],
   viewer: ['read:*'],
 }
