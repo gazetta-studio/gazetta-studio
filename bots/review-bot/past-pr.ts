@@ -94,6 +94,72 @@ export function branchToFingerprintLabel(branch: string): string {
   return stripped.replace(/--/g, '/')
 }
 
+/** Closed-enum of candidate types; mirrors Fingerprint['type']. */
+const KNOWN_TYPES: readonly Fingerprint['type'][] = [
+  'security',
+  'architecture',
+  'tests',
+  'types',
+  'comments',
+  'style',
+  'correctness',
+]
+
+/**
+ * Recover the candidate's area path from a fingerprintToBranch-encoded
+ * branch name. Used by parseBotPRs to key its botPRs Map by area path
+ * (matching how scoreAreas does the lookup).
+ *
+ * The encoding is lossy at one boundary: in
+ * `improve/<type>-<safeArea>-<ruleTail>` the last `--` in `<safeArea>`
+ * cleanly marks the boundary BEFORE the final path segment, but the
+ * final segment runs into the rule tail with a single hyphen. We split
+ * the post-last-`--` portion on the FIRST hyphen, taking everything
+ * before as the final segment.
+ *
+ * Edge case: areas whose final path segment itself contains a hyphen
+ * (e.g., `bots/review-bot/` → `bots/review/` after round-trip) are
+ * recovered approximately. The cold-on-bot signal degrades gracefully
+ * for these — an approximate area key beats the previous always-miss
+ * (which capped the recency bonus at 60 for every area, dead code).
+ *
+ * Returns null when the branch doesn't match the fingerprintToBranch
+ * encoding (no `improve/` prefix, unknown type prefix, empty payload).
+ *
+ * Examples:
+ *   improve/security-packages--gazetta--src--auth-capability-gate
+ *     → 'packages/gazetta/src/auth/'
+ *   improve/tests-apps--admin--src-26
+ *     → 'apps/admin/src/'
+ *   improve/architecture-packages--gazetta--src--audit-design-audit
+ *     → 'packages/gazetta/src/audit/'
+ */
+export function branchToArea(branch: string): string | null {
+  if (!branch.startsWith('improve/')) return null
+  const suffix = branch.slice('improve/'.length)
+  if (suffix.length === 0) return null
+
+  let rest: string | null = null
+  for (const type of KNOWN_TYPES) {
+    if (suffix.startsWith(`${type}-`)) {
+      rest = suffix.slice(type.length + 1)
+      break
+    }
+  }
+  if (rest === null || rest.length === 0) return null
+
+  const lastDoubleDash = rest.lastIndexOf('--')
+  const [pathPrefix, lastSegmentAndRuleTail] =
+    lastDoubleDash >= 0 ? [rest.slice(0, lastDoubleDash), rest.slice(lastDoubleDash + 2)] : ['', rest]
+
+  const firstHyphen = lastSegmentAndRuleTail.indexOf('-')
+  const lastSegment =
+    firstHyphen >= 0 ? lastSegmentAndRuleTail.slice(0, firstHyphen) : lastSegmentAndRuleTail
+  if (lastSegment.length === 0) return null
+
+  return pathPrefix.length > 0 ? `${pathPrefix.replace(/--/g, '/')}/${lastSegment}/` : `${lastSegment}/`
+}
+
 /**
  * Query GitHub for the most recent PR matching this fingerprint's
  * branch. Returns the canonical PastOutcome for the bot's decision tree.

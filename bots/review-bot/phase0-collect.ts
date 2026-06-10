@@ -8,6 +8,7 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import type { GitFileTouch } from './area-scorer.js'
+import { branchToArea } from './past-pr.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -99,19 +100,14 @@ export function parseBotPRs(stdout: string, sinceDays: number): Map<string, stri
   for (const pr of prs) {
     if (!pr.headRefName || !pr.createdAt) continue
     if (new Date(pr.createdAt).getTime() < cutoff) continue
-    // Branch name shape: improve/<candidate-id>. The candidate-id may
-    // encode area; for v1 we treat the branch's "area" as the prefix
-    // before the first hyphen of the suffix — best-effort grouping.
-    // When candidate-ids are area-encoded (e.g., improve/auth-cap-gate-92),
-    // this groups all auth-area PRs together.
-    const m = pr.headRefName.match(/^improve\/([^/]+)/)
-    if (!m) continue
-    const ref = m[1]!
-    // Heuristic: take everything up to and including the first segment
-    // (slash-delimited if multi-segment) as the area key. This is
-    // intentionally rough — Phase 0's job is narrowing, not perfect
-    // historical attribution.
-    const area = ref.split('-')[0] ?? ref
+    // Recover the candidate area path from the branch name. branchToArea
+    // is the inverse of past-pr.ts's fingerprintToBranch encoding, so
+    // the Map key matches what scoreAreas looks up via botPRs.get(area).
+    // Pre-fix the key was the candidate's type prefix (security/tests/
+    // ...), which never matched scoreAreas's path-shaped argument — the
+    // cold-on-bot signal was dead code.
+    const area = branchToArea(pr.headRefName)
+    if (area === null) continue
     const prev = out.get(area)
     if (!prev || new Date(pr.createdAt).getTime() > new Date(prev).getTime()) {
       out.set(area, pr.createdAt)
