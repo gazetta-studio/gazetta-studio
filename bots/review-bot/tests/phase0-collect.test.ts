@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { fingerprintToBranch } from '../past-pr.js'
 import { parseBotPRs, parseGitLogTouches, parsePickerOutput } from '../phase0-collect.js'
 
 describe('parseGitLogTouches', () => {
@@ -76,6 +77,29 @@ describe('parseBotPRs', () => {
       { headRefName: 'main' }, // not an improve/* branch
     ])
     expect(parseBotPRs(stdout, 30).size).toBe(0)
+  })
+
+  it('keys map by area path (round-trips with fingerprintToBranch)', () => {
+    // The branch encoding is `improve/<type>-<encoded-area>-<rule-tail>`.
+    // parseBotPRs must invert this so the map keys are area paths matching
+    // what area-scorer queries via `botPRs.get(area)` (paths like
+    // `packages/gazetta/src/auth/`). Bug: the parser previously did
+    // `ref.split('-')[0]` and keyed by the TYPE prefix ('security'),
+    // collapsing the cold-on-bot signal to flat for every area.
+    const branch = fingerprintToBranch({
+      area: 'packages/gazetta/src/auth/',
+      type: 'security',
+      rule: 'design-auth-rbac.md#capability-gate',
+    })
+    // Sanity check the producer hasn't drifted.
+    expect(branch).toBe('improve/security-packages--gazetta--src--auth-capability-gate')
+
+    const stdout = JSON.stringify([{ headRefName: branch, createdAt: '2026-05-17T10:00:00Z' }])
+    const result = parseBotPRs(stdout, 180)
+
+    expect(result.get('packages/gazetta/src/auth/')).toBe('2026-05-17T10:00:00Z')
+    // Negative: the type prefix MUST NOT be the key.
+    expect(result.has('security')).toBe(false)
   })
 })
 
