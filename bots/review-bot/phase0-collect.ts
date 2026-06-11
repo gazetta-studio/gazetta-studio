@@ -85,6 +85,15 @@ export async function collectBotPRsByArea(
   return parseBotPRs(out, sinceDays)
 }
 
+/**
+ * Closed type enum from `Fingerprint['type']` (skip-list.ts). Branch
+ * names start with one of these prefixes after `improve/`. Listed here
+ * rather than imported to keep this module dependency-free and the
+ * parser self-contained; drift caught by parseBotPRs's tests (which
+ * round-trip through fingerprintToBranch).
+ */
+const CANDIDATE_TYPES = ['correctness', 'security', 'architecture', 'tests', 'types', 'comments', 'style'] as const
+
 /** Pure parser for `gh pr list` JSON output. */
 export function parseBotPRs(stdout: string, sinceDays: number): Map<string, string> {
   const out = new Map<string, string>()
@@ -99,25 +108,77 @@ export function parseBotPRs(stdout: string, sinceDays: number): Map<string, stri
   for (const pr of prs) {
     if (!pr.headRefName || !pr.createdAt) continue
     if (new Date(pr.createdAt).getTime() < cutoff) continue
-    // Branch name shape: improve/<candidate-id>. The candidate-id may
-    // encode area; for v1 we treat the branch's "area" as the prefix
-    // before the first hyphen of the suffix — best-effort grouping.
-    // When candidate-ids are area-encoded (e.g., improve/auth-cap-gate-92),
-    // this groups all auth-area PRs together.
-    const m = pr.headRefName.match(/^improve\/([^/]+)/)
-    if (!m) continue
-    const ref = m[1]!
-    // Heuristic: take everything up to and including the first segment
-    // (slash-delimited if multi-segment) as the area key. This is
-    // intentionally rough — Phase 0's job is narrowing, not perfect
-    // historical attribution.
-    const area = ref.split('-')[0] ?? ref
-    const prev = out.get(area)
-    if (!prev || new Date(pr.createdAt).getTime() > new Date(prev).getTime()) {
-      out.set(area, pr.createdAt)
+    // Each branch may produce multiple candidate area keys when the
+    // encoding is ambiguous (hyphenated dir names like `fix-bot`);
+    // spurious keys are harmless because area-scorer only looks up
+    // areas that exist in its own touch-counts map.
+    for (const area of branchAreaCandidates(pr.headRefName)) {
+      const prev = out.get(area)
+      if (!prev || new Date(pr.createdAt).getTime() > new Date(prev).getTime()) {
+        out.set(area, pr.createdAt)
+      }
     }
   }
   return out
+}
+
+/**
+ * Invert `fingerprintToBranch`'s encoding to recover the area path the
+ * scorer queries.
+ *
+ * Branch shape (from `past-pr.ts#fingerprintToBranch`):
+ *
+ *   `improve/<type>-<encoded-area>-<rule-tail>`
+ *
+ *   - `<type>`: closed enum (no dashes)
+ *   - `<encoded-area>`: path with `/` → `--`; segments may contain single dashes
+ *   - `<rule-tail>`: alphanumeric + single dashes
+ *
+ * Returns every plausible area path for the branch. The encoded-area /
+ * rule-tail boundary is genuinely ambiguous when an area segment contains
+ * a dash (e.g., `bots/fix-bot/`), so we emit one candidate per `-` position
+ * after the last `--`. Spurious candidates never match the scorer's
+ * touch-counts map; the correct one wins.
+ *
+ * Returns `[]` when the branch doesn't match the improve/<known-type>- shape.
+ */
+export function branchAreaCandidates(headRefName: string): string[] {
+  const m = headRefName.match(/^improve\/(.+)$/)
+  if (!m) return []
+  const ref = m[1]!
+
+  let afterType: string | null = null
+  for (const t of CANDIDATE_TYPES) {
+    if (ref.startsWith(`${t}-`)) {
+      afterType = ref.slice(t.length + 1)
+      break
+    }
+  }
+  if (afterType === null || afterType.length === 0) return []
+
+  const chunks = afterType.split('--')
+  if (chunks.length === 1) {
+    // Depth-1 area (no `--` in encoded form): the single chunk holds
+    // `<rootSeg>-<ruleTail>`. The first `-` separates them.
+    const chunk = chunks[0]!
+    const firstDash = chunk.indexOf('-')
+    if (firstDash <= 0) return []
+    return [`${chunk.slice(0, firstDash)}/`]
+  }
+
+  // Multi-chunk: middle chunks are path segments verbatim. The last chunk
+  // is `<lastAreaSeg>-<ruleTail>`; the seg may itself contain dashes
+  // (e.g., `fix-bot`), so enumerate every `-` position as a boundary.
+  const headChunks = chunks.slice(0, -1)
+  const lastChunk = chunks[chunks.length - 1]!
+  const candidates: string[] = []
+  let dashIdx = lastChunk.indexOf('-')
+  while (dashIdx > 0) {
+    const lastSeg = lastChunk.slice(0, dashIdx)
+    candidates.push(`${[...headChunks, lastSeg].join('/')}/`)
+    dashIdx = lastChunk.indexOf('-', dashIdx + 1)
+  }
+  return candidates
 }
 
 /** Parse the LLM picker's `PICK: <area>` final line. */

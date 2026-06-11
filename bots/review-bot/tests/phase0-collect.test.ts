@@ -43,25 +43,44 @@ describe('parseGitLogTouches', () => {
 })
 
 describe('parseBotPRs', () => {
-  it('groups by area-prefix from headRefName', () => {
+  // Branch-name fixture helpers: branches in the wild are produced by
+  // fingerprintToBranch — exercise the real encoding so the parser's
+  // contract is the one the producer actually emits.
+  const authBranch = fingerprintToBranch({
+    area: 'packages/gazetta/src/auth/',
+    type: 'security',
+    rule: 'design-auth-rbac.md#capability-gate',
+  })
+  const auditBranch = fingerprintToBranch({
+    area: 'packages/gazetta/src/auth/',
+    type: 'architecture',
+    rule: 'design-auth-rbac.md#another-issue',
+  })
+  const adminBranch = fingerprintToBranch({
+    area: 'apps/admin/src/',
+    type: 'tests',
+    rule: 'team-preferences.md#26',
+  })
+
+  it('groups by area path; most-recent timestamp wins for the same area', () => {
     const stdout = JSON.stringify([
-      { headRefName: 'improve/auth-cap-gate-92', createdAt: '2026-05-15T10:00:00Z' },
-      { headRefName: 'improve/auth-rbac-bypass-101', createdAt: '2026-05-17T10:00:00Z' },
-      { headRefName: 'improve/admin-api-validate-77', createdAt: '2026-05-16T10:00:00Z' },
+      { headRefName: authBranch, createdAt: '2026-05-15T10:00:00Z' },
+      { headRefName: auditBranch, createdAt: '2026-05-17T10:00:00Z' },
+      { headRefName: adminBranch, createdAt: '2026-05-16T10:00:00Z' },
     ])
     const result = parseBotPRs(stdout, 180)
-    expect(result.get('auth')).toBe('2026-05-17T10:00:00Z') // most-recent auth
-    expect(result.get('admin')).toBe('2026-05-16T10:00:00Z')
+    expect(result.get('packages/gazetta/src/auth/')).toBe('2026-05-17T10:00:00Z')
+    expect(result.get('apps/admin/src/')).toBe('2026-05-16T10:00:00Z')
   })
 
   it('drops PRs older than sinceDays cutoff', () => {
     const stdout = JSON.stringify([
-      { headRefName: 'improve/old-1', createdAt: '2024-01-01T00:00:00Z' }, // ancient
-      { headRefName: 'improve/new-1', createdAt: '2026-05-17T10:00:00Z' },
+      { headRefName: authBranch, createdAt: '2024-01-01T00:00:00Z' }, // ancient
+      { headRefName: adminBranch, createdAt: '2026-05-17T10:00:00Z' },
     ])
     const result = parseBotPRs(stdout, 30)
-    expect(result.has('old')).toBe(false)
-    expect(result.has('new')).toBe(true)
+    expect(result.has('packages/gazetta/src/auth/')).toBe(false)
+    expect(result.get('apps/admin/src/')).toBe('2026-05-17T10:00:00Z')
   })
 
   it('handles empty / malformed JSON gracefully', () => {
@@ -70,13 +89,31 @@ describe('parseBotPRs', () => {
     expect(parseBotPRs('[]', 30).size).toBe(0)
   })
 
-  it('skips PRs without headRefName or createdAt', () => {
+  it('skips PRs without headRefName or createdAt, branches with unknown type prefix, or non-improve refs', () => {
     const stdout = JSON.stringify([
-      { headRefName: 'improve/x-1' }, // missing createdAt
+      { headRefName: authBranch }, // missing createdAt
       { createdAt: '2026-05-17T10:00:00Z' }, // missing headRefName
-      { headRefName: 'main' }, // not an improve/* branch
+      { headRefName: 'main', createdAt: '2026-05-17T10:00:00Z' }, // not improve/*
+      { headRefName: 'improve/unknown-type-foo', createdAt: '2026-05-17T10:00:00Z' }, // type not in closed enum
     ])
     expect(parseBotPRs(stdout, 30).size).toBe(0)
+  })
+
+  it('handles hyphenated dir names (bots/fix-bot/) via candidate-key enumeration', () => {
+    // The boundary between encoded-area and rule-tail is a single `-`,
+    // which is ambiguous when an area segment contains a dash (e.g.,
+    // `bots/fix-bot/` → encoded `bots--fix-bot`). The parser emits a
+    // candidate per dash position; the scorer's touch-counts map filters
+    // to real areas, so spurious candidates are inert.
+    const branch = fingerprintToBranch({
+      area: 'bots/fix-bot/',
+      type: 'correctness',
+      rule: 'design-fix-bot.md#some-rule',
+    })
+    const stdout = JSON.stringify([{ headRefName: branch, createdAt: '2026-05-17T10:00:00Z' }])
+    const result = parseBotPRs(stdout, 30)
+    // The correct area path must be present (along with spurious siblings).
+    expect(result.get('bots/fix-bot/')).toBe('2026-05-17T10:00:00Z')
   })
 
   it('keys map by area path (round-trips with fingerprintToBranch)', () => {
