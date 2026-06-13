@@ -65,6 +65,17 @@
       "reasonNote": "Knip is technically correct — no source file imports from the `primeicons` npm package — but the dependency encodes clear intent that needs a human design decision before removal. Evidence of intent: (1) `apps/admin/index.html` line 8 loads the PrimeIcons stylesheet via the unpkg CDN: `<link rel=\"stylesheet\" href=\"https://unpkg.com/primeicons/primeicons.css\">`; (2) the admin uses 131 `pi pi-*` PrimeIcons CSS class references across 35 Vue components (e.g. ComponentTree.vue 12, CmsToolbar.vue 11, AuditDrawer.vue 9, plus PreviewPanel/PublishPanel/DevPlayground/TemplateImpactPanel/ActiveTargetIndicator/PurgeBlockedModal each with 6-7). The dep at `^7.0.0` matches the unpkg CDN's served version; removing it loses the version-intent record (and the current CDN URL is unpinned, which is a separate latent issue). The right resolution is a refactor a human should choose: (a) delete the dep AND commit to CDN-only delivery (probably pinning the CDN URL to a version while at it), or (b) drop the unpkg `<link>` from index.html and add `import 'primeicons/primeicons.css'` in the client entry so the icons ship through Vite + the vite-plugin-pwa precache like the rest of the assets — path (b) is more consistent with the existing precache strategy (which currently misses the icon font + CSS). Either path is correct; neither is a 'bot deletes; doesn't redesign' move. Verified no other source references to `primeicons` exist beyond the CDN `<link>` and package.json/package-lock.json (the knip-parse.test.ts hits are test fixtures, not real consumers).",
       "addedAt": "2026-06-13T00:00:00Z",
       "addedBy": "bot"
+    },
+    {
+      "fingerprint": {
+        "kind": "devDependency",
+        "path": "packages/gazetta/package.json",
+        "symbol": "@vitejs/plugin-vue"
+      },
+      "reason": "needs-human",
+      "reasonNote": "Transitively-used build dep that knip's static analysis can't trace across workspaces. The `build:admin` script in packages/gazetta runs `vite build -c ../../apps/admin/vite.config.ts ...` from gazetta's cwd; that config file (apps/admin/vite.config.ts:4) imports `@vitejs/plugin-vue` and uses it as the SFC transform plugin. The dep is also declared in apps/admin/package.json's devDependencies, so under npm workspace hoisting it would still resolve from the hoisted root node_modules even if removed here (verified: the dep is hoisted to root node_modules/@vitejs/plugin-vue and packages/gazetta has no local copy). However, the declaration in gazetta deliberately mirrors `vite` itself in the same devDependencies block — both follow the pattern 'every workspace declares the deps its scripts need to run, even if hoisting would resolve them.' Removing only `@vitejs/plugin-vue` (while keeping `vite`) would break that symmetric pattern; removing both is a maintainer judgment call about whether to treat workspace hoisting as load-bearing for gazetta's prepublishOnly script (`npm run build && npm run build:admin`). The 'don't refactor' rule rules out adjusting both deps together as part of dead-code removal. Other references to `@vitejs/plugin-vue` in the repo (apps/admin/vite.config.ts, apps/admin/vitest.config.ts, .storybook/main.ts) resolve from their own locations and are unaffected.",
+      "addedAt": "2026-06-13T00:00:00Z",
+      "addedBy": "bot"
     }
   ],
   "rules": []
