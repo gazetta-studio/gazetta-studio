@@ -93,12 +93,22 @@ jobs:
       # across runs so the monthly compactor has cross-issue signal
       # to work with. See bots/README.md "Reviewer-log persistence".
       # Cache miss is fine — tailReviewerLog returns []. Bump the
-      # -v1 suffix if the JSONL schema ever changes.
+      # -v1 suffix if the JSONL schema ever changes. The restore + save
+      # pair (not the combined `actions/cache@vN`) is load-bearing: the
+      # combined step skips its post-step save on a cache HIT against
+      # the primary key, which breaks the append-write-back pattern
+      # (every run after the first reads N entries, appends 1, but
+      # never persists the new entry). The split pattern with a
+      # per-run save key sidesteps the trap — every run produces its
+      # own immutable cache entry; restore matches via `restore-keys`
+      # prefix. See #581 and ADR-0011.
       - name: Restore reviewer-log cache
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v5
         with:
           path: bots/fix-bot/reviewer-log.jsonl
           key: fix-bot-reviewer-log-v1
+          restore-keys: |
+            fix-bot-reviewer-log-v1
 
       - name: Run fix bot
         env:
@@ -116,6 +126,18 @@ jobs:
           MAX_ATTEMPTS: ${{ inputs.max_attempts || '5' }}
           BUDGET_MS: ${{ inputs.budget_ms || '3000000' }}
         run: npm run fix-bot -w @gazetta/bots
+
+      # Save the appended reviewer-log under a per-run key. The restore
+      # step uses prefix match (`restore-keys`) to find the latest write
+      # on the next run. `if: always()` ensures we persist verdicts even
+      # when the bot itself failed — losing those would erase the signal
+      # that informed the failure.
+      - name: Save reviewer-log cache
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: bots/fix-bot/reviewer-log.jsonl
+          key: fix-bot-reviewer-log-v1-${{ github.run_id }}
 
       - name: Upload transcripts
         if: always()

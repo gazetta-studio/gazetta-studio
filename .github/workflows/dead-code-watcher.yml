@@ -86,12 +86,17 @@ jobs:
       # across runs so the monthly compactor has cross-run signal to
       # work with. See bots/README.md "Reviewer-log persistence" for
       # the design. Cache miss is fine — tailReviewerLog returns [].
-      # Bump the -v1 suffix if the JSONL schema ever changes.
+      # Bump the -v1 suffix if the JSONL schema ever changes. The
+      # restore + save pair (not the combined `actions/cache@vN`) is
+      # load-bearing: the combined step skips its post-step save on a
+      # cache HIT, breaking the append-write-back pattern. See #581.
       - name: Restore reviewer-log cache
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v5
         with:
           path: bots/dead-code-watcher/reviewer-log.jsonl
           key: dead-code-watcher-reviewer-log-v1
+          restore-keys: |
+            dead-code-watcher-reviewer-log-v1
 
       - name: Run dead-code-watcher
         env:
@@ -108,6 +113,16 @@ jobs:
           MAX_ATTEMPTS: ${{ inputs.max_attempts || '5' }}
           PER_RUN_FINDING_CAP: ${{ inputs.per_run_finding_cap || '5' }}
         run: npm run dead-code-watcher -w @gazetta/bots
+
+      # Save the appended reviewer-log under a per-run key. `if: always()`
+      # ensures we persist verdicts even when the bot itself failed.
+      # See #581.
+      - name: Save reviewer-log cache
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: bots/dead-code-watcher/reviewer-log.jsonl
+          key: dead-code-watcher-reviewer-log-v1-${{ github.run_id }}
 
       - name: Upload transcripts
         if: always()

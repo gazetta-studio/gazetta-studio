@@ -85,12 +85,19 @@ jobs:
       # weekly decision; the cache keeps the file across runs so
       # countWeeklyRuns() can detect bootstrap-vs-post-bootstrap.
       # Cache miss is fine — readReviewerLog returns []. Bump the
-      # -v1 suffix if the JSONL schema ever changes.
+      # -v1 suffix if the JSONL schema ever changes. The restore + save
+      # pair (not the combined `actions/cache@vN`) is load-bearing: the
+      # combined step skips its post-step save on a cache HIT against
+      # the primary key, which breaks the append-write-back pattern.
+      # Without this fix, the bot reports the same `Bootstrap week`
+      # indefinitely (countWeeklyRuns reads a frozen cache). See #581.
       - name: Restore reviewer-log cache
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v5
         with:
           path: bots/mutation-area-picker/reviewer-log.jsonl
           key: mutation-area-picker-reviewer-log-v1
+          restore-keys: |
+            mutation-area-picker-reviewer-log-v1
 
       - name: Run mutation-area-picker
         env:
@@ -104,3 +111,13 @@ jobs:
           INCLUSION_THRESHOLD: ${{ inputs.inclusion_threshold || '0.4' }}
           EVICTION_THRESHOLD: ${{ inputs.eviction_threshold || '0.7' }}
         run: npm run mutation-area-picker -w @gazetta/bots
+
+      # Save the appended reviewer-log under a per-run key. `if: always()`
+      # ensures we persist the weekly entry even when the bot itself
+      # failed — the bootstrap counter depends on this. See #581.
+      - name: Save reviewer-log cache
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: bots/mutation-area-picker/reviewer-log.jsonl
+          key: mutation-area-picker-reviewer-log-v1-${{ github.run_id }}
