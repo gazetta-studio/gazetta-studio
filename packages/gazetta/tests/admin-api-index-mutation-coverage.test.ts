@@ -394,3 +394,141 @@ describe('Cluster 2c — site-root regex `/[\\/]sites[\\/][^\\/]+$/` (line 234 R
     expect(mutantWouldCall).toBeUndefined()
   })
 })
+
+/**
+ * Cluster 2d — `templatesDir` default `join(siteDir, 'templates')` (line 222
+ * StringLiteral `'templates' → ""`).
+ *
+ * When `opts.templatesDir` is absent, the admin app derives
+ * `${siteDir}/templates`. With the mutant `''`, the derivation collapses to
+ * `join(siteDir, '')` = `siteDir`. The cached `scanTemplates` call captures
+ * this difference: original calls `scanTemplates('/test/project/templates', ...)`;
+ * mutant calls `scanTemplates('/test/project', ...)`.
+ *
+ * Triggered via `/api/compare` so the cached scan runs end-to-end.
+ */
+describe('Cluster 2d — templatesDir default `siteDir/templates` (line 222 StringLiteral)', () => {
+  it('derives templatesDir as `siteDir/templates` when opts.templatesDir is unset', async () => {
+    const storage = memoryStorage()
+    const targetConfigs = {
+      local: { storage, type: 'esi' as const, environment: 'local' as const, editable: true },
+    }
+    const source = createSourceContext({
+      storage,
+      siteDir: '',
+      projectSiteDir: '/test/project',
+      manifest: { name: 'test-site', targets: targetConfigs },
+    })
+    const app = createAdminApp({
+      source,
+      siteDir: '/test/project',
+      // templatesDir intentionally NOT passed — exercises the default branch
+      targets: new Map([['local', storage]]),
+      targetConfigs,
+      disableCacheStatsLogger: true,
+      disableAuditRetentionPruner: true,
+    })
+
+    // Compare route triggers the cached scan with (templatesDir, projectRoot).
+    await app.request('/api/compare?target=local')
+
+    const calls = vi.mocked(mockableScanTemplates).mock.calls
+    expect(calls.length).toBeGreaterThanOrEqual(1)
+
+    // Original derivation: '/test/project' + 'templates' → '/test/project/templates'.
+    const originalCall = calls.find(([tDir]) => tDir === '/test/project/templates')
+    expect(originalCall).toBeDefined()
+
+    // Mutant would call with the empty-suffix derivation: join('/test/project', '')
+    // === '/test/project'. Reject that signature.
+    const mutantWouldCall = calls.find(([tDir]) => tDir === '/test/project')
+    expect(mutantWouldCall).toBeUndefined()
+  })
+})
+
+/**
+ * Cluster 2e — site-root regex anchored to end-of-string (line 235 Regex
+ * `/[\\/]sites[\\/][^\\/]+$/ → /[\\/]sites[\\/][^\\/]+/`, i.e. the `$`
+ * anchor is dropped).
+ *
+ * Both original and mutant strip a trailing `/sites/<name>` (the existing
+ * Cluster 2c test covers that path). The mutant only differs when the
+ * `/sites/<name>` segment is in the MIDDLE of the path — without `$`, the
+ * mutant strips it; with `$`, the original leaves the path untouched.
+ *
+ * siteDir choice: `/home/user/sites/main/inner` — `/sites/main` is followed
+ * by `/inner`, so the trailing-anchor `$` doesn't match in the original.
+ */
+describe('Cluster 2e — site-root regex anchored at end (line 235 Regex)', () => {
+  it('does NOT strip `/sites/<name>` when it appears in the middle of siteDir', async () => {
+    const storage = memoryStorage()
+    const targetConfigs = {
+      local: { storage, type: 'esi' as const, environment: 'local' as const, editable: true },
+    }
+    const source = createSourceContext({
+      storage,
+      siteDir: '',
+      projectSiteDir: '/home/user/sites/main/inner',
+      manifest: { name: 'test-site', targets: targetConfigs },
+    })
+    const app = createAdminApp({
+      source,
+      siteDir: '/home/user/sites/main/inner',
+      templatesDir: '/home/user/sites/main/inner/templates',
+      targets: new Map([['local', storage]]),
+      targetConfigs,
+      disableCacheStatsLogger: true,
+      disableAuditRetentionPruner: true,
+    })
+
+    await app.request('/api/compare?target=local')
+
+    const calls = vi.mocked(mockableScanTemplates).mock.calls
+    expect(calls.length).toBeGreaterThanOrEqual(1)
+
+    // Original (anchored): no match → root unchanged.
+    const originalCall = calls.find(
+      ([tDir, root]) => tDir === '/home/user/sites/main/inner/templates' && root === '/home/user/sites/main/inner',
+    )
+    expect(originalCall).toBeDefined()
+
+    // Mutant (no `$`): strips middle `/sites/main` → root = '/home/user/inner'.
+    const mutantWouldCall = calls.find(
+      ([tDir, root]) => tDir === '/home/user/sites/main/inner/templates' && root === '/home/user/inner',
+    )
+    expect(mutantWouldCall).toBeUndefined()
+  })
+})
+
+/**
+ * Cluster 3 — history backfill block (lines 249-251) is structurally
+ * dead in v1 and NOT tested here.
+ *
+ * The block:
+ *
+ *   if (!opts.source.history) {
+ *     source = { ...opts.source, history: buildHistoryForSource(opts, opts.source) }
+ *   }
+ *
+ * `buildHistoryForSource` requires `opts.targetConfigs[source.targetName]`
+ * to exist with history enabled — otherwise it returns undefined and the
+ * backfill is a no-op. But when `opts.targetConfigs` has any entries,
+ * `createAdminApp` selects the **registry** source resolver, which
+ * constructs its own per-request `SourceContext` via
+ * `createSourceContextFromRegistry` and provides history through the
+ * registry's `buildHistory` callback — never consulting the backfilled
+ * `source.history` on `opts.source`. When `opts.targetConfigs` is empty
+ * (static resolver path), `buildHistoryForSource` returns undefined and
+ * the backfill is a no-op.
+ *
+ * The two configurations are mutually exclusive: there is no
+ * createAdminApp option shape under which the backfilled `source.history`
+ * affects the observable behavior of subsequent routes.
+ *
+ * The line 249 BooleanLiteral / ConditionalExpression / BlockStatement
+ * mutants therefore survive because the branch they touch is unreachable
+ * from the route surface, not because of weak tests. Fixing them requires
+ * either deleting the dead block or refactoring so the static resolver
+ * also routes through the same backfill path — a source-code change, not
+ * a test addition.
+ */
