@@ -84,12 +84,17 @@ jobs:
       # verdicts on every loop iteration; the cache keeps the file
       # across runs so the monthly compactor has cross-candidate signal
       # to work with. Cache miss is fine — bot starts with empty log.
-      # Bump -v1 suffix if the JSONL schema changes.
+      # Bump -v1 suffix if the JSONL schema changes. The restore + save
+      # pair (not the combined `actions/cache@vN`) is load-bearing: the
+      # combined step skips its post-step save on a cache HIT, breaking
+      # the append-write-back pattern. See #581.
       - name: Restore reviewer-log cache
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v5
         with:
           path: bots/review-bot/reviewer-log.jsonl
           key: review-bot-reviewer-log-v1
+          restore-keys: |
+            review-bot-reviewer-log-v1
 
       - name: Run review-bot
         env:
@@ -102,6 +107,16 @@ jobs:
           MAX_ATTEMPTS: ${{ inputs.max_attempts || '5' }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: npm run review-bot -w @gazetta/bots
+
+      # Save the appended reviewer-log under a per-run key. `if: always()`
+      # ensures we persist verdicts even when the bot itself failed.
+      # See #581.
+      - name: Save reviewer-log cache
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: bots/review-bot/reviewer-log.jsonl
+          key: review-bot-reviewer-log-v1-${{ github.run_id }}
 
       - name: Upload transcripts
         if: always()
