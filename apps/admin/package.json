@@ -25,8 +25,7 @@
     "primeicons": "^7.0.0",
     "primevue": "^4.5.5",
     "vue": "^3.5.34",
-    "vue-router": "^5.0.6",
-    "zod": "^4.4.3"
+    "vue-router": "^5.0.6"
   },
   "devDependencies": {
     "@hono/vite-dev-server": "^0.25.3",
