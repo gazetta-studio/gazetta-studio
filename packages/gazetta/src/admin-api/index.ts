@@ -238,17 +238,17 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
 
   // Prefer an externally-provided SourceContext. Fall back to constructing
   // one from opts.storage + opts.siteDir, which is the legacy shape.
+  //
+  // When `opts.source` is provided, its `history` field is used verbatim:
+  // - With `opts.targetConfigs` non-empty, the registry resolver below
+  //   constructs per-request SourceContext via `createSourceContextFromRegistry`
+  //   and wires history through the `buildHistory` callback — `opts.source.history`
+  //   is never consulted.
+  // - With `opts.targetConfigs` empty/unset, the static resolver returns
+  //   `opts.source` directly; the caller owns whether history is wired.
   let source: SourceContext
   if (opts.source) {
     source = opts.source
-    // Backfill history on the source if the caller didn't supply one —
-    // dev bootstrap builds a bare SourceContext and relies on admin-api
-    // to wire history per the target's config. Skip when the target's
-    // site.config.ts has `history.enabled: false`, or when there's no
-    // matching targetConfig (legacy single-storage path).
-    if (!opts.source.history) {
-      source = { ...opts.source, history: buildHistoryForSource(opts, opts.source) }
-    }
   } else {
     if (!opts.storage) {
       throw new Error('createAdminApp: either `source` or `storage` must be provided')
@@ -509,24 +509,6 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
     })
   }
   return appWithInvalidate
-}
-
-/**
- * Build a HistoryProvider for the caller-supplied source. Used when
- * the bootstrap gives us a SourceContext without history pre-wired
- * (dev server, CLI scripts). Picks up the source target's config from
- * `opts.targetConfigs` — respects `history.enabled: false`, honors the
- * configured retention. Returns undefined when we can't identify the
- * target or history is disabled.
- */
-function buildHistoryForSource(opts: AdminAppOptions, source: SourceContext) {
-  const name = source.targetName
-  const config = name ? opts.targetConfigs?.[name] : undefined
-  if (!config || !isHistoryEnabled(config)) return undefined
-  return createHistoryProvider({
-    storage: source.storage,
-    retention: getHistoryRetention(config),
-  })
 }
 
 /**

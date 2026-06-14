@@ -501,34 +501,24 @@ describe('Cluster 2e — site-root regex anchored at end (line 235 Regex)', () =
 })
 
 /**
- * Cluster 3 — history backfill block (lines 249-251) is structurally
- * dead in v1 and NOT tested here.
+ * Cluster 3 — history backfill block deleted in issue #579.
  *
- * The block:
+ * The block at former lines 249-251:
  *
  *   if (!opts.source.history) {
  *     source = { ...opts.source, history: buildHistoryForSource(opts, opts.source) }
  *   }
  *
- * `buildHistoryForSource` requires `opts.targetConfigs[source.targetName]`
- * to exist with history enabled — otherwise it returns undefined and the
- * backfill is a no-op. But when `opts.targetConfigs` has any entries,
- * `createAdminApp` selects the **registry** source resolver, which
- * constructs its own per-request `SourceContext` via
- * `createSourceContextFromRegistry` and provides history through the
- * registry's `buildHistory` callback — never consulting the backfilled
- * `source.history` on `opts.source`. When `opts.targetConfigs` is empty
- * (static resolver path), `buildHistoryForSource` returns undefined and
- * the backfill is a no-op.
+ * was structurally dead — `buildHistoryForSource` only returned non-undefined
+ * when `opts.targetConfigs[source.targetName]` was history-enabled, but that
+ * configuration always selected the registry source resolver instead of the
+ * static one, and the registry resolver constructs its own per-request
+ * `SourceContext` via `createSourceContextFromRegistry` (wiring history
+ * through the `buildHistory` callback) without consulting the backfilled
+ * `source.history`. The two configurations were mutually exclusive.
  *
- * The two configurations are mutually exclusive: there is no
- * createAdminApp option shape under which the backfilled `source.history`
- * affects the observable behavior of subsequent routes.
- *
- * The line 249 BooleanLiteral / ConditionalExpression / BlockStatement
- * mutants therefore survive because the branch they touch is unreachable
- * from the route surface, not because of weak tests. Fixing them requires
- * either deleting the dead block or refactoring so the static resolver
- * also routes through the same backfill path — a source-code change, not
- * a test addition.
+ * The block + its helper were deleted (provable elimination). The mutants
+ * Stryker previously surfaced on those lines no longer exist. A guard test
+ * against accidental re-introduction lives in
+ * `admin-api-index-history-backfill-removed.test.ts`.
  */
