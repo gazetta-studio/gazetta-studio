@@ -9,6 +9,15 @@
       "reasonNote": "Cuts 4-9, 11-18, and 20 have not shipped; only cuts 1-3 (#515-517) and 10 (#524) are in git log. Writing the operator guide and marking ROADMAP \"shipped\" would describe and announce features that don't exist.",
       "addedAt": "2026-06-09T08:53:51.317Z",
       "addedBy": "bot"
+    },
+    {
+      "fingerprint": {
+        "issueNumber": 520
+      },
+      "reason": "needs-human",
+      "reasonNote": "Agent A's Claude invocation exited 1 on attempt 1. See transcript.",
+      "addedAt": "2026-06-14T08:44:25.660Z",
+      "addedBy": "bot"
     }
   ]
 }
