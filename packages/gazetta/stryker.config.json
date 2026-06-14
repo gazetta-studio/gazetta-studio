@@ -19,7 +19,8 @@
     "src/alt/route-handler.ts",
     "src/hooks/registry.ts",
     "src/assets/asset-deps.ts",
-    "src/admin-api/index.ts"
+    "src/admin-api/index.ts",
+    "src/types.ts"
   ],
   "thresholds": {
     "high": 80,
