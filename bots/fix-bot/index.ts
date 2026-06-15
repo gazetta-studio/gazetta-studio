@@ -48,7 +48,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { runClaude } from '../_lib/claude.js'
+import { detectRateLimit, runClaude } from '../_lib/claude.js'
 import { branchHasCommits, captureCommitMessages, captureDiff, resetToMain } from '../_lib/git-tree.js'
 import {
   addLabel,
@@ -192,12 +192,29 @@ async function main(): Promise<void> {
       elapsedSec: Math.round(elapsed / 1000),
     })
 
+    let issueResult: IssueResult = { rateLimited: false }
     try {
-      await fixOneIssue(octokit, repo, candidate.number)
+      issueResult = await fixOneIssue(octokit, repo, candidate.number)
     } catch (err) {
       printWarning(`fix attempt for #${candidate.number} threw: ${err}; continuing.`)
     }
     processed++
+
+    // Rate-limit cascade-stop. If Agent A hit Anthropic's session limit,
+    // every subsequent candidate's `claude -p` invocation crashes in 4s
+    // against the rejected bucket. Continuing the loop creates spurious
+    // `ready-for-human` escalations + skip-list PRs (see 2026-06-14
+    // #587-#590 in feature-bot). Stop the queue; tomorrow's cron resumes.
+    if (issueResult.rateLimited) {
+      const remaining = candidates.length - processed
+      printWarning(
+        `Stopping the candidate queue due to Anthropic session-rate-limit. ${remaining} candidate(s) remain; tomorrow's cron resumes after the bucket resets.`,
+      )
+      for (const skipped of candidates.slice(processed)) {
+        console.log(`     ⏭  #${skipped.number} "${skipped.title}"`)
+      }
+      break
+    }
   }
 
   const totalSec = Math.round((Date.now() - runStart) / 1000)
@@ -219,28 +236,37 @@ async function main(): Promise<void> {
  * but a manual ISSUE_NUMBER invocation can target any issue, so the
  * checks are defense-in-depth.
  */
+/**
+ * Result of attempting a single issue. The `rateLimited` flag tells the
+ * outer candidate-loop to STOP processing the queue — every subsequent
+ * issue would crash in seconds against the exhausted Anthropic session
+ * bucket. Same shape + reasoning as feature-bot per rule 38 symmetric
+ * audit. See `detectRateLimit` and the outer-loop check in `main`.
+ */
+type IssueResult = { rateLimited: boolean }
+
 async function fixOneIssue(
   octokit: ReturnType<typeof octokitFromEnv>,
   repo: ReturnType<typeof repoFromEnv>,
   issueNumber: number,
-): Promise<void> {
+): Promise<IssueResult> {
   const { data: issue } = await octokit.issues.get({ ...repo, issue_number: issueNumber })
   if (issue.pull_request) {
     printNotice(`#${issueNumber} is a pull request, not an issue. Skipping.`)
-    return
+    return { rateLimited: false }
   }
   if (issue.state !== 'open') {
     printNotice(`#${issueNumber} is ${issue.state}; nothing to fix.`)
-    return
+    return { rateLimited: false }
   }
   const labels = issue.labels.map(l => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean)
   if (!labels.includes('bug') || !labels.includes('ready-for-agent')) {
     printNotice(`#${issueNumber} lacks 'bug' + 'ready-for-agent' (current: [${labels.join(', ')}]); skipping.`)
-    return
+    return { rateLimited: false }
   }
   if (labels.includes('ready-for-human') || labels.includes('wontfix') || labels.includes('needs-info')) {
     printNotice(`#${issueNumber} has terminal-state label; skipping.`)
-    return
+    return { rateLimited: false }
   }
 
   // Idempotency: skip if the `fix-bot-attempted` label is present AND
@@ -265,7 +291,7 @@ async function fixOneIssue(
       printNotice(
         `#${issueNumber}: fix-bot-attempted label present and no reopen since. To re-attempt, remove the label OR reopen the issue.`,
       )
-      return
+      return { rateLimited: false }
     }
     printNotice(
       `#${issueNumber}: prior fix-bot-attempted (${attemptedAt}); issue reopened at ${reopenedAt}. Re-attempting.`,
@@ -283,7 +309,7 @@ async function fixOneIssue(
     const note = 'reasonNote' in skipMatch ? skipMatch.reasonNote : '(no note)'
     printNotice(`#${issueNumber}: skip-list match (${reason}); skipping.`)
     printNotice(`  reason: ${note.slice(0, 120)}${note.length > 120 ? '…' : ''}`)
-    return
+    return { rateLimited: false }
   }
 
   // Lessons-learned is the durable cross-issue memory the monthly
@@ -296,7 +322,7 @@ async function fixOneIssue(
 
   if (DRY_RUN) {
     printNotice(`DRY_RUN=1 — exiting before invoking Claude.`)
-    return
+    return { rateLimited: false }
   }
 
   const branchName = `fix/issue-${issueNumber}`
@@ -358,6 +384,18 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     })
 
     if (!aResult.success) {
+      // Rate-limit cascade-stop (rule 38 symmetric audit; mirrors
+      // feature-bot's check). If Anthropic's 5-hour session bucket
+      // is exhausted, every subsequent issue would crash in seconds.
+      // Leave this issue on the queue + signal the outer loop to
+      // STOP processing more candidates.
+      if (detectRateLimit(agentATranscript)) {
+        printWarning(
+          `Anthropic session-rate-limit hit on attempt ${attempt}; stopping the queue (this issue + remaining candidates will be retried by tomorrow's cron after the bucket resets).`,
+        )
+        resetToMain(branchName, { cwd: REPO_ROOT })
+        return { rateLimited: true }
+      }
       printWarning(`Agent A exited ${aResult.exitCode} on attempt ${attempt}; posting failure comment.`)
       await postFailureComment(octokit, repo, issueNumber, agentATranscript)
       attemptOutcome = 'agent-a-failure'
@@ -519,6 +557,7 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
   } catch (err) {
     printWarning(`could not apply fix-bot-attempted label to #${issueNumber}: ${err}`)
   }
+  return { rateLimited: false }
 }
 
 /**
