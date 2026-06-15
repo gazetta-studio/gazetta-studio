@@ -47,6 +47,7 @@ import { fileURLToPath } from 'node:url'
 import { printBanner, printNotice, printRunSummary, printWarning } from '../_lib/ui.js'
 import { decide, type Decision, type ScopedModule, type UnMutatedCandidate } from './decision.js'
 import { computeRuntimeCalibration, discoverCandidates, estimateRuntimeMinutes, expandGlob } from './discover.js'
+import { scopeChangeGitCommands } from './git-commands.js'
 import {
   appendReviewerLog,
   countWeeklyRuns,
@@ -435,11 +436,16 @@ Close the PR — the bot's next weekly run will re-evaluate. If the same module 
 
 <!-- mutation-area-picker: action=${decision.action} run=${logEntry.runId} -->`
 
+  const { checkoutArgs, pushArgs } = scopeChangeGitCommands(branchName)
   try {
-    execFileSync('git', ['checkout', '-b', branchName], { cwd: REPO_ROOT, stdio: 'inherit' })
+    // Fetch origin/main first so `checkout -B ... origin/main` resolves
+    // against the freshest upstream tip (rule-38 deterministic-branch-
+    // start — mirror of feature-bot / review-bot).
+    execFileSync('git', ['fetch', 'origin', 'main'], { cwd: REPO_ROOT, stdio: 'inherit' })
+    execFileSync('git', checkoutArgs, { cwd: REPO_ROOT, stdio: 'inherit' })
     execFileSync('git', ['add', 'packages/gazetta/stryker.config.json'], { cwd: REPO_ROOT, stdio: 'inherit' })
     execFileSync('git', ['commit', '-m', title], { cwd: REPO_ROOT, stdio: 'inherit' })
-    execFileSync('git', ['push', '-u', 'origin', branchName], { cwd: REPO_ROOT, stdio: 'inherit' })
+    execFileSync('git', pushArgs, { cwd: REPO_ROOT, stdio: 'inherit' })
     execFileSync('gh', ['pr', 'create', '--draft', '--title', title, '--body', body], {
       cwd: REPO_ROOT,
       stdio: 'inherit',
