@@ -263,6 +263,26 @@ t
     expect(parsed.solid).toBeUndefined()
     expect(parsed.acceptance).toBeUndefined()
   })
+
+  it('pins "duplicate ## Spec → first wins" — second occurrence is dropped, not appended', () => {
+    // Documented at cut-parser.ts:152-159 ("the first wins; the parser
+    // doesn't try to be cleverer than the documented convention").
+    // Counterfactual: a refactor that drops the `=== undefined` guard
+    // in `flush()` (always overwrite) — or a `split(/^## /m)`-based
+    // rewrite that takes the last match — would make parsed.spec equal
+    // 'second spec body', failing both assertions below.
+    const body = `**Feature**: foo
+
+## Spec
+first spec body
+
+## Spec
+second spec body
+`
+    const parsed = parseCutBody(body)
+    expect(parsed.spec).toBe('first spec body')
+    expect(parsed.spec).not.toContain('second spec body')
+  })
 })
 
 // ---------------------------------------------------------------------------
