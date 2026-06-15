@@ -37,7 +37,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { runClaude } from '../_lib/claude.js'
+import { detectRateLimit, runClaude } from '../_lib/claude.js'
 import { branchHasCommits, captureCommitMessages, captureDiff, resetToMain } from '../_lib/git-tree.js'
 import {
   addLabel,
@@ -185,12 +185,29 @@ async function main(): Promise<void> {
       elapsedSec: Math.round(elapsed / 1000),
     })
 
+    let cutResult: CutResult = { rateLimited: false }
     try {
-      await fixOneCut(octokit, repo, candidate.number)
+      cutResult = await fixOneCut(octokit, repo, candidate.number)
     } catch (err) {
       printWarning(`Cut attempt for #${candidate.number} threw: ${err}; continuing.`)
     }
     processed++
+
+    // Rate-limit cascade-stop. If Agent A hit Anthropic's session limit,
+    // every subsequent candidate's `claude -p` invocation crashes in 4s
+    // against the rejected bucket. Continuing the loop creates spurious
+    // `ready-for-human` escalations + skip-list PRs (see 2026-06-14
+    // #587-#590). Stop processing; tomorrow's cron resumes the queue.
+    if (cutResult.rateLimited) {
+      const remaining = candidates.length - processed
+      printWarning(
+        `Stopping the candidate queue due to Anthropic session-rate-limit. ${remaining} candidate(s) remain; tomorrow's cron resumes after the bucket resets.`,
+      )
+      for (const skipped of candidates.slice(processed)) {
+        console.log(`     ⏭  #${skipped.number} "${skipped.title}"`)
+      }
+      break
+    }
   }
 
   const totalSec = Math.round((Date.now() - runStart) / 1000)
@@ -207,28 +224,36 @@ async function main(): Promise<void> {
  * Attempt to implement one cut sub-issue. Used by cron mode (per-candidate
  * loop) and manual one-issue mode.
  */
+/**
+ * Result of attempting a single cut. The `rateLimited` flag tells the
+ * outer candidate-loop to STOP processing the queue — every subsequent
+ * cut would crash in seconds against the exhausted Anthropic session
+ * bucket. See `detectRateLimit` and the outer-loop check in `main`.
+ */
+type CutResult = { rateLimited: boolean }
+
 async function fixOneCut(
   octokit: ReturnType<typeof octokitFromEnv>,
   repo: ReturnType<typeof repoFromEnv>,
   issueNumber: number,
-): Promise<void> {
+): Promise<CutResult> {
   const { data: issue } = await octokit.issues.get({ ...repo, issue_number: issueNumber })
   if (issue.pull_request) {
     printNotice(`#${issueNumber} is a pull request, not an issue. Skipping.`)
-    return
+    return { rateLimited: false }
   }
   if (issue.state !== 'open') {
     printNotice(`#${issueNumber} is ${issue.state}; nothing to do.`)
-    return
+    return { rateLimited: false }
   }
   const labels = issue.labels.map(l => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean)
   if (!labels.includes('enhancement') || !labels.includes('ready-for-agent')) {
     printNotice(`#${issueNumber} lacks 'enhancement' + 'ready-for-agent' (current: [${labels.join(', ')}]); skipping.`)
-    return
+    return { rateLimited: false }
   }
   if (labels.includes('ready-for-human') || labels.includes('wontfix') || labels.includes('needs-info')) {
     printNotice(`#${issueNumber} has terminal-state label; skipping.`)
-    return
+    return { rateLimited: false }
   }
 
   // Idempotency: skip if the `feature-bot-attempted` label is present AND
@@ -241,7 +266,7 @@ async function fixOneCut(
     printNotice(
       `#${issueNumber}: feature-bot-attempted label present and no reopen since. To re-attempt, remove the label OR reopen the issue.`,
     )
-    return
+    return { rateLimited: false }
   }
   if (idempotencyDecision.kind === 'proceed-after-reopen') {
     printNotice(
@@ -257,7 +282,7 @@ async function fixOneCut(
     await postBodyErrorComment(octokit, repo, issueNumber, validation.errors)
     await applyLabelBestEffort(octokit, repo, issueNumber, 'needs-info')
     await applyLabelBestEffort(octokit, repo, issueNumber, 'feature-bot-attempted')
-    return
+    return { rateLimited: false }
   }
 
   if (validation.kind === 'self-reference') {
@@ -273,14 +298,14 @@ async function fixOneCut(
         reasonNote: `Cut body references its own issue number in **Depends on**. This is a structurally broken spec.`,
       },
     )
-    return
+    return { rateLimited: false }
   }
 
   if (validation.kind === 'dep-invalid') {
     await postDepInvalidComment(octokit, repo, issueNumber, validation.depNumber, validation.reason)
     await applyLabelBestEffort(octokit, repo, issueNumber, 'needs-info')
     await applyLabelBestEffort(octokit, repo, issueNumber, 'feature-bot-attempted')
-    return
+    return { rateLimited: false }
   }
 
   if (validation.kind === 'dep-rejected') {
@@ -296,13 +321,13 @@ async function fixOneCut(
         reasonNote: `Cut depends on #${validation.depNumber} which was closed without merging. The prerequisite work was rejected; this cut may need re-scoping.`,
       },
     )
-    return
+    return { rateLimited: false }
   }
 
   if (validation.kind === 'dep-open') {
     // No labels applied — bot retries next cron when dep closes.
     await postDepOpenComment(octokit, repo, issueNumber, validation.openDeps)
-    return
+    return { rateLimited: false }
   }
 
   // validation.kind === 'ready'
@@ -315,7 +340,7 @@ async function fixOneCut(
   const skipMatch = findSkipMatch(skipList, fingerprint)
   if (skipMatch) {
     printNotice(`#${issueNumber}: skip-list match (${skipMatch.reason}); skipping.`)
-    return
+    return { rateLimited: false }
   }
 
   // Lessons-learned — loaded once, inlined into every Agent A + reviewer prompt.
@@ -393,6 +418,22 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
       transcriptPath: agentATranscript,
       allowedTools: ['Bash', 'Read', 'Grep', 'Glob', 'Write', 'Edit'],
     })
+
+    // Rate-limit cascade-stop. When Anthropic's 5-hour session bucket
+    // is exhausted, this and every subsequent cut crash in seconds
+    // against the rejected bucket. Escalating to `ready-for-human`
+    // would create spurious skip-list PRs (see 2026-06-14 #587-#590);
+    // the cut is fine, the bucket isn't. Leave the cut on the queue,
+    // signal the outer loop to STOP processing more candidates, and
+    // skip the `feature-bot-attempted` label so tomorrow's cron
+    // re-picks this cut at the front.
+    if (!aResult.success && detectRateLimit(agentATranscript)) {
+      printWarning(
+        `Anthropic session-rate-limit hit on attempt ${attempt}; stopping the queue (this cut + remaining candidates will be retried by tomorrow's cron after the bucket resets).`,
+      )
+      resetToMain(branchName, { cwd: REPO_ROOT })
+      return { rateLimited: true }
+    }
 
     const ctx: RouteContext = {
       attempt,
@@ -568,6 +609,7 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
   }
 
   await applyLabelBestEffort(octokit, repo, issueNumber, 'feature-bot-attempted')
+  return { rateLimited: false }
 }
 
 /**

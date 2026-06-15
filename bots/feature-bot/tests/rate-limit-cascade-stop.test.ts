@@ -45,15 +45,17 @@ describe('feature-bot — rate-limit cascade stop', () => {
     // Without the `break` outside the inner try/catch, the loop
     // continues to the next candidate which will also crash.
     //
-    // Looking for: a `break` that fires when detectRateLimit() returns
-    // true, somewhere inside the outer `for (const candidate of
-    // candidates)` block.
-    const outerLoop = source.match(
-      /for \(const candidate of candidates\)[\s\S]+?(?=\nasync function|\nfunction|\n\/\*\*)/,
-    )
+    // The implementation propagates the rate-limit signal from
+    // `fixOneCut` to the outer loop via a `rateLimited: boolean`
+    // field on its return value (rather than letting the outer
+    // loop call detectRateLimit directly — that would couple the
+    // loop to transcript-path bookkeeping that lives inside
+    // fixOneCut). So the outer loop checks `cutResult.rateLimited`
+    // and breaks; fixOneCut owns the actual detectRateLimit call.
+    const outerLoop = source.match(/for \(const candidate of candidates\)[\s\S]+?\n  \}\n/)
     expect(outerLoop, 'outer candidate loop must exist').toBeTruthy()
     const body = outerLoop?.[0] ?? ''
-    expect(body).toMatch(/detectRateLimit\(/)
+    expect(body).toMatch(/rateLimited/)
     expect(body).toMatch(/break/)
   })
 

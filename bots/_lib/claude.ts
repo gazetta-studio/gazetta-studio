@@ -17,7 +17,7 @@
  * for how the transcripts feed the replay loop.
  */
 import { spawn } from 'node:child_process'
-import { createWriteStream } from 'node:fs'
+import { createWriteStream, existsSync, readFileSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -185,4 +185,61 @@ export async function runClaude(opts: ClaudeOptions): Promise<ClaudeResult> {
       resolve({ exitCode, success: exitCode === 0, transcriptPath: opts.transcriptPath })
     })
   })
+}
+
+/**
+ * Detect whether a Claude transcript ended because of an Anthropic
+ * session-rate-limit (5-hour bucket exhausted). Returns true iff the
+ * transcript contains EITHER:
+ *   - a `rate_limit_event` line with `status: 'rejected'` (the cascade
+ *     case — every cut after the one that exhausted the bucket starts
+ *     with this event before Claude even begins the conversation), OR
+ *   - a `result` event with `api_error_status: 429` (the cut that
+ *     actually hit the wall).
+ *
+ * Bots check this AFTER each Agent A invocation to decide whether to
+ * STOP the candidate queue (rate-limited → tomorrow's cron retries) vs.
+ * escalate this cut to `ready-for-human` (real failure). Without the
+ * check, one 429 cascades into N spurious skip-list PRs as every
+ * subsequent candidate crashes in 4s on the exhausted bucket.
+ *
+ * Discovered 2026-06-14, run 27493085111 — Cut #519 burned $35.29 over
+ * 88 turns and hit the 5-hour limit; cuts #520, #524, #526 each crashed
+ * in 4s producing PRs #587-#590 with reason `needs-human` that were in
+ * fact transient rate-limit cascade victims.
+ *
+ * Defensive against missing / malformed transcripts: returns false on
+ * any read or parse error. The caller's worst case in that branch is
+ * "the bot escalates a cut it could have left on the queue" — strictly
+ * less bad than the cascade we're preventing.
+ */
+export function detectRateLimit(transcriptPath: string): boolean {
+  if (!existsSync(transcriptPath)) return false
+  let content: string
+  try {
+    content = readFileSync(transcriptPath, 'utf-8')
+  } catch {
+    return false
+  }
+  const lines = content.split('\n')
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    let event: unknown
+    try {
+      event = JSON.parse(trimmed)
+    } catch {
+      continue
+    }
+    if (!event || typeof event !== 'object') continue
+    const e = event as Record<string, unknown>
+    if (e.type === 'rate_limit_event') {
+      const info = e.rate_limit_info as { status?: string } | undefined
+      if (info?.status === 'rejected') return true
+    }
+    if (e.type === 'result' && e.is_error === true && e.api_error_status === 429) {
+      return true
+    }
+  }
+  return false
 }
