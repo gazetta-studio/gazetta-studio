@@ -46,6 +46,16 @@
  * composed during a rename). The closed-enum discriminator over
  * `metadata.manual: true` keeps `AuditQuery.action` forensic queries
  * reliable ("show all manual redirects last week").
+ *
+ * Review workflow (per design-review-workflow.md "Audit event shape")
+ * extends with `review-submit` / `review-approve` / `review-reject` —
+ * each maps to one user-driven content-review transition. The fourth
+ * transition `review-withdraw` was added earlier by soft-delete Cut 14
+ * (synthetic auto-withdraw on archive); it's the same forensic shape
+ * (one action verb per transition) and review-workflow reuses it for
+ * the submitter's manual withdraw. `metadata.comment` carries the
+ * rejection reason on `review-reject` (mandatory per the locked
+ * single-reject-with-comment invariant).
  */
 export type AuditAction =
   | 'save'
@@ -58,6 +68,9 @@ export type AuditAction =
   | 'unarchive'
   | 'purge'
   | 'rename'
+  | 'review-submit'
+  | 'review-approve'
+  | 'review-reject'
   | 'review-withdraw'
   | 'ai-suggest-alt'
   | 'create-redirect'
