@@ -44,6 +44,17 @@
       "addedBy": "bot",
       "reason": "needs-human",
       "reasonNote": "Agent A exited 1; see /home/runner/work/gazetta-studio/gazetta-studio/bots/transcripts/review-bot/agent-a-27493328986-attempt1.jsonl"
+    },
+    {
+      "fingerprint": {
+        "area": "bots/feature-bot/tests/rate-limit-cascade-stop.test.ts",
+        "type": "tests",
+        "rule": "team-preferences.md#31"
+      },
+      "addedAt": "2026-06-17T09:29:22.281Z",
+      "addedBy": "bot",
+      "reason": "stuck",
+      "reasonNote": "This candidate fits tdd-first, not coverage-shape. The candidate's"
     }
   ],
   "rules": []
