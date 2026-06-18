@@ -62,6 +62,7 @@ import {
 } from '../_lib/ui.js'
 import { parseAgentASignal } from './agent-a-signal.js'
 import { decideIdempotency } from './idempotency.js'
+import { shouldEscalateForBudget } from './per-cut-budget.js'
 import { appendReviewerLog, REVIEWER_LOG_PATH } from './reviewer-log.js'
 import { routeAttemptOutcome, type AttemptOutcome, type RouteContext, type RouteDecision } from './route-attempt.js'
 import {
@@ -101,7 +102,6 @@ const PER_RUN_BUDGET_MS = Number(process.env.BUDGET_MS ?? 50 * 60 * 1000)
 // 60-min wall converts that silent kill into a graceful NEEDS_HUMAN
 // escalation ("cut exceeds time budget — likely too large; split it").
 const PER_CUT_BUDGET_MS = Number(process.env.CUT_BUDGET_MS ?? 45 * 60 * 1000)
-const PROCESS_START = Date.now()
 const MAX_ATTEMPTS = Number(process.env.MAX_ATTEMPTS ?? '5')
 const MAX_INPUT_CYCLES = Number(process.env.MAX_INPUT_CYCLES ?? '2')
 
@@ -362,6 +362,13 @@ async function fixOneCut(
   let priorReviewerNote: string | null = null
   let finalOutcome: 'approved' | 'escalated' | 'needs-input-posted' | 'loop-exhausted' = 'loop-exhausted'
 
+  // Per-cut wall-clock anchor. MUST be captured per cut (not at
+  // module init): a multi-cut cron run would otherwise let cut #2
+  // inherit cut #1's elapsed time and escalate prematurely. The
+  // shouldEscalateForBudget helper's signature enforces the
+  // cut-scoped contract — it takes `cutStart` as an arg.
+  const cutStart = Date.now()
+
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     // Per-cut deadline guard. Without this, a thrashing cut runs until the
     // workflow's 60-min hard kill, producing nothing (the #516 failure
@@ -376,8 +383,9 @@ async function fixOneCut(
     // interrupt an in-flight runClaude. It catches the common multi-
     // attempt-thrash case; per-call timeouts on runClaude are the fuller
     // fix if single-attempt overruns recur.
-    const cutElapsed = Date.now() - PROCESS_START
-    if (cutElapsed > PER_CUT_BUDGET_MS) {
+    const now = Date.now()
+    const cutElapsed = now - cutStart
+    if (shouldEscalateForBudget({ cutStart, now, budget: PER_CUT_BUDGET_MS })) {
       printWarning(
         `Per-cut budget exhausted for #${issueNumber} (${Math.round(cutElapsed / 1000)}s > ${Math.round(PER_CUT_BUDGET_MS / 1000)}s) after ${attempt - 1} attempt(s). Escalating before the workflow hard-kill.`,
       )
