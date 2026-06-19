@@ -65,6 +65,8 @@ import { assetRoutes } from '../src/admin-api/routes/assets.js'
 import { staticSourceResolver, createSourceContext } from '../src/admin-api/source-context.js'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
 import { principalMiddleware } from '../src/admin-api/middleware/principal.js'
+import type { AuthIdentityProvider, Principal } from '../src/auth/index.js'
+import type { StorageProvider } from '../src/types.js'
 import { tempDir } from './_helpers/temp.js'
 
 const testDir = tempDir('http-assets-mutation-coverage-' + Date.now())
@@ -377,5 +379,217 @@ describe('selectorFromQuery — DELETE /api/assets/:name/locale-bytes', () => {
       const res = await app.request('/api/assets/hero/locale-bytes?locale=fr', { method: 'DELETE' })
       expect(res.status).toBe(204)
     })
+  })
+})
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Closes the second wave of mutation gaps in `assets.ts` per #602:
+ *
+ *   - `StringLiteral` on `requireCapability('read:assets')` (the gate value
+ *     on both `GET /api/assets` and `GET /api/assets/:name`) survives because
+ *     the existing 200-only test in `auth-route-gates.test.ts` doesn't pin
+ *     the gate VALUE — only that the route is reachable under `*`. Asserting
+ *     the 403 body's `missing: ['read:assets']` array pins the literal.
+ *   - `BlockStatement` (`→ {}`) on the `try`/`catch` around `listAssets`
+ *     is NoCoverage — no test makes `listAssets` throw, so the catch never
+ *     fires. Injecting a storage that throws a non-ENOENT error on
+ *     `readDir('assets')` makes `listAssets` wrap and rethrow as
+ *     `AssetStorageError`; the route's catch then surfaces the typed body.
+ *   - `ArrayDeclaration` on `const locales: string[] = []` and
+ *     `const themes: string[] = []` (lines 110-111) survive because the
+ *     existing assertions on `GET /api/assets/:name` don't inspect those
+ *     arrays. Asserting `[]` for a default-only asset and `['fr']` for an
+ *     asset with one French override pins both initializations.
+ *
+ * Storage tier: filesystem — the array-init tests need real binary uploads
+ * to seed the override slice; the catch-block test uses an in-process
+ * wrapper around the filesystem provider rather than a separate stub.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+function providerWithCaps(caps: string[], role = 'editor'): AuthIdentityProvider {
+  return {
+    trustMode: 'forwarded-user',
+    async extractPrincipal(): Promise<Principal> {
+      return { id: 'test-user', role, trustMode: 'forwarded-user', capabilities: caps }
+    },
+  }
+}
+
+const anonymousProvider: AuthIdentityProvider = {
+  trustMode: 'forwarded-user',
+  async extractPrincipal(): Promise<Principal | null> {
+    return null
+  },
+}
+
+function buildAppWith(provider: AuthIdentityProvider) {
+  const storage = createFilesystemProvider(testDir)
+  const source = createSourceContext({ storage, siteDir: '' })
+  const resolve = staticSourceResolver(source)
+  const app = new Hono()
+  app.use('/api/*', principalMiddleware(provider))
+  app.route('/', assetRoutes(resolve))
+  return { app, storage }
+}
+
+function buildAppWithThrowingStorage() {
+  // Wrap the real filesystem provider so `readDir('assets')` throws a
+  // non-ENOENT error. `listAssets` catches ENOENT-shaped errors and
+  // returns `[]` (treated as "no assets yet"), so we synthesize a
+  // generic failure that listAssets must rethrow as AssetStorageError.
+  // The route's catch then translates via respondWithAssetError → 500.
+  const real = createFilesystemProvider(testDir)
+  const throwing: StorageProvider = {
+    ...real,
+    async readDir(path: string) {
+      if (path === 'assets') {
+        throw new Error('Simulated EIO on assets readDir')
+      }
+      return real.readDir(path)
+    },
+  }
+  const source = createSourceContext({ storage: throwing, siteDir: '' })
+  const resolve = staticSourceResolver(source)
+  const app = new Hono()
+  app.use('/api/*', principalMiddleware())
+  app.route('/', assetRoutes(resolve))
+  return { app }
+}
+
+describe('GET /api/assets — read:assets capability gate', () => {
+  it('200 when the principal has read:assets', async () => {
+    // Under StringLiteral mutation `'read:assets'` → `""`, the gate
+    // requires capability `""`; `capabilityGrants` short-circuits on
+    // `required.length === 0` → 403. Asserting 200 with a principal
+    // that has exactly `read:assets` (not a wildcard) kills the
+    // mutation: the genuine gate matches the principal's capability;
+    // the mutant gate doesn't match anything.
+    const { app } = buildAppWith(providerWithCaps(['read:assets']))
+    const res = await app.request('/api/assets')
+    expect(res.status).toBe(200)
+  })
+
+  it('403 with missing: ["read:assets"] when the authenticated principal lacks the gate', async () => {
+    // The genuine 403 carries `missing: ['read:assets']` (the literal
+    // value of the gate as wired). Under the mutation, the gate value
+    // is `""` and the 403 body carries `missing: ['']`. Asserting the
+    // exact literal kills the mutation independently of whether the
+    // mutated gate happens to also produce 403.
+    const { app } = buildAppWith(providerWithCaps(['read:pages'], 'editor'))
+    const res = await app.request('/api/assets')
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { code: string; missing: string[]; role: string }
+    expect(body.code).toBe('FORBIDDEN')
+    expect(body.missing).toEqual(['read:assets'])
+    expect(body.role).toBe('editor')
+  })
+
+  it('401 when the request is anonymous (no upstream identity)', async () => {
+    const { app } = buildAppWith(anonymousProvider)
+    const res = await app.request('/api/assets')
+    expect(res.status).toBe(401)
+    const body = (await res.json()) as { code: string }
+    expect(body.code).toBe('UNAUTHENTICATED')
+  })
+})
+
+describe('GET /api/assets/:name — read:assets capability gate', () => {
+  it('reaches the route handler (200 or 404) when the principal has read:assets', async () => {
+    // No upload before the request — the capability check passes and
+    // `readManifest` throws `AssetManifestNotFoundError` → 404. The
+    // important contract here is "the gate passed" (status is not
+    // 401/403). Under the gate-string mutation the response would be
+    // 403, which the `[200, 404]` assertion rejects.
+    const { app } = buildAppWith(providerWithCaps(['read:assets']))
+    const res = await app.request('/api/assets/missing')
+    expect([200, 404]).toContain(res.status)
+  })
+
+  it('403 with missing: ["read:assets"] when the principal lacks the gate', async () => {
+    const { app } = buildAppWith(providerWithCaps(['read:pages'], 'editor'))
+    const res = await app.request('/api/assets/hero')
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { code: string; missing: string[]; role: string }
+    expect(body.code).toBe('FORBIDDEN')
+    expect(body.missing).toEqual(['read:assets'])
+    expect(body.role).toBe('editor')
+  })
+
+  it('401 when the request is anonymous', async () => {
+    const { app } = buildAppWith(anonymousProvider)
+    const res = await app.request('/api/assets/hero')
+    expect(res.status).toBe(401)
+    const body = (await res.json()) as { code: string }
+    expect(body.code).toBe('UNAUTHENTICATED')
+  })
+})
+
+describe('GET /api/assets — listAssets error path (catch block)', () => {
+  it('500 with ASSET_STORAGE_FAILURE body when listAssets throws AssetStorageError', async () => {
+    // Pinning the route's `try { ... } catch (err) { ... }` around
+    // `listAssets`. Under the BlockStatement mutation `→ {}`, the
+    // catch swallows the error and the async handler returns
+    // undefined; Hono renders a default (non-JSON, non-500-with-code)
+    // response. Asserting on the typed body shape kills the mutation
+    // regardless of what Hono produces in the mutated case.
+    const { app } = buildAppWithThrowingStorage()
+    const res = await app.request('/api/assets')
+    expect(res.status).toBe(500)
+    expect(res.headers.get('content-type')).toMatch(/application\/json/)
+    const body = (await res.json()) as { code: string; message: string }
+    expect(body.code).toBe('ASSET_STORAGE_FAILURE')
+    expect(body.message).toContain('Storage read failed')
+    expect(body.message).toContain('assets')
+  })
+})
+
+describe('GET /api/assets/:name — overrideLocales / overrideThemes arrays', () => {
+  it('returns [] for both arrays on an asset with no overrides', async () => {
+    // Under ArrayDeclaration mutations `[]` → `['Stryker was here']`
+    // on the route's `const locales: string[] = []` and
+    // `const themes: string[] = []`, the summary's `overrideLocales`
+    // / `overrideThemes` would carry `['Stryker was here']` even
+    // when no slice exists. Asserting `[]` on an asset with no
+    // overrides kills both mutations directly.
+    //
+    // Upload + GET need both edit:assets and read:assets. Splitting
+    // them across two principals would muddy the read-side
+    // assertions; one principal with both caps keeps the setup +
+    // act phases clean.
+    const { app } = buildAppWith(providerWithCaps(['read:assets', 'edit:assets']))
+    await uploadHero(app)
+
+    const res = await app.request('/api/assets/hero')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      name: string
+      overrideLocales: string[]
+      overrideThemes: string[]
+    }
+    expect(body.name).toBe('hero')
+    expect(body.overrideLocales).toEqual([])
+    expect(body.overrideThemes).toEqual([])
+  })
+
+  it("returns ['fr'] for overrideLocales and [] for overrideThemes when only a French bytes override exists", async () => {
+    // Belt-and-suspenders: once a French slice exists, the array
+    // must START EMPTY and accumulate ONLY discovered values.
+    // A mutation that pre-seeded `['Stryker was here']` would
+    // surface as an extra entry — `toEqual(['fr'])` rejects the
+    // contaminated array regardless of sort order.
+    const { app } = buildAppWith(providerWithCaps(['read:assets', 'edit:assets']))
+    await uploadHero(app)
+    await uploadFrenchOverride(app)
+
+    const res = await app.request('/api/assets/hero')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      name: string
+      overrideLocales: string[]
+      overrideThemes: string[]
+    }
+    expect(body.name).toBe('hero')
+    expect(body.overrideLocales).toEqual(['fr'])
+    expect(body.overrideThemes).toEqual([])
   })
 })
