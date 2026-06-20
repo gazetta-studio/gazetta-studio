@@ -100,7 +100,7 @@ function formatCell(value: string, width: number, align: 'start' | 'end'): strin
  * section uniformly. Decoupling this from the renderer means a future
  * `--format json` consumes the same data structure.
  */
-export interface InfoSection {
+interface InfoSection {
   title: string
   rows: readonly { label: string; value: string }[]
 }
