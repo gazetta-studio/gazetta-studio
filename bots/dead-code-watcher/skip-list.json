@@ -57,6 +57,17 @@
     },
     {
       "fingerprint": {
+        "kind": "type",
+        "path": "packages/gazetta/src/schema/types.ts",
+        "symbol": "HasFontBrand"
+      },
+      "reason": "needs-human",
+      "reasonNote": "Knip false positive and the third of the brand-predicate triple — exactly what the existing `HasDownloadableBrand` entry (2026-06-06) predicted would eventually fire ('if knip is configured to nudge toward file-scoping unused exports, then HasEmbeddedBrand and HasFontBrand should be flagged too — the asymmetry may itself be a knip quirk'). The type is used at packages/gazetta/src/schema/types.ts:413 inside the `Content<T>` type mapper (`: HasFontBrand<T> extends true ? ResolvedFontAsset : ...`); deleting it breaks the type-level `Content<T>` cascade and the build. Knip flags it as 'unused export' because no OTHER file imports it (used only within its declaration module). Verified `HasFontBrand` is NOT in `schema/index.ts`'s curated re-export list (lines 31-50) and not in `packages/gazetta/package.json`'s `./schema` exports map. The three brand predicates (`HasEmbeddedBrand`, `HasDownloadableBrand`, `HasFontBrand`) form an intentional coherent triple — the file's comment block at lines 374-389 calls them out as a group ('If Zod v5 changes brand representation, update only the Has*Brand predicates'), they sit on adjacent lines with identical structure, and they're exported symmetrically. With this finding, the trio is now fully flagged (asymmetry resolved). Same refactor decision applies: maintainer judgment is needed on whether to (a) drop `export` on all three so they become file-scoped (most likely correct — internal to `Content<T>`'s implementation), (b) leave as-is (cheap, type-level only, no runtime cost), or (c) promote to public API by re-exporting all three from `schema/index.ts` (only if external type authors writing utilities like `IsAssetRef<T>` would benefit). The per-finding prompt says 'this bot deletes; it doesn't redesign,' so the refactor is outside the bot's charter. The prior `HasEmbeddedBrand` entry (2026-06-06) was tagged `public-api` framing it as a load-bearing internal helper for an exported type; this entry uses `needs-human` to match the `HasDownloadableBrand` entry's framing because the trio-resolution decision is the load-bearing one and it's now fully ripe for the maintainer.",
+      "addedAt": "2026-06-20T00:00:00Z",
+      "addedBy": "bot"
+    },
+    {
+      "fingerprint": {
         "kind": "dependency",
         "path": "apps/admin/package.json",
         "symbol": "primeicons"
