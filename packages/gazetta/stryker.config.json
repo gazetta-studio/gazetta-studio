@@ -20,7 +20,8 @@
     "src/hooks/registry.ts",
     "src/assets/asset-deps.ts",
     "src/admin-api/index.ts",
-    "src/types.ts"
+    "src/types.ts",
+    "src/auth/role-resolver.ts"
   ],
   "thresholds": {
     "high": 80,
