@@ -58,7 +58,7 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             -f content='eyes' || true
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           # PR comments target the PR's head ref. We need the merge base
           # for `git diff main...HEAD`-style commands; fetch-depth: 0

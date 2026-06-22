@@ -60,7 +60,7 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           # Need full history for branch creation + force-with-lease.
           fetch-depth: 0
