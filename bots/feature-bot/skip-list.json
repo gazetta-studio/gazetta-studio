@@ -27,6 +27,15 @@
       "reasonNote": "Cut exceeded the per-cut time budget (45 min) after 1 generator-critic attempt(s) without an APPROVE. The cut is likely too large or the loop is thrashing — consider splitting it into smaller cuts or tightening its spec. (Stopped before the workflow's 60-min hard-kill to leave a record instead of a silent timeout.)",
       "addedAt": "2026-06-17T09:57:51.483Z",
       "addedBy": "bot"
+    },
+    {
+      "fingerprint": {
+        "issueNumber": 524
+      },
+      "reason": "needs-human",
+      "reasonNote": "Agent A's Claude invocation exited 1 on attempt 1. See transcript.",
+      "addedAt": "2026-06-24T07:53:41.308Z",
+      "addedBy": "bot"
     }
   ]
 }
