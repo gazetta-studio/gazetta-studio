@@ -103,7 +103,7 @@ jobs:
       # own immutable cache entry; restore matches via `restore-keys`
       # prefix. See #581 and ADR-0011.
       - name: Restore reviewer-log cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: bots/fix-bot/reviewer-log.jsonl
           key: fix-bot-reviewer-log-v1
@@ -134,7 +134,7 @@ jobs:
       # that informed the failure.
       - name: Save reviewer-log cache
         if: always()
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
           path: bots/fix-bot/reviewer-log.jsonl
           key: fix-bot-reviewer-log-v1-${{ github.run_id }}
