@@ -92,7 +92,7 @@ jobs:
       # Without this fix, the bot reports the same `Bootstrap week`
       # indefinitely (countWeeklyRuns reads a frozen cache). See #581.
       - name: Restore reviewer-log cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: bots/mutation-area-picker/reviewer-log.jsonl
           key: mutation-area-picker-reviewer-log-v1
@@ -117,7 +117,7 @@ jobs:
       # failed — the bootstrap counter depends on this. See #581.
       - name: Save reviewer-log cache
         if: always()
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
           path: bots/mutation-area-picker/reviewer-log.jsonl
           key: mutation-area-picker-reviewer-log-v1-${{ github.run_id }}

@@ -91,7 +91,7 @@ jobs:
       # load-bearing: the combined step skips its post-step save on a
       # cache HIT, breaking the append-write-back pattern. See #581.
       - name: Restore reviewer-log cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: bots/dead-code-watcher/reviewer-log.jsonl
           key: dead-code-watcher-reviewer-log-v1
@@ -119,7 +119,7 @@ jobs:
       # See #581.
       - name: Save reviewer-log cache
         if: always()
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
           path: bots/dead-code-watcher/reviewer-log.jsonl
           key: dead-code-watcher-reviewer-log-v1-${{ github.run_id }}
