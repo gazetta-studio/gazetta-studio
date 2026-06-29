@@ -94,8 +94,16 @@ export async function collectBotPRsByArea(
  */
 const CANDIDATE_TYPES = ['correctness', 'security', 'architecture', 'tests', 'types', 'comments', 'style'] as const
 
-/** Pure parser for `gh pr list` JSON output. */
-export function parseBotPRs(stdout: string, sinceDays: number): Map<string, string> {
+/**
+ * Pure parser for `gh pr list` JSON output.
+ *
+ * `now` is the reference time the `sinceDays` cutoff is measured back
+ * from; it defaults to `Date.now()` for production callers. Tests pass
+ * a fixed reference so the cutoff boundary stays deterministic — without
+ * it, fixtures with absolute `createdAt` dates silently age past the
+ * window as wall-clock advances and the assertions rot (issue #613).
+ */
+export function parseBotPRs(stdout: string, sinceDays: number, now: number = Date.now()): Map<string, string> {
   const out = new Map<string, string>()
   let prs: Array<{ headRefName?: string; createdAt?: string }>
   try {
@@ -104,7 +112,7 @@ export function parseBotPRs(stdout: string, sinceDays: number): Map<string, stri
     // Empty output / parse failure → no prior PRs; conservative empty map.
     return out
   }
-  const cutoff = Date.now() - sinceDays * 86_400_000
+  const cutoff = now - sinceDays * 86_400_000
   for (const pr of prs) {
     if (!pr.headRefName || !pr.createdAt) continue
     if (new Date(pr.createdAt).getTime() < cutoff) continue
