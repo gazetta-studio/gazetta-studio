@@ -103,13 +103,23 @@ jobs:
       # verdicts on every loop iteration; the cache keeps the file
       # across runs so the monthly compactor has cross-issue signal
       # to work with. See bots/README.md "Reviewer-log persistence".
-      # Cache miss is fine — tailReviewerLog returns []. Bump the
-      # -v1 suffix if the JSONL schema ever changes.
+      # Cache miss is fine — tailReviewerLog returns [].
+      #
+      # Uses the restore + save split (not combined `actions/cache@vN`)
+      # because the combined action skips its post-step save on a
+      # cache HIT against the primary key, which breaks the append-
+      # write-back pattern (see #581). Primary `key` uses ${{ github.run_id }}
+      # so exact-key match ALWAYS misses at restore time — forcing
+      # fall-through to restore-keys. The restore-keys prefix ends
+      # with '-' to disambiguate per-run entries from any stale
+      # pre-fix static blob (see #620).
       - name: Restore reviewer-log cache
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: bots/feature-bot/reviewer-log.jsonl
-          key: feature-bot-reviewer-log-v1
+          key: feature-bot-reviewer-log-v1-${{ github.run_id }}
+          restore-keys: |
+            feature-bot-reviewer-log-v1-
 
       - name: Run feature-bot
         env:
@@ -130,6 +140,16 @@ jobs:
           BUDGET_MS: ${{ inputs.budget_ms || '3000000' }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: npm run feature-bot -w @gazetta/bots
+
+      # if: always() so we persist Agent B verdicts even when the bot
+      # run itself fails — losing the log on failure would silently
+      # drop verdict signal that informed the failure.
+      - name: Save reviewer-log cache
+        if: always()
+        uses: actions/cache/save@v6
+        with:
+          path: bots/feature-bot/reviewer-log.jsonl
+          key: feature-bot-reviewer-log-v1-${{ github.run_id }}
 
       - name: Upload transcripts
         if: always()

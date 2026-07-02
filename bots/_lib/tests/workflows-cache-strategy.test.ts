@@ -24,6 +24,7 @@ const REPO = resolve(HERE, '..', '..', '..')
 
 const BOTS = [
   { name: 'fix-bot', logPath: 'bots/fix-bot/reviewer-log.jsonl' },
+  { name: 'feature-bot', logPath: 'bots/feature-bot/reviewer-log.jsonl' },
   { name: 'dead-code-watcher', logPath: 'bots/dead-code-watcher/reviewer-log.jsonl' },
   { name: 'review-bot', logPath: 'bots/review-bot/reviewer-log.jsonl' },
   { name: 'mutation-area-picker', logPath: 'bots/mutation-area-picker/reviewer-log.jsonl' },
