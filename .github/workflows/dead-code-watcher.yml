@@ -90,13 +90,17 @@ jobs:
       # restore + save pair (not the combined `actions/cache@vN`) is
       # load-bearing: the combined step skips its post-step save on a
       # cache HIT, breaking the append-write-back pattern. See #581.
+      # Primary `key` uses ${{ github.run_id }} so exact-key match ALWAYS
+      # misses at restore time — forcing fall-through to restore-keys.
+      # The restore-keys prefix ends with '-' to disambiguate per-run
+      # entries from any stale pre-#582 static blob. See #582 follow-up.
       - name: Restore reviewer-log cache
         uses: actions/cache/restore@v6
         with:
           path: bots/dead-code-watcher/reviewer-log.jsonl
-          key: dead-code-watcher-reviewer-log-v1
+          key: dead-code-watcher-reviewer-log-v1-${{ github.run_id }}
           restore-keys: |
-            dead-code-watcher-reviewer-log-v1
+            dead-code-watcher-reviewer-log-v1-
 
       - name: Run dead-code-watcher
         env:

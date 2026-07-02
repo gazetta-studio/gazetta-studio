@@ -112,9 +112,10 @@ describe('memoryful bots — reviewer-log cache strategy', () => {
         const bulletMatch = yaml.match(/restore-keys:\s*\|([\s\S]*?)\n\n/)
         expect(bulletMatch, `${bot.name}.yml restore-keys block missing`).toBeTruthy()
         const restoreKeys = bulletMatch![1]
-        expect(restoreKeys, `${bot.name}.yml restore-keys prefix must end with '-' to disambiguate old static key`).toMatch(
-          /reviewer-log-v1-\s*$/m,
-        )
+        expect(
+          restoreKeys,
+          `${bot.name}.yml restore-keys prefix must end with '-' to disambiguate old static key`,
+        ).toMatch(/reviewer-log-v1-\s*$/m)
       })
 
       it('does NOT use the combined actions/cache@vN for the reviewer-log', () => {
