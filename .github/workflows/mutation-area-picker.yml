@@ -91,13 +91,20 @@ jobs:
       # the primary key, which breaks the append-write-back pattern.
       # Without this fix, the bot reports the same `Bootstrap week`
       # indefinitely (countWeeklyRuns reads a frozen cache). See #581.
+      # Primary `key` uses ${{ github.run_id }} so exact-key match ALWAYS
+      # misses at restore time — forcing fall-through to restore-keys.
+      # The restore-keys prefix ends with '-' to disambiguate per-run
+      # entries (`{bot}-reviewer-log-v1-{run_id}`) from the stale pre-#582
+      # static blob (`{bot}-reviewer-log-v1`). Without the trailing hyphen,
+      # actions/cache prefix-matched the old blob and every run since
+      # 2026-06-14 restored the 467-byte 1-entry file frozen at that date.
       - name: Restore reviewer-log cache
         uses: actions/cache/restore@v6
         with:
           path: bots/mutation-area-picker/reviewer-log.jsonl
-          key: mutation-area-picker-reviewer-log-v1
+          key: mutation-area-picker-reviewer-log-v1-${{ github.run_id }}
           restore-keys: |
-            mutation-area-picker-reviewer-log-v1
+            mutation-area-picker-reviewer-log-v1-
 
       - name: Run mutation-area-picker
         env:

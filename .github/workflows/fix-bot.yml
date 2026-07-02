@@ -102,13 +102,17 @@ jobs:
       # per-run save key sidesteps the trap — every run produces its
       # own immutable cache entry; restore matches via `restore-keys`
       # prefix. See #581 and ADR-0011.
+      # Primary `key` uses ${{ github.run_id }} so exact-key match ALWAYS
+      # misses at restore time — forcing fall-through to restore-keys.
+      # The restore-keys prefix ends with '-' to disambiguate per-run
+      # entries from any stale pre-#582 static blob. See #582 follow-up.
       - name: Restore reviewer-log cache
         uses: actions/cache/restore@v6
         with:
           path: bots/fix-bot/reviewer-log.jsonl
-          key: fix-bot-reviewer-log-v1
+          key: fix-bot-reviewer-log-v1-${{ github.run_id }}
           restore-keys: |
-            fix-bot-reviewer-log-v1
+            fix-bot-reviewer-log-v1-
 
       - name: Run fix bot
         env:
