@@ -76,6 +76,47 @@ describe('memoryful bots — reviewer-log cache strategy', () => {
         )
       })
 
+      it('primary restore key is per-run (not the stale static key) — issue #582 follow-up', () => {
+        // Original fix used `key: {bot}-reviewer-log-v1` (static). That
+        // triggers actions/cache's exact-key match against the old
+        // pre-fix cache blob (written before we split restore+save),
+        // which still lives in the cache. Exact-key match wins over
+        // restore-keys prefix match, so the per-run save entries are
+        // never read.
+        //
+        // The fix: rotate the primary `key` to a per-run value that
+        // NEVER exists at restore time, forcing fall-through to
+        // restore-keys. The restore-keys prefix then finds the latest
+        // per-run save entry.
+        //
+        // Verified live: 06-14, 06-21, 06-28 mutation-area-picker
+        // runs all restored 467-byte 1-entry blob from the old key.
+        const restoreKeyIsPerRun =
+          /uses:\s*actions\/cache\/restore@v\d+[\s\S]{0,400}key:\s*[^\n]*\$\{\{\s*github\.run_id\s*\}\}/.test(yaml)
+        expect(
+          restoreKeyIsPerRun,
+          `${bot.name}.yml restore step's primary key must be per-run (contains \${{ github.run_id }}) so it always falls through to restore-keys`,
+        ).toBe(true)
+      })
+
+      it('restore-keys prefix ends with a hyphen (so it matches -${run_id} suffix)', () => {
+        // restore-keys prefix `{bot}-reviewer-log-v1` (no trailing
+        // hyphen) is ambiguous — it would match both the old static
+        // `{bot}-reviewer-log-v1` blob AND the per-run
+        // `{bot}-reviewer-log-v1-{run_id}` entries. GitHub returns the
+        // most-recent match, but the old blob interference is real
+        // (see 06-14 through 06-28 mutation-area-picker runs).
+        //
+        // Adding the trailing hyphen (`{bot}-reviewer-log-v1-`) makes
+        // the intent explicit: match only per-run entries.
+        const bulletMatch = yaml.match(/restore-keys:\s*\|([\s\S]*?)\n\n/)
+        expect(bulletMatch, `${bot.name}.yml restore-keys block missing`).toBeTruthy()
+        const restoreKeys = bulletMatch![1]
+        expect(restoreKeys, `${bot.name}.yml restore-keys prefix must end with '-' to disambiguate old static key`).toMatch(
+          /reviewer-log-v1-\s*$/m,
+        )
+      })
+
       it('does NOT use the combined actions/cache@vN for the reviewer-log', () => {
         // Belt-and-suspenders: the combined `actions/cache@vN` shape
         // is the broken pattern. Even if restore+save are also
