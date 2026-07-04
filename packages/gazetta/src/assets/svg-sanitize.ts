@@ -66,7 +66,7 @@ export interface SvgSanitizeResult {
   warnings: readonly SvgSanitizeWarning[]
 }
 
-export type SvgSanitizeWarning =
+type SvgSanitizeWarning =
   | { code: 'large-base64'; sizeBytes: number; threshold: number }
   | { code: 'stripped-element'; tag: string }
   | { code: 'stripped-attribute'; attr: string; on: string }
