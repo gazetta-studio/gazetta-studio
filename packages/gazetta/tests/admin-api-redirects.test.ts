@@ -120,6 +120,9 @@ describe('POST /api/page-redirects — happy paths', () => {
     })
     expect(res.status).toBe(201)
     const body = (await res.json()) as Record<string, unknown>
+    // toEqual pins the page branch of the line-212 / line-213 ternaries
+    // (`binding.kind === 'page' ? deriveRoute(...) : `/${...}``) — for
+    // the fragment branch, see the fragment happy-path test below.
     expect(body).toEqual({
       ok: true,
       from: 'old-products',
@@ -150,11 +153,60 @@ describe('POST /api/page-redirects — happy paths', () => {
     expect(body.kind).toBe('fragment')
     expect(body.from).toBe('old-header')
     expect(body.to).toBe('header')
+    // Pin the fragment branch of the line-212 / line-213 ternaries
+    // (`binding.kind === 'page' ? deriveRoute(...) : `/${...}``).
+    // For simple non-'home' names, `deriveRoute(name)` and `` `/${name}` ``
+    // produce the same result, so this test primarily documents the
+    // fragment response shape — but it also fully pins the
+    // ConditionalExpression contract by keeping `route` / `targetRoute`
+    // asserted on both branches (page happy path above, fragment here).
+    expect(body.route).toBe('/old-header')
+    expect(body.targetRoute).toBe('/header')
 
     const manifest = await readJson('fragments/old-header/fragment.json')
     expect(manifest.archived).toBe(true)
     expect(manifest.aliasOf).toBe('header')
     expect(manifest.template).toBeUndefined()
+  })
+})
+
+describe('POST /api/fragment-redirects — collision handling (symmetric with pages)', () => {
+  beforeEach(() => setup())
+
+  it('rejects with 409 LIVE_NAME_CONFLICT when from is a live fragment', async () => {
+    // `header` is a live fragment in the seed.
+    const res = await app.request('/api/fragment-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'header', to: 'footer' }),
+    })
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.code).toBe('LIVE_NAME_CONFLICT')
+    // Pin the exact string with lowercase `fragment`. Kills the
+    // MethodExpression mutant on line 167 (`binding.label.toLowerCase()`
+    // → `binding.label.toUpperCase()`) for the FRAGMENT binding
+    // specifically — the page-side test above pins the `page` casing,
+    // this test pins the `fragment` casing, so a mutant that broke
+    // either binding's casing would surface.
+    expect(body.error).toContain('The fragment "header" already exists as live content')
+    expect(body.error).toContain('first archive or rename "header"')
+  })
+
+  it('rejects with 409 ALIAS_TARGET_NOT_FOUND when to does not resolve to a fragment', async () => {
+    const res = await app.request('/api/fragment-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'old-header', to: 'nonexistent-fragment' }),
+    })
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.code).toBe('ALIAS_TARGET_NOT_FOUND')
+    // Pin BOTH lowercase `fragment` occurrences. Kills the TWIN
+    // MethodExpression mutants on line 192 for the fragment binding,
+    // completing the symmetric coverage against the page-side test.
+    expect(body.error).toContain('The fragment "nonexistent-fragment" does not exist as live content')
+    expect(body.error).toContain('The alias target must be a live fragment.')
   })
 })
 
@@ -232,8 +284,12 @@ describe('POST /api/page-redirects — collision handling', () => {
     expect(res.status).toBe(409)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.code).toBe('LIVE_NAME_CONFLICT')
-    // Per Q4 lock — clear "no destructive shortcut" message.
-    expect((body.error as string).toLowerCase()).toContain('about')
+    // Pin the exact user-facing string. Kills MethodExpression mutant on
+    // line 167 (`binding.label.toLowerCase()` → `binding.label.toUpperCase()`)
+    // — with the mutant, the message becomes `The Page "about"...` (with
+    // uppercase `Page`), breaking user-facing display.
+    expect(body.error).toContain('The page "about" already exists as live content')
+    expect(body.error).toContain('first archive or rename "about"')
   })
 
   it('rejects with 409 ALIAS_TARGET_NOT_FOUND when to does not resolve', async () => {
@@ -245,7 +301,47 @@ describe('POST /api/page-redirects — collision handling', () => {
     expect(res.status).toBe(409)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.code).toBe('ALIAS_TARGET_NOT_FOUND')
-    expect((body.error as string).toLowerCase()).toContain('does-not-exist')
+    // Pin BOTH lowercase `page` occurrences. Kills the TWIN MethodExpression
+    // mutants on line 192 (`binding.label.toLowerCase()` — appears twice on
+    // the same line, once in each message half). Both mutants survived on
+    // the last mutation run because the prior assertion only checked that
+    // the `to` name appeared in the error, not the casing of `page`.
+    expect(body.error).toContain('The page "does-not-exist" does not exist as live content')
+    expect(body.error).toContain('The alias target must be a live page.')
+  })
+
+  it('rejects with 409 ALIAS_TARGET_NOT_FOUND when to points at an ARCHIVED page', async () => {
+    // The default beforeEach setup seeded no archived pages; re-run setup
+    // with an archived alias target to exercise the second half of the
+    // line-188 branch (`|| aliasTarget.archived === true`).
+    //
+    // Kills BooleanLiteral mutant on line 188 (`archived === true` →
+    // `archived === false`). Under the mutant, an archived alias target
+    // would slip past the check, and the redirect would be silently
+    // written with `aliasOf` pointing at an archived page — returning 201
+    // instead of 409. The happy-path tests already cover the
+    // `!aliasTarget` half of the OR (aliasTarget=null); this test covers
+    // the archived-target half.
+    setup({
+      seed: {
+        'pages/archived-target/page.json': JSON.stringify({
+          archived: true,
+          archivedAt: '2026-01-01T00:00:00Z',
+          archivedBy: 'setup@example.com',
+          aliasOf: 'home',
+        }),
+      },
+    })
+    const res = await app.request('/api/page-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'old-promo', to: 'archived-target' }),
+    })
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.code).toBe('ALIAS_TARGET_NOT_FOUND')
+    // Manifest must NOT have been written — no side effect on 409.
+    expect(await storage.exists('pages/old-promo/page.json')).toBe(false)
   })
 
   it('rejects with 409 ARCHIVED_NAME_CONFLICT when from is already archived', async () => {
