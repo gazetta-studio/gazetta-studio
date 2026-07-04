@@ -156,19 +156,6 @@ export async function removeLocaleOverride(assetName: string, selector: AssetSel
 }
 
 /**
- * Fetch a single asset's summary including override-locale/theme lists.
- * The detail pane uses this to render the locale section accurately
- * after upload/remove operations.
- */
-export async function getAsset(name: string): Promise<AssetSummary> {
-  const res = await fetch(apiUrl(`/assets/${encodeURIComponent(name)}`), {
-    headers: authHeaders(),
-  })
-  if (res.ok) return (await res.json()) as AssetSummary
-  throw await parseAssetError(res, 'Asset fetch failed')
-}
-
-/**
  * Patch shape for `updateAssetMetadata`. Each field is optional;
  * "absent in patch = unchanged" preserves three-state semantics.
  *
