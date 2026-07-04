@@ -40,7 +40,7 @@ export interface UploadedAsset {
  * storage failure." This is client-transport-specific — the server
  * never throws this; it throws a specific `AssetError` subclass.
  */
-export class AssetApiError extends Error {
+class AssetApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
