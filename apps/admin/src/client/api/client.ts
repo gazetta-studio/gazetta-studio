@@ -324,8 +324,8 @@ export interface FragmentDetail extends FragmentSummary {
 /**
  * `AssetSummary` is used by `listAssets` / `getAsset` below; the asset-
  * specific endpoints (`uploadAsset`, `deleteAsset`) and their typed
- * errors (`AssetInUseError`, `AssetApiError`) live in `./assets.ts` —
- * callers import those directly from `./assets.js`.
+ * errors (`AssetInUseError`, `AssetKindMismatchError`) live in `./assets.ts`
+ * — callers import those directly from `./assets.js`.
  */
 import type { AssetSummary } from 'gazetta/schema'
 
