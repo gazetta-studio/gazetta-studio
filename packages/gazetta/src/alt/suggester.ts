@@ -47,7 +47,7 @@
  *     and `composePrompt` (utilities); no knowledge of any provider
  */
 import { composePrompt } from '../ai/compose-prompt.js'
-import { AIAdapterFailedError, AIAdapterUnavailableError, AIError, AIInvalidResponseError } from '../ai/errors.js'
+import { AIAdapterUnavailableError, AIError, AIInvalidResponseError } from '../ai/errors.js'
 import { prepareForVision } from '../ai/vision-prep.js'
 import {
   type AltGenerateInput,
@@ -188,4 +188,4 @@ export function createAltSuggester(opts: CreateAltSuggesterOptions): AltSuggeste
 // implementations distinguish unavailable vs. failed vs. invalid-
 // response; in practice route handlers only need the suggester's
 // null/non-null result.
-export { AIAdapterFailedError, AIAdapterUnavailableError, AIInvalidResponseError }
+export { AIAdapterUnavailableError, AIInvalidResponseError }
