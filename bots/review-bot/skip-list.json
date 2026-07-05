@@ -55,6 +55,17 @@
       "addedBy": "bot",
       "reason": "stuck",
       "reasonNote": "This candidate fits tdd-first, not coverage-shape. The candidate's"
+    },
+    {
+      "fingerprint": {
+        "area": "bots/_lib/tests/github-comment-queries.test.ts,bots/_lib/tests/github-prior-comment.test.ts",
+        "type": "tests",
+        "rule": "testing-plan.md#test-quality-with-ai"
+      },
+      "addedAt": "2026-07-05T07:49:12.578Z",
+      "addedBy": "bot",
+      "reason": "stuck",
+      "reasonNote": "The candidate is legitimate — `github-prior-comment.test.ts` (150 LOC) is a genuine duplicate of the `hasPriorBotComment` + `hasPriorCommentFromBot` coverage already in `github-comment-queries.test.ts`. Two unique cases would need lifting first (empty-comments-array; end-of-body outcome-tag positioning that pins `.includes()` vs `.startsWith()` semantic). However, the coverage-shape recipe is scoped to filling coverage gaps against untested working code with per-test counterfactual discipline — its \"single commit, tests pass on first run\" contract doesn't map onto a lift-then-delete hygiene task, and its \"Not for\" clause explicitly excludes test-quality-rewrite work. The `tdd-first` recipe doesn't fit either (no defect to test-drive). Maintainer action: route as a fix-bot candidate per team-preferences rule 40 (task shape: one-shot hygiene / DRY violation with `bug + ready-for-agent`), OR split into two review-bot-ready cuts — (a) a legitimate `coverage-shape` cut adding the 2 unique cases (empty-comments-array; end-of-body tag positioning) to `github-comment-queries.test.ts` with counterfactuals, followed by (b) a maintainer-driven or fix-bot deletion of `github-prior-comment.test.ts`. Recommend the split so the coverage-shape recipe can handle the additive portion cleanly and the deletion goes through a shape better suited to file-level hygiene."
     }
   ],
   "rules": []
