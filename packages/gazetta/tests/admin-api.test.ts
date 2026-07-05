@@ -233,6 +233,102 @@ describe('GET /api/fragments', () => {
     expect(names).toContain('header')
     expect(names).toContain('footer')
   })
+
+  // The three tests below pin the summary-projection contract that the
+  // mutation-watcher (issue #623) surfaced as uncovered: `locales`
+  // array construction, archive-state spread, and aliasOf spread. Each
+  // pins one branch of the summary map in fragments.ts's `GET
+  // /api/fragments` handler. A subsequent regression that flattens any
+  // of these branches (e.g. `locales: []`, `archived` never surfaced,
+  // `aliasOf` never surfaced) trips a specific assertion here.
+
+  it('surfaces `locales` for fragments with locale variants', async () => {
+    // The starter's `header` fragment ships fr / ar / ja variants; if
+    // the summary map replaces `[...localeEntry.locales.keys()]` with
+    // `[]` the array becomes empty and this assertion fails.
+    const { body } = await get('/api/fragments')
+    const header = body.find((f: { name: string }) => f.name === 'header')
+    expect(header).toBeDefined()
+    expect(Array.isArray(header.locales)).toBe(true)
+    expect(header.locales).toEqual(expect.arrayContaining(['fr', 'ar', 'ja']))
+    expect(header.locales).toHaveLength(3)
+
+    // Now the absence branch: a freshly-created fragment has no locale
+    // variants → `localeEntry` is undefined → `locales` field must be
+    // absent from the summary. If the summary map drops the
+    // `localeEntry ?` guard, `locales` would appear on every entry
+    // and this absence check fails.
+    await app.request('/api/fragments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'issue-623-nolocale', template: 'footer-layout' }),
+    })
+    const { body: post } = await get('/api/fragments')
+    const noLocale = post.find((f: { name: string }) => f.name === 'issue-623-nolocale')
+    expect(noLocale).toBeDefined()
+    expect(noLocale.locales).toBeUndefined()
+
+    // Cleanup.
+    await rm(resolve(localTargetDir, 'fragments/issue-623-nolocale'), { recursive: true, force: true })
+  })
+
+  it('surfaces `archived` and `aliasOf` on archived fragments', async () => {
+    // Fresh fragment (via POST); archive it with an alias; then the
+    // list must show both `archived: true` AND `aliasOf: 'header'`.
+    // The summary uses two spread branches; a mutation that flips
+    // either `archived === true` predicate OR either spread body
+    // (e.g. `{ archived: true }` → `{}`) fails this assertion.
+    await app.request('/api/fragments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'issue-623-archived', template: 'footer-layout' }),
+    })
+    const archiveRes = await app.request('/api/fragments/issue-623-archived/archive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ aliasOf: 'header' }),
+    })
+    expect(archiveRes.status).toBe(200)
+
+    const { body } = await get('/api/fragments')
+    const archived = body.find((f: { name: string }) => f.name === 'issue-623-archived')
+    expect(archived).toBeDefined()
+    expect(archived.archived).toBe(true)
+    expect(archived.aliasOf).toBe('header')
+
+    // Cleanup — purge the archive so subsequent tests see a clean tree.
+    await app.request('/api/fragments/issue-623-archived/purge?force=true', { method: 'DELETE' })
+  })
+
+  it('reflects a newly-created fragment on the next GET (paired-invalidation round-trip)', async () => {
+    // Warm the cache first — the list at this point does NOT contain
+    // `issue-623-cache`. The `if (cached) return c.json(cached)`
+    // branch on a subsequent GET must NOT serve this stale entry once
+    // the POST below invalidates the `fragments:` prefix. If the
+    // invalidation path is removed OR the cache-hit guard is flipped
+    // in a way that stops honoring fresh writes, the second GET below
+    // misses `issue-623-cache` in the list.
+    const preWarm = await get('/api/fragments')
+    expect(preWarm.body.find((f: { name: string }) => f.name === 'issue-623-cache')).toBeUndefined()
+
+    await app.request('/api/fragments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'issue-623-cache', template: 'footer-layout' }),
+    })
+
+    const postCreate = await get('/api/fragments')
+    const created = postCreate.body.find((f: { name: string }) => f.name === 'issue-623-cache')
+    expect(created).toBeDefined()
+    expect(created.template).toBe('footer-layout')
+    // No locale variants on a fresh fragment; no archive fields.
+    expect(created.locales).toBeUndefined()
+    expect(created.archived).toBeUndefined()
+    expect(created.aliasOf).toBeUndefined()
+
+    // Cleanup.
+    await rm(resolve(localTargetDir, 'fragments/issue-623-cache'), { recursive: true, force: true })
+  })
 })
 
 describe('GET /api/fragments/:name', () => {
