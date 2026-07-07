@@ -76,6 +76,19 @@ describe('hasPriorBotComment', () => {
     const octokit = { issues: { listComments } } as never
     expect(await hasPriorBotComment(octokit, REPO, 123)).toBe(false)
   })
+
+  it('returns false when the issue has no comments at all', async () => {
+    // Zero-comments is the "brand-new issue" case triage-bot's idempotency
+    // check hits on every first investigation. If the impl iterated through
+    // `data` assuming non-empty (e.g., threw on `.some()` misuse or returned
+    // truthy for an empty array), the "first time here" branch would never
+    // fire and every cron would skip fresh issues.
+    // Counterfactual: if the impl returned true (or threw) on the zero-comments
+    // case, this would fail.
+    const listComments = makeListComments([])
+    const octokit = { issues: { listComments } } as never
+    expect(await hasPriorBotComment(octokit, REPO, 123)).toBe(false)
+  })
 })
 
 describe('hasPriorCommentFromBot', () => {
@@ -86,6 +99,19 @@ describe('hasPriorCommentFromBot', () => {
     const listComments = makeListComments(['Research notes:\n\n<!-- discovery-prep-bot: run=12345 -->'])
     const octokit = { issues: { listComments } } as never
     expect(await hasPriorCommentFromBot(octokit, REPO, 123, 'discovery-prep-bot')).toBe(true)
+  })
+
+  it('matches the tag even when it appears at the end of a longer comment body', async () => {
+    // Real bot comments land the outcome tag at the very end (after prose
+    // summary, next steps, disclosure block). A prefix-only match would miss
+    // every actual bot comment — the contract is `.includes()`, not
+    // `.startsWith()`.
+    // Counterfactual: if the impl used .startsWith(tag) instead of
+    // .includes(tag), this end-of-body tag would not match.
+    const preFetched = [
+      { body: 'Long prose summary of what triage-bot did.\n\nNext steps: ...\n\n<!-- triage-bot: run=99 -->' },
+    ]
+    expect(await hasPriorCommentFromBot({} as never, REPO, 123, 'triage-bot', preFetched)).toBe(true)
   })
 
   it("returns false when no comment contains the named bot's tag", async () => {
