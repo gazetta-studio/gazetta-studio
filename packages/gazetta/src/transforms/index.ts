@@ -13,7 +13,7 @@
 export type { AssetUrlInput, CachePolicy, TransformAdapter } from './adapter.js'
 
 // Internal factories — kept public for tests + advanced wiring.
-export { createSharpAdapter, defaultSharpAdapter, type SharpAdapterOptions } from './sharp.js'
+export { createSharpAdapter, defaultSharpAdapter } from './sharp.js'
 export { createCloudflareAdapter, type CloudflareAdapterOptions } from './cloudflare.js'
 
 // Operator-facing factories.
