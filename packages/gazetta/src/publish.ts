@@ -3,12 +3,6 @@ import type { StorageProvider } from './types.js'
 import type { ContentRoot } from './content-root.js'
 import { mapLimit } from './concurrency.js'
 
-export interface PublishRequest {
-  source: string
-  targets: string[]
-  items: string[]
-}
-
 export interface PublishResult {
   target: string
   success: boolean
