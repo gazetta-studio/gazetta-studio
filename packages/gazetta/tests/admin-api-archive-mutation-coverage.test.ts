@@ -25,12 +25,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Hono } from 'hono'
 import { createAdminApp } from '../src/admin-api/index.js'
-import { createSourceContext } from '../src/admin-api/source-context.js'
+import { createSourceContext, type SourceContext } from '../src/admin-api/source-context.js'
 import type { RescanCause, ValidationScanner } from '../src/validation/scanner.js'
 import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
 
 let app: Hono
 let storage: MemoryStorage
+let source: SourceContext
 let rescanCalls: RescanCause[]
 let stubScanner: ValidationScanner
 
@@ -49,7 +50,7 @@ function setup(seed: Record<string, string> = {}) {
   const targetConfigs = {
     local: { storage, type: 'esi' as const, environment: 'local' as const, editable: true },
   }
-  const source = createSourceContext({
+  source = createSourceContext({
     storage,
     siteDir: '',
     projectSiteDir: '/test-project',
@@ -72,6 +73,61 @@ function setup(seed: Record<string, string> = {}) {
     templatesDir: '/test-project/templates',
     targets: new Map([['local', storage]]),
     targetConfigs,
+    disableCacheStatsLogger: true,
+    validationScanner: stubScanner,
+  })
+}
+
+/**
+ * Variant of `setup()` that intentionally OMITS `targetConfigs` so
+ * `createAdminApp` uses `staticSourceResolver(source)` and every
+ * route resolves to the same bootstrap `source` instance we spy on.
+ *
+ * `setup()`'s `registrySourceResolver` path builds a fresh
+ * SourceContext (with its own fresh `memoryCache()`) inside
+ * `createSourceContextFromRegistry` for each requested target — the
+ * bootstrap source's cache is orthogonal to what routes actually
+ * touch, so spying on `source.cache.invalidatePrefix` there would
+ * always see zero calls.
+ */
+function setupStaticResolver(seed: Record<string, string> = {}) {
+  storage = memoryStorage()
+  storage.seed({
+    'pages/home/page.json': JSON.stringify({ template: 'page-default', content: {} }),
+    'pages/landing/page.json': JSON.stringify({ template: 'page-default', content: {} }),
+    'pages/about/page.json': JSON.stringify({ template: 'page-default', content: {} }),
+    'fragments/header/fragment.json': JSON.stringify({ template: 'header-layout', content: {} }),
+    'fragments/footer/fragment.json': JSON.stringify({ template: 'header-layout', content: {} }),
+    'fragments/top-bar/fragment.json': JSON.stringify({ template: 'header-layout', content: {} }),
+    ...seed,
+  })
+
+  source = createSourceContext({
+    storage,
+    siteDir: '',
+    projectSiteDir: '/test-project',
+    manifest: { name: 'test-site', targets: {} },
+  })
+
+  rescanCalls = []
+  stubScanner = {
+    scanAll: vi.fn().mockResolvedValue(undefined),
+    rescan: vi.fn(async (cause: RescanCause) => {
+      rescanCalls.push(cause)
+    }),
+    getIssues: vi.fn().mockReturnValue([]),
+    subscribe: vi.fn().mockReturnValue(() => {}),
+  } as unknown as ValidationScanner
+
+  // No `targetConfigs` — createAdminApp uses staticSourceResolver(source),
+  // so all route requests resolve to the bootstrap source. That makes
+  // `vi.spyOn(source.cache, 'invalidatePrefix')` observe the route's
+  // actual invalidation calls.
+  app = createAdminApp({
+    source,
+    siteDir: '/test-project',
+    templatesDir: '/test-project/templates',
+    targets: new Map([['local', storage]]),
     disableCacheStatsLogger: true,
     validationScanner: stubScanner,
   })
@@ -357,5 +413,179 @@ describe('notifyScanner — PATCH /alias must notify the validation scanner', ()
 
     const manifestRescans = rescanCalls.filter(c => c.kind === 'manifest')
     expect(manifestRescans).toHaveLength(0)
+  })
+})
+
+describe('Cache invalidation — pin `source.cache.invalidatePrefix` calls', () => {
+  // Kills the highest-blast-radius cluster on lines 299-302 + 300 + 301
+  // of archive.ts:
+  //
+  //   await Promise.all([
+  //     source.cache.invalidatePrefix(`${handle.scopeKind}s:`),
+  //     handle.scopeKind === 'fragment' ? source.cache.invalidatePrefix('pages:') : Promise.resolve(),
+  //   ])
+  //
+  // Surviving mutants:
+  //   - ArrayDeclaration → `[]` : both invalidatePrefix calls skipped
+  //   - StringLiteral on line 300 → `` `` `` : wrong prefix invalidated
+  //   - ConditionalExpression on line 301 → `true` : page archives also invalidate `pages:` twice
+  //
+  // Cache invalidation on fragment archive is load-bearing per
+  // `design-cache.md` Q2 — fragments referenced by pages must
+  // invalidate the pages summary cache too, or authors see stale
+  // page state after a fragment archive.
+  //
+  // These tests use `setupStaticResolver()` (no `targetConfigs`) so
+  // routes resolve to the SAME `source` instance we spy on — the
+  // default `setup()` uses `registrySourceResolver` which builds a
+  // fresh SourceContext (with its own cache) per resolved target,
+  // making the bootstrap source's cache unreachable from routes.
+
+  beforeEach(() => setupStaticResolver())
+
+  it('POST /pages/:name/archive → invalidatePrefix("pages:") called exactly once', async () => {
+    const spy = vi.spyOn(source.cache, 'invalidatePrefix')
+    await app.request('/api/pages/landing/archive', { method: 'POST' })
+    expect(spy).toHaveBeenCalledWith('pages:')
+    // Page archive must NOT invalidate the fragments prefix, and must
+    // NOT invalidate the pages prefix twice (the mutant on line 301
+    // that flips the conditional to `true` would do the latter).
+    expect(spy).not.toHaveBeenCalledWith('fragments:')
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it('POST /fragments/:name/archive → invalidatePrefix called with BOTH "fragments:" and "pages:"', async () => {
+    const spy = vi.spyOn(source.cache, 'invalidatePrefix')
+    await app.request('/api/fragments/header/archive', { method: 'POST' })
+    expect(spy).toHaveBeenCalledWith('fragments:')
+    expect(spy).toHaveBeenCalledWith('pages:')
+    expect(spy).toHaveBeenCalledTimes(2)
+  })
+
+  it('POST /pages/:name/unarchive → invalidatePrefix("pages:") called exactly once', async () => {
+    await app.request('/api/pages/landing/archive', { method: 'POST' })
+    const spy = vi.spyOn(source.cache, 'invalidatePrefix')
+    await app.request('/api/pages/landing/unarchive', { method: 'POST' })
+    expect(spy).toHaveBeenCalledWith('pages:')
+    expect(spy).not.toHaveBeenCalledWith('fragments:')
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it('POST /fragments/:name/unarchive → invalidatePrefix called with BOTH "fragments:" and "pages:"', async () => {
+    await app.request('/api/fragments/header/archive', { method: 'POST' })
+    const spy = vi.spyOn(source.cache, 'invalidatePrefix')
+    await app.request('/api/fragments/header/unarchive', { method: 'POST' })
+    expect(spy).toHaveBeenCalledWith('fragments:')
+    expect(spy).toHaveBeenCalledWith('pages:')
+    expect(spy).toHaveBeenCalledTimes(2)
+  })
+
+  it('PATCH /pages/:name/alias → invalidatePrefix("pages:") called exactly once', async () => {
+    await app.request('/api/pages/landing/archive', { method: 'POST' })
+    const spy = vi.spyOn(source.cache, 'invalidatePrefix')
+    await app.request('/api/pages/landing/alias', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ aliasOf: 'home' }),
+    })
+    expect(spy).toHaveBeenCalledWith('pages:')
+    expect(spy).not.toHaveBeenCalledWith('fragments:')
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it('PATCH /fragments/:name/alias → invalidatePrefix called with BOTH "fragments:" and "pages:"', async () => {
+    await app.request('/api/fragments/header/archive', { method: 'POST' })
+    const spy = vi.spyOn(source.cache, 'invalidatePrefix')
+    await app.request('/api/fragments/header/alias', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ aliasOf: 'top-bar' }),
+    })
+    expect(spy).toHaveBeenCalledWith('fragments:')
+    expect(spy).toHaveBeenCalledWith('pages:')
+    expect(spy).toHaveBeenCalledTimes(2)
+  })
+
+  it('DELETE /pages/:name/purge → invalidatePrefix("pages:") called exactly once', async () => {
+    await app.request('/api/pages/landing/archive', { method: 'POST' })
+    const spy = vi.spyOn(source.cache, 'invalidatePrefix')
+    await app.request('/api/pages/landing/purge', { method: 'DELETE' })
+    expect(spy).toHaveBeenCalledWith('pages:')
+    expect(spy).not.toHaveBeenCalledWith('fragments:')
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it('DELETE /fragments/:name/purge → invalidatePrefix called with BOTH "fragments:" and "pages:"', async () => {
+    await app.request('/api/fragments/header/archive', { method: 'POST' })
+    const spy = vi.spyOn(source.cache, 'invalidatePrefix')
+    await app.request('/api/fragments/header/purge', { method: 'DELETE' })
+    expect(spy).toHaveBeenCalledWith('fragments:')
+    expect(spy).toHaveBeenCalledWith('pages:')
+    expect(spy).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('Idempotent archive-return with aliasOf field (line 267)', () => {
+  // Kills the ObjectLiteral mutant on line 267:
+  //   ...(manifest.aliasOf ? { aliasOf: manifest.aliasOf } : {})
+  //
+  // Mutating to `...{}` means aliasOf never appears in the response
+  // body for the idempotent-return path (already-archived items).
+  // The current happy-path test in admin-api-archive.test.ts asserts
+  // `ok: true` on the second archive but never inspects `aliasOf` on
+  // the response — the mutant survives that assertion. These tests
+  // pin the round-trip contract of the response body.
+
+  beforeEach(() => setup())
+
+  it('archive already-archived page WITH aliasOf → response includes aliasOf', async () => {
+    // First archive sets aliasOf.
+    await app.request('/api/pages/landing/archive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ aliasOf: 'home' }),
+    })
+
+    // Second archive hits the idempotent-return branch (line 262-269).
+    // Response body must round-trip the aliasOf from the existing
+    // manifest. Mutant on line 267 spreads `{}` instead of `{aliasOf}`,
+    // dropping the field.
+    const res = await app.request('/api/pages/landing/archive', { method: 'POST' })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { ok: boolean; name: string; archivedAt: string; aliasOf?: string }
+    expect(body.ok).toBe(true)
+    expect(body.name).toBe('landing')
+    expect(body.aliasOf).toBe('home')
+  })
+
+  it('archive already-archived page WITHOUT aliasOf → response omits aliasOf', async () => {
+    // Pure soft-delete (no aliasOf).
+    await app.request('/api/pages/about/archive', { method: 'POST' })
+
+    // Second archive — idempotent-return. Response body should NOT
+    // contain aliasOf (existing manifest has none). Pins the truthy
+    // check on line 267 — a mutant like `manifest.aliasOf ? ... : { aliasOf: manifest.aliasOf }`
+    // (inverting the ternary) would surface an aliasOf-undefined field.
+    const res = await app.request('/api/pages/about/archive', { method: 'POST' })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { ok: boolean; name: string; aliasOf?: string }
+    expect(body.ok).toBe(true)
+    expect(body.aliasOf).toBeUndefined()
+    // Distinct from `undefined` after JSON round-trip — the field
+    // should be entirely absent from the response.
+    expect('aliasOf' in body).toBe(false)
+  })
+
+  it('archive already-archived fragment WITH aliasOf → response includes aliasOf (parity with pages)', async () => {
+    await app.request('/api/fragments/header/archive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ aliasOf: 'top-bar' }),
+    })
+
+    const res = await app.request('/api/fragments/header/archive', { method: 'POST' })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { ok: boolean; name: string; aliasOf?: string }
+    expect(body.aliasOf).toBe('top-bar')
   })
 })
