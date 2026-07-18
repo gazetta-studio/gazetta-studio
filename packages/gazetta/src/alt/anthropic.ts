@@ -56,7 +56,7 @@ const ANTHROPIC_REFUSAL_MARKERS: readonly string[] = ['i cannot create captions'
  * needing higher quality set `altText.model` in `site.config.ts` to a
  * Sonnet or Opus model.
  */
-export const ANTHROPIC_DEFAULT_MODEL = 'claude-haiku-4-5'
+const ANTHROPIC_DEFAULT_MODEL = 'claude-haiku-4-5'
 
 /**
  * Anthropic only accepts a subset of image MIME types. After
