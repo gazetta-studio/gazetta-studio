@@ -113,7 +113,7 @@ interface FontRefShape {
  * Throws on manifest not-found or corrupt — caller (the walker) catches
  * and substitutes a placeholder.
  */
-export async function resolveEmbeddedRef(
+async function resolveEmbeddedRef(
   ref: EmbeddedRefShape,
   defaultManifest: import('../schema/types.js').AssetManifest,
   effectiveOverride: Partial<import('../schema/types.js').AssetManifest> | null,
