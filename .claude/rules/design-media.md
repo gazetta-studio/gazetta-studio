@@ -571,7 +571,13 @@ Walker reads the default manifest first (to discover `kind`), then dispatches:
 
 URL composition happens via the resolver context's `transformAdapter` (defaults to `sharpAdapter`). Adapter is required, never branched on within the resolver.
 
-**Per-kind resolver signatures (called from the walker):**
+**Per-kind resolver signatures (walker-internal helpers):**
+
+The three per-kind resolvers are **file-scoped** — the walker (`resolveAssetRefs`)
+is the only public entry point. They form a symmetric dispatch group but are not
+exported; nothing outside `resolve.ts` imports them (tests exercise the walker
+end-to-end, not the per-kind functions directly). Keeping the three symmetric
+means they're de-exported as a set, not individually.
 
 ```ts
 resolveEmbeddedRef(ref, defaultManifest, effectiveOverride, selector, ctx) → ResolvedEmbeddedAsset

@@ -113,7 +113,7 @@ interface FontRefShape {
  * Throws on manifest not-found or corrupt — caller (the walker) catches
  * and substitutes a placeholder.
  */
-export async function resolveEmbeddedRef(
+async function resolveEmbeddedRef(
   ref: EmbeddedRefShape,
   defaultManifest: import('../schema/types.js').AssetManifest,
   effectiveOverride: Partial<import('../schema/types.js').AssetManifest> | null,
@@ -180,7 +180,7 @@ export async function resolveEmbeddedRef(
  * semantics as embedded; different resolved shape (no srcset, no
  * focal-point, has title/description).
  */
-export async function resolveDownloadableRef(
+async function resolveDownloadableRef(
   ref: DownloadableRefShape,
   defaultManifest: import('../schema/types.js').AssetManifest,
   effectiveOverride: Partial<import('../schema/types.js').AssetManifest> | null,
@@ -250,7 +250,7 @@ export interface FontVariantEntry {
   manifest: import('../schema/types.js').FontLocaleAdditiveManifest
 }
 
-export async function resolveFontRef(
+async function resolveFontRef(
   _ref: FontRefShape,
   defaultManifest: import('../schema/types.js').AssetManifest,
   variants: readonly FontVariantEntry[],
