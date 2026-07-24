@@ -62,10 +62,7 @@ describe('discoverCandidates — barrel filter', () => {
 
   it('includes an index.ts that has direct exports (not a barrel)', () => {
     // index.ts with a real export const → NOT a barrel; must be included.
-    writeSrc(
-      'packages/gazetta/src/util/index.ts',
-      "export const helper = () => 42\nexport { X } from './x.js'\n",
-    )
+    writeSrc('packages/gazetta/src/util/index.ts', "export const helper = () => 42\nexport { X } from './x.js'\n")
 
     const result = discoverCandidates({
       repoRoot,
