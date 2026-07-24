@@ -72,7 +72,10 @@ describe('gazetta validate (CLI)', () => {
     expect(stdout).toMatch(/Invalid input|expected string|received undefined/)
   })
 
-  it('--include-quality runs without crashing (a11y + html-validity engaged)', () => {
+  // Quality validators (axe-core + html-validate) are CPU-bound; the default
+  // 5s vitest timeout is too tight under CI parallelism (~2s local, up to ~12s
+  // observed on loaded runners).
+  it('--include-quality runs without crashing (a11y + html-validity engaged)', { timeout: 30_000 }, () => {
     // Verifies the wiring; doesn't make claims about what these validators
     // surface on the starter (some violations are normal on real templates).
     const { status } = run(['sites/main', '--include-quality', '--no-warn-as-error', '--severity', 'all'])
