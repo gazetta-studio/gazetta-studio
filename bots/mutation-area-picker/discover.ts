@@ -9,8 +9,9 @@
  * many files; the bot normalises by expanding globs to file paths
  * for comparison.
  */
-import { readdirSync, statSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
+import { isReExportBarrel } from './barrel-detector.js'
 import { findSkipMatch, type SkipList } from './skip-list.js'
 
 export interface CandidateOpts {
@@ -39,8 +40,21 @@ export function discoverCandidates(opts: CandidateOpts): string[] {
     if (path.endsWith('.d.ts')) return false
     if (scopedFiles.has(path)) return false
     if (findSkipMatch(opts.skipList, { path }) !== null) return false
+    // Pure re-export barrels have no behavioral surface to mutate;
+    // proposing them wastes a pick and is rejected by the config guard
+    // at PR-review time. See barrel-detector.ts for the reason.
+    if (isBarrelFile(join(opts.repoRoot, path))) return false
     return true
   })
+}
+
+/** Read a source file and check whether it's a pure re-export barrel. */
+function isBarrelFile(absPath: string): boolean {
+  try {
+    return isReExportBarrel(readFileSync(absPath, 'utf-8'))
+  } catch {
+    return false
+  }
 }
 
 /**
