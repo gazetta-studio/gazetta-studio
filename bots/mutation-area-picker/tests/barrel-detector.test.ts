@@ -48,17 +48,17 @@ export { createSharpAdapter } from './sharp.js'
   })
 
   it('is false for files with a direct `export class`', () => {
-    const src = "export class MyClass {}\n"
+    const src = 'export class MyClass {}\n'
     expect(isReExportBarrel(src)).toBe(false)
   })
 
   it('is false for files with a direct `export async function`', () => {
-    const src = "export async function doStuff() {}\n"
+    const src = 'export async function doStuff() {}\n'
     expect(isReExportBarrel(src)).toBe(false)
   })
 
   it('is false for files with zero export statements (nothing to re-export)', () => {
-    const src = "// This file has no exports.\nconst x = 1\n"
+    const src = '// This file has no exports.\nconst x = 1\n'
     expect(isReExportBarrel(src)).toBe(false)
   })
 
