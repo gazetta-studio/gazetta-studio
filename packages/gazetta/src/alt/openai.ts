@@ -53,7 +53,7 @@ const OPENAI_REFUSAL_MARKERS: readonly string[] = [
  * with high-volume asset libraries should benchmark cost against
  * actual workload.
  */
-export const OPENAI_DEFAULT_MODEL = 'gpt-4o-mini'
+const OPENAI_DEFAULT_MODEL = 'gpt-4o-mini'
 
 const OPENAI_SUPPORTED_MIMES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
 
