@@ -26,7 +26,7 @@ import type { AltGenerateInput, AltSuggestion, AltTextAdapter } from '../alt/ada
 /** Approximate characters-per-output-token for max-tokens derivation. */
 const CHARS_PER_TOKEN = 4
 /** Floor for derived max-tokens; ensures small maxChars still gives the model room. */
-export const MIN_MAX_TOKENS = 64
+const MIN_MAX_TOKENS = 64
 
 /**
  * Provider-specific request closure passed to the scaffold. The closure
