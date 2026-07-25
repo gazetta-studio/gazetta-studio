@@ -24,7 +24,7 @@ import { detectRefusal } from './refusal.js'
 import type { AltGenerateInput, AltSuggestion, AltTextAdapter } from '../alt/adapter.js'
 
 /** Approximate characters-per-output-token for max-tokens derivation. */
-export const CHARS_PER_TOKEN = 4
+const CHARS_PER_TOKEN = 4
 /** Floor for derived max-tokens; ensures small maxChars still gives the model room. */
 export const MIN_MAX_TOKENS = 64
 
