@@ -58,7 +58,7 @@ export type ComponentId = string
 export type ComponentIdGenerator = () => ComponentId
 
 /** Default generator — 21-char NanoID. */
-export const defaultComponentIdGenerator: ComponentIdGenerator = () => nanoid()
+const defaultComponentIdGenerator: ComponentIdGenerator = () => nanoid()
 
 /**
  * Walk a `components` array and inject IDs on any InlineComponent
