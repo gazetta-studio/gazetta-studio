@@ -42,7 +42,7 @@ const MIN_MAX_TOKENS = 64
  *   - `request` original AltRequest for adapters that want maxChars / locale
  *   - `signal` AbortSignal forwarded from caller
  */
-export interface ProviderCallInput {
+interface ProviderCallInput {
   bytes: Uint8Array
   mime: string
   systemPrompt: string
