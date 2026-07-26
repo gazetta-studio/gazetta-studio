@@ -593,3 +593,204 @@ describe('GET /api/assets/:name — overrideLocales / overrideThemes arrays', ()
     expect(body.overrideThemes).toEqual([])
   })
 })
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Third-wave mutation gaps per #671:
+ *
+ *   - `StringLiteral` on capability gate values for PATCH / POST / DELETE
+ *     routes (`edit:assets` on lines 144, 264, 287, 328, 413, 464, 492;
+ *     `delete:assets` on line 215). Only the two GET routes were pinned
+ *     by #602's PR #603. Mutation to `""` still passes the existing
+ *     happy-path suites because they run with `noneAuthProvider` (full
+ *     admin) and never assert on the specific missing-capability shape.
+ *     Asserting `missing: [<literal>]` in the 403 body pins each gate
+ *     against StringLiteral mutation independently — a mutated `""`
+ *     would surface as `missing: ['']` and fail the assertion.
+ *
+ *   - `BlockStatement` on PATCH lines 151-153 — the `catch { return
+ *     c.json({ code: 'BAD_REQUEST', message: 'Invalid JSON body' }, 400) }`
+ *     around `c.req.json()`. Mutation `→ {}` swallows the catch; the
+ *     subsequent `if (!body || typeof body !== 'object' ...)` check
+ *     fires and returns 400 with a DIFFERENT message ("Body must be
+ *     an object"). Asserting the exact "Invalid JSON body" message
+ *     distinguishes the two 400s.
+ *
+ *   - `BooleanLiteral` NoCoverage on line 116 — the theme-dedup check
+ *     `!themes.includes(theme)` inside the override-slice loop. No
+ *     existing test uploads a theme-only override and reads it back,
+ *     so the branch never executes. Under `→ themes.includes(theme)`
+ *     the loop inverts: themes get pushed only when ALREADY present
+ *     (never on first appearance) → `overrideThemes` ends up `[]`.
+ *     Uploading a `?theme=dark` override + asserting `['dark']` on
+ *     GET forces the branch AND kills the mutation.
+ *
+ * Storage tier: filesystem — reuses the existing `buildAppWith` +
+ * `providerWithCaps` helpers so the wire contract is exercised
+ * end-to-end (multipart upload for theme-dedup; the capability tests
+ * short-circuit at middleware and never touch storage).
+ * ──────────────────────────────────────────────────────────────────────── */
+
+describe('capability gates on write routes — StringLiteral pinning', () => {
+  // Principal with read:assets only — passes principal middleware but
+  // fails every edit/delete gate. `role: 'viewer'` shows up in the 403
+  // body so we can also pin that the middleware surfaces the actual
+  // resolved role (not a hardcoded string).
+  const readOnly: string[] = ['read:assets']
+
+  it('POST /api/assets — 403 with missing:[edit:assets] when principal lacks edit:assets', async () => {
+    const { app } = buildAppWith(providerWithCaps(readOnly, 'viewer'))
+    // No body needed — requireCapability middleware short-circuits
+    // before multipart parsing.
+    const res = await app.request('/api/assets', { method: 'POST' })
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { code: string; missing: string[]; role: string }
+    expect(body.code).toBe('FORBIDDEN')
+    expect(body.missing).toEqual(['edit:assets'])
+    expect(body.role).toBe('viewer')
+  })
+
+  it('PATCH /api/assets/:name — 403 with missing:[edit:assets] when principal lacks edit:assets', async () => {
+    const { app } = buildAppWith(providerWithCaps(readOnly, 'viewer'))
+    const res = await app.request('/api/assets/hero', { method: 'PATCH' })
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { code: string; missing: string[]; role: string }
+    expect(body.code).toBe('FORBIDDEN')
+    expect(body.missing).toEqual(['edit:assets'])
+    expect(body.role).toBe('viewer')
+  })
+
+  it('DELETE /api/assets/:name — 403 with missing:[delete:assets] when principal lacks delete:assets', async () => {
+    // delete:assets is a distinct capability from edit:assets — a
+    // separate StringLiteral mutation surface on line 215. Asserting
+    // the exact `delete:assets` literal (not `edit:assets`) proves
+    // the gate value ships correctly on the DELETE route.
+    const { app } = buildAppWith(providerWithCaps(readOnly, 'viewer'))
+    const res = await app.request('/api/assets/hero', { method: 'DELETE' })
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { code: string; missing: string[]; role: string }
+    expect(body.code).toBe('FORBIDDEN')
+    expect(body.missing).toEqual(['delete:assets'])
+    expect(body.role).toBe('viewer')
+  })
+
+  it('POST /api/assets/:name/rename-to/:newName — 403 with missing:[edit:assets]', async () => {
+    const { app } = buildAppWith(providerWithCaps(readOnly, 'viewer'))
+    const res = await app.request('/api/assets/hero/rename-to/banner', { method: 'POST' })
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { code: string; missing: string[]; role: string }
+    expect(body.code).toBe('FORBIDDEN')
+    expect(body.missing).toEqual(['edit:assets'])
+    expect(body.role).toBe('viewer')
+  })
+
+  it('POST /api/assets/:name/replace-with/:newName — 403 with missing:[edit:assets]', async () => {
+    const { app } = buildAppWith(providerWithCaps(readOnly, 'viewer'))
+    const res = await app.request('/api/assets/hero/replace-with/banner', { method: 'POST' })
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { code: string; missing: string[]; role: string }
+    expect(body.code).toBe('FORBIDDEN')
+    expect(body.missing).toEqual(['edit:assets'])
+    expect(body.role).toBe('viewer')
+  })
+
+  it('POST /api/assets/:name/suggest-alt — 403 with missing:[edit:assets]', async () => {
+    // Capability middleware runs BEFORE the AI-adapter unavailability
+    // check inside the handler; a principal lacking edit:assets 403s
+    // regardless of AI config. Asserting the 403 shape (not 503)
+    // proves the gate short-circuits above the handler.
+    const { app } = buildAppWith(providerWithCaps(readOnly, 'viewer'))
+    const res = await app.request('/api/assets/hero/suggest-alt', { method: 'POST' })
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { code: string; missing: string[]; role: string }
+    expect(body.code).toBe('FORBIDDEN')
+    expect(body.missing).toEqual(['edit:assets'])
+    expect(body.role).toBe('viewer')
+  })
+
+  it('POST /api/assets/:name/locale-bytes — 403 with missing:[edit:assets]', async () => {
+    const { app } = buildAppWith(providerWithCaps(readOnly, 'viewer'))
+    const res = await app.request('/api/assets/hero/locale-bytes?locale=fr', { method: 'POST' })
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { code: string; missing: string[]; role: string }
+    expect(body.code).toBe('FORBIDDEN')
+    expect(body.missing).toEqual(['edit:assets'])
+    expect(body.role).toBe('viewer')
+  })
+
+  it('DELETE /api/assets/:name/locale-bytes — 403 with missing:[edit:assets]', async () => {
+    const { app } = buildAppWith(providerWithCaps(readOnly, 'viewer'))
+    const res = await app.request('/api/assets/hero/locale-bytes?locale=fr', { method: 'DELETE' })
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { code: string; missing: string[]; role: string }
+    expect(body.code).toBe('FORBIDDEN')
+    expect(body.missing).toEqual(['edit:assets'])
+    expect(body.role).toBe('viewer')
+  })
+})
+
+describe('PATCH /api/assets/:name — invalid-JSON catch (lines 151-153)', () => {
+  it('400 with code=BAD_REQUEST and message="Invalid JSON body" when body is malformed JSON', async () => {
+    // Under BlockStatement mutation `→ {}` on the catch, the handler
+    // falls through with `body` still undefined and hits the
+    // subsequent `if (!body || typeof body !== 'object' ...)` check.
+    // That path returns 400 with `'Body must be an object'` — a
+    // different message string. Asserting the exact `'Invalid JSON
+    // body'` string pins the catch branch's return.
+    //
+    // No asset seed needed — JSON parsing fails before the storage
+    // lookup runs. Principal must have edit:assets so the capability
+    // gate passes and control reaches the body-parse code.
+    const { app } = buildAppWith(providerWithCaps(['edit:assets']))
+    const res = await app.request('/api/assets/hero', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: 'not valid json{{{',
+    })
+    expect(res.status).toBe(400)
+    expect(res.headers.get('content-type')).toMatch(/application\/json/)
+    const body = (await res.json()) as { code: string; message: string }
+    expect(body.code).toBe('BAD_REQUEST')
+    expect(body.message).toBe('Invalid JSON body')
+  })
+})
+
+describe('GET /api/assets/:name — theme-dedup NoCoverage (line 116)', () => {
+  it("returns ['dark'] for overrideThemes and [] for overrideLocales when only a dark theme bytes override exists", async () => {
+    // Kills BooleanLiteral NoCoverage on line 116 (`!themes.includes(theme)`
+    // → `themes.includes(theme)`). Under the mutation, the dedup
+    // check inverts: themes only push WHEN already present (never on
+    // first appearance) → overrideThemes returns `[]` even though a
+    // theme slice exists. Asserting `['dark']` after uploading a
+    // theme-only override proves the theme was appended on first
+    // sight, killing the mutation.
+    //
+    // The mirror case for locales (line 115) is already covered by
+    // the earlier "returns ['fr'] for overrideLocales" test; this
+    // test extends the same shape to the theme axis so both dedup
+    // branches carry positive-value assertions.
+    const { app } = buildAppWith(providerWithCaps(['read:assets', 'edit:assets']))
+    await uploadHero(app)
+
+    const bytes = await jpegBuffer()
+    const uploadRes = await app.request('/api/assets/hero/locale-bytes?theme=dark', {
+      method: 'POST',
+      body: multipartForm({
+        file: { name: 'hero.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
+      }),
+    })
+    // Sanity check — if the theme upload didn't take, the subsequent
+    // GET assertion would mask the real failure mode.
+    expect(uploadRes.status).toBe(201)
+
+    const res = await app.request('/api/assets/hero')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      name: string
+      overrideLocales: string[]
+      overrideThemes: string[]
+    }
+    expect(body.name).toBe('hero')
+    expect(body.overrideLocales).toEqual([])
+    expect(body.overrideThemes).toEqual(['dark'])
+  })
+})
