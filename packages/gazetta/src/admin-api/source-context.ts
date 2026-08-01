@@ -163,7 +163,7 @@ export function createSourceContext(opts: CreateSourceContextOptions): SourceCon
  * source-context module stays agnostic of target-config parsing — the
  * caller (admin-api boot) owns the enabled/retention decision.
  */
-export type BuildHistory = (targetName: string, storage: StorageProvider) => HistoryProvider | undefined
+type BuildHistory = (targetName: string, storage: StorageProvider) => HistoryProvider | undefined
 
 export interface SourceContextFromRegistryOptions {
   registry: TargetRegistry
