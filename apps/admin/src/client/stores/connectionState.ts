@@ -64,7 +64,7 @@ const HEALTH_PATH = '/api/health'
  * Heartbeat probe contract. Returns true on success, false on
  * failure. Never throws — failures are signal, not exceptions.
  */
-export type HeartbeatFn = () => Promise<boolean>
+type HeartbeatFn = () => Promise<boolean>
 
 /** Default heartbeat — raw fetch without auth wrappers. */
 async function defaultHeartbeat(): Promise<boolean> {
