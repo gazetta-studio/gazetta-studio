@@ -49,7 +49,7 @@ const WARN_THRESHOLD = 0.8
  * Optional injection seam for tests. Production wires through the
  * real `navigator.storage.estimate()`.
  */
-export type StorageEstimateFn = () => Promise<{ usage?: number; quota?: number }>
+type StorageEstimateFn = () => Promise<{ usage?: number; quota?: number }>
 
 export interface StorageQuotaOptions {
   /** Override the polling interval. Tests pass 0 to disable the timer. */
