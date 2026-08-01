@@ -43,5 +43,5 @@ export {
   dispatchAfterUpload,
 } from './dispatch.js'
 export type { HookContribution, HookEntry } from './contribution.js'
-export { buildHookContext, type BuildHookContextOptions } from './context.js'
+export { buildHookContext } from './context.js'
 export type { HookFiringEmitter, HookFiringEvent } from './audit-emitter.js'
