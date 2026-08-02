@@ -24,7 +24,8 @@
     "src/auth/role-resolver.ts",
     "src/fragment-deps.ts",
     "src/auth/types.ts",
-    "src/alt/suggester.ts"
+    "src/alt/suggester.ts",
+    "src/ai/adapter-scaffold.ts"
   ],
   "thresholds": {
     "high": 80,
