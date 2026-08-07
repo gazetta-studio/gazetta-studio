@@ -40,9 +40,9 @@ export interface SignalCountViolation {
 const SIGNAL_HEADER = /^\s*\*\*Signal:\*\*\s+(\d+)\b/
 /**
  * Matches a sub-tally bullet `- <label> (6): ...` — captures the count.
- * Accepts both `-` and `*` bullet markers (Markdown permits either).
+ * Accepts `-`, `*`, and `+` bullet markers (Markdown permits all three).
  */
-const SUB_TALLY = /^\s*[-*]\s+.*\((\d+)\):/
+const SUB_TALLY = /^\s*[-*+]\s+.*\((\d+)\):/
 
 /**
  * Find every Signal header whose per-shape sub-tallies don't sum to
