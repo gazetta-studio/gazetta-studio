@@ -3,9 +3,8 @@
  * header whose per-shape sub-tallies don't sum to N. `compact.ts` runs
  * it after Claude writes the file and fails the run on a violation.
  *
- * Scope is header-vs-sub-tally arithmetic only. A lone Signal count with
- * no sub-tallies is intentionally left alone (see the empty-subtally
- * skip below).
+ * Scope is header-vs-sub-tally arithmetic only; a lone Signal count with
+ * no sub-tallies is out of scope.
  */
 
 export interface SignalCountViolation {
