@@ -30,10 +30,19 @@ export interface SignalCountViolation {
   line: string
 }
 
-/** Matches `**Signal:** 14 ...` — captures the leading integer. */
-const SIGNAL_HEADER = /^\*\*Signal:\*\*\s+(\d+)\b/
-/** Matches a sub-tally bullet `- <label> (6): ...` — captures the count. */
-const SUB_TALLY = /^\s*-\s+.*\((\d+)\):/
+/**
+ * Matches `**Signal:** 14 ...` — captures the leading integer.
+ * Leading whitespace is tolerated: Claude authors this file freely and
+ * may indent, and a false-clean (drift slips past the gate) is the worst
+ * failure mode for a guard, so the matchers accept plausible LLM
+ * formatting variants rather than the strictest possible shape.
+ */
+const SIGNAL_HEADER = /^\s*\*\*Signal:\*\*\s+(\d+)\b/
+/**
+ * Matches a sub-tally bullet `- <label> (6): ...` — captures the count.
+ * Accepts both `-` and `*` bullet markers (Markdown permits either).
+ */
+const SUB_TALLY = /^\s*[-*]\s+.*\((\d+)\):/
 
 /**
  * Find every Signal header whose per-shape sub-tallies don't sum to
