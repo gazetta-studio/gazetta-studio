@@ -28,6 +28,9 @@ describe('findSignalCountViolations', () => {
     const violations = findSignalCountViolations(md)
     expect(violations).toHaveLength(1)
     expect(violations[0]).toMatchObject({ header: 14, sum: 13 })
+    // The `line` field carries the offending header into the gate's
+    // failure message — pin it so a refactor can't silently blank it.
+    expect(violations[0].line).toContain('**Signal:** 14')
   })
 
   it('accepts a header whose sub-tallies sum correctly (the #688 fix state)', () => {
@@ -96,36 +99,17 @@ describe('findSignalCountViolations', () => {
 
   // Edge cases from the runtime sweep: Claude authors this file freely,
   // so the guard must tolerate plausible LLM formatting variants — a
-  // false-clean (drift ships) is the worst failure mode for a gate.
-
-  it('catches drift under a leading-whitespace-indented Signal header', () => {
-    const md = `  **Signal:** 9 across 6 runs, by shape:
-
-  - Internal type reference (2): \`a\`, \`b\`
-  - Default parameter fallback (3): \`c\`
-`
-    const v = findSignalCountViolations(md)
-    expect(v).toHaveLength(1)
-    expect(v[0]).toMatchObject({ header: 9, sum: 5 })
-  })
-
-  it('catches drift when sub-tallies use `*` bullets instead of `-`', () => {
-    const md = `**Signal:** 9 by shape:
-
-* Shape A (2): x
-* Shape B (3): y
-`
-    const v = findSignalCountViolations(md)
-    expect(v).toHaveLength(1)
-    expect(v[0]).toMatchObject({ header: 9, sum: 5 })
-  })
-
-  it('catches drift when sub-tallies use `+` bullets', () => {
-    const md = `**Signal:** 9 by shape:
-
-+ Shape A (2): x
-+ Shape B (3): y
-`
+  // false-clean (drift ships) is the worst failure mode for a gate. The
+  // table below pins the invariant: EVERY plausible formatting variant
+  // (indentation, each Markdown bullet marker) catches the same drift.
+  it.each([
+    {
+      variant: 'leading-whitespace-indented header + `-` bullets',
+      md: '  **Signal:** 9 across 6 runs, by shape:\n\n  - Internal type reference (2): `a`, `b`\n  - Default parameter fallback (3): `c`\n',
+    },
+    { variant: '`*` bullets', md: '**Signal:** 9 by shape:\n\n* Shape A (2): x\n* Shape B (3): y\n' },
+    { variant: '`+` bullets', md: '**Signal:** 9 by shape:\n\n+ Shape A (2): x\n+ Shape B (3): y\n' },
+  ])('catches drift regardless of formatting variant ($variant): header 9 vs sub-tallies 5', ({ md }) => {
     const v = findSignalCountViolations(md)
     expect(v).toHaveLength(1)
     expect(v[0]).toMatchObject({ header: 9, sum: 5 })
@@ -138,5 +122,44 @@ describe('findSignalCountViolations', () => {
   * Shape B (3): y
 `
     expect(findSignalCountViolations(md)).toHaveLength(0)
+  })
+
+  // Scan-boundary coverage: sub-tally collection stops at the next
+  // section heading OR the next Signal header. Without these two tests,
+  // dropping either break condition in the guard survives the suite
+  // (verified: a mutation removing the `## ` break passes all other cases).
+
+  it('stops sub-tally collection at the next `## ` heading — bullets in the next section do not leak in', () => {
+    const md = `## 1. First
+
+**Signal:** 4 by shape:
+
+- Shape A (2): x
+- Shape B (2): y
+
+## 2. Unrelated section with its own bullets
+
+- Not a sub-tally of lesson 1 (99): noise
+`
+    // header 4 == 2+2 → consistent; the (99) bullet lives past the `## `
+    // boundary and must not be folded into lesson 1's sum.
+    expect(findSignalCountViolations(md)).toHaveLength(0)
+  })
+
+  it('stops the scan at the next Signal header even with no `## ` between them', () => {
+    const md = `**Signal:** 3 by shape:
+
+- Shape A (1): x
+- Shape B (2): y
+
+**Signal:** 10 by shape:
+
+- Shape C (4): z
+`
+    // First: 3 == 1+2 (clean). Second: 10 != 4 (drift). If the scan didn't
+    // break at the 2nd Signal header, the first would fold in C's 4 too.
+    const v = findSignalCountViolations(md)
+    expect(v).toHaveLength(1)
+    expect(v[0]).toMatchObject({ header: 10, sum: 4 })
   })
 })
