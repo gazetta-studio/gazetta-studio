@@ -120,6 +120,17 @@ describe('findSignalCountViolations', () => {
     expect(v[0]).toMatchObject({ header: 9, sum: 5 })
   })
 
+  it('catches drift when sub-tallies use `+` bullets', () => {
+    const md = `**Signal:** 9 by shape:
+
++ Shape A (2): x
++ Shape B (3): y
+`
+    const v = findSignalCountViolations(md)
+    expect(v).toHaveLength(1)
+    expect(v[0]).toMatchObject({ header: 9, sum: 5 })
+  })
+
   it('accepts a consistent header+tallies with `*` bullets and indentation', () => {
     const md = `  **Signal:** 5 by shape:
 
