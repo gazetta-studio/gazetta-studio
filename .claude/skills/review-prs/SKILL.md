@@ -303,6 +303,63 @@ EOF
 
 **Label hygiene reminder** (gazetta-specific): fix-bot picks up `bug + ready-for-agent`; feature-bot picks up `enhancement + ready-for-agent`. If neither, triage-bot looks first (input is "no classification labels yet"). Don't apply `bug` without `ready-for-agent` — lands the issue in limbo (triage-bot ignores it; fix-bot won't either). Per rule 40, the load-bearing axis is task shape, not the source bot.
 
+## Self-improvement (pass-end)
+
+This skill improves the same way the bots do — by feeding review
+outcomes back into the guidance that shapes the next pass — but with
+a substrate suited to running locally under human review, not on a
+cron. The bots write a `reviewer-log.jsonl`, compact it monthly into
+a `lessons-learned.md`, and front-load that file into the next run.
+The analog here: **when a pass surfaces a durable insight, propose an
+edit to this SKILL.md at pass-end.** SKILL.md *is* the front-loaded
+guidance (it's read at the start of every `/review-prs`), and its git
+history *is* the raw log — every insight-driven edit is a commit,
+auditable and reversible. No separate log file: for prose insights
+with no counts to aggregate, the commit history is the durable record
+(this is how rules 41/42 landed — a pass discovered the proof-of-work
+pruning nuance, it went into SKILL.md, committed).
+
+### What counts as a durable insight
+
+Not every pass produces one — most are "merged N clean PRs, learned
+nothing," and those get no edit (absence-as-state, per Krug rule 23).
+Propose a SKILL.md edit only when the pass surfaced something that
+would change how a *future* pass reviews:
+
+- **A new anti-pattern to catch** (e.g. a bot-PR shape that looked fine
+  but wasn't — the mode-vs-diff mismatch class).
+- **A refined heuristic** (e.g. rule 41's drift-*probability*-not-
+  *possibility* sharpening of proof-of-work pruning).
+- **A CI / GitHub gotcha** that cost time and would recur (the kind
+  that lands in team-preferences rule 34 — cross-link it here if it's
+  review-specific).
+- **A fact-check that changed a verdict** — if the PR body's claim was
+  wrong in an instructive way, capture the check so the next reviewer
+  runs it.
+
+Do NOT propose an edit for: a one-off insight specific to a single PR
+that won't recur; a restatement of guidance already in SKILL.md; or a
+project-fact that belongs in `team-preferences.md` / `CLAUDE.md`
+instead (propose it *there* — route by where the guidance is consumed,
+per the same task-shape logic as rule 40).
+
+### How to propose it
+
+1. At pass-end, if a durable insight surfaced, state it plainly and
+   name where in SKILL.md it belongs (which section, why).
+2. Draft the exact edit (diff-shaped) and surface it for approval —
+   **never self-commit a SKILL.md change without the maintainer's ok**
+   (same human-gate discipline as every other change; rule 33 —
+   branch + PR, no direct-to-main).
+3. On approval, land it as a `docs:` change to SKILL.md (branch + PR),
+   commit message naming the pass/insight that produced it — so the
+   git history stays a legible log of *why* each heuristic exists.
+
+This is the human-review layer's version of the bots' durable-memory
+loop: the reviewer that gates every bot PR now also compounds what it
+learns, instead of re-deriving heuristics each session and losing them
+when the conversation ends.
+
 ## Output discipline
 
 - One PR at a time. Don't batch multiple recommendations into one long message.
