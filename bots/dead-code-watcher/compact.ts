@@ -168,12 +168,8 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     printWarning(`compact threw: ${err}; transcript at ${transcriptPath}`)
   }
 
-  // Deterministic drift gate (per design-self-learning.md): Claude
-  // writes lessons-learned.md directly, so verify the arithmetic it
-  // can't be trusted to self-check. Any `**Signal:** N` header whose
-  // per-shape sub-tallies don't sum to N fails the run — the PR never
-  // opens with the #686→#688 drift. Runs only when Claude wrote the
-  // file, and BEFORE the prune so a bad file doesn't lose its input.
+  // Must run only when Claude wrote the file, and BEFORE the prune —
+  // a drifting file has to fail the run before its input is pruned away.
   if (claudeSucceeded) {
     const written = existsSync(LESSONS_ABS) ? readFileSync(LESSONS_ABS, 'utf-8') : ''
     const violations = findSignalCountViolations(written)
