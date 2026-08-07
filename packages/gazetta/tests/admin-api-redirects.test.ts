@@ -736,3 +736,165 @@ describe('POST /api/fragment-redirects — request validation (kills NoCoverage 
     }
   })
 })
+
+/**
+ * Kind-discriminant ternary coverage for the success response's `route`
+ * and `targetRoute` fields — kills the surviving ConditionalExpression +
+ * EqualityOperator mutants on line 213 of `redirects.ts` (per issue #687).
+ *
+ * The ternary is:
+ *   targetRoute: binding.kind === 'page' ? deriveRoute(to) : `/${to}`
+ *
+ * For most `to` values the two branches produce identical output
+ * (`deriveRoute(x) === `/${x}`` for any x that isn't `'home'` and doesn't
+ * contain `[...]`), which is why prior mutation runs left these mutants
+ * uncaught: existing symmetric happy-path tests used `to: 'products/featured'`
+ * / `to: 'header'`, where both branches emit the same string.
+ *
+ * `to: 'home'` is the ONE `to` value that admits the distinction — a live
+ * page name that's structurally invalid as a `from` (rejected earlier at
+ * `from === 'home'`), so it's forced to appear ONLY as `to`:
+ *   - deriveRoute('home')  === '/'
+ *   - `/${'home'}`         === '/home'
+ *
+ * Two tests below assert both branches independently. Together they kill:
+ *   - ConditionalExpression → true  (always deriveRoute — fragment test fails)
+ *   - ConditionalExpression → false (always `/${to}` — page test fails)
+ *   - EqualityOperator (kind !== 'page') (swaps branches — both tests fail)
+ *
+ * Line 212 (`route: ... deriveRoute(from) : `/${from}``) is NOT similarly
+ * killable within v1's validation contract: `from === 'home'` is rejected
+ * at line 135 (`if (from === 'home')`) and wildcard `from` (`[...]`) is
+ * rejected at line 145 (`containsWildcard(from)`). Every valid `from`
+ * satisfies `deriveRoute(from) === `/${from}``, making the two branches
+ * behaviorally equivalent for all accepted inputs. Those mutants are
+ * accepted as equivalent-mutants under the current validation rules.
+ */
+describe('POST /api/{page,fragment}-redirects — kind-discriminant ternary on targetRoute (kills line-213 mutants)', () => {
+  beforeEach(() => setup())
+
+  it('page redirect with to: "home" pins the deriveRoute branch → targetRoute === "/"', async () => {
+    // 'home' is a live page in the seed; from is a novel name so the
+    // happy-path proceeds to write the redirect.
+    const res = await app.request('/api/page-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'old-landing', to: 'home' }),
+    })
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as Record<string, unknown>
+    // Kills the page branch of line 213's ternary. deriveRoute('home') is
+    // the sole `to`-input where the two branches diverge — asserting `/`
+    // (not `/home`) proves the deriveRoute branch fired.
+    expect(body.targetRoute).toBe('/')
+    // The response also pins `from` handling for line 212 as much as v1
+    // validation allows: deriveRoute('old-landing') and `/${'old-landing'}`
+    // are equal, so this asserts the SHARED value (not the branch).
+    expect(body.route).toBe('/old-landing')
+    // Round out the shape to protect against a regression that would
+    // drop other response fields.
+    expect(body.ok).toBe(true)
+    expect(body.kind).toBe('page')
+    expect(body.from).toBe('old-landing')
+    expect(body.to).toBe('home')
+  })
+
+  it('fragment redirect with to: "home" pins the `/${to}` branch → targetRoute === "/home"', async () => {
+    // Fragments and pages have separate namespaces (per design-concepts.md),
+    // so a fragment named 'home' is technically valid even though the page
+    // route 'home' is reserved. Seed it inline for this test — the default
+    // `setup()` seed has only 'header' / 'footer' fragments where the two
+    // ternary branches would produce the same output.
+    setup({
+      seed: {
+        'fragments/home/fragment.json': JSON.stringify({
+          template: 'header-layout',
+          content: {},
+        }),
+      },
+    })
+    const res = await app.request('/api/fragment-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'old-nav', to: 'home' }),
+    })
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as Record<string, unknown>
+    // Kills the fragment branch of line 213's ternary. `/${'home'}` is the
+    // sole `to`-input where the fragment branch diverges from the page
+    // branch — asserting `/home` (not `/`) proves `/${to}` fired.
+    expect(body.targetRoute).toBe('/home')
+    // Same rationale for `route` as the page test above.
+    expect(body.route).toBe('/old-nav')
+    expect(body.ok).toBe(true)
+    expect(body.kind).toBe('fragment')
+    expect(body.from).toBe('old-nav')
+    expect(body.to).toBe('home')
+  })
+})
+
+/**
+ * Archived-name-conflict short-circuit — pins the branch on line 180
+ * (`if (existing && existing.archived === true)`) which must intercept
+ * BEFORE the alias-target existence check on line 188.
+ *
+ * Under a mutation that flips this condition to false (or inverts the
+ * equality to `archived !== true`), the branch is skipped and execution
+ * falls through to the alias-target check — which would return
+ * `ALIAS_TARGET_NOT_FOUND` (409) for a missing `to`, not
+ * `ARCHIVED_NAME_CONFLICT`. Asserting the specific `code` value
+ * distinguishes the two 409 outcomes and pins which branch fired.
+ *
+ * Existing archived-name-conflict tests use a valid alias target
+ * (`to: 'products/featured'`), so under a branch-skipping mutant the
+ * alias-target check would succeed and the code would proceed to WRITE
+ * the redirect — surfacing as an unexpected 201 instead of the correct
+ * 409. This scenario forces the assertion to specifically distinguish
+ * `ARCHIVED_NAME_CONFLICT` from `ALIAS_TARGET_NOT_FOUND` (both 409),
+ * catching the mutant more sharply.
+ */
+describe('POST /api/page-redirects — archived-name-conflict precedes alias-target check (kills line-180 mutants)', () => {
+  beforeEach(() => setup())
+
+  it('archived from + missing alias target → 409 ARCHIVED_NAME_CONFLICT (not ALIAS_TARGET_NOT_FOUND)', async () => {
+    // Establish 'old-blog' as an archive via a first POST pointing at a
+    // valid alias target. After this, 'old-blog' exists on disk as an
+    // archived manifest with aliasOf: 'home'.
+    const seedRes = await app.request('/api/page-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'old-blog', to: 'home' }),
+    })
+    expect(seedRes.status).toBe(201)
+
+    // Retry with the same archived `from` and a MISSING `to`. The
+    // archived-conflict branch (line 180) MUST short-circuit here — the
+    // alias-target check would otherwise fire on 'does-not-exist' and
+    // return ALIAS_TARGET_NOT_FOUND. Pinning the exact code proves the
+    // short-circuit.
+    const res = await app.request('/api/page-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'old-blog', to: 'does-not-exist' }),
+    })
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as Record<string, unknown>
+    // The load-bearing assertion. Kills mutants that would skip the
+    // archived branch and fall through to the alias-target check:
+    //   - ConditionalExpression → false: branch skipped → ALIAS_TARGET_NOT_FOUND
+    //   - EqualityOperator (archived !== true): archived items skip too
+    //   - BooleanLiteral (archived === true → archived === false): same
+    // All three would produce ALIAS_TARGET_NOT_FOUND for the missing 'to'.
+    expect(body.code).toBe('ARCHIVED_NAME_CONFLICT')
+    // Belt-and-suspenders: the archive detail block must reflect the
+    // original archive's aliasOf (not the retry attempt's non-existent to).
+    const archive = body.archive as Record<string, unknown>
+    expect(archive.kind).toBe('page')
+    expect(archive.name).toBe('old-blog')
+    expect(archive.aliasOf).toBe('home')
+    // No side effect: the manifest still points at 'home' (the original
+    // archive target), not the retry's non-existent 'does-not-exist'.
+    const manifest = await readJson('pages/old-blog/page.json')
+    expect(manifest.aliasOf).toBe('home')
+  })
+})
