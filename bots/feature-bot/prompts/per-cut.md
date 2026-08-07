@@ -327,8 +327,13 @@ discovered.
      anchors (local symbol names, line numbers, "the function below",
      example outputs).
    - **No → keep.** Survives only if it states something the code can't:
-     a non-obvious WHY, an externally-imposed constraint, a durable
-     design linkage (design-doc section or `ADR-NNNN`), or a warning.
+     a non-obvious constraint or invariant, an externally-imposed
+     requirement, a durable design linkage (design-doc section or
+     `ADR-NNNN`), or a warning. It must NOT merely argue *why you chose
+     this approach* ("deliberate", "we need", "load-bearing because…") —
+     that rationale belongs in the commit message, not in source; a
+     comment that reads like a line from the PR description is rot-prone
+     by a different name. Delete it.
    - **Resolved TODO/FIXME → remove.**
 
    Comment edits stay in the working tree (still nothing committed).

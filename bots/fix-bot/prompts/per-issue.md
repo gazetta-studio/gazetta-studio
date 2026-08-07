@@ -267,14 +267,18 @@ Per project rule \"Don't add features, refactor, or introduce abstractions
 beyond what the task requires\" ([CLAUDE.md](../../CLAUDE.md)): a bug
 fix doesn't need surrounding cleanup.
 
-**Code comments name the WHY only.** If you add a doc comment to a
-new module, function, or constant, the comment captures the rationale
-that's non-obvious from the identifier — not the failure mode,
-historical incident, error message text, or PR-description recap.
-Failure-mode details (e.g. "produces EBADENGINE pointing at
-write-file-atomic") belong in the PR body, not in source.
+**Code comments capture a non-obvious CONSTRAINT, not the RATIONALE
+for a choice.** A comment earns its place when a cold reader would be
+surprised by the code without it — a hidden constraint, subtle
+invariant, workaround, or load-bearing marker. It does NOT argue *why
+you made a decision* ("deliberate", "we need", "the load-bearing half
+because…") — that rationale, like the failure mode, historical
+incident, error-message text, or PR-description recap, belongs in the
+commit message / PR body, not in source. Test: if the comment reads
+like a line from your PR description, delete it.
 Per [CLAUDE.md](../../CLAUDE.md): "Only add a comment when the WHY
-is non-obvious."
+is non-obvious" — and the WHY that belongs in source is a constraint
+the reader can't infer, not a justification for your approach.
 
 Run the test locally to confirm GREEN:
 ```bash
@@ -350,6 +354,11 @@ the fix introduces:
 - Empty / null / undefined for inputs the fix's branches touch
 - Boundary values for any numeric / size / count the fix introduces
 - Each error path the fix's new conditions imply
+- Malformed / valid-but-unanticipated-shape input — when the fix parses
+  or matches a format, feed plausible variants of that format the
+  matcher might not handle (extra whitespace, alternate delimiters,
+  different-but-legal spellings). A parser stricter than its real input
+  silently mishandles the variant; the exercise is where you catch it.
 
 For each edge case the exercise surfaces:
 - **Within fix surface, fix incomplete on this input**: the fix isn't
