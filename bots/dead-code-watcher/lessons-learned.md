@@ -13,7 +13,7 @@ Knip flags an exported symbol; grep shows no external consumers,
 but the declaration IS still referenced inside its own file. Drop
 `export` and keep the declaration.
 
-**Signal:** 14 first-attempt approves across 6 runs, by shape:
+**Signal:** 13 first-attempt approves across 6 runs, by shape:
 
 - Internal type reference (6): `HreflangAlternate`,
   `SvgSanitizeWarning`, `ProviderCallInput`, `BuildHistory`,
