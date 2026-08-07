@@ -154,6 +154,14 @@ before proceeding, OR when to switch to SKIP needs-human>
 ### <Next pattern...>
 ```
 
+**Count arithmetic (enforced by a post-run gate):** if you break a
+`**Signal:** N` count into per-shape sub-tally bullets of the form
+`- <label> (K): ...`, then **N MUST equal the sum of the K values**.
+A deterministic check parses this file after you write it and FAILS
+the run on any mismatch — so compute the sum explicitly and set the
+header to it. Do not hand-count. (This gate exists because run #686
+shipped `Signal: 14` over sub-tallies summing to 13.)
+
 **Threshold per pattern:** at least 2 reviewer-log entries must
 share the failure mode for it to land as a lesson. Single-instance
 observations stay in the reviewer-log; they're not yet patterns.

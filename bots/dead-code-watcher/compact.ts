@@ -34,6 +34,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
 import { pruneReviewerLog, REVIEWER_LOG_PATH, tailReviewerLog } from './reviewer-log.js'
+import { findSignalCountViolations } from './signal-count-guard.js'
 import { readSkipList, SKIP_LIST_PATH } from './skip-list.js'
 import { printBanner, printNotice, printRunSummary, printTranscriptPath, printWarning } from '../_lib/ui.js'
 
@@ -165,6 +166,28 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     }
   } catch (err) {
     printWarning(`compact threw: ${err}; transcript at ${transcriptPath}`)
+  }
+
+  // Deterministic drift gate (per design-self-learning.md): Claude
+  // writes lessons-learned.md directly, so verify the arithmetic it
+  // can't be trusted to self-check. Any `**Signal:** N` header whose
+  // per-shape sub-tallies don't sum to N fails the run — the PR never
+  // opens with the #686→#688 drift. Runs only when Claude wrote the
+  // file, and BEFORE the prune so a bad file doesn't lose its input.
+  if (claudeSucceeded) {
+    const written = existsSync(LESSONS_ABS) ? readFileSync(LESSONS_ABS, 'utf-8') : ''
+    const violations = findSignalCountViolations(written)
+    if (violations.length > 0) {
+      for (const v of violations) {
+        printWarning(
+          `Signal-count drift in ${LESSONS_PATH}: header says ${v.header}, sub-tallies sum to ${v.sum} — "${v.line.trim()}"`,
+        )
+      }
+      printWarning(
+        `${violations.length} Signal-count violation(s) — failing the compaction run so the PR does not open with drift. Fix lessons-learned.md so each Signal header equals the sum of its sub-tallies.`,
+      )
+      process.exit(1)
+    }
   }
 
   // Prune the reviewer-log to a bounded window AFTER Claude succeeds.
