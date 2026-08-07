@@ -93,4 +93,39 @@ describe('findSignalCountViolations', () => {
   it('returns empty for a lessons file with no Signal headers', () => {
     expect(findSignalCountViolations('# lessons\n\nSome prose.\n')).toHaveLength(0)
   })
+
+  // Edge cases from the runtime sweep: Claude authors this file freely,
+  // so the guard must tolerate plausible LLM formatting variants — a
+  // false-clean (drift ships) is the worst failure mode for a gate.
+
+  it('catches drift under a leading-whitespace-indented Signal header', () => {
+    const md = `  **Signal:** 9 across 6 runs, by shape:
+
+  - Internal type reference (2): \`a\`, \`b\`
+  - Default parameter fallback (3): \`c\`
+`
+    const v = findSignalCountViolations(md)
+    expect(v).toHaveLength(1)
+    expect(v[0]).toMatchObject({ header: 9, sum: 5 })
+  })
+
+  it('catches drift when sub-tallies use `*` bullets instead of `-`', () => {
+    const md = `**Signal:** 9 by shape:
+
+* Shape A (2): x
+* Shape B (3): y
+`
+    const v = findSignalCountViolations(md)
+    expect(v).toHaveLength(1)
+    expect(v[0]).toMatchObject({ header: 9, sum: 5 })
+  })
+
+  it('accepts a consistent header+tallies with `*` bullets and indentation', () => {
+    const md = `  **Signal:** 5 by shape:
+
+  * Shape A (2): x
+  * Shape B (3): y
+`
+    expect(findSignalCountViolations(md)).toHaveLength(0)
+  })
 })
