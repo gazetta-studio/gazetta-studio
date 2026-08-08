@@ -6,7 +6,7 @@ export type { AuditAction, AuditActor, AuditEvent, AuditOutcome, AuditQuery, Aud
 export { AuditError, AuditConfigurationError, AuditTransportError } from './errors.js'
 export { AuditConfigSchema, DEFAULT_AUDIT_CONFIG, type AuditConfig } from './config.js'
 export type { AuditProvider } from './provider.js'
-export { createHistoryAuditProvider, type HistoryAuditProviderOptions } from './providers/history.js'
+export { createHistoryAuditProvider } from './providers/history.js'
 export {
   recordToAll,
   type AuditFailureLog,
