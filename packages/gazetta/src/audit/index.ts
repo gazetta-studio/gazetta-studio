@@ -11,7 +11,6 @@ export {
   recordToAll,
   type AuditFailureLog,
   type AuditFailureLogger,
-  type RecordResult,
   type RecordToAllOptions,
 } from './recorder.js'
 export { computePseudonymizedId, pseudonymizeActor, type ActorPseudonymMode } from './pseudonymize.js'
