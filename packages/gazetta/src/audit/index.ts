@@ -22,7 +22,7 @@ export {
   type SourceIpMode,
 } from './source-ip.js'
 export { processUserAgent, type UserAgentMode } from './user-agent.js'
-export { pruneAuditEvents, type AuditRetentionConfig, type PruneResult } from './retention.js'
+export { type AuditRetentionConfig, type PruneResult } from './retention.js'
 export {
   createAuditContext,
   type AuditContext,
