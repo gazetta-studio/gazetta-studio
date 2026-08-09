@@ -25,7 +25,8 @@
     "src/fragment-deps.ts",
     "src/auth/types.ts",
     "src/alt/suggester.ts",
-    "src/ai/adapter-scaffold.ts"
+    "src/ai/adapter-scaffold.ts",
+    "src/audit/types.ts"
   ],
   "thresholds": {
     "high": 80,
