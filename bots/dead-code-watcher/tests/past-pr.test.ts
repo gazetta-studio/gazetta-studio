@@ -101,4 +101,34 @@ describe('pastPROutcome', () => {
       expect(outcome.reasonNote).toContain('…')
     }
   })
+
+  it('excludes non-github-actions bots (e.g. renovate[bot]) from rejection mining', async () => {
+    // Mixed thread: older human maintainer comment + newer non-github-actions
+    // bot comment. The predicate must exclude by user.type === 'Bot', not by
+    // hardcoded 'github-actions[bot]' login string, else the bot's comment
+    // gets mined as if it were the maintainer's rejection reason.
+    const octokit = mockOctokit(
+      [{ number: 47, merged_at: null, state: 'closed' }],
+      [
+        {
+          body: 'This is public API; keep it.',
+          user: { login: 'maintainer', type: 'User' },
+          created_at: '2026-05-10T00:00:00Z',
+        },
+        {
+          body: 'Automated: bumping dep to 4.2.0',
+          user: { login: 'renovate[bot]', type: 'Bot' },
+          created_at: '2026-05-14T00:00:00Z',
+        },
+      ],
+    )
+    const outcome = await pastPROutcome(octokit, repo, { kind: 'file', path: 'src/foo.ts' })
+    expect(outcome.state).toBe('rejected')
+    if (outcome.state === 'rejected') {
+      expect(outcome.reasonNote).toContain('Maintainer (maintainer)')
+      expect(outcome.reasonNote).toContain('public API')
+      expect(outcome.reasonNote).not.toContain('Automated: bumping dep')
+      expect(outcome.reasonNote).not.toContain('renovate[bot]')
+    }
+  })
 })
