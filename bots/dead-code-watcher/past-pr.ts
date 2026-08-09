@@ -109,11 +109,25 @@ async function mineRejectionReason(
     octokit.pulls.listReviewComments({ ...repo, pull_number: prNumber, per_page: 50 }),
   ])
   const all = [
-    ...issueRes.data.map(c => ({ body: c.body ?? '', login: c.user?.login ?? null, when: c.created_at })),
-    ...reviewRes.data.map(c => ({ body: c.body ?? '', login: c.user?.login ?? null, when: c.created_at })),
+    ...issueRes.data.map(c => ({
+      body: c.body ?? '',
+      login: c.user?.login ?? null,
+      type: c.user?.type ?? null,
+      when: c.created_at,
+    })),
+    ...reviewRes.data.map(c => ({
+      body: c.body ?? '',
+      login: c.user?.login ?? null,
+      type: c.user?.type ?? null,
+      when: c.created_at,
+    })),
   ]
-    // Skip bot-authored content (the bot's own outcome-tag comment).
-    .filter(c => c.login !== 'github-actions[bot]' && c.body.length > 0)
+    // Skip any bot-authored content, not just `github-actions[bot]`.
+    // GitHub's `user.type` is `'Bot'` for every app-authored comment
+    // (renovate, dependabot, third-party review bots) — the correct
+    // predicate for "was this the maintainer?" is "author is not a
+    // bot", not "author is not this one specific login".
+    .filter(c => c.type !== 'Bot' && c.body.length > 0)
     // Sort newest-first; pick the first meaningful one.
     .sort((a, b) => b.when.localeCompare(a.when))
   if (all.length === 0) {

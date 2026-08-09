@@ -13,7 +13,7 @@ describe('pastPROutcome', () => {
 
   function mockOctokit(
     prs: Array<Partial<{ number: number; merged_at: string | null; state: string }>>,
-    comments: Array<{ body: string; user: { login: string }; created_at: string }> = [],
+    comments: Array<{ body: string; user: { login: string; type?: string }; created_at: string }> = [],
   ): Parameters<typeof pastPROutcome>[0] {
     return {
       pulls: {
@@ -78,7 +78,13 @@ describe('pastPROutcome', () => {
   it('falls back to generic note when no maintainer comment exists', async () => {
     const octokit = mockOctokit(
       [{ number: 45, merged_at: null, state: 'closed' }],
-      [{ body: 'bot comment', user: { login: 'github-actions[bot]' }, created_at: '2026-05-12T00:00:00Z' }],
+      [
+        {
+          body: 'bot comment',
+          user: { login: 'github-actions[bot]', type: 'Bot' },
+          created_at: '2026-05-12T00:00:00Z',
+        },
+      ],
     )
     const outcome = await pastPROutcome(octokit, repo, 100)
     expect(outcome.state).toBe('rejected')
