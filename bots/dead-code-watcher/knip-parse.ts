@@ -23,7 +23,7 @@
  *     ]
  *   }
  */
-import { execSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import type { Fingerprint } from './skip-list.js'
 
 /**
@@ -147,12 +147,16 @@ export function parseKnipReport(report: KnipReport, opts: { repoRoot: string }):
  * (uncommitted, or new file).
  *
  * Synchronous on purpose — keeps the parser pipeline a pure
- * read+transform without async surface. Cost is one execSync per
+ * read+transform without async surface. Cost is one execFileSync per
  * unique file; knip reports typically have <100 unique files.
+ *
+ * execFileSync (not execSync) so `path` reaches git as a literal argv
+ * element — no shell in the middle rewriting `$var`, evaluating
+ * backticks / `$()`, or splitting on unquoted spaces.
  */
 export function gitLastModifiedDays(repoRoot: string, path: string): number {
   try {
-    const isoTimestamp = execSync(`git log -1 --format=%cI -- "${path}"`, {
+    const isoTimestamp = execFileSync('git', ['log', '-1', '--format=%cI', '--', path], {
       cwd: repoRoot,
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'ignore'],
