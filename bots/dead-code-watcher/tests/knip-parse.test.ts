@@ -1,15 +1,15 @@
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { filterStableFindings, parseKnipReport, rankFindings, type Finding } from '../knip-parse.js'
+import { filterStableFindings, gitLastModifiedDays, parseKnipReport, rankFindings, type Finding } from '../knip-parse.js'
 
-// We don't shell out to `git log` in tests — the orchestrator hands a
-// pre-parsed report (via JSON files written by knip) and the parser's
-// `gitLastModifiedDays` is the part that touches git. Per `bots/README.md`
-// architecture rules: keep external-shell work in a thin layer that
-// tests stub. The integration path is exercised by manual smoke + the
-// per-finding tests below stub repoRoot to a directory git knows nothing
-// about → lastModifiedDays will be NaN → filtered out by
-// filterStableFindings. The synthesised Finding objects in these tests
-// provide the lastModifiedDays directly.
+// Most parser tests stub `repoRoot` to a non-git directory → git log
+// returns NaN → findings get filtered out. `gitLastModifiedDays` itself
+// shells out to git; the dedicated tempdir-git test below covers its
+// shell-argument-safety contract because that's the only way to prove
+// filenames with shell metacharacters aren't reinterpreted by the shell.
 
 describe('parseKnipReport — finding kinds', () => {
   it('emits one finding per file when kind=file', () => {
@@ -191,5 +191,45 @@ describe('rankFindings', () => {
     const ranked = rankFindings(findings)
     // Both kind 2; oldest-first → export (100) before type (50)
     expect(ranked.map(r => r.fingerprint.kind)).toEqual(['export', 'type'])
+  })
+})
+
+describe('gitLastModifiedDays — shell-metacharacter safety', () => {
+  // Regression guard for the execSync-with-string-interpolation defect.
+  // When the path passed to `git log` is spliced into a shell string,
+  // a `$` in the filename is expanded as a shell variable — an unset
+  // one collapses to empty, so git looks up the wrong path and returns
+  // no commits. The fix is `execFileSync(..., [path])`, which passes
+  // the path as a literal argv element that the shell never sees.
+  //
+  // Beyond correctness, this closes a command-injection class: any
+  // shell metacharacter in a knip-reported filename (backticks, `$()`,
+  // `;`, etc.) would otherwise be evaluated by /bin/sh in the bot's
+  // runner environment.
+  it('resolves a tracked file whose name contains a shell metacharacter', () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'git-metachar-'))
+    try {
+      const opts = { cwd: repoRoot, stdio: 'ignore' as const }
+      execFileSync('git', ['init', '-q', '-b', 'main'], opts)
+      execFileSync('git', ['config', 'user.email', 't@e.st'], opts)
+      execFileSync('git', ['config', 'user.name', 't'], opts)
+      execFileSync('git', ['config', 'commit.gpgsign', 'false'], opts)
+      // A bare `$` triggers shell variable expansion under the buggy
+      // path — $UNSET reads as empty, so git receives "sub.ts" instead
+      // of the actual filename and returns nothing → NaN.
+      const path = 'sub$UNSET.ts'
+      writeFileSync(join(repoRoot, path), 'x')
+      execFileSync('git', ['add', '--', path], opts)
+      execFileSync('git', ['commit', '-q', '-m', 'seed'], opts)
+
+      const days = gitLastModifiedDays(repoRoot, path)
+      // File was just committed. The load-bearing assertion is that
+      // git found it at all — a finite (not NaN) result means the
+      // shell didn't rewrite the path away.
+      expect(Number.isFinite(days)).toBe(true)
+      expect(days).toBeGreaterThanOrEqual(0)
+    } finally {
+      rmSync(repoRoot, { recursive: true, force: true })
+    }
   })
 })
