@@ -12,6 +12,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { isReExportBarrel } from './barrel-detector.js'
+import { isPureTypesFile } from './pure-types-detector.js'
 import { findSkipMatch, type SkipList } from './skip-list.js'
 
 export interface CandidateOpts {
@@ -40,21 +41,25 @@ export function discoverCandidates(opts: CandidateOpts): string[] {
     if (path.endsWith('.d.ts')) return false
     if (scopedFiles.has(path)) return false
     if (findSkipMatch(opts.skipList, { path }) !== null) return false
+    // Read once; skip content-based filters on read failure so a
+    // transient IO error doesn't silently exclude a real module.
+    let source: string
+    try {
+      source = readFileSync(join(opts.repoRoot, path), 'utf-8')
+    } catch {
+      return true
+    }
     // Pure re-export barrels have no behavioral surface to mutate;
     // proposing them wastes a pick and is rejected by the config guard
     // at PR-review time. See barrel-detector.ts for the reason.
-    if (isBarrelFile(join(opts.repoRoot, path))) return false
+    if (isReExportBarrel(source)) return false
+    // Pure-type files (only `export type` / `export interface`, no
+    // runtime values) produce zero mutants and silently register as
+    // vacuously 100% killed — burning a glob slot for no signal.
+    // See pure-types-detector.ts (issue #706).
+    if (isPureTypesFile(source)) return false
     return true
   })
-}
-
-/** Read a source file and check whether it's a pure re-export barrel. */
-function isBarrelFile(absPath: string): boolean {
-  try {
-    return isReExportBarrel(readFileSync(absPath, 'utf-8'))
-  } catch {
-    return false
-  }
 }
 
 /**
