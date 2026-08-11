@@ -33,8 +33,8 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
-import { pruneReviewerLog, REVIEWER_LOG_PATH, tailReviewerLog } from './reviewer-log.js'
-import { findSignalCountViolations } from './signal-count-guard.js'
+import { handlePostClaude } from './post-claude.js'
+import { REVIEWER_LOG_PATH, tailReviewerLog } from './reviewer-log.js'
 import { readSkipList, SKIP_LIST_PATH } from './skip-list.js'
 import { printBanner, printNotice, printRunSummary, printTranscriptPath, printWarning } from '../_lib/ui.js'
 
@@ -168,39 +168,35 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     printWarning(`compact threw: ${err}; transcript at ${transcriptPath}`)
   }
 
-  // Must run only when Claude wrote the file, and BEFORE the prune —
-  // a drifting file has to fail the run before its input is pruned away.
-  if (claudeSucceeded) {
-    const written = existsSync(LESSONS_ABS) ? readFileSync(LESSONS_ABS, 'utf-8') : ''
-    const violations = findSignalCountViolations(written)
-    if (violations.length > 0) {
-      for (const v of violations) {
-        printWarning(
-          `Signal-count drift in ${LESSONS_PATH}: header says ${v.header}, sub-tallies sum to ${v.sum} — "${v.line.trim()}"`,
-        )
-      }
+  const outcome = handlePostClaude({
+    claudeSucceeded,
+    lessonsPath: LESSONS_ABS,
+    reviewerLogPath: REVIEWER_LOG_ABS,
+    keepLast: REVIEWER_LOG_KEEP_LAST,
+  })
+
+  if (outcome.violations.length > 0) {
+    for (const v of outcome.violations) {
       printWarning(
-        `${violations.length} Signal-count violation(s) — failing the compaction run so the PR does not open with drift. Fix lessons-learned.md so each Signal header equals the sum of its sub-tallies.`,
+        `Signal-count drift in ${LESSONS_PATH}: header says ${v.header}, sub-tallies sum to ${v.sum} — "${v.line.trim()}"`,
       )
-      process.exit(1)
     }
+    printWarning(
+      `${outcome.violations.length} Signal-count violation(s) — failing the compaction run so the PR does not open with drift. Fix lessons-learned.md so each Signal header equals the sum of its sub-tallies.`,
+    )
+    process.exit(outcome.exitCode)
   }
 
-  // Prune the reviewer-log to a bounded window AFTER Claude succeeds.
-  // If Claude failed mid-run, the lessons rewrite may not have landed
-  // — keep the full log so next month's run has the same input to
-  // try again with. Pruning on success keeps the cached file from
-  // growing unbounded across many months of runs.
   const pruneNotes: string[] = []
-  if (claudeSucceeded) {
-    const { dropped, kept } = pruneReviewerLog(REVIEWER_LOG_ABS, REVIEWER_LOG_KEEP_LAST)
+  if (outcome.prune) {
+    const { dropped, kept } = outcome.prune
     if (dropped > 0) {
       printNotice(`Pruned reviewer-log: dropped ${dropped} old entries, kept ${kept} most-recent`)
       pruneNotes.push(`Pruned reviewer-log: ${dropped} dropped, ${kept} kept`)
     } else {
       printNotice(`Reviewer-log under prune threshold (${kept}/${REVIEWER_LOG_KEEP_LAST}) — no entries dropped`)
     }
-  } else {
+  } else if (!claudeSucceeded) {
     printNotice("Claude did not succeed — skipping reviewer-log prune to preserve next month's input")
   }
 
