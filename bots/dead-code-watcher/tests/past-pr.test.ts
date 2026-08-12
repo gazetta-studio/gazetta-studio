@@ -31,11 +31,12 @@ describe('pastPROutcome', () => {
   function mockOctokit(
     prs: Array<Partial<{ number: number; merged_at: string | null; state: string }>>,
     comments: Array<{ body: string; user: { login: string; type?: string }; created_at: string }> = [],
+    reviewComments: Array<{ body: string; user: { login: string; type?: string }; created_at: string }> = [],
   ): Parameters<typeof pastPROutcome>[0] {
     return {
       pulls: {
         list: vi.fn(async () => ({ data: prs })),
-        listReviewComments: vi.fn(async () => ({ data: [] })),
+        listReviewComments: vi.fn(async () => ({ data: reviewComments })),
       },
       issues: {
         listComments: vi.fn(async () => ({ data: comments })),
@@ -105,6 +106,71 @@ describe('pastPROutcome', () => {
       // Truncated at 400 chars + ellipsis + the framing text
       expect(outcome.reasonNote.length).toBeLessThan(longBody.length)
       expect(outcome.reasonNote).toContain('…')
+    }
+  })
+
+  it('picks the newer non-bot comment when multiple maintainers commented', async () => {
+    // Two human maintainers commented on the same PR at different times.
+    // The load-bearing sort at past-pr.ts:132 (`b.when.localeCompare(a.when)`)
+    // must select the newer one so the maintainer's latest reasoning drives
+    // the skip-list entry. Older comment is placed first in the source
+    // array to prove the sort — not array order — chooses the winner.
+    const octokit = mockOctokit(
+      [{ number: 48, merged_at: null, state: 'closed' }],
+      [
+        {
+          body: 'Older opinion: keep this alive.',
+          user: { login: 'maintainer-a', type: 'User' },
+          created_at: '2026-05-10T00:00:00Z',
+        },
+        {
+          body: 'Newer decision: remove it after all.',
+          user: { login: 'maintainer-b', type: 'User' },
+          created_at: '2026-05-15T00:00:00Z',
+        },
+      ],
+    )
+    const outcome = await pastPROutcome(octokit, repo, { kind: 'file', path: 'src/foo.ts' })
+    expect(outcome.state).toBe('rejected')
+    if (outcome.state === 'rejected') {
+      expect(outcome.reasonNote).toContain('Maintainer (maintainer-b)')
+      expect(outcome.reasonNote).toContain('Newer decision')
+      expect(outcome.reasonNote).not.toContain('Older opinion')
+      expect(outcome.reasonNote).not.toContain('maintainer-a')
+    }
+  })
+
+  it('picks a review comment over an older issue comment', async () => {
+    // Maintainer rejection can land in issue-comments (PR discussion) OR
+    // review-comments (inline code review). past-pr.ts:107-124 fetches
+    // both and merges them into one candidate list. A newer review
+    // comment must beat an older issue comment; if the review branch
+    // were dropped, the older issue comment would win and the load-
+    // bearing rejection would be lost.
+    const octokit = mockOctokit(
+      [{ number: 49, merged_at: null, state: 'closed' }],
+      [
+        {
+          body: 'Issue-side note: initial hesitation.',
+          user: { login: 'issue-reviewer', type: 'User' },
+          created_at: '2026-05-10T00:00:00Z',
+        },
+      ],
+      [
+        {
+          body: 'Inline review: this export is public API; keep.',
+          user: { login: 'code-reviewer', type: 'User' },
+          created_at: '2026-05-15T00:00:00Z',
+        },
+      ],
+    )
+    const outcome = await pastPROutcome(octokit, repo, { kind: 'file', path: 'src/foo.ts' })
+    expect(outcome.state).toBe('rejected')
+    if (outcome.state === 'rejected') {
+      expect(outcome.reasonNote).toContain('Maintainer (code-reviewer)')
+      expect(outcome.reasonNote).toContain('public API')
+      expect(outcome.reasonNote).not.toContain('Issue-side note')
+      expect(outcome.reasonNote).not.toContain('issue-reviewer')
     }
   })
 
