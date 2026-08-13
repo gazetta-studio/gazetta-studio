@@ -3,7 +3,13 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { filterStableFindings, gitLastModifiedDays, parseKnipReport, rankFindings, type Finding } from '../knip-parse.js'
+import {
+  filterStableFindings,
+  gitLastModifiedDays,
+  parseKnipReport,
+  rankFindings,
+  type Finding,
+} from '../knip-parse.js'
 
 // Most parser tests stub `repoRoot` to a non-git directory → git log
 // returns NaN → findings get filtered out. `gitLastModifiedDays` itself
