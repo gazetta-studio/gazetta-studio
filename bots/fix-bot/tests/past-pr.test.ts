@@ -14,11 +14,12 @@ describe('pastPROutcome', () => {
   function mockOctokit(
     prs: Array<Partial<{ number: number; merged_at: string | null; state: string }>>,
     comments: Array<{ body: string; user: { login: string; type?: string }; created_at: string }> = [],
+    reviewComments: Array<{ body: string; user: { login: string; type?: string }; created_at: string }> = [],
   ): Parameters<typeof pastPROutcome>[0] {
     return {
       pulls: {
         list: vi.fn(async () => ({ data: prs })),
-        listReviewComments: vi.fn(async () => ({ data: [] })),
+        listReviewComments: vi.fn(async () => ({ data: reviewComments })),
       },
       issues: {
         listComments: vi.fn(async () => ({ data: comments })),
@@ -104,6 +105,31 @@ describe('pastPROutcome', () => {
     if (outcome.state === 'rejected') {
       expect(outcome.reasonNote.length).toBeLessThan(longBody.length)
       expect(outcome.reasonNote).toContain('…')
+    }
+  })
+
+  it('mines rejection reason from a review-comment when there are no issue-comments', async () => {
+    // Pins that pulls.listReviewComments is actually read and folded into
+    // the mined comment set. The existing mixed-source test below uses
+    // inline mocking; this one seeds ONLY a review-comment via the
+    // helper — deleting the review-comments source would leave every
+    // other helper-driven test green.
+    const octokit = mockOctokit(
+      [{ number: 49, merged_at: null, state: 'closed' }],
+      [],
+      [
+        {
+          body: 'Inline review: the fix is in the wrong file.',
+          user: { login: 'maintainer', type: 'User' },
+          created_at: '2026-05-16T00:00:00Z',
+        },
+      ],
+    )
+    const outcome = await pastPROutcome(octokit, repo, 100)
+    expect(outcome.state).toBe('rejected')
+    if (outcome.state === 'rejected') {
+      expect(outcome.reasonNote).toContain('Maintainer (maintainer)')
+      expect(outcome.reasonNote).toContain('the fix is in the wrong file')
     }
   })
 

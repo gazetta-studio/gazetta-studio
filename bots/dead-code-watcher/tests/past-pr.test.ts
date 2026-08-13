@@ -31,11 +31,12 @@ describe('pastPROutcome', () => {
   function mockOctokit(
     prs: Array<Partial<{ number: number; merged_at: string | null; state: string }>>,
     comments: Array<{ body: string; user: { login: string; type?: string }; created_at: string }> = [],
+    reviewComments: Array<{ body: string; user: { login: string; type?: string }; created_at: string }> = [],
   ): Parameters<typeof pastPROutcome>[0] {
     return {
       pulls: {
         list: vi.fn(async () => ({ data: prs })),
-        listReviewComments: vi.fn(async () => ({ data: [] })),
+        listReviewComments: vi.fn(async () => ({ data: reviewComments })),
       },
       issues: {
         listComments: vi.fn(async () => ({ data: comments })),
@@ -105,6 +106,60 @@ describe('pastPROutcome', () => {
       // Truncated at 400 chars + ellipsis + the framing text
       expect(outcome.reasonNote.length).toBeLessThan(longBody.length)
       expect(outcome.reasonNote).toContain('…')
+    }
+  })
+
+  it('mines rejection reason from a review-comment when there are no issue-comments', async () => {
+    // Pins that pulls.listReviewComments is actually read and folded into
+    // the mined comment set. Without this test, deleting the review-
+    // comments source from mineRejectionReason would leave every other
+    // test green (they all seed only issue-comments).
+    const octokit = mockOctokit(
+      [{ number: 50, merged_at: null, state: 'closed' }],
+      [],
+      [
+        {
+          body: 'Inline review: this file is still exported publicly.',
+          user: { login: 'maintainer', type: 'User' },
+          created_at: '2026-05-16T00:00:00Z',
+        },
+      ],
+    )
+    const outcome = await pastPROutcome(octokit, repo, { kind: 'file', path: 'src/foo.ts' })
+    expect(outcome.state).toBe('rejected')
+    if (outcome.state === 'rejected') {
+      expect(outcome.reasonNote).toContain('Maintainer (maintainer)')
+      expect(outcome.reasonNote).toContain('this file is still exported publicly')
+    }
+  })
+
+  it('picks the newest non-bot comment across mixed issue-comments and review-comments', async () => {
+    // Older issue-comment + newer review-comment, both non-bot. Pins the
+    // newest-first sort direction: flipping b.when.localeCompare(a.when)
+    // to a.when.localeCompare(b.when) would surface the older issue-
+    // comment as the reasonNote instead of the newer review-comment.
+    const octokit = mockOctokit(
+      [{ number: 51, merged_at: null, state: 'closed' }],
+      [
+        {
+          body: 'older issue: needs more discussion',
+          user: { login: 'maintainer', type: 'User' },
+          created_at: '2026-05-10T00:00:00Z',
+        },
+      ],
+      [
+        {
+          body: 'newer review: rejecting for concrete reason',
+          user: { login: 'maintainer', type: 'User' },
+          created_at: '2026-05-14T00:00:00Z',
+        },
+      ],
+    )
+    const outcome = await pastPROutcome(octokit, repo, { kind: 'file', path: 'src/foo.ts' })
+    expect(outcome.state).toBe('rejected')
+    if (outcome.state === 'rejected') {
+      expect(outcome.reasonNote).toContain('newer review')
+      expect(outcome.reasonNote).not.toContain('older issue')
     }
   })
 
