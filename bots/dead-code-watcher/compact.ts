@@ -33,8 +33,8 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
+import { checkLessonsDrift, computeCompactPhase, shouldPruneReviewerLog } from './compact-decisions.js'
 import { pruneReviewerLog, REVIEWER_LOG_PATH, tailReviewerLog } from './reviewer-log.js'
-import { findSignalCountViolations } from './signal-count-guard.js'
 import { readSkipList, SKIP_LIST_PATH } from './skip-list.js'
 import { printBanner, printNotice, printRunSummary, printTranscriptPath, printWarning } from '../_lib/ui.js'
 
@@ -105,10 +105,16 @@ async function main(): Promise<void> {
   printNotice(`Reviewer-log: ${reviewerLog.length} recent entries (window=${REVIEWER_LOG_WINDOW})`)
   printNotice(`Lessons file: ${lessonsExists ? `${lessonsContent.length} bytes` : 'absent'}`)
 
-  const skipListEligible = entryCount >= MIN_ENTRIES_FOR_COMPACTION
-  const lessonsEligible = reviewerLog.length >= MIN_REVIEWER_LOG_FOR_LESSONS
+  const phase = computeCompactPhase({
+    skipListEntries: entryCount,
+    reviewerLogEntries: reviewerLog.length,
+    minEntriesForCompaction: MIN_ENTRIES_FOR_COMPACTION,
+    minReviewerLogForLessons: MIN_REVIEWER_LOG_FOR_LESSONS,
+  })
+  const skipListEligible = phase === 'skip-list-only' || phase === 'both'
+  const lessonsEligible = phase === 'lessons-only' || phase === 'both'
 
-  if (!skipListEligible && !lessonsEligible) {
+  if (phase === 'skip-both-below-thresholds') {
     printNotice(
       `Below both thresholds (skip-list ${entryCount}/${MIN_ENTRIES_FOR_COMPACTION}, reviewer-log ${reviewerLog.length}/${MIN_REVIEWER_LOG_FOR_LESSONS}) — nothing to compact. ✨`,
     )
@@ -170,20 +176,18 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
 
   // Must run only when Claude wrote the file, and BEFORE the prune —
   // a drifting file has to fail the run before its input is pruned away.
-  if (claudeSucceeded) {
-    const written = existsSync(LESSONS_ABS) ? readFileSync(LESSONS_ABS, 'utf-8') : ''
-    const violations = findSignalCountViolations(written)
-    if (violations.length > 0) {
-      for (const v of violations) {
-        printWarning(
-          `Signal-count drift in ${LESSONS_PATH}: header says ${v.header}, sub-tallies sum to ${v.sum} — "${v.line.trim()}"`,
-        )
-      }
+  const writtenLessons = claudeSucceeded && existsSync(LESSONS_ABS) ? readFileSync(LESSONS_ABS, 'utf-8') : ''
+  const driftCheck = checkLessonsDrift({ claudeSucceeded, lessonsContent: writtenLessons })
+  if (driftCheck.fail) {
+    for (const v of driftCheck.violations) {
       printWarning(
-        `${violations.length} Signal-count violation(s) — failing the compaction run so the PR does not open with drift. Fix lessons-learned.md so each Signal header equals the sum of its sub-tallies.`,
+        `Signal-count drift in ${LESSONS_PATH}: header says ${v.header}, sub-tallies sum to ${v.sum} — "${v.line.trim()}"`,
       )
-      process.exit(1)
     }
+    printWarning(
+      `${driftCheck.violations.length} Signal-count violation(s) — failing the compaction run so the PR does not open with drift. Fix lessons-learned.md so each Signal header equals the sum of its sub-tallies.`,
+    )
+    process.exit(1)
   }
 
   // Prune the reviewer-log to a bounded window AFTER Claude succeeds.
@@ -192,7 +196,7 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
   // try again with. Pruning on success keeps the cached file from
   // growing unbounded across many months of runs.
   const pruneNotes: string[] = []
-  if (claudeSucceeded) {
+  if (shouldPruneReviewerLog(claudeSucceeded)) {
     const { dropped, kept } = pruneReviewerLog(REVIEWER_LOG_ABS, REVIEWER_LOG_KEEP_LAST)
     if (dropped > 0) {
       printNotice(`Pruned reviewer-log: dropped ${dropped} old entries, kept ${kept} most-recent`)
