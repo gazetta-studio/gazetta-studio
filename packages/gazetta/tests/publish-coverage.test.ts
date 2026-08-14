@@ -186,3 +186,70 @@ describe('resolveDependencies — item without a manifest (issue #638 cluster 3)
     expect(deps).toContain('templates/frag-only')
   })
 })
+
+describe('resolveDependencies — manifest and component guards (issue #712)', () => {
+  it('does not fabricate templates/undefined when manifest omits the template field', async () => {
+    // Line 122 guards `typeof manifest.template === 'string'`. A manifest
+    // with `components: []` but NO `template` field satisfies neither
+    // arm's precondition; correct code skips the templates-set add and
+    // never coins `templates/undefined`. Force-true on the conditional
+    // enters the add branch with `manifest.template === undefined`,
+    // producing the literal string `templates/undefined` in deps.
+    const storage = memoryStorage()
+    storage.seed({
+      'pages/no-template/page.json': JSON.stringify({ components: [] }),
+    })
+
+    const deps = await resolveDependencies(createContentRoot(storage), ['pages/no-template'])
+
+    expect(deps).toContain('pages/no-template')
+    expect(deps).not.toContain('templates/undefined')
+    expect(deps.filter(d => d.startsWith('templates/'))).toEqual([])
+  })
+
+  it('ignores string components that do not start with @', async () => {
+    // Line 139 uses `entry.startsWith('@')` to gate the fragment-ref
+    // branch. Mutating the literal `'@'` to `''` makes every string
+    // component match (any string starts with the empty string); the
+    // code then slices off the first char and adds a spurious
+    // `fragments/<mutilated-name>` entry. Correct code leaves the
+    // non-@ string untouched.
+    const storage = memoryStorage()
+    storage.seed({
+      'pages/mixed-strings/page.json': JSON.stringify({
+        template: 'default',
+        components: ['@header', 'inline-note'],
+      }),
+    })
+
+    const deps = await resolveDependencies(createContentRoot(storage), ['pages/mixed-strings'])
+
+    // Only `fragments/header` should be present; the plain string
+    // `'inline-note'` must not become a fragment reference. Asserting
+    // the exact fragments set catches both `fragments/inline-note` and
+    // `fragments/nline-note` (mutated slice(1) form) — kills the '@'→''
+    // literal mutation regardless of how the mutant reshapes the name.
+    expect(deps.filter(d => d.startsWith('fragments/')).sort()).toEqual(['fragments/header'])
+  })
+
+  it('skips null entries in component arrays without throwing', async () => {
+    // Line 143 guards `typeof entry === 'object' && entry !== null`.
+    // Both mutations (force-true on the conditional; `&&` → `||`) let
+    // `null` fall into the object branch, which then reads
+    // `null.template` and throws TypeError. Correct code short-circuits
+    // via `entry !== null` and moves on to the next entry, so the
+    // sibling object component's `templates/hero` still lands in deps.
+    const storage = memoryStorage()
+    storage.seed({
+      'pages/null-entry/page.json': JSON.stringify({
+        template: 'default',
+        components: [null, { template: 'hero' }],
+      }),
+    })
+
+    const deps = await resolveDependencies(createContentRoot(storage), ['pages/null-entry'])
+
+    expect(deps).toContain('templates/default')
+    expect(deps).toContain('templates/hero')
+  })
+})
