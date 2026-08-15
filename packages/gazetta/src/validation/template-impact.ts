@@ -27,7 +27,7 @@ import type { ComponentEntry, FragmentManifest, InlineComponent, PageManifest } 
 import { manifestComponents } from './types.js'
 import type { Issue } from './types.js'
 
-export interface TemplateImpactItem {
+interface TemplateImpactItem {
   /** Page or fragment. */
   kind: 'page' | 'fragment'
   /** Item name (e.g., 'home' or 'header'). */
