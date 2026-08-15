@@ -12,7 +12,7 @@ export type ValidationStage = 'save-delta' | 'background' | 'pre-publish' | 'cli
  * Severity of a single issue. Per stage, validators declare a default;
  * operators can promote/demote at the publish gate (Cut 4).
  */
-export type Severity = 'error' | 'warn' | 'info'
+type Severity = 'error' | 'warn' | 'info'
 
 /**
  * One validation finding. Stable shape across all validators and stages.
