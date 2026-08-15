@@ -89,7 +89,7 @@ export interface ScanEvent {
   cause?: RescanCause
 }
 
-export type ScanSubscriber = (event: ScanEvent) => void
+type ScanSubscriber = (event: ScanEvent) => void
 
 export interface ValidationScanner {
   /** Run a full-site scan; updates store + cache. Idempotent. */
