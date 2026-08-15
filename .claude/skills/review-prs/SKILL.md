@@ -225,6 +225,8 @@ The newest run's `runId` will be the highest number. If all of its jobs show `SU
 
 **Monitor scripts that aggregate "all pass" can produce false-failure signals from cancelled-run artifacts.** When this happens, manually verify with the `runId` grouping above before assuming the PR is broken.
 
+**A green aggregate is not a green gate — verify the fast jobs completed, not just that the slow ones passed.** The `format` job (Biome, ~seconds) is far faster than `test` / `e2e` (minutes). A monitor whose exit condition is "all jobs non-pending" can fire the instant the *slow* jobs settle green — while `format` either hasn't reported yet or has already failed and scrolled past. This bit us: #705 (2026-08) merged with its `format` job red, landing an unformatted file on **main**, which then failed the `format` gate on *every* subsequent PR until a fix-forward (#713) caught it a session later. Before merging a bot PR, confirm the current run's `format` job specifically shows `SUCCESS` — not just that the run has no pending jobs. A red `format` on main is especially costly because it's silent: nothing re-runs main's CI, so it stays red (and blocks every open PR's `format` check) until someone notices. **If several open PRs all show an identical single-job failure, suspect a red gate on main before suspecting the PRs** — check whether that job fails on a fresh `main` checkout (`npm run format:check`), and if so fix-forward on main (via PR) rather than chasing each PR.
+
 ## Recommend merge / close / changes
 
 Before recommending, consider:
