@@ -63,6 +63,21 @@ describe('parseKnipReport — finding kinds', () => {
     expect(findings.map(f => f.fingerprint.kind)).toEqual(['export', 'type'])
   })
 
+  it('emits one finding per enum member when kind=enumMember', () => {
+    const report = {
+      issues: [
+        {
+          file: 'src/foo.ts',
+          enumMembers: [{ name: 'FOO' }, { name: 'BAR' }],
+        },
+      ],
+    }
+    const findings = parseKnipReport(report, { repoRoot: '/nonexistent' })
+    expect(findings).toHaveLength(2)
+    expect(findings[0].fingerprint).toEqual({ kind: 'enumMember', path: 'src/foo.ts', symbol: 'FOO' })
+    expect(findings[1].fingerprint).toEqual({ kind: 'enumMember', path: 'src/foo.ts', symbol: 'BAR' })
+  })
+
   it('emits findings for dependencies on package.json records', () => {
     const report = {
       issues: [
