@@ -42,7 +42,7 @@ export interface Issue {
  * - `pre-publish`: the set of items being published, all together.
  * - `cli`: site-wide; validator iterates everything.
  */
-export type ValidatorScope =
+type ValidatorScope =
   | {
       kind: 'save-delta'
       item: SavedItem
