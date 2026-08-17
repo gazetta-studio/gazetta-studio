@@ -215,3 +215,129 @@ describe('discoverCandidates — pure-types filter', () => {
     expect(result).toContain('packages/gazetta/src/real-module.ts')
   })
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Integration: discoverCandidates excludes near-pure-type files (#723)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('discoverCandidates — near-pure-types filter (issue #723)', () => {
+  it('excludes a near-pure-types file (1 trivial function in a large types file — validation/types.ts shape)', () => {
+    // Real fixture from #722: mutation-area-picker nominated
+    // `packages/gazetta/src/validation/types.ts` (~150 lines of
+    // `export type` / `export interface` PLUS one function returning
+    // `manifest?.components ?? []`). `isPureTypesFile` correctly returns
+    // false (there IS a runtime value), so the #708 filter lets it
+    // through. But the only mutable surface is that one line — Stryker
+    // yields ~2-3 mutants for a 150-line file. Low-yield: burns a glob
+    // slot for negligible coverage signal.
+    writeSrc(
+      'packages/gazetta/src/validation/types.ts',
+      [
+        "export type ValidationStage = 'save-delta' | 'background' | 'pre-publish' | 'cli'",
+        "type Severity = 'error' | 'warn' | 'info'",
+        'export interface Issue {',
+        '  validator: string',
+        '  severity: Severity',
+        '  message: string',
+        '  itemPath: string',
+        '  contentPath?: string',
+        '  suppressible?: boolean',
+        '}',
+        'export interface SavedItem {',
+        "  kind: 'page' | 'fragment'",
+        '  name: string',
+        '  itemPath: string',
+        '}',
+        'export interface RenderedOutputAccess {',
+        '  htmlFor(item: SavedItem): Promise<string | null>',
+        '}',
+        'export interface ValidatorInput {',
+        '  stage: ValidationStage',
+        '  site: unknown',
+        '  contentRoot: unknown',
+        '  storage: unknown',
+        '  scope: unknown',
+        '  renderedOutput?: RenderedOutputAccess',
+        '}',
+        'export interface Validator {',
+        '  readonly source: string',
+        '  readonly name: string',
+        '  readonly stages: readonly ValidationStage[]',
+        '  defaultSeverity(stage: ValidationStage): Severity',
+        '  validate(input: ValidatorInput): Promise<Issue[]>',
+        '}',
+        'export function manifestComponents(manifest: unknown): readonly unknown[] {',
+        '  return (manifest as { components?: readonly unknown[] } | null)?.components ?? []',
+        '}',
+      ].join('\n'),
+    )
+
+    const result = discoverCandidates({
+      repoRoot,
+      currentMutateGlob: [],
+      skipList: emptySkipList(),
+    })
+
+    expect(result).not.toContain('packages/gazetta/src/validation/types.ts')
+  })
+
+  it('includes a genuinely-mixed file with 3+ runtime declarations (audit/pseudonymize.ts shape)', () => {
+    // Contrast fixture: multiple functions with real logic. The pattern
+    // counts `export function pseudonymizeActor` + inner `const hash` +
+    // `export function computePseudonymizedId` = 3 matches. At the
+    // threshold, this file remains a normal candidate.
+    writeSrc(
+      'packages/gazetta/src/audit/pseudonymize.ts',
+      [
+        "import { createHash } from 'node:crypto'",
+        "export type ActorPseudonymMode = 'none' | 'sha256'",
+        'export function pseudonymizeActor(actor: { id: string }, mode: ActorPseudonymMode, salt?: string) {',
+        "  if (mode === 'none') return actor",
+        '  if (!salt || salt.length === 0) throw new Error("salt required")',
+        "  const hash = createHash('sha256').update(actor.id + salt).digest('hex').slice(0, 16)",
+        '  return { id: hash }',
+        '}',
+        'export function computePseudonymizedId(rawSub: string, salt: string): string {',
+        "  return createHash('sha256').update(rawSub + salt).digest('hex').slice(0, 16)",
+        '}',
+      ].join('\n'),
+    )
+
+    const result = discoverCandidates({
+      repoRoot,
+      currentMutateGlob: [],
+      skipList: emptySkipList(),
+    })
+
+    expect(result).toContain('packages/gazetta/src/audit/pseudonymize.ts')
+  })
+
+  it('layered filters: pure-types excluded by #708 gate, near-pure excluded by #723 gate, mixed included', () => {
+    writeSrc('packages/gazetta/src/pure.ts', 'export type X = string\nexport interface Y { a: X }\n')
+    writeSrc(
+      'packages/gazetta/src/near-pure.ts',
+      [
+        'export interface Config { level: number }',
+        'export interface Options { mode: string; verbose: boolean }',
+        'export type Handler = (c: Config) => void',
+        'export function apply(c: Config): number { return c.level + 1 }',
+      ].join('\n'),
+    )
+    writeSrc(
+      'packages/gazetta/src/mixed.ts',
+      ['export function a() { return 1 }', 'export function b() { return 2 }', 'export function c() { return 3 }'].join(
+        '\n',
+      ),
+    )
+
+    const result = discoverCandidates({
+      repoRoot,
+      currentMutateGlob: [],
+      skipList: emptySkipList(),
+    })
+
+    expect(result).not.toContain('packages/gazetta/src/pure.ts')
+    expect(result).not.toContain('packages/gazetta/src/near-pure.ts')
+    expect(result).toContain('packages/gazetta/src/mixed.ts')
+  })
+})
