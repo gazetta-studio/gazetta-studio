@@ -12,7 +12,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { isReExportBarrel } from './barrel-detector.js'
-import { isPureTypesFile } from './pure-types-detector.js'
+import { isPureTypesFile, isSparseMutationSurface } from './pure-types-detector.js'
 import { findSkipMatch, type SkipList } from './skip-list.js'
 
 export interface CandidateOpts {
@@ -58,6 +58,14 @@ export function discoverCandidates(opts: CandidateOpts): string[] {
     // vacuously 100% killed — burning a glob slot for no signal.
     // See pure-types-detector.ts (issue #706).
     if (isPureTypesFile(source)) return false
+    // Near-pure-types files (e.g. 150 lines of `export type` /
+    // `export interface` + 1 trivial function) satisfy the ≥1
+    // pure-types gate but yield only a handful of mutants. Churn from
+    // unrelated edits inflates their inclusion score; the size + count
+    // gate demotes them before scoring while leaving small utility
+    // files (few lines, few declarations) as normal candidates. See
+    // pure-types-detector.ts + issue #723.
+    if (isSparseMutationSurface(source)) return false
     return true
   })
 }
