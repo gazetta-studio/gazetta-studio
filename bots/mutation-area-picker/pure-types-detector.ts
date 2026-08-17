@@ -52,6 +52,77 @@ export function isPureTypesFile(source: string): boolean {
   return !RUNTIME_VALUE_PATTERN.test(stripped)
 }
 
+/**
+ * Returns the count of runtime-value declarations detected in `source`.
+ * Match count roughly approximates mutation surface — Stryker mutates
+ * expressions inside function/const/class bodies, so the number of
+ * top-level (and inner) declarations bounds what's available to mutate.
+ *
+ * `isPureTypesFile` is the special case `mutableSurfaceLineCount === 0`;
+ * kept as its own predicate for the early-exit `.test()` optimization
+ * (regex short-circuits on first match; counting requires a full scan).
+ */
+export function mutableSurfaceLineCount(source: string): number {
+  const stripped = stripComments(source)
+  return (stripped.match(RUNTIME_VALUE_PATTERN_GLOBAL) ?? []).length
+}
+
+/**
+ * Returns the count of non-comment, non-blank lines in `source` — a
+ * cheap proxy for "how big is this file" that excludes JSDoc and
+ * whitespace bulk.
+ *
+ * Used together with `mutableSurfaceLineCount` by
+ * `isSparseMutationSurface` to distinguish a legitimate small utility
+ * (1 function in 5 lines) from a near-pure-types file (1 function in
+ * 30+ lines of `export type` / `export interface`).
+ */
+export function meaningfulLineCount(source: string): number {
+  const stripped = stripComments(source)
+  let count = 0
+  for (const line of stripped.split('\n')) {
+    if (line.trim().length > 0) count++
+  }
+  return count
+}
+
+export interface SparseSurfaceThresholds {
+  /** Below this many runtime declarations, the file is a candidate for
+   *  demotion — but only if it's also large. Default 3. */
+  minDeclarations?: number
+  /** Above this many meaningful lines, a low-declaration file is
+   *  demoted. Small utility files below this line count pass through
+   *  regardless of declaration count. Default 20. */
+  maxLinesWithoutMinDeclarations?: number
+}
+
+/**
+ * Returns true when `source` has few runtime-value declarations
+ * relative to its size — the "near-pure-types" shape that motivates
+ * issue #723: a large file (~30+ meaningful lines) with only 1-2
+ * mutable declarations wastes a glob slot for negligible coverage
+ * signal.
+ *
+ * The two-threshold gate keeps small utility files (1-2 functions in
+ * a handful of lines) as normal candidates while catching the actual
+ * failure mode. A file must fail BOTH gates to be classified sparse:
+ * few declarations AND large enough that a real module would have
+ * more of them.
+ *
+ * Existence rationale: mutation-area-picker nominated
+ * `packages/gazetta/src/validation/types.ts` (~150 lines, 1 function)
+ * after churn from unrelated dead-code un-exports (#716/#717) inflated
+ * its inclusion score. The presence-only #708 filter passed it because
+ * one runtime line satisfies the ≥1 gate. Size-aware counting closes
+ * the compounding gap.
+ */
+export function isSparseMutationSurface(source: string, thresholds: SparseSurfaceThresholds = {}): boolean {
+  const minDeclarations = thresholds.minDeclarations ?? 3
+  const maxLinesWithoutMin = thresholds.maxLinesWithoutMinDeclarations ?? 20
+  if (mutableSurfaceLineCount(source) >= minDeclarations) return false
+  return meaningfulLineCount(source) > maxLinesWithoutMin
+}
+
 // One combined regex, cheaper than N separate tests. Each alternative
 // is anchored (line-start `(?:^|\n)\s*`) or word-bounded (`\b`) so the
 // substrings can't false-match inside identifiers or string bodies.
@@ -75,6 +146,12 @@ const RUNTIME_VALUE_PATTERN = new RegExp(
     String.raw`(?:^|\n)\s*import\s+['"][^'"]+['"]`,
   ].join('|'),
 )
+
+// Same alternation as RUNTIME_VALUE_PATTERN but with the `g` flag so
+// `.match()` returns all matches, not just the first. Kept separate so
+// isPureTypesFile's `.test()` can use the non-global form without the
+// stateful `lastIndex` gotcha that `g`-flag `.test()` calls have.
+const RUNTIME_VALUE_PATTERN_GLOBAL = new RegExp(RUNTIME_VALUE_PATTERN.source, 'g')
 
 // Strip block and line comments before scanning. Doesn't need to be
 // a perfect tokenizer — pure-type files don't contain comment markers

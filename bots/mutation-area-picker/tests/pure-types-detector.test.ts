@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { discoverCandidates } from '../discover.js'
-import { isPureTypesFile } from '../pure-types-detector.js'
+import {
+  isPureTypesFile,
+  isSparseMutationSurface,
+  meaningfulLineCount,
+  mutableSurfaceLineCount,
+} from '../pure-types-detector.js'
 import { emptySkipList } from '../skip-list.js'
 
 /**
@@ -216,6 +221,154 @@ describe('discoverCandidates — pure-types filter', () => {
   })
 })
 
+describe('mutableSurfaceLineCount', () => {
+  it('is 0 for a pure-types file', () => {
+    const src = ['export type X = string', 'export interface Y { a: X }'].join('\n')
+    expect(mutableSurfaceLineCount(src)).toBe(0)
+  })
+
+  it('is 1 for a file with a single top-level function', () => {
+    const src = 'export function work(): number { return 42 }\n'
+    expect(mutableSurfaceLineCount(src)).toBe(1)
+  })
+
+  it('counts inner `const` declarations inside function bodies', () => {
+    // The pattern matches leading-whitespace-then-const, so a const
+    // inside a function body counts. That's a load-bearing property:
+    // it lets audit/pseudonymize.ts-shaped files hit the threshold of
+    // 3 with 2 top-level functions + 1 inner const.
+    const src = ['export function outer(): number {', '  const inner = 1', '  return inner', '}'].join('\n')
+    expect(mutableSurfaceLineCount(src)).toBe(2)
+  })
+
+  it('counts three declarations in a genuinely-mixed file', () => {
+    const src = [
+      "import { createHash } from 'node:crypto'",
+      'export function a(salt: string) {',
+      "  const hash = createHash('sha256').update(salt).digest('hex')",
+      '  return hash',
+      '}',
+      'export function b(x: string): string { return x }',
+    ].join('\n')
+    // export function a + inner const + export function b = 3
+    expect(mutableSurfaceLineCount(src)).toBe(3)
+  })
+
+  it('ignores runtime-shaped substrings inside JSDoc prose', () => {
+    // Comments are stripped before counting — narrative uses of "const"
+    // in prose must not inflate the count.
+    const src = [
+      '/**',
+      ' * Example: const foo = bar as const satisfies X',
+      ' * This is prose about function declarations.',
+      ' */',
+      'export type X = string',
+    ].join('\n')
+    expect(mutableSurfaceLineCount(src)).toBe(0)
+  })
+
+  it('counts side-effect imports (matches isPureTypesFile behavior)', () => {
+    // Side-effect imports are treated as runtime per rule 706 — they
+    // could mutate global state and can't be reliably distinguished
+    // from benign no-ops. Same rule applies here.
+    const src = ["import './polyfill.js'", 'export type X = number'].join('\n')
+    expect(mutableSurfaceLineCount(src)).toBe(1)
+  })
+})
+
+describe('meaningfulLineCount', () => {
+  it('excludes blank lines', () => {
+    const src = ['export function a() {}', '', '', 'export function b() {}'].join('\n')
+    expect(meaningfulLineCount(src)).toBe(2)
+  })
+
+  it('excludes JSDoc and line comments', () => {
+    const src = [
+      '/**',
+      ' * Doc comment prose',
+      ' */',
+      'export type X = string',
+      '// trailing note',
+      'export interface Y { a: X }',
+    ].join('\n')
+    // The block-comment stripper collapses /** ... */ to '' and drops
+    // // comments; only the two `export` lines remain non-blank.
+    expect(meaningfulLineCount(src)).toBe(2)
+  })
+
+  it('counts type / interface declaration lines (they are file SIZE, not mutation surface)', () => {
+    // Meaningful-line count is a SIZE proxy — types count too, because
+    // "large file with 1 function" is exactly the shape we detect.
+    const src = ['export interface A { x: number }', 'export interface B { y: number }', 'export type C = A | B'].join(
+      '\n',
+    )
+    expect(meaningfulLineCount(src)).toBe(3)
+  })
+})
+
+describe('isSparseMutationSurface', () => {
+  it('is false for small utility files even with 1 declaration', () => {
+    // A single-function file with 1-5 meaningful lines is a normal
+    // small utility, not a near-pure-types file. Keeping it as a
+    // candidate preserves the pre-#723 behavior for such files.
+    const src = 'export function work(): number { return 42 }\n'
+    expect(isSparseMutationSurface(src)).toBe(false)
+  })
+
+  it('is true for a large file with 1 declaration (the #723 shape)', () => {
+    const src = [
+      "import type { ComponentEntry } from './types.js'",
+      "export type ValidationStage = 'save-delta' | 'background'",
+      "type Severity = 'error' | 'warn' | 'info'",
+      'export interface Issue {',
+      '  validator: string',
+      '  severity: Severity',
+      '  message: string',
+      '  itemPath: string',
+      '  contentPath?: string',
+      '  suppressible?: boolean',
+      '}',
+      'export interface SavedItem {',
+      "  kind: 'page' | 'fragment'",
+      '  name: string',
+      '  itemPath: string',
+      '}',
+      'export interface ValidatorInput {',
+      '  stage: ValidationStage',
+      '  site: unknown',
+      '  contentRoot: unknown',
+      '  storage: unknown',
+      '  scope: unknown',
+      '}',
+      'export function manifestComponents(m: { components?: readonly ComponentEntry[] } | null) {',
+      '  return m?.components ?? []',
+      '}',
+    ].join('\n')
+    // 1 mutable declaration, well over 20 meaningful lines → sparse.
+    expect(isSparseMutationSurface(src)).toBe(true)
+  })
+
+  it('is false for a file with ≥3 declarations regardless of size', () => {
+    // Once a file crosses the declaration floor, size doesn't matter —
+    // "many declarations in a small file" is a normal small module.
+    const src = [
+      'export function a() { return 1 }',
+      'export function b() { return 2 }',
+      'export function c() { return 3 }',
+    ].join('\n')
+    expect(isSparseMutationSurface(src)).toBe(false)
+  })
+
+  it('accepts overridden thresholds for tuning', () => {
+    const src = ['export function a() {}', 'export interface B {}', 'export type C = B'].join('\n')
+    // Default thresholds: 1 decl + 3 lines → not sparse (small file).
+    expect(isSparseMutationSurface(src)).toBe(false)
+    // Bumping minDeclarations to 5 + lowering size floor to 1 forces
+    // sparse for this file — the thresholds are the policy knob.
+    expect(isSparseMutationSurface(src, { minDeclarations: 5, maxLinesWithoutMinDeclarations: 1 })).toBe(true)
+  })
+})
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Integration: discoverCandidates excludes near-pure-type files (#723)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -314,13 +467,37 @@ describe('discoverCandidates — near-pure-types filter (issue #723)', () => {
 
   it('layered filters: pure-types excluded by #708 gate, near-pure excluded by #723 gate, mixed included', () => {
     writeSrc('packages/gazetta/src/pure.ts', 'export type X = string\nexport interface Y { a: X }\n')
+    // near-pure.ts: 1 function surrounded by enough types/interfaces
+    // to cross the 20-meaningful-line size threshold. Small files with
+    // 1 declaration would legitimately pass the size gate — this
+    // fixture exercises the compounding "large + sparse" case #723
+    // targets.
     writeSrc(
       'packages/gazetta/src/near-pure.ts',
       [
-        'export interface Config { level: number }',
-        'export interface Options { mode: string; verbose: boolean }',
-        'export type Handler = (c: Config) => void',
-        'export function apply(c: Config): number { return c.level + 1 }',
+        'export interface Config {',
+        '  level: number',
+        '  name: string',
+        '  enabled: boolean',
+        '}',
+        'export interface Options {',
+        '  mode: string',
+        '  verbose: boolean',
+        '  timeout: number',
+        '  retries: number',
+        '}',
+        'export interface Result {',
+        '  ok: boolean',
+        '  message: string',
+        '  data: unknown',
+        '  errors: readonly string[]',
+        '}',
+        'export type Handler = (c: Config) => Result',
+        'export type AsyncHandler = (c: Config) => Promise<Result>',
+        'export type Level = "trace" | "debug" | "info" | "warn" | "error"',
+        'export function apply(c: Config): number {',
+        '  return c.level + 1',
+        '}',
       ].join('\n'),
     )
     writeSrc(
