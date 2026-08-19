@@ -111,6 +111,35 @@ describe('parseKnipReport — finding kinds', () => {
     expect(findings[0].fingerprint.kind).toBe('file')
   })
 
+  // The `continue` at knip-parse.ts:93 is the SHARED gate that skips
+  // every per-symbol collection loop when a file-level finding is
+  // present. The exports-only test above proves the gate for exports;
+  // this table pins the same invariant across the remaining four
+  // symbol kinds. A mutation that scoped the skip to exports only
+  // (e.g., wrapping only the exports loop in `if (!fileFlagged)`, or
+  // moving `continue` to after the exports loop) would let these
+  // findings leak through — length would become 3 (1 file + 2 symbol)
+  // instead of 1.
+  it.each([
+    { kind: 'types', field: 'types' as const },
+    { kind: 'enumMembers', field: 'enumMembers' as const },
+    { kind: 'dependencies', field: 'dependencies' as const },
+    { kind: 'devDependencies', field: 'devDependencies' as const },
+  ])('skips per-$kind findings when the whole file is unused', ({ field }) => {
+    const report = {
+      issues: [
+        {
+          file: 'src/foo.ts',
+          files: [{ name: 'src/foo.ts' }],
+          [field]: [{ name: 'A' }, { name: 'B' }],
+        },
+      ],
+    }
+    const findings = parseKnipReport(report, { repoRoot: '/nonexistent' })
+    expect(findings).toHaveLength(1)
+    expect(findings[0].fingerprint.kind).toBe('file')
+  })
+
   it('handles missing optional fields gracefully', () => {
     const report = {
       issues: [
