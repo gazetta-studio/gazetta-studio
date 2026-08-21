@@ -77,6 +77,17 @@
       "addedBy": "bot",
       "reason": "stuck",
       "reasonNote": "The candidate is real and correctly identified — an orphaned JSDoc block at bots/dead-code-watcher/index.ts:618-624 documents extractLastAssistantText (moved to bots/_lib/transcript.ts, imported as extractSummary at line 46) and now floats above the unrelated openSkipListPR function. The mismatch is with the tdd-first recipe: a pure comment deletion has no behavioral change to capture as a failing test. The only test shape available is a static file-content regex assertion, which is (a) tautological in the \"assertions on file text\" sense and (b) proof-of-work per team-preferences rule 41 (an orphaned JSDoc reference to a symbol not in the file won't drift back through natural edits — only through deliberate re-introduction, which nobody does by accident). The recipe explicitly forbids implementation-only commits, so I cannot push the deletion alone."
+    },
+    {
+      "fingerprint": {
+        "area": "bots/dead-code-watcher/tests/skip-list.test.ts",
+        "type": "tests",
+        "rule": "team-preferences.md#19"
+      },
+      "addedAt": "2026-08-21T05:12:18.879Z",
+      "addedBy": "bot",
+      "reason": "stuck",
+      "reasonNote": "The candidate's premise is correct — lines 287 (`mkdirSync(tempDir, ...)` after `mkdtempSync` in `beforeEach`) and 289 (first `writeSkipList` immediately overwritten by line 292) are genuinely dead. However, neither Agent-A recipe fits this shape. The `coverage-shape` recipe's scope-guard explicitly restricts it to coverage-gap summaries; this candidate describes dead setup lines in a passing test. The `tdd-first` recipe requires a defect to test-drive, which doesn't exist here (removing dead lines is a no-behavior-change refactor). Per agent-a.md's \"recipe truly doesn't fit → STUCK, not let-me-try-the-other-recipe.\" Recommended maintainer action: apply the four-line deletion during the next Boy-Scout pass through `bots/dead-code-watcher/tests/skip-list.test.ts` (per team-preferences rule 19), or add the candidate to a skip-list entry so future audit-area passes don't re-surface it as bot-actionable. If a `mechanical-cleanup` recipe is ever added (single-commit, no-behavior-change diff, verify tests still pass, no counterfactual required), this candidate would fit it cleanly — but scoping and shipping that recipe is bigger than one candidate."
     }
   ],
   "rules": []
