@@ -41,7 +41,7 @@ export type RenameResponse = z.infer<typeof RenameResponseSchema>
  * 409 body when the target name is already a live item. Author picks
  * a different name and retries.
  */
-export const NameCollisionSchema = z.object({
+const NameCollisionSchema = z.object({
   code: z.literal('NAME_COLLISION'),
   toName: z.string(),
   /** Discriminator — `'live'` distinguishes from ARCHIVED_NAME_CONFLICT in the same client switch. */
