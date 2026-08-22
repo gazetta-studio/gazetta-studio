@@ -524,19 +524,6 @@ export async function publishDepIndices(
   ])
 }
 
-/**
- * Backwards-compatible single-relation wrapper. New callers should use
- * `publishDepIndices` to get both indices rebuilt in one walk.
- */
-export async function publishAssetRefsIndex(
-  sourceRoot: ContentRoot,
-  targetStorage: StorageProvider,
-  preloadedSite?: Site,
-): Promise<void> {
-  const site = preloadedSite ?? (await loadSite({ contentRoot: sourceRoot, manifest: { name: '(publish)' } }))
-  await rebuildDepIndex(ASSET_REFS, site, targetStorage, '')
-}
-
 /** Purge via Cloudflare zone cache API */
 export function createCloudflarePurge(zoneId: string, apiToken: string): PurgeStrategy {
   const apiBase = `https://api.cloudflare.com/client/v4/zones/${zoneId}/purge_cache`
