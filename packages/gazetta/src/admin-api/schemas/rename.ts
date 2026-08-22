@@ -24,7 +24,7 @@ export const RenameRequestSchema = z.object({
 export type RenameRequest = z.infer<typeof RenameRequestSchema>
 
 /** Standard ok response carrying the new name + flatten cascade trace. */
-export const RenameResponseSchema = z.object({
+const RenameResponseSchema = z.object({
   ok: z.literal(true),
   /** New name (= request `to`). */
   name: z.string(),
