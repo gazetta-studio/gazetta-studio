@@ -52,8 +52,12 @@ export type NameCollision = z.infer<typeof NameCollisionSchema>
 /**
  * 409 body when the target name is already an archived item. Cut 11's
  * prompt UX consumes this to show the three-option modal.
+ *
+ * Un-exported: only the inferred `ArchivedNameConflict` type below is
+ * consumed externally (by `admin-api/routes/rename.ts`). The schema
+ * value stays declared for the `z.infer<typeof …>` derivation.
  */
-export const ArchivedNameConflictSchema = z.object({
+const ArchivedNameConflictSchema = z.object({
   code: z.literal('ARCHIVED_NAME_CONFLICT'),
   toName: z.string(),
   conflictKind: z.literal('archived'),
