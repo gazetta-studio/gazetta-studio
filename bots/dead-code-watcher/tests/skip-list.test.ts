@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -284,10 +284,7 @@ describe('readSkipList / writeSkipList', () => {
 
   it('throws on unknown version', () => {
     const path = resolve(tempDir, 'bad.json')
-    mkdirSync(tempDir, { recursive: true })
     // Write a manually-constructed bad-version file
-    writeSkipList(path, { version: 1, entries: [], rules: [] })
-    // Corrupt the version after write
     const raw = `{"version":999,"entries":[],"rules":[]}\n`
     writeSkipList(path, JSON.parse(raw))
     expect(() => readSkipList(path)).toThrow(/unknown version/)
