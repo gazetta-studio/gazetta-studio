@@ -34,6 +34,10 @@ test.describe('Keyboard shortcuts', () => {
     const original = await titleField.inputValue()
     await titleField.fill(original + ' — cmd+s test')
 
+    // Wait for the fill's onChange to reach the Vue dirty state — otherwise
+    // Meta+s can race the React → Vue propagation and see a clean form.
+    await expect(page.locator('[data-testid="save-btn"]')).toBeEnabled()
+
     await page.keyboard.press('Meta+s')
 
     await expect(page.locator('[data-testid="global-toast"]')).toBeVisible({ timeout: 5000 })
@@ -66,10 +70,15 @@ test.describe('Keyboard shortcuts', () => {
     const titleField = page.locator('input[name="root_title"]').first()
     await titleField.waitFor({ timeout: 10000 })
     const original = await titleField.inputValue()
+    const saveBtn = page.locator('[data-testid="save-btn"]')
 
-    // Make two edits so there's real undo history.
+    // Make two edits so there's real undo history. Waiting for save-btn to
+    // flip enabled after each fill confirms the onChange has round-tripped
+    // through the Vue dirty state — a bare DOM-value check would pass
+    // immediately from fill()'s own write and prove nothing about pushHistory.
     await titleField.fill(original + ' first edit')
     await titleField.blur()
+    await expect(saveBtn).toBeEnabled()
     await titleField.fill(original + ' second edit')
     await titleField.blur()
     await expect(titleField).toHaveValue(original + ' second edit')
@@ -92,6 +101,12 @@ test.describe('Keyboard shortcuts', () => {
 
     await titleField.fill(original + ' edited')
     await titleField.blur()
+
+    // Wait for the fill's onChange to reach the Vue dirty state — the undo
+    // handler no-ops on an empty stack, so pressing Ctrl+z before pushHistory
+    // has recorded the edit leaves the field showing "…edited" and the
+    // assertion below then times out against the stale value.
+    await expect(page.locator('[data-testid="save-btn"]')).toBeEnabled()
 
     // Undo → back to original.
     await page.keyboard.press('Control+z')
