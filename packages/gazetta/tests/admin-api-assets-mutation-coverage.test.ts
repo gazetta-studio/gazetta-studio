@@ -754,6 +754,80 @@ describe('PATCH /api/assets/:name — invalid-JSON catch (lines 151-153)', () =>
   })
 })
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * Fourth-wave mutation gaps per #742:
+ *
+ *   - `BlockStatement` NoCoverage on line 154 — the block inside
+ *     `if (!body || typeof body !== 'object' || Array.isArray(body)) {
+ *       return c.json({ code: 'BAD_REQUEST', message: 'Body must be an object' }, 400)
+ *      }`. Under mutation `→ {}` the return statement is dropped; control
+ *     falls through to the `patch: AssetMetadataPatch = {}` scaffolding and
+ *     then to `updateAssetMetadata`, which for a non-existent asset throws
+ *     `AssetManifestNotFoundError` → 404. The 400-with-"Body must be an
+ *     object" response NEVER appears in any test today, so the mutant
+ *     survives.
+ *
+ *   - `ConditionalExpression` on line 154 `→ false` — same shape from the
+ *     other direction: the check is bypassed and the 400 return is
+ *     skipped. Killed by the same tests that pin the 400 body: under the
+ *     mutation, the response is 404 (missing asset) or 500 (invalid patch
+ *     shape reaching `updateAssetMetadata`) — either way, not the 400 with
+ *     "Body must be an object" body that the original code produces.
+ *
+ * The catch on lines 151-153 (invalid-JSON path) is already covered by
+ * #671's "PATCH /api/assets/:name — invalid-JSON catch" describe block
+ * above, which exercises malformed JSON hitting `c.req.json()`'s throw.
+ * These new tests exercise the SEPARATE branch where JSON parses cleanly
+ * but doesn't produce an object: `null`, arrays, and primitives all
+ * type-check as valid JSON but fail the shape check.
+ *
+ * Data-driven with `it.each` because the shape-check has one contract
+ * (400 + specific body) applied to a set of equivalent inputs. Boolean
+ * covered separately from number to pin that `typeof true !== 'object'`
+ * fires the guard (JS is quirky here — `typeof null === 'object'` is
+ * why the guard needs `!body` too, not just the typeof check).
+ *
+ * Storage tier: any — the check runs BEFORE `updateAssetMetadata`
+ * touches storage, so tests don't need to seed an asset. Reuses
+ * `buildAppWith` + `providerWithCaps(['edit:assets'])` to pass the
+ * capability gate; the shape check is the SUT.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+describe('PATCH /api/assets/:name — body-shape validator (line 154)', () => {
+  it.each([
+    { shape: 'null', body: 'null' },
+    { shape: 'array', body: '[]' },
+    { shape: 'number', body: '123' },
+    { shape: 'string', body: '"just a string"' },
+    { shape: 'boolean', body: 'true' },
+  ])('400 BAD_REQUEST "Body must be an object" when body parses to a $shape', async ({ body: raw }) => {
+    // Under BlockStatement `→ {}` on line 154, the 400-return is
+    // dropped; control falls through and `updateAssetMetadata` runs
+    // against a missing asset → 404 (or 500 for the primitive cases
+    // where the patch scaffolding crashes on a non-object). Under
+    // ConditionalExpression `→ false`, the check is bypassed with
+    // the same fall-through. Both mutants surface as a non-400
+    // response OR a 400 with a different body — this assertion pins
+    // BOTH the status code AND the exact "Body must be an object"
+    // literal, killing every observable difference.
+    //
+    // No asset needs to exist for this test — the shape check runs
+    // before the storage read. Capability gate must pass so control
+    // reaches the shape check; `edit:assets` satisfies the gate.
+    const { app } = buildAppWith(providerWithCaps(['edit:assets']))
+    const res = await app.request('/api/assets/hero', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: raw,
+    })
+    expect(res.status).toBe(400)
+    expect(res.headers.get('content-type')).toMatch(/application\/json/)
+    const body = (await res.json()) as { code: string; message: string }
+    expect(body.code).toBe('BAD_REQUEST')
+    expect(body.message).toBe('Body must be an object')
+  })
+})
+
 describe('GET /api/assets/:name — theme-dedup NoCoverage (line 116)', () => {
   it("returns ['dark'] for overrideThemes and [] for overrideLocales when only a dark theme bytes override exists", async () => {
     // Kills BooleanLiteral NoCoverage on line 116 (`!themes.includes(theme)`
