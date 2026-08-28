@@ -120,7 +120,7 @@ describe('Azure Blob publish (Azurite)', () => {
       container: 'gazetta-test',
     })
     await blobProvider.init()
-  })
+  }, 60_000)
 
   it('publishes a page to Azure Blob', async () => {
     const sourceRoot = createContentRoot(source, starterDir)
@@ -152,7 +152,7 @@ describe('Rendered publish (MinIO)', () => {
     target = s3('publish-rendered-test')
     await target.init()
     site = await getStarterSite()
-  })
+  }, 60_000)
 
   it('publishes site manifest', async () => {
     await publishSiteManifest(createContentRoot(source, starterDir), target, site)
@@ -314,7 +314,7 @@ describe('Edge composition caching (MinIO)', () => {
       cache.set(path, { html, at: Date.now() })
       return c.html(html, 200, { 'Cache-Control': 'public, s-maxage=86400', 'X-Cache': 'MISS' })
     })
-  })
+  }, 60_000)
 
   beforeEach(async () => {
     await app.request('/purge/all', { method: 'POST' })
