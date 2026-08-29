@@ -120,7 +120,10 @@ describe('Azure Blob publish (Azurite)', () => {
       container: 'gazetta-test',
     })
     await blobProvider.init()
-  })
+    // 60s absorbs container cold-start: docker-compose "up" precedes
+    // MinIO/Azurite accepting connections, so .init() can block past
+    // vitest's 10s default.
+  }, 60_000)
 
   it('publishes a page to Azure Blob', async () => {
     const sourceRoot = createContentRoot(source, starterDir)
@@ -152,7 +155,7 @@ describe('Rendered publish (MinIO)', () => {
     target = s3('publish-rendered-test')
     await target.init()
     site = await getStarterSite()
-  })
+  }, 60_000)
 
   it('publishes site manifest', async () => {
     await publishSiteManifest(createContentRoot(source, starterDir), target, site)
@@ -314,11 +317,15 @@ describe('Edge composition caching (MinIO)', () => {
       cache.set(path, { html, at: Date.now() })
       return c.html(html, 200, { 'Cache-Control': 'public, s-maxage=86400', 'X-Cache': 'MISS' })
     })
-  })
+  }, 60_000)
 
+  // 60s absorbs container cold-start: the first request after the MinIO
+  // container starts can exceed vitest's 10s default on a cold CI runner.
+  // (This beforeEach was the hook PR #748 missed — it patched only the
+  // beforeAll hooks, leaving this one on the 10s default.)
   beforeEach(async () => {
     await app.request('/purge/all', { method: 'POST' })
-  })
+  }, 60_000)
 
   it('serves a page from S3', async () => {
     const res = await app.request('/')

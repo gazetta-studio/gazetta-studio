@@ -47,7 +47,10 @@ export function runProviderConformance(factory: ProviderFactory): void {
       // A stable namespace per provider; tests use unique file paths
       // within it so state doesn't leak between tests.
       provider = await factory.make('conformance')
-    })
+      // 60s absorbs container cold-start: docker-compose "up" precedes
+      // MinIO/Azurite accepting connections, so factory.make()'s .init()
+      // can block past vitest's 10s default.
+    }, 60_000)
 
     it('writes and reads a file', async () => {
       await provider.writeFile('rw/hello.txt', 'hello world')
