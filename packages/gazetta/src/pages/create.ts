@@ -72,7 +72,7 @@ export interface CreatePageInput {
  * `resolution` is set when the create resolved an archive conflict;
  * absent for plain creates.
  */
-export interface CreatePageOk {
+interface CreatePageOk {
   readonly ok: true
   readonly name: string
   readonly resolution?: ArchivedNameConflictResult['kind']
