@@ -35,11 +35,7 @@ import type { ItemRef } from '../dep-sidecars.js'
 import type { SourceContext } from './source-context.js'
 
 export type ArchivedNameConflictMode = 'restore' | 'replace' | 'moveAside'
-export const ARCHIVED_NAME_CONFLICT_MODES: ReadonlySet<ArchivedNameConflictMode> = new Set([
-  'restore',
-  'replace',
-  'moveAside',
-])
+const ARCHIVED_NAME_CONFLICT_MODES: ReadonlySet<ArchivedNameConflictMode> = new Set(['restore', 'replace', 'moveAside'])
 
 export type ArchivedNameConflictResult =
   | { kind: 'restored' }
