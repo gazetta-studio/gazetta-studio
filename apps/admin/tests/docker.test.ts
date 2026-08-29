@@ -68,8 +68,13 @@ beforeAll(async () => {
 }, 120000)
 
 afterAll(async () => {
+  // 60s: `env.down()` tears down the whole docker-compose environment
+  // (stop + remove both containers), which exceeds vitest's 10s default
+  // hook timeout on cold CI runners. This teardown hook — not any of the
+  // startup hooks — is what actually flaked (trace: docker.test.ts:70;
+  // all tests pass, then teardown times out). See #481.
   if (env) await env.down()
-})
+}, 60_000)
 
 function s3(bucket: string) {
   const provider = createS3Provider({
