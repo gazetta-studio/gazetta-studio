@@ -44,7 +44,7 @@ import type { CacheConfig } from './types.js'
  * renderer (so the renderer can build the `<link>` / `<script>` tags
  * pointing at the hashed filename). The spine writes them as-is.
  */
-export interface RenderedFile {
+interface RenderedFile {
   readonly path: string
   readonly content: string
 }
