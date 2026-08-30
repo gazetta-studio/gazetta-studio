@@ -513,7 +513,7 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     })
     if (!bResult.success) {
       printWarning(`Agent B exited ${bResult.exitCode} on attempt ${attempt}; treating as needs-human.`)
-      await escalateToHuman(octokit, repo, issueNumber, skipList, fingerprint, {
+      await escalateToHuman(octokit, repo, issueNumber, branchName, skipList, fingerprint, {
         reason: 'needs-human',
         reasonNote: `Reviewer crashed on attempt ${attempt}. See transcript ${reviewerTranscript}.`,
       })
@@ -559,7 +559,7 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
 
     if (verdict.kind === 'needs-human') {
       printWarning(`⚠ Reviewer escalated to NEEDS_HUMAN: ${verdict.note.slice(0, 120)}`)
-      await escalateToHuman(octokit, repo, issueNumber, skipList, fingerprint, {
+      await escalateToHuman(octokit, repo, issueNumber, branchName, skipList, fingerprint, {
         reason: 'needs-human',
         reasonNote: `Reviewer verdict on attempt ${attempt}: ${verdict.note}`,
       })
@@ -581,7 +581,7 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
   } else {
     // Loop exhausted without convergence.
     printWarning(`Loop exhausted after ${MAX_ATTEMPTS} attempts — Agent A and reviewer didn't converge.`)
-    await escalateToHuman(octokit, repo, issueNumber, skipList, fingerprint, {
+    await escalateToHuman(octokit, repo, issueNumber, branchName, skipList, fingerprint, {
       reason: 'needs-human',
       reasonNote: `Agent A and reviewer didn't converge after ${MAX_ATTEMPTS} attempts. Last reviewer note: ${priorReviewerNote ?? '(none)'}`,
     })
@@ -771,6 +771,7 @@ async function escalateToHuman(
   octokit: ReturnType<typeof octokitFromEnv>,
   repo: ReturnType<typeof repoFromEnv>,
   issueNumber: number,
+  branchName: string,
   skipList: SkipList,
   fingerprint: IssueFingerprint,
   opts: {
@@ -778,6 +779,15 @@ async function escalateToHuman(
     reasonNote: string
   },
 ): Promise<void> {
+  // Reset to clean main FIRST — every caller reaches here while sitting
+  // on `fix/issue-N`, which carries Agent A's failing-test + attempted-fix
+  // commits from the current attempt. `resetToMain` only runs at
+  // attempt-loop entry (line 396), never after the loop exits toward an
+  // escalation. Without resetting here, `git checkout -b fix-bot-skip/…`
+  // below would branch off the dirty fix branch, so the skip-list PR
+  // would carry Agent A's commits alongside the skip-list update.
+  resetToMain(branchName, { cwd: REPO_ROOT })
+
   // Step 1: write skip-list locally
   const added = appendEntry(skipList, {
     fingerprint,
