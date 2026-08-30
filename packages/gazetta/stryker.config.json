@@ -26,7 +26,8 @@
     "src/auth/types.ts",
     "src/alt/suggester.ts",
     "src/ai/adapter-scaffold.ts",
-    "src/admin-api/source-context.ts"
+    "src/admin-api/source-context.ts",
+    "src/pages/create.ts"
   ],
   "thresholds": {
     "high": 80,
