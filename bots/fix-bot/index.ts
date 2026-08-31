@@ -600,10 +600,21 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
 
 /**
  * Push a branch to origin. Best-effort; failures log + continue.
+ *
+ * Force-with-lease so a re-attempt against a stale leftover branch of
+ * the same name on origin (e.g. a prior run's `fix/issue-NNN` that
+ * diverged) replaces it instead of silently failing as non-fast-forward
+ * — the failure mode #550 documents for feature-bot. `--force-with-lease`
+ * is safer than `--force`: it refuses to clobber an upstream that moved
+ * unexpectedly. Sibling bots (feature-bot, review-bot, mutation-area-
+ * picker) all push this way per team-preferences rule 38.
  */
 function pushBranch(branchName: string): void {
   try {
-    execFileSync('git', ['push', '-u', 'origin', branchName], { cwd: REPO_ROOT, stdio: 'inherit' })
+    execFileSync('git', ['push', '-u', '--force-with-lease', 'origin', branchName], {
+      cwd: REPO_ROOT,
+      stdio: 'inherit',
+    })
   } catch (err) {
     printWarning(`git push ${branchName} failed: ${err}`)
   }
@@ -706,7 +717,10 @@ async function openPastPRSkipListPR(issueNumber: number, rejectedPR: number, rea
       ],
       { cwd: REPO_ROOT, stdio: 'inherit' },
     )
-    execFileSync('git', ['push', '-u', 'origin', skipBranch], { cwd: REPO_ROOT, stdio: 'inherit' })
+    execFileSync('git', ['push', '-u', '--force-with-lease', 'origin', skipBranch], {
+      cwd: REPO_ROOT,
+      stdio: 'inherit',
+    })
     execFileSync(
       'gh',
       [
@@ -807,7 +821,10 @@ async function escalateToHuman(
       ],
       { cwd: REPO_ROOT, stdio: 'inherit' },
     )
-    execFileSync('git', ['push', '-u', 'origin', skipBranch], { cwd: REPO_ROOT, stdio: 'inherit' })
+    execFileSync('git', ['push', '-u', '--force-with-lease', 'origin', skipBranch], {
+      cwd: REPO_ROOT,
+      stdio: 'inherit',
+    })
     execFileSync(
       'gh',
       [
