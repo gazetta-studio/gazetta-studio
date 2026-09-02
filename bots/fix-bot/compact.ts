@@ -31,7 +31,8 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
 import { printBanner, printNotice, printRunSummary, printTranscriptPath, printWarning } from '../_lib/ui.js'
-import { pruneReviewerLog, REVIEWER_LOG_PATH, tailReviewerLog } from './reviewer-log.js'
+import { composePrompt, handlePostClaude, shouldRunCompaction } from './compact-helpers.js'
+import { REVIEWER_LOG_PATH, tailReviewerLog } from './reviewer-log.js'
 import { readSkipList, SKIP_LIST_PATH } from './skip-list.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -93,19 +94,20 @@ async function main(): Promise<void> {
   printNotice(`Reviewer-log: ${reviewerLog.length} recent entries (window=${REVIEWER_LOG_WINDOW})`)
   printNotice(`Current lessons file: ${lessonsExists ? `${lessonsContent.length} bytes` : 'absent'}`)
 
-  // Either signal can justify a rewrite — they capture complementary
-  // patterns (skip-list = "don't try again"; reviewer-log = "what to
-  // notice next time").
-  const totalSignal = entryCount + reviewerLog.length
-  if (totalSignal < MIN_ENTRIES_FOR_COMPACTION) {
-    printNotice(
-      `Below MIN_ENTRIES_FOR_COMPACTION=${MIN_ENTRIES_FOR_COMPACTION} (skip-list=${entryCount} + reviewer-log=${reviewerLog.length}) — not enough signal to surface patterns. ✨`,
-    )
-    return
-  }
-
-  if (DRY_RUN) {
-    printNotice('DRY_RUN=1 — exiting before invoking Claude.')
+  const gate = shouldRunCompaction({
+    entryCount,
+    reviewerLogCount: reviewerLog.length,
+    minEntriesForCompaction: MIN_ENTRIES_FOR_COMPACTION,
+    dryRun: DRY_RUN,
+  })
+  if (!gate.run) {
+    if (gate.reason === 'below-threshold') {
+      printNotice(
+        `Below MIN_ENTRIES_FOR_COMPACTION=${gate.threshold} (skip-list=${entryCount} + reviewer-log=${reviewerLog.length}) — not enough signal to surface patterns. ✨`,
+      )
+    } else {
+      printNotice('DRY_RUN=1 — exiting before invoking Claude.')
+    }
     return
   }
 
@@ -115,15 +117,15 @@ async function main(): Promise<void> {
   printTranscriptPath(transcriptPath)
 
   const runStart = Date.now()
-  const prompt = `${promptTemplate}
-
-SKIP_LIST_PATH=${SKIP_LIST_PATH}
-LESSONS_PATH=${LESSONS_PATH}
-SKIP_LIST_JSON=${JSON.stringify(skipList, null, 2)}
-REVIEWER_LOG_JSON=${JSON.stringify(reviewerLog, null, 2)}
-PREVIOUS_LESSONS=
-${lessonsContent}
-RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
+  const prompt = composePrompt({
+    promptTemplate,
+    skipListPath: SKIP_LIST_PATH,
+    lessonsPath: LESSONS_PATH,
+    skipList,
+    reviewerLog,
+    lessonsContent,
+    runId: process.env.GITHUB_RUN_ID ?? 'local',
+  })
 
   let claudeSucceeded = false
   try {
@@ -141,13 +143,14 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     printWarning(`compact threw: ${err}; transcript at ${transcriptPath}`)
   }
 
-  // Prune the reviewer-log AFTER Claude succeeds. If Claude failed,
-  // keep the full log so next month's run can retry with the same
-  // input. Pruning on success keeps the cached file bounded across
-  // many months.
+  const outcome = handlePostClaude({
+    claudeSucceeded,
+    reviewerLogPath: REVIEWER_LOG_ABS,
+    keepLast: REVIEWER_LOG_KEEP_LAST,
+  })
   const pruneNotes: string[] = []
-  if (claudeSucceeded) {
-    const { dropped, kept } = pruneReviewerLog(REVIEWER_LOG_ABS, REVIEWER_LOG_KEEP_LAST)
+  if (outcome.prune) {
+    const { dropped, kept } = outcome.prune
     if (dropped > 0) {
       printNotice(`Pruned reviewer-log: dropped ${dropped} old entries, kept ${kept} most-recent`)
       pruneNotes.push(`Pruned reviewer-log: ${dropped} dropped, ${kept} kept`)
