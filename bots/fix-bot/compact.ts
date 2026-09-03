@@ -31,7 +31,8 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
 import { printBanner, printNotice, printRunSummary, printTranscriptPath, printWarning } from '../_lib/ui.js'
-import { pruneReviewerLog, REVIEWER_LOG_PATH, tailReviewerLog } from './reviewer-log.js'
+import { handlePostClaude } from './post-claude.js'
+import { REVIEWER_LOG_PATH, tailReviewerLog } from './reviewer-log.js'
 import { readSkipList, SKIP_LIST_PATH } from './skip-list.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -144,17 +145,23 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
   // Prune the reviewer-log AFTER Claude succeeds. If Claude failed,
   // keep the full log so next month's run can retry with the same
   // input. Pruning on success keeps the cached file bounded across
-  // many months.
+  // many months. Ordering pinned in post-claude.ts + tests.
+  const outcome = handlePostClaude({
+    claudeSucceeded,
+    reviewerLogPath: REVIEWER_LOG_ABS,
+    keepLast: REVIEWER_LOG_KEEP_LAST,
+  })
+
   const pruneNotes: string[] = []
-  if (claudeSucceeded) {
-    const { dropped, kept } = pruneReviewerLog(REVIEWER_LOG_ABS, REVIEWER_LOG_KEEP_LAST)
+  if (outcome.prune) {
+    const { dropped, kept } = outcome.prune
     if (dropped > 0) {
       printNotice(`Pruned reviewer-log: dropped ${dropped} old entries, kept ${kept} most-recent`)
       pruneNotes.push(`Pruned reviewer-log: ${dropped} dropped, ${kept} kept`)
     } else {
       printNotice(`Reviewer-log under prune threshold (${kept}/${REVIEWER_LOG_KEEP_LAST}) — no entries dropped`)
     }
-  } else {
+  } else if (!claudeSucceeded) {
     printNotice("Claude did not succeed — skipping reviewer-log prune to preserve next month's input")
   }
 
