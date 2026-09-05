@@ -21,7 +21,6 @@ export {
 } from './errors.js'
 export {
   cloudflareWorkersDeploy,
-  extractDeployUrl,
   renderWorkerEntry,
   renderWranglerToml,
   type CloudflareWorkersDeployOptions,
