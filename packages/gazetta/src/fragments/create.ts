@@ -46,7 +46,7 @@ export interface CreateFragmentInput {
   readonly audit: SaveAuditRecorder
 }
 
-export interface CreateFragmentOk {
+interface CreateFragmentOk {
   readonly ok: true
   readonly name: string
   readonly resolution?: ArchivedNameConflictResult['kind']
