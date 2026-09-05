@@ -70,7 +70,7 @@ export interface CreateFragmentArchivedConflict {
   }
 }
 
-export interface CreateFragmentInvalidMode {
+interface CreateFragmentInvalidMode {
   readonly ok: false
   readonly code: 'INVALID_CONFLICT_MODE'
   readonly mode: string
