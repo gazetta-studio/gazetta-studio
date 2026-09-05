@@ -52,7 +52,7 @@ export interface CreateFragmentOk {
   readonly resolution?: ArchivedNameConflictResult['kind']
 }
 
-export interface CreateFragmentLiveConflict {
+interface CreateFragmentLiveConflict {
   readonly ok: false
   readonly code: 'LIVE_CONFLICT'
   readonly name: string
