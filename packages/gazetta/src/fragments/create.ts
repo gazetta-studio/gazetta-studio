@@ -58,7 +58,7 @@ export interface CreateFragmentLiveConflict {
   readonly name: string
 }
 
-export interface CreateFragmentArchivedConflict {
+interface CreateFragmentArchivedConflict {
   readonly ok: false
   readonly code: 'ARCHIVED_CONFLICT'
   readonly archive: {
