@@ -27,7 +27,8 @@
     "src/alt/suggester.ts",
     "src/ai/adapter-scaffold.ts",
     "src/admin-api/source-context.ts",
-    "src/pages/create.ts"
+    "src/pages/create.ts",
+    "src/publish-renderers.ts"
   ],
   "thresholds": {
     "high": 80,
