@@ -193,6 +193,14 @@ async function main(): Promise<void> {
       elapsedSec: Math.round(elapsed / 1000),
     })
 
+    // Reset HEAD to clean main between candidates so each `fixOneIssue`
+    // starts with a deterministic working tree. Closes the class of
+    // "HEAD dirty entering fixOneIssue" bugs at the entry point rather
+    // than depending on every internal branch-creating site to reset
+    // (the rule-38 gap `openPastPRSkipListPR` had). Idempotent: a
+    // no-op on the first candidate when HEAD is already main.
+    resetToMain(`fix/issue-${candidate.number}`, { cwd: REPO_ROOT })
+
     let issueResult: IssueResult = { rateLimited: false }
     try {
       issueResult = await fixOneIssue(octokit, repo, candidate.number)
@@ -703,6 +711,20 @@ fix shape.
  * past-PR loop when it re-observes the rejected upstream PR.
  */
 async function openPastPRSkipListPR(issueNumber: number, rejectedPR: number, reasonNote: string): Promise<void> {
+  // Reset to clean main FIRST — this function runs from `fixOneIssue`'s
+  // past-PR feedback loop, which fires BEFORE the attempt-loop's own
+  // `resetToMain` (line ~396). If a prior candidate in the same cron
+  // pushed `fix/issue-M`, HEAD is still on that branch (`pushBranch`
+  // doesn't checkout back to main). Without resetting here,
+  // `git checkout -b skipBranch` below would branch off `fix/issue-M`
+  // and the skip-list PR would carry M's failing-test + attempted-fix
+  // commits alongside the skip-list update.
+  //
+  // Rule-38 symmetric-audit fix: mirrors the `resetToMain` at the top
+  // of `escalateToHuman` for the same class of bug (see
+  // `escalate-to-human-reset.test.ts` for the earlier fix).
+  resetToMain(`fix/issue-${issueNumber}`, { cwd: REPO_ROOT })
+
   const dateStr = new Date().toISOString().slice(0, 10)
   const skipBranch = `fix-bot-skip/${dateStr}-issue-${issueNumber}-past-pr`
   try {
