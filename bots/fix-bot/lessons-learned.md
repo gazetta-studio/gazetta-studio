@@ -86,10 +86,30 @@ Three flake fixes this window (#661, #744, #745). The default
   intra-test `Ctrl+z` timing) or structural (timeout-budget
   widening — #661, #744) and declare `Mode:` to match.
 
+### Bot infrastructure fixes: check sibling bots for symmetric gaps
+
+Rule-38 pattern. Two cycles this window (#692, #699): a gap or
+bug in one bot's infrastructure existed byte-identically in a
+sibling bot. Fix-bot lacked the past-PR feedback loop that
+dead-code-watcher already had (#692); both bots' comment-author
+filter used the same fragile `login !==` check that let other
+bots' comments through as if they were maintainer rejections
+(#699). Landing one fix without the other would rot silently.
+
+**What Agent A should do:**
+- Before implementing a fix in `bots/{one}/`, grep `bots/**`
+  for the same code shape in sibling directories.
+- When the sibling has the same shape, land the fix
+  symmetrically in the same PR — don't defer to a follow-up
+  that would drift.
+- Cite rule-38 in the commit body when the symmetric fix
+  landed across multiple bots; reviewers positively spot-check
+  this.
+
 ---
 
 ## Areas where Agent A succeeds
 
 Zero maintainer rejections this window across 28 tracked cycles;
-every PR merged. The four patterns above continue to pay rent
+every PR merged. The five patterns above continue to pay rent
 because reviewers actively spot-check them.
