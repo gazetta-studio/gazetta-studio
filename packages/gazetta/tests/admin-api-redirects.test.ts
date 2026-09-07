@@ -898,3 +898,275 @@ describe('POST /api/page-redirects — archived-name-conflict precedes alias-tar
     expect(manifest.aliasOf).toBe('home')
   })
 })
+
+/**
+ * Mutation-coverage backfill from Stryker run 34020034858 (issue #773).
+ *
+ * The tests below pin invariants that surviving mutants would otherwise
+ * silently violate. Each test is anchored to a specific mutant and
+ * asserts an observable behavior the production code emits today.
+ *
+ * ## Mutants targeted
+ *
+ * - **Line 229 regex** — `/:([a-zA-Z_][a-zA-Z0-9_]*)/g` normalizes
+ *   `:param` → `[param]`. Two surviving mutations:
+ *     1. Dropped `*` quantifier (`[a-zA-Z_][a-zA-Z0-9_]` matches only
+ *        2-char params) — for `:slug` produces `[sl]ug` instead of `[slug]`
+ *     2. Negated char class (`[^a-zA-Z0-9_]*`) — for `:slug` produces
+ *        `[s]lug` instead of `[slug]`
+ *   Prior tests asserted only `body.code === 'INVALID'`; both mutants
+ *   still trigger the wildcard-rejection code path, so they survived.
+ *   The wildcard-rejection error message interpolates the normalized
+ *   `from` value verbatim — asserting `"blog/[slug]"` in the message
+ *   pins the exact normalization and kills both mutants.
+ *
+ * - **Line 271 trailing newline** — `JSON.stringify(manifest, null, 2) + '\n'`.
+ *   Stripping the `\n` still produces valid JSON that round-trips through
+ *   `JSON.parse` — asserting `manifest.aliasOf === 'x'` won't fail without
+ *   the newline. Assert the raw byte string ends with `\n` to pin the
+ *   POSIX text-file convention.
+ *
+ * - **Line 212 / 213 kind-discriminant ternaries** in the restore /
+ *   replace / moveAside paths (lines 350-351, 370-371, 391-392). Existing
+ *   tests assert only `body.ok === true` on these paths — the response's
+ *   `route` and `targetRoute` fields aren't pinned. The ternary
+ *   `binding.kind === 'page' ? deriveRoute(to) : `/${to}`` diverges only
+ *   when `to === 'home'` (deriveRoute('home') = '/'; `/${to}` = '/home').
+ *   Each path needs a page test AND a fragment test with `to: 'home'` to
+ *   kill all three ternary mutants (→ true, → false, `===` → `!==`) on
+ *   that specific line.
+ */
+describe('POST /api/page-redirects — mutation-coverage backfill (issue #773)', () => {
+  beforeEach(() => setup())
+
+  it('trailing newline on serialized manifest — kills line-271 StringLiteral mutant', async () => {
+    // The production code emits: `JSON.stringify(manifest, null, 2) + '\n'`.
+    // Stripping the '\n' still produces syntactically valid JSON that
+    // round-trips through JSON.parse, so field-level assertions (like
+    // manifest.aliasOf === 'x') won't fail. The invariant is byte-level:
+    // manifests end with a newline. Common POSIX convention; pinning it
+    // prevents accidental drift.
+    const res = await app.request('/api/page-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'old-marketing', to: 'products/featured' }),
+    })
+    expect(res.status).toBe(201)
+
+    const raw = await storage.readFile('pages/old-marketing/page.json')
+    // Load-bearing assertion for the mutant.
+    expect(raw.endsWith('\n')).toBe(true)
+    // Belt-and-suspenders: exactly one trailing newline (not zero, not two).
+    expect(raw.endsWith('\n\n')).toBe(false)
+  })
+
+  it('wildcard rejection message contains the exact normalized from — kills line-229 regex mutants', async () => {
+    // Input `blog/:slug` → normalize → `blog/[slug]` → wildcard reject.
+    // The rejection message interpolates the normalized `from` verbatim:
+    //   `Wildcard from-routes (e.g. "${from}") are not supported in v1. ...`
+    //
+    // Mutation-per-branch trace:
+    //   - Original regex → `blog/[slug]` in message → assertion PASSES
+    //   - Mutant 1 (dropped `*`, matches 2 chars): captures `sl`, replaces
+    //     `:sl` with `[sl]` → `blog/[sl]ug` in message → assertion FAILS
+    //   - Mutant 2 (negated char class): after `s` (in `[a-zA-Z_]`),
+    //     `[^a-zA-Z0-9_]*` matches 0 chars because `lug` are alphanumeric,
+    //     so captures `s` → `blog/[s]lug` in message → assertion FAILS
+    //
+    // Both regex mutants killed with a single load-bearing assertion.
+    const res = await app.request('/api/page-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'blog/:slug', to: 'about' }),
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.code).toBe('INVALID')
+    // The exact normalized form of `blog/:slug` MUST appear in the
+    // error message. Kills mutant 1 (`blog/[sl]ug`) + mutant 2
+    // (`blog/[s]lug`) — neither contains the substring `[slug]`.
+    expect(body.error).toContain('"blog/[slug]"')
+  })
+
+  it('multi-char param + underscore normalization — belt-and-suspenders for line-229 regex', async () => {
+    // `:post_id` covers the underscore branch of `[a-zA-Z0-9_]*` — the
+    // underscore is a common route-param character. Mutant 1 would
+    // capture `po` (2 chars only) and mutant 2 would capture just `p`
+    // (next char `o` is alphanumeric, terminates the `[^...]*` match).
+    // Both would produce a message NOT containing `[post_id]`.
+    //
+    // The `blog/:slug` test above already kills both mutants; this test
+    // adds a second load-bearing input covering a different character
+    // class (underscore) so a future regex refactor that broke
+    // underscore handling would surface immediately rather than silently.
+    const res = await app.request('/api/page-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'blog/:post_id', to: 'about' }),
+    })
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.code).toBe('INVALID')
+    expect(body.error).toContain('"blog/[post_id]"')
+  })
+
+  it('restore path response body pins the ternary — kills line-350/351 page-branch mutants', async () => {
+    // Seed an archive; the retry uses `to: 'home'` which is the ONE
+    // `to` value that distinguishes `deriveRoute(to)` (returns `/`)
+    // from `` `/${to}` `` (returns `/home`). Prior tests only asserted
+    // `body.ok === true`, so ternary mutants on lines 350-351 survived.
+    await app.request('/api/page-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'old-restore-page', to: 'about' }),
+    })
+    const res = await app.request('/api/page-redirects?onConflict=restore', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'old-restore-page', to: 'home' }),
+    })
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as Record<string, unknown>
+    // Kills 2 of 3 mutants on the restore path's targetRoute ternary
+    // (`false` branch would produce `/home`; `!==` flip would produce
+    // `/home` for `kind === 'page'`). The `true` mutant is equivalent
+    // for pages (both branches produce `/` for to='home' via the page
+    // path, since deriveRoute IS the page branch).
+    expect(body.targetRoute).toBe('/')
+    // Route branch for from='old-restore-page' is equivalent under v1
+    // guards (deriveRoute + `/${from}` collapse for non-'home' non-
+    // wildcard names) — asserted to prevent regression on response shape.
+    expect(body.route).toBe('/old-restore-page')
+  })
+
+  it('restore path fragment response pins the ternary — kills line-350/351 fragment-branch mutants', async () => {
+    // Symmetric with the page test — fragment named 'home' is valid
+    // (fragments and pages have separate namespaces per design-concepts.md).
+    // Retry with `to: 'home'` on the fragment path forces the `/${to}`
+    // branch, producing `/home` instead of `/`.
+    setup({
+      seed: {
+        'fragments/home/fragment.json': JSON.stringify({
+          template: 'header-layout',
+          content: {},
+        }),
+      },
+    })
+    await app.request('/api/fragment-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'old-restore-frag', to: 'header' }),
+    })
+    const res = await app.request('/api/fragment-redirects?onConflict=restore', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'old-restore-frag', to: 'home' }),
+    })
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as Record<string, unknown>
+    // Kills 2 of 3 mutants on the restore path's targetRoute ternary
+    // for fragments (`true` mutant would produce `/`; `!==` flip would
+    // produce `/` for `kind === 'fragment'`). The `false` mutant is
+    // equivalent for fragments (both branches produce `/home` via the
+    // fragment path since `/${to}` IS the fragment branch).
+    expect(body.targetRoute).toBe('/home')
+    expect(body.route).toBe('/old-restore-frag')
+  })
+
+  it('replace path response body pins the ternary — kills line-370/371 page-branch mutants', async () => {
+    await app.request('/api/page-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'old-replace-page', to: 'about' }),
+    })
+    const res = await app.request('/api/page-redirects?onConflict=replace', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'old-replace-page', to: 'home' }),
+    })
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as Record<string, unknown>
+    // Kills 2 of 3 mutants on the replace path's targetRoute ternary.
+    // Rationale identical to the restore-path page test above.
+    expect(body.targetRoute).toBe('/')
+    expect(body.route).toBe('/old-replace-page')
+    // Belt-and-suspenders on manifest state: replace REWRITES aliasOf to
+    // the new `to`. Without this, a mutant that skipped the write and
+    // left the old aliasOf in place could slip past the response body.
+    const manifest = await readJson('pages/old-replace-page/page.json')
+    expect(manifest.aliasOf).toBe('home')
+  })
+
+  it('replace path fragment response pins the ternary — kills line-370/371 fragment-branch mutants', async () => {
+    setup({
+      seed: {
+        'fragments/home/fragment.json': JSON.stringify({
+          template: 'header-layout',
+          content: {},
+        }),
+      },
+    })
+    await app.request('/api/fragment-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'old-replace-frag', to: 'header' }),
+    })
+    const res = await app.request('/api/fragment-redirects?onConflict=replace', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'old-replace-frag', to: 'home' }),
+    })
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.targetRoute).toBe('/home')
+    expect(body.route).toBe('/old-replace-frag')
+  })
+
+  it('moveAside path response body pins the ternary — kills line-391/392 page-branch mutants', async () => {
+    await app.request('/api/page-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'old-aside-page', to: 'about' }),
+    })
+    const res = await app.request('/api/page-redirects?onConflict=moveAside', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'old-aside-page', to: 'home' }),
+    })
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as Record<string, unknown>
+    // Kills 2 of 3 mutants on the moveAside path's targetRoute ternary.
+    expect(body.targetRoute).toBe('/')
+    expect(body.route).toBe('/old-aside-page')
+    // Belt-and-suspenders: original archive should have been renamed
+    // with today's date suffix. Without this, a mutant that skipped the
+    // rename could still produce the correct response body.
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+    expect(await storage.exists(`pages/old-aside-page-archived-${today}/page.json`)).toBe(true)
+  })
+
+  it('moveAside path fragment response pins the ternary — kills line-391/392 fragment-branch mutants', async () => {
+    setup({
+      seed: {
+        'fragments/home/fragment.json': JSON.stringify({
+          template: 'header-layout',
+          content: {},
+        }),
+      },
+    })
+    await app.request('/api/fragment-redirects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'old-aside-frag', to: 'header' }),
+    })
+    const res = await app.request('/api/fragment-redirects?onConflict=moveAside', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'old-aside-frag', to: 'home' }),
+    })
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body.targetRoute).toBe('/home')
+    expect(body.route).toBe('/old-aside-frag')
+  })
+})
