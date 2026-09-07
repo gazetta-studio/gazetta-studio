@@ -15,10 +15,20 @@ import { describe, expect, it } from 'vitest'
 // proceed against stale commits. prompts/per-issue.md line 509
 // already documents `--force-with-lease` as the intended behavior —
 // code and doc diverged.
+//
+// The two skip-list-PR pushes were later extracted into
+// `openSkipListPR` (see `open-skip-list-pr.ts` + its behavioral
+// tests), so the skip-list `--force-with-lease` invariant now lives
+// there. This file continues to pin the belt-and-suspenders check
+// across ALL `git push` calls anywhere in `index.ts` +
+// `open-skip-list-pr.ts` — a future new push call anywhere in the
+// fix-bot must include the flag.
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const INDEX_PATH = resolve(HERE, '..', 'index.ts')
+const OPEN_SKIP_LIST_PR_PATH = resolve(HERE, '..', 'open-skip-list-pr.ts')
 const source = readFileSync(INDEX_PATH, 'utf-8')
+const openSkipListPRSource = readFileSync(OPEN_SKIP_LIST_PR_PATH, 'utf-8')
 
 /** Extracts the body of a top-level function or async function by name. */
 function extractFunctionBody(src: string, name: string): string {
@@ -58,9 +68,12 @@ describe('fix-bot git push uses --force-with-lease', () => {
     expect(body).toMatch(/execFileSync\(\s*'git'\s*,\s*\[[^\]]*'--force-with-lease'[^\]]*\]/)
   })
 
-  it('openPastPRSkipListPR() pushes the skip-list branch with --force-with-lease', () => {
-    const body = extractFunctionBody(source, 'openPastPRSkipListPR')
-    // openPastPRSkipListPR contains one git push; must include the flag.
+  it('openSkipListPR() pushes the skip-list branch with --force-with-lease', () => {
+    // The skip-list push moved out of openPastPRSkipListPR /
+    // escalateToHuman into openSkipListPR (open-skip-list-pr.ts).
+    // Its behavioral tests assert the arg shape end-to-end; this test
+    // pins the source-level invariant belt-and-suspenders.
+    const body = extractFunctionBody(openSkipListPRSource, 'openSkipListPR')
     const pushCalls = body.match(/execFileSync\(\s*'git'\s*,\s*\[[^\]]*'push'[^\]]*\]/g) ?? []
     expect(pushCalls.length).toBeGreaterThan(0)
     for (const call of pushCalls) {
@@ -68,20 +81,12 @@ describe('fix-bot git push uses --force-with-lease', () => {
     }
   })
 
-  it('escalateToHuman() pushes the skip-list branch with --force-with-lease', () => {
-    const body = extractFunctionBody(source, 'escalateToHuman')
-    const pushCalls = body.match(/execFileSync\(\s*'git'\s*,\s*\[[^\]]*'push'[^\]]*\]/g) ?? []
-    expect(pushCalls.length).toBeGreaterThan(0)
-    for (const call of pushCalls) {
-      expect(call).toContain("'--force-with-lease'")
-    }
-  })
-
-  it('no `git push` in index.ts is missing --force-with-lease', () => {
+  it('no `git push` in index.ts or open-skip-list-pr.ts is missing --force-with-lease', () => {
     // Belt-and-suspenders check: catch a future new push call that
-    // forgets the flag, even if it's added outside the three known
-    // functions above.
-    const allPushCalls = source.match(/execFileSync\(\s*'git'\s*,\s*\[[^\]]*'push'[^\]]*\]/g) ?? []
+    // forgets the flag, anywhere in fix-bot's orchestrator or its
+    // extracted helper.
+    const combined = `${source}\n${openSkipListPRSource}`
+    const allPushCalls = combined.match(/execFileSync\(\s*'git'\s*,\s*\[[^\]]*'push'[^\]]*\]/g) ?? []
     expect(allPushCalls.length).toBeGreaterThan(0)
     for (const call of allPushCalls) {
       expect(call, `git push missing --force-with-lease: ${call}`).toContain("'--force-with-lease'")
