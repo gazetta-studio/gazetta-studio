@@ -68,28 +68,6 @@
     },
     {
       "fingerprint": {
-        "kind": "dependency",
-        "path": "apps/admin/package.json",
-        "symbol": "primeicons"
-      },
-      "reason": "needs-human",
-      "reasonNote": "Knip is technically correct — no source file imports from the `primeicons` npm package — but the dependency encodes clear intent that needs a human design decision before removal. Evidence of intent: (1) `apps/admin/index.html` line 8 loads the PrimeIcons stylesheet via the unpkg CDN: `<link rel=\"stylesheet\" href=\"https://unpkg.com/primeicons/primeicons.css\">`; (2) the admin uses 131 `pi pi-*` PrimeIcons CSS class references across 35 Vue components (e.g. ComponentTree.vue 12, CmsToolbar.vue 11, AuditDrawer.vue 9, plus PreviewPanel/PublishPanel/DevPlayground/TemplateImpactPanel/ActiveTargetIndicator/PurgeBlockedModal each with 6-7). The dep at `^7.0.0` matches the unpkg CDN's served version; removing it loses the version-intent record (and the current CDN URL is unpinned, which is a separate latent issue). The right resolution is a refactor a human should choose: (a) delete the dep AND commit to CDN-only delivery (probably pinning the CDN URL to a version while at it), or (b) drop the unpkg `<link>` from index.html and add `import 'primeicons/primeicons.css'` in the client entry so the icons ship through Vite + the vite-plugin-pwa precache like the rest of the assets — path (b) is more consistent with the existing precache strategy (which currently misses the icon font + CSS). Either path is correct; neither is a 'bot deletes; doesn't redesign' move. Verified no other source references to `primeicons` exist beyond the CDN `<link>` and package.json/package-lock.json (the knip-parse.test.ts hits are test fixtures, not real consumers).",
-      "addedAt": "2026-06-13T00:00:00Z",
-      "addedBy": "bot"
-    },
-    {
-      "fingerprint": {
-        "kind": "devDependency",
-        "path": "packages/gazetta/package.json",
-        "symbol": "@vitejs/plugin-vue"
-      },
-      "reason": "needs-human",
-      "reasonNote": "Transitively-used build dep that knip's static analysis can't trace across workspaces. The `build:admin` script in packages/gazetta runs `vite build -c ../../apps/admin/vite.config.ts ...` from gazetta's cwd; that config file (apps/admin/vite.config.ts:4) imports `@vitejs/plugin-vue` and uses it as the SFC transform plugin. The dep is also declared in apps/admin/package.json's devDependencies, so under npm workspace hoisting it would still resolve from the hoisted root node_modules even if removed here (verified: the dep is hoisted to root node_modules/@vitejs/plugin-vue and packages/gazetta has no local copy). However, the declaration in gazetta deliberately mirrors `vite` itself in the same devDependencies block — both follow the pattern 'every workspace declares the deps its scripts need to run, even if hoisting would resolve them.' Removing only `@vitejs/plugin-vue` (while keeping `vite`) would break that symmetric pattern; removing both is a maintainer judgment call about whether to treat workspace hoisting as load-bearing for gazetta's prepublishOnly script (`npm run build && npm run build:admin`). The 'don't refactor' rule rules out adjusting both deps together as part of dead-code removal. Other references to `@vitejs/plugin-vue` in the repo (apps/admin/vite.config.ts, apps/admin/vitest.config.ts, .storybook/main.ts) resolve from their own locations and are unaffected.",
-      "addedAt": "2026-06-13T00:00:00Z",
-      "addedBy": "bot"
-    },
-    {
-      "fingerprint": {
         "kind": "type",
         "path": "packages/gazetta/src/cli/assets-display.ts",
         "symbol": "InfoVariantRow"
@@ -131,18 +109,18 @@
       "reasonNote": "The re-export sits inside a barrel file whose own top-of-module JSDoc explicitly documents this line as intent: 'Operator-facing factories (`sharpAdapter`, `cloudflareAdapter`) live in `factories.ts` and are re-exported below for the `gazetta/transforms` subpath.' Verified `./transforms` is NOT currently in `packages/gazetta/package.json`'s `exports` map (the map lists `.`, `./types`, `./format`, `./save-etag`, `./editor`, `./admin-api`, `./admin-api/schemas`, `./schema`, `./testing`, `./providers/*`, `./workers/*` — no `./transforms`). So today the operator-facing `sharpAdapter` is reachable via the main `gazetta` entry (`src/index.ts:116` re-exports it directly from `./transforms/factories.js`), and nothing consumes the `transforms/index.ts` re-export. Knip is correct that the specific re-export at `transforms/index.ts:20` is dead today, but the JSDoc comment records this as forward-scaffolding for the planned subpath. Same rationale applies symmetrically to `cloudflareAdapter` on the same line — if knip flags it in a future run, the maintainer should either (a) wire `./transforms` into `package.json`'s `exports` map so both factories earn their keep, or (b) delete both re-exports and update the top-of-module JSDoc — a coordinated refactor that's outside a 'bot deletes; doesn't redesign' run. Unilaterally deleting only `sharpAdapter` from the two-symbol re-export line would leave the file's own JSDoc header lying about which factories are re-exported for the subpath and would break the deliberate `sharpAdapter, cloudflareAdapter` parallelism (matching how they're named as a pair everywhere else in the codebase — `src/index.ts:116`, `src/transforms/factories.ts` sibling factories, `design-provider-config.md` operator examples always name both). Related surviving public paths verified: (1) `src/index.ts:116` re-exports `sharpAdapter, cloudflareAdapter` from `./transforms/factories.js` directly and IS the current supported public API path, (2) the same file also re-exports internal `createSharpAdapter`, `createCloudflareAdapter`, `defaultSharpAdapter`, `TransformAdapter`, `AssetUrlInput`, `CachePolicy` FROM `./transforms/index.js` (lines 120-127) — which is why the barrel itself is still valuable even if its `sharpAdapter`/`cloudflareAdapter` re-export line is currently unused.",
       "addedAt": "2026-07-11T00:00:00Z",
       "addedBy": "bot"
-    },
-    {
-      "fingerprint": {
-        "kind": "dependency",
-        "path": "packages/gazetta/package.json",
-        "symbol": "@floating-ui/dom"
-      },
-      "reason": "needs-human",
-      "reasonNote": "Defensive direct pin for a transitively-consumed runtime dep. No source file imports from `@floating-ui/dom` (verified via `grep -r 'from .@floating-ui'` — zero hits across ts/tsx/vue/js), but the package IS reachable at runtime through the tiptap chain: `packages/gazetta/src/editor/mount.tsx:8` imports `BubbleMenu` from `@tiptap/react/menus`, which loads `@tiptap/extension-bubble-menu` (declared as an **optional dependency** of `@tiptap/react` per node_modules/@tiptap/react/package.json's `optionalDependencies` block alongside `@tiptap/extension-floating-menu`), and that extension has `@floating-ui/dom` in its own `dependencies` (verified in package-lock.json line 7458 area). Because bubble-menu is an npm *optional* dep, its install may be skipped or degrade in stricter install environments — the direct pin in gazetta ensures `@floating-ui/dom` is always present at the top level regardless. Git history supports the defensive-pin reading: the dep was added in the same commit as the bubble-menu wiring (f3c0c09, 2026-04-11, 'Editor: add 12 input types with Tiptap rich text' — commit message explicitly says 'Rich text via Tiptap (toolbar, bubble menu, placeholder, structured output)') and hasn't been touched since except by dependabot bumps. Removing it is a design decision that needs a maintainer, not a mechanical delete: options are (a) keep the pin (belt-and-suspenders against optional-dep skips), (b) drop the pin and rely on npm's optional-dep resolution to bring `@floating-ui/dom` in transitively (works in every normal `npm install` but may not in `--omit=optional` / `NODE_ENV=production`-with-strict-installers scenarios), or (c) move the pin to `peerDependencies` if the intent was really 'ensure this version is used across the tree.' Precedent for this shape: `primeicons` (needs-human, 2026-06-13 — used only via CSS-class references in Vue components + a CDN link), `@vitejs/plugin-vue` (needs-human, 2026-06-13 — transitively used across workspaces). Both were skipped because knip's static import graph can't see indirect-consumption paths. The 'bot deletes; doesn't redesign' rule applies here — the right resolution is a package-shape decision, not a delete.",
-      "addedAt": "2026-08-29T00:00:00Z",
-      "addedBy": "bot"
     }
   ],
-  "rules": []
+  "rules": [
+    {
+      "rule": "workspace-package-json-deps-need-human-review",
+      "scope": "{apps/admin,packages/gazetta}/package.json",
+      "kinds": ["dependency", "devDependency"],
+      "reason": "needs-human",
+      "reasonNote": "Knip's static import graph can't trace three consumption paths for npm dependencies that recur in this monorepo's workspaces: (1) transitive consumption via optional-dep chains — e.g., @floating-ui/dom reaches runtime through @tiptap/react's optional peer @tiptap/extension-bubble-menu, and can silently disappear under `--omit=optional` or `NODE_ENV=production` strict installers; (2) cross-workspace resolution via npm workspace hoisting — e.g., @vitejs/plugin-vue declared in packages/gazetta so its `vite build -c ../../apps/admin/vite.config.ts` script works, resolved from the hoisted root node_modules and invisible to per-workspace import scans; (3) non-code consumption via CDN <link> tags plus CSS-class references — e.g., primeicons loaded from unpkg and used across 131 `pi pi-*` class references in Vue components, with the package.json declaration serving as the version-intent record. Mechanically removing a dep the bot flags in these workspaces could break runtime under stricter install modes, break cross-workspace build scripts that rely on hoisting, or erase version-intent for CDN-referenced packages. The correct resolution is always a maintainer design decision (keep the pin as belt-and-suspenders; drop it and rely on transitive/hoisted resolution; move to peerDependencies; restructure to a bundled import; etc.) — never a mechanical bot delete. This rule replaces three individually-authored skip-list entries with matching rationale: primeicons in apps/admin (added 2026-06-13), @vitejs/plugin-vue in packages/gazetta (added 2026-06-13), and @floating-ui/dom in packages/gazetta (added 2026-08-29). Scope is deliberately narrow (two seen workspaces only); dep findings that surface in tools/, bots/, sites/, or examples/ package.json files earn their own individual skip-list entry, and this rule can widen its scope if the pattern recurs there.",
+      "addedAt": "2026-09-07T08:06:38Z",
+      "addedBy": "bot",
+      "compactedFrom": 3
+    }
+  ]
 }
