@@ -11,17 +11,18 @@
  * from the current attempt. `resetToMain` only runs at attempt-loop entry,
  * so post-loop the working tree is NOT on clean main.
  *
- * Without a `resetToMain` at the top of `escalateToHuman`, the subsequent
- * `git checkout -b fix-bot-skip/<date>-issue-N` branches off `fix/issue-N`.
- * The skip-list PR then carries Agent A's failing test + attempted fix
- * commits alongside the skip-list update — muddying review + landing
- * unwanted commits on `main` if merged.
+ * Without resetting before `git checkout -b fix-bot-skip/<date>-issue-N`,
+ * the skip-list PR carries Agent A's failing test + attempted fix commits
+ * alongside the skip-list update — muddying review + landing unwanted
+ * commits on `main` if merged.
  *
- * Structural test in the same shape as `rate-limit-cascade-stop.test.ts`:
- * the invariant is ordering inside one function body, directly checkable
- * on source. Behavioral coverage (stubbing `execFileSync`) would require
- * mocking octokit + `writeSkipList` + fs with no proportional gain over
- * the ordering assertion.
+ * The 6-step git+gh pipeline was extracted into `openSkipListPR` (see
+ * `open-skip-list-pr.ts`) so the reset-first invariant lives in one
+ * place. `openSkipListPR`'s own tests
+ * (`open-skip-list-pr.test.ts`) assert the reset-first sequence
+ * behaviorally against stubbed execFileSync; the tests below assert
+ * that `escalateToHuman` routes through the helper AND forwards its
+ * own `branchName` param so the fix/issue-N branch gets cleaned up.
  */
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
@@ -45,26 +46,26 @@ describe('escalateToHuman — reset to main before branching skip-list PR', () =
     expect(source).toMatch(/async function escalateToHuman\(/)
   })
 
-  it('calls resetToMain before creating the fix-bot-skip branch', () => {
-    // The load-bearing assertion: reset happens BEFORE `git checkout -b
-    // fix-bot-skip/...` so the skip-list PR branches from clean main,
-    // not from Agent A's fix/issue-N branch with the failing test +
-    // attempted fix commits.
+  it('routes through openSkipListPR (which owns the reset-first sequence)', () => {
+    // The reset-first invariant lives in the extracted helper. Verify
+    // escalateToHuman actually invokes it — otherwise the extraction
+    // would ship as dead code and the inline 6-step pipeline would
+    // still be duplicated (rule 18 SRP violation unaddressed).
     const body = escalateBody()
-    const resetIdx = body.search(/resetToMain\s*\(/)
-    const checkoutBIdx = body.search(/['"]checkout['"]\s*,\s*['"]-b['"]\s*,\s*skipBranch/)
-    expect(resetIdx, 'resetToMain call must exist inside escalateToHuman').toBeGreaterThan(-1)
-    expect(checkoutBIdx, 'git checkout -b skipBranch must exist inside escalateToHuman').toBeGreaterThan(-1)
-    expect(resetIdx).toBeLessThan(checkoutBIdx)
+    expect(body).toMatch(/openSkipListPR\s*\(/)
   })
 
-  it('resets to main using the branch name in scope (not a hardcoded string)', () => {
+  it('forwards branchName to openSkipListPR so fix/issue-N gets cleaned up', () => {
     // The reset must clean up whatever branch this attempt used. The
     // orchestrator passes the issue-specific `branchName` (e.g. fix/issue-42)
-    // in as a parameter; escalateToHuman must forward it so the branch
-    // gets deleted along with the reset. Hardcoding 'main' or a made-up
-    // name would leave fix/issue-N behind for the next cron.
+    // in as a parameter; escalateToHuman must forward it via
+    // openSkipListPR's `branchName` option so the branch gets deleted
+    // along with the reset. Hardcoding 'main' or a made-up name would
+    // leave fix/issue-N behind for the next cron.
     const body = escalateBody()
-    expect(body).toMatch(/resetToMain\s*\(\s*branchName\s*,/)
+    // Match the shorthand property syntax `branchName,` (or `branchName`
+    // followed by newline/whitespace + closing `}`) inside the
+    // openSkipListPR call's options object.
+    expect(body).toMatch(/openSkipListPR\s*\(\s*\{[\s\S]*?\bbranchName\b\s*[,\n}]/)
   })
 })

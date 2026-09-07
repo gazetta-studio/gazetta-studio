@@ -17,19 +17,15 @@
  * same invariant for `escalateToHuman`; `openPastPRSkipListPR` has the
  * exact same shape and was missed at the time.
  *
- * Fix has two parts:
- *   1. Add `resetToMain` at the top of `openPastPRSkipListPR` (site
- *      fix — mirrors the escalateToHuman fix).
- *   2. Add `resetToMain` in main()'s outer for-loop between candidates
- *      so HEAD is deterministic entering each `fixOneIssue`. This
- *      closes the class at the entry point rather than depending on
- *      each internal branch-creating site to reset.
- *
- * Structural test in the same shape as
- * `escalate-to-human-reset.test.ts`: ordering invariants inside
- * function bodies, directly checkable on source. Behavioral coverage
- * (stubbing `execFileSync` + octokit + fs) would require heavy mocking
- * with no proportional gain over the ordering assertion.
+ * The 6-step git+gh pipeline was extracted into `openSkipListPR` (see
+ * `open-skip-list-pr.ts`) so the reset-first sequence lives in one
+ * place. `openSkipListPR`'s own behavioral tests
+ * (`open-skip-list-pr.test.ts`) assert the reset-first ordering
+ * against stubbed execFileSync; the tests below verify that
+ * `openPastPRSkipListPR` routes through the helper AND passes a
+ * branchName derived from issueNumber so the fix/issue-N branch gets
+ * cleaned up. `main`'s outer-loop reset (added alongside the original
+ * fix) still lives inline and stays pinned here.
  */
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
@@ -57,28 +53,50 @@ describe('openPastPRSkipListPR — reset to main before branching skip-list PR',
     expect(source).toMatch(/async function openPastPRSkipListPR\(/)
   })
 
-  it('calls resetToMain before creating the fix-bot-skip branch', () => {
-    // The load-bearing assertion: reset happens BEFORE `git checkout -b
-    // skipBranch` so the skip-list PR branches from clean main, not from
-    // a prior candidate's `fix/issue-M` with unrelated fix commits.
+  it('routes through openSkipListPR (which owns the reset-first sequence)', () => {
+    // The reset-first invariant lives in the extracted helper. Verify
+    // openPastPRSkipListPR actually invokes it — otherwise the
+    // extraction would ship as dead code and the inline 6-step
+    // pipeline would still be duplicated (rule 18 SRP violation).
     const body = openPastPRSkipListPRBody()
-    const resetIdx = body.search(/resetToMain\s*\(/)
-    const checkoutBIdx = body.search(/['"]checkout['"]\s*,\s*['"]-b['"]\s*,\s*skipBranch/)
-    expect(resetIdx, 'resetToMain call must exist inside openPastPRSkipListPR').toBeGreaterThan(-1)
-    expect(checkoutBIdx, 'git checkout -b skipBranch must exist inside openPastPRSkipListPR').toBeGreaterThan(-1)
-    expect(resetIdx).toBeLessThan(checkoutBIdx)
+    expect(body).toMatch(/openSkipListPR\s*\(/)
   })
 
-  it('resets using a branch name derived from issueNumber (not a hardcoded string)', () => {
-    // The function only receives `issueNumber` in its signature; the fix
-    // should derive the in-flight branch name (`fix/issue-<N>`) from it
-    // so any stale local branch of that name gets cleaned up by
-    // resetToMain's `branch -D` step. Hardcoding 'main' or some other
-    // literal would leave fix/issue-N behind for the next cron.
+  it('passes a branchName derived from issueNumber to openSkipListPR', () => {
+    // The function only receives `issueNumber` in its signature; the
+    // caller must construct the in-flight branch name (`fix/issue-<N>`)
+    // from it and pass it to openSkipListPR so the helper's reset step
+    // cleans up any stale local branch of that name. Hardcoding 'main'
+    // or some other literal would leave fix/issue-N behind for the
+    // next cron.
     const body = openPastPRSkipListPRBody()
-    const resetMatch = body.match(/resetToMain\s*\(\s*([^,]+),/)
-    expect(resetMatch, 'resetToMain call must accept a branch-name argument').not.toBeNull()
-    expect(resetMatch![1]).toMatch(/issueNumber/)
+    // Match a branchName option that references issueNumber (allowing
+    // template-literal syntax `fix/issue-${issueNumber}` OR any
+    // expression that names `issueNumber`).
+    expect(body).toMatch(/branchName\s*:\s*[^,\n]*issueNumber/)
+  })
+})
+
+describe('main() candidate loop — reset between candidates', () => {
+  it('calls resetToMain inside the for-of candidate loop before invoking fixOneIssue', () => {
+    // Closes the class of "HEAD dirty entering fixOneIssue" bugs at the
+    // entry point. Without this, any future function called BEFORE the
+    // attempt-loop's own resetToMain (line ~396) that branches from HEAD
+    // repeats the class of bug `openPastPRSkipListPR` just had.
+    //
+    // Note: main() also has a manual-one-issue-mode call to fixOneIssue
+    // that short-circuits before the loop. This test asserts the reset
+    // exists WITHIN the for-of loop (search relative to the for-of
+    // position, not from the top of main()).
+    const body = mainBody()
+    const forOfIdx = body.search(/for\s*\(\s*const\s+candidate\s+of\s+candidates\s*\)/)
+    expect(forOfIdx, 'for-of loop over candidates must exist in main').toBeGreaterThan(-1)
+    const bodyAfterForOf = body.slice(forOfIdx)
+    const resetIdx = bodyAfterForOf.search(/resetToMain\s*\(/)
+    const fixOneCallIdx = bodyAfterForOf.search(/fixOneIssue\s*\(/)
+    expect(resetIdx, 'resetToMain call must exist inside the candidate for-of loop').toBeGreaterThan(-1)
+    expect(fixOneCallIdx, 'fixOneIssue call must exist inside the candidate for-of loop').toBeGreaterThan(-1)
+    expect(resetIdx).toBeLessThan(fixOneCallIdx)
   })
 })
 
