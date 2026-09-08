@@ -88,6 +88,17 @@
       "addedBy": "bot",
       "reason": "stuck",
       "reasonNote": "The candidate's premise is correct — lines 287 (`mkdirSync(tempDir, ...)` after `mkdtempSync` in `beforeEach`) and 289 (first `writeSkipList` immediately overwritten by line 292) are genuinely dead. However, neither Agent-A recipe fits this shape. The `coverage-shape` recipe's scope-guard explicitly restricts it to coverage-gap summaries; this candidate describes dead setup lines in a passing test. The `tdd-first` recipe requires a defect to test-drive, which doesn't exist here (removing dead lines is a no-behavior-change refactor). Per agent-a.md's \"recipe truly doesn't fit → STUCK, not let-me-try-the-other-recipe.\" Recommended maintainer action: apply the four-line deletion during the next Boy-Scout pass through `bots/dead-code-watcher/tests/skip-list.test.ts` (per team-preferences rule 19), or add the candidate to a skip-list entry so future audit-area passes don't re-surface it as bot-actionable. If a `mechanical-cleanup` recipe is ever added (single-commit, no-behavior-change diff, verify tests still pass, no counterfactual required), this candidate would fit it cleanly — but scoping and shipping that recipe is bigger than one candidate."
+    },
+    {
+      "fingerprint": {
+        "area": "bots/fix-bot/tests/failure-diagnostic.test.ts",
+        "type": "tests",
+        "rule": "team-preferences.md#26"
+      },
+      "addedAt": "2026-09-08T09:05:54.318Z",
+      "addedBy": "bot",
+      "reason": "stuck",
+      "reasonNote": "The coverage-shape recipe explicitly excludes isolation-broken candidates in its opening \"Not for\" clause — \"isolation-broken → fits tdd-first, not coverage-shape.\" This candidate is exactly that shape: an existing test at `bots/fix-bot/tests/failure-diagnostic.test.ts:47-52` leaks a `${tmpdir()}/empty-${Date.now()}.jsonl` file each run, and the cited rule (`team-preferences.md#26`) is the isolation-paranoia rule the recipe points at when redirecting to tdd-first. The `suggested_action` is a hygiene refactor (swap `resolve(tmpdir(), ...)` + `writeFileSync` for the established `mkdtempSync`/`beforeEach`/`afterEach rmSync` pattern used by three sibling tests in the same directory) — not new coverage. Forcing coverage-shape here would produce either a tautological \"assert no leaked file\" test that doesn't fix the leak, or STUCK from the recipe's own tautology gate. Maintainer action: re-route this candidate to the `tdd-first` recipe (where a failing test that pins \"no file remains at that path after the case runs\" + the mkdtemp fix + revert-check maps cleanly to the tdd-first contract), or apply the ~10-LOC hygiene refactor directly outside the review-bot loop given how narrowly scoped and mechanical it is."
     }
   ],
   "rules": []
