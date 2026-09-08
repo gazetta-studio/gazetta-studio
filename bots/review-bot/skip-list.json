@@ -110,6 +110,17 @@
       "addedBy": "bot",
       "reason": "stuck",
       "reasonNote": "Tooling/architecture change (delete regex-over-source tests, add ESLint no-restricted-syntax rule) fitting neither coverage-shape nor tdd-first; would introduce ESLint contradicting the documented linter-disabled decision (.claude/rules/node/conventions.md + biome.json). Maintainer: accept file-content tests as sufficient, revisit linter-disabled as its own design pass, or extract a gitPush(args) helper into bots/_lib requiring --force-with-lease at the type level."
+    },
+    {
+      "fingerprint": {
+        "area": "bots/fix-bot/tests/failure-diagnostic.test.ts",
+        "type": "tests",
+        "rule": "team-preferences.md#26"
+      },
+      "addedAt": "2026-09-11T09:00:00.000Z",
+      "addedBy": "bot",
+      "reason": "stuck",
+      "reasonNote": "coverage-shape recipe excludes isolation-broken candidates (Not for clause: isolation-broken fits tdd-first, not coverage-shape). failure-diagnostic.test.ts:47-52 leaks a ${tmpdir()}/empty-${Date.now()}.jsonl per run (rule #26 isolation-paranoia). suggested_action is a hygiene refactor (swap resolve(tmpdir())+writeFileSync for the mkdtempSync/beforeEach/afterEach rmSync pattern), not new coverage. Maintainer: re-route to tdd-first, or apply the ~10-LOC hygiene refactor directly. Would fit a future mechanical-cleanup recipe (#729)."
     }
   ],
   "rules": []
