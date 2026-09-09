@@ -35,21 +35,18 @@ import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { extractFunctionBody } from './_helpers/source-scan.ts'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const INDEX_PATH = resolve(HERE, '..', 'index.ts')
 const source = readFileSync(INDEX_PATH, 'utf-8')
 
 function openPastPRSkipListPRBody(): string {
-  const match = source.match(/async function openPastPRSkipListPR\([\s\S]+?\n\}\n/)
-  if (!match) throw new Error('openPastPRSkipListPR function not found in source')
-  return match[0]
+  return extractFunctionBody(source, 'openPastPRSkipListPR')
 }
 
 function mainBody(): string {
-  const match = source.match(/async function main\(\)[\s\S]+?\n\}\n/)
-  if (!match) throw new Error('main function not found in source')
-  return match[0]
+  return extractFunctionBody(source, 'main')
 }
 
 describe('openPastPRSkipListPR — reset to main before branching skip-list PR', () => {
