@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { extractFunctionBody } from './_helpers/source-scan.ts'
 
 // Pins that every `git push` in fix-bot's orchestrator uses
 // `--force-with-lease`. Symmetric-bot audit per team-preferences rule
@@ -29,37 +30,6 @@ const INDEX_PATH = resolve(HERE, '..', 'index.ts')
 const OPEN_SKIP_LIST_PR_PATH = resolve(HERE, '..', 'open-skip-list-pr.ts')
 const source = readFileSync(INDEX_PATH, 'utf-8')
 const openSkipListPRSource = readFileSync(OPEN_SKIP_LIST_PR_PATH, 'utf-8')
-
-/** Extracts the body of a top-level function or async function by name. */
-function extractFunctionBody(src: string, name: string): string {
-  const decl = new RegExp(String.raw`(?:async\s+)?function\s+${name}\s*\(`)
-  const match = decl.exec(src)
-  if (!match) throw new Error(`function ${name} not found in index.ts`)
-  const openParen = src.indexOf('(', match.index)
-  // Skip past the parameter list to the function's opening brace
-  let depth = 0
-  let i = openParen
-  for (; i < src.length; i++) {
-    if (src[i] === '(') depth++
-    else if (src[i] === ')') {
-      depth--
-      if (depth === 0) {
-        i++
-        break
-      }
-    }
-  }
-  const bodyStart = src.indexOf('{', i)
-  depth = 0
-  for (let j = bodyStart; j < src.length; j++) {
-    if (src[j] === '{') depth++
-    else if (src[j] === '}') {
-      depth--
-      if (depth === 0) return src.slice(bodyStart, j + 1)
-    }
-  }
-  throw new Error(`could not extract body of ${name}`)
-}
 
 describe('fix-bot git push uses --force-with-lease', () => {
   it('pushBranch() pushes with --force-with-lease', () => {
