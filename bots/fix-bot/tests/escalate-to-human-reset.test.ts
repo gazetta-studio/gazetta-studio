@@ -27,17 +27,16 @@ import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { extractFunctionBody } from './_helpers/source-scan.ts'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const INDEX_PATH = resolve(HERE, '..', 'index.ts')
 const source = readFileSync(INDEX_PATH, 'utf-8')
 
 function escalateBody(): string {
-  // Grab from `async function escalateToHuman(` up to the closing brace
-  // at column 0 that ends the function.
-  const match = source.match(/async function escalateToHuman\([\s\S]+?\n\}\n/)
-  if (!match) throw new Error('escalateToHuman function not found in source')
-  return match[0]
+  // Brace-depth extraction (shared helper) — survives biome reformat
+  // + refactors that indent the outer `}`.
+  return extractFunctionBody(source, 'escalateToHuman')
 }
 
 describe('escalateToHuman — reset to main before branching skip-list PR', () => {
