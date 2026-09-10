@@ -88,6 +88,17 @@
       "addedBy": "bot",
       "reason": "stuck",
       "reasonNote": "The candidate's premise is correct — lines 287 (`mkdirSync(tempDir, ...)` after `mkdtempSync` in `beforeEach`) and 289 (first `writeSkipList` immediately overwritten by line 292) are genuinely dead. However, neither Agent-A recipe fits this shape. The `coverage-shape` recipe's scope-guard explicitly restricts it to coverage-gap summaries; this candidate describes dead setup lines in a passing test. The `tdd-first` recipe requires a defect to test-drive, which doesn't exist here (removing dead lines is a no-behavior-change refactor). Per agent-a.md's \"recipe truly doesn't fit → STUCK, not let-me-try-the-other-recipe.\" Recommended maintainer action: apply the four-line deletion during the next Boy-Scout pass through `bots/dead-code-watcher/tests/skip-list.test.ts` (per team-preferences rule 19), or add the candidate to a skip-list entry so future audit-area passes don't re-surface it as bot-actionable. If a `mechanical-cleanup` recipe is ever added (single-commit, no-behavior-change diff, verify tests still pass, no counterfactual required), this candidate would fit it cleanly — but scoping and shipping that recipe is bigger than one candidate."
+    },
+    {
+      "fingerprint": {
+        "area": "bots/fix-bot/tests/failure-diagnostic.test.ts",
+        "type": "tests",
+        "rule": "team-preferences.md#26"
+      },
+      "addedAt": "2026-09-10T09:11:54.629Z",
+      "addedBy": "bot",
+      "reason": "stuck",
+      "reasonNote": "The candidate correctly identifies a real rule-26 test-isolation violation at `bots/fix-bot/tests/failure-diagnostic.test.ts:47-52` (unbounded `Date.now()` tempfile with no cleanup), and the sibling pattern it cites (`mkdtempSync` + `beforeEach`/`afterEach` in `compact-helpers.test.ts:29-36`) is the correct target shape. However, the `coverage-shape` recipe explicitly excludes \"isolation-broken\" test-quality candidates in its \"Not for\" clause, deferring them to `tdd-first`. `tdd-first` doesn't fit either: the existing test passes, and there is no runtime failure the fix would turn green — the compliance issue is grep-visible, not test-visible. A synthetic \"assert no `Date.now()` in source\" failing test would be theater, not a real anti-tautology bar. This is fundamentally a **refactor-shape cut** (per team-preferences rule 40: rule-26 non-compliance IS the bug). Recommended maintainer action: (a) apply the ~15-line refactor directly (hoist `mkdtempSync` into `beforeEach`, mirror `compact-helpers.test.ts:29-36`, add `afterEach` cleanup), OR (b) route via fix-bot with a `bug + ready-for-agent` label pointing to the rule-26 violation, OR (c) extend `recipe-select.ts` with a `refactor-shape` recipe for compliance cuts and re-route this candidate on a future audit run."
     }
   ],
   "rules": []
