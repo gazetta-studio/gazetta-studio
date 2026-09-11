@@ -88,6 +88,17 @@
       "addedBy": "bot",
       "reason": "stuck",
       "reasonNote": "The candidate's premise is correct — lines 287 (`mkdirSync(tempDir, ...)` after `mkdtempSync` in `beforeEach`) and 289 (first `writeSkipList` immediately overwritten by line 292) are genuinely dead. However, neither Agent-A recipe fits this shape. The `coverage-shape` recipe's scope-guard explicitly restricts it to coverage-gap summaries; this candidate describes dead setup lines in a passing test. The `tdd-first` recipe requires a defect to test-drive, which doesn't exist here (removing dead lines is a no-behavior-change refactor). Per agent-a.md's \"recipe truly doesn't fit → STUCK, not let-me-try-the-other-recipe.\" Recommended maintainer action: apply the four-line deletion during the next Boy-Scout pass through `bots/dead-code-watcher/tests/skip-list.test.ts` (per team-preferences rule 19), or add the candidate to a skip-list entry so future audit-area passes don't re-surface it as bot-actionable. If a `mechanical-cleanup` recipe is ever added (single-commit, no-behavior-change diff, verify tests still pass, no counterfactual required), this candidate would fit it cleanly — but scoping and shipping that recipe is bigger than one candidate."
+    },
+    {
+      "fingerprint": {
+        "area": "bots/fix-bot/tests/",
+        "type": "tests",
+        "rule": "team-preferences.md#15"
+      },
+      "addedAt": "2026-09-11T09:08:49.882Z",
+      "addedBy": "bot",
+      "reason": "stuck",
+      "reasonNote": "This is a code-quality/DRY refactor (rule-15 extract-at-3-callers), not a coverage gap. Coverage-shape requires a missing test to fill; the three existing tests at `bots/fix-bot/tests/{push-force-with-lease,escalate-to-human-reset,past-pr-skip-list-reset}.test.ts` already cover their invariants correctly. The load-bearing work is (a) creating a shared helper and (b) migrating two call sites off a fragile `/[\\s\\S]+?\\n\\}\\n/` regex onto brace-counting — neither adds or removes behavioral coverage. Per team-preferences rule 40, the correct routing is fix-bot's `bug + ready-for-agent` queue with a structural TDD contract: failing test asserts exactly one `extractFunctionBody` definition exists in the shared module + the three test files import from it; passing state confirms the extraction completed. Recommendation to the maintainer: relabel/refile as a fix-bot `bug` candidate targeting `bots/_lib/test-source-inspect.ts` (preferred over `bots/fix-bot/tests/_helpers/` since the helper is generalizable — future bots reading their own `index.ts` in tests will want it too), OR hand-migrate the extraction directly. The fragile-regex concern is genuine (the summary's brittleness claim holds — a nested function whose closing brace lands at column 0 before the outer function's would break `/[\\s\\S]+?\\n\\}\\n/`), so this candidate should not be dropped from the skip-list as \"won't fix\"; it should be re-routed."
     }
   ],
   "rules": []
