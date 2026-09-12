@@ -38,7 +38,7 @@ import type { TargetConfig } from '../types.js'
  * need capability-gap UX (presence, RBAC content filtering, dynamic
  * fragments, etc.).
  */
-export type RuntimeCapability =
+type RuntimeCapability =
   /** Worker reads HTML markers and emits `301 → aliasOf` for archived items. */
   | 'redirects'
   /** Worker emits `410 Gone` for archived-no-alias items. */
