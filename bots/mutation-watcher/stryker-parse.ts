@@ -78,7 +78,7 @@ interface StrykerReport {
  * One actionable mutant, projected from Stryker's shape into the slim
  * shape Claude will see in the prompt.
  */
-export interface ActionableMutant {
+interface ActionableMutant {
   mutator: string
   status: ActionableStatus
   /** Line range in the source file. */
