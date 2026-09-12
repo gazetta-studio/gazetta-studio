@@ -12,7 +12,7 @@ interface RootSelection {
 }
 
 /** User clicked an inline component — opens its editor. */
-export interface ComponentSelection {
+interface ComponentSelection {
   kind: 'component'
   /** Component path within the page/fragment, e.g. "hero" or "features/fast". */
   path: string
