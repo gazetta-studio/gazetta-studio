@@ -99,6 +99,17 @@
       "addedBy": "bot",
       "reason": "stuck",
       "reasonNote": "This is a code-quality/DRY refactor (rule-15 extract-at-3-callers), not a coverage gap. Coverage-shape requires a missing test to fill; the three existing tests at `bots/fix-bot/tests/{push-force-with-lease,escalate-to-human-reset,past-pr-skip-list-reset}.test.ts` already cover their invariants correctly. The load-bearing work is (a) creating a shared helper and (b) migrating two call sites off a fragile `/[\\s\\S]+?\\n\\}\\n/` regex onto brace-counting — neither adds or removes behavioral coverage. Per team-preferences rule 40, the correct routing is fix-bot's `bug + ready-for-agent` queue with a structural TDD contract: failing test asserts exactly one `extractFunctionBody` definition exists in the shared module + the three test files import from it; passing state confirms the extraction completed. Recommendation to the maintainer: relabel/refile as a fix-bot `bug` candidate targeting `bots/_lib/test-source-inspect.ts` (preferred over `bots/fix-bot/tests/_helpers/` since the helper is generalizable — future bots reading their own `index.ts` in tests will want it too), OR hand-migrate the extraction directly. The fragile-regex concern is genuine (the summary's brittleness claim holds — a nested function whose closing brace lands at column 0 before the outer function's would break `/[\\s\\S]+?\\n\\}\\n/`), so this candidate should not be dropped from the skip-list as \"won't fix\"; it should be re-routed."
+    },
+    {
+      "fingerprint": {
+        "area": "bots/fix-bot/tests/push-force-with-lease.test.ts",
+        "type": "tests",
+        "rule": "team-preferences.md#41"
+      },
+      "addedAt": "2026-09-12T08:50:41.643Z",
+      "addedBy": "bot",
+      "reason": "stuck",
+      "reasonNote": "Tooling/architecture change (delete regex-over-source tests, add ESLint no-restricted-syntax rule) fitting neither coverage-shape nor tdd-first; would introduce ESLint contradicting the documented linter-disabled decision (.claude/rules/node/conventions.md + biome.json). Maintainer: accept file-content tests as sufficient, revisit linter-disabled as its own design pass, or extract a gitPush(args) helper into bots/_lib requiring --force-with-lease at the type level."
     }
   ],
   "rules": []
