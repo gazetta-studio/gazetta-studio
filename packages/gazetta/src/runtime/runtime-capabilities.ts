@@ -45,7 +45,7 @@ export type RuntimeCapability =
   | 'gone-status'
 
 /** Reason a capability is missing — surfaces in audit + author UI. */
-export interface CapabilityGap {
+interface CapabilityGap {
   capability: RuntimeCapability
   /** Human-readable reason; surfaces in author modals + audit logs. */
   reason: string
