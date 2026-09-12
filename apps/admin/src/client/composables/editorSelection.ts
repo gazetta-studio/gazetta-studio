@@ -32,7 +32,7 @@ export interface FragmentLinkSelection {
 }
 
 /** User clicked a fragment root when already on a fragment page — opens it for editing. */
-export interface FragmentEditSelection {
+interface FragmentEditSelection {
   kind: 'fragmentEdit'
   /** Fragment name, e.g. "header". */
   fragmentName: string
