@@ -121,6 +121,17 @@
       "addedBy": "bot",
       "reason": "stuck",
       "reasonNote": "coverage-shape recipe excludes isolation-broken candidates (Not for clause: isolation-broken fits tdd-first, not coverage-shape). failure-diagnostic.test.ts:47-52 leaks a ${tmpdir()}/empty-${Date.now()}.jsonl per run (rule #26 isolation-paranoia). suggested_action is a hygiene refactor (swap resolve(tmpdir())+writeFileSync for the mkdtempSync/beforeEach/afterEach rmSync pattern), not new coverage. Maintainer: re-route to tdd-first, or apply the ~10-LOC hygiene refactor directly. Would fit a future mechanical-cleanup recipe (#729)."
+    },
+    {
+      "fingerprint": {
+        "area": "bots/fix-bot/tests/",
+        "type": "tests",
+        "rule": "testing-plan.md#shape-per-sub-system"
+      },
+      "addedAt": "2026-09-13T09:56:10.129Z",
+      "addedBy": "bot",
+      "reason": "stuck",
+      "reasonNote": "The candidate asks for behavioral coverage of the 5 verdict branches of `fixOneIssue` (bots/fix-bot/index.ts:257) via mocked octokit + mocked `runClaude` + stubbed `execFileSync`. This shape doesn't survive the coverage-shape recipe's anti-tautology gate. Four reasons: (1) `fixOneIssue` is not exported and has no public surface distinct from its 360-line body — the recipe's step-2 discipline (\"Read the SUT's public surface. Do NOT read the SUT's implementation while authoring assertions\") can't apply because every assertion would be derived from reading the implementation. (2) Four critical branches (`pushBranch`, `openFixPR`, `escalateToHuman`, `postFailureComment`) call file-internal helpers that can't be mocked from outside the module; tests would assert on `execFileSync` args like `['gh', 'pr', 'create', ...]`, pinning the implementation choice (`gh` CLI vs `octokit.pulls.create`) rather than the observable behavior (PR exists). (3) Non-trivial counterfactuals for the 5 verdict tests exist but only survive *deletions*, not *refactors* — a behavior-preserving change (inline `openFixPR`; swap `execFileSync` → `octokit.pulls.create`) breaks every one of the 5 tests. The recipe's review-tests skill flags this class as CRITICAL under \"behavioral vs implementation-coupled.\" (4) Feature-bot solved the same problem via extraction, not mocking: `bots/feature-bot/route-attempt.ts` is a pure `routeAttemptOutcome(outcome, ctx): RouteDecision` function tested with zero mocks in `bots/feature-bot/tests/escalation.test.ts`. Fix-bot has no equivalent `route-attempt.ts` — the routing is inline in `fixOneIssue`. This is a rule 38 symmetric-audit gap. Recommend maintainer refile as an **`architecture` candidate**: \"Extract fix-bot's generator-critic routing into a pure `bots/fix-bot/route-attempt.ts` module mirroring feature-bot's per rule 38 symmetric-bot audit; verdict-branch tests follow trivially in `route-attempt.test.ts` with typed inputs and zero mocks.\" The `tests`-flavored candidate on the current inline SUT shape would produce wire-verification tests that pin implementation over behavior. The existing `rate-limit-cascade-stop.test.ts` (source-regex smoke) is the honest coverage shape for the current SUT and was the maintainer's deliberate choice given the un-extracted structure."
     }
   ],
   "rules": []
