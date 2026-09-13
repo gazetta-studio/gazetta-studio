@@ -5,7 +5,13 @@ services:
   # hit "port already in use". Tests discover the actual host port via
   # `DockerComposeEnvironment.getContainer(...).getMappedPort(...)`.
   azurite:
-    image: mcr.microsoft.com/azure-storage/azurite
+    # Pinned for reproducible CI pulls (verified latest stable on mcr,
+    # 2026-09). minio below stays unpinned because the Docker Hub tag
+    # API is not reachable from every build environment to verify a
+    # specific RELEASE.* datestamp; the CI pre-pull-with-retry step
+    # (.github/workflows/ci.yml `admin` job) is what protects both
+    # images from transient registry denials — see #481.
+    image: mcr.microsoft.com/azure-storage/azurite:3.37.0
     command: azurite --skipApiVersionCheck --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0
     ports:
       - "10000"
@@ -13,7 +19,13 @@ services:
       - "10002"
 
   minio:
-    image: minio/minio
+    # Pulled from quay.io (MinIO's own registry), NOT Docker Hub: Docker
+    # Hub gates anonymous pulls of `minio/minio` (`pull access denied ...
+    # may require docker login`), which was the real #481 flake — it failed
+    # whenever the shared-runner anonymous-pull quota was spent. quay.io
+    # serves the same image without anonymous gating. Pinned to the latest
+    # verified stable RELEASE tag (quay tag API, 2026-09).
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z.hotfix.7aa24e772
     command: server /data --console-address ":9001"
     ports:
       - "9000"

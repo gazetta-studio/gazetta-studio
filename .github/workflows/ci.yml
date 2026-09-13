@@ -63,6 +63,35 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build -w packages/gazetta
+      # Pre-pull the testcontainers images BEFORE the tests run.
+      # tests/docker.test.ts brings up MinIO + Azurite via testcontainers,
+      # whose default pull policy is pull-if-absent — so once these images
+      # are local, `.up()` performs no pull at test time.
+      #
+      # The #481 root cause was NOT a transient: Docker Hub now gates
+      # anonymous pulls of `minio/minio` (deterministic `pull access denied`,
+      # failed all retries identically). The fix is pulling MinIO from
+      # quay.io (MinIO's own registry, no anonymous gating) — see
+      # docker-compose.yml. The retry loop here is defense against GENUINE
+      # transient network blips on either image, not the #481 fix.
+      #
+      # Image refs MUST match docker-compose.yml verbatim so the pulled
+      # images satisfy testcontainers' pull-if-absent check.
+      - name: Pre-pull testcontainers images (retry)
+        run: |
+          for image in mcr.microsoft.com/azure-storage/azurite:3.37.0 quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z.hotfix.7aa24e772; do
+            for attempt in 1 2 3; do
+              if docker pull "$image"; then
+                break
+              fi
+              if [ "$attempt" -eq 3 ]; then
+                echo "::error::failed to pull $image after 3 attempts"
+                exit 1
+              fi
+              echo "pull of $image failed (attempt $attempt/3); retrying in $((attempt * 5))s"
+              sleep $((attempt * 5))
+            done
+          done
       - run: npm test -w @gazetta/admin
 
   bots:
