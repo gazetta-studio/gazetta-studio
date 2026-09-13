@@ -616,14 +616,6 @@ function recordSkipListEntry(
 }
 
 /**
- * Extract the last assistant text block from a JSONL transcript.
- * Used to grab Agent A's summary or Agent B's verdict line.
- *
- * Returns empty string when no text block exists or the file can't
- * be read.
- */
-
-/**
  * Open a tiny PR containing just the skip-list update for a
  * maintainer-rejected finding. The PR is sent as a draft so the
  * maintainer doesn't get pinged for re-review; the goal is to commit
