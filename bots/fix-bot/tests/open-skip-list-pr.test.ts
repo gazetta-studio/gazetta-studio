@@ -129,11 +129,7 @@ describe('openSkipListPR (extracted 6-step pipeline)', () => {
 
     // Step 6: commit -m <message>.
     expect(mockExec.mock.calls[6][0]).toBe('git')
-    expect(mockExec.mock.calls[6][1]).toEqual([
-      'commit',
-      '-m',
-      'chore(skip-list): record needs-human for #42',
-    ])
+    expect(mockExec.mock.calls[6][1]).toEqual(['commit', '-m', 'chore(skip-list): record needs-human for #42'])
 
     // Step 7: push -u --force-with-lease origin <skipBranch>. The
     // --force-with-lease flag is load-bearing (see
@@ -210,11 +206,7 @@ describe('openSkipListPR (extracted 6-step pipeline)', () => {
     // The checkout -b for the skip-list branch must come AFTER
     // resetToMain's four calls — i.e. at index 4 or later.
     const checkoutBIdx = mockExec.mock.calls.findIndex(
-      ([bin, args]) =>
-        bin === 'git' &&
-        Array.isArray(args) &&
-        args[0] === 'checkout' &&
-        args[1] === '-b',
+      ([bin, args]) => bin === 'git' && Array.isArray(args) && args[0] === 'checkout' && args[1] === '-b',
     )
     expect(checkoutBIdx).toBeGreaterThanOrEqual(4)
 
@@ -233,9 +225,7 @@ describe('index.ts routes both callers through openSkipListPR', () => {
   const source = readFileSync(INDEX_PATH, 'utf-8')
 
   it('imports openSkipListPR from ./open-skip-list-pr', () => {
-    expect(source).toMatch(
-      /import\s+\{[^}]*openSkipListPR[^}]*\}\s+from\s+['"]\.\/open-skip-list-pr/,
-    )
+    expect(source).toMatch(/import\s+\{[^}]*openSkipListPR[^}]*\}\s+from\s+['"]\.\/open-skip-list-pr/)
   })
 
   it('escalateToHuman body invokes openSkipListPR', () => {
