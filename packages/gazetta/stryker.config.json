@@ -28,7 +28,8 @@
     "src/ai/adapter-scaffold.ts",
     "src/admin-api/source-context.ts",
     "src/pages/create.ts",
-    "src/publish-renderers.ts"
+    "src/publish-renderers.ts",
+    "src/fragments/create.ts"
   ],
   "thresholds": {
     "high": 80,
