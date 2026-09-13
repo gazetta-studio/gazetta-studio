@@ -66,11 +66,10 @@ export function openSkipListPR(opts: OpenSkipListPROptions): void {
       cwd: opts.cwd,
       stdio: 'inherit',
     })
-    execFileSync(
-      'gh',
-      ['pr', 'create', '--draft', '--title', opts.prTitle, '--body', opts.prBody],
-      { cwd: opts.cwd, stdio: 'inherit' },
-    )
+    execFileSync('gh', ['pr', 'create', '--draft', '--title', opts.prTitle, '--body', opts.prBody], {
+      cwd: opts.cwd,
+      stdio: 'inherit',
+    })
     printNotice(`Opened skip-list-entry PR for #${opts.issueNumber}${suffix}`)
   } catch (err) {
     printWarning(`Couldn't open skip-list PR for #${opts.issueNumber}${suffix}: ${err}`)
