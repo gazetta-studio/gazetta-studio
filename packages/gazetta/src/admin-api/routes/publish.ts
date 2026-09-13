@@ -157,7 +157,6 @@ export function publishRoutes(
     if (!initPromise) {
       initPromise = (async () => {
         const { createTargetRegistry } = await import('../../targets.js')
-        const bootstrapSource = await resolve(undefined)
         const t = await createTargetRegistry(targetConfigs)
         targets = t
         return t
