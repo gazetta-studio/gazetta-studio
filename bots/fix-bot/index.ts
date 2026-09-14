@@ -74,6 +74,7 @@ import { diagnoseFailure, formatFailureComment } from './failure-diagnostic.js'
 import { openSkipListPR } from './open-skip-list-pr.js'
 import { pastPROutcome } from './past-pr.js'
 import { appendReviewerLog, REVIEWER_LOG_PATH } from './reviewer-log.js'
+import { type AttemptOutcome, type RouteContext, routeAttemptOutcome } from './route-attempt.js'
 import {
   appendEntry,
   findSkipMatch,
@@ -81,6 +82,7 @@ import {
   readSkipList,
   type SkipList,
   SKIP_LIST_PATH,
+  type SkipReason,
   writeSkipList,
 } from './skip-list.js'
 
@@ -430,60 +432,41 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
       allowedTools: ['Bash', 'Read', 'Grep', 'Glob', 'Write', 'Edit'],
     })
 
+    // Build the attempt outcome. Rate-limit detection sits INSIDE the
+    // outcome construction (cascade-stop signal per rule 38 symmetric
+    // audit — mirrors feature-bot's check; if Anthropic's 5-hour
+    // session bucket is exhausted, every subsequent issue crashes in
+    // seconds). Agent B crash is NOT modeled as an outcome — it needs
+    // the reviewer-transcript path in its escalation reasonNote
+    // (orchestrator-local detail); we handle it inline before
+    // constructing an `agent-b-judged` outcome. Same shape as
+    // feature-bot's index.ts.
+    let outcome: AttemptOutcome
+    let agentASummary = ''
+
     if (!aResult.success) {
-      // Rate-limit cascade-stop (rule 38 symmetric audit; mirrors
-      // feature-bot's check). If Anthropic's 5-hour session bucket
-      // is exhausted, every subsequent issue would crash in seconds.
-      // Leave this issue on the queue + signal the outer loop to
-      // STOP processing more candidates.
-      if (detectRateLimit(agentATranscript)) {
-        printWarning(
-          `Anthropic session-rate-limit hit on attempt ${attempt}; stopping the queue (this issue + remaining candidates will be retried by tomorrow's cron after the bucket resets).`,
-        )
-        resetToMain(branchName, { cwd: REPO_ROOT })
-        return { rateLimited: true }
-      }
-      printWarning(`Agent A exited ${aResult.exitCode} on attempt ${attempt}; posting failure comment.`)
-      await postFailureComment(octokit, repo, issueNumber, agentATranscript)
-      attemptOutcome = 'agent-a-failure'
-      break
-    }
+      outcome = detectRateLimit(agentATranscript)
+        ? { kind: 'agent-a-rate-limited' }
+        : { kind: 'agent-a-failure', exitCode: aResult.exitCode }
+    } else if (!branchHasCommits(branchName, { cwd: REPO_ROOT })) {
+      // Agent A took the STUCK path (posted its own comment + applied
+      // `ready-for-human`) or bailed no-op. Either way, terminal —
+      // Agent A's own decision, not a candidate for review.
+      outcome = { kind: 'agent-a-no-output' }
+    } else {
+      // Reviewer turn. Agent A committed on $branchName; run Agent B.
+      printNotice(`Attempt ${attempt}/${MAX_ATTEMPTS}: invoking Agent B (reviewer)…`)
+      const diff = captureDiff(branchName, { cwd: REPO_ROOT })
+      const commitMessages = captureCommitMessages(branchName, { cwd: REPO_ROOT })
 
-    // What did Agent A produce? Three shapes possible:
-    //   - STUCK: Agent A posted a stuck-comment + applied ready-for-human
-    //     (existing path); no branch commits. We're done.
-    //   - DELETE/FIX: Agent A committed two commits on $branchName.
-    //     Reviewer turn.
-    //   - Nothing (no commits, no stuck comment): edge case; treat as
-    //     needs-human.
-    const hasCommits = branchHasCommits(branchName, { cwd: REPO_ROOT })
-
-    if (!hasCommits) {
-      // Could be STUCK path (Agent A posted comment + applied label) or
-      // a genuine no-op (Agent A bailed without doing anything).
-      // Either way, this attempt is over and we don't loop — the
-      // STUCK path is itself a terminal decision Agent A makes, not
-      // a candidate for review.
-      printNotice(
-        `Agent A produced no commits on attempt ${attempt}; treating as Agent A's own decision (stuck or no-op).`,
+      const reviewerTranscript = resolve(
+        TRANSCRIPTS_DIR,
+        `${RUN_TIMESTAMP}-fix-issue-${issueNumber}-attempt${attempt}-B.jsonl`,
       )
-      attemptOutcome = 'agent-a-failure'
-      break
-    }
+      printTranscriptPath(reviewerTranscript)
 
-    // Reviewer turn.
-    printNotice(`Attempt ${attempt}/${MAX_ATTEMPTS}: invoking Agent B (reviewer)…`)
-    const diff = captureDiff(branchName, { cwd: REPO_ROOT })
-    const commitMessages = captureCommitMessages(branchName, { cwd: REPO_ROOT })
-
-    const reviewerTranscript = resolve(
-      TRANSCRIPTS_DIR,
-      `${RUN_TIMESTAMP}-fix-issue-${issueNumber}-attempt${attempt}-B.jsonl`,
-    )
-    printTranscriptPath(reviewerTranscript)
-
-    const agentASummary = extractSummary(agentATranscript)
-    const reviewerPrompt = `${reviewerPromptTemplate}
+      agentASummary = extractSummary(agentATranscript)
+      const reviewerPrompt = `${reviewerPromptTemplate}
 
 ISSUE_NUMBER=${issueNumber}
 ISSUE_TITLE=${issue.title}
@@ -504,81 +487,114 @@ ${agentASummary || '(no SUMMARY block captured from Agent A — REJECT with note
 
 RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
 
-    const bResult = await runClaude({
-      prompt: reviewerPrompt,
-      transcriptPath: reviewerTranscript,
-      // Reviewer needs:
-      //   - Bash for tautology check (git revert + vitest)
-      //   - Read for source + rule files on demand
-      //   - Agent for delegating review-architecture + review-security
-      //     to subagents (keeps the skills' heavy context out of Agent
-      //     B's window — without this delegation the skills' findings
-      //     fence reads as a natural terminator and Agent B stops
-      //     before emitting the required VERDICT: line; see #469)
-      //   - Skill kept so the subagents (spawned via Agent) can invoke
-      //     the skills they need
-      // Explicitly NOT Write/Edit — reviewer doesn't modify code.
-      allowedTools: ['Bash', 'Read', 'Agent', 'Skill'],
-    })
-    if (!bResult.success) {
-      printWarning(`Agent B exited ${bResult.exitCode} on attempt ${attempt}; treating as needs-human.`)
-      await escalateToHuman(octokit, repo, issueNumber, branchName, skipList, fingerprint, {
-        reason: 'needs-human',
-        reasonNote: `Reviewer crashed on attempt ${attempt}. See transcript ${reviewerTranscript}.`,
+      const bResult = await runClaude({
+        prompt: reviewerPrompt,
+        transcriptPath: reviewerTranscript,
+        // Reviewer needs:
+        //   - Bash for tautology check (git revert + vitest)
+        //   - Read for source + rule files on demand
+        //   - Agent for delegating review-architecture + review-security
+        //     to subagents (keeps the skills' heavy context out of Agent
+        //     B's window — without this delegation the skills' findings
+        //     fence reads as a natural terminator and Agent B stops
+        //     before emitting the required VERDICT: line; see #469)
+        //   - Skill kept so the subagents (spawned via Agent) can invoke
+        //     the skills they need
+        // Explicitly NOT Write/Edit — reviewer doesn't modify code.
+        allowedTools: ['Bash', 'Read', 'Agent', 'Skill'],
       })
-      attemptOutcome = 'needs-human'
+      if (!bResult.success) {
+        printWarning(`Agent B exited ${bResult.exitCode} on attempt ${attempt}; treating as needs-human.`)
+        await escalateToHuman(octokit, repo, issueNumber, branchName, skipList, fingerprint, {
+          reason: 'needs-human',
+          reasonNote: `Reviewer crashed on attempt ${attempt}. See transcript ${reviewerTranscript}.`,
+        })
+        attemptOutcome = 'needs-human'
+        break
+      }
+
+      // Parse the reviewer's final text block for the VERDICT line.
+      // Search Agent B's FULL transcript for the VERDICT line — not just the
+      // last block. Agent B is talkative; the verdict often lands in an
+      // earlier block followed by a "Forming verdict." closing comment that
+      // confused the original extractLastAssistantText-only parser.
+      const reviewerTexts = collectAssistantTexts(reviewerTranscript)
+      const verdict = parseReviewerTranscript(reviewerTexts)
+
+      // Persist the verdict to reviewer-log.jsonl regardless of outcome.
+      // The monthly compactor reads this raw signal and selects valuable
+      // entries (reject→retry→approve sequences, substantive caveats,
+      // genuine failure modes) for lessons-learned. Cheap append; the
+      // value filter lives in the compactor, not here.
+      try {
+        appendReviewerLog(REVIEWER_LOG_ABS, {
+          ts: new Date().toISOString(),
+          runId: process.env.GITHUB_RUN_ID ?? 'local',
+          fingerprint,
+          fingerprintLabel: `#${issueNumber}`,
+          attempt,
+          verdict: verdict.kind === 'approve' ? 'approve' : verdict.kind === 'needs-human' ? 'needs-human' : 'reject',
+          reasoning: verdict.kind === 'approve' ? verdict.reasoning : verdict.note,
+          agentASummary,
+        })
+      } catch (err) {
+        printWarning(`reviewer-log append failed (non-fatal): ${err}`)
+      }
+
+      outcome = { kind: 'agent-b-judged', verdict }
+    }
+
+    // Route the outcome through the pure decision function (rule-38
+    // symmetric with feature-bot; the branch-selection logic lives in
+    // ./route-attempt.ts, tested with zero mocks in
+    // tests/route-attempt.test.ts).
+    const ctx: RouteContext = { attempt, maxAttempts: MAX_ATTEMPTS }
+    const decision = routeAttemptOutcome(outcome, ctx)
+
+    if (decision.kind === 'stop-queue-rate-limited') {
+      printWarning(
+        `Anthropic session-rate-limit hit on attempt ${attempt}; stopping the queue (this issue + remaining candidates will be retried by tomorrow's cron after the bucket resets).`,
+      )
+      resetToMain(branchName, { cwd: REPO_ROOT })
+      return { rateLimited: true }
+    }
+
+    if (decision.kind === 'post-failure-comment') {
+      printWarning(`Agent A exited ${decision.exitCode} on attempt ${attempt}; posting failure comment.`)
+      await postFailureComment(octokit, repo, issueNumber, agentATranscript)
+      attemptOutcome = 'agent-a-failure'
       break
     }
 
-    // Parse the reviewer's final text block for the VERDICT line.
-    // Search Agent B's FULL transcript for the VERDICT line — not just the
-    // last block. Agent B is talkative; the verdict often lands in an
-    // earlier block followed by a "Forming verdict." closing comment that
-    // confused the original extractLastAssistantText-only parser.
-    const reviewerTexts = collectAssistantTexts(reviewerTranscript)
-    const verdict = parseReviewerTranscript(reviewerTexts)
-
-    // Persist the verdict to reviewer-log.jsonl regardless of outcome.
-    // The monthly compactor reads this raw signal and selects valuable
-    // entries (reject→retry→approve sequences, substantive caveats,
-    // genuine failure modes) for lessons-learned. Cheap append; the
-    // value filter lives in the compactor, not here.
-    try {
-      appendReviewerLog(REVIEWER_LOG_ABS, {
-        ts: new Date().toISOString(),
-        runId: process.env.GITHUB_RUN_ID ?? 'local',
-        fingerprint,
-        fingerprintLabel: `#${issueNumber}`,
-        attempt,
-        verdict: verdict.kind === 'approve' ? 'approve' : verdict.kind === 'needs-human' ? 'needs-human' : 'reject',
-        reasoning: verdict.kind === 'approve' ? verdict.reasoning : verdict.note,
-        agentASummary,
-      })
-    } catch (err) {
-      printWarning(`reviewer-log append failed (non-fatal): ${err}`)
+    if (decision.kind === 'terminal-no-op') {
+      printNotice(
+        `Agent A produced no commits on attempt ${attempt}; treating as Agent A's own decision (stuck or no-op).`,
+      )
+      attemptOutcome = 'agent-a-failure'
+      break
     }
 
-    if (verdict.kind === 'approve') {
-      printNotice(`✅ Reviewer APPROVED on attempt ${attempt}/${MAX_ATTEMPTS}: ${verdict.reasoning.slice(0, 120)}`)
+    if (decision.kind === 'push-and-pr') {
+      printNotice(`✅ Reviewer APPROVED on attempt ${attempt}/${MAX_ATTEMPTS}: ${decision.reasoning.slice(0, 120)}`)
       pushBranch(branchName)
-      openFixPR(repo, issueNumber, issue.title, branchName, verdict.reasoning, agentASummary)
+      openFixPR(repo, issueNumber, issue.title, branchName, decision.reasoning, agentASummary)
       attemptOutcome = 'approved'
       break
     }
 
-    if (verdict.kind === 'needs-human') {
-      printWarning(`⚠ Reviewer escalated to NEEDS_HUMAN: ${verdict.note.slice(0, 120)}`)
+    if (decision.kind === 'escalate-needs-human') {
+      printWarning(`⚠ Reviewer escalated to NEEDS_HUMAN: ${decision.reasonNote.slice(0, 120)}`)
       await escalateToHuman(octokit, repo, issueNumber, branchName, skipList, fingerprint, {
-        reason: 'needs-human',
-        reasonNote: `Reviewer verdict on attempt ${attempt}: ${verdict.note}`,
+        reason: decision.reason,
+        reasonNote: decision.reasonNote,
       })
       attemptOutcome = 'needs-human'
       break
     }
 
-    // REJECT — loop with the reviewer's note for Agent A.
-    printNotice(`Reviewer REJECTED on attempt ${attempt}/${MAX_ATTEMPTS}: ${verdict.note.slice(0, 120)}`)
-    priorReviewerNote = verdict.note
+    // retry-with-note — loop with the reviewer's note for Agent A.
+    printNotice(`Reviewer REJECTED on attempt ${attempt}/${MAX_ATTEMPTS}: ${decision.note.slice(0, 120)}`)
+    priorReviewerNote = decision.note
   }
 
   if (attemptOutcome === 'agent-a-failure') {
@@ -776,10 +792,7 @@ async function escalateToHuman(
   branchName: string,
   skipList: SkipList,
   fingerprint: IssueFingerprint,
-  opts: {
-    reason: 'needs-human' | 'maintainer-rejected' | 'tautological-test' | 'wrong-root-cause'
-    reasonNote: string
-  },
+  opts: { reason: SkipReason; reasonNote: string },
 ): Promise<void> {
   // Step 1: write skip-list locally
   const added = appendEntry(skipList, {
