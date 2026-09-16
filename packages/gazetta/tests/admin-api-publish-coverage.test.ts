@@ -1,29 +1,69 @@
 /**
- * Mutation-coverage tests for `src/admin-api/routes/publish.ts` — closes
- * the gap reported on issue #564. Targets two NoCoverage clusters in
- * `publishRoutes()` that today's tests don't exercise:
+ * Mutation-coverage tests for `src/admin-api/routes/publish.ts`.
  *
- *   1. `getTargets` lazy-init lifecycle (lines 151-170) — exercises both
- *      the empty-`targetConfigs` short-circuit AND the first-call
- *      `!initPromise` branch. Today's tests all pass `preInitTargets`,
- *      so `targets` is non-null at line 152 and neither branch is hit.
- *   2. `ensureFragmentDepsIndex` (lines 183-205) — the in-flight-memoization
- *      helper that backfills `.gazetta/fragment-deps/` on first
- *      `/api/dependents` lookup. Exercised end-to-end against a fresh
- *      source with fragment refs but no pre-populated index; both the
- *      response shape AND the side-effect sidecar write pin the
- *      contract.
+ * Cycle history: this file has recurred 5 times — #307 → #564 → #638 →
+ * #703 → #712 → this cycle (#798). The #712 fix landed against a
+ * different file (`src/publish.ts`, not this route file); prior work
+ * on THIS file was #564's a9d2ce0 covering `getTargets` lazy-init +
+ * initial `ensureFragmentDepsIndex` backfill.
  *
- * The third cluster reported on #564 — line 123's `items.length === 0`
- * early-return inside `evaluatePublishGate` — is NOT covered here. That
- * branch is a load-bearing performance optimization (skips
- * `loadSiteFromSource` for asset-only publishes) but mutating it to
- * `if (false)` produces no observable behavior change because
- * `runPublishAudit`'s own length check (publish-audit.ts:63) short-
- * circuits on the same empty input. Stryker reports it as Survived; from
- * the route surface it's an equivalent mutation. A test that pinned
- * the optimization would have to spy on `loadSiteFromSource` — invasive
- * for a test contract whose only payoff is mutation-score cosmetics.
+ * This cycle adds three tests pinning the branches Stryker still
+ * flags on `ensureFragmentDepsIndex`:
+ *
+ *   1. Line 185 (`if (p) return p` — in-flight memoization). Prior
+ *      tests exercise the first call (populates the memo) but never
+ *      the second call that reuses it. Killed here by deleting the
+ *      sidecar directory after the first call and asserting that the
+ *      second call does NOT re-materialize it (mutation bypasses the
+ *      memo, runs rebuild, and the sidecar reappears).
+ *   2. Line 192 (`if (exists) return` — exists-early-return). Prior
+ *      tests always run against a fresh source where the probe
+ *      returns false. Killed here by pre-seeding a synthetic sidecar
+ *      under `.gazetta/fragment-deps/`; the probe finds the directory,
+ *      early-returns honor it, the synthetic survives. Mutation runs
+ *      rebuild which wipes the whole subtree (per publish-rendered.ts
+ *      line 478's `rm` before rebuild) and re-derives from actual
+ *      manifests. Same test also kills the `'.gazetta'` → `""`
+ *      StringLiteral mutation on line 187, because the mis-probed
+ *      `fragment-deps` path (without the `.gazetta` prefix) doesn't
+ *      exist under the seeded state, so exists returns false and
+ *      rebuild runs.
+ *   3. Line 187 `'fragment-deps'` → `""` StringLiteral. The prior
+ *      tests seed neither `.gazetta` nor `.gazetta/fragment-deps`, so
+ *      both the intact probe and the mutated `.gazetta`-only probe
+ *      return false and rebuild runs either way. Killed here by
+ *      seeding a `.gazetta/history/` sibling: the mutated `.gazetta`
+ *      probe now false-positives (any prefix under `.gazetta/` satisfies
+ *      exists), early-returns fire, and the fragment-deps sidecar is
+ *      never written.
+ *
+ * Documented equivalents (surviving but unkillable through the route
+ * surface without invasive spying):
+ *
+ *   - Line 123's `items.length === 0` early-return inside
+ *     `evaluatePublishGate` — `runPublishAudit`'s own length check
+ *     (publish-audit.ts:63) short-circuits on the same empty input.
+ *   - Line 153's `ConditionalExpression → false` — with non-empty
+ *     configs the condition is already false; with empty configs the
+ *     mutated code falls through to `createTargetRegistry(undefined)`
+ *     which the surrounding `.catch()` rescues to an empty Map. Both
+ *     outcomes are `[]`.
+ *   - Line 157's `ConditionalExpression → true` — makes concurrent
+ *     `getTargets()` callers each construct their own registry
+ *     promise. Idempotent; both eventually populate the same
+ *     `targets` map. Detecting the extra call requires spying on
+ *     `createTargetRegistry`, which is dynamically imported.
+ *   - Line 183's `'__source__'` → `""` StringLiteral — both are
+ *     valid `Map<string, Promise<void>>` keys. Observable divergence
+ *     would require two source contexts whose targetNames collide
+ *     under one variant and diverge under the other (undefined vs
+ *     empty string); route surface has no natural path to construct
+ *     that collision.
+ *   - Line 187's `'fragment-deps'` → `""` StringLiteral in test
+ *     configurations where nothing exists under `.gazetta/` (M2 is
+ *     equivalent to unmutated when `.gazetta` prefix is empty).
+ *     Test 3 below adds the specific state where this mutation
+ *     matters (sibling under `.gazetta/`).
  *
  * Per [team-preferences.md rule 31](.claude/rules/team-preferences.md):
  * API-first tier for the admin-api surface; mutation testing is the
@@ -219,5 +259,139 @@ describe('publish route — ensureFragmentDepsIndex backfill (covers publish.ts:
 
     const invalid = await app.request('/api/dependents?item=pages/home')
     expect(invalid.status).toBe(400)
+  })
+
+  it('caches the in-flight rebuild — second call reuses the memoized promise (covers publish.ts:185 `if (p) return p`)', async () => {
+    // First call primes the memo AND writes the fragment-deps sidecar.
+    // Then we delete the whole `.gazetta/fragment-deps` subtree so the
+    // rebuild's write is undone. Under unmutated code, the second call's
+    // `p = fragmentDepsBackfill.get(key)` returns the (already-resolved)
+    // promise from the first call, line 185's `if (p) return p` fires,
+    // no fresh IIFE runs, no rebuild, and the sidecar stays deleted —
+    // `findDependentsFromSidecars` reads the empty subtree and returns
+    // `{ pages: [], fragments: [] }`.
+    //
+    // Under line 185 `ConditionalExpression → false`, the memoized
+    // promise is discarded; the IIFE re-runs; line 191's exists probe
+    // sees no `.gazetta/fragment-deps` (we deleted it), line 192 does
+    // NOT early-return, rebuild runs, and `header/pages.home` is
+    // re-written. The response would then contain `pages: ['home']` —
+    // this assertion fails, killing the mutation.
+    const sourceStorage = memoryStorage()
+    sourceStorage.seed({
+      'pages/home/page.json': JSON.stringify({
+        template: 'page-default',
+        route: '/',
+        content: {},
+        components: ['@header'],
+      }),
+      'fragments/header/fragment.json': JSON.stringify({
+        template: 'header-layout',
+        content: {},
+      }),
+    })
+
+    const { app } = buildApp({ sourceStorage, withTargetConfigs: true })
+
+    const res1 = await app.request('/api/dependents?item=fragments/header')
+    expect(res1.status).toBe(200)
+    expect(await sourceStorage.exists('.gazetta/fragment-deps/header/pages.home')).toBe(true)
+
+    // Simulate divergent state: wipe the whole fragment-deps subtree.
+    // The memo still holds the resolved promise from the first call.
+    await sourceStorage.rm('.gazetta/fragment-deps')
+    expect(await sourceStorage.exists('.gazetta/fragment-deps/header/pages.home')).toBe(false)
+
+    const res2 = await app.request('/api/dependents?item=fragments/header')
+    expect(res2.status).toBe(200)
+    const body = (await res2.json()) as { pages: string[]; fragments: string[] }
+
+    // Memo hit → no rebuild → empty subtree stays empty.
+    expect(body.pages).toEqual([])
+    expect(await sourceStorage.exists('.gazetta/fragment-deps/header/pages.home')).toBe(false)
+  })
+
+  it('skips rebuild when `.gazetta/fragment-deps` already exists (covers publish.ts:192 `if (exists) return` + line 187 `.gazetta` StringLiteral)', async () => {
+    // Pre-seed a synthetic sidecar under the correct index path with a
+    // page name that isn't in the site. Under unmutated code, line 191
+    // probes `.gazetta/fragment-deps` → true, line 192 returns early,
+    // rebuild is skipped, and the synthetic sidecar persists.
+    // `findDependentsFromSidecars` reads the directory and returns
+    // `pages: ['synthetic-orphan']`.
+    //
+    // Under line 192 `ConditionalExpression → false`, the early-return
+    // is skipped; rebuild runs; `rebuildDepIndex` wipes the entire
+    // `.gazetta/fragment-deps` subtree first (per publish-rendered.ts
+    // line 478) then re-derives from real manifests. The synthetic
+    // sidecar is destroyed; `header/pages.home` is written; the
+    // response now returns `pages: ['home']`.
+    //
+    // Same test also kills line 187 `'.gazetta'` → `""`: the mutated
+    // probe path `fragment-deps` (without the `.gazetta` prefix) does
+    // NOT match the seeded `.gazetta/fragment-deps/…` files, so exists
+    // returns false, rebuild runs, synthetic is wiped.
+    const sourceStorage = memoryStorage()
+    sourceStorage.seed({
+      'pages/home/page.json': JSON.stringify({
+        template: 'page-default',
+        route: '/',
+        content: {},
+        components: ['@header'],
+      }),
+      'fragments/header/fragment.json': JSON.stringify({
+        template: 'header-layout',
+        content: {},
+      }),
+      '.gazetta/fragment-deps/header/pages.synthetic-orphan': '',
+    })
+
+    const { app } = buildApp({ sourceStorage, withTargetConfigs: true })
+
+    const res = await app.request('/api/dependents?item=fragments/header')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { pages: string[]; fragments: string[] }
+
+    expect(body.pages).toEqual(['synthetic-orphan'])
+    expect(await sourceStorage.exists('.gazetta/fragment-deps/header/pages.synthetic-orphan')).toBe(true)
+    expect(await sourceStorage.exists('.gazetta/fragment-deps/header/pages.home')).toBe(false)
+  })
+
+  it('probes `.gazetta/fragment-deps` specifically, not just `.gazetta` (covers publish.ts:187 `fragment-deps` StringLiteral)', async () => {
+    // A sibling directory under `.gazetta/` (here: history) makes
+    // `.gazetta` a populated prefix while `.gazetta/fragment-deps`
+    // remains empty. Under unmutated code, line 187 composes the full
+    // `.gazetta/fragment-deps` path, line 191 probes it → false (no
+    // matching prefix), line 192 falls through, rebuild runs, and
+    // `header/pages.home` is written.
+    //
+    // Under line 187 `'fragment-deps'` → `""`, the mutated probe path
+    // is just `.gazetta`. The sibling under `.gazetta/history/` makes
+    // that prefix satisfy exists (true); line 192 early-returns;
+    // rebuild is never invoked; the fragment-deps sidecar is never
+    // written; `findDependentsFromSidecars` reads an empty subtree and
+    // returns `pages: []`.
+    const sourceStorage = memoryStorage()
+    sourceStorage.seed({
+      'pages/home/page.json': JSON.stringify({
+        template: 'page-default',
+        route: '/',
+        content: {},
+        components: ['@header'],
+      }),
+      'fragments/header/fragment.json': JSON.stringify({
+        template: 'header-layout',
+        content: {},
+      }),
+      '.gazetta/history/dummy-revision.json': '{}',
+    })
+
+    const { app } = buildApp({ sourceStorage, withTargetConfigs: true })
+
+    const res = await app.request('/api/dependents?item=fragments/header')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { pages: string[]; fragments: string[] }
+
+    expect(body.pages).toEqual(['home'])
+    expect(await sourceStorage.exists('.gazetta/fragment-deps/header/pages.home')).toBe(true)
   })
 })
