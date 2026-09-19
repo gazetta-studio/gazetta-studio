@@ -43,7 +43,7 @@ export interface IssueFingerprint {
 }
 
 /** Reason categories — drive Agent A's decision tree on subsequent runs. */
-export type SkipReason =
+type SkipReason =
   /** Maintainer rejected the fix-bot PR with reasoning. */
   | 'maintainer-rejected'
   /** Bot tried, tests passed but reviewer (Agent B) caught tautological test. */
