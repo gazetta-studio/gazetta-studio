@@ -34,7 +34,7 @@ export interface Fingerprint {
 }
 
 /** Reason categories — drives which path Claude takes on subsequent runs. */
-export type SkipReason =
+type SkipReason =
   /** Public package API consumed by external sites — keep forever. */
   | 'public-api'
   /** Used dynamically (worker thread, URL string, dynamic import). */
