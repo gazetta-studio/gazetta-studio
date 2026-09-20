@@ -41,6 +41,37 @@ describe('globMatches', () => {
   it('does not match across segment boundaries with single *', () => {
     expect(globMatches('packages/*.ts', 'packages/sub/file.ts')).toBe(false)
   })
+
+  it('expands brace alternation as OR', () => {
+    // Bug from #805: the compactor emits scopes like
+    // `{apps/admin,packages/gazetta}/package.json` for the
+    // `workspace-package-json-deps-need-human-review` rule. Before the fix,
+    // `{` and `}` were escaped as literal regex characters, so the pattern
+    // matched only the literal string and every real path returned false.
+    expect(globMatches('{apps/admin,packages/gazetta}/package.json', 'apps/admin/package.json')).toBe(true)
+    expect(globMatches('{apps/admin,packages/gazetta}/package.json', 'packages/gazetta/package.json')).toBe(true)
+    expect(globMatches('{apps/admin,packages/gazetta}/package.json', 'sites/foo/package.json')).toBe(false)
+    expect(globMatches('{apps/admin,packages/gazetta}/package.json', 'tools/mcp-dev/package.json')).toBe(false)
+  })
+
+  it('supports brace alternation with 3+ options', () => {
+    expect(globMatches('foo/{a,b,c}.ts', 'foo/a.ts')).toBe(true)
+    expect(globMatches('foo/{a,b,c}.ts', 'foo/b.ts')).toBe(true)
+    expect(globMatches('foo/{a,b,c}.ts', 'foo/c.ts')).toBe(true)
+    expect(globMatches('foo/{a,b,c}.ts', 'foo/d.ts')).toBe(false)
+  })
+
+  it('supports brace alternation with a single option', () => {
+    expect(globMatches('foo/{a}.ts', 'foo/a.ts')).toBe(true)
+    expect(globMatches('foo/{a}.ts', 'foo/b.ts')).toBe(false)
+  })
+
+  it('treats unmatched opening brace as literal', () => {
+    // Defensive: a stray `{` with no closing `}` should not blow up regex
+    // compilation. Match it as a literal character.
+    expect(globMatches('foo/{a.ts', 'foo/{a.ts')).toBe(true)
+    expect(globMatches('foo/{a.ts', 'foo/a.ts')).toBe(false)
+  })
 })
 
 describe('fingerprintsEqual', () => {
@@ -172,6 +203,62 @@ describe('findSkipMatch', () => {
     }
     const match = findSkipMatch(list, { kind: 'file', path: 'packages/foo/bar.ts' })
     expect(match).not.toBeNull()
+  })
+
+  it('brace-expansion rule scope suppresses findings on any matching workspace', () => {
+    // Pin the acceptance criterion from #805: the actual
+    // `workspace-package-json-deps-need-human-review` rule (with the
+    // `{apps/admin,packages/gazetta}/package.json` scope the compactor
+    // authored 2026-09-07) must match dependency findings on either
+    // workspace's package.json, and must NOT match findings elsewhere.
+    const list: SkipList = {
+      version: 1,
+      entries: [],
+      rules: [
+        {
+          rule: 'workspace-package-json-deps-need-human-review',
+          scope: '{apps/admin,packages/gazetta}/package.json',
+          kinds: ['dependency', 'devDependency'],
+          reason: 'needs-human',
+          addedAt: '2026-09-07T08:06:38Z',
+          addedBy: 'bot',
+          compactedFrom: 3,
+        },
+      ],
+    }
+
+    const adminMatch = findSkipMatch(list, {
+      kind: 'dependency',
+      path: 'apps/admin/package.json',
+      symbol: 'primeicons',
+    })
+    expect(adminMatch).not.toBeNull()
+    expect((adminMatch as { rule: string }).rule).toBe('workspace-package-json-deps-need-human-review')
+
+    const gazettaMatch = findSkipMatch(list, {
+      kind: 'devDependency',
+      path: 'packages/gazetta/package.json',
+      symbol: '@vitejs/plugin-vue',
+    })
+    expect(gazettaMatch).not.toBeNull()
+    expect((gazettaMatch as { rule: string }).rule).toBe('workspace-package-json-deps-need-human-review')
+
+    // Scope is deliberately narrow to two workspaces; other workspaces
+    // (tools/, sites/, bots/) must NOT match.
+    expect(
+      findSkipMatch(list, {
+        kind: 'dependency',
+        path: 'sites/foo/package.json',
+        symbol: 'some-dep',
+      }),
+    ).toBeNull()
+    expect(
+      findSkipMatch(list, {
+        kind: 'dependency',
+        path: 'tools/mcp-dev/package.json',
+        symbol: 'some-dep',
+      }),
+    ).toBeNull()
   })
 
   it('prefers entry match over rule match (entries checked first)', () => {
