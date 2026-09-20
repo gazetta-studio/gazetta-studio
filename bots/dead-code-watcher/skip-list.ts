@@ -159,7 +159,7 @@ export function findSkipMatch(list: SkipList, fp: Fingerprint): SkipEntry | Skip
 
 /**
  * Glob matcher — supports `*` (single segment), `**` (any path),
- * literal `?` (single char), and bracket expressions.
+ * literal `?` (single char), and `{a,b,c}` brace alternation.
  *
  * Intentionally small — knip's fingerprints have simple path shapes
  * (no need for micromatch's full grammar). Tested against the actual
@@ -170,6 +170,11 @@ export function findSkipMatch(list: SkipList, fp: Fingerprint): SkipEntry | Skip
  *   - `foo/*.ts` matches any .ts file directly inside `foo/`
  *   - `foo/**\/bar.ts` matches `foo/bar.ts`, `foo/x/bar.ts`, etc.
  *   - `foo/**` matches any path under `foo/`
+ *   - `{a,b}/pkg.json` matches `a/pkg.json` OR `b/pkg.json`
+ *
+ * Brace contents are treated as literal alternatives; nested braces
+ * and wildcards inside braces are not supported (the compactor emits
+ * simple workspace-name lists like `{apps/admin,packages/gazetta}`).
  */
 export function globMatches(pattern: string, path: string): boolean {
   // Escape regex metacharacters EXCEPT our glob tokens.
@@ -191,7 +196,22 @@ export function globMatches(pattern: string, path: string): boolean {
     } else if (c === '?') {
       regex += '[^/]'
       i++
-    } else if ('.+^${}()|[]\\'.includes(c)) {
+    } else if (c === '{') {
+      const close = pattern.indexOf('}', i + 1)
+      if (close === -1) {
+        // Unmatched brace — treat as literal (defensive; the compactor
+        // never emits this shape, but a corrupted rule shouldn't crash).
+        regex += '\\{'
+        i++
+      } else {
+        const alternatives = pattern
+          .substring(i + 1, close)
+          .split(',')
+          .map(alt => alt.replace(/[.+^${}()|[\]\\]/g, '\\$&'))
+        regex += `(?:${alternatives.join('|')})`
+        i = close + 1
+      }
+    } else if ('.+^$()|[]\\'.includes(c)) {
       // Regex metacharacter — escape
       regex += `\\${c}`
       i++
