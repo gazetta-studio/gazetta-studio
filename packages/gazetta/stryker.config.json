@@ -29,7 +29,8 @@
     "src/admin-api/source-context.ts",
     "src/pages/create.ts",
     "src/publish-renderers.ts",
-    "src/fragments/create.ts"
+    "src/fragments/create.ts",
+    "src/runtime/runtime-capabilities.ts"
   ],
   "thresholds": {
     "high": 80,
