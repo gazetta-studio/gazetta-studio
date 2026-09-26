@@ -89,7 +89,7 @@ export interface InclusionConfig {
   bugFixWindowDays: number
 }
 
-export const DEFAULT_INCLUSION_CONFIG: InclusionConfig = {
+const DEFAULT_INCLUSION_CONFIG: InclusionConfig = {
   windowDays: 90,
   bugFixWindowDays: 30,
 }
