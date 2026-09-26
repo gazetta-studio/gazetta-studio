@@ -157,7 +157,7 @@ export interface EvictionConfig {
   killRatioWeeks: number
 }
 
-export const DEFAULT_EVICTION_CONFIG: EvictionConfig = {
+const DEFAULT_EVICTION_CONFIG: EvictionConfig = {
   issueWindowDays: 90,
   killRatioWeeks: 4,
 }
