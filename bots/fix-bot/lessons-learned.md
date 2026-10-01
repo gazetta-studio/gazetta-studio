@@ -1,63 +1,70 @@
 # Fix-bot lessons learned
 
 Cross-issue patterns from reviewer verdicts + maintainer
-rejections. Loaded into Agent A's prompt every run. Rewritten
-monthly by `fix-bot:compact`.
-
----
+rejections. Loaded into Agent A's prompt every run; rewritten
+monthly.
 
 ## Recurring patterns
 
 ### Mutation-coverage cuts: `Mode: structural`
 
-Dominant cut shape — 17 cycles this window (#622, #676, #712,
-#742, #773, #796, #798, …). Test-only backfill; the 4-step
-revert-check does NOT apply.
+Dominant cut shape — 19 cycles this window across admin-api
+routes + publish-rendered + publish.ts. Test-only backfill;
+the 4-step revert-check does NOT apply.
 
-- Declare `Mode: structural`; ship one commit (no source-side
-  fix to sequence a failing test against).
+- Declare `Mode: structural`; ship one commit (reviewers accept
+  single-commit shape for coverage cuts).
 - Fill `Runtime exercise: N/A — <specific reason>` (e.g.
-  "missing-test backfill; failing tests pin mutation-coverage
+  "missing-test backfill; failing tests pin coverage
   invariants on already-correct behaviour").
 - Prove anti-tautology by **mutant injection**: apply each
-  target mutant to source, run the test, confirm it fails
-  matching the mutant's predicted effect, restore. Report the
-  concrete failure message.
-- Reference prior fix-bot cycles on the same file (#676's
-  "#311 → #567 → this run"; #798's "prior cycle #564") so
-  reviewers see where gaps live.
+  mutant to source, run the test, confirm it fails matching the
+  predicted effect, restore. Report the concrete failure
+  message per mutant.
+- When the file has prior fix-bot cycles, **pick a fresh
+  cluster** — scan prior PRs, target an untouched surface
+  (#703, #726, #796 all layered new coverage on previously-
+  fixed files). Cite the chain in the commit body.
 
 ### Honestly document equivalent / unkillable mutants
 
 Reviewers positively cite honesty about mutants that CAN'T be
-killed — equivalent under current schema/guards (#622, #687,
-#773), invisible through the storage abstraction (#712, #742),
-or unreachable via HTTP (#737, #796).
+killed through test additions. Four recurring shapes:
 
-- Ship a killing test OR document why the mutant is
-  equivalent/unkillable with a specific reason (which guard
-  runs first, which caller never invokes the branch, which
-  serialisation step erases it).
-- Put equivalence claims in `Discovered:` AND (when several
-  accumulate) a header comment on the new test file, so future
-  cycles don't re-attempt.
-- Never pad the diff with tautological tests to "cover" an
-  equivalent mutant.
+- **Resolved earlier by a guard** — early-return rejects every
+  differentiating input (#622/#687/#773 line-212).
+- **Invisible through the storage abstraction** — memoryStorage
+  / JSON-roundtrip erases the distinction (#712 64/76/78; #737
+  235/283/309; #742 59/73/74).
+- **Unreachable via HTTP** — route always supplies the input
+  that would discriminate (#737 line-213; #796 408–458).
+- **Single-element Zod path** — `.join('.')` ≡ `.join('')` for
+  flat-schema inputs (#622/#687/#773 line-119).
+
+Rules:
+
+- Ship a killing test OR document why unkillable, naming the
+  specific guard / caller / serialisation step.
+- Put equivalence claims in `Discovered:` AND a header comment
+  on the new test file when several accumulate.
+- Never pad the diff with tautological tests for an equivalent
+  mutant.
 
 ### Verify the reporter's diagnosis before implementing
 
-Three cycles this window overrode the reporter:
-- #659: reporter suggested skip-list feedback loop; real cause
-  was missing barrel filter at discovery.
-- #706: reporter counted `provider.ts` as mutable; it's
-  pure-interface.
-- #745: reporter said "inter-test leak"; race was intra-test —
-  `Ctrl+z` before fill's onChange reached the undoStack.
+Four cycles overrode the reporter:
 
-- Read the source paths named in the issue; verify the causal
-  chain before coding.
-- When the reporter is wrong, name the real cause with
-  file:line evidence and fix at the correct layer.
+- #659: suggested skip-list loop; real cause was missing barrel
+  filter at discovery.
+- #706: counted `provider.ts` as mutable; it's pure-interface.
+- #742: claimed capability-string mutants; those target the
+  `'target'` query-string.
+- #745: said "inter-test leak"; race was intra-test — `Ctrl+z`
+  before fill's onChange reached the undoStack.
+
+Read source paths named in the issue; verify the causal chain
+before coding. When wrong, name the real cause with file:line
+evidence and fix at the correct layer.
 
 ### Flake fixes require rule-35 durability proof
 
@@ -66,35 +73,28 @@ nondeterministic; the 4-step revert doesn't apply.
 
 - Run `--repeat-each=5` under `CI=true`, workers=1; report the
   concrete pass count (#745: `25/25 across 5 tests × 5`).
-- If the flake can't be reproduced locally (docker cold-start
-  in #744; CI-only pressure elsewhere), state the structural
-  reason in `Runtime exercise: N/A` and cite rule 35's
-  local-vs-CI carve-out — don't substitute a warm-runner rerun.
-- Declare `Mode: behavioral` for real races (#745), `Mode:
-  structural` for timeout-budget widening (#661, #744).
+- If unreproducible locally (docker cold-start #744; CI-only
+  pressure elsewhere), state the structural reason in `Runtime
+  exercise: N/A` and cite rule 35's local-vs-CI carve-out —
+  don't substitute a warm-runner rerun.
+- `Mode: behavioral` for real races (#745); `Mode: structural`
+  for timeout-budget widening (#661, #744).
 
 ### Mirror sibling bots symmetrically (rule 38)
 
-Three cycles (#692, #699, #793). A bug OR structural
-improvement in one bot exists byte-identically in a sibling;
-landing one without the other rots silently.
-- #692: ported dead-code-watcher's past-PR feedback loop.
-- #699: fixed both bots' comment-author filter symmetrically.
-- #793: mirrored feature-bot's pure `route-attempt.ts`
-  extraction — structural symmetry, not a bug.
+Three cycles: #692 (past-PR feedback loop ported from
+dead-code-watcher); #699 (comment-author filter fixed in both);
+#793 (route-attempt extraction mirrored from feature-bot).
 
 - Before implementing in `bots/{one}/`, grep `bots/**` for the
   same shape in siblings; land symmetrically in the same PR.
 - Cite rule-38 in the commit body when the change spans bots.
-- Where fix-bot intentionally diverges (e.g. #793's
-  final-REJECT `retry-with-note` vs feature-bot's escalate),
-  document the divergence + preserve current observable
-  behaviour rather than silently aligning.
+- Where fix-bot intentionally diverges (#793 final-REJECT
+  `retry-with-note` vs feature-bot's escalate), document it.
 
 ---
 
 ## Areas where Agent A succeeds
 
-Zero maintainer rejections this window across 30+ tracked
-cycles; every PR merged. The five patterns above pay rent
-because reviewers actively spot-check them.
+Zero maintainer rejections this window across 30+ cycles. The
+five patterns above pay rent because reviewers spot-check them.
