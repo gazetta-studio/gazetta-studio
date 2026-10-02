@@ -19,20 +19,27 @@ services:
       - "10002"
 
   minio:
-    # Pulled from quay.io (MinIO's own registry), NOT Docker Hub: Docker
-    # Hub gates anonymous pulls of `minio/minio` (`pull access denied ...
-    # may require docker login`) — the original #481 flake.
+    # `minio/minio` is gated behind auth on BOTH Docker Hub AND quay.io
+    # (both return `unauthorized` to anonymous pulls — verified on the CI
+    # runner and against each registry's anonymous-token endpoint). The
+    # original #481 fix (Docker Hub → quay) and its hotfix-pin (#794) both
+    # rotted when MinIO tightened anonymous access across their namespaces.
     #
-    # UNPINNED (`:latest`) deliberately. A pinned `RELEASE.*.hotfix.*` tag
-    # (#794) returned `unauthorized` on the runner two weeks later (#811
-    # fix-forward): MinIO prunes `.hotfix.*` RELEASE tags, so the digest
-    # the pin referenced stopped being served. `:latest` can't rot that
-    # way. Reproducibility across runs is not worth a time-bomb for a
-    # throwaway test container — testcontainers just needs *a* working
-    # MinIO. If a future stable (non-hotfix) RELEASE tag proves durable
-    # and reproducibility becomes worth pinning, revisit then.
-    image: quay.io/minio/minio:latest
-    command: server /data --console-address ":9001"
+    # `bitnamilegacy/minio` is Bitnami's published MinIO image, verified
+    # anonymously pullable (200 via Docker Hub's anonymous token endpoint,
+    # probe validated against the public library/alpine control). Bitnami
+    # moved their community images to the `bitnamilegacy` namespace in 2025.
+    # It is real MinIO, so the S3 StorageProvider conformance battery
+    # exercises production-identical behavior. UNPINNED (`:latest`) — a
+    # throwaway test container needs *a* working MinIO, not a frozen
+    # version, and a pinned tag is the time-bomb that caused #794's rot.
+    #
+    # Bitnami conventions differ from `minio/minio`: the entrypoint runs
+    # the server itself (no explicit `server /data` command), the console
+    # is on 9001, and it reads the same MINIO_ROOT_USER / MINIO_ROOT_PASSWORD
+    # credentials. The test discovers the host port via getMappedPort(9000),
+    # so the unmapped `ports` entries are unchanged.
+    image: bitnamilegacy/minio:latest
     ports:
       - "9000"
       - "9001"

@@ -68,18 +68,17 @@ jobs:
       # whose default pull policy is pull-if-absent — so once these images
       # are local, `.up()` performs no pull at test time.
       #
-      # The #481 root cause was NOT a transient: Docker Hub gates anonymous
-      # pulls of `minio/minio`. The fix is pulling MinIO from quay.io
-      # (MinIO's own registry) — see docker-compose.yml. MinIO is pulled
-      # UNPINNED (`:latest`) because a pinned `.hotfix.*` RELEASE tag rotted
-      # in two weeks (#811 — the pruned digest returned `unauthorized`).
-      # The retry loop is defense against GENUINE transient network blips.
+      # `minio/minio` is gated behind auth on BOTH Docker Hub and quay.io.
+      # We pull Bitnami's published MinIO (`bitnamilegacy/minio`, verified
+      # anonymously pullable) instead — see docker-compose.yml for the full
+      # rationale. The retry loop is defense against GENUINE transient
+      # network blips.
       #
       # Image refs MUST match docker-compose.yml verbatim so the pulled
       # images satisfy testcontainers' pull-if-absent check.
       - name: Pre-pull testcontainers images (retry)
         run: |
-          for image in mcr.microsoft.com/azure-storage/azurite:3.37.0 quay.io/minio/minio:latest; do
+          for image in mcr.microsoft.com/azure-storage/azurite:3.37.0 bitnamilegacy/minio:latest; do
             for attempt in 1 2 3; do
               # Capture docker's stderr so a real failure cause (unauthorized,
               # manifest-unknown, TLS, rate-limit) surfaces in the log instead
