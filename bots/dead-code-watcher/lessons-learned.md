@@ -13,41 +13,34 @@ Knip flags an exported symbol; grep shows no external consumers,
 but the declaration IS still referenced inside its own file. Drop
 `export` and keep the declaration.
 
-**Signal:** 31 first-attempt approves across 11 runs, by shape:
+**Signal:** 13 first-attempt approves across 4 runs, by shape:
 
-- Internal declaration reference (23): field/parameter of a
-  same-file interface, arm of a same-file discriminated union, or
-  runtime const with a same-file caller — `HreflangAlternate`,
-  `SvgSanitizeWarning`, `ProviderCallInput`, `BuildHistory`,
-  `HeartbeatFn`, `StorageEstimateFn`, `Severity`, `ValidatorScope`,
-  `ScanSubscriber`, `TemplateImpactItem`, `RenderedFile`, four
-  `CreateFragment*` union arms, `ComponentSelection`,
-  `FragmentEditSelection`, `RuntimeCapability`, `CapabilityGap`,
-  `ActionableMutant`, two sibling `SkipReason` unions in fix-bot
-  and dead-code-watcher, plus runtime const
+- Same-file discriminated-union arm (6): four `CreateFragment*`
+  arms (`Ok`, `LiveConflict`, `ArchivedConflict`, `InvalidMode`)
+  of `CreateFragmentResult`; `ComponentSelection` and
+  `FragmentEditSelection` arms of `EditorSelection`.
+- Same-file field/parameter type (6): `RenderedFile` (field of
+  `RenderOutput`), `RuntimeCapability` (field of `CapabilityGap`
+  + `Set` type param), `CapabilityGap` (field of
+  `TargetCapabilities`), `ActionableMutant` (element of
+  `FileSummary.mutants`), two `SkipReason` unions typing
+  `SkipEntry.reason` / `SkipRule.reason` in fix-bot and
+  dead-code-watcher.
+- Runtime const with same-file caller (1):
   `ARCHIVED_NAME_CONFLICT_MODES` used by same-file
   `resolveArchivedNameConflict` for `.has()` validation.
-- Zod schema z.infer source (3): `RenameResponseSchema`,
-  `NameCollisionSchema`, `ArchivedNameConflictSchema` — schema
-  value has no runtime consumer, but `z.infer<typeof Schema>` type
-  IS externally consumed. Un-export the schema; keep the derived
-  `export type` line.
-- Default parameter fallback (3): `ANTHROPIC_DEFAULT_MODEL`,
-  `OPENAI_DEFAULT_MODEL`, `defaultComponentIdGenerator` — the
-  `function foo(param = X)` shape.
-- Formula/expression use (2): `CHARS_PER_TOKEN`, `MIN_MAX_TOKENS`
-  — same-file arithmetic.
 
-**Guidance:** grep the declaring file for internal uses before
-proposing deletion. The diff is one word; the commit message names
-both what dropped AND why the declaration survives. For Zod
-findings, check for a same-file `z.infer<typeof Schema>` type — if
-externally consumed, the schema value un-exports while the derived
-type stays. Cite recent identical precedents by SHA.
+**Guidance:** grep the declaring file for internal uses BEFORE
+proposing deletion. The diff is one word (drop `export`); the
+commit message names both what un-exported AND why the
+declaration survives. For Zod findings specifically, check for a
+same-file `z.infer<typeof Schema>` — if the derived type IS
+externally consumed, un-export the schema value while the
+`export type` line stays. Cite recent identical precedents by SHA.
 
 ## 2. Verify BOTH public-surface paths before proposing removal
 
-**Signal:** cited in every approval across the current log window.
+**Signal:** cited in every approval across the current window.
 
 **Guidance:** a symbol is public if EITHER (1) its file's subpath
 appears in `packages/gazetta/package.json`'s `exports` field
@@ -56,9 +49,9 @@ appears in `packages/gazetta/package.json`'s `exports` field
 from `packages/gazetta/src/index.ts` — how most operator-facing
 factories reach consumers when the source file has no subpath.
 
-Neither → removal safe. Either → file a `public-api` skip-list
-entry. Private workspaces have no `exports` map, so only path 2
-applies: `apps/admin` (Vue SPA) and `@gazetta/bots`
+Neither path → removal safe. Either path → file a `public-api`
+skip-list entry. Private workspaces have no `exports` map, so
+only path 2 applies: `apps/admin` (Vue SPA) and `@gazetta/bots`
 (`private: true`). **Nuance:** `admin-api/schemas` IS a public
 subpath, but its barrel curates which sub-modules re-export — a
 schema file whose symbols aren't in that barrel isn't reachable
@@ -70,16 +63,10 @@ A file re-exports a symbol from a sibling module; all in-repo
 consumers import directly from the sibling. The re-export line is
 dead; the symbol itself is fine.
 
-**Signal:** 11 approves across 5 runs — `SharpAdapterOptions`,
-`CloudflareAdapterOptions` (via `transforms/factories.ts`);
-`AIAdapterFailedError`, `AIAdapterUnavailableError` (via
-`ai/errors.js`); `pruneAuditEvents`,
-`HistoryAuditProviderOptions`, `RecordResult`, `RecordToAllOptions`
-(four barrel-only re-exports in the audit module cleared in one
-cron); `eventFromRegistration` (via `hooks/audit-emitter.js`);
-`BuildHookContextOptions` (inferred from `buildHookContext`'s
-signature); `extractDeployUrl` (via
-`deploy/cloudflare-workers.js`, tests import canonically).
+**Signal:** 1 approve this window — `extractDeployUrl` dropped
+from `deploy/index.ts` barrel; the function stays live at its
+canonical `deploy/cloudflare-workers.ts` export where the tests
+already import it.
 
 **Guidance:** trace where consumers actually import from. If all
 bypass the barrel, drop only the barrel line — confirm the
@@ -87,6 +74,6 @@ canonical export still exists so the symbol isn't stranded.
 **Symmetric-group risk:** if the same line re-exports paired
 symbols (`sharpAdapter, cloudflareAdapter`) and Knip flagged only
 one, escalate rather than break the pair. **Joined-line case:**
-on `export { factory, type Options }` where only the type is dead,
-drop only the `type Options` clause; the paired factory stays
-live.
+on `export { factory, type Options }` where only the type is
+dead, drop only the `type Options` clause; the paired factory
+stays live.
