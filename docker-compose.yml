@@ -35,14 +35,18 @@ services:
     # version, and a pinned tag is the time-bomb that caused #794's rot.
     #
     # Bitnami conventions differ from `minio/minio`: the entrypoint runs
-    # the server itself (no explicit `server /data` command), the console
-    # is on 9001, and it reads the same MINIO_ROOT_USER / MINIO_ROOT_PASSWORD
-    # credentials. The test discovers the host port via getMappedPort(9000),
-    # so the unmapped `ports` entries are unchanged.
+    # the server itself (no explicit `server /data` command) and reads the
+    # same MINIO_ROOT_USER / MINIO_ROOT_PASSWORD credentials.
+    #
+    # Only expose 9000 (the S3 API). Bitnami's image doesn't bind the 9001
+    # console by default, and testcontainers waits for EVERY declared port
+    # to bind — listing 9001 timed out `.up()` with "Port 9001/tcp not bound
+    # after 60000ms". The conformance battery only hits the S3 API via
+    # getMappedPort(9000); the console is never used. (minio/minio bound
+    # 9001 because the old `--console-address :9001` command started it.)
     image: bitnamilegacy/minio:latest
     ports:
       - "9000"
-      - "9001"
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
