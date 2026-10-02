@@ -68,24 +68,31 @@ jobs:
       # whose default pull policy is pull-if-absent — so once these images
       # are local, `.up()` performs no pull at test time.
       #
-      # The #481 root cause was NOT a transient: Docker Hub now gates
-      # anonymous pulls of `minio/minio` (deterministic `pull access denied`,
-      # failed all retries identically). The fix is pulling MinIO from
-      # quay.io (MinIO's own registry, no anonymous gating) — see
-      # docker-compose.yml. The retry loop here is defense against GENUINE
-      # transient network blips on either image, not the #481 fix.
+      # The #481 root cause was NOT a transient: Docker Hub gates anonymous
+      # pulls of `minio/minio`. The fix is pulling MinIO from quay.io
+      # (MinIO's own registry) — see docker-compose.yml. MinIO is pulled
+      # UNPINNED (`:latest`) because a pinned `.hotfix.*` RELEASE tag rotted
+      # in two weeks (#811 — the pruned digest returned `unauthorized`).
+      # The retry loop is defense against GENUINE transient network blips.
       #
       # Image refs MUST match docker-compose.yml verbatim so the pulled
       # images satisfy testcontainers' pull-if-absent check.
       - name: Pre-pull testcontainers images (retry)
         run: |
-          for image in mcr.microsoft.com/azure-storage/azurite:3.37.0 quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z.hotfix.7aa24e772; do
+          for image in mcr.microsoft.com/azure-storage/azurite:3.37.0 quay.io/minio/minio:latest; do
             for attempt in 1 2 3; do
-              if docker pull "$image"; then
+              # Capture docker's stderr so a real failure cause (unauthorized,
+              # manifest-unknown, TLS, rate-limit) surfaces in the log instead
+              # of being masked behind a generic "failed (attempt N/3)". The
+              # #811 regression was invisible for a cycle because the prior
+              # loop swallowed the `unauthorized: ...` line.
+              if err=$(docker pull "$image" 2>&1); then
+                echo "$err"
                 break
               fi
+              echo "$err"
               if [ "$attempt" -eq 3 ]; then
-                echo "::error::failed to pull $image after 3 attempts"
+                echo "::error::failed to pull $image after 3 attempts (see docker error above)"
                 exit 1
               fi
               echo "pull of $image failed (attempt $attempt/3); retrying in $((attempt * 5))s"

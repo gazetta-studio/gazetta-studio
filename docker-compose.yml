@@ -21,11 +21,17 @@ services:
   minio:
     # Pulled from quay.io (MinIO's own registry), NOT Docker Hub: Docker
     # Hub gates anonymous pulls of `minio/minio` (`pull access denied ...
-    # may require docker login`), which was the real #481 flake — it failed
-    # whenever the shared-runner anonymous-pull quota was spent. quay.io
-    # serves the same image without anonymous gating. Pinned to the latest
-    # verified stable RELEASE tag (quay tag API, 2026-09).
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z.hotfix.7aa24e772
+    # may require docker login`) — the original #481 flake.
+    #
+    # UNPINNED (`:latest`) deliberately. A pinned `RELEASE.*.hotfix.*` tag
+    # (#794) returned `unauthorized` on the runner two weeks later (#811
+    # fix-forward): MinIO prunes `.hotfix.*` RELEASE tags, so the digest
+    # the pin referenced stopped being served. `:latest` can't rot that
+    # way. Reproducibility across runs is not worth a time-bomb for a
+    # throwaway test container — testcontainers just needs *a* working
+    # MinIO. If a future stable (non-hotfix) RELEASE tag proves durable
+    # and reproducibility becomes worth pinning, revisit then.
+    image: quay.io/minio/minio:latest
     command: server /data --console-address ":9001"
     ports:
       - "9000"
