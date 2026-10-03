@@ -56,24 +56,3 @@ only path 2 applies: `apps/admin` (Vue SPA) and `@gazetta/bots`
 subpath, but its barrel curates which sub-modules re-export — a
 schema file whose symbols aren't in that barrel isn't reachable
 via the public subpath.
-
-## 3. Barrel re-exports are dead when consumers import canonically
-
-A file re-exports a symbol from a sibling module; all in-repo
-consumers import directly from the sibling. The re-export line is
-dead; the symbol itself is fine.
-
-**Signal:** 1 approve this window — `extractDeployUrl` dropped
-from `deploy/index.ts` barrel; the function stays live at its
-canonical `deploy/cloudflare-workers.ts` export where the tests
-already import it.
-
-**Guidance:** trace where consumers actually import from. If all
-bypass the barrel, drop only the barrel line — confirm the
-canonical export still exists so the symbol isn't stranded.
-**Symmetric-group risk:** if the same line re-exports paired
-symbols (`sharpAdapter, cloudflareAdapter`) and Knip flagged only
-one, escalate rather than break the pair. **Joined-line case:**
-on `export { factory, type Options }` where only the type is
-dead, drop only the `type Options` clause; the paired factory
-stays live.
