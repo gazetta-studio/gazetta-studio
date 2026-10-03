@@ -31,13 +31,17 @@ on:
         description: 'Optional: attempt one specific cut sub-issue (otherwise scans unblocked candidates)'
         required: false
       max_attempts:
-        description: 'Generator-critic loop cap (default 5; lower for cost-bounded testing)'
+        description: 'Generator-critic loop cap (default 2; lower for cost-bounded testing)'
         required: false
-        default: '5'
+        default: '2'
       budget_ms:
-        description: 'Per-run wall-clock budget in ms (default 3000000 = 50min)'
+        description: 'Per-run wall-clock budget in ms (default 9000000 = 150min)'
         required: false
-        default: '3000000'
+        default: '9000000'
+      cut_budget_ms:
+        description: 'Per-cut wall-clock budget in ms (default 7200000 = 120min). Must stay below the job timeout-minutes.'
+        required: false
+        default: '7200000'
       dry_run:
         description: 'Set to "1" to scan candidates and exit before invoking Claude'
         required: false
@@ -58,7 +62,13 @@ jobs:
   run:
     runs-on: ubuntu-latest
     continue-on-error: true
-    timeout-minutes: 60
+    # 180 min, not 60. A single Agent A invocation was measured at ~10.6 min
+    # (cut #524, run 37150215338), so the old 60-min wall left no room for a
+    # 2-attempt generator-critic loop at a viable per-attempt size — see the
+    # SIZING note on PER_CUT_BUDGET_MS in bots/feature-bot/index.ts. Must
+    # exceed the per-cut budget (120 min) so the graceful in-bot escalation
+    # fires before this hard kill. Precedent: mutation.yml already uses 180.
+    timeout-minutes: 180
     permissions:
       # Read CI run history (for past-PR feedback loop), read+write issues
       # (apply labels, post comments, close sub-issues), read+write PRs
@@ -136,8 +146,12 @@ jobs:
           # bots/feature-bot/index.ts — when manual dispatch provides no
           # value, GH Actions evaluates `inputs.X` to '' and the `||`
           # selects the literal.
-          MAX_ATTEMPTS: ${{ inputs.max_attempts || '5' }}
-          BUDGET_MS: ${{ inputs.budget_ms || '3000000' }}
+          MAX_ATTEMPTS: ${{ inputs.max_attempts || '2' }}
+          BUDGET_MS: ${{ inputs.budget_ms || '9000000' }}
+          # Was previously unwired — the per-cut budget could only be changed
+          # by editing the TypeScript. Wiring it keeps the three budget knobs
+          # adjustable from a manual dispatch without a code change.
+          CUT_BUDGET_MS: ${{ inputs.cut_budget_ms || '7200000' }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: npm run feature-bot -w @gazetta/bots
 
