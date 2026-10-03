@@ -206,7 +206,7 @@ export function matchesComments(file: DispatchFile): boolean {
 //   Default base is `HEAD` (uncommitted changes).
 //   Specify `--base main` for branch-vs-main diff.
 
-export async function cliMain(argv: readonly string[], spawn: SpawnLike): Promise<readonly Angle[]> {
+async function cliMain(argv: readonly string[], spawn: SpawnLike): Promise<readonly Angle[]> {
   const baseIdx = argv.indexOf('--base')
   const base = baseIdx >= 0 ? (argv[baseIdx + 1] ?? 'HEAD') : 'HEAD'
 
