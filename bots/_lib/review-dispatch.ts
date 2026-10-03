@@ -228,7 +228,7 @@ async function cliMain(argv: readonly string[], spawn: SpawnLike): Promise<reado
   return dispatch({ files })
 }
 
-export type SpawnLike = (cmd: string, args: readonly string[]) => Promise<string>
+type SpawnLike = (cmd: string, args: readonly string[]) => Promise<string>
 
 /** Parse `git diff --name-status` output into DispatchFile entries. */
 export function parseNameStatus(output: string): DispatchFile[] {
