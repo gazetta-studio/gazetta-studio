@@ -78,6 +78,24 @@ describe('feature-bot — rate-limit cascade stop', () => {
     expect(region.length).toBeGreaterThan(0)
   })
 
+  it('also guards transient AUTH failures (401/403) before escalate-failure', () => {
+    // Same category as the rate-limit above — "the cut is fine, the
+    // infrastructure isn't" — but a different signal, so it needs its
+    // own guard. Without it, a momentary org-level 403 routes to
+    // `agent-a-failure` → `escalate-failure` → a TERMINAL needs-human
+    // skip entry. That is exactly what froze cut #524 on 2026-06-24
+    // (auth recovered by 07-02; the skip-list entry did not) and with
+    // it the whole review-workflow dependency chain for three months.
+    //
+    // Structural assertion for the same reason as the rate-limit guard
+    // above: nothing in the type system can express "the guard is
+    // present at this call site", and driving the real loop with a
+    // mocked Claude is the months-long shim this file's header rules
+    // out. Both the import and the guard must be present.
+    expect(source).toMatch(/import\s+\{[^}]*detectTransientAuthError[^}]*\}\s+from\s+['"]\.\.\/_lib\/claude/)
+    expect(source).toMatch(/detectTransientAuthError\(agentATranscript\)/)
+  })
+
   it('emits a clear warning when stopping the loop due to rate-limit', () => {
     // The operator reading workflow logs needs to know WHY the queue
     // stopped early. A generic "stopped" log isn't enough — it could
