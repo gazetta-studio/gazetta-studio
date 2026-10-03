@@ -76,37 +76,28 @@ jobs:
       # read+write contents (push cut branches). Only writes to feature
       # cut branches, never main (rule 33).
       #
-      # `workflows: write` is required for cuts that legitimately modify
-      # `.github/workflows/**` — e.g. cut #524 ("wire @storybook/test-runner
-      # into CI") is BY DEFINITION a workflow edit. Without it GitHub rejects
-      # the push outright: "refusing to allow a GitHub App to create or
-      # update workflow `.github/workflows/ci.yml` without `workflows`
-      # permission" — which is what happened on run 37152238559, AFTER Agent
-      # A had implemented the cut and Agent B had APPROVED it. The work was
-      # done and reviewed; only delivery failed.
+      # A cut that modifies `.github/workflows/**` CANNOT be pushed by this
+      # bot, and no permission here can change that. GitHub rejects the push
+      # ("refusing to allow a GitHub App to create or update workflow ...
+      # without `workflows` permission"), and `workflows` is not a valid
+      # `permissions:` scope for `GITHUB_TOKEN` — the valid scopes are
+      # actions, artifact-metadata, attestations, checks, code-quality,
+      # contents, deployments, discussions, id-token, issues, packages,
+      # pages, pull-requests, security-events, statuses,
+      # vulnerability-alerts. Adding `workflows: write` here is a workflow
+      # PARSE ERROR, which takes the whole bot offline (HTTP 422 on every
+      # dispatch) — see #840.
       #
-      # Blast radius, deliberately accepted: the bot already holds
-      # `contents: write`, so it can already push code that CI executes.
-      # This extends that to the workflow definition. Three mitigations stay
-      # in force and are what make it acceptable: every change lands as a
-      # DRAFT PR, a human reviews before merge, and the bot never writes to
-      # main (rule 33). The bot cannot self-merge.
-      #
-      # Granted to feature-bot ONLY — it is the one bot that implements
-      # designed cuts which can include CI wiring. The other eight bots have
-      # no business editing workflows and deliberately do not get it.
-      #
-      # SUPERSEDED BY #336 when that lands: moving the bots off
-      # `GITHUB_TOKEN` to a GitHub App installation token gives properly
-      # scoped permissions AND fixes the separate problem that
-      # `GITHUB_TOKEN` suppresses downstream CI triggers on bot pushes. At
-      # that point this blanket grant should be replaced by the App's
-      # scoped permission.
+      # Consequence: cuts like #524 ("wire @storybook/test-runner into CI")
+      # are structurally undeliverable by this bot. Run 37152238559 got all
+      # the way to Agent B APPROVED before the push failed. Such cuts must
+      # escalate to a human until #336 moves the bots to a GitHub App
+      # installation token, which CAN hold the `workflows` permission that
+      # `GITHUB_TOKEN` structurally lacks.
       actions: read
       issues: write
       pull-requests: write
       contents: write
-      workflows: write
     steps:
       - uses: actions/checkout@v7
         with:
