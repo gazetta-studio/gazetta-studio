@@ -243,3 +243,77 @@ export function detectRateLimit(transcriptPath: string): boolean {
   }
   return false
 }
+
+/**
+ * Detect whether a Claude transcript ended because of a transient
+ * AUTH / entitlement failure (401 / 403) rather than anything wrong
+ * with the work. Sibling to `detectRateLimit` — same "the cut is fine,
+ * the infrastructure isn't" category, different signal.
+ *
+ * Matches EITHER:
+ *   - a `result` event with `api_error_status` 401 or 403, OR
+ *   - a `result` event whose error text names the entitlement failure
+ *     (the observed 2026-06-24 wording was "Your organization has
+ *     disabled Claude subscription access for Claude Code").
+ *
+ * Why the text fallback: `api_error_status` is confirmed present for
+ * 429 (see `detectRateLimit`), but the June 2026 transcripts that
+ * carried the 403 aged out of the 90-day artifact retention before
+ * the exact field shape could be confirmed. Matching both shapes is
+ * defensive; if the status code is present we catch it, and if the
+ * CLI only surfaced prose we still catch it.
+ *
+ * Why this matters: without it, a momentary org-level auth blip makes
+ * Agent A exit non-zero, which routes to `agent-a-failure` →
+ * `escalate-failure` → a TERMINAL `needs-human` skip entry +
+ * `ready-for-human` + closed issue. That is what froze cut #524 (and
+ * with it the whole review-workflow dependency chain) for three
+ * months after a single transient 403 on 2026-06-24 — the auth was
+ * working again by 07-02, but the skip-list entry made the cut
+ * permanently invisible to the cron.
+ *
+ * Defensive against missing / malformed transcripts: returns false on
+ * any read or parse error, same as `detectRateLimit`. Worst case in
+ * that branch is the pre-existing behavior (escalate a cut that could
+ * have stayed on the queue).
+ */
+export function detectTransientAuthError(transcriptPath: string): boolean {
+  if (!existsSync(transcriptPath)) return false
+  let content: string
+  try {
+    content = readFileSync(transcriptPath, 'utf-8')
+  } catch {
+    return false
+  }
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    let event: unknown
+    try {
+      event = JSON.parse(trimmed)
+    } catch {
+      continue
+    }
+    if (!event || typeof event !== 'object') continue
+    const e = event as Record<string, unknown>
+    if (e.type !== 'result' || e.is_error !== true) continue
+
+    if (e.api_error_status === 401 || e.api_error_status === 403) return true
+
+    // Text fallback — the CLI may surface the entitlement failure as
+    // prose without a status code. Keep the match narrow: an auth
+    // keyword AND a Claude-Code-entitlement keyword, so an unrelated
+    // 403 from a tool the agent called (e.g. a curl in Bash) doesn't
+    // mask a genuine code-level failure as "transient infra".
+    const text = typeof e.result === 'string' ? e.result.toLowerCase() : ''
+    if (!text) continue
+    const authish =
+      text.includes('unauthorized') ||
+      text.includes('forbidden') ||
+      text.includes('authentication') ||
+      text.includes('subscription access')
+    const entitlementish = text.includes('claude code') || text.includes('organization has disabled')
+    if (authish && entitlementish) return true
+  }
+  return false
+}
