@@ -321,7 +321,7 @@ Per `design-hooks-implementation.md` Phase 4 (when hooks foundation ships): wire
 ## Open implementation questions
 
 1. **State-machine atomicity.** Per-approver sidecar write + state-write is two operations. Per design's "concurrent approval race tolerance": writes are idempotent; last-write-wins on `state: approved`. Verify in cut 4 with concurrent test.
-2. **`invalidateOnSave: 'content-diff'` hash basis.** Use the existing `.{8hex}.hash` sidecar (publish-state hash) or a save-time content hash (per `design-offline.md` Cut 9's save-etag)? Recommend save-etag because it's content-only (no template/fragment hash). Lock at cut 5.
+2. ~~**`invalidateOnSave: 'content-diff'` hash basis.**~~ **RESOLVED 2026-10-03** — locked to `computeSaveEtag` (content-only) in [`design-review-workflow.md`](design-review-workflow.md) "Locked invariants". The publish-state `.{8hex}.hash` substitutes template + fragment hashes, so it would revoke approval on unrelated dep-tree changes. Cut 5 (#519) consumes the lock; it no longer carries the decision.
 3. **Self-approval edge case.** When `allowSelfApproval: false` AND submitter is the only role-mapped approver: deadlock. Cut 12's `409 NO_APPROVER_AVAILABLE` covers this; verify the error fires at submit time, not approve time (UX: don't let them submit then fail mid-flow).
 4. **Pending queue visibility filter.** Reviewer sees items they can approve. RBAC filter at query time, not client-side, to avoid leaking pending items the reviewer doesn't have capability for. Lock at cut 13.
 
