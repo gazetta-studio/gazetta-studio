@@ -37,7 +37,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { detectRateLimit, runClaude } from '../_lib/claude.js'
+import { detectRateLimit, detectTransientAuthError, runClaude } from '../_lib/claude.js'
 import { branchHasCommits, captureCommitMessages, captureDiff, resetToMain } from '../_lib/git-tree.js'
 import {
   addLabel,
@@ -438,6 +438,23 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     if (!aResult.success && detectRateLimit(agentATranscript)) {
       printWarning(
         `Anthropic session-rate-limit hit on attempt ${attempt}; stopping the queue (this cut + remaining candidates will be retried by tomorrow's cron after the bucket resets).`,
+      )
+      resetToMain(branchName, { cwd: REPO_ROOT })
+      return { rateLimited: true }
+    }
+
+    // Transient AUTH / entitlement failure (401 / 403) — same category as
+    // the rate-limit above: the cut is fine, the infrastructure isn't.
+    // Without this the non-zero exit routes to `agent-a-failure` →
+    // `escalate-failure` → a TERMINAL `needs-human` skip entry, which is
+    // exactly how a momentary org-level 403 on 2026-06-24 froze cut #524
+    // (and the whole review-workflow dependency chain behind it) for three
+    // months. Leave the cut on the queue and stop the queue: if auth is
+    // down for this run it's down for every subsequent candidate too, so
+    // continuing would burn the remaining budget on identical failures.
+    if (!aResult.success && detectTransientAuthError(agentATranscript)) {
+      printWarning(
+        `Transient auth/entitlement failure on attempt ${attempt}; stopping the queue (this cut + remaining candidates stay eligible for the next cron).`,
       )
       resetToMain(branchName, { cwd: REPO_ROOT })
       return { rateLimited: true }
