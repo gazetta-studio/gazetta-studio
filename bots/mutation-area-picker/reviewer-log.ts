@@ -22,7 +22,7 @@
  */
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 
-export type DecisionAction = 'add' | 'swap' | 'remove' | 'noop'
+type DecisionAction = 'add' | 'swap' | 'remove' | 'noop'
 
 export interface ReviewerLogEntry {
   ts: string
