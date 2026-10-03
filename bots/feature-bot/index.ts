@@ -91,18 +91,43 @@ const DRY_RUN = process.env.DRY_RUN === '1'
 const TRANSCRIPTS_DIR = resolve(HERE, '../transcripts')
 const RUN_TIMESTAMP = new Date().toISOString().replace(/[:.]/g, '-').replace(/Z$/, 'Z')
 
-const PER_RUN_BUDGET_MS = Number(process.env.BUDGET_MS ?? 50 * 60 * 1000)
+// Per-RUN wall-clock budget, checked at the top of the candidate loop (so
+// it bounds how many CUTS a run attempts, never interrupting one in
+// flight). MUST exceed PER_CUT_BUDGET_MS below, or the pair is incoherent:
+// a cut allowed 120 min would blow a 50-min run budget by design, firing
+// the "stopping with N unprocessed" path on every substantive cut.
+const PER_RUN_BUDGET_MS = Number(process.env.BUDGET_MS ?? 150 * 60 * 1000)
 // Per-CUT wall-clock budget, checked at the top of each generator-critic
 // attempt. The per-RUN budget above only fires BETWEEN candidates, so a
 // single thrashing cut (e.g. an RBAC cut whose Agent-A pipeline +
 // Agent-B architecture-review subagent + retries exceed the budget within
-// one cut) would otherwise run until the workflow's `timeout-minutes: 60`
+// one cut) would otherwise run until the workflow's `timeout-minutes`
 // HARD-KILLS it mid-attempt — producing NO PR, NO escalation, no record
-// (the #516 failure mode, 2026-06-09). Capping per-cut well under the
-// 60-min wall converts that silent kill into a graceful NEEDS_HUMAN
-// escalation ("cut exceeds time budget — likely too large; split it").
-const PER_CUT_BUDGET_MS = Number(process.env.CUT_BUDGET_MS ?? 45 * 60 * 1000)
-const MAX_ATTEMPTS = Number(process.env.MAX_ATTEMPTS ?? '5')
+// (the #516 failure mode, 2026-06-09). Capping per-cut under the wall
+// converts that silent kill into a graceful NEEDS_HUMAN escalation
+// ("cut exceeds time budget — likely too large; split it").
+//
+// SIZING (2026-10-03). The previous 45-min cut budget with MAX_ATTEMPTS=5
+// gave each generator-critic round ~9 minutes — and a single Agent A
+// invocation was MEASURED at 638s (~10.6 min) on cut #524, run
+// 37150215338. So one attempt could not fit its own slice, and five
+// attempts (~60-75 min) exceeded both the cut budget and the 60-min
+// workflow wall. Any substantive cut was guaranteed to escalate on budget
+// regardless of its quality.
+//
+// Re-budgeted so ONE attempt is genuinely viable: 2 attempts x ~55 min.
+// Fewer retries is deliberate — the 5 were never real (they shared 9
+// minutes), and retry value is low in any case: ~82% of failed agent
+// recoveries keep executing without progress, and "repeatedly fixing the
+// wrong cause" accounts for ~39% of wasted execution.
+//
+// These numbers are a FIRST CALIBRATION on n=1 (one Agent A timing; Agent
+// B had never completed a review before this change, because it died on
+// `spawn E2BIG` — fixed separately). Re-check them against the first few
+// completed loops rather than treating them as settled. The better
+// long-term guard is repetition-based stuck detection, not a bigger timer.
+const PER_CUT_BUDGET_MS = Number(process.env.CUT_BUDGET_MS ?? 120 * 60 * 1000)
+const MAX_ATTEMPTS = Number(process.env.MAX_ATTEMPTS ?? '2')
 const MAX_INPUT_CYCLES = Number(process.env.MAX_INPUT_CYCLES ?? '2')
 
 async function main(): Promise<void> {
