@@ -56,7 +56,7 @@ export type AssetStorageResolver = (targetName: string | undefined) => Promise<S
  * because adapter config (and thus cache policy) is per-target.
  * Optional — when absent, the route uses the sharp adapter's policy.
  */
-export type AssetAdapterResolver = (targetName: string | undefined) => Promise<TransformAdapter>
+type AssetAdapterResolver = (targetName: string | undefined) => Promise<TransformAdapter>
 
 export interface AssetServeRoutesOptions {
   resolveStorage: AssetStorageResolver
