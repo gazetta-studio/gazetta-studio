@@ -135,6 +135,20 @@ export async function runClaude(opts: ClaudeOptions): Promise<ClaudeResult> {
   const counters: RenderCounters = { toolCalls: 0, decisions: 0 }
 
   return new Promise((resolve, reject) => {
+    // The prompt goes in on STDIN, not as an argv entry. Passing it as an
+    // argument put the whole prompt — reviewer template + issue body +
+    // the full `git diff` of Agent A's work — into the exec argument
+    // vector, which the OS caps at ARG_MAX (~256 KB on Linux). A cut
+    // with a large diff therefore died with `spawn E2BIG` *after* Agent
+    // A had already done the work: observed 2026-10-03 on cut #524
+    // ("#524 threw: Error: spawn E2BIG"), where Agent A committed the
+    // story-render gate and the reviewer invocation then blew up. The
+    // generator half of the loop worked; the critic half was unreachable
+    // for any cut whose diff was big enough.
+    //
+    // `claude --print` reads the prompt from stdin when no prompt
+    // argument is supplied, so this removes the ceiling entirely — a
+    // pipe has no size limit.
     const child = spawn(
       'claude',
       [
@@ -147,10 +161,16 @@ export async function runClaude(opts: ClaudeOptions): Promise<ClaudeResult> {
         '--allowedTools',
         tools.join(','),
         '--dangerously-skip-permissions',
-        opts.prompt,
       ],
-      { cwd: opts.cwd ?? REPO_ROOT, env: process.env, stdio: ['ignore', 'pipe', 'inherit'] },
+      { cwd: opts.cwd ?? REPO_ROOT, env: process.env, stdio: ['pipe', 'pipe', 'inherit'] },
     )
+
+    // Write the prompt and close stdin so `claude` sees EOF and starts.
+    // EPIPE is possible if the child dies before draining (bad model
+    // name, missing binary); the 'error'/'close' handlers below own that
+    // reporting, so swallow it here rather than crashing the bot.
+    child.stdin.on('error', () => {})
+    child.stdin.end(opts.prompt)
 
     // Buffer stdout to handle JSONL events split across chunks. Each complete
     // line is parsed for the human summary AND written verbatim to the
