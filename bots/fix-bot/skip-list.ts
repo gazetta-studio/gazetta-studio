@@ -56,6 +56,9 @@ export type SkipReason =
   | 'out-of-scope'
   /** Other — free-text required in reasonNote. */
   | 'other'
+  /** Approved by the reviewer but the push or PR failed (#840). Infrastructure,
+   *  not fix quality — the compactor must not learn "this fix was bad" from it. */
+  | 'delivery-failed'
 
 export interface SkipEntry {
   fingerprint: IssueFingerprint

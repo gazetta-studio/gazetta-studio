@@ -49,6 +49,7 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { detectRateLimit, runClaude } from '../_lib/claude.js'
+import { type DeliveryResult, deliveryFailureComment, pushBranch, runGh, savePatch } from '../_lib/delivery.js'
 import { branchHasCommits, captureCommitMessages, captureDiff, resetToMain } from '../_lib/git-tree.js'
 import {
   addLabel,
@@ -576,9 +577,20 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
 
     if (decision.kind === 'push-and-pr') {
       printNotice(`✅ Reviewer APPROVED on attempt ${attempt}/${MAX_ATTEMPTS}: ${decision.reasoning.slice(0, 120)}`)
-      pushBranch(branchName)
-      openFixPR(repo, issueNumber, issue.title, branchName, decision.reasoning, agentASummary)
-      attemptOutcome = 'approved'
+      const pushed = pushBranch(branchName, { cwd: REPO_ROOT, forceWithLease: true })
+      const delivered = pushed.ok
+        ? openFixPR(repo, issueNumber, issue.title, branchName, decision.reasoning, agentASummary)
+        : pushed
+      if (delivered.ok) {
+        attemptOutcome = 'approved'
+        break
+      }
+      await escalateDeliveryFailure(octokit, repo, issueNumber, skipList, fingerprint, {
+        stage: pushed.ok ? 'pr' : 'push',
+        branchName,
+        error: delivered.error,
+      })
+      attemptOutcome = 'needs-human'
       break
     }
 
@@ -624,25 +636,52 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
 }
 
 /**
- * Push a branch to origin. Best-effort; failures log + continue.
- *
- * Force-with-lease so a re-attempt against a stale leftover branch of
- * the same name on origin (e.g. a prior run's `fix/issue-NNN` that
- * diverged) replaces it instead of silently failing as non-fast-forward
- * — the failure mode #550 documents for feature-bot. `--force-with-lease`
- * is safer than `--force`: it refuses to clobber an upstream that moved
- * unexpectedly. Sibling bots (feature-bot, review-bot, mutation-area-
- * picker) all push this way per team-preferences rule 38.
+ * The reviewer approved but the push or `gh pr create` failed (#840). Save the
+ * approved commits as a patch first — `escalateToHuman` resets to main to
+ * build its skip-list branch, which would otherwise discard them on the
+ * runner. Then hand it to a human with the git error and the patch, and
+ * record `delivery-failed` so the issue is not re-fixed on every run.
  */
-function pushBranch(branchName: string): void {
-  try {
-    execFileSync('git', ['push', '-u', '--force-with-lease', 'origin', branchName], {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
+async function escalateDeliveryFailure(
+  octokit: ReturnType<typeof octokitFromEnv>,
+  repo: RepoIdentity,
+  issueNumber: number,
+  skipList: SkipList,
+  fingerprint: IssueFingerprint,
+  f: { stage: 'push' | 'pr'; branchName: string; error: string },
+): Promise<void> {
+  printWarning(`Approved but not delivered (${f.stage} failed) for #${issueNumber}: ${f.error.slice(0, 200)}`)
+  const patchName = `${RUN_TIMESTAMP}-fix-issue-${issueNumber}`
+  const patch =
+    f.stage === 'push'
+      ? savePatch({ cwd: REPO_ROOT, dir: TRANSCRIPTS_DIR, name: patchName, branch: f.branchName })
+      : null
+  const runId = process.env.GITHUB_RUN_ID ?? 'local'
+  const runUrl =
+    runId === 'local'
+      ? '(local run)'
+      : `${process.env.GITHUB_SERVER_URL ?? 'https://github.com'}/${repo.owner}/${repo.repo}/actions/runs/${runId}`
+  await octokit.issues
+    .createComment({
+      ...repo,
+      issue_number: issueNumber,
+      body: deliveryFailureComment({
+        bot: 'fix-bot',
+        issueNumber,
+        stage: f.stage,
+        branch: f.branchName,
+        error: f.error,
+        patch,
+        patchFileName: patch ? `${patchName}.patch` : null,
+        runUrl,
+        runId,
+      }),
     })
-  } catch (err) {
-    printWarning(`git push ${branchName} failed: ${err}`)
-  }
+    .catch(err => printWarning(`Couldn't post the delivery-failure comment on #${issueNumber}: ${err}`))
+  await escalateToHuman(octokit, repo, issueNumber, f.branchName, skipList, fingerprint, {
+    reason: 'delivery-failed',
+    reasonNote: `Approved by the reviewer, but the ${f.stage === 'push' ? 'push' : 'PR creation'} failed: ${f.error.slice(0, 400)}. See the delivery-failure comment above for the preserved work.`,
+  })
 }
 
 /**
@@ -657,7 +696,7 @@ function openFixPR(
   branchName: string,
   reviewerReasoning: string,
   agentASummary: string,
-): void {
+): DeliveryResult {
   const body = `## Summary
 
 Fixes #${issueNumber}.
@@ -695,25 +734,20 @@ your comment and add a skip-list entry so it doesn't re-attempt the same
 fix shape.
 
 <!-- fix-bot: issue=${issueNumber} run=${process.env.GITHUB_RUN_ID ?? 'local'} -->`
-  try {
-    execFileSync(
-      'gh',
-      [
-        'pr',
-        'create',
-        '--draft',
-        '--title',
-        `fix: ${issueTitle} (#${issueNumber})`,
-        '--body',
-        body,
-        '--head',
-        branchName,
-      ],
-      { cwd: REPO_ROOT, stdio: 'inherit' },
-    )
-  } catch (err) {
-    printWarning(`gh pr create failed for #${issueNumber}: ${err}`)
-  }
+  return runGh(
+    [
+      'pr',
+      'create',
+      '--draft',
+      '--title',
+      `fix: ${issueTitle} (#${issueNumber})`,
+      '--body',
+      body,
+      '--head',
+      branchName,
+    ],
+    REPO_ROOT,
+  )
 }
 
 /**

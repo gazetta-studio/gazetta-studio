@@ -39,6 +39,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { detectRateLimit, detectTransientAuthError, runClaude } from '../_lib/claude.js'
 import { branchHasCommits, captureCommitMessages, captureDiff, resetToMain } from '../_lib/git-tree.js'
+import { type DeliveryResult, deliveryFailureComment, pushBranch, runGh, savePatch } from '../_lib/delivery.js'
 import {
   addLabel,
   findIssuesByLabels,
@@ -621,19 +622,34 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
 
     if (decision.kind === 'push-and-pr') {
       printNotice(`✅ Reviewer APPROVED on attempt ${attempt}/${MAX_ATTEMPTS}: ${decision.reasoning.slice(0, 120)}`)
-      pushBranch(branchName)
-      openCutPR(
-        repo,
-        issueNumber,
-        issue.title,
-        featureSlug,
+      // Both steps report their outcome and BOTH are checked (#840). A
+      // swallowed push used to fall through to "approved": approved work
+      // discarded, no PR, no comment, and the cut still ready-for-agent — so
+      // the next run rebuilt it and failed the same way, forever.
+      const pushed = pushBranch(branchName, { cwd: REPO_ROOT, forceWithLease: true })
+      const delivered = pushed.ok
+        ? openCutPR(
+            repo,
+            issueNumber,
+            issue.title,
+            featureSlug,
+            branchName,
+            decision.reasoning,
+            extractSummary(
+              resolve(TRANSCRIPTS_DIR, `${RUN_TIMESTAMP}-feature-cut-${issueNumber}-attempt${attempt}-A.jsonl`),
+            ),
+          )
+        : pushed
+      if (delivered.ok) {
+        finalOutcome = 'approved'
+        break
+      }
+      await escalateDeliveryFailure(octokit, repo, issueNumber, skipList, fingerprint, {
+        stage: pushed.ok ? 'pr' : 'push',
         branchName,
-        decision.reasoning,
-        extractSummary(
-          resolve(TRANSCRIPTS_DIR, `${RUN_TIMESTAMP}-feature-cut-${issueNumber}-attempt${attempt}-A.jsonl`),
-        ),
-      )
-      finalOutcome = 'approved'
+        error: delivered.error,
+      })
+      finalOutcome = 'escalated'
       break
     }
 
@@ -801,22 +817,57 @@ async function handOffForRefinement(
   })
 }
 
-function pushBranch(branchName: string): void {
-  try {
-    // Force-with-lease so a freshly-built branch (created from origin/main
-    // this run) always replaces any STALE leftover of the same name on
-    // origin from a prior run. A plain `git push` would be rejected as
-    // non-fast-forward against a diverged stale branch and the PR would
-    // then point at the stale commits (the bug behind #550). `--force-
-    // with-lease` is safe here: feature-bot owns `feat/cut-NNN` branches,
-    // and lease still guards against clobbering a push we didn't expect.
-    execFileSync('git', ['push', '-u', '--force-with-lease', 'origin', branchName], {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
+/**
+ * Approved work that did not land (#840). Save it BEFORE escalating:
+ * `escalateToHuman` resets to main to build its skip-list branch, which
+ * would otherwise discard the approved commits on the runner. Then hand it
+ * to a human with the git error and the patch, and record `delivery-failed`
+ * so the cut is not rebuilt on every run.
+ */
+async function escalateDeliveryFailure(
+  octokit: ReturnType<typeof octokitFromEnv>,
+  repo: RepoIdentity,
+  issueNumber: number,
+  skipList: SkipList,
+  fingerprint: IssueFingerprint,
+  f: { stage: 'push' | 'pr'; branchName: string; error: string },
+): Promise<void> {
+  printWarning(`Approved but not delivered (${f.stage} failed) for #${issueNumber}: ${f.error.slice(0, 200)}`)
+  const patchName = `${RUN_TIMESTAMP}-feature-cut-${issueNumber}`
+  const patch =
+    f.stage === 'push'
+      ? savePatch({ cwd: REPO_ROOT, dir: TRANSCRIPTS_DIR, name: patchName, branch: f.branchName })
+      : null
+  const runId = process.env.GITHUB_RUN_ID ?? 'local'
+  const runUrl =
+    runId === 'local'
+      ? '(local run)'
+      : `${process.env.GITHUB_SERVER_URL ?? 'https://github.com'}/${repo.owner}/${repo.repo}/actions/runs/${runId}`
+  // The full comment (with the patch inline when small) goes up first and
+  // independently: escalateToHuman truncates its note, and a failure there
+  // must not lose the work.
+  await octokit.issues
+    .createComment({
+      ...repo,
+      issue_number: issueNumber,
+      body: deliveryFailureComment({
+        bot: 'feature-bot',
+        issueNumber,
+        stage: f.stage,
+        branch: f.branchName,
+        error: f.error,
+        patch,
+        patchFileName: patch ? `${patchName}.patch` : null,
+        runUrl,
+        runId,
+      }),
     })
-  } catch (err) {
-    printWarning(`git push ${branchName} failed: ${err}`)
-  }
+    .catch(err => printWarning(`Couldn't post the delivery-failure comment on #${issueNumber}: ${err}`))
+  resetToMain(f.branchName, { cwd: REPO_ROOT })
+  await escalateToHuman(octokit, repo, issueNumber, skipList, fingerprint, {
+    reason: 'delivery-failed',
+    reasonNote: `Approved by the reviewer, but the ${f.stage === 'push' ? 'push' : 'PR creation'} failed: ${f.error.slice(0, 400)}. See the delivery-failure comment above for the preserved work.`,
+  })
 }
 
 function openCutPR(
@@ -827,7 +878,7 @@ function openCutPR(
   branchName: string,
   reviewerReasoning: string,
   agentASummary: string,
-): void {
+): DeliveryResult {
   const body = `## Summary
 
 Implements cut #${issueNumber} for the \`${featureSlug}\` feature.
@@ -865,25 +916,20 @@ your comment and add a skip-list entry so it doesn't re-attempt the
 same cut shape.
 
 <!-- feature-bot: issue=${issueNumber} run=${process.env.GITHUB_RUN_ID ?? 'local'} -->`
-  try {
-    execFileSync(
-      'gh',
-      [
-        'pr',
-        'create',
-        '--draft',
-        '--title',
-        `feat: cut #${issueNumber} — ${issueTitle}`,
-        '--body',
-        body,
-        '--head',
-        branchName,
-      ],
-      { cwd: REPO_ROOT, stdio: 'inherit' },
-    )
-  } catch (err) {
-    printWarning(`gh pr create failed for #${issueNumber}: ${err}`)
-  }
+  return runGh(
+    [
+      'pr',
+      'create',
+      '--draft',
+      '--title',
+      `feat: cut #${issueNumber} — ${issueTitle}`,
+      '--body',
+      body,
+      '--head',
+      branchName,
+    ],
+    REPO_ROOT,
+  )
 }
 
 /**
