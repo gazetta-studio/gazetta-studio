@@ -67,17 +67,69 @@ describe('routeAttemptOutcome — APPROVE_IMPLICIT + reviewer verdict', () => {
     }
   })
 
-  it('Agent B REJECT on final attempt → escalate-needs-human', () => {
+  it('Agent B REJECT on final attempt, refinements remain → escalate-needs-refinement', () => {
+    // Per design-cut-planner.md Q5: loop exhaustion on a SUBSTANTIVE reject
+    // is the one place the spec is plausibly at fault, so it hands off to
+    // cut-planner rather than terminating. Non-terminal: no skip-list entry,
+    // the cut stays open, and the label swap (Cut 2) re-queues it for
+    // cut-planner instead of feature-bot.
     const signal: AgentASignal = { kind: 'approve-implicit' }
-    const verdict: ReviewerVerdict = { kind: 'reject', note: 'still tautological' }
+    const verdict: ReviewerVerdict = { kind: 'reject', note: 'architecture gap at manifest-save.ts:329' }
     const decision = routeAttemptOutcome(
       { kind: 'agent-b-judged', signal, verdict },
-      { ...baseCtx, attempt: 5, maxAttempts: 5 },
+      { ...baseCtx, attempt: 5, maxAttempts: 5, priorRefinements: 0, maxRefinements: 2 },
+    )
+    expect(decision.kind).toBe('escalate-needs-refinement')
+    if (decision.kind === 'escalate-needs-refinement') {
+      // The reviewer's note must travel with the handoff — per
+      // design-cut-planner.md Q6, "a refinement that doesn't quote Agent B's
+      // note is just a retry".
+      expect(decision.reviewerNote).toBe('architecture gap at manifest-save.ts:329')
+    }
+  })
+
+  it('Agent B REJECT on final attempt, refinement budget spent → escalate-needs-human', () => {
+    // Q6 budgets: once 2 refinements + 1 re-decomposition are exhausted, the
+    // spec is not the problem (or not one cut-planner can fix) and the cut
+    // terminates with a skip-list entry.
+    const signal: AgentASignal = { kind: 'approve-implicit' }
+    const verdict: ReviewerVerdict = { kind: 'reject', note: 'still wrong' }
+    const decision = routeAttemptOutcome(
+      { kind: 'agent-b-judged', signal, verdict },
+      { ...baseCtx, attempt: 5, maxAttempts: 5, priorRefinements: 2, maxRefinements: 2 },
     )
     expect(decision.kind).toBe('escalate-needs-human')
     if (decision.kind === 'escalate-needs-human') {
-      expect(decision.reason).toBe('needs-human')
+      expect(decision.reason).toBe('refinement-exhausted')
     }
+  })
+
+  it('Agent B NEEDS_HUMAN never routes to refinement, even with budget left', () => {
+    // Q5: a design objection is terminal for the cut. Refining a spec cannot
+    // answer "this architecture is wrong", so the refinement budget is
+    // irrelevant here.
+    const signal: AgentASignal = { kind: 'approve-implicit' }
+    const verdict: ReviewerVerdict = { kind: 'needs-human', note: 'the whole approach is wrong' }
+    const decision = routeAttemptOutcome(
+      { kind: 'agent-b-judged', signal, verdict },
+      { ...baseCtx, attempt: 1, maxAttempts: 5, priorRefinements: 0, maxRefinements: 2 },
+    )
+    expect(decision.kind).toBe('escalate-needs-human')
+    if (decision.kind === 'escalate-needs-human') {
+      expect(decision.reason).toBe('wrong-root-cause')
+    }
+  })
+
+  it('agent-a-failure never routes to refinement — infrastructure, not spec', () => {
+    // Q5 + Q6's quota-vs-budget lock: spawn E2BIG / non-zero exits say
+    // nothing about the spec. Refining cannot fix a transport bug, and
+    // misattributing infra to content is the error that made #526's skip
+    // entry read "the cut is likely too large" about a budget bug.
+    const decision = routeAttemptOutcome(
+      { kind: 'agent-a-failure', exitCode: 143 },
+      { ...baseCtx, priorRefinements: 0, maxRefinements: 2 },
+    )
+    expect(decision.kind).toBe('escalate-failure')
   })
 
   it('Agent B NEEDS_HUMAN → escalate-needs-human (reason: wrong-root-cause)', () => {
