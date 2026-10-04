@@ -14,22 +14,28 @@ const dirname = path.dirname(fileURLToPath(import.meta.url))
 // Shape from @storybook/addon-vitest's own Vitest 4 template; project
 // annotations (.storybook/preview.ts) are injected by the plugin, so no
 // setup file is needed.
+/**
+ * One Vitest project per admin theme, so every story — and axe's
+ * color-contrast check — runs in light AND dark. `initialGlobals.theme` is
+ * the global `withThemeByClassName` in .storybook/preview.ts reads; the
+ * addon documents per-project `initialGlobals` for exactly this.
+ */
+const themeProject = (theme: 'light' | 'dark') => ({
+  extends: true,
+  plugins: [storybookTest({ configDir: path.join(dirname, '.storybook'), initialGlobals: { theme } })],
+  test: {
+    name: `storybook-${theme}`,
+    browser: {
+      enabled: true,
+      headless: true,
+      provider: playwright({}),
+      instances: [{ browser: 'chromium' as const }],
+    },
+  },
+})
+
 export default defineConfig({
   test: {
-    projects: [
-      {
-        extends: true,
-        plugins: [storybookTest({ configDir: path.join(dirname, '.storybook') })],
-        test: {
-          name: 'storybook',
-          browser: {
-            enabled: true,
-            headless: true,
-            provider: playwright({}),
-            instances: [{ browser: 'chromium' }],
-          },
-        },
-      },
-    ],
+    projects: [themeProject('light'), themeProject('dark')],
   },
 })

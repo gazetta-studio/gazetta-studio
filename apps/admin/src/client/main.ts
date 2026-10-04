@@ -11,6 +11,7 @@ import { useConnectionState } from './stores/connectionState.js'
 import { attachPendingEditsPersistence, attachPersistedEditsPersistence } from './stores/_pendingEditsPersistence.js'
 import { useServiceWorkerUpdate } from './composables/useServiceWorkerUpdate.js'
 import './assets/tokens.css'
+import './assets/base.css'
 import { adminPreset } from './assets/preset.js'
 
 // Async boot: provider selection probes IndexedDB before constructing

@@ -30,7 +30,7 @@ A UX cut is gated by four layers, none of which is pixel-level visual regression
 
 | Layer | Catches | Where |
 |---|---|---|
-| `@storybook/addon-vitest` | story renders in every state without throwing; `play()` interactions; axe violations (every rule except `color-contrast`, exempt until #863) | CI gate (hard-blocks) |
+| `@storybook/addon-vitest` | story renders in every state without throwing; `play()` interactions; axe violations, all rules — every story runs in light AND dark (one Vitest project per theme) | CI gate (hard-blocks) |
 | Vue Test Utils unit tests | DOM structure, props, conditional rendering, emitted events, testids/copy per state | CI gate (hard-blocks) |
 | Reviewer tautology check | the tests are load-bearing (revert→fail→reapply→pass) | bot loop |
 | **Agent B visual self-check** | **gross visual failures** — invisible elements (color = background), overflow, collapsed/wrong layout | **bot loop (advisory verdict, not a CI gate)** |

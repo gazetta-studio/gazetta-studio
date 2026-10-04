@@ -1,0 +1,12 @@
+/*
+ * Page-level base styles shared by the admin (main.ts) and Storybook
+ * (.storybook/preview.ts). Moved out of App.vue so stories render on the
+ * same themed page the admin does: without it, transparent components sat
+ * on a white page in dark mode and axe measured dark-theme text against
+ * white — failures that cannot happen in the real admin.
+ */
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  color: var(--color-fg);
+  background: var(--color-bg);
+}

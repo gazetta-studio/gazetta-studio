@@ -8,6 +8,7 @@ import PrimeVue from 'primevue/config'
 // tokens.css; layered on top of PrimeVue Aura semantic tokens. See
 // .claude/rules/css-theming.md for the token model.
 import '../apps/admin/src/client/assets/tokens.css'
+import '../apps/admin/src/client/assets/base.css'
 import { adminPreset } from '../apps/admin/src/client/assets/preset'
 
 // Register Pinia + PrimeVue once per preview boot. Matches apps/admin/src/

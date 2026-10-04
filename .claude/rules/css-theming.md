@@ -13,7 +13,7 @@ How the admin SPA handles colors, dark mode, and design tokens. Audit snapshot +
 
 PrimeVue v4 + Aura emits semantic + primitive tokens to `:root`. Verified live:
 
-The admin uses `adminPreset` (`apps/admin/src/client/assets/preset.ts`), Aura with light-mode primary moved to emerald-700 and the danger button to red-600 (red-700 for text/outlined), so white-on-fill and coloured text meet WCAG AA (#863). Dark mode is stock Aura. Both `main.ts` and `.storybook/preview.ts` import it; the Storybook gate runs axe `color-contrast` against it.
+The admin uses `adminPreset` (`apps/admin/src/client/assets/preset.ts`), Aura with light-mode primary moved to emerald-700 and the danger button to red-600 (red-700 for text/outlined), so white-on-fill and coloured text meet WCAG AA (#863). Dark mode is stock Aura. Both `main.ts` and `.storybook/preview.ts` import it; the Storybook gate runs axe `color-contrast` against it in both light and dark (`vitest.storybook.config.ts`, one project per theme). Page-level `body` styles live in `assets/base.css`, shared by both, so stories render on the same themed page as the admin.
 
 **Semantic tokens — auto-flip on `.dark` class:**
 
