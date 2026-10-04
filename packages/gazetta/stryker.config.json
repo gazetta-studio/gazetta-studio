@@ -30,7 +30,8 @@
     "src/pages/create.ts",
     "src/publish-renderers.ts",
     "src/fragments/create.ts",
-    "src/runtime/runtime-capabilities.ts"
+    "src/runtime/runtime-capabilities.ts",
+    "src/assets/serve-route.ts"
   ],
   "thresholds": {
     "high": 80,
