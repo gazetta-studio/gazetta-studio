@@ -64,6 +64,7 @@ import { parseAgentASignal } from './agent-a-signal.js'
 import { decideIdempotency } from './idempotency.js'
 import { shouldEscalateForBudget } from './per-cut-budget.js'
 import { appendReviewerLog, REVIEWER_LOG_PATH } from './reviewer-log.js'
+import { composeRefinementComment, countPriorRefinements } from './refinement-handoff.js'
 import { routeAttemptOutcome, type AttemptOutcome, type RouteContext, type RouteDecision } from './route-attempt.js'
 import {
   appendEntry,
@@ -129,6 +130,18 @@ const PER_RUN_BUDGET_MS = Number(process.env.BUDGET_MS ?? 150 * 60 * 1000)
 const PER_CUT_BUDGET_MS = Number(process.env.CUT_BUDGET_MS ?? 120 * 60 * 1000)
 const MAX_ATTEMPTS = Number(process.env.MAX_ATTEMPTS ?? '2')
 const MAX_INPUT_CYCLES = Number(process.env.MAX_INPUT_CYCLES ?? '2')
+
+/**
+ * Spec-refinement budget per cut (design-cut-planner.md Q6; 2 refinements
+ * then 1 re-decomposition then terminal).
+ *
+ * Defaults to **0**, which disables refinement routing entirely, because
+ * cut-planner does not exist yet: a cut labelled `needs-refinement` today
+ * would sit in a queue no bot reads. The mechanism ships built and tested;
+ * it is armed by raising this default (or setting MAX_REFINEMENTS=2) once
+ * cut-planner's refine path lands in Cut 6.
+ */
+const MAX_REFINEMENTS = Number(process.env.MAX_REFINEMENTS ?? '0')
 
 async function main(): Promise<void> {
   const repo = repoFromEnv()
@@ -374,6 +387,10 @@ async function fixOneCut(
 
   // Count prior NEEDS_INPUT cycles via outcome-tag query on existing comments.
   const priorInputCycles = await countPriorInputCycles(octokit, repo, issueNumber)
+  // Both budgets read from the SAME comment list, but count different
+  // outcome tags — they are independent budgets and must not conflate
+  // (a NEEDS_INPUT cycle is not a spec refinement).
+  const priorRefinements = await countPriorRefinementsOnIssue(octokit, repo, issueNumber)
   if (priorInputCycles > 0) {
     printNotice(`#${issueNumber}: ${priorInputCycles} prior NEEDS_INPUT cycle(s) recorded.`)
   }
@@ -490,6 +507,8 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
       maxAttempts: MAX_ATTEMPTS,
       priorInputCycles,
       maxInputCycles: MAX_INPUT_CYCLES,
+      priorRefinements,
+      maxRefinements: MAX_REFINEMENTS,
     }
 
     let outcome: AttemptOutcome
@@ -645,21 +664,23 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
       break
     }
 
-    // `escalate-needs-refinement` can only be produced when the caller opts
-    // in via RouteContext.maxRefinements, which this orchestrator does not
-    // do until cut-planner Cut 2 wires the comment + label swap. Until then
-    // the branch is unreachable — but an unhandled decision would fall
-    // through to the loop's next iteration and silently re-attempt, which is
-    // exactly the swallowed-failure shape design-cut-planner.md Q6a forbids
-    // ("no silent skip, no retry-forever, no undefined state"). Fail loud
-    // instead, and route to a human.
+    // Non-terminal hand-off to cut-planner (design-cut-planner.md Q4).
+    // Exactly two writes, both on THIS cut issue: an outcome-tagged comment
+    // carrying Agent B's verdict, and a label swap. No skip-list entry, no
+    // `ready-for-human`, issue stays open — the cut is not abandoned.
+    //
+    // feature-bot deliberately does NOT touch the planner issue: it never
+    // learns the planner issue exists, so it cannot fail because of it. The
+    // label IS the channel.
     if (decision.kind === 'escalate-needs-refinement') {
-      printWarning(
-        `Reviewer rejected after ${attempt} attempts and refinement routing is not yet wired; escalating to a human.`,
+      printNotice(
+        `Reviewer rejected after ${attempt} attempts; handing to cut-planner (refinement ${decision.priorRefinements + 1} of ${MAX_REFINEMENTS}).`,
       )
-      await escalateToHuman(octokit, repo, issueNumber, skipList, fingerprint, {
-        reason: 'needs-human',
-        reasonNote: `Loop exhausted on substantive rejections. Refinement hand-off is not wired yet (cut-planner Cut 2). Last reviewer note: ${decision.reviewerNote}`,
+      await handOffForRefinement(octokit, repo, issueNumber, {
+        reviewerNote: decision.reviewerNote,
+        priorRefinements: decision.priorRefinements,
+        maxRefinements: MAX_REFINEMENTS,
+        attempts: attempt,
       })
       finalOutcome = 'escalated'
       break
@@ -701,6 +722,75 @@ async function countPriorInputCycles(
   })
   const marker = `feature-bot: needs-input issue=${issueNumber}`
   return comments.filter(c => (c.body ?? '').includes(marker)).length
+}
+
+/**
+ * Count prior refinement hand-offs for this cut (design-cut-planner.md Q6).
+ *
+ * I/O wrapper around the pure `countPriorRefinements`. Same durable-record
+ * trick as `countPriorInputCycles`: the outcome tag on the comment IS the
+ * budget state, so it survives runner restarts and cache misses with no
+ * committed file.
+ */
+async function countPriorRefinementsOnIssue(
+  octokit: ReturnType<typeof octokitFromEnv>,
+  repo: RepoIdentity,
+  issueNumber: number,
+): Promise<number> {
+  const { data: comments } = await octokit.issues.listComments({
+    ...repo,
+    issue_number: issueNumber,
+    per_page: 100,
+  })
+  return countPriorRefinements(
+    comments.map(c => c.body),
+    issueNumber,
+  )
+}
+
+/**
+ * Hand a cut to cut-planner: comment, then swap the label.
+ *
+ * Order matters. The comment lands FIRST so the outcome tag exists before
+ * the cut leaves feature-bot's queue — if the label swap then fails, the
+ * next run still counts this refinement and the budget cannot be bypassed
+ * by a partial write. The reverse order would risk a cut sitting in
+ * `needs-refinement` with no verdict for cut-planner to read.
+ *
+ * Label removal is best-effort-after: `needs-refinement` is added before
+ * `ready-for-agent` is removed, so a failure between the two leaves the cut
+ * visible to BOTH queues (noisy, recoverable) rather than to neither
+ * (silently parked, which is the shape Q6a forbids).
+ */
+async function handOffForRefinement(
+  octokit: ReturnType<typeof octokitFromEnv>,
+  repo: RepoIdentity,
+  issueNumber: number,
+  input: { reviewerNote: string; priorRefinements: number; maxRefinements: number; attempts: number },
+): Promise<void> {
+  const body = composeRefinementComment({
+    issueNumber,
+    reviewerNote: input.reviewerNote,
+    priorRefinements: input.priorRefinements,
+    maxRefinements: input.maxRefinements,
+    attempts: input.attempts,
+    runId: process.env.GITHUB_RUN_ID ?? 'local',
+  })
+  try {
+    await octokit.issues.createComment({ ...repo, issue_number: issueNumber, body })
+  } catch (err) {
+    // Loud, and we stop: without the comment there is no verdict for
+    // cut-planner to act on and no durable budget record, so swapping the
+    // label would park the cut in a queue with nothing to work from.
+    printWarning(`Couldn't post refinement comment on #${issueNumber}: ${err}. Leaving labels unchanged.`)
+    return
+  }
+  await addLabel(octokit, repo, issueNumber, 'needs-refinement').catch(err => {
+    printWarning(`Couldn't apply needs-refinement to #${issueNumber}: ${err}`)
+  })
+  await removeLabel(octokit, repo, issueNumber, 'ready-for-agent').catch(err => {
+    printWarning(`Couldn't remove ready-for-agent from #${issueNumber}: ${err}`)
+  })
 }
 
 function pushBranch(branchName: string): void {
