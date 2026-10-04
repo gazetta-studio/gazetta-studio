@@ -3,12 +3,12 @@ import { setup } from '@storybook/vue3-vite'
 import { withThemeByClassName } from '@storybook/addon-themes'
 import { createPinia } from 'pinia'
 import PrimeVue from 'primevue/config'
-import Aura from '@primeuix/themes/aura'
 
 // App-level CSS tokens (--color-*). Defined in apps/admin/src/client/assets/
 // tokens.css; layered on top of PrimeVue Aura semantic tokens. See
 // .claude/rules/css-theming.md for the token model.
 import '../apps/admin/src/client/assets/tokens.css'
+import { adminPreset } from '../apps/admin/src/client/assets/preset'
 
 // Register Pinia + PrimeVue once per preview boot. Matches apps/admin/src/
 // client/main.ts's plugin install order (Pinia first, then PrimeVue) so
@@ -26,7 +26,7 @@ setup(app => {
   app.use(createPinia())
   app.use(PrimeVue, {
     theme: {
-      preset: Aura,
+      preset: adminPreset,
       options: { darkModeSelector: '.dark' },
     },
   })
@@ -45,18 +45,10 @@ const preview: Preview = {
     }),
   ],
   parameters: {
-    // Fail the story run on axe violations (#524, ADR-0016). The addon's
-    // default reports violations without failing the test, which would
+    // Fail the story run on axe violations (#524, ADR-0016), color-contrast
+    // included (#863). The addon's default only reports them, which would
     // leave the a11y half of the story gate advisory.
-    //
-    // `color-contrast` is the one rule off: the Aura primary button (white on
-    // emerald) and the muted validator label fail it in shipped components
-    // today. Turning it on means fixing theme tokens, which is its own
-    // change (#863). Every other rule hard-fails.
-    a11y: {
-      test: 'error',
-      config: { rules: [{ id: 'color-contrast', enabled: false }] },
-    },
+    a11y: { test: 'error' },
     controls: {
       matchers: {
         color: /(background|color)$/i,

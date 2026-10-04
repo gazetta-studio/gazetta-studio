@@ -13,6 +13,8 @@ How the admin SPA handles colors, dark mode, and design tokens. Audit snapshot +
 
 PrimeVue v4 + Aura emits semantic + primitive tokens to `:root`. Verified live:
 
+The admin uses `adminPreset` (`apps/admin/src/client/assets/preset.ts`), Aura with light-mode primary moved to emerald-700 and the danger button to red-600 (red-700 for text/outlined), so white-on-fill and coloured text meet WCAG AA (#863). Dark mode is stock Aura. Both `main.ts` and `.storybook/preview.ts` import it; the Storybook gate runs axe `color-contrast` against it.
+
 **Semantic tokens — auto-flip on `.dark` class:**
 
 | Token | Light | Dark |
@@ -24,7 +26,7 @@ PrimeVue v4 + Aura emits semantic + primitive tokens to `:root`. Verified live:
 | `--p-content-border-color` | `#e2e8f0` | `#3f3f46` |
 | `--p-form-field-background` | `#ffffff` | `#09090b` |
 | `--p-form-field-border-color` | `#cbd5e1` | `#52525b` |
-| `--p-primary-color` | `#10b981` | `#34d399` |
+| `--p-primary-color` | `#047857` (emerald-700, admin preset) | `#34d399` |
 
 **Primitive palette — does NOT flip:**
 

@@ -99,7 +99,6 @@ function severityIcon(severity: 'error' | 'warn' | 'info'): string {
 .banner-aside {
   font-weight: 400;
   font-size: 0.8125rem;
-  opacity: 0.8;
 }
 .banner-dismiss {
   margin-inline-start: auto;
@@ -134,15 +133,15 @@ function severityIcon(severity: 'error' | 'warn' | 'info'): string {
 }
 .issue-path {
   font-size: 0.8125rem;
-  opacity: 0.85;
 }
 .issue-path code {
   font-family: ui-monospace, monospace;
   font-size: 0.8125rem;
 }
 .issue-validator {
+  /* De-emphasised by size + monospace, not opacity: opacity washed the
+     banner's red to 2.96:1 on its tint (#863). */
   font-size: 0.75rem;
-  opacity: 0.6;
   font-family: ui-monospace, monospace;
 }
 </style>
