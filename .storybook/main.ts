@@ -3,7 +3,7 @@ import vue from '@vitejs/plugin-vue'
 
 const config: StorybookConfig = {
   stories: ['../apps/admin/src/client/**/*.stories.@(js|ts)'],
-  addons: ['@storybook/addon-a11y', '@storybook/addon-themes'],
+  addons: ['@storybook/addon-a11y', '@storybook/addon-themes', '@storybook/addon-vitest'],
   framework: '@storybook/vue3-vite',
   // `@storybook/vue3-vite`'s built-in `viteFinal` adds Storybook's own
   // template-compilation + vue-docgen plugins but NOT the standard

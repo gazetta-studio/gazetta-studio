@@ -116,6 +116,32 @@ jobs:
       - run: npm ci
       - run: npm test -w @gazetta/bots
 
+  storybook:
+    # Story render gate (#524, ADR-0016): every admin `.stories.ts` runs as a
+    # vitest browser test via @storybook/addon-vitest. A story that throws on
+    # render, or whose `play` function fails, fails this job. The
+    # review-workflow UX cuts are built to green stories against it.
+    # gazetta is built first because admin components import `gazetta/*`
+    # through the package's exports map (resolved against dist), as in the
+    # admin job.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w packages/gazetta
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - run: npm run test:storybook
+
   e2e:
     runs-on: ubuntu-latest
     strategy:

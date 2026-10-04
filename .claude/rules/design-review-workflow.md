@@ -282,9 +282,9 @@ This is *not* the design-system work deferred by [`css-theming.md`](css-theming.
 
 1. **Extract `<StateBadge>` + its `.stories.ts`** (cheap; additive; SiteTree/ComponentTree may opt in via Boy-Scout later, not required)
 2. **Extract `<Banner>` + its `.stories.ts`** (moderate; additive; shipped banners untouched; follow `ArchiveBanner.stories.ts`)
-3. **Wire `@storybook/test-runner` into CI** so `.stories.ts` execute green rather than being view-only — the gate that makes "build component to green stories" machine-enforceable.
+3. **Wire the story runner (`@storybook/addon-vitest`) into CI** so `.stories.ts` execute green rather than being view-only — the gate that makes "build component to green stories" machine-enforceable.
 
-Each UX cut then **transcribes its slice of the locked design-doc state table** (see "UX surface decisions" below) into `.stories.ts` *and* implements the component, with the story running green. There is no separate human story-authoring cut: per [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md) (second revision), the human spec is the design-doc state table (UX-grill output); the bot transcribes it. Storybook itself already ships (`@storybook/vue3-vite` + `ArchiveBanner.stories.ts` precedent) — the only added infra is the test-runner.
+Each UX cut then **transcribes its slice of the locked design-doc state table** (see "UX surface decisions" below) into `.stories.ts` *and* implements the component, with the story running green. There is no separate human story-authoring cut: per [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md) (second revision), the human spec is the design-doc state table (UX-grill output); the bot transcribes it. Storybook itself already ships (`@storybook/vue3-vite` + `ArchiveBanner.stories.ts` precedent) — the only added infra is the story runner.
 
 ### UX surface decisions (UX-grill 2026-06-07)
 
@@ -331,7 +331,7 @@ The cross-content approver queue (Cut 13) is **not** part of the gate cut — ap
 
 ## Cut sequence
 
-Reshaped from the retired impl doc's 15-cut sequence during the migration to the tracking-issue + cut-sub-issue model (2026-06-07), integrating the UX-grilling decisions. Three changes from the original 15: (1) two additive UI-primitive cuts (`<StateBadge>`, `<Banner>`, each with its `.stories.ts`) prepend the UX work; (2) one cut wires `@storybook/test-runner` into CI so stories execute green — the gate every UX cut relies on; per [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md) (second revision) there is **no** separate human story-authoring cut — the human spec is the locked state table in this doc, which the bot transcribes into `.stories.ts` within each UX cut; (3) UX cuts reshaped per the locked story specs (ReviewActions folded into ReviewBanner; publish-gate as PublishPanel destination rows). 19 cuts total, all bot work.
+Reshaped from the retired impl doc's 15-cut sequence during the migration to the tracking-issue + cut-sub-issue model (2026-06-07), integrating the UX-grilling decisions. Three changes from the original 15: (1) two additive UI-primitive cuts (`<StateBadge>`, `<Banner>`, each with its `.stories.ts`) prepend the UX work; (2) one cut wires the story runner (`@storybook/addon-vitest`) into CI so stories execute green — the gate every UX cut relies on; per [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md) (second revision) there is **no** separate human story-authoring cut — the human spec is the locked state table in this doc, which the bot transcribes into `.stories.ts` within each UX cut; (3) UX cuts reshaped per the locked story specs (ReviewActions folded into ReviewBanner; publish-gate as PublishPanel destination rows). 19 cuts total, all bot work.
 
 State lives in GitHub sub-issue close-state; this table is intent only (no status column). `agent` = feature-bot; `human` = maintainer-authored (story authoring is design, not bot work).
 
@@ -346,7 +346,7 @@ State lives in GitHub sub-issue close-state; this table is intent only (no statu
 | 7 | Admin API routes (`submit`/`approve`/`reject`/`withdraw` + `GET`) | 4, 5, 6 | agent | api-first | Medium |
 | 8 | **Extract `<StateBadge>` primitive + its `.stories.ts`** (additive; SiteTree/ComponentTree may opt in via Boy-Scout later) | 10 | agent | component | Low |
 | 9 | **Extract `<Banner>` primitive + its `.stories.ts`** (additive; 4 shipped banners untouched; follow `ArchiveBanner.stories.ts`) | 10 | agent | component | Medium |
-| 10 | **Wire `@storybook/test-runner` into CI** so `.stories.ts` execute green (not view-only) — the gate every UX cut relies on | — | agent | api-first | Low |
+| 10 | **Wire the story runner (`@storybook/addon-vitest`) into CI** so `.stories.ts` execute green (not view-only) — the gate every UX cut relies on | — | agent | api-first | Low |
 | 11 | ReviewBanner.vue (= `<Banner>` + `<Button>`s; ReviewActions folded in) + ReviewRejectDialog + SiteTree state badge + **their `.stories.ts` (transcribed from the design-doc state table) running green** | 7, 8, 9, 10, 20 | agent | component | High |
 | 12 | Publish-approval state machine + per-target opt-in (`requiresPublishApproval`) | 4 | agent | api-first | High |
 | 13 | Publish-approval admin API (request/approve/reject/withdraw on publish events) | 12 | agent | api-first | High |
@@ -359,8 +359,8 @@ State lives in GitHub sub-issue close-state; this table is intent only (no statu
 | 20 | **Agent B visual self-check + PR screenshot embed** — `bots/_lib` screenshot helper (Playwright, reuse `tools/mcp-dev` logic) + `build-storybook` step in `feature-bot.yml` + reviewer-prompt contract (screenshot each new/changed story → visual verdict vs design-doc state table → factor into APPROVE/REJECT) + **upload screenshots as Release assets (`gh release upload`, tag `bot-screenshots`), embed inline via the public `…/releases/download/…` URLs, and delete the cut's assets on PR merge/close (best-effort; PR opens without images on failure)** | 10 | agent | (bot infra) | Medium |
 
 **Notes on the reshape:**
-- **No separate human story-authoring cut.** Per [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md) (second revision), the human spec is the locked state table in this design doc (UX-grill output); the bot **transcribes** it into `.stories.ts` *within* each component cut and implements the component to it. The story runs green under `@storybook/test-runner`. The independent spec is the design-doc table + each cut's `## Acceptance`, not a hand-authored story file — bounded tautology risk, accepted because the tables are locked first.
-- **Cut 10 is the story-runner CI wiring** (`@storybook/test-runner`) — repurposed from the now-removed human story-authoring cut. No-dep; the gate that makes "stories run green" real. Every UX cut (8, 9, 11, 14) depends on it.
+- **No separate human story-authoring cut.** Per [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md) (second revision), the human spec is the locked state table in this design doc (UX-grill output); the bot **transcribes** it into `.stories.ts` *within* each component cut and implements the component to it. The story runs green under `@storybook/addon-vitest`. The independent spec is the design-doc table + each cut's `## Acceptance`, not a hand-authored story file — bounded tautology risk, accepted because the tables are locked first.
+- **Cut 10 is the story-runner CI wiring** (`@storybook/addon-vitest`) — repurposed from the now-removed human story-authoring cut. No-dep; the gate that makes "stories run green" real. Every UX cut (8, 9, 11, 14) depends on it.
 - Cuts 8, 9 (primitives + their stories) depend only on the story-runner (10); they otherwise run in parallel with the data-shape cuts 1–7.
 - Cut 11 folds `ReviewActions.vue` into `ReviewBanner.vue` (the 9 stories encode all button logic) and adds the SiteTree badge via `<StateBadge>`; it authors `ReviewBanner.stories.ts` + `ReviewRejectDialog.stories.ts` from the design-doc state table.
 - Cut 14 is PublishPanel destination-row states (5 stories), not a new surface.

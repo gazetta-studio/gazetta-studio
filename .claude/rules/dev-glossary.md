@@ -35,7 +35,7 @@ design decision is locked **in the design doc** (the state table: every
 component state with exact copy + `data-testid`s) during the UX-grilling pass.
 Within each component cut, the bot **transcribes** that locked table into the
 component's `.stories.ts` *and* implements the `.vue` to satisfy it; the story
-runs green under `@storybook/test-runner` in CI. The independent human spec is
+runs green under `@storybook/addon-vitest` (`npm run test:storybook`) in CI. The independent human spec is
 the design-doc table (plus the cut's `## Acceptance`), **not** a hand-authored
 story file — so the bot authoring both story and component is bounded-tautology,
 not free invention. This makes [team-preferences.md rule 31](team-preferences.md)
@@ -44,7 +44,7 @@ failing spec, the story+component turn it green. Per
 [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md) (whose
 correction history records why the earlier "human authors the story" framing
 was revised). Storybook already ships (`@storybook/vue3-vite`,
-`ArchiveBanner.stories.ts`); the only added infra is `@storybook/test-runner`
+`ArchiveBanner.stories.ts`); the only added infra is `@storybook/addon-vitest`
 so stories execute rather than view-only.
 
 **DevPlayground vs Storybook** (the two component-isolation surfaces):
