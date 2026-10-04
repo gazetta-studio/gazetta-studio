@@ -22,3 +22,10 @@ $STATE
 ### Locked decisions (select by index; never paraphrase, never add)
 
 $LOCKS
+
+### Lessons from previous features
+
+Distilled monthly from how earlier cuts went. Guidance, not locks: they
+never override this planner issue's locked decisions.
+
+$LESSONS

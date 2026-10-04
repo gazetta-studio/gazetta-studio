@@ -16,6 +16,7 @@ const read = (f: string) => readFileSync(resolve(DIR, f), 'utf-8')
 const templates: PromptTemplates = {
   context: read('_context.md'),
   contract: read('_contract.md'),
+  lessons: readFileSync(resolve(DIR, '..', 'lessons-learned.md'), 'utf-8'),
   modes: { file: read('file.md'), refine: read('refine.md'), redecompose: read('redecompose.md') },
 }
 
@@ -59,5 +60,15 @@ describe('composePrompt — substitution safety', () => {
     expect(composePrompt(templates, 'refine', ctx)).toContain('Architecture gap')
     const none = composePrompt(templates, 'refine', { ...ctx, cut: { ...ctx.cut!, reviewerNote: null } })
     expect(none).toContain('no reviewer verdict was found')
+  })
+})
+
+describe('composePrompt — lessons (Q7a)', () => {
+  it('loads lessons-learned.md into every mode', () => {
+    for (const mode of ['file', 'refine', 'redecompose'] as const) {
+      expect(composePrompt({ ...templates, lessons: 'Specs that defer a decision fail.' }, mode, ctx)).toContain(
+        'Specs that defer a decision fail.',
+      )
+    }
   })
 })

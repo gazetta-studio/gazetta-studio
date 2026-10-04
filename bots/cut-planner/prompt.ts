@@ -14,6 +14,8 @@ import type { Mode } from './plan-output.js'
 export interface PromptTemplates {
   context: string
   contract: string
+  /** `lessons-learned.md` (Q7a's distilled tier), loaded into every prompt. */
+  lessons: string
   modes: Record<Mode, string>
 }
 
@@ -31,6 +33,7 @@ export function composePrompt(t: PromptTemplates, mode: Mode, c: PlanContext): s
     CUT_NUMBER: c.cut ? String(c.cut.number) : '',
     CUT_TITLE: c.cut?.title ?? '',
     CUT_BODY: c.cut?.body ?? '',
+    LESSONS: t.lessons.trim() || NONE,
     REVIEWER_NOTE: c.cut?.reviewerNote?.trim() || '_(no reviewer verdict was found on the cut)_',
   }
   return assembled.replace(/\$([A-Z_]+)/g, (m, name: string) => (name in vars ? vars[name] : m))

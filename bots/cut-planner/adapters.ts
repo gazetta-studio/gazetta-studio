@@ -15,6 +15,7 @@ import { composePrompt, type PromptTemplates } from './prompt.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 export const TRANSCRIPTS_DIR = resolve(HERE, '../transcripts')
+export const REPO_ROOT = resolve(HERE, '../..')
 
 export function octokitGitHub(octokit: ReturnType<typeof octokitFromEnv>, repo: RepoIdentity): GitHubPort {
   return {
@@ -58,6 +59,7 @@ export function loadTemplates(): PromptTemplates {
   return {
     context: read('_context.md'),
     contract: read('_contract.md'),
+    lessons: readFileSync(resolve(HERE, 'lessons-learned.md'), 'utf-8'),
     modes: { file: read('file.md'), refine: read('refine.md'), redecompose: read('redecompose.md') },
   }
 }

@@ -33,9 +33,11 @@
  * the feature continues). A quota failure is NOT an inability: rate limits
  * mean "come back later", so the queue stops and nothing is labelled.
  */
+import { resolve } from 'node:path'
 import { octokitFromEnv, repoFromEnv, type RepoIdentity } from '../_lib/github.js'
 import { printBanner, printCandidateList, printNotice, printRunSummary, printWarning } from '../_lib/ui.js'
-import { claudePlanner, loadTemplates, octokitGitHub } from './adapters.js'
+import { claudePlanner, loadTemplates, octokitGitHub, REPO_ROOT } from './adapters.js'
+import { appendDecisionLog, DECISION_LOG_PATH, type DecisionLogEntry } from './decision-log.js'
 import { dispatchRun, type RunDecision } from './dispatch-run.js'
 import { escalateMalformedPlanner, executeSafely, type GitHubPort } from './execute.js'
 import { classifyIssue, featureOf, type ListedIssue, type ListedPr, observeCuts } from './issue-index.js'
@@ -46,6 +48,7 @@ const DRY_RUN = process.env.DRY_RUN === '1'
 const ONLY_ISSUE = process.env.ISSUE_NUMBER ? Number(process.env.ISSUE_NUMBER) : null
 const RUN_ID = process.env.GITHUB_RUN_ID ?? 'local'
 const RUN_TIMESTAMP = new Date().toISOString().replace(/[:.]/g, '-')
+const DECISION_LOG_ABS = resolve(REPO_ROOT, DECISION_LOG_PATH)
 
 /**
  * Per-RUN wall-clock budget. Far smaller than feature-bot's 150 min because
@@ -128,16 +131,37 @@ async function main(): Promise<void> {
   })
 
   let processed = 0
+  const decisions: DecisionLogEntry['decisions'] = []
+  let outcome: DecisionLogEntry['outcome'] = 'idle'
+  let action: DecisionLogEntry['action']
   for (const issue of planners) {
-    const outcome = await handlePlanner(issue, issues, prs, gh, startedAt)
-    if (outcome === 'acted') {
+    const r = await handlePlanner(issue, issues, prs, gh, startedAt)
+    decisions.push({ planner: issue.number, feature: r.feature, decision: r.decision })
+    if (r.kind === 'acted') {
       processed++
+      outcome = 'acted'
+      action = { planner: issue.number, feature: r.feature, summary: r.summary }
       // Q5a: ONE action per run. Each action is several non-transactional
       // writes; capping at one bounds an interrupted run to one feature.
       printNotice('One action taken; stopping (Q5a — one action per run).')
       break
     }
-    if (outcome === 'stop') break
+    if (r.kind === 'stop') {
+      outcome = r.reason
+      break
+    }
+  }
+
+  // Q7a's raw tier: one entry per run that examined a planner issue. Dry
+  // runs record nothing — they took no action and would skew the compactor.
+  if (!DRY_RUN) {
+    appendDecisionLog(DECISION_LOG_ABS, {
+      at: new Date().toISOString(),
+      runId: RUN_ID,
+      decisions,
+      outcome,
+      ...(action ? { action } : {}),
+    })
   }
 
   printRunSummary({
@@ -155,13 +179,15 @@ async function handlePlanner(
   prs: readonly ListedPr[],
   gh: GitHubPort,
   startedAt: number,
-): Promise<'acted' | 'idle' | 'stop'> {
+): Promise<PlannerOutcome> {
   const parsed = parsePlannerIssue(issue.body ?? '')
   if (!parsed.ok) {
     printWarning(`#${issue.number} is a planner issue missing ${parsed.missing.join(' and ')}.`)
-    if (DRY_RUN) return 'idle'
+    const feature = featureOf(issue.body) ?? '?'
+    const decision = `malformed (missing ${parsed.missing.join(', ')})`
+    if (DRY_RUN) return { kind: 'idle', feature, decision }
     await escalateMalformedPlanner(gh, issue.number, featureOf(issue.body), parsed.missing, RUN_ID)
-    return 'acted'
+    return { kind: 'acted', feature, decision, summary: 'escalated a malformed planner issue' }
   }
   const planner = parsed.value
 
@@ -180,16 +206,18 @@ async function handlePlanner(
     maxRedecompositions: MAX_REDECOMPOSITIONS,
     priorRedecompositions: countMarked(plannerComments, redecomposedMarker(planner.feature)),
   })
-  printNotice(`#${issue.number} (${planner.feature}) → ${describeDecision(decision)}`)
+  const described = describeDecision(decision)
+  const feature = planner.feature
+  printNotice(`#${issue.number} (${feature}) → ${described}`)
 
-  if (decision.kind === 'idle') return 'idle'
+  if (decision.kind === 'idle') return { kind: 'idle', feature, decision: described }
   if (DRY_RUN) {
     printNotice('DRY_RUN=1 — decision reported, nothing executed.')
-    return 'idle'
+    return { kind: 'idle', feature, decision: described }
   }
   if (Date.now() - startedAt > PER_RUN_BUDGET_MS) {
     printWarning('Per-run budget exhausted before the action started; stopping. The next run picks it up.')
-    return 'stop'
+    return { kind: 'stop', reason: 'budget-stop', feature, decision: described }
   }
 
   const out = await executeSafely(
@@ -207,14 +235,19 @@ async function handlePlanner(
   if (out.kind === 'quota-stop') {
     // Not an escalation: a quota failure is "come back later" (Q6a carve-out).
     printWarning('Anthropic session limit or transient auth failure; stopping the queue. Nothing was changed.')
-    return 'stop'
+    return { kind: 'stop', reason: 'quota-stop', feature, decision: described }
   }
   if (out.kind === 'acted') {
     printNotice(`#${issue.number}: ${out.summary}`)
-    return 'acted'
+    return { kind: 'acted', feature, decision: described, summary: out.summary }
   }
-  return 'idle'
+  return { kind: 'idle', feature, decision: described }
 }
+
+type PlannerOutcome =
+  | { kind: 'acted'; feature: string; decision: string; summary: string }
+  | { kind: 'idle'; feature: string; decision: string }
+  | { kind: 'stop'; reason: 'quota-stop' | 'budget-stop'; feature: string; decision: string }
 
 /** Open `enhancement` issues WITH bodies (IssueSummary drops them). PRs excluded. */
 async function listOpenEnhancements(
