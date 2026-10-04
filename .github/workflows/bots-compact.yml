@@ -16,6 +16,8 @@ name: Bots monthly compaction
 #   - review-bot:compact — rewrite lessons-learned.md from cross-
 #     candidate patterns in the skip-list + reviewer-log (no glob
 #     rules; per-candidate entries stay durable).
+#   - cut-planner:compact — rewrite lessons-learned.md from the
+#     decision log (no skip-list; design-cut-planner.md Q7a).
 on:
   schedule:
     # First Saturday of the month at 03:00 UTC = 05:00 CEST.
@@ -30,7 +32,7 @@ on:
       target:
         description: 'Which compactor to run'
         type: choice
-        options: [all, dead-code-watcher, fix-bot, review-bot]
+        options: [all, dead-code-watcher, fix-bot, review-bot, cut-planner]
         default: all
 
 jobs:
@@ -221,6 +223,83 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: review-bot-compact-transcripts
+          path: bots/transcripts/
+          if-no-files-found: ignore
+          retention-days: 90
+
+  cut-planner:
+    if: github.event_name == 'schedule' || inputs.target == 'all' || inputs.target == 'cut-planner'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 30
+    permissions:
+      # contents + pull-requests: the lessons rewrite lands as a PR.
+      # issues: read — the prompt reads planner issues' decision comments.
+      contents: write
+      pull-requests: write
+      issues: read
+    # Shares the daily cut-planner's group: the compactor reads AND prunes the
+    # decision log, so racing the daily run would lose entries.
+    concurrency:
+      group: cut-planner
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Configure git author
+        run: |
+          git config user.name 'cut-planner'
+          git config user.email 'noreply@anthropic.com'
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install workspace deps
+        run: npm ci
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      # Restore/save SPLIT with a per-run key, matching the daily
+      # cut-planner workflow. NOT the combined `actions/cache@v6` with a
+      # static key the other compactor jobs above use: the daily bots
+      # write `<bot>-...-v1-<run_id>`, so a static exact key never matches
+      # and those compactors read a stale log (#854). Here the restore
+      # falls through `restore-keys` to the newest daily entry, and the
+      # save writes the pruned log under a fresh per-run key that the next
+      # daily run's restore picks up.
+      - name: Restore decision-log cache
+        uses: actions/cache/restore@v6
+        with:
+          path: bots/cut-planner/decision-log.jsonl
+          key: cut-planner-decision-log-v1-${{ github.run_id }}
+          restore-keys: |
+            cut-planner-decision-log-v1-
+
+      - name: Run cut-planner:compact
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: npm run cut-planner:compact -w @gazetta/bots
+
+      - name: Save decision-log cache
+        if: always()
+        uses: actions/cache/save@v6
+        with:
+          path: bots/cut-planner/decision-log.jsonl
+          key: cut-planner-decision-log-v1-${{ github.run_id }}
+
+      - name: Upload transcripts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cut-planner-compact-transcripts
           path: bots/transcripts/
           if-no-files-found: ignore
           retention-days: 90

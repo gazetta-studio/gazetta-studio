@@ -61,6 +61,9 @@ bots/test-outputs/
 # (per ADR-0011). Never committed; local files appear when running
 # bots locally for testing/development.
 bots/*/reviewer-log.jsonl
+# cut-planner's raw memory tier (design-cut-planner.md Q7a) — same
+# persistence model: GH Actions cache, never committed.
+bots/cut-planner/decision-log.jsonl
 # mutation-watcher's per-run artifact staging dir — re-fetched every cron from
 # the latest Mutation workflow run. Never authoritative.
 bots/mutation-report-staging/

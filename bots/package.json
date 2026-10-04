@@ -22,7 +22,8 @@
     "review-bot:compact": "tsx review-bot/compact.ts",
     "replay": "tsx _lib/replay.ts",
     "test": "vitest run",
-    "cut-planner": "tsx cut-planner/index.ts"
+    "cut-planner": "tsx cut-planner/index.ts",
+    "cut-planner:compact": "tsx cut-planner/compact.ts"
   },
   "dependencies": {
     "@octokit/rest": "^22.0.1"
