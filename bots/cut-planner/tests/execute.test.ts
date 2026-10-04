@@ -286,6 +286,23 @@ describe('terminal decisions', () => {
     expect(gh.log).toEqual(['comment #1', '+needs-info #1'])
   })
 
+  it('escalate-feature (unverified-close) names the cuts and how to clear it', async () => {
+    const gh = setup()
+    const out = await executeDecision(
+      { kind: 'escalate-feature', reason: 'unverified-close', cuts: [517] },
+      ctx(),
+      gh,
+      plannerReturning({ kind: 'quota' }),
+    )
+    expect(gh.log).toEqual(['comment #1', '+needs-info #1'])
+    const posted = gh.comments.get(1)!.at(-1)!
+    expect(posted).toContain('#517')
+    expect(posted).toMatch(/title of the PR that implemented it/)
+    expect(posted).toMatch(/reopen it/)
+    expect(posted).toMatch(/not planned/)
+    expect(out).toEqual({ kind: 'acted', summary: 'escalated feature (unverified close: #517)' })
+  })
+
   it('idle writes nothing and never calls the planner', async () => {
     const gh = setup()
     const p = plannerReturning({ kind: 'quota' })

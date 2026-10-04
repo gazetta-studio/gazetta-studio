@@ -104,6 +104,13 @@ export async function executeDecision(
       return { kind: 'idle' }
 
     case 'escalate-feature':
+      if (decision.reason === 'unverified-close') {
+        await escalateFeature(gh, ctx, 'unverified-close', unverifiedCloseDetail(decision.cuts))
+        return {
+          kind: 'acted',
+          summary: `escalated feature (unverified close: ${decision.cuts.map(n => `#${n}`).join(', ')})`,
+        }
+      }
       await escalateFeature(gh, ctx, 'plan-exhausted', PLAN_EXHAUSTED_DETAIL)
       return { kind: 'acted', summary: 'escalated feature (plan exhausted)' }
 
@@ -120,6 +127,12 @@ export async function executeDecision(
     case 'redecompose':
       return redecompose(decision.issueNumber, ctx, gh, planner, locks)
   }
+}
+
+/** Plain language (rule 23): what was found, why it blocks, and the three ways to clear it. */
+export function unverifiedCloseDetail(cuts: readonly number[]): string {
+  const list = cuts.map(n => `#${n}`).join(', ')
+  return `${list} ${cuts.length === 1 ? 'is' : 'are'} closed as completed, but no merged PR that names ${cuts.length === 1 ? 'it' : 'them'} closed ${cuts.length === 1 ? 'it' : 'them'}, so there is no evidence the work landed. The next cut would build on it, so nothing more is filed until each one is resolved: if it landed, add its number (e.g. \`${`#${cuts[0]}`}\`) to the title of the PR that implemented it; if it didn't, reopen it; if it's no longer needed, close it as "not planned". Then remove \`needs-info\` from this issue.`
 }
 
 const PLAN_EXHAUSTED_DETAIL =

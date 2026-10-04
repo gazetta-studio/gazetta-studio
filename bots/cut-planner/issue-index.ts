@@ -28,6 +28,8 @@ export interface ListedIssue {
   body: string | null
   labels: readonly string[]
   createdAt: string
+  /** Set for closed issues only. */
+  closedAt?: string | null
 }
 
 export interface ListedPr {
@@ -86,6 +88,21 @@ export function observeCuts(
       priorRefinements: countMarked(commentsByCut.get(i.number) ?? [], refinedMarker(i.number)),
       createdAt: i.createdAt,
     }))
+}
+
+/**
+ * This feature's cuts closed at or after `sinceIso` — the planner issue's
+ * creation, so only cuts cut-planner has been sequencing are checked (cuts
+ * closed during migration predate it). The caller asks each one whether it
+ * actually landed (`_lib/cut-landing.ts`): a closed cut is what lets the
+ * next one be filed, so an accidental close must not count.
+ */
+export function closedCutsSince(feature: string, closed: readonly ListedIssue[], sinceIso: string): number[] {
+  return closed
+    .filter(i => classifyIssue(i.body) === 'cut' && featureOf(i.body) === feature)
+    .filter(i => (i.closedAt ?? '') >= sinceIso)
+    .map(i => i.number)
+    .sort((a, b) => a - b)
 }
 
 /**

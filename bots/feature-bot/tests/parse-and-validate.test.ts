@@ -30,6 +30,8 @@ type FakeIssue = {
   state_reason?: 'completed' | 'not_planned' | 'reopened' | null
   labels: Array<string | { name?: string }>
   pull_request?: { merged_at?: string | null }
+  /** Who closed it — read via graphql (`_lib/cut-landing.ts`). Defaults to the cut's own merged PR. */
+  closer?: { number: number; title: string; merged: boolean; headRefName: string; body: string | null } | null
 }
 
 function makeOctokit(issuesByNumber: Record<number, FakeIssue | 'not-found'>) {
@@ -45,6 +47,26 @@ function makeOctokit(issuesByNumber: Record<number, FakeIssue | 'not-found'>) {
         return { data: issue }
       }),
     },
+    graphql: vi.fn(async (_q: string, vars: Record<string, unknown>) => {
+      const n = vars.number as number
+      const issue = issuesByNumber[n]
+      if (!issue || issue === 'not-found') throw new Error('Not Found')
+      const closer =
+        issue.closer === undefined
+          ? { number: 9000 + n, title: `feat: cut (#${n})`, merged: true, headRefName: `feat/cut-${n}`, body: null }
+          : issue.closer
+      return {
+        repository: {
+          issue: {
+            timelineItems: {
+              nodes: [
+                { stateReason: issue.state_reason ?? null, closer: closer && { __typename: 'PullRequest', ...closer } },
+              ],
+            },
+          },
+        },
+      }
+    }),
   }
 }
 
@@ -200,6 +222,48 @@ do the thing
     })
     const result = await validateCutSubIssue(octokit as never, REPO, 503, validBody('#501'))
     expect(result.kind).toBe('dep-rejected')
+  })
+
+  it('returns dep-unverified when a dep was closed as completed by a PR that does not name it (#517)', async () => {
+    const octokit = makeOctokit({
+      517: {
+        number: 517,
+        state: 'closed',
+        state_reason: 'completed',
+        labels: ['enhancement'],
+        closer: {
+          number: 557,
+          title: 'fix(feature-bot): require Note: on REJECT',
+          merged: true,
+          headRefName: 'fix/x',
+          body: null,
+        },
+      },
+    })
+    const result = await validateCutSubIssue(octokit as never, REPO, 519, validBody('#517'))
+    expect(result).toMatchObject({ kind: 'dep-unverified', depNumber: 517 })
+  })
+
+  it('returns dep-unverified when a dep was closed by hand as completed (no PR)', async () => {
+    const octokit = makeOctokit({
+      501: { number: 501, state: 'closed', state_reason: 'completed', labels: ['enhancement'], closer: null },
+    })
+    const result = await validateCutSubIssue(octokit as never, REPO, 503, validBody('#501'))
+    expect(result.kind).toBe('dep-unverified')
+  })
+
+  it('prefers dep-rejected over dep-unverified, and dep-unverified over dep-open', async () => {
+    const octokit = makeOctokit({
+      501: { number: 501, state: 'closed', state_reason: 'completed', labels: ['enhancement'], closer: null },
+      502: { number: 502, state: 'closed', state_reason: 'not_planned', labels: ['enhancement'] },
+      504: { number: 504, state: 'open', labels: ['enhancement'] },
+    })
+    expect((await validateCutSubIssue(octokit as never, REPO, 503, validBody('#501, #502, #504'))).kind).toBe(
+      'dep-rejected',
+    )
+    expect((await validateCutSubIssue(octokit as never, REPO, 503, validBody('#504, #501'))).kind).toBe(
+      'dep-unverified',
+    )
   })
 
   it('returns dep-invalid when dep number does not exist', async () => {
