@@ -1,0 +1,63 @@
+/**
+ * Prompt composition, against the REAL template files — a placeholder the
+ * templates use but the composer doesn't fill would ship a literal `$NAME`
+ * to Claude.
+ */
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { describe, expect, it } from 'vitest'
+import type { PlanContext } from '../execute.js'
+import type { Mode } from '../plan-output.js'
+import { composePrompt, type PromptTemplates } from '../prompt.js'
+
+const DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'prompts')
+const read = (f: string) => readFileSync(resolve(DIR, f), 'utf-8')
+const templates: PromptTemplates = {
+  context: read('_context.md'),
+  contract: read('_contract.md'),
+  modes: { file: read('file.md'), refine: read('refine.md'), redecompose: read('redecompose.md') },
+}
+
+const ctx: PlanContext = {
+  planner: {
+    feature: 'rw',
+    designPath: '.claude/rules/design-rw.md',
+    suggestedPlan: '| 5 | gate |',
+    state: 'Next: cut 5',
+    lockedDecisions: '',
+  },
+  plannerIssueNumber: 900,
+  locks: ['use computeSaveEtag (#837)', 'second lock'],
+  cut: { number: 519, title: 'rw: gate', body: 'body mentioning $FEATURE literally', reviewerNote: 'Architecture gap' },
+}
+
+describe.each<Mode>(['file', 'refine', 'redecompose'])('composePrompt(%s)', mode => {
+  const p = composePrompt(templates, mode, ctx)
+
+  it('leaves no unfilled $PLACEHOLDER from the templates', () => {
+    // The cut body deliberately contains "$FEATURE"; that one is user text.
+    expect(p.replace('body mentioning $FEATURE literally', '').match(/\$[A-Z_]{3,}/g)).toBeNull()
+  })
+
+  it('numbers the locks so Claude can select them by index', () => {
+    expect(p).toContain('0. use computeSaveEtag (#837)\n1. second lock')
+  })
+
+  it('carries the output contract', () => {
+    expect(p).toContain('```cut-plan')
+  })
+})
+
+describe('composePrompt — substitution safety', () => {
+  it('does not re-substitute placeholders that appear inside inserted text', () => {
+    const p = composePrompt(templates, 'refine', ctx)
+    expect(p).toContain('body mentioning $FEATURE literally')
+  })
+
+  it('includes the reviewer verdict for refine, and says so when there is none', () => {
+    expect(composePrompt(templates, 'refine', ctx)).toContain('Architecture gap')
+    const none = composePrompt(templates, 'refine', { ...ctx, cut: { ...ctx.cut!, reviewerNote: null } })
+    expect(none).toContain('no reviewer verdict was found')
+  })
+})
