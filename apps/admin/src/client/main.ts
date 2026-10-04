@@ -1,7 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import PrimeVue from 'primevue/config'
-import Aura from '@primeuix/themes/aura'
 import { VueQueryPlugin } from '@tanstack/vue-query'
 import App from './App.vue'
 import { createRouter } from './router.js'
@@ -12,6 +11,7 @@ import { useConnectionState } from './stores/connectionState.js'
 import { attachPendingEditsPersistence, attachPersistedEditsPersistence } from './stores/_pendingEditsPersistence.js'
 import { useServiceWorkerUpdate } from './composables/useServiceWorkerUpdate.js'
 import './assets/tokens.css'
+import { adminPreset } from './assets/preset.js'
 
 // Async boot: provider selection probes IndexedDB before constructing
 // the L6 cache. Vue's createApp is sync but Vue's plugin install can
@@ -27,7 +27,7 @@ async function bootstrap(): Promise<void> {
   app.use(createPinia())
   app.use(PrimeVue, {
     theme: {
-      preset: Aura,
+      preset: adminPreset,
       options: { darkModeSelector: '.dark' },
     },
   })
