@@ -70,6 +70,12 @@ export type SkipReason =
   | 'spec-too-vague'
   | 'input-cycles-exceeded'
   | 'files-conflict'
+  // cut-planner additions per design-cut-planner.md Q6. Terminal states
+  // reached only AFTER spec refinement was tried and did not help — so a
+  // skip entry carrying one of these means "the spec was not the problem",
+  // which is materially different from the generic 'needs-human'.
+  | 'refinement-exhausted'
+  | 'redecomposition-failed'
 
 export interface SkipListEntry {
   fingerprint: IssueFingerprint
