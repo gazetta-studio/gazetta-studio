@@ -1,0 +1,134 @@
+name: Cut planner
+
+# Owns the per-feature cut pipeline: files the next cut sub-issue for
+# feature-bot one at a time, and revises a cut's spec when the
+# generator-critic loop cannot land it.
+#
+# Peer to feature-bot, not above it. They communicate only through GitHub
+# labels and comments; neither imports the other.
+#
+# Design: .claude/rules/design-cut-planner.md
+# Concurrency invariant: ADR-0011 (single-instance via group: cut-planner)
+on:
+  schedule:
+    # 03:00 UTC daily — deliberately BEFORE feature-bot (04:17) so a cut
+    # filed this run is available to the same morning's implementation run,
+    # and at an hour the maintainer is not consuming the shared 5-hour
+    # Anthropic token bucket.
+    #
+    # That second reason is the load-bearing one (design-cut-planner.md
+    # open-Q 1). Both 2026-10-03/04 feature-bot runs were starved mid-flight
+    # because an interactive session was burning the same bucket — the
+    # contention is TEMPORAL, not architectural, so the fix is scheduling
+    # rather than a quota check in code. There is no pre-call budget check:
+    # it would convert a mid-flight cutoff into a clean skip but creates no
+    # capacity, and needs a remaining-quota signal the CLI does not expose.
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: 'Optional: act on one specific planner issue (otherwise scans all)'
+        required: false
+      dry_run:
+        description: 'Set to "1" to report discovery and exit before invoking Claude'
+        required: false
+        default: ''
+
+# Single-instance invariant per ADR-0011. cut-planner's per-feature state
+# lives in the planner issue BODY, which it rewrites — two concurrent runs
+# would race on that rewrite and could lose a `## State` update. The
+# append-only comment log makes state reconstructible, but a lost update is
+# still a lost update. `cancel-in-progress: false` queues rather than kills:
+# a run interrupted between its planner-body write and its cut-issue write
+# leaves a feature in a half-filed state.
+concurrency:
+  group: cut-planner
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    # 60 min, not feature-bot's 180. cut-planner does at most ONE action per
+    # run (design-cut-planner.md Q5a) and that action is a single Claude call
+    # to render or revise one cut body — not a generator-critic loop. Must
+    # exceed the in-bot per-run budget (30 min) so the graceful path fires
+    # before this hard kill.
+    timeout-minutes: 60
+    permissions:
+      # Read CI run history (past-PR feedback), read+write issues (file cut
+      # sub-issues, rewrite the planner body, post comments, swap labels),
+      # read PRs (detect whether a cut is still in flight per Q5a step 2).
+      #
+      # NO `contents: write`: cut-planner never pushes code — it writes
+      # issues and labels only. That is a deliberately smaller grant than
+      # feature-bot's, and the asymmetry is the point.
+      #
+      # NO `workflows` key: it is not a valid GITHUB_TOKEN scope, and adding
+      # it is a workflow PARSE ERROR that takes the bot offline (#838 →
+      # #841). See #840.
+      actions: read
+      issues: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install workspace deps
+        run: npm ci
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      # Restore the decision-log from cache (design-cut-planner.md Q7a).
+      # Raw per-action signal; the monthly compactor distills it into
+      # lessons-learned.md. Cache miss costs one compaction window, not
+      # correctness — so no committed file and no PR per run.
+      #
+      # Uses the restore + save split (not combined `actions/cache@vN`)
+      # because the combined action skips its post-step save on a cache HIT,
+      # which breaks the append-write-back pattern (see #581). The primary
+      # key includes ${{ github.run_id }} so exact-match ALWAYS misses,
+      # forcing fall-through to restore-keys.
+      - name: Restore decision-log cache
+        uses: actions/cache/restore@v6
+        with:
+          path: bots/cut-planner/decision-log.jsonl
+          key: cut-planner-decision-log-v1-${{ github.run_id }}
+          restore-keys: |
+            cut-planner-decision-log-v1-
+
+      - name: Run cut-planner
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          ISSUE_NUMBER: ${{ inputs.issue }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: npm run cut-planner -w @gazetta/bots
+
+      # if: always() so a failed run still persists the decisions it made
+      # before failing — losing them would drop signal that informed the
+      # failure.
+      - name: Save decision-log cache
+        if: always()
+        uses: actions/cache/save@v6
+        with:
+          path: bots/cut-planner/decision-log.jsonl
+          key: cut-planner-decision-log-v1-${{ github.run_id }}
+
+      - name: Upload transcripts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cut-planner-transcripts
+          path: bots/transcripts/
+          if-no-files-found: ignore
+          retention-days: 90
