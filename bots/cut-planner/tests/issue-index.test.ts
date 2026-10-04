@@ -6,7 +6,8 @@
 import { describe, expect, it } from 'vitest'
 import { classifyIssue, closedByPr, featureOf, type ListedIssue, lockBullets, observeCuts } from '../issue-index.js'
 import { featureBotHandoffMarker, refinedMarker } from '../markers.js'
-import { refinementMarker } from '../../feature-bot/refinement-handoff.js'
+import { filedByCutPlanner, refinementMarker } from '../../feature-bot/refinement-handoff.js'
+import { renderCutBody } from '../cut-body.js'
 
 const CUT = '**Feature**: rw\n**Depends on**: none\n\n## Spec\n\nDo it.\n\n## Acceptance\n\n- a\n\n## Tests\n\n- t'
 const PLANNER =
@@ -108,5 +109,20 @@ describe('cross-bot marker contract', () => {
     // string is duplicated. This test is what keeps the copies identical: if
     // they drift, cut-planner stops seeing reviewer verdicts.
     expect(featureBotHandoffMarker(519)).toBe(refinementMarker(519))
+  })
+
+  it('marks every cut it renders so feature-bot will hand it off', () => {
+    // feature-bot hands off ONLY cuts carrying cut-planner's filed tag. If
+    // the tag format here drifts from feature-bot's check, every
+    // cut-planner cut silently falls back to straight-to-human escalation.
+    const body = renderCutBody({
+      feature: 'rw',
+      designPath: 'd.md',
+      spec: 's',
+      acceptance: ['a'],
+      tests: ['t'],
+      runId: '1',
+    })
+    expect(filedByCutPlanner(body)).toBe(true)
   })
 })

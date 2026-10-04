@@ -14,7 +14,12 @@ import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { composeRefinementComment, countPriorRefinements, refinementMarker } from '../refinement-handoff.js'
+import {
+  composeRefinementComment,
+  countPriorRefinements,
+  filedByCutPlanner,
+  refinementMarker,
+} from '../refinement-handoff.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const INDEX_SRC = readFileSync(resolve(HERE, '..', 'index.ts'), 'utf-8')
@@ -124,5 +129,27 @@ describe('orchestrator wiring', () => {
   it('passes a refinement budget into RouteContext', () => {
     expect(INDEX_SRC).toMatch(/maxHandoffs:/)
     expect(INDEX_SRC).toMatch(/priorHandoffs:/)
+  })
+})
+
+describe('filedByCutPlanner — only cut-planner cuts are handed off', () => {
+  it('recognises cut-planner’s filed-cut outcome tag', () => {
+    expect(filedByCutPlanner('...\n<!-- cut-planner: filed feature=rw run=1 -->')).toBe(true)
+  })
+
+  it.each([
+    ['an old-model cut (filed before cut-planner existed)', '**Feature**: rw\n\n## Spec\n\nDo it.'],
+    ['a body that only mentions cut-planner in prose', 'cut-planner: filed feature=rw (not a tag)'],
+    ['an empty body', ''],
+  ])('rejects %s — it would be parked where no bot reads', (_label, body) => {
+    expect(filedByCutPlanner(body)).toBe(false)
+  })
+
+  it('gates the orchestrator’s hand-off budget on it', () => {
+    // Without this gate an old-model cut (review-workflow's) would be
+    // swapped to needs-refinement and sit in a queue cut-planner never
+    // reads for a feature with no planner issue.
+    expect(INDEX_SRC).toMatch(/filedByCutPlanner\(issueBody\) \? MAX_HANDOFFS : 0/)
+    expect(INDEX_SRC).not.toMatch(/maxHandoffs: MAX_HANDOFFS/)
   })
 })

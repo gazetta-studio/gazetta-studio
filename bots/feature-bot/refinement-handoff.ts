@@ -84,3 +84,22 @@ I've swapped \`ready-for-agent\` → \`needs-refinement\`, so I will not pick th
 
 <!-- ${refinementMarker(input.issueNumber)} run=${input.runId} -->`
 }
+
+/**
+ * Was this cut filed by cut-planner?
+ *
+ * Only such cuts may be handed off. cut-planner reads `needs-refinement`
+ * only for features that have a planner issue, so handing off an old-model
+ * cut (filed before cut-planner existed — review-workflow's, say) would park
+ * it in a queue no bot reads: the silent parking design-cut-planner.md Q6a
+ * forbids. Those cuts keep the pre-cut-planner behaviour and escalate to a
+ * human when the loop exhausts.
+ *
+ * Read from the cut's own body (cut-planner's outcome tag), so feature-bot
+ * still never learns the planner issue exists (Q4). The string is
+ * duplicated from cut-planner's `filedCutMarker` because the bots share no
+ * code; a contract test in cut-planner pins the two copies together.
+ */
+export function filedByCutPlanner(issueBody: string): boolean {
+  return issueBody.includes('<!-- cut-planner: filed feature=')
+}
