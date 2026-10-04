@@ -511,7 +511,16 @@ Existing features have a tracking issue plus **all** their cut sub-issues alread
 3. ~~**Workflow-touching cuts (#840).**~~ **Resolved 2026-10-04:** cut-planner assigns them to a human immediately. It does not file the cut for feature-bot at all — it opens the cut issue with `ready-for-human` and a comment explaining that `GITHUB_TOKEN` cannot push `.github/workflows/**` (no permission grants it) and that the work needs a manual PR until #336 lands. Rationale in Q6a: run 37152238559 reached `APPROVED on attempt 1/5` before the push failed, so a full generator-critic loop was spent on work that provably could not be delivered. The cut is still *recorded* (so the feature's plan stays complete and the maintainer sees what is outstanding) — it is just never queued for the bot. Detection depends on the cut's declared edit surface; see "Future directions" on the `## Files` section.
 
 
-4. **`## Suggested plan` parseability.** Verified that *cut sub-issue* bodies name files parseably, but not that design docs' `## Cut sequence` tables are consistently structured enough to transcribe mechanically. Needs a survey before Cut 3.
+4. **Most design docs have no `## Cut sequence` to seed from — measured 2026-10-04.** Of 32 design docs (excluding `-implementation` and `-reference` companions): **4** have a `## Cut sequence` section, **20** still keep their cuts in a separate `design-{feature}-implementation.md` (the artifact [ADR-0015](../../docs/adr/0015-impl-doc-artifact-retires.md) retired but which was never migrated wholesale), and **8** have neither. `design-scheduling.md` is a concrete example of the 20: 12 cuts, all in its impl doc.
+
+   Consequence for this design: cut-planner's seeding step cannot assume the section exists. Three options, undecided —
+   (a) seeding is maintainer work regardless (Claude Code reads the impl doc and writes the planner issue by hand), which keeps cut-planner's input contract to exactly one shape;
+   (b) cut-planner accepts either shape, which means a second parser for a deprecated artifact;
+   (c) migrating a feature to cut-planner *requires* first adding a `## Cut sequence` to its design doc, making the ADR-0015 migration a prerequisite rather than a parallel track.
+
+   (a) is the cheapest and keeps the deprecated shape out of bot code; (c) is the most honest about the real dependency. Either way, the four docs that already have the section are the only candidates for a first migration — which narrows the "migrate a low-activity feature first" advice in "Migration" considerably.
+
+
 5. **Does refinement actually rescue cuts?** CORAL argues the ordering conceptually and gives no success-rate numbers. n=1 locally (#519, hand-fixed). Cut 5's acceptance is the first real measurement.
 6. **Interaction with the pre-flight size gate.** A separate thread proposed gating cuts on declared edit surface (≤2 files / <50 lines, from [SWE-Bench Mobile](https://arxiv.org/html/2602.09540v1): 18% success at 1–2 files vs 2% at 7+; 20% under 50 lines vs 3% over 200). That gate and cut-planner's re-decomposition path address the same thing from different ends; they should be designed together or one dropped.
 
