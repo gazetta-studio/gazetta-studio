@@ -241,6 +241,26 @@ Feedback-first, and **one action per run**.
 
 Counted from outcome-tagged comments on the cut issue, the same way `priorInputCycles` is counted today.
 
+**Quota exhaustion is NOT budget exhaustion, and only one of them is evidence about size.** The two look identical from outside — a run ends without a verdict — but they mean different things:
+
+| Signal | Means | Response |
+|---|---|---|
+| **Budget** exhausted (per-cut wall-clock consumed, no verdict) | the work didn't fit in the time allotted | counts toward Q6's budgets; can lead to re-decomposition |
+| **Quota** exhausted (Anthropic session rate limit) | the account ran dry | stop the queue, change nothing, retry next cron. Counts toward nothing. |
+
+Measured evidence that quota says nothing about cut size — both runs on cut #519, identical scope:
+
+| Run | Work completed before the limit |
+|---|---|
+| 2026-10-03 21:14 | **18 min** — Agent A only |
+| 2026-10-04 08:52 | **51 min** — Agent A 15 + Agent B 10 + Agent A 26 |
+
+Run 2 did ~3× the work of run 1 on the same cut. The variable was available quota, whose dominant consumer was an interactive session sharing the same 5-hour bucket.
+
+Treating repeated quota failures as "make a smaller cut" would therefore (a) shrink cuts that were never too big, (b) *increase* total consumption — 3 cuts means 3× Agent A context-establishment plus 3× Agent B review, against a token-metered bucket — and (c) corrupt the record, since a cut split for quota reasons is indistinguishable afterwards from a cut that was genuinely too large. There is also a sequencing problem: deciding *how* to split needs a Claude call, which hits the same exhausted bucket.
+
+If a cut is repeatedly quota-killed, the honest response is Q6a's rule — surface it to a human — not a split on a signal that does not mean what it appears to mean. This is the fourth instance this session of "the cut is too big" being the attractive wrong answer; #526's skip entry says exactly that about a 45-minute budget bug.
+
 **Why refine-before-decompose:** [CORAL](https://arxiv.org/pdf/2601.09883) — *"the orchestrator does not always escalate the issue to the planner for re-decomposition. Instead, it may refine or adjust the previous task instruction and allow the same agent to continue... avoiding redundant token consumption caused by reprocessing subtasks that have already been completed."* The decision rule it gives: refine when the failure is execution-level; re-decompose only when the breakdown itself is flawed. Our own evidence agrees — every diagnosed failure was mechanical or spec-*mode*, never spec-*size*.
 
 **Why 2 then 1:** [industry retry guidance](https://semnexus.com/ai-agent-retry-logic-handling-failures-without-human-escalation) — *"limit re-prompting to 2 attempts per step; if the model fails the same constraint twice with explicit correction, either the prompt is broken or the model can't satisfy this constraint"*, with a 3-nudge ceiling per error sequence. Matches feature-bot's existing `MAX_INPUT_CYCLES` default of 2 ([`index.ts`](../../bots/feature-bot/index.ts)).
@@ -256,6 +276,7 @@ New `SkipReason` members: `refinement-exhausted`, `redecomposition-failed`.
 | **Unbounded refinement** | Unbounded spend on a shared token bucket, with no terminal state. fix-bot and dead-code-watcher both cap; rule 38 symmetry. |
 | **Re-decompose first** | Contradicts CORAL and our own evidence; splitting *increases* total tokens (one worked example: 390 vs 300) against the resource that is already the binding constraint. |
 | **Decompose only, never refine** | Would have fired on #519 and produced three cuts each still containing the unresolved design question. |
+| **Count quota failures toward the budgets / split after N quota kills** | Considered and rejected on measured evidence — see the quota-vs-budget table above. Both 2026-10-03/04 runs hit the limit on the same cut at 18 min and 51 min respectively; the variable was available quota, not scope. Splitting would increase consumption against a token-metered bucket, and would record a quota failure as a size failure. |
 
 ### Q6a — When the bot can't do the job, it files for a human
 
@@ -452,6 +473,7 @@ State (which cuts shipped) lives in GitHub sub-issue close-state, not in this ta
 - A deliberately under-specified cut gets refined once and then succeeds, with both the refinement and its reasoning visible on the planner issue
 - **Feedback-first holds (Q5a):** with a cut sitting in `needs-refinement`, a cut-planner run refines it and files **no** new cut. With a cut still `ready-for-agent` or awaiting PR review, the run files nothing at all.
 - An infrastructure failure (rate limit) does **not** route to refinement — the cut stays `ready-for-agent`, and cut-planner escalates nothing
+- **Quota never counts toward the budgets (Q6):** a cut quota-killed twice has consumed zero of its 2 refinements and 1 re-decomposition; only budget exhaustion and substantive rejects advance the counters
 - **The escalation default holds (Q6a):** an injected unanticipated failure (one matching no example row) still files for a human rather than exiting silently or looping
 - **Escalation scopes are distinct (Q6a):** an open design question labels the **planner** issue `needs-info` and halts filing for the feature; an unsalvageable cut labels the **cut** issue `ready-for-human` and leaves the feature able to proceed
 - A cut whose edit surface includes `.github/workflows/**` is refused **before** filing, not after a full loop (#840)
