@@ -41,6 +41,7 @@
  */
 import { findIssuesByLabels, octokitFromEnv, repoFromEnv, type RepoIdentity } from '../_lib/github.js'
 import { printBanner, printCandidateList, printNotice, printRunSummary, printWarning } from '../_lib/ui.js'
+import { dispatchRun, type RunDecision } from './dispatch-run.js'
 import { parsePlannerIssue, type PlannerIssue } from './planner-issue.js'
 
 const DRY_RUN = process.env.DRY_RUN === '1'
@@ -52,6 +53,36 @@ const DRY_RUN = process.env.DRY_RUN === '1'
  * generator-critic loop.
  */
 const PER_RUN_BUDGET_MS = Number(process.env.BUDGET_MS ?? 30 * 60 * 1000)
+
+/**
+ * Spec-refinement budget per cut (design-cut-planner.md Q6).
+ *
+ * Defaults to 0 to match feature-bot's MAX_REFINEMENTS: until Cut 6 ships
+ * the refine path, an armed hand-off would park cuts in a queue nothing
+ * reads. See the design doc's "Arming order" — raising this is part of
+ * Cut 6's definition of done, not a follow-up.
+ */
+const MAX_REFINEMENTS = Number(process.env.MAX_REFINEMENTS ?? '0')
+/** Re-decomposition budget per feature; the Q6 fallback after refinement. */
+const MAX_REDECOMPOSITIONS = Number(process.env.MAX_REDECOMPOSITIONS ?? '1')
+
+/** One-line, human-readable rendering of a dispatcher decision. */
+function describeDecision(d: RunDecision): string {
+  switch (d.kind) {
+    case 'refine':
+      return `refine #${d.issueNumber} (refinement ${d.priorRefinements + 1})`
+    case 'redecompose':
+      return `re-decompose #${d.issueNumber}`
+    case 'escalate-cut':
+      return `escalate cut #${d.issueNumber} to a human (${d.reason})`
+    case 'escalate-feature':
+      return `escalate the feature to a human (${d.reason})`
+    case 'file-next':
+      return 'file the next cut'
+    case 'idle':
+      return `nothing to do (${d.because})`
+  }
+}
 
 interface PlannerCandidate {
   issueNumber: number
@@ -105,15 +136,28 @@ async function main(): Promise<void> {
     })),
   })
 
-  if (DRY_RUN) {
-    printNotice('DRY_RUN=1 — reporting discovery only.')
-  } else {
-    // Cut 3 is the skeleton. Taking an action requires the run dispatcher
-    // (Cut 4) to decide WHICH action, so there is deliberately nothing to
-    // do here yet. This is not a silent skip in the Q6a sense — there is
-    // no job to fail at, and the banner above says so.
-    printNotice('Cut 3 ships discovery only — the run dispatcher is Cut 4. Taking no action.')
+  // Decide the ONE action per feature (Q5a). Cut 4 ships the decision;
+  // EXECUTING it is Cuts 5-8, so every decision is reported and not acted
+  // on. That is deliberate and visible — the banner says so — rather than
+  // a silent skip in the Q6a sense.
+  for (const c of candidates) {
+    const decision = dispatchRun({
+      planner: c.parsed,
+      plannerIssueNumber: c.issueNumber,
+      // Cut 5 populates this from a real cut-sub-issue query. An empty set
+      // makes the dispatcher report `file-next` (or `escalate-feature` on
+      // an empty plan), which is the correct decision for a feature with
+      // no cuts yet.
+      cuts: [],
+      maxRefinements: MAX_REFINEMENTS,
+      maxRedecompositions: MAX_REDECOMPOSITIONS,
+      priorRedecompositions: 0,
+    })
+    printNotice(`#${c.issueNumber} (${c.parsed.feature}) → ${describeDecision(decision)}`)
   }
+
+  if (DRY_RUN) printNotice('DRY_RUN=1 — decisions reported, nothing executed.')
+  else printNotice('Cut 4 ships the decision only; execution is Cuts 5-8. Taking no action.')
 
   printRunSummary({
     verb: 'Planned',
