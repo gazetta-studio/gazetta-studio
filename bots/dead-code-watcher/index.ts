@@ -37,6 +37,7 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
+import { type DeliveryResult, pushBranch, runGh, savePatch } from '../_lib/delivery.js'
 import { octokitFromEnv, repoFromEnv } from '../_lib/github.js'
 import { branchHasCommits, captureCommitMessages, captureDiff, resetToMain } from '../_lib/git-tree.js'
 import { type Finding, filterStableFindings, type KnipReport, parseKnipReport, rankFindings } from './knip-parse.js'
@@ -343,14 +344,19 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
 
     if (skipBranchHasCommits) {
       printNotice('Agent A chose SKIP — pushing skip-list-entry PR (no reviewer needed)')
-      pushBranch(skipBranch)
+      const pushedSkip = pushBranch(skipBranch, { cwd: REPO_ROOT, forceWithLease: false })
+      if (!pushedSkip.ok) {
+        reportDeliveryFailure(finding, skipBranch, 'push', pushedSkip.error)
+        return 'invoked-claude'
+      }
       // Agent A committed the skip-list entry locally on `skipBranch`
       // and stopped. The orchestrator opens the draft PR — Agent A's
       // prompt instructs it to STOP after the commit (symmetric with
       // the DELETE path) so the bot doesn't run terminal `gh pr create`
       // mid-loop and create surprise output. We open the PR here.
       const commitMessages = captureCommitMessages(skipBranch, { cwd: REPO_ROOT })
-      openAgentASkipPR(finding, skipBranch, commitMessages)
+      const openedSkip = openAgentASkipPR(finding, skipBranch, commitMessages)
+      if (!openedSkip.ok) reportDeliveryFailure(finding, skipBranch, 'pr', openedSkip.error)
       return 'invoked-claude'
     }
 
@@ -434,8 +440,11 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
 
     if (verdict.kind === 'approve') {
       printNotice(`✅ Reviewer APPROVED on attempt ${attempt}/${MAX_ATTEMPTS}: ${verdict.reasoning.slice(0, 120)}`)
-      pushBranch(branchName)
-      openDeletePR(finding, branchName, verdict.reasoning, extractSummary(agentATranscript))
+      const pushed = pushBranch(branchName, { cwd: REPO_ROOT, forceWithLease: false })
+      const delivered = pushed.ok
+        ? openDeletePR(finding, branchName, verdict.reasoning, extractSummary(agentATranscript))
+        : pushed
+      if (!delivered.ok) reportDeliveryFailure(finding, branchName, pushed.ok ? 'pr' : 'push', delivered.error)
       return 'invoked-claude'
     }
 
@@ -464,26 +473,39 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
 }
 
 /**
- * Push a branch to origin. Failures here are non-fatal — the
- * commits remain locally; the orchestrator's per-finding budget
- * absorbs the loss and the next cron retries.
+ * Approved (or SKIP-committed) work that did not land (#840). There is no
+ * issue to comment on — findings come from knip, not the tracker — so the
+ * run itself must fail: save the commits as a patch into the transcripts
+ * artifact, emit a workflow error annotation, and set a non-zero exit code
+ * so the run shows red instead of green. The finding stays unrecorded, so
+ * the next run retries it.
  */
-function pushBranch(branchName: string): void {
-  try {
-    execFileSync('git', ['push', '-u', 'origin', branchName], {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-    })
-  } catch (err) {
-    printWarning(`git push ${branchName} failed: ${err}`)
-  }
+function reportDeliveryFailure(finding: Finding, branch: string, stage: 'push' | 'pr', error: string): void {
+  const label = formatFingerprint(finding.fingerprint)
+  const name = `${RUN_TIMESTAMP}-dead-code-${branch.replace(/[^\w.-]+/g, '_')}`
+  const patch = stage === 'push' ? savePatch({ cwd: REPO_ROOT, dir: TRANSCRIPTS_DIR, name, branch }) : null
+  const where =
+    stage === 'pr'
+      ? `branch ${branch} was pushed; open the PR from it by hand`
+      : patch
+        ? `work saved as ${name}.patch in the transcripts artifact`
+        : 'work could not be saved as a patch'
+  console.log(
+    `::error title=dead-code-watcher delivery failed::${stage} failed for ${label} (${where}): ${error.replace(/\r?\n/g, ' ').slice(0, 500)}`,
+  )
+  process.exitCode = 1
 }
 
 /**
  * Open the delete PR with the reviewer's approve-reasoning + Agent A's
- * last assistant message as the body. Best-effort; failures non-fatal.
+ * last assistant message as the body. Returns the outcome; the caller reports a failure.
  */
-function openDeletePR(finding: Finding, branchName: string, reviewerReasoning: string, agentASummary: string): void {
+function openDeletePR(
+  finding: Finding,
+  branchName: string,
+  reviewerReasoning: string,
+  agentASummary: string,
+): DeliveryResult {
   const label = formatFingerprint(finding.fingerprint)
   const body = `## Summary
 
@@ -510,14 +532,10 @@ Close the PR. The bot's feedback loop will read the close reason
 from your comment and add a skip-list entry so it doesn't re-attempt.
 
 <!-- dead-code-watcher: kind=${finding.fingerprint.kind} path=${finding.fingerprint.path}${finding.fingerprint.symbol ? ` symbol=${finding.fingerprint.symbol}` : ''} run=${process.env.GITHUB_RUN_ID ?? 'local'} -->`
-  try {
-    execFileSync('gh', ['pr', 'create', '--title', `refactor(dead-code): remove unused ${label}`, '--body', body], {
-      cwd: REPO_ROOT,
-      stdio: 'inherit',
-    })
-  } catch (err) {
-    printWarning(`gh pr create failed for ${label}: ${err}`)
-  }
+  return runGh(
+    ['pr', 'create', '--title', `refactor(dead-code): remove unused ${label}`, '--body', body, '--head', branchName],
+    REPO_ROOT,
+  )
 }
 
 /**
@@ -542,7 +560,7 @@ from your comment and add a skip-list entry so it doesn't re-attempt.
  * Moving PR creation to the orchestrator makes the SKIP path
  * symmetric with the DELETE path.
  */
-function openAgentASkipPR(finding: Finding, skipBranch: string, agentACommitMessages: string): void {
+function openAgentASkipPR(finding: Finding, skipBranch: string, agentACommitMessages: string): DeliveryResult {
   const label = formatFingerprint(finding.fingerprint)
   // First non-blank line is the conventional-commits header, e.g.
   // "chore(skip-list): record planned-feature for ...". Mine the
@@ -572,25 +590,20 @@ Close the PR + remove the skip-list entry. The next weekly run
 will surface the finding again.
 
 <!-- dead-code-watcher: kind=${finding.fingerprint.kind} path=${finding.fingerprint.path}${finding.fingerprint.symbol ? ` symbol=${finding.fingerprint.symbol}` : ''} reason=${reason} run=${process.env.GITHUB_RUN_ID ?? 'local'} -->`
-  try {
-    execFileSync(
-      'gh',
-      [
-        'pr',
-        'create',
-        '--draft',
-        '--title',
-        `chore(skip-list): record ${reason} for ${label}`,
-        '--body',
-        body,
-        '--head',
-        skipBranch,
-      ],
-      { cwd: REPO_ROOT, stdio: 'inherit' },
-    )
-  } catch (err) {
-    printWarning(`gh pr create failed for skip-list ${label}: ${err}`)
-  }
+  return runGh(
+    [
+      'pr',
+      'create',
+      '--draft',
+      '--title',
+      `chore(skip-list): record ${reason} for ${label}`,
+      '--body',
+      body,
+      '--head',
+      skipBranch,
+    ],
+    REPO_ROOT,
+  )
 }
 
 /**

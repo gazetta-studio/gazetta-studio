@@ -451,7 +451,13 @@ Close the PR — the bot's next weekly run will re-evaluate. If the same module 
       stdio: 'inherit',
     })
   } catch (err) {
-    printWarning(`Failed to open scope-change PR: ${err}`)
+    // Not a warning: a swallowed failure here reported a green run with no
+    // PR (#840). The decision is recomputed from data next week, so nothing
+    // needs saving — the run just has to show red.
+    console.log(
+      `::error title=mutation-area-picker delivery failed::Failed to open scope-change PR: ${String(err).replace(/\r?\n/g, ' ').slice(0, 500)}`,
+    )
+    process.exitCode = 1
   }
 }
 

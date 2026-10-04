@@ -32,10 +32,14 @@ const source = readFileSync(INDEX_PATH, 'utf-8')
 const openSkipListPRSource = readFileSync(OPEN_SKIP_LIST_PR_PATH, 'utf-8')
 
 describe('fix-bot git push uses --force-with-lease', () => {
-  it('pushBranch() pushes with --force-with-lease', () => {
-    const body = extractFunctionBody(source, 'pushBranch')
-    // The single git push call in pushBranch must include the flag.
-    expect(body).toMatch(/execFileSync\(\s*'git'\s*,\s*\[[^\]]*'--force-with-lease'[^\]]*\]/)
+  it('every pushBranch() call passes forceWithLease: true', () => {
+    // pushBranch moved to bots/_lib/delivery.ts (#840) and takes the flag
+    // as an option; the shared helper's behavioral tests assert the arg.
+    const calls = source.match(/pushBranch\([^)]*\)/g) ?? []
+    expect(calls.length).toBeGreaterThan(0)
+    for (const call of calls) {
+      expect(call, `pushBranch without lease: ${call}`).toContain('forceWithLease: true')
+    }
   })
 
   it('openSkipListPR() pushes the skip-list branch with --force-with-lease', () => {

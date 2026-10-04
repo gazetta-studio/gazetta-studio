@@ -76,6 +76,9 @@ export type SkipReason =
   // which is materially different from the generic 'needs-human'.
   | 'refinement-exhausted'
   | 'redecomposition-failed'
+  // Approved by the reviewer but the push or PR failed (#840). Infrastructure,
+  // not cut quality — the compactor must not learn "this cut was bad" from it.
+  | 'delivery-failed'
 
 export interface SkipListEntry {
   fingerprint: IssueFingerprint

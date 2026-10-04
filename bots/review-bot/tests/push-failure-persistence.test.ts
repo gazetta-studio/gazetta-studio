@@ -53,6 +53,7 @@ import { readSkipList, recordSkipListEntry, writeSkipList, type Fingerprint } fr
 const HERE = dirname(fileURLToPath(import.meta.url))
 const INDEX_PATH = join(HERE, '..', 'index.ts')
 const FIXBOT_INDEX = join(HERE, '..', '..', 'fix-bot', 'index.ts')
+const FIXBOT_SKIP_PR = join(HERE, '..', '..', 'fix-bot', 'open-skip-list-pr.ts')
 
 const fp: Fingerprint = {
   area: 'packages/gazetta/src/auth/',
@@ -90,7 +91,8 @@ describe('review-bot push-failure skip-list PERSISTENCE (proves e79befb ineffect
   })
 
   it('fix-bot (the cited rule-38 mirror) DOES persist its skip-list — review-bot omitted that half', async () => {
-    const fixbot = await readFile(FIXBOT_INDEX, 'utf8')
+    // The skip-list push lives in open-skip-list-pr.ts, which escalateToHuman calls.
+    const fixbot = `${await readFile(FIXBOT_INDEX, 'utf8')}\n${await readFile(FIXBOT_SKIP_PR, 'utf8')}`
     // Proves the asymmetry the commit message glosses over: it cites
     // fix-bot as the mirror, but fix-bot has the persistence step
     // review-bot lacks. If this assertion ever fails, fix-bot lost its
