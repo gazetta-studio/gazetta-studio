@@ -188,6 +188,15 @@ Everything else stays terminal.
 
 **Why this line is load-bearing:** if infrastructure failures routed to refinement, cut-planner would rewrite perfectly good specs in response to transport bugs. That is precisely the misattribution that made #526's skip entry say *"the cut is likely too large"* about a budget bug. Refining a spec cannot fix `spawn E2BIG`.
 
+**Rejected alternatives:**
+
+| | Why rejected |
+|---|---|
+| **Route every non-APPROVE outcome to refinement** | Would hand cut-planner rate limits, `spawn E2BIG`, and Agent A crashes as if they were spec defects. Refining a spec cannot fix a transport bug, and the misattribution is this project's recurring error — #526's skip entry reads *"the cut is likely too large"* about a 45-minute budget bug. |
+| **Route the first reject to refinement (don't wait for loop exhaustion)** | Discards the retry that the generator-critic loop exists to provide. Agent B's first rejection is frequently actionable by Agent A directly — on #519 attempt 1 the tautology check *passed* and the rejection was a specific architecture gap, exactly the input `retry-with-note` is designed to consume. Refining after one reject would spend a cut-planner call to replace a cheaper in-loop retry. |
+| **Let cut-planner decide which failures are spec-related by reading transcripts** | Richest signal, but moves the classification from a pure function into an LLM judgement, on a contended bucket, for a decision the routing layer already makes deterministically. Producer/consumer violation per `bots/README.md`. |
+| **Add a `needs-refinement` branch for `spec-too-vague` only** | Too narrow: it would catch the pre-Claude gate's rejections but miss the substantive case (repeated Agent B rejects) that is the main motivation. |
+
 **Note on a corrected assumption:** an earlier draft of this design contrasted a "terminal tier that closes the sub-issue" with a "non-terminal refinement tier". `escalateToHuman` does **not** close the issue — it removes `ready-for-agent`, applies `ready-for-human`, and the comment *advises the maintainer* to close or implement manually. The real difference between terminal escalation and refinement is therefore narrow: the label value, and whether a skip-list entry + PR are created. That makes the implementation smaller than first described — a parameterization of the existing escalation path, not a parallel one.
 
 ### Q5a — Drain feature-bot's feedback before filing anything new
@@ -423,7 +432,7 @@ The artifact table row *"Cut sub-issue → one GitHub issue per cut, referenced 
 | 8 | Open-question path: `NEEDS_INPUT`-shaped question on the planner issue + `needs-info`; stop filing for that feature | 3, 4 | unit-first | Low |
 | 8a | Escalation paths (Q6a): planner-issue vs cut-issue targets; pre-flight refusal of `.github/workflows/**` cuts; repeat-escalation detection | 4, 6, 7 | unit-first | Low |
 | 9 | `feature-design-process.md` Phase 4 rewrite + artifact-table row + `dev-glossary.md` entries (`cut-planner`, `planner issue`, `needs-refinement`) | — | (docs) | Low |
-| 10 | First production migration: seed a planner issue for `review-workflow` from its design doc; validate end-to-end against a real cut | 5, 6, 9 | (manual smoke) | Medium |
+| 10 | First production migration (see "Migration"): seed a planner issue for a LOW-ACTIVITY feature — not review-workflow, whose 16 open issues make a failed migration expensive; close its pending cuts with pointers; validate end-to-end | 5, 6, 9 | (manual smoke) | Medium |
 | 11 | Memory wiring (Q7a): append to `decision-log.jsonl` per action; `actions/cache` restore/save split per ADR-0011; load `lessons-learned.md` into the prompt | 3, 4 | unit-first | Low |
 | 12 | `cut-planner:compact` job in `bots-compact.yml` (the compactor has explicit per-bot jobs, not auto-discovery) + `lessons-learned.md` placeholder | 11 | (deployment) | Low |
 | 13 | `bots/README.md`: cut-planner row in the active-bots table + its memory surfaces in the durable-memory section; document the label handoff contract | 3, 11 | (docs) | Low |
@@ -445,6 +454,28 @@ State (which cuts shipped) lives in GitHub sub-issue close-state, not in this ta
 - Budgets terminate: 2 refinements + 1 re-decomposition → `ready-for-human` + skip entry
 - **Memory is reconstructible (Q7a):** deleting the planner issue's `## State` section and replaying its comment log yields the same state — proving the comments, not the body, are the durable record
 - **Two-tier memory works (Q7a):** every run appends exactly one `decision-log.jsonl` entry; the log survives a cache miss without affecting correctness; `lessons-learned.md` is loaded into the prompt and is rewritten (not appended) by `cut-planner:compact`
+
+## Migration
+
+Existing features have a tracking issue plus **all** their cut sub-issues already filed. cut-planner's model is one planner issue plus cuts filed one at a time. The gap is real: review-workflow alone has 16 open issues under the old shape.
+
+**Migration is per-feature and maintainer-triggered** — no flag day, mirroring how [`design-feature-bot.md`](design-feature-bot.md) Q8 handled the impl-doc retirement. An un-migrated feature keeps working exactly as today: its cuts carry `ready-for-agent`, feature-bot picks them up, cut-planner never sees them (it only acts on features that have a planner issue).
+
+**Per-feature recipe:**
+
+1. Maintainer asks (in Claude Code): *"create the planner issue for `design-{feature}.md`."*
+2. Claude opens one planner issue: `**Feature**` + `**Design**` front-matter, `## Suggested plan` copied from the design doc's `## Cut sequence`, `## State` reflecting what has already landed, `## Locked decisions` seeded from the design doc's locks.
+3. **Already-filed future cuts are closed**, each with a comment pointing at the planner issue. They will be re-filed one at a time with just-in-time specs — which is the whole point; their current specs were written against predicted code.
+4. **A cut currently in flight is left alone.** It finishes under the old model; cut-planner picks up from the next one.
+5. The old tracking issue is closed with a pointer to the planner issue.
+
+**Why close rather than relabel the pending cuts:** their bodies are the stale artifact. #519 is the worked example — filed in June with *"Resolve open-Q #2 here"*, a spec that could not be built from until the decision was locked four months later. Relabelling would preserve exactly what this design exists to replace.
+
+**What is NOT migrated:** closed/landed cuts stay as they are (git history + closed issues are the record per [ADR-0015](../../docs/adr/0015-impl-doc-artifact-retires.md)). The design doc's `## Cut sequence` table is untouched — it remains maintainer-owned intent, and is the source the planner issue's advisory plan is copied *from*.
+
+**Ordering:** migrate one low-activity feature first and let it complete end-to-end before migrating others. review-workflow is the obvious *second* candidate (it has the most cuts, so the most to gain) but a poor first one for the same reason — a failed migration there strands 16 issues.
+
+**Rollback:** re-open the closed cut sub-issues and the tracking issue, close the planner issue. Nothing is destroyed; the cuts' original bodies survive in issue history.
 
 ## Open questions
 
