@@ -53,17 +53,18 @@ export interface RouteContext {
   /** Max NEEDS_INPUT cycles before escalating (per Q6 lock; default 2). */
   maxInputCycles: number
   /**
-   * How many times cut-planner has already refined this cut's spec,
-   * counted from outcome-tagged comments on the cut issue. Optional so
+   * How many times this cut has already been handed to cut-planner, counted
+   * from feature-bot's own hand-off tags on the cut issue. Optional so
    * callers predating cut-planner keep today's terminal behaviour.
    */
-  priorRefinements?: number
+  priorHandoffs?: number
   /**
-   * Max spec refinements before the cut terminates (design-cut-planner.md
-   * Q6; default 2, matching MAX_INPUT_CYCLES). Omit — or pass 0 — to
-   * disable refinement routing entirely.
+   * Max hand-offs to cut-planner before the cut terminates here. A hand-off
+   * is not necessarily a refinement — cut-planner decides whether to refine
+   * or re-decompose — so this is cut-planner's two budgets summed (3). Omit,
+   * or pass 0, to disable hand-off routing entirely.
    */
-  maxRefinements?: number
+  maxHandoffs?: number
 }
 
 export type RouteDecision =
@@ -80,7 +81,7 @@ export type RouteDecision =
    * `needs-refinement` so cut-planner picks it up instead of feature-bot.
    * Per design-cut-planner.md Q5.
    */
-  | { kind: 'escalate-needs-refinement'; reviewerNote: string; priorRefinements: number }
+  | { kind: 'escalate-needs-refinement'; reviewerNote: string; priorHandoffs: number }
 
 export function routeAttemptOutcome(outcome: AttemptOutcome, ctx: RouteContext): RouteDecision {
   switch (outcome.kind) {
@@ -147,20 +148,20 @@ function routeAgentBVerdict(verdict: ReviewerVerdict, ctx: RouteContext): RouteD
     // `needs-human` verdict and Agent A's non-zero exits are handled above
     // and never reach here, because a design objection and a transport bug
     // are both unfixable by rewriting a spec.
-    const priorRefinements = ctx.priorRefinements ?? 0
-    const maxRefinements = ctx.maxRefinements ?? 0
-    if (priorRefinements < maxRefinements) {
-      return { kind: 'escalate-needs-refinement', reviewerNote: verdict.note, priorRefinements }
+    const priorHandoffs = ctx.priorHandoffs ?? 0
+    const maxHandoffs = ctx.maxHandoffs ?? 0
+    if (priorHandoffs < maxHandoffs) {
+      return { kind: 'escalate-needs-refinement', reviewerNote: verdict.note, priorHandoffs }
     }
     return {
       kind: 'escalate-needs-human',
       // 'refinement-exhausted' only once refinement was actually available;
       // otherwise keep the pre-cut-planner catch-all so callers that never
       // opt in see unchanged behaviour.
-      reason: maxRefinements > 0 ? 'refinement-exhausted' : 'needs-human',
+      reason: maxHandoffs > 0 ? 'refinement-exhausted' : 'needs-human',
       reasonNote:
-        maxRefinements > 0
-          ? `Loop exhausted after ${ctx.maxAttempts} attempts and ${priorRefinements} spec refinement(s). Last reviewer note: ${verdict.note}`
+        maxHandoffs > 0
+          ? `Loop exhausted after ${ctx.maxAttempts} attempts and ${priorHandoffs} spec refinement(s). Last reviewer note: ${verdict.note}`
           : `Loop exhausted after ${ctx.maxAttempts} attempts. Last reviewer note: ${verdict.note}`,
     }
   }

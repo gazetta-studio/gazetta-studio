@@ -484,7 +484,9 @@ So the sequence is fixed:
 | Cut 2 ships | `MAX_REFINEMENTS=0`. Mechanism built and tested; produces no labels. |
 | Cuts 3–5 ship | cut-planner exists and can file cuts. Still no refinement traffic. |
 | **Cut 6 ships** | the refine path exists — it can now consume the queue. |
-| **Then** arm | set `MAX_REFINEMENTS=2` (workflow env, matching `MAX_INPUT_CYCLES`). One-line change, and **part of Cut 6's definition of done** — not a follow-up. |
+| **Then** arm | cut-planner `MAX_REFINEMENTS=2` + `MAX_REDECOMPOSITIONS=1`; feature-bot `MAX_HANDOFFS=3`. **Part of Cut 6's definition of done** — not a follow-up. |
+
+**The two bots' knobs are different units, and must agree.** feature-bot counts *hand-offs*; cut-planner decides what each hand-off becomes. One cut's full budget is 2 refinements + 1 re-decomposition = **3 hand-offs**, so feature-bot's `MAX_HANDOFFS` must equal cut-planner's two budgets summed. An earlier draft of this table said "set `MAX_REFINEMENTS=2`" in both bots — the knob then carried the same name in each. That would have made feature-bot escalate terminally on the third hand-off, the one cut-planner meant to re-decompose: the re-decomposition path would have existed, passed its own unit tests, and never run. Caught while arming; feature-bot's knob was renamed to `MAX_HANDOFFS` so the units can't be confused again, and `bots/cut-planner/tests/budget-coherence.test.ts` drives a failing cut through both bots' real decision functions to pin the lifecycle.
 
 **Cut 6 cannot be validated from organic traffic.** Reaching the refinement branch requires a cut that exhausted its attempts on *substantive* reviewer rejections — and feature-bot has delivered zero cuts to date, so that may not occur for a long time. Cut 6's acceptance therefore uses a **deliberately labelled test issue**: apply `needs-refinement` by hand to a throwaway cut sub-issue carrying a plausible reviewer note, and confirm cut-planner picks it up, revises the body, and swaps the label back. Waiting for the organic case would leave the path unexercised indefinitely.
 
