@@ -23,12 +23,27 @@ $REVIEWER_NOTE
 Answer the verdict, don't just reword the spec. If the reviewer named a gap,
 the revised spec must close it explicitly. Keep everything that was right.
 
-Answer with ONE of:
+Answer with ONE of these, written out in full (cut-spec fields are defined
+in the contract below):
 
-- `{"action": "refine", <cut spec fields>, "summary": "what changed and why, one or two sentences"}`
-- `{"action": "design-objection", "reason": "..."}` — the reviewer is saying
-  the APPROACH is wrong, not the spec. A rewrite cannot answer that; a human
-  must.
-- `{"action": "needs-input", "question": "...", "options": ["...", "..."], "recommendation": "..."}`
+**Revise the spec** — `summary` says what changed and why, in one or two
+sentences:
+
+```
+{"action": "refine", "title": "...", "spec": "...", "acceptance": ["..."], "tests": ["..."], "solid": null, "lockIndices": [0], "files": ["path/to/file.ts"], "summary": "..."}
+```
+
+**The reviewer is objecting to the APPROACH**, not the spec — a rewrite
+cannot answer that; a human must:
+
+```
+{"action": "design-objection", "reason": "..."}
+```
+
+**Ask for a decision** the planner issue does not lock:
+
+```
+{"action": "needs-input", "question": "...", "options": ["...", "..."], "recommendation": "..."}
+```
 
 $CONTRACT

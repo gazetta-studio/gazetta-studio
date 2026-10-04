@@ -17,12 +17,27 @@ $CONTEXT
    the tests name real test paths.
 3. Specify that one cut.
 
-Answer with ONE of:
+Answer with ONE of these, written out in full (cut-spec fields are defined
+in the contract below):
 
-- `{"action": "file", <cut spec fields>, "state": "<new State section>", "deviation": "<why you deviated from the plan>" | null}`
-  — `state` replaces the planner's `## State` section: record what has
-  landed, that this cut is now in flight, and what comes next.
-- `{"action": "needs-input", "question": "...", "options": ["...", "..."], "recommendation": "..."}`
-- `{"action": "plan-complete", "reason": "..."}` — every planned cut has landed.
+**File the cut** — `state` replaces the planner's `## State` section: what
+has landed, that this cut is now in flight, and what comes next. Set
+`deviation` to `null` unless you departed from the suggested plan.
+
+```
+{"action": "file", "title": "...", "spec": "...", "acceptance": ["..."], "tests": ["..."], "solid": null, "lockIndices": [0], "files": ["path/to/file.ts"], "state": "Landed: ...\nIn flight: this cut\nNext: ...", "deviation": null}
+```
+
+**Ask for a decision** the planner issue does not lock:
+
+```
+{"action": "needs-input", "question": "...", "options": ["...", "..."], "recommendation": "..."}
+```
+
+**Every planned cut has landed:**
+
+```
+{"action": "plan-complete", "reason": "..."}
+```
 
 $CONTRACT

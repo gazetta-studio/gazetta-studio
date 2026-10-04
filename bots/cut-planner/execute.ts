@@ -168,7 +168,8 @@ async function fileNext(
       runId: ctx.runId,
     }),
   )
-  await gh.updateBody(ctx.plannerIssueNumber, replaceSection(ctx.plannerBody, 'State', p.state))
+  const state = p.state ?? deriveState(ctx.planner.state, [`In flight: #${filed.number} — ${p.title}`])
+  await gh.updateBody(ctx.plannerIssueNumber, replaceSection(ctx.plannerBody, 'State', state))
   return { kind: 'acted', summary: `filed #${filed.number}${filed.queued ? '' : ' (not queued: workflow files)'}` }
 }
 
@@ -257,7 +258,13 @@ async function redecompose(
       runId: ctx.runId,
     }),
   )
-  await gh.updateBody(ctx.plannerIssueNumber, replaceSection(ctx.plannerBody, 'State', p.state))
+  const state =
+    p.state ??
+    deriveState(ctx.planner.state, [
+      `Re-decomposed #${n}; in flight: #${filed.number} — ${p.first.title}`,
+      ...p.remaining.map(r => `Next: ${r}`),
+    ])
+  await gh.updateBody(ctx.plannerIssueNumber, replaceSection(ctx.plannerBody, 'State', state))
   return { kind: 'acted', summary: `re-decomposed #${n} → #${filed.number}` }
 }
 
@@ -402,4 +409,18 @@ export async function escalateMalformedPlanner(
     escalateFeatureComment({ feature: feature ?? `#${issueNumber}`, reason: 'malformed-planner-issue', detail, runId }),
   )
   await gh.addLabel(issueNumber, 'needs-info')
+}
+
+/**
+ * A correct minimal `## State` when the planning answer omits one.
+ *
+ * `## State` is derived data (Q7): the comment log is the durable record
+ * and state is reconstructible from it. So the executor can always produce
+ * it — the previous state, with any old "In flight" / "Next" lines dropped
+ * (they are now stale) and the new lines appended. Claude's own state, when
+ * present, is preferred because it can also say what comes after.
+ */
+export function deriveState(previous: string, newLines: readonly string[]): string {
+  const kept = previous.split('\n').filter(l => !/^\s*(in flight|next|nothing has landed)/i.test(l) && l.trim() !== '')
+  return [...kept, ...newLines].join('\n')
 }

@@ -9,6 +9,7 @@
 import { describe, expect, it } from 'vitest'
 import type { RunDecision } from '../dispatch-run.js'
 import {
+  deriveState,
   executeDecision,
   executeSafely,
   type FeatureContext,
@@ -332,5 +333,34 @@ describe('executeSafely — the Q6a default', () => {
         plannerReturning({ kind: 'quota' }),
       ),
     ).rejects.toThrow('boom')
+  })
+})
+
+describe('## State when the answer omits it (Q7: state is derived)', () => {
+  it('file-next still files the cut and derives a minimal state', async () => {
+    const gh = setup()
+    const out = await executeDecision(
+      { kind: 'file-next' },
+      ctx(),
+      gh,
+      plannerReturning(answer({ action: 'file', ...spec })),
+    )
+    expect(out).toEqual({ kind: 'acted', summary: 'filed #100' })
+    expect(gh.issues.get(1)!.body).toContain('## State\n\nIn flight: #100 — gate saves')
+    // The stale "Next: cut 5" line is dropped, not left contradicting.
+    expect(gh.issues.get(1)!.body).not.toContain('Next: cut 5')
+  })
+
+  it.each([
+    [
+      'keeps landed history, drops stale in-flight / next lines',
+      'Landed: cut 1\nIn flight: #9 — old\nNext: cut 2',
+      ['In flight: #10 — new'],
+      'Landed: cut 1\nIn flight: #10 — new',
+    ],
+    ['replaces the seeded placeholder', 'Nothing has landed yet.', ['In flight: #10 — new'], 'In flight: #10 — new'],
+    ['works from an empty state', '', ['In flight: #10 — new', 'Next: b'], 'In flight: #10 — new\nNext: b'],
+  ])('deriveState %s', (_l, prev, lines, want) => {
+    expect(deriveState(prev, lines)).toBe(want)
   })
 })
