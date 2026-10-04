@@ -132,16 +132,21 @@ const MAX_ATTEMPTS = Number(process.env.MAX_ATTEMPTS ?? '2')
 const MAX_INPUT_CYCLES = Number(process.env.MAX_INPUT_CYCLES ?? '2')
 
 /**
- * Spec-refinement budget per cut (design-cut-planner.md Q6; 2 refinements
- * then 1 re-decomposition then terminal).
+ * How many times a cut may be handed to cut-planner (design-cut-planner.md
+ * Q4/Q6) before feature-bot escalates it to a human itself.
  *
- * Defaults to **0**, which disables refinement routing entirely, because
- * cut-planner does not exist yet: a cut labelled `needs-refinement` today
- * would sit in a queue no bot reads. The mechanism ships built and tested;
- * it is armed by raising this default (or setting MAX_REFINEMENTS=2) once
- * cut-planner's refine path lands in Cut 6.
+ * 3 = cut-planner's 2 spec refinements + 1 re-decomposition. feature-bot
+ * does not know which of those cut-planner will choose — it only counts
+ * hand-offs — so this MUST equal cut-planner's MAX_REFINEMENTS +
+ * MAX_REDECOMPOSITIONS. With fewer, feature-bot would escalate terminally on
+ * a hand-off cut-planner meant to re-decompose, and re-decomposition would
+ * be unreachable. `bots/cut-planner/tests/budget-coherence.test.ts` pins the
+ * equality across the two bots, which deliberately share no code.
+ *
+ * Set to 0 to disable the hand-off entirely (loop exhaustion then escalates
+ * to a human, as before cut-planner existed).
  */
-const MAX_REFINEMENTS = Number(process.env.MAX_REFINEMENTS ?? '0')
+const MAX_HANDOFFS = Number(process.env.MAX_HANDOFFS ?? '3')
 
 async function main(): Promise<void> {
   const repo = repoFromEnv()
@@ -390,7 +395,7 @@ async function fixOneCut(
   // Both budgets read from the SAME comment list, but count different
   // outcome tags — they are independent budgets and must not conflate
   // (a NEEDS_INPUT cycle is not a spec refinement).
-  const priorRefinements = await countPriorRefinementsOnIssue(octokit, repo, issueNumber)
+  const priorHandoffs = await countPriorRefinementsOnIssue(octokit, repo, issueNumber)
   if (priorInputCycles > 0) {
     printNotice(`#${issueNumber}: ${priorInputCycles} prior NEEDS_INPUT cycle(s) recorded.`)
   }
@@ -507,8 +512,8 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
       maxAttempts: MAX_ATTEMPTS,
       priorInputCycles,
       maxInputCycles: MAX_INPUT_CYCLES,
-      priorRefinements,
-      maxRefinements: MAX_REFINEMENTS,
+      priorHandoffs,
+      maxHandoffs: MAX_HANDOFFS,
     }
 
     let outcome: AttemptOutcome
@@ -674,12 +679,12 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     // label IS the channel.
     if (decision.kind === 'escalate-needs-refinement') {
       printNotice(
-        `Reviewer rejected after ${attempt} attempts; handing to cut-planner (refinement ${decision.priorRefinements + 1} of ${MAX_REFINEMENTS}).`,
+        `Reviewer rejected after ${attempt} attempts; handing to cut-planner (refinement ${decision.priorHandoffs + 1} of ${MAX_HANDOFFS}).`,
       )
       await handOffForRefinement(octokit, repo, issueNumber, {
         reviewerNote: decision.reviewerNote,
-        priorRefinements: decision.priorRefinements,
-        maxRefinements: MAX_REFINEMENTS,
+        priorHandoffs: decision.priorHandoffs,
+        maxHandoffs: MAX_HANDOFFS,
         attempts: attempt,
       })
       finalOutcome = 'escalated'
@@ -766,13 +771,13 @@ async function handOffForRefinement(
   octokit: ReturnType<typeof octokitFromEnv>,
   repo: RepoIdentity,
   issueNumber: number,
-  input: { reviewerNote: string; priorRefinements: number; maxRefinements: number; attempts: number },
+  input: { reviewerNote: string; priorHandoffs: number; maxHandoffs: number; attempts: number },
 ): Promise<void> {
   const body = composeRefinementComment({
     issueNumber,
     reviewerNote: input.reviewerNote,
-    priorRefinements: input.priorRefinements,
-    maxRefinements: input.maxRefinements,
+    priorHandoffs: input.priorHandoffs,
+    maxHandoffs: input.maxHandoffs,
     attempts: input.attempts,
     runId: process.env.GITHUB_RUN_ID ?? 'local',
   })

@@ -77,7 +77,7 @@ describe('routeAttemptOutcome — APPROVE_IMPLICIT + reviewer verdict', () => {
     const verdict: ReviewerVerdict = { kind: 'reject', note: 'architecture gap at manifest-save.ts:329' }
     const decision = routeAttemptOutcome(
       { kind: 'agent-b-judged', signal, verdict },
-      { ...baseCtx, attempt: 5, maxAttempts: 5, priorRefinements: 0, maxRefinements: 2 },
+      { ...baseCtx, attempt: 5, maxAttempts: 5, priorHandoffs: 0, maxHandoffs: 2 },
     )
     expect(decision.kind).toBe('escalate-needs-refinement')
     if (decision.kind === 'escalate-needs-refinement') {
@@ -96,7 +96,7 @@ describe('routeAttemptOutcome — APPROVE_IMPLICIT + reviewer verdict', () => {
     const verdict: ReviewerVerdict = { kind: 'reject', note: 'still wrong' }
     const decision = routeAttemptOutcome(
       { kind: 'agent-b-judged', signal, verdict },
-      { ...baseCtx, attempt: 5, maxAttempts: 5, priorRefinements: 2, maxRefinements: 2 },
+      { ...baseCtx, attempt: 5, maxAttempts: 5, priorHandoffs: 2, maxHandoffs: 2 },
     )
     expect(decision.kind).toBe('escalate-needs-human')
     if (decision.kind === 'escalate-needs-human') {
@@ -112,7 +112,7 @@ describe('routeAttemptOutcome — APPROVE_IMPLICIT + reviewer verdict', () => {
     const verdict: ReviewerVerdict = { kind: 'needs-human', note: 'the whole approach is wrong' }
     const decision = routeAttemptOutcome(
       { kind: 'agent-b-judged', signal, verdict },
-      { ...baseCtx, attempt: 1, maxAttempts: 5, priorRefinements: 0, maxRefinements: 2 },
+      { ...baseCtx, attempt: 1, maxAttempts: 5, priorHandoffs: 0, maxHandoffs: 2 },
     )
     expect(decision.kind).toBe('escalate-needs-human')
     if (decision.kind === 'escalate-needs-human') {
@@ -127,7 +127,7 @@ describe('routeAttemptOutcome — APPROVE_IMPLICIT + reviewer verdict', () => {
     // entry read "the cut is likely too large" about a budget bug.
     const decision = routeAttemptOutcome(
       { kind: 'agent-a-failure', exitCode: 143 },
-      { ...baseCtx, priorRefinements: 0, maxRefinements: 2 },
+      { ...baseCtx, priorHandoffs: 0, maxHandoffs: 2 },
     )
     expect(decision.kind).toBe('escalate-failure')
   })

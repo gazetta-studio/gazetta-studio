@@ -40,7 +40,7 @@ describe('countPriorRefinements', () => {
   })
 
   it('does not count a needs-input tag as a refinement', () => {
-    // The two budgets are independent (MAX_INPUT_CYCLES vs maxRefinements);
+    // The two budgets are independent (MAX_INPUT_CYCLES vs maxHandoffs);
     // sharing a marker prefix must not conflate them.
     expect(countPriorRefinements(['<!-- feature-bot: needs-input issue=519 run=1 -->'], 519)).toBe(0)
   })
@@ -50,8 +50,8 @@ describe('composeRefinementComment', () => {
   const base = {
     issueNumber: 519,
     reviewerNote: 'Architecture gap at manifest-save.ts:329-333 — the EDIT_LOCKED return path breaks the contract.',
-    priorRefinements: 0,
-    maxRefinements: 2,
+    priorHandoffs: 0,
+    maxHandoffs: 3,
     attempts: 2,
     runId: '37190295733',
   }
@@ -64,8 +64,8 @@ describe('composeRefinementComment', () => {
   })
 
   it('states which refinement this is, so the budget is visible', () => {
-    expect(composeRefinementComment(base)).toContain('refinement 1 of 2')
-    expect(composeRefinementComment({ ...base, priorRefinements: 1 })).toContain('refinement 2 of 2')
+    expect(composeRefinementComment(base)).toContain('hand-off 1 of 3')
+    expect(composeRefinementComment({ ...base, priorHandoffs: 1 })).toContain('hand-off 2 of 3')
   })
 
   it('carries the outcome tag so the next run can count it', () => {
@@ -122,7 +122,7 @@ describe('orchestrator wiring', () => {
   })
 
   it('passes a refinement budget into RouteContext', () => {
-    expect(INDEX_SRC).toMatch(/maxRefinements:/)
-    expect(INDEX_SRC).toMatch(/priorRefinements:/)
+    expect(INDEX_SRC).toMatch(/maxHandoffs:/)
+    expect(INDEX_SRC).toMatch(/priorHandoffs:/)
   })
 })

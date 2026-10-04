@@ -56,10 +56,11 @@ const RUN_TIMESTAMP = new Date().toISOString().replace(/[:.]/g, '-')
 const PER_RUN_BUDGET_MS = Number(process.env.BUDGET_MS ?? 30 * 60 * 1000)
 
 /**
- * Spec-refinement budget per cut (design-cut-planner.md Q6). Defaults to 0
- * until Cut 6 ships the refine path — see the design doc's "Arming order".
+ * Spec-refinement budget per cut (design-cut-planner.md Q6): 2 refinements,
+ * then 1 re-decomposition, then a human. feature-bot's MAX_HANDOFFS must
+ * equal the two budgets summed — see tests/budget-coherence.test.ts.
  */
-const MAX_REFINEMENTS = Number(process.env.MAX_REFINEMENTS ?? '0')
+const MAX_REFINEMENTS = Number(process.env.MAX_REFINEMENTS ?? '2')
 /** Re-decomposition budget per feature; the Q6 fallback after refinement. */
 const MAX_REDECOMPOSITIONS = Number(process.env.MAX_REDECOMPOSITIONS ?? '1')
 
