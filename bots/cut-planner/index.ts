@@ -34,13 +34,21 @@
  * mean "come back later", so the queue stops and nothing is labelled.
  */
 import { resolve } from 'node:path'
+import { classifyLanding, fetchCloseEvent, type Landing } from '../_lib/cut-landing.js'
 import { octokitFromEnv, repoFromEnv, type RepoIdentity } from '../_lib/github.js'
 import { printBanner, printCandidateList, printNotice, printRunSummary, printWarning } from '../_lib/ui.js'
 import { claudePlanner, loadTemplates, octokitGitHub, REPO_ROOT } from './adapters.js'
 import { appendDecisionLog, DECISION_LOG_PATH, type DecisionLogEntry } from './decision-log.js'
 import { dispatchRun, type RunDecision } from './dispatch-run.js'
 import { escalateMalformedPlanner, executeSafely, type GitHubPort } from './execute.js'
-import { classifyIssue, featureOf, type ListedIssue, type ListedPr, observeCuts } from './issue-index.js'
+import {
+  classifyIssue,
+  closedCutsSince,
+  featureOf,
+  type ListedIssue,
+  type ListedPr,
+  observeCuts,
+} from './issue-index.js'
 import { countMarked, redecomposedMarker } from './markers.js'
 import { parsePlannerIssue } from './planner-issue.js'
 
@@ -130,12 +138,17 @@ async function main(): Promise<void> {
     candidates: planners.map(p => ({ ref: `#${p.number}`, label: featureOf(p.body) ?? '?', meta: p.title })),
   })
 
+  // Cuts closed since the oldest planner issue existed — each planner later
+  // narrows to its own feature and creation time (closedCutsSince).
+  const closed = await listClosedEnhancements(octokit, repo, planners[0].createdAt)
+  const landingOf = (n: number) => fetchCloseEvent(octokit.graphql, repo, n).then(event => classifyLanding(n, event))
+
   let processed = 0
   const decisions: DecisionLogEntry['decisions'] = []
   let outcome: DecisionLogEntry['outcome'] = 'idle'
   let action: DecisionLogEntry['action']
   for (const issue of planners) {
-    const r = await handlePlanner(issue, issues, prs, gh, startedAt)
+    const r = await handlePlanner(issue, issues, prs, closed, landingOf, gh, startedAt)
     decisions.push({ planner: issue.number, feature: r.feature, decision: r.decision })
     if (r.kind === 'acted') {
       processed++
@@ -177,6 +190,8 @@ async function handlePlanner(
   issue: ListedIssue,
   issues: readonly ListedIssue[],
   prs: readonly ListedPr[],
+  closed: readonly ListedIssue[],
+  landingOf: (cutNumber: number) => Promise<Landing>,
   gh: GitHubPort,
   startedAt: number,
 ): Promise<PlannerOutcome> {
@@ -197,6 +212,10 @@ async function handlePlanner(
   const commentsByCut = new Map<number, string[]>()
   for (const c of refining) commentsByCut.set(c.number, await gh.listCommentBodies(c.number))
   const plannerComments = await gh.listCommentBodies(issue.number)
+  const unverifiedClosedCuts: number[] = []
+  for (const n of closedCutsSince(planner.feature, closed, issue.createdAt)) {
+    if ((await landingOf(n)) === 'unverified') unverifiedClosedCuts.push(n)
+  }
 
   const decision = dispatchRun({
     planner,
@@ -205,6 +224,7 @@ async function handlePlanner(
     maxRefinements: MAX_REFINEMENTS,
     maxRedecompositions: MAX_REDECOMPOSITIONS,
     priorRedecompositions: countMarked(plannerComments, redecomposedMarker(planner.feature)),
+    unverifiedClosedCuts,
   })
   const described = describeDecision(decision)
   const feature = planner.feature
@@ -268,6 +288,31 @@ async function listOpenEnhancements(
       body: i.body ?? null,
       labels: i.labels.map(l => (typeof l === 'string' ? l : (l.name ?? ''))),
       createdAt: i.created_at,
+    }))
+}
+
+/** Closed `enhancement` issues updated since `sinceIso` (closing updates them), with bodies. PRs excluded. */
+async function listClosedEnhancements(
+  octokit: ReturnType<typeof octokitFromEnv>,
+  repo: RepoIdentity,
+  sinceIso: string,
+): Promise<ListedIssue[]> {
+  const all = await octokit.paginate(octokit.issues.listForRepo, {
+    ...repo,
+    state: 'closed',
+    labels: 'enhancement',
+    since: sinceIso,
+    per_page: 100,
+  })
+  return all
+    .filter(i => !i.pull_request)
+    .map(i => ({
+      number: i.number,
+      title: i.title,
+      body: i.body ?? null,
+      labels: i.labels.map(l => (typeof l === 'string' ? l : (l.name ?? ''))),
+      createdAt: i.created_at,
+      closedAt: i.closed_at ?? null,
     }))
 }
 

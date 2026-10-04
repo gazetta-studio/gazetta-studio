@@ -63,6 +63,7 @@ describe('lifecycle — a cut that never lands, driven through BOTH bots’ real
     dispatchRun({
       planner: { feature: 'f', designPath: 'd', suggestedPlan: '| 1 | a |', state: '', lockedDecisions: '' },
       plannerIssueNumber: 1,
+      unverifiedClosedCuts: [],
       cuts: [
         {
           issueNumber: 7,

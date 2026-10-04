@@ -35,6 +35,7 @@ const obs = (over: Partial<RunObservation> = {}): RunObservation => ({
   maxRefinements: 2,
   maxRedecompositions: 1,
   priorRedecompositions: 0,
+  unverifiedClosedCuts: [],
   ...over,
 })
 
@@ -153,6 +154,23 @@ describe('dispatchRun — feature-scope escalation', () => {
   it('treats a whitespace-only plan as exhausted', () => {
     const d = dispatchRun(obs({ planner: { ...planner, suggestedPlan: '   \n\n  ' } }))
     expect(d.kind).toBe('escalate-feature')
+  })
+
+  it('escalates the FEATURE instead of filing when a closed cut has no evidence it landed (#517)', () => {
+    // #517 was closed by an unrelated PR; filing the next cut would build on
+    // storage that never existed.
+    const d = dispatchRun(obs({ unverifiedClosedCuts: [517] }))
+    expect(d).toEqual({ kind: 'escalate-feature', reason: 'unverified-close', cuts: [517] })
+  })
+
+  it('an unverified close does not block refining a handed-back cut', () => {
+    const d = dispatchRun(obs({ unverifiedClosedCuts: [517], cuts: [cut({ needsRefinement: true })] }))
+    expect(d.kind).toBe('refine')
+  })
+
+  it('a cut in flight still means idle, even with an unverified close', () => {
+    const d = dispatchRun(obs({ unverifiedClosedCuts: [517], cuts: [cut({ readyForAgent: true })] }))
+    expect(d).toEqual({ kind: 'idle', because: 'cut-in-flight' })
   })
 
   it('drains feedback even when the plan is exhausted', () => {

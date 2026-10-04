@@ -56,6 +56,12 @@ export interface RunObservation {
   maxRedecompositions: number
   /** How many re-decompositions this feature has already had. */
   priorRedecompositions: number
+  /**
+   * This feature's cuts that were closed as completed with no merged PR
+   * naming them (`_lib/cut-landing.ts`). #517 is the worked example: closed
+   * by an unrelated PR, so the work it was meant to deliver never existed.
+   */
+  unverifiedClosedCuts: readonly number[]
 }
 
 export type RunDecision =
@@ -70,6 +76,12 @@ export type RunDecision =
   | { kind: 'escalate-cut'; issueNumber: number; reason: 'refinement-exhausted' | 'redecomposition-failed' }
   /** The feature itself is blocked — needs a human (Q6a, feature scope). */
   | { kind: 'escalate-feature'; reason: 'plan-exhausted' }
+  /**
+   * A cut was closed without evidence it landed. Filing the next one would
+   * build on work that may not exist, so a human confirms first (Q6a,
+   * feature scope).
+   */
+  | { kind: 'escalate-feature'; reason: 'unverified-close'; cuts: readonly number[] }
   /** File the next cut from the suggested plan (Q5a step 3). */
   | { kind: 'file-next' }
   /**
@@ -127,6 +139,13 @@ export function dispatchRun(obs: RunObservation): RunDecision {
   // breaks the only mechanism that sequences the feature.
   const inFlight = obs.cuts.find(c => c.readyForAgent || c.hasOpenPr)
   if (inFlight) return { kind: 'idle', because: 'cut-in-flight' }
+
+  // ---- Step 2b: did the previous cuts actually land? ----------------
+  // Filing is the step that assumes they did. Checked here, not earlier:
+  // refining a handed-back cut does not depend on its predecessors.
+  if (obs.unverifiedClosedCuts.length > 0) {
+    return { kind: 'escalate-feature', reason: 'unverified-close', cuts: obs.unverifiedClosedCuts }
+  }
 
   // ---- Step 3: file the next cut. ----------------------------------
   // An empty suggested plan with no cuts in flight is ambiguous — either

@@ -4,7 +4,15 @@
  * and a pre-cut-planner tracking issue must never be escalated as one.
  */
 import { describe, expect, it } from 'vitest'
-import { classifyIssue, closedByPr, featureOf, type ListedIssue, lockBullets, observeCuts } from '../issue-index.js'
+import {
+  classifyIssue,
+  closedByPr,
+  closedCutsSince,
+  featureOf,
+  type ListedIssue,
+  lockBullets,
+  observeCuts,
+} from '../issue-index.js'
 import { featureBotHandoffMarker, refinedMarker } from '../markers.js'
 import { filedByCutPlanner, refinementMarker } from '../../feature-bot/refinement-handoff.js'
 import { renderCutBody } from '../cut-body.js'
@@ -85,6 +93,33 @@ describe('observeCuts', () => {
       new Map([[7, [`x <!-- ${refinedMarker(7)} -->`, `y <!-- ${refinedMarker(8)} -->`, null]]]),
     )
     expect(c).toMatchObject({ needsRefinement: true, readyForAgent: false, hasOpenPr: true, priorRefinements: 1 })
+  })
+})
+
+describe('closedCutsSince', () => {
+  const closed = (n: number, closedAt: string, body: string): ListedIssue => ({
+    number: n,
+    title: `t${n}`,
+    body,
+    labels: ['enhancement'],
+    createdAt: '2026-01-01T00:00:00Z',
+    closedAt,
+  })
+  const cutOf = (f: string) => `**Feature**: ${f}\n\n## Spec\nx`
+
+  it('keeps this feature’s cuts closed at or after the planner was created, sorted', () => {
+    const got = closedCutsSince(
+      'review-workflow',
+      [
+        closed(520, '2026-10-05T00:00:00Z', cutOf('review-workflow')),
+        closed(517, '2026-10-04T00:00:00Z', cutOf('review-workflow')),
+        closed(515, '2026-06-01T00:00:00Z', cutOf('review-workflow')), // before the planner
+        closed(600, '2026-10-05T00:00:00Z', cutOf('redirect-ui')), // other feature
+        closed(514, '2026-10-05T00:00:00Z', '**Feature**: review-workflow\n\n## State\nx'), // a planner, not a cut
+      ],
+      '2026-10-04T00:00:00Z',
+    )
+    expect(got).toEqual([517, 520])
   })
 })
 

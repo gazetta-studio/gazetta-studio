@@ -8,12 +8,14 @@
  *
  * Returns a tagged-union result the orchestrator routes on:
  *
- *   - ready — parser + all dep refs valid + all deps closed-merged
+ *   - ready — parser + all dep refs valid + all deps LANDED (see _lib/cut-landing.ts)
  *   - body-error — Spec/Acceptance/Tests missing or **Feature** missing
  *   - self-reference — body refs its own issue number (spec-too-vague)
  *   - dep-invalid — a referenced issue doesn't exist OR lacks `enhancement`
  *   - dep-open — at least one dep is still open (wait for it)
- *   - dep-rejected — at least one dep is closed-not-merged
+ *   - dep-rejected — at least one dep was closed as not planned
+ *   - dep-unverified — a dep is closed as completed, but no merged PR names it
+ *     (#517: closed by an unrelated PR; its storage never existed)
  *
  * Pure orchestration over `parseCutBody` + `validateParsedCut` + per-dep
  * octokit lookups. Octokit type is imported narrowly to avoid pulling
@@ -21,6 +23,7 @@
  * `.issues.get`.
  */
 import { parseCutBody, validateParsedCut, type ParsedCut, type ValidationError } from '../_lib/cut-parser.js'
+import { classifyLanding, fetchCloseEvent, type GraphqlClient } from '../_lib/cut-landing.js'
 import type { RepoIdentity } from '../_lib/github.js'
 
 /**
@@ -40,6 +43,8 @@ export interface IssuesGetClient {
       }
     }>
   }
+  /** For the closing event of a closed dep — `octokit.graphql`. */
+  graphql: GraphqlClient
 }
 
 export type CutValidationResult =
@@ -49,6 +54,7 @@ export type CutValidationResult =
   | { kind: 'dep-invalid'; parsed: ParsedCut; depNumber: number; reason: 'not-found' | 'not-a-cut' }
   | { kind: 'dep-open'; parsed: ParsedCut; openDeps: readonly number[] }
   | { kind: 'dep-rejected'; parsed: ParsedCut; depNumber: number }
+  | { kind: 'dep-unverified'; parsed: ParsedCut; depNumber: number }
 
 /**
  * Validate a cut sub-issue body + dep references against the live tree.
@@ -61,7 +67,8 @@ export type CutValidationResult =
  *         - 404 → dep-invalid (not-found)
  *         - not labeled `enhancement` → dep-invalid (not-a-cut)
  *         - state: 'open' → dep-open (wait, no labels applied by caller)
- *         - closed-not-merged → dep-rejected
+ *         - closed as not planned → dep-rejected
+ *         - closed as completed, no merged PR names it → dep-unverified
  * Step 4: all deps OK → return ready.
  *
  * The orchestrator routes each result to a distinct action:
@@ -70,10 +77,11 @@ export type CutValidationResult =
  *   - dep-invalid → comment + `needs-info`
  *   - dep-open → comment "wait for #N" + NO labels (retry next cron)
  *   - dep-rejected → `ready-for-human` + skip-list
+ *   - dep-unverified → comment + `needs-info` (a human says whether it landed)
  *   - ready → proceed to generator-critic loop
  *
  * Error priority when multiple deps fail: dep-invalid > dep-rejected >
- * dep-open. Most-terminal first matches the orchestrator's action
+ * dep-unverified > dep-open. Most-terminal first matches the orchestrator's action
  * granularity (invalid/rejected require maintainer; open just needs
  * patience).
  */
@@ -105,6 +113,7 @@ export async function validateCutSubIssue(
   const openDeps: number[] = []
   let firstInvalid: { depNumber: number; reason: 'not-found' | 'not-a-cut' } | null = null
   let firstRejected: number | null = null
+  let firstUnverified: number | null = null
 
   for (const depNumber of parsed.dependsOn) {
     const lookup = await lookupDep(octokit, repo, depNumber)
@@ -124,7 +133,13 @@ export async function validateCutSubIssue(
       }
       continue
     }
-    // closed-merged — proceed.
+    if (lookup.kind === 'closed-unverified') {
+      if (firstUnverified === null) {
+        firstUnverified = depNumber
+      }
+      continue
+    }
+    // landed — proceed.
   }
 
   // Priority: invalid > rejected > open.
@@ -133,6 +148,9 @@ export async function validateCutSubIssue(
   }
   if (firstRejected !== null) {
     return { kind: 'dep-rejected', parsed, depNumber: firstRejected }
+  }
+  if (firstUnverified !== null) {
+    return { kind: 'dep-unverified', parsed, depNumber: firstUnverified }
   }
   if (openDeps.length > 0) {
     return { kind: 'dep-open', parsed, openDeps }
@@ -144,8 +162,9 @@ type DepLookup =
   | { kind: 'not-found' }
   | { kind: 'not-a-cut' }
   | { kind: 'open' }
-  | { kind: 'closed-merged' }
+  | { kind: 'landed' }
   | { kind: 'closed-not-merged' }
+  | { kind: 'closed-unverified' }
 
 async function lookupDep(octokit: IssuesGetClient, repo: RepoIdentity, depNumber: number): Promise<DepLookup> {
   try {
@@ -161,12 +180,12 @@ async function lookupDep(octokit: IssuesGetClient, repo: RepoIdentity, depNumber
     if (data.state === 'open') {
       return { kind: 'open' }
     }
-    // closed. `state_reason: 'completed'` = merged-via-PR; anything else
-    // ('not_planned' / null) = closed without merging.
-    if (data.state_reason === 'completed') {
-      return { kind: 'closed-merged' }
-    }
-    return { kind: 'closed-not-merged' }
+    // Closed. `state_reason: 'completed'` does NOT mean a PR landed it (#517
+    // was closed as completed by an unrelated PR), so ask who closed it.
+    const landing = classifyLanding(depNumber, await fetchCloseEvent(octokit.graphql, repo, depNumber))
+    if (landing === 'landed') return { kind: 'landed' }
+    if (landing === 'superseded') return { kind: 'closed-not-merged' }
+    return { kind: 'closed-unverified' }
   } catch (err) {
     if ((err as { status?: number }).status === 404) {
       return { kind: 'not-found' }
