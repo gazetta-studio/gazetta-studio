@@ -644,6 +644,26 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
       finalOutcome = 'escalated'
       break
     }
+
+    // `escalate-needs-refinement` can only be produced when the caller opts
+    // in via RouteContext.maxRefinements, which this orchestrator does not
+    // do until cut-planner Cut 2 wires the comment + label swap. Until then
+    // the branch is unreachable — but an unhandled decision would fall
+    // through to the loop's next iteration and silently re-attempt, which is
+    // exactly the swallowed-failure shape design-cut-planner.md Q6a forbids
+    // ("no silent skip, no retry-forever, no undefined state"). Fail loud
+    // instead, and route to a human.
+    if (decision.kind === 'escalate-needs-refinement') {
+      printWarning(
+        `Reviewer rejected after ${attempt} attempts and refinement routing is not yet wired; escalating to a human.`,
+      )
+      await escalateToHuman(octokit, repo, issueNumber, skipList, fingerprint, {
+        reason: 'needs-human',
+        reasonNote: `Loop exhausted on substantive rejections. Refinement hand-off is not wired yet (cut-planner Cut 2). Last reviewer note: ${decision.reviewerNote}`,
+      })
+      finalOutcome = 'escalated'
+      break
+    }
   }
 
   // If we fell through without break, the loop hit MAX_ATTEMPTS with all
