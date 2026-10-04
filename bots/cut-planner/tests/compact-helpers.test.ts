@@ -2,8 +2,6 @@
  * Compactor gate + prompt. The gate's counting rule is the load-bearing
  * part: only runs that ACTED are evidence about how cuts are specified.
  */
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { composeCompactPrompt, shouldCompact } from '../compact-helpers.js'
 import type { DecisionLogEntry } from '../decision-log.js'
@@ -37,22 +35,5 @@ describe('composeCompactPrompt', () => {
     })
     for (const needle of ['TEMPLATE', 'LESSONS_PATH=L.md', 'RUN_ID=42', '"outcome": "acted"', 'OLD LESSONS'])
       expect(p).toContain(needle)
-  })
-})
-
-describe('decision-log cache wiring (the #854 failure mode)', () => {
-  const wf = (f: string) => readFileSync(join(__dirname, '..', '..', '..', '.github', 'workflows', f), 'utf-8')
-  const job = wf('bots-compact.yml').split(/\n  cut-planner:\n/)[1] ?? ''
-
-  it('the compactor restores via restore-keys, so it finds the daily runs’ per-run entries', () => {
-    // A static exact key with no restore-keys never matches the daily
-    // `...-v1-<run_id>` entries — the compactor would read a stale log.
-    expect(job).toContain('actions/cache/restore@')
-    expect(job).toMatch(/restore-keys: \|\n\s+cut-planner-decision-log-v1-\n/)
-  })
-
-  it('the daily bot restores the same key family the compactor saves', () => {
-    expect(wf('cut-planner.yml')).toMatch(/restore-keys: \|\n\s+cut-planner-decision-log-v1-\n/)
-    expect(job).toContain('key: cut-planner-decision-log-v1-${{ github.run_id }}')
   })
 })

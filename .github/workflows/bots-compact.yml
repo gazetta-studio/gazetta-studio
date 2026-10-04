@@ -73,16 +73,21 @@ jobs:
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
 
-      # Restore reviewer-log from the same cache the daily bot writes
-      # to. The compactor reads recent entries, produces a lessons
-      # rewrite, then PRUNES the file to a bounded window —
-      # actions/cache@v6 saves the truncated file on post-step,
-      # keeping the cache size bounded across months.
+      # Restore/save SPLIT with per-run keys, matching the daily
+      # dead-code-watcher workflow (#854). The daily bot saves under
+      # `dead-code-watcher-reviewer-log-v1-<run_id>`; a static exact key with no
+      # restore-keys never matches those entries, so the compactor used to
+      # distil lessons from a stale log. Restore falls through restore-keys
+      # (trailing dash, per #620) to the newest daily entry; the save below
+      # writes the PRUNED log under a fresh per-run key, which the next
+      # daily run's restore then picks up.
       - name: Restore reviewer-log cache
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: bots/dead-code-watcher/reviewer-log.jsonl
-          key: dead-code-watcher-reviewer-log-v1
+          key: dead-code-watcher-reviewer-log-v1-${{ github.run_id }}
+          restore-keys: |
+            dead-code-watcher-reviewer-log-v1-
 
       - name: Run dead-code-watcher:compact
         env:
@@ -91,6 +96,16 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: npm run dead-code-watcher:compact -w @gazetta/bots
+
+      # if: always() — the compactor only prunes after Claude succeeds, so on
+      # failure this re-saves the unchanged log; either way the next daily
+      # run restores the latest state.
+      - name: Save reviewer-log cache
+        if: always()
+        uses: actions/cache/save@v6
+        with:
+          path: bots/dead-code-watcher/reviewer-log.jsonl
+          key: dead-code-watcher-reviewer-log-v1-${{ github.run_id }}
 
       - name: Upload transcripts
         if: always()
@@ -136,16 +151,21 @@ jobs:
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
 
-      # Restore reviewer-log from the same cache the daily fix-bot
-      # writes to. The compactor reads recent entries, produces a
-      # lessons-learned rewrite, then PRUNES the file to a bounded
-      # window — actions/cache@v6 saves the truncated file on
-      # post-step, keeping the cache size bounded across months.
+      # Restore/save SPLIT with per-run keys, matching the daily
+      # fix-bot workflow (#854). The daily bot saves under
+      # `fix-bot-reviewer-log-v1-<run_id>`; a static exact key with no
+      # restore-keys never matches those entries, so the compactor used to
+      # distil lessons from a stale log. Restore falls through restore-keys
+      # (trailing dash, per #620) to the newest daily entry; the save below
+      # writes the PRUNED log under a fresh per-run key, which the next
+      # daily run's restore then picks up.
       - name: Restore reviewer-log cache
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: bots/fix-bot/reviewer-log.jsonl
-          key: fix-bot-reviewer-log-v1
+          key: fix-bot-reviewer-log-v1-${{ github.run_id }}
+          restore-keys: |
+            fix-bot-reviewer-log-v1-
 
       - name: Run fix-bot:compact
         env:
@@ -154,6 +174,16 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: npm run fix-bot:compact -w @gazetta/bots
+
+      # if: always() — the compactor only prunes after Claude succeeds, so on
+      # failure this re-saves the unchanged log; either way the next daily
+      # run restores the latest state.
+      - name: Save reviewer-log cache
+        if: always()
+        uses: actions/cache/save@v6
+        with:
+          path: bots/fix-bot/reviewer-log.jsonl
+          key: fix-bot-reviewer-log-v1-${{ github.run_id }}
 
       - name: Upload transcripts
         if: always()
@@ -199,16 +229,21 @@ jobs:
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
 
-      # Restore reviewer-log from the same cache the daily review-bot
-      # writes to. The compactor reads recent entries, produces a
-      # lessons-learned rewrite, then PRUNES the file to a bounded
-      # window — actions/cache@v6 saves the truncated file on
-      # post-step, keeping the cache size bounded across months.
+      # Restore/save SPLIT with per-run keys, matching the daily
+      # review-bot workflow (#854). The daily bot saves under
+      # `review-bot-reviewer-log-v1-<run_id>`; a static exact key with no
+      # restore-keys never matches those entries, so the compactor used to
+      # distil lessons from a stale log. Restore falls through restore-keys
+      # (trailing dash, per #620) to the newest daily entry; the save below
+      # writes the PRUNED log under a fresh per-run key, which the next
+      # daily run's restore then picks up.
       - name: Restore reviewer-log cache
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: bots/review-bot/reviewer-log.jsonl
-          key: review-bot-reviewer-log-v1
+          key: review-bot-reviewer-log-v1-${{ github.run_id }}
+          restore-keys: |
+            review-bot-reviewer-log-v1-
 
       - name: Run review-bot:compact
         env:
@@ -217,6 +252,16 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: npm run review-bot:compact -w @gazetta/bots
+
+      # if: always() — the compactor only prunes after Claude succeeds, so on
+      # failure this re-saves the unchanged log; either way the next daily
+      # run restores the latest state.
+      - name: Save reviewer-log cache
+        if: always()
+        uses: actions/cache/save@v6
+        with:
+          path: bots/review-bot/reviewer-log.jsonl
+          key: review-bot-reviewer-log-v1-${{ github.run_id }}
 
       - name: Upload transcripts
         if: always()
@@ -265,11 +310,8 @@ jobs:
         run: npm install -g @anthropic-ai/claude-code
 
       # Restore/save SPLIT with a per-run key, matching the daily
-      # cut-planner workflow. NOT the combined `actions/cache@v6` with a
-      # static key the other compactor jobs above use: the daily bots
-      # write `<bot>-...-v1-<run_id>`, so a static exact key never matches
-      # and those compactors read a stale log (#854). Here the restore
-      # falls through `restore-keys` to the newest daily entry, and the
+      # cut-planner workflow — same shape as every job above (#854). The
+      # restore falls through `restore-keys` to the newest daily entry; the
       # save writes the pruned log under a fresh per-run key that the next
       # daily run's restore picks up.
       - name: Restore decision-log cache
