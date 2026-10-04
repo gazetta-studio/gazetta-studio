@@ -64,7 +64,7 @@ import { parseAgentASignal } from './agent-a-signal.js'
 import { decideIdempotency } from './idempotency.js'
 import { shouldEscalateForBudget } from './per-cut-budget.js'
 import { appendReviewerLog, REVIEWER_LOG_PATH } from './reviewer-log.js'
-import { composeRefinementComment, countPriorRefinements } from './refinement-handoff.js'
+import { composeRefinementComment, countPriorRefinements, filedByCutPlanner } from './refinement-handoff.js'
 import { routeAttemptOutcome, type AttemptOutcome, type RouteContext, type RouteDecision } from './route-attempt.js'
 import {
   appendEntry,
@@ -396,6 +396,9 @@ async function fixOneCut(
   // outcome tags — they are independent budgets and must not conflate
   // (a NEEDS_INPUT cycle is not a spec refinement).
   const priorHandoffs = await countPriorRefinementsOnIssue(octokit, repo, issueNumber)
+  // Hand-offs only for cuts cut-planner filed; old-model cuts would be
+  // parked in a queue nothing reads (see filedByCutPlanner).
+  const handoffBudget = filedByCutPlanner(issueBody) ? MAX_HANDOFFS : 0
   if (priorInputCycles > 0) {
     printNotice(`#${issueNumber}: ${priorInputCycles} prior NEEDS_INPUT cycle(s) recorded.`)
   }
@@ -513,7 +516,7 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
       priorInputCycles,
       maxInputCycles: MAX_INPUT_CYCLES,
       priorHandoffs,
-      maxHandoffs: MAX_HANDOFFS,
+      maxHandoffs: handoffBudget,
     }
 
     let outcome: AttemptOutcome
@@ -679,12 +682,12 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     // label IS the channel.
     if (decision.kind === 'escalate-needs-refinement') {
       printNotice(
-        `Reviewer rejected after ${attempt} attempts; handing to cut-planner (refinement ${decision.priorHandoffs + 1} of ${MAX_HANDOFFS}).`,
+        `Reviewer rejected after ${attempt} attempts; handing to cut-planner (hand-off ${decision.priorHandoffs + 1} of ${handoffBudget}).`,
       )
       await handOffForRefinement(octokit, repo, issueNumber, {
         reviewerNote: decision.reviewerNote,
         priorHandoffs: decision.priorHandoffs,
-        maxHandoffs: MAX_HANDOFFS,
+        maxHandoffs: handoffBudget,
         attempts: attempt,
       })
       finalOutcome = 'escalated'
