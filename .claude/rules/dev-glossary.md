@@ -340,6 +340,35 @@ candidates oldest-first, processes in order, exits gracefully when 50 min
 elapsed (10 min margin from the 60-min workflow timeout). One-time backlog
 spikes converge in 2-3 daily runs without ever hitting the timeout.
 
+**cut-planner**:
+Autonomous bot that owns a feature's cut pipeline: it files the next cut
+sub-issue one at a time, revises cuts feature-bot hands back, and
+escalates to a human when it can't go further. feature-bot's peer, not its
+manager — they communicate only through labels and comments and never
+import each other. Reads only the planner issue, never a design doc. See
+[design-cut-planner.md](design-cut-planner.md).
+
+**Planner issue**:
+The one long-lived issue per feature that cut-planner works from:
+`**Feature**:` + `**Design**:` front-matter, an advisory `## Suggested plan`,
+cut-planner's `## State`, and the `## Locked decisions` it may transcribe.
+Labelled `enhancement` + `area: X`, never `ready-for-agent`. Seeded by the
+maintainer; replaces the tracking issue for features that use cut-planner.
+Distinct from a **cut sub-issue** (has `## Spec`) and from a legacy
+**tracking issue** (a tasklist, no planner sections).
+
+**Hand-off** / **`needs-refinement` (label)**:
+feature-bot passing a cut back to cut-planner after its generator-critic
+loop exhausts on *substantive* reviewer rejections: a comment quoting
+Agent B's verdict, then `ready-for-agent` → `needs-refinement`. A hand-off
+is not the same as a refinement — cut-planner decides whether each
+hand-off becomes a spec refinement or (once refinements run out) a
+re-decomposition. So feature-bot counts hand-offs (`MAX_HANDOFFS` = 3) and
+cut-planner counts refinements (2) and re-decompositions (1); conflating
+the two units under one name once made re-decomposition unreachable.
+Infrastructure failures (rate limits, `spawn E2BIG`) never cause a
+hand-off — they say nothing about the spec.
+
 ## Issue triage
 
 **State role** / **Category role**:

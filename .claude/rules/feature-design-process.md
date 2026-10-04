@@ -137,7 +137,27 @@ Some impl-doc cuts are best folded into adjacent cuts during the migration rathe
 
 When folding, name the absorbed scope explicitly in the target cut's `## Spec` ("absorbs old Cut N's edge-case rejections"). Future readers see the consolidation in one place. The redirect-ui migration folded its impl-doc Cut 5 (edge-case rejections) into the actual Cut 3 routes work — `home` and `[param]` rejections became 400-INVALID branches in the route handler rather than a standalone "edge case UX" cut.
 
-**Issue-filing flow** (after the design doc is on main):
+**Planner-issue flow** (default for new features — see [`design-cut-planner.md`](design-cut-planner.md)):
+1. Maintainer asks (in Claude Code): "create the planner issue for `design-{feature}.md`."
+2. Claude opens ONE planner issue, labelled `enhancement` + `area: X` and deliberately **without** `ready-for-agent`. The `enhancement` label is required: without it triage-bot would try to classify the issue. Body shape:
+   ```markdown
+   **Feature**: <slug>
+   **Design**: .claude/rules/design-<slug>.md
+
+   ## Suggested plan
+   <the design doc's ## Cut sequence table — advisory; cut-planner may deviate, with a recorded reason>
+
+   ## State
+   <what has already landed; empty for a new feature>
+
+   ## Locked decisions
+   - <one bullet per decision cut-planner may transcribe into cut bodies — copied from the design doc's locks>
+   ```
+   Seeding is maintainer work: cut-planner reads ONLY this issue, never the design doc, so it works whether the design doc has a `## Cut sequence` section or the cuts still live in a retired implementation doc.
+3. From then on, cut-planner files one cut at a time (cron 03:00 UTC), revises cuts feature-bot hands back in `needs-refinement`, and escalates to a human — `needs-info` on the planner issue for a feature-level block (e.g. a design decision the planner issue doesn't lock), `ready-for-human` on a cut for a cut-level one. When a decision is made mid-feature, add it to `## Locked decisions` yourself: cut-planner transcribes locks, it never discovers or invents them.
+4. Close the planner issue when the feature is done (cut-planner says so with a `plan-exhausted` escalation).
+
+**Up-front filing** (legacy — features whose cuts were all filed before cut-planner existed; migrate per `design-cut-planner.md` "Migration"):
 1. Maintainer asks (in Claude Code): "open cuts for `design-{feature}.md`."
 2. Claude reads the design doc's `## Cut sequence` table.
 3. For each row, Claude renders a cut sub-issue body (just-markdown shape — see [`design-feature-bot.md`](design-feature-bot.md) Q2) with `**Feature**:` + `**Depends on**:` front-matter, then four sections: `## Spec`, `## Acceptance`, `## SOLID`, `## Tests`.
@@ -379,7 +399,8 @@ The full picture:
 | Work kind | Durable artifact |
 |---|---|
 | Feature design | `.claude/rules/design-{feature}.md` (includes `## Cut sequence` section; absorbs Deferred items + Lessons learned at ship time) |
-| Cut sub-issue (GitHub issue body) | One GitHub issue per cut (labeled `enhancement` + `ready-for-agent` + `area: X`), referenced by a per-feature tracking issue. Closes when the implementing PR merges. See [`docs/adr/0015-impl-doc-artifact-retires.md`](../../docs/adr/0015-impl-doc-artifact-retires.md). |
+| Cut sub-issue (GitHub issue body) | One GitHub issue per cut (labeled `enhancement` + `ready-for-agent` + `area: X`), filed one at a time by cut-planner from a per-feature **planner issue** ([`design-cut-planner.md`](design-cut-planner.md) Q1; legacy features use a tracking issue). Closes when the implementing PR merges. See [`docs/adr/0015-impl-doc-artifact-retires.md`](../../docs/adr/0015-impl-doc-artifact-retires.md). |
+| Per-feature cut state + planning history | The planner issue: body = current `## State`, comments = append-only `> Decision:` log ([`design-cut-planner.md`](design-cut-planner.md) Q7). |
 | Reference doc (one-time decision with ongoing operator/author concerns) | `.claude/rules/design-{feature}.md` (companion to the ADR; `design-config.md` is the canonical example) |
 | Architecture decision (load-bearing) | `docs/adr/NNNN-slug.md` |
 | Domain language (terms, vocabulary) | `CONTEXT.md` + ADRs for load-bearing splits |

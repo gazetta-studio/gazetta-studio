@@ -4,7 +4,7 @@ Autonomous bot that owns the per-feature cut pipeline: it files the next cut sub
 
 Peer to feature-bot, not above it. feature-bot implements cuts; cut-planner decides *which* cut is next and *how it is specified*. They communicate through GitHub labels and comments only — neither imports the other.
 
-**Status**: design pass complete (2026-10-04). Implementation pending.
+**Status**: design pass complete (2026-10-04). Cuts 1–9, 11–13 implemented (#846–#849, #851–#855, plus the process-docs PR); armed. Cut 10 (first real migration) pending. Where the implementation departed from this doc, see "Implementation notes" below.
 
 **Companion docs**:
 - [`design-feature-bot.md`](design-feature-bot.md) — the consumer. Its Q1 (cuts live in tracking issues + sub-issues), Q2 (just-markdown bodies), Q3 (`**Depends on**` parsing), Q6 (three-tier escalation) and Q9 (cut sequence lives in the design doc) are all load-bearing here.
@@ -241,7 +241,7 @@ Feedback-first, and **one action per run**.
 |---|---|---|
 | Refine the spec in place | 2 | → re-decompose |
 | Re-decompose into smaller cuts | 1 | → terminal |
-| Terminal | — | `ready-for-human` + skip entry |
+| Terminal | — | `ready-for-human` (no skip-list entry — see Implementation notes) |
 
 Counted from outcome-tagged comments on the cut issue, the same way `priorInputCycles` is counted today.
 
@@ -505,9 +505,25 @@ So the sequence is fixed:
 - **Escalation scopes are distinct (Q6a):** an open design question labels the **planner** issue `needs-info` and halts filing for the feature; an unsalvageable cut labels the **cut** issue `ready-for-human` and leaves the feature able to proceed
 - A cut whose edit surface includes `.github/workflows/**` is refused **before** filing, not after a full loop (#840)
 - A design question absent from the design doc produces a `needs-info` question, not an invented answer
-- Budgets terminate: 2 refinements + 1 re-decomposition → `ready-for-human` + skip entry
+- Budgets terminate: 2 refinements + 1 re-decomposition → `ready-for-human`
 - **Memory is reconstructible (Q7a):** deleting the planner issue's `## State` section and replaying its comment log yields the same state — proving the comments, not the body, are the durable record
-- **Two-tier memory works (Q7a):** every run appends exactly one `decision-log.jsonl` entry; the log survives a cache miss without affecting correctness; `lessons-learned.md` is loaded into the prompt and is rewritten (not appended) by `cut-planner:compact`
+- **Two-tier memory works (Q7a):** every run that examines a planner issue appends exactly one `decision-log.jsonl` entry (dry runs append none); the log survives a cache miss without affecting correctness; `lessons-learned.md` is loaded into the prompt and is rewritten (not appended) by `cut-planner:compact`
+
+## Implementation notes
+
+Decisions made while building, recorded here so the doc matches the code (team-preferences rule 8, extended to design docs).
+
+| Topic | Design said | Implemented | Why |
+|---|---|---|---|
+| Terminal cut escalation | `ready-for-human` + feature-bot skip-list entry | `ready-for-human` + tagged comment, **no** skip-list entry | Writing feature-bot's committed skip-list needs `contents: write`, which cut-planner deliberately lacks (it writes only issues and labels). `ready-for-human` already removes the cut from feature-bot's queue; the tagged comment is the record. |
+| One action per run | per run (Q5a) | one action **in total** per run, oldest planner first | Keeps each cron's blast radius to one feature's non-transactional writes, and keeps cut-planner's draw on the shared token bucket to one Claude call. |
+| Budget knobs | `MAX_REFINEMENTS=2` in both bots | feature-bot `MAX_HANDOFFS=3`; cut-planner `MAX_REFINEMENTS=2` + `MAX_REDECOMPOSITIONS=1` | feature-bot counts hand-offs, not refinements. See "Arming order". |
+| Which cuts are handed off | any reject-exhausted cut | only cuts cut-planner filed (feature-bot checks the cut body for cut-planner's filed tag) | An old-model cut handed off would sit in `needs-refinement`, which cut-planner reads only for features with a planner issue — silent parking (Q6a). |
+| Lock transcription (Q2) | "transcribe, never invent" | Claude selects locks **by index**; TS copies the text verbatim | Makes Q2 hold by construction rather than by instruction. |
+| Discovery | label query | label query + structural classification (`## Spec` = cut, checked first) | A cut in `needs-refinement` otherwise looks exactly like a planner issue. |
+| Other bots | not addressed | discovery-prep-bot skips any issue with `**Feature**:` front-matter | Its queue (`enhancement` minus four labels) matched planner issues and handed-back cuts; researching one applies `ready-for-human` and stalls the feature. Fleet audit found no other collision. |
+| Workflow-touching cuts | recorded, not queued | `files` declared by Claude; any path under `.github/workflows/` → filed `ready-for-human` | Claude names expected edits in its structured answer; the check is a path test in TS, not intent inference over prose. |
+| Malformed planning answer | (Q6a default) | escalate at the narrower scope; a thrown error mid-action is caught and escalated; if even that write fails, the run exits non-zero | Q6a's rule as a default, all the way down. |
 
 ## Migration
 

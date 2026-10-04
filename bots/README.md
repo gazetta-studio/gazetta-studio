@@ -97,11 +97,12 @@ GITHUB_REPOSITORY=gazetta-studio/gazetta-studio GH_TOKEN=$(gh auth token) \
 | `flake-watcher` | Daily 02:00 UTC + workflow_dispatch | CI events (run_attempt >= 2) — not labels | New issue with `bug` + `flake` + `area: X` + `ready-for-agent` (+ `recurring-flake` when applicable) | **Producer** — self-classifies, bypasses triage |
 | `mutation-watcher` | `workflow_run` on Mutation completion + workflow_dispatch | Latest Mutation artifact — not labels | New issue with `bug` + `area: X` + `ready-for-agent` per source file with surviving mutants | **Producer** — self-classifies, bypasses triage |
 | `dead-code-watcher` | Weekly Sat 02:30 UTC + workflow_dispatch | knip JSON output (files, exports, types, deps) — not labels; ≥30-day stable filter | Delete-PR per safe finding (full pipeline, NOT delegated to fix-bot) OR skip-list-entry PR | **Producer** — autonomous fixer with durable memory + generator-critic reviewer loop |
-| `bots-compact` | Monthly 1st Sat 03:00 UTC + workflow_dispatch | All memoryful bots' skip-lists (one job per bot) | Per-bot PRs: glob-rule compaction (dead-code-watcher), lessons-learned.md rewrite (fix-bot) | Memory compactor |
+| `bots-compact` | Monthly 1st Sat 03:00 UTC + workflow_dispatch | All memoryful bots' skip-lists (one job per bot) | Per-bot PRs: glob-rule compaction (dead-code-watcher), lessons-learned.md rewrite (fix-bot, review-bot, cut-planner) | Memory compactor |
 | `triage-bot` | Daily 03:00 UTC + workflow_dispatch | Open issue lacking all of `bug`, `enhancement`, `triage-uncertain`, `ready-for-agent`, `ready-for-human`, `wontfix`, `needs-info` | One of `bug` / `enhancement` / `triage-uncertain` + `area: X`. Reproducible bug also gets `ready-for-agent`. | Classifier |
-| `discovery-prep-bot` | Daily 04:00 UTC + workflow_dispatch | `enhancement` AND lacks all of `ready-for-human`, `ready-for-agent`, `wontfix`, `needs-info` | Research comment + `ready-for-human` label | Researcher |
+| `discovery-prep-bot` | Daily 04:00 UTC + workflow_dispatch | `enhancement` AND lacks all of `ready-for-human`, `ready-for-agent`, `wontfix`, `needs-info` AND body has no `**Feature**:` front-matter (design-passed work — planner issues and cuts — is never researched) | Research comment + `ready-for-human` label | Researcher |
 | `fix-bot` | Daily 04:00 UTC + workflow_dispatch | `bug` + `ready-for-agent` AND lacks all of `ready-for-human`, `wontfix`, `needs-info` AND no `fix-bot-attempted` since reopen AND no skip-list match | PR (two commits: failing test + fix) on approve, skip-list entry on reject/needs-human, OR stuck-comment + `ready-for-human` on stuck path | Implementer — generator-critic reviewer loop + durable memory + lessons-learned |
-| `feature-bot` | Daily 04:30 UTC + workflow_dispatch | `enhancement` + `ready-for-agent` AND lacks all of `ready-for-human`, `wontfix`, `needs-info` AND `**Depends on**:` refs all closed | PR (failing test + impl commits) on APPROVE, sub-issue closed + skip-list entry on NEEDS_HUMAN, sub-issue comment + `needs-info` label on NEEDS_INPUT | Implementer — feature cuts via generator-critic reviewer loop + durable memory + lessons-learned. See [design-feature-bot.md](../.claude/rules/design-feature-bot.md). |
+| `feature-bot` | Daily 04:17 UTC + workflow_dispatch | `enhancement` + `ready-for-agent` AND lacks all of `ready-for-human`, `wontfix`, `needs-info` AND `**Depends on**:` refs all closed | Draft PR on APPROVE; `ready-for-human` + skip-list entry on NEEDS_HUMAN (the issue stays open); comment + `needs-info` on NEEDS_INPUT; comment + `needs-refinement` hand-off to cut-planner when the loop exhausts on a cut-planner-filed cut | Implementer — feature cuts via generator-critic reviewer loop + durable memory + lessons-learned. See [design-feature-bot.md](../.claude/rules/design-feature-bot.md). |
+| `cut-planner` | Daily 03:00 UTC + workflow_dispatch | Planner issues (`enhancement` + `**Feature**:` + `**Design**:`/`## State`, no `ready-for-agent`) AND cut issues labelled `needs-refinement` | At most ONE action per run: a new cut sub-issue (`ready-for-agent`, or `ready-for-human` when it edits `.github/workflows/**`), a revised spec + `needs-refinement` → `ready-for-agent`, a re-decomposition, or an escalation (`needs-info` on the planner / `ready-for-human` on the cut) | **Planner** — owns the per-feature cut pipeline; feature-bot's peer, never imports it. See [design-cut-planner.md](../.claude/rules/design-cut-planner.md). |
 | `mutation-area-picker` | Weekly Sun 03:30 UTC + workflow_dispatch | `stryker.config.json` + git/GitHub cross-references (AI-pairing, churn, flake, fix-rate) | Draft PR adding/swapping/removing one module in `mutate` glob, OR silent NOOP | **Strategic portfolio manager** — owns mutation scope under runtime budget. Design: [`.claude/rules/design-mutation-area-picker.md`](../.claude/rules/design-mutation-area-picker.md). Empirical eviction per [ADR-0014](../docs/adr/0014-mutation-eviction-by-empirical-evidence.md). |
 
 **Producer bots vs triage-bot.** Producer bots (`flake-watcher`,
@@ -184,6 +185,19 @@ file size bounded across many months of runs.
 Both run in the same `bots-compact.yml` workflow (one job per bot)
 on the first Saturday of each month.
 
+**cut-planner's memory is two-tier, with no skip-list.** Per-feature
+state lives in the planner issue (body = current `## State`, comments =
+append-only `> Decision:` log). Cross-feature learning uses
+`decision-log.jsonl` (cached, one entry per run that examined a planner
+issue) distilled monthly into `lessons-learned.md`, which is loaded into
+every planning prompt. Its compactor counts only runs that *acted* —
+idle and quota-stopped runs are not evidence about how cuts are
+specified. It has no skip-list of its own: a terminal cut escalation is
+`ready-for-human`, which already removes the cut from feature-bot's
+queue. Its compactor job uses the restore/save cache split with
+per-run keys (see #854 for why the static-key form other jobs use
+reads a stale log).
+
 ### Reviewer-log persistence
 
 The reviewer-log is operational signal, not the forensic record
@@ -254,6 +268,36 @@ fix-bot (cron 04:00 UTC) — input: bug + ready-for-agent + no prior fix-bot com
 maintainer reviews PR, merges
 ```
 
+### Feature cuts (cut-planner ↔ feature-bot)
+
+```
+maintainer seeds ONE planner issue per feature (enhancement + area: X,
+                                                no ready-for-agent)
+    ↓
+cut-planner (cron 03:00 UTC) — one action per run, feedback first (Q5a):
+    1. a cut in needs-refinement?   → revise its spec, swap back to ready-for-agent
+    2. a cut still in flight?       → do nothing this run
+    3. otherwise                    → file the next cut (enhancement + ready-for-agent)
+    ↓
+feature-bot (cron 04:17 UTC) — implements the cut
+    ├─→ APPROVE → draft PR; maintainer merges; cut closes
+    └─→ loop exhausts on substantive rejects
+          → comment + ready-for-agent → needs-refinement   ("hand-off")
+          → back to cut-planner step 1
+```
+
+**The hand-off contract.** feature-bot posts a comment tagged
+`<!-- feature-bot: needs-refinement issue=N -->` quoting Agent B's
+verdict, then swaps `ready-for-agent` → `needs-refinement` (add before
+remove). cut-planner reads the latest such comment, revises, and swaps
+back. Budgets: cut-planner refines a cut twice, then re-decomposes it
+once per feature, then escalates to a human — so feature-bot's
+`MAX_HANDOFFS` (3) must equal cut-planner's `MAX_REFINEMENTS` (2) +
+`MAX_REDECOMPOSITIONS` (1). `bots/cut-planner/tests/budget-coherence.test.ts`
+pins this, because the two bots deliberately share no code. feature-bot
+only hands off cuts cut-planner filed (it checks the cut's own body for
+cut-planner's filed tag); older cuts escalate to a human as before.
+
 **Pipeline state lives in labels, not in code or workflow runs.** Each bot's input is a label query; each bot's output is a label mutation. To re-run any bot on an issue, remove its output label — the next cron picks it up. To opt-out an issue, apply a terminal-state label (`wontfix` / `ready-for-human`).
 
 **Maintainer queries:**
@@ -271,6 +315,9 @@ gh issue list --label ready-for-agent
 
 # What's waiting on info or a maintainer decision? (see "needs-info semantics" below)
 gh issue list --label needs-info
+
+# Which cuts are with cut-planner for a spec revision?
+gh issue list --label needs-refinement
 ```
 
 `ready-for-human` is shared between discovery-prep-bot ("research done, grilling can start") and fix-bot ("stuck — needs human"). Disambiguate by reading the most recent bot comment's outcome tag.
@@ -280,7 +327,9 @@ must exclude from queue; requires additional information to proceed." Two
 sources of the information may be: (1) the issue reporter (triage-bot's
 "could not reproduce" path) OR (2) a design decision from the maintainer
 (feature-bot's NEEDS_INPUT escalation when Agent A hits a question it
-can't resolve from the cut spec + design doc). The comment thread carries
+can't resolve from the cut spec + design doc), OR (3) on a cut-planner
+planner issue, a design decision the planner issue doesn't lock, or a
+feature cut-planner can't take further (its comment says which). The comment thread carries
 specifics in both cases. Remove the label (or have the bot remove it on
 its next cron after the comment thread resolves) to re-trigger bot
 processing.
