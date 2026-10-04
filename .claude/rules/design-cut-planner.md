@@ -470,6 +470,26 @@ Cuts 1–2 are feature-bot changes and ship independently — they are useful on
 
 State (which cuts shipped) lives in GitHub sub-issue close-state, not in this table (per ADR-0015).
 
+## Arming order
+
+The hand-off mechanism and its consumer ship in different cuts, and **both orders of enabling them are broken**:
+
+- Arm before the consumer exists → cuts get labelled `needs-refinement` and sit in a queue no bot reads. Silently parked, which is the shape Q6a forbids.
+- Ship the consumer without arming → cut-planner dispatches, queries an empty `needs-refinement` label, and exits silently forever. The refine path never runs.
+
+So the sequence is fixed:
+
+| Step | State |
+|---|---|
+| Cut 2 ships | `MAX_REFINEMENTS=0`. Mechanism built and tested; produces no labels. |
+| Cuts 3–5 ship | cut-planner exists and can file cuts. Still no refinement traffic. |
+| **Cut 6 ships** | the refine path exists — it can now consume the queue. |
+| **Then** arm | set `MAX_REFINEMENTS=2` (workflow env, matching `MAX_INPUT_CYCLES`). One-line change, and **part of Cut 6's definition of done** — not a follow-up. |
+
+**Cut 6 cannot be validated from organic traffic.** Reaching the refinement branch requires a cut that exhausted its attempts on *substantive* reviewer rejections — and feature-bot has delivered zero cuts to date, so that may not occur for a long time. Cut 6's acceptance therefore uses a **deliberately labelled test issue**: apply `needs-refinement` by hand to a throwaway cut sub-issue carrying a plausible reviewer note, and confirm cut-planner picks it up, revises the body, and swaps the label back. Waiting for the organic case would leave the path unexercised indefinitely.
+
+**The label is a prerequisite, not a side effect.** `needs-refinement` was created 2026-10-04 (`#5319e7`, *"Spec needs revision by cut-planner; excluded from feature-bot's queue"*). It had to be created explicitly because GitHub's `addLabels` API **auto-creates** a missing label with a random colour and no description — so arming without this step would have produced an undocumented grey label on first use, which is worse than a failure because it looks intentional.
+
 ## Validation gate
 
 - Cuts 1–2 shipped; a reject-exhausted cut lands in `needs-refinement` with Agent B's note quoted, and **no** skip-list entry is created
