@@ -188,6 +188,38 @@ Everything else stays terminal.
 
 **Note on a corrected assumption:** an earlier draft of this design contrasted a "terminal tier that closes the sub-issue" with a "non-terminal refinement tier". `escalateToHuman` does **not** close the issue — it removes `ready-for-agent`, applies `ready-for-human`, and the comment *advises the maintainer* to close or implement manually. The real difference between terminal escalation and refinement is therefore narrow: the label value, and whether a skip-list entry + PR are created. That makes the implementation smaller than first described — a parameterization of the existing escalation path, not a parallel one.
 
+### Q5a — Drain feature-bot's feedback before filing anything new
+
+Every cut-planner run checks for pending feature-bot input **first**, and files a new cut only when there is none:
+
+```
+per run:
+  1. refinement queue non-empty?  → refine the oldest, then STOP.
+  2. a cut still open and in flight (ready-for-agent, or a PR awaiting review)?
+                                   → STOP. Nothing to file.
+  3. otherwise                     → file the next cut.
+```
+
+Feedback-first, and **one action per run**.
+
+**Why feedback outranks filing:**
+
+- **A cut in `needs-refinement` is evidence about the plan.** If cut 5 failed because its spec deferred a decision, cut 6 — drafted from the same design doc, by the same process — plausibly shares the defect. Filing it before absorbing cut 5's lesson propagates the error. This is the #519 failure mode at feature scale: that cut's spec sat four months with *"Resolve open-Q #2 here"* precisely because nothing forced a re-read before moving on.
+- **Dependencies are implicit in this design.** Cuts carry no `**Depends on**` field (Q1 removed the need for it by filing one at a time), so ordering is enforced *only* by cut-planner not getting ahead of itself. Filing cut 6 while cut 5 is unresolved silently breaks the one mechanism that sequences the feature.
+- **Two live cuts can conflict.** Cut 5 and cut 6 of the same feature typically touch the same files. feature-bot builds each branch fresh from `origin/main`, so two in-flight cuts produce branches that don't see each other's work — and the second PR's review burden lands on the maintainer as a merge conflict.
+- **Quota.** On a shared 5-hour bucket, a refinement that rescues work already paid for beats a fresh cut that starts from zero.
+
+**One action per run** keeps each cron's blast radius to a single issue write, which matters because cut-planner's writes are not transactional: it edits the planner issue body, creates or relabels a cut issue, and appends a comment as three separate API calls. A run interrupted midway leaves at most one cut in a knowable state.
+
+**Rejected alternatives:**
+
+| | Why rejected |
+|---|---|
+| **File-first, refine-later** | Propagates a spec defect into the next cut before its lesson is absorbed; gets ahead of the implicit dependency chain. |
+| **Both in the same run (refine *and* file)** | Two issue writes per run with no transaction; and the new cut is drafted before the refinement's outcome is known, so the lesson still isn't applied. |
+| **Allow N cuts in flight concurrently** | Reintroduces the dependency-tracking problem Q1 eliminated, and creates same-file conflicts between sibling cuts. Revisit only if feature-bot's throughput ever exceeds one cut per cron, which (at zero deliveries to date) is not a current constraint. |
+| **Refine only when the maintainer asks** | Defeats the autonomy that motivates the bot. |
+
 ### Q6 — Budgets: 2 refinements, then 1 re-decomposition, then terminal
 
 | Stage | Budget | On exhaustion |
@@ -248,7 +280,10 @@ design doc ## Cut sequence          ← human-grilled (Q9 lock intact)
      ├─ ## Locked decisions transcribable into cut bodies
      └─ comments            append-only history + deviations
         │
-        │ files ONE cut at a time
+        │ per run (Q5a): drain feedback FIRST, then file at most one cut
+        │   1. needs-refinement queue non-empty? → refine oldest, stop
+        │   2. a cut still in flight?            → stop
+        │   3. else                              → file the next cut
         ▼
    cut sub-issue  (enhancement + ready-for-agent + area: X)
         │
@@ -299,13 +334,14 @@ The artifact table row *"Cut sub-issue → one GitHub issue per cut, referenced 
 | 1 | `needs-refinement` routing: new `RouteDecision` variant + `escalate-needs-refinement` branch in `route-attempt.ts`; parameterize `escalateToHuman` to skip the skip-entry when refining | — | unit-first | Low |
 | 2 | feature-bot emits the handoff: tagged comment + label swap (`ready-for-agent` → `needs-refinement`); refinement-attempt counting from outcome tags | 1 | api-first | Low |
 | 3 | `bots/cut-planner/` skeleton + workflow (cron, concurrency group, transcripts artifact); planner-issue parser (`**Feature**`, `## Suggested plan`, `## State`, `## Locked decisions`) | — | unit-first | Medium |
-| 4 | File-next-cut path: read planner issue → render cut body (functional reqs + transcribed locks + target files + test files) → `gh issue create` → update `## State` → append decision comment | 3 | api-first | Medium-high |
-| 5 | Refine path: consume `needs-refinement` queue → read cut comments for Agent B's note → revise body → swap label back → append decision comment; budgets 2/1 | 2, 3 | api-first | Medium-high |
-| 6 | Re-decompose path: split one cut into smaller cuts, close the original with a pointer, file the first replacement | 5 | api-first | High |
-| 7 | Open-question path: `NEEDS_INPUT`-shaped question on the planner issue + `needs-info`; stop filing for that feature | 3 | unit-first | Low |
-| 8 | `feature-design-process.md` Phase 4 rewrite + artifact-table row + `dev-glossary.md` entries (`cut-planner`, `planner issue`, `needs-refinement`) | — | (docs) | Low |
-| 9 | First production migration: seed a planner issue for `review-workflow` from its design doc; validate end-to-end against a real cut | 4, 5, 8 | (manual smoke) | Medium |
-| 10 | `bots/README.md`: cut-planner row in the active-bots table; document the label handoff contract | 3 | (docs) | Low |
+| 4 | **Run dispatcher (Q5a)**: feedback-first precedence — drain `needs-refinement`, else stop if a cut is in flight, else file. One action per run. Pure decision function (peer to `route-attempt.ts`), tested without I/O | 3 | unit-first | Low |
+| 5 | File-next-cut path: read planner issue → render cut body (functional reqs + transcribed locks + target files + test files) → `gh issue create` → update `## State` → append decision comment | 3, 4 | api-first | Medium-high |
+| 6 | Refine path: consume `needs-refinement` queue → read cut comments for Agent B's note → revise body → swap label back → append decision comment; budgets 2/1 | 2, 3, 4 | api-first | Medium-high |
+| 7 | Re-decompose path: split one cut into smaller cuts, close the original with a pointer, file the first replacement | 6 | api-first | High |
+| 8 | Open-question path: `NEEDS_INPUT`-shaped question on the planner issue + `needs-info`; stop filing for that feature | 3, 4 | unit-first | Low |
+| 9 | `feature-design-process.md` Phase 4 rewrite + artifact-table row + `dev-glossary.md` entries (`cut-planner`, `planner issue`, `needs-refinement`) | — | (docs) | Low |
+| 10 | First production migration: seed a planner issue for `review-workflow` from its design doc; validate end-to-end against a real cut | 5, 6, 9 | (manual smoke) | Medium |
+| 11 | `bots/README.md`: cut-planner row in the active-bots table; document the label handoff contract | 3 | (docs) | Low |
 
 Cuts 1–2 are feature-bot changes and ship independently — they are useful on their own (a non-terminal reject outcome stops burning skip-list entries on recoverable cuts) even if cut-planner never lands.
 
@@ -316,6 +352,7 @@ State (which cuts shipped) lives in GitHub sub-issue close-state, not in this ta
 - Cuts 1–2 shipped; a reject-exhausted cut lands in `needs-refinement` with Agent B's note quoted, and **no** skip-list entry is created
 - cut-planner files a cut from a seeded planner issue; the body carries at least one transcribed locked decision and names its target files
 - A deliberately under-specified cut gets refined once and then succeeds, with both the refinement and its reasoning visible on the planner issue
+- **Feedback-first holds (Q5a):** with a cut sitting in `needs-refinement`, a cut-planner run refines it and files **no** new cut. With a cut still `ready-for-agent` or awaiting PR review, the run files nothing at all.
 - An infrastructure failure (rate limit) does **not** route to refinement — the cut stays `ready-for-agent`
 - A design question absent from the design doc produces a `needs-info` question, not an invented answer
 - Budgets terminate: 2 refinements + 1 re-decomposition → `ready-for-human` + skip entry
