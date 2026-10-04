@@ -52,6 +52,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runClaude } from '../_lib/claude.js'
 import { findIssuesByLabels, hasPriorCommentFromBot, octokitFromEnv, repoFromEnv } from '../_lib/github.js'
+import { isDesignPassedWork } from './design-passed.js'
 import {
   printBanner,
   printCandidateHeader,
@@ -199,6 +200,19 @@ async function researchOneIssue(
   const labels = issue.labels.map(l => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean)
   if (!labels.includes('enhancement')) {
     printNotice(`#${issueNumber} is not labeled 'enhancement' (current: [${labels.join(', ')}]); nothing to research.`)
+    return
+  }
+
+  // Design-passed work is not discovery's business. Discovery precedes
+  // design; an issue carrying `**Feature**:` front-matter already sits
+  // downstream of a design pass — a cut-planner planner issue, a cut handed
+  // back to cut-planner (`needs-refinement` drops `ready-for-agent`, which
+  // is what made it look like an unresearched enhancement), or a
+  // pre-cut-planner tracking issue. Researching one would post noise and,
+  // worse, apply `ready-for-human`, which removes it from cut-planner's
+  // queue and silently stalls the feature.
+  if (isDesignPassedWork(issue.body ?? '')) {
+    printNotice(`#${issueNumber} carries **Feature**: front-matter (design-passed work); not a discovery candidate.`)
     return
   }
 
