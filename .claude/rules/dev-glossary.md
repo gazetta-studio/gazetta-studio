@@ -357,6 +357,16 @@ maintainer; replaces the tracking issue for features that use cut-planner.
 Distinct from a **cut sub-issue** (has `## Spec`) and from a legacy
 **tracking issue** (a tasklist, no planner sections).
 
+**Landed (cut)**:
+A cut that was closed by a merged PR that **names it** — `#N` in the PR
+title, a `feat/cut-N` head branch, or feature-bot's `feature-bot: issue=N`
+marker. Distinct from merely *closed*: #517 was closed as "completed" by
+#557, an unrelated PR that only mentioned it, so the work it was meant to
+deliver never existed. feature-bot's dependency gate and cut-planner's
+"file the next cut" step both require *landed*, not closed
+(`bots/_lib/cut-landing.ts`). Closed as "not planned" is **superseded** —
+neither landed nor a defect.
+
 **Hand-off** / **`needs-refinement` (label)**:
 feature-bot passing a cut back to cut-planner after its generator-critic
 loop exhausts on *substantive* reviewer rejections: a comment quoting

@@ -14,7 +14,7 @@ Autonomous bot that implements feature cuts following the project's design pass.
 
 **In v1:**
 - Bot reads GitHub "cut sub-issues" labeled `enhancement` + `ready-for-agent` + `area: X` (no new labels — reuses existing vocabulary)
-- Picks the next cut whose dependencies are all closed
+- Picks the next cut whose dependencies have all landed (see Q3 "Closed is not landed")
 - Generator-critic loop (Agent A implements, Agent B reviews) — same pattern as fix-bot + dead-code-watcher
 - Agent A flow: tests → impl → SOLID research+fix loop → runtime validation → improve/fix tests → verify comments (rot-proof bar) → ONE commit at the end (no TDD-first; single atomic commit; Agent B is the sole anti-tautology gate, separating impl from tests by path — see the loop in "Design" below)
 - One PR per cut
@@ -157,6 +157,8 @@ Tolerates `#501, #502` / `#501 #502` / `none` / empty / missing line. No deps �
 4. **Parallelizable.** Cuts with empty `Depends on` compete for bot attention; cuts with deps wait. Solves the serial-order limitation tasklist-ordering would impose.
 5. **Loud-fail at cron-tick** beats silent-wait-forever on a mistyped number. Catches errors before Claude burns context.
 
+**Closed is not landed (added 2026-10-04, #867).** A dependency is satisfied only when it was closed by a merged PR that names it — `#N` in the PR title, a `feat/cut-N` head branch, or feature-bot's `feature-bot: issue=N` marker (`bots/_lib/cut-landing.ts`). Closed as *not planned* → `dep-rejected` (as before). Closed as *completed* with no such PR → `dep-unverified`: a comment explaining how to clear it, plus `needs-info`. The original rule read `state_reason: completed` as "merged via PR"; #517 (review-workflow Cut 3) was closed as completed by #557, an unrelated reviewer-prompt fix that only mentioned it, so feature-bot treated storage that never existed as a satisfied dependency and #519 kept failing on top of it.
+
 **Rejected alternatives** (preserved):
 
 | Alternative | Why rejected |
@@ -170,7 +172,7 @@ Tolerates `#501, #502` / `#501 #502` / `none` / empty / missing line. No deps �
 
 ### Q4 — Cut ordering: oldest-first, no priority label in v1
 
-**Decision**: Among unblocked cuts (those whose `**Depends on**` refs are all closed), the bot picks one per cron tick using oldest-first sort:
+**Decision**: Among unblocked cuts (those whose `**Depends on**` refs have all landed), the bot picks one per cron tick using oldest-first sort:
 
 ```ts
 const sorted = candidates.sort((a, b) => {
@@ -321,6 +323,10 @@ type SkipReason =
   | 'spec-too-vague'        // cut spec doesn't describe enough for Agent A to interpret
   | 'input-cycles-exceeded' // MAX_INPUT_REQUESTS=2 hit without resolution
   | 'files-conflict'        // cut's files overlap with another in-flight cut's open PR
+  // Added later (see design-cut-planner.md Q6 and #840)
+  | 'refinement-exhausted'  // cut-planner's refinement budget spent; the spec was not the problem
+  | 'redecomposition-failed'// re-decomposition tried and did not help
+  | 'delivery-failed'       // approved, but the push or PR failed — infrastructure, not cut quality
 ```
 
 Schema in `bots/feature-bot/skip-list.ts` (mirrors fix-bot's existing shape):

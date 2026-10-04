@@ -157,6 +157,14 @@ When folding, name the absorbed scope explicitly in the target cut's `## Spec` (
 3. From then on, cut-planner files one cut at a time (cron 03:00 UTC), revises cuts feature-bot hands back in `needs-refinement`, and escalates to a human — `needs-info` on the planner issue for a feature-level block (e.g. a design decision the planner issue doesn't lock), `ready-for-human` on a cut for a cut-level one. When a decision is made mid-feature, add it to `## Locked decisions` yourself: cut-planner transcribes locks, it never discovers or invents them.
 4. Close the planner issue when the feature is done (cut-planner says so with a `plan-exhausted` escalation).
 
+**One cut filed directly** (a single cut of an already-designed feature, outside cut-planner — e.g. a follow-up found in PR review):
+- File it with the cut-sub-issue template in the [`review-prs` skill](../skills/review-prs/SKILL.md) ("Issue body template", feature-bot variant): `enhancement` + `ready-for-agent` + `area: X`, `**Feature**:` + `**Depends on**:`, and `## Spec` / `## Acceptance` / `## Tests` (+ `## SOLID` for new interfaces/modules). A missing section gets a `body-error` comment + `needs-info` and the cut never runs.
+- `**Feature**:` must name a real `.claude/rules/design-{slug}.md`: both agents read it first, and the validator only checks the line exists.
+- The spec must leave no design decision open and must name the real target files — nothing checks for an open decision the way cut-planner does (#519 and #526 shipped with them and failed).
+- If it fails, it goes straight to `ready-for-human`. Only cuts cut-planner filed are handed back for spec refinement.
+- **If the feature has a planner issue, don't file a cut directly** — add the work to the planner issue's `## Suggested plan`. A directly filed cut can't be refined, and cut-planner treats it as in flight, so the feature's queue waits until it closes.
+- One-off work with no design doc is not a cut: file it for fix-bot as `bug` + `ready-for-agent` (team-preferences rule 40).
+
 **Up-front filing** (legacy — features whose cuts were all filed before cut-planner existed; migrate per `design-cut-planner.md` "Migration"):
 1. Maintainer asks (in Claude Code): "open cuts for `design-{feature}.md`."
 2. Claude reads the design doc's `## Cut sequence` table.
