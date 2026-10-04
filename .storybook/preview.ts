@@ -45,6 +45,18 @@ const preview: Preview = {
     }),
   ],
   parameters: {
+    // Fail the story run on axe violations (#524, ADR-0016). The addon's
+    // default reports violations without failing the test, which would
+    // leave the a11y half of the story gate advisory.
+    //
+    // `color-contrast` is the one rule off: the Aura primary button (white on
+    // emerald) and the muted validator label fail it in shipped components
+    // today. Turning it on means fixing theme tokens, which is its own
+    // change (#863). Every other rule hard-fails.
+    a11y: {
+      test: 'error',
+      config: { rules: [{ id: 'color-contrast', enabled: false }] },
+    },
     controls: {
       matchers: {
         color: /(background|color)$/i,
