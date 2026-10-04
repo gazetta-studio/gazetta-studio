@@ -7,7 +7,7 @@
  * needs to name what was missing rather than saying "it didn't parse".
  */
 import { describe, expect, it } from 'vitest'
-import { parsePlannerIssue } from '../planner-issue.js'
+import { parsePlannerIssue, replaceSection } from '../planner-issue.js'
 
 const WELL_FORMED = `**Feature**: review-workflow
 **Design**: .claude/rules/design-review-workflow.md
@@ -120,5 +120,31 @@ describe('parsePlannerIssue — optional sections', () => {
     expect(r.ok).toBe(true)
     if (!r.ok) return
     expect(r.value.suggestedPlan).toBe('')
+  })
+})
+
+describe('replaceSection', () => {
+  const body =
+    '**Feature**: f\n**Design**: d.md\n\n## Suggested plan\n\n| 1 | a |\n\n## State\n\nold\n### Deviations\n\nkept? no\n\n## Locked decisions\n\n- lock'
+
+  it('replaces ## State (including its ### subsection) and leaves neighbours verbatim', () => {
+    const out = replaceSection(body, 'State', 'Next: cut 2')
+    expect(out).toContain('## State\n\nNext: cut 2\n')
+    expect(out).not.toContain('old')
+    expect(out).toContain('## Suggested plan\n\n| 1 | a |')
+    expect(out).toContain('## Locked decisions\n\n- lock')
+  })
+
+  it('round-trips with the parser: what is written is what is read back', () => {
+    const out = replaceSection(body, 'State', 'Landed: cut 1\nNext: cut 2')
+    const parsed = parsePlannerIssue(out)
+    if (!parsed.ok) throw new Error('expected ok')
+    expect(parsed.value.state).toBe('Landed: cut 1\nNext: cut 2')
+    expect(parsed.value.lockedDecisions).toBe('- lock')
+  })
+
+  it('appends the section when absent (a freshly seeded planner)', () => {
+    const out = replaceSection('**Feature**: f\n**Design**: d.md', 'State', 'Next: cut 1')
+    expect(out.endsWith('## State\n\nNext: cut 1\n')).toBe(true)
   })
 })

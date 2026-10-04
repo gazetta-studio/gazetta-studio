@@ -8,27 +8,21 @@
  *
  * Design: .claude/rules/design-cut-planner.md
  *
- * # Cut 3 status (this file)
+ * # Shape
  *
- * Cut 3 ships the skeleton: discovery of planner issues, the parser, and
- * the banner/summary scaffolding. It takes NO action yet — the run
- * dispatcher is Cut 4, file-next-cut is Cut 5, refine is Cut 6. Running it
- * today reports what it found and exits, which is also what `DRY_RUN=1`
- * will do permanently.
+ * index.ts (this file) does discovery + wiring; `dispatch-run.ts` decides the
+ * one action; `execute.ts` carries it out through two ports (GitHub, Claude)
+ * whose real implementations live in `adapters.ts`. `DRY_RUN=1` reports the
+ * decision without executing it.
  *
  * # Input contract
  *
  * The planner issue, and nothing else (design-cut-planner.md open-Q 4).
  * cut-planner never reads a design doc or an impl doc; seeding is
- * maintainer work. Discovery is a label query:
- *
- *   `enhancement` + `area: *`, WITHOUT `ready-for-agent`
- *
- * — the same trick that makes tracking issues invisible to feature-bot,
- * applied in reverse. A planner issue deliberately lacks
- * `ready-for-agent`, so feature-bot ignores it and cut-planner claims it.
- * The `**Feature**:` front-matter is what distinguishes a planner issue
- * from any other non-cut enhancement issue.
+ * maintainer work. A planner issue is an open `enhancement` issue without
+ * `ready-for-agent` (so feature-bot ignores it) that `issue-index.ts`
+ * classifies structurally — see there for why a cut in `needs-refinement`
+ * must never be mistaken for one.
  *
  * # Escalation
  *
@@ -39,32 +33,38 @@
  * the feature continues). A quota failure is NOT an inability: rate limits
  * mean "come back later", so the queue stops and nothing is labelled.
  */
-import { findIssuesByLabels, octokitFromEnv, repoFromEnv, type RepoIdentity } from '../_lib/github.js'
+import { octokitFromEnv, repoFromEnv, type RepoIdentity } from '../_lib/github.js'
 import { printBanner, printCandidateList, printNotice, printRunSummary, printWarning } from '../_lib/ui.js'
+import { claudePlanner, loadTemplates, octokitGitHub } from './adapters.js'
 import { dispatchRun, type RunDecision } from './dispatch-run.js'
-import { parsePlannerIssue, type PlannerIssue } from './planner-issue.js'
+import { escalateMalformedPlanner, executeSafely, type GitHubPort } from './execute.js'
+import { classifyIssue, featureOf, type ListedIssue, type ListedPr, observeCuts } from './issue-index.js'
+import { countMarked, redecomposedMarker } from './markers.js'
+import { parsePlannerIssue } from './planner-issue.js'
 
 const DRY_RUN = process.env.DRY_RUN === '1'
+const ONLY_ISSUE = process.env.ISSUE_NUMBER ? Number(process.env.ISSUE_NUMBER) : null
+const RUN_ID = process.env.GITHUB_RUN_ID ?? 'local'
+const RUN_TIMESTAMP = new Date().toISOString().replace(/[:.]/g, '-')
 
 /**
- * Per-RUN wall-clock budget. Far smaller than feature-bot's 150 min
- * because cut-planner does at most ONE action per run (Q5a) and that
- * action is a single Claude call to render or revise one cut body — not a
- * generator-critic loop.
+ * Per-RUN wall-clock budget. Far smaller than feature-bot's 150 min because
+ * cut-planner takes at most ONE action per run (Q5a) and that action is a
+ * single Claude call — not a generator-critic loop. Checked before the
+ * action starts, never mid-action: a half-done action is worse than none.
  */
 const PER_RUN_BUDGET_MS = Number(process.env.BUDGET_MS ?? 30 * 60 * 1000)
 
 /**
- * Spec-refinement budget per cut (design-cut-planner.md Q6).
- *
- * Defaults to 0 to match feature-bot's MAX_REFINEMENTS: until Cut 6 ships
- * the refine path, an armed hand-off would park cuts in a queue nothing
- * reads. See the design doc's "Arming order" — raising this is part of
- * Cut 6's definition of done, not a follow-up.
+ * Spec-refinement budget per cut (design-cut-planner.md Q6). Defaults to 0
+ * until Cut 6 ships the refine path — see the design doc's "Arming order".
  */
 const MAX_REFINEMENTS = Number(process.env.MAX_REFINEMENTS ?? '0')
 /** Re-decomposition budget per feature; the Q6 fallback after refinement. */
 const MAX_REDECOMPOSITIONS = Number(process.env.MAX_REDECOMPOSITIONS ?? '1')
+
+/** Labels that take a planner issue out of discovery. `needs-info` = blocked on a human (Q6a). */
+const PLANNER_EXCLUDE = ['ready-for-agent', 'ready-for-human', 'wontfix', 'needs-info']
 
 /** One-line, human-readable rendering of a dispatcher decision. */
 function describeDecision(d: RunDecision): string {
@@ -84,134 +84,163 @@ function describeDecision(d: RunDecision): string {
   }
 }
 
-interface PlannerCandidate {
-  issueNumber: number
-  title: string
-  parsed: PlannerIssue
-}
-
 async function main(): Promise<void> {
   const repo = repoFromEnv()
   const octokit = octokitFromEnv()
+  const gh = octokitGitHub(octokit, repo)
   const startedAt = Date.now()
+  const elapsedSec = () => Math.round((Date.now() - startedAt) / 1000)
 
   printBanner({
     name: 'cut-planner',
-    tagline: 'cut pipeline owner (Cut 3 — skeleton + parser)',
+    tagline: 'per-feature cut pipeline',
     purpose:
       'File the next cut sub-issue for feature-bot one at a time, and revise a cut spec when the generator-critic loop cannot land it.',
     inputs: [
-      'Planner issues: `enhancement` + `area: *`, WITHOUT `ready-for-agent`, carrying `**Feature**:`',
-      'Refinement queue: cut sub-issues labelled `needs-refinement` (Cut 6)',
+      'Planner issues: `enhancement` + `**Feature**:` + `**Design**:` / `## State`, without `ready-for-agent`',
+      'Refinement queue: cut issues labelled `needs-refinement`',
     ],
     outputs: [
-      'One cut sub-issue per run (Cut 5)',
-      'Revised cut specs + label swap back to `ready-for-agent` (Cut 6)',
-      '`needs-info` on the planner issue when a design decision is missing (Cut 8)',
+      'At most ONE action per run (Q5a): file a cut, refine one, re-decompose one, or escalate',
+      '`needs-info` on the planner issue when a design decision is missing',
     ],
   })
 
-  const candidates = await discoverPlannerIssues(octokit, repo)
+  const [issues, prs] = await Promise.all([listOpenEnhancements(octokit, repo), listOpenPrs(octokit, repo)])
+  const planners = issues
+    .filter(i => classifyIssue(i.body) === 'planner')
+    .filter(i => !i.labels.some(l => PLANNER_EXCLUDE.includes(l)))
+    .filter(i => ONLY_ISSUE === null || i.number === ONLY_ISSUE)
+    .sort((a, b) => (a.createdAt === b.createdAt ? a.number - b.number : a.createdAt.localeCompare(b.createdAt)))
 
-  if (candidates.length === 0) {
+  if (planners.length === 0) {
     // Absence-as-state per rule 23: nothing to say, so say nothing beyond
     // the run summary. No "nothing to file" comment is ever posted.
     printNotice('No planner issues found. Nothing to do.')
-    printRunSummary({
-      verb: 'Planned',
-      processed: 0,
-      total: 0,
-      skipped: 0,
-      elapsedSec: Math.round((Date.now() - startedAt) / 1000),
-    })
+    printRunSummary({ verb: 'Planned', processed: 0, total: 0, skipped: 0, elapsedSec: elapsedSec() })
     return
   }
 
   printCandidateList({
     noun: 'planner issue',
-    candidates: candidates.map(c => ({
-      ref: `#${c.issueNumber}`,
-      label: c.parsed.feature,
-      meta: c.title,
-    })),
+    candidates: planners.map(p => ({ ref: `#${p.number}`, label: featureOf(p.body) ?? '?', meta: p.title })),
   })
 
-  // Decide the ONE action per feature (Q5a). Cut 4 ships the decision;
-  // EXECUTING it is Cuts 5-8, so every decision is reported and not acted
-  // on. That is deliberate and visible — the banner says so — rather than
-  // a silent skip in the Q6a sense.
-  for (const c of candidates) {
-    const decision = dispatchRun({
-      planner: c.parsed,
-      plannerIssueNumber: c.issueNumber,
-      // Cut 5 populates this from a real cut-sub-issue query. An empty set
-      // makes the dispatcher report `file-next` (or `escalate-feature` on
-      // an empty plan), which is the correct decision for a feature with
-      // no cuts yet.
-      cuts: [],
-      maxRefinements: MAX_REFINEMENTS,
-      maxRedecompositions: MAX_REDECOMPOSITIONS,
-      priorRedecompositions: 0,
-    })
-    printNotice(`#${c.issueNumber} (${c.parsed.feature}) → ${describeDecision(decision)}`)
+  let processed = 0
+  for (const issue of planners) {
+    const outcome = await handlePlanner(issue, issues, prs, gh, startedAt)
+    if (outcome === 'acted') {
+      processed++
+      // Q5a: ONE action per run. Each action is several non-transactional
+      // writes; capping at one bounds an interrupted run to one feature.
+      printNotice('One action taken; stopping (Q5a — one action per run).')
+      break
+    }
+    if (outcome === 'stop') break
   }
-
-  if (DRY_RUN) printNotice('DRY_RUN=1 — decisions reported, nothing executed.')
-  else printNotice('Cut 4 ships the decision only; execution is Cuts 5-8. Taking no action.')
 
   printRunSummary({
     verb: 'Planned',
-    processed: 0,
-    total: candidates.length,
-    skipped: candidates.length,
-    elapsedSec: Math.round((Date.now() - startedAt) / 1000),
+    processed,
+    total: planners.length,
+    skipped: planners.length - processed,
+    elapsedSec: elapsedSec(),
   })
-  void PER_RUN_BUDGET_MS
 }
 
-/**
- * Find planner issues.
- *
- * A planner issue is `enhancement` WITHOUT `ready-for-agent` (so
- * feature-bot ignores it) whose body carries `**Feature**:`. The
- * front-matter check is what separates a planner issue from the ~41 other
- * non-cut enhancement issues in the repo — a label alone would not.
- *
- * A body that has `**Feature**:` but fails to parse is NOT skipped
- * silently: it is reported here and escalated by Cut 8, because a broken
- * input is a feature-scope escalation per Q6a rather than something to
- * guess past.
- */
-async function discoverPlannerIssues(
+async function handlePlanner(
+  issue: ListedIssue,
+  issues: readonly ListedIssue[],
+  prs: readonly ListedPr[],
+  gh: GitHubPort,
+  startedAt: number,
+): Promise<'acted' | 'idle' | 'stop'> {
+  const parsed = parsePlannerIssue(issue.body ?? '')
+  if (!parsed.ok) {
+    printWarning(`#${issue.number} is a planner issue missing ${parsed.missing.join(' and ')}.`)
+    if (DRY_RUN) return 'idle'
+    await escalateMalformedPlanner(gh, issue.number, featureOf(issue.body), parsed.missing, RUN_ID)
+    return 'acted'
+  }
+  const planner = parsed.value
+
+  // Comments are only needed for cuts in the refinement queue (their budget)
+  // and for the planner itself (the per-feature re-decomposition budget).
+  const refining = issues.filter(i => i.labels.includes('needs-refinement') && featureOf(i.body) === planner.feature)
+  const commentsByCut = new Map<number, string[]>()
+  for (const c of refining) commentsByCut.set(c.number, await gh.listCommentBodies(c.number))
+  const plannerComments = await gh.listCommentBodies(issue.number)
+
+  const decision = dispatchRun({
+    planner,
+    plannerIssueNumber: issue.number,
+    cuts: observeCuts(planner.feature, issues, prs, commentsByCut),
+    maxRefinements: MAX_REFINEMENTS,
+    maxRedecompositions: MAX_REDECOMPOSITIONS,
+    priorRedecompositions: countMarked(plannerComments, redecomposedMarker(planner.feature)),
+  })
+  printNotice(`#${issue.number} (${planner.feature}) → ${describeDecision(decision)}`)
+
+  if (decision.kind === 'idle') return 'idle'
+  if (DRY_RUN) {
+    printNotice('DRY_RUN=1 — decision reported, nothing executed.')
+    return 'idle'
+  }
+  if (Date.now() - startedAt > PER_RUN_BUDGET_MS) {
+    printWarning('Per-run budget exhausted before the action started; stopping. The next run picks it up.')
+    return 'stop'
+  }
+
+  const out = await executeSafely(
+    decision,
+    {
+      planner,
+      plannerIssueNumber: issue.number,
+      plannerBody: issue.body ?? '',
+      areaLabels: issue.labels.filter(l => l.startsWith('area:')),
+      runId: RUN_ID,
+    },
+    gh,
+    claudePlanner(loadTemplates(), RUN_TIMESTAMP),
+  )
+  if (out.kind === 'quota-stop') {
+    // Not an escalation: a quota failure is "come back later" (Q6a carve-out).
+    printWarning('Anthropic session limit or transient auth failure; stopping the queue. Nothing was changed.')
+    return 'stop'
+  }
+  if (out.kind === 'acted') {
+    printNotice(`#${issue.number}: ${out.summary}`)
+    return 'acted'
+  }
+  return 'idle'
+}
+
+/** Open `enhancement` issues WITH bodies (IssueSummary drops them). PRs excluded. */
+async function listOpenEnhancements(
   octokit: ReturnType<typeof octokitFromEnv>,
   repo: RepoIdentity,
-): Promise<PlannerCandidate[]> {
-  const issues = await findIssuesByLabels(octokit, repo, {
-    requireAll: ['enhancement'],
-    excludeAny: ['ready-for-agent', 'ready-for-human', 'wontfix', 'needs-info'],
+): Promise<ListedIssue[]> {
+  const all = await octokit.paginate(octokit.issues.listForRepo, {
+    ...repo,
+    state: 'open',
+    labels: 'enhancement',
+    per_page: 100,
   })
+  return all
+    .filter(i => !i.pull_request)
+    .map(i => ({
+      number: i.number,
+      title: i.title,
+      body: i.body ?? null,
+      labels: i.labels.map(l => (typeof l === 'string' ? l : (l.name ?? ''))),
+      createdAt: i.created_at,
+    }))
+}
 
-  const out: PlannerCandidate[] = []
-  for (const issue of issues) {
-    // `IssueSummary` carries no body, so fetch it per candidate. The label
-    // query already narrows to open non-cut enhancement issues (tens, not
-    // thousands), so this is a bounded fan-out rather than a scan.
-    const { data: full } = await octokit.issues.get({ ...repo, issue_number: issue.number })
-    const body = full.body ?? ''
-    // Cheap pre-filter: skip the many non-cut enhancement issues without
-    // paying a parse. Not a correctness gate — the parse below is.
-    if (!/^\*\*Feature\*\*:/m.test(body)) continue
-
-    const parsed = parsePlannerIssue(body)
-    if (!parsed.ok) {
-      printWarning(
-        `#${issue.number} looks like a planner issue but is missing ${parsed.missing.join(' and ')}; it needs a human (Cut 8 will escalate).`,
-      )
-      continue
-    }
-    out.push({ issueNumber: issue.number, title: issue.title, parsed: parsed.value })
-  }
-  return out
+/** Open PR bodies — a PR that closes a cut puts that cut in flight (Q5a step 2). */
+async function listOpenPrs(octokit: ReturnType<typeof octokitFromEnv>, repo: RepoIdentity): Promise<ListedPr[]> {
+  const all = await octokit.paginate(octokit.pulls.list, { ...repo, state: 'open', per_page: 100 })
+  return all.map(p => ({ number: p.number, body: p.body ?? null }))
 }
 
 main().catch((err: unknown) => {

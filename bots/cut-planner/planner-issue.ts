@@ -129,3 +129,28 @@ export function parsePlannerIssue(body: string): PlannerIssueParse {
     },
   }
 }
+
+/**
+ * Replace a `## Heading` section's body, keeping everything else verbatim.
+ *
+ * Uses the same boundary rule as `section()` above — a section ends at the
+ * next `#`/`##` heading, so a `###` subsection stays with its parent — so a
+ * read followed by a write always addresses the same span. Appends the
+ * section when absent, which is how a freshly seeded planner issue with no
+ * `## State` gets one on the first filing.
+ *
+ * Only cut-planner's own section is ever rewritten. `## Suggested plan` and
+ * `## Locked decisions` are maintainer-seeded (open-Q 4) and are never passed
+ * here.
+ */
+export function replaceSection(body: string, heading: string, content: string): string {
+  const startRe = new RegExp(`^##\\s+${heading}\\s*$`, 'mi')
+  const m = startRe.exec(body)
+  const block = `## ${heading}\n\n${content.trim()}\n`
+  if (!m) return `${body.trimEnd()}\n\n${block}`
+  const headEnd = body.indexOf('\n', m.index)
+  const after = headEnd === -1 ? '' : body.slice(headEnd + 1)
+  const next = after.search(/^#{1,2}\s+\S/m)
+  const tail = next === -1 ? '' : `\n${after.slice(next)}`
+  return `${body.slice(0, m.index)}${block}${tail}`
+}
