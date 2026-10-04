@@ -246,6 +246,49 @@ New `SkipReason` members: `refinement-exhausted`, `redecomposition-failed`.
 | **Re-decompose first** | Contradicts CORAL and our own evidence; splitting *increases* total tokens (one worked example: 390 vs 300) against the resource that is already the binding constraint. |
 | **Decompose only, never refine** | Would have fired on #519 and produced three cuts each still containing the unresolved design question. |
 
+### Q6a — When cut-planner escalates to a human
+
+cut-planner has **two** escalation targets, and the distinction is which artifact is at fault:
+
+- **Planner-issue escalation** (`needs-info` on the planner issue) — the *feature* is blocked. cut-planner stops filing for that feature entirely.
+- **Cut-issue escalation** (`ready-for-human` + skip entry on the cut) — one *cut* is beyond rescue. Other cuts in the feature can still proceed.
+
+Triggers, each with its target:
+
+| Trigger | Target | Why a human |
+|---|---|---|
+| Design doc leaves a decision open (Q2) | planner issue | Deciding is a design act; cut-planner transcribes, never invents |
+| Suggested plan exhausted — no cuts left, but the feature isn't done | planner issue | Either the plan was incomplete or the design needs extending; both are maintainer calls |
+| `## Suggested plan` / `## State` unparseable, or the planner issue malformed | planner issue | Its own input is broken; guessing would corrupt state |
+| Design doc missing at the `**Design**:` path | planner issue | Cannot transcribe locks from a doc that isn't there |
+| 2 refinements + 1 re-decomposition exhausted (Q6) | cut issue | The spec is not the problem, or not a problem cut-planner can fix |
+| Re-decomposition would produce a cut that still can't be specified | cut issue | Decomposition is not the lever; stop splitting |
+| Agent B's note is a **design** objection, not an implementation one | cut issue | Refining the spec cannot answer "this architecture is wrong" |
+| The next cut's edit surface includes `.github/workflows/**` | cut issue, **pre-flight** | Structurally undeliverable by feature-bot: `GITHUB_TOKEN` cannot push workflow files and no permission grants it (#840). Escalate *before* filing rather than spending a full loop on work that cannot land. Resolved by #336. |
+| Same cut escalated terminally twice across runs | cut issue | Repetition without progress; stop retrying |
+
+**Never a cut-planner escalation:**
+
+- **Rate limit / transient auth** — stop the queue, leave everything as-is, retry next cron. This is feature-bot's existing behavior (#831) and cut-planner inherits it. A quota failure is not a defect in anything.
+- **`spawn E2BIG` / Agent A non-zero exit** — infrastructure. Surfaces as `escalate-failure`, never reaches the refine path (Q5).
+- **A cut legitimately in flight** — not an escalation, just "nothing to do this run" (Q5a step 2). Exit silently.
+
+**Absence-as-state (rule 23):** cut-planner posts nothing when it has nothing to say. No "nothing to file" comment, no "still waiting" heartbeat. The planner issue's `## State` section is the status surface; a silent run means state is unchanged.
+
+**Why two targets rather than one:** a single escalation label would conflate *"this feature needs a design decision"* with *"this one cut is unsalvageable."* The first blocks every remaining cut; the second blocks one. Collapsing them would stall a whole feature on one bad cut — which is what today's terminal-only path effectively does.
+
+**Why `needs-info` rather than a new label for the feature case:** it already means *"bot must exclude from queue; requires information to proceed"* and was explicitly widened to cover maintainer-decision cases (per [`design-feature-bot.md`](design-feature-bot.md) Q6). cut-planner's open-question case is exactly that. One new label (`needs-refinement`, Q4) is the design's budget.
+
+**Rejected alternatives:**
+
+| | Why rejected |
+|---|---|
+| **One escalation target for everything** | Conflates feature-blocked with cut-blocked; a single bad cut stalls the whole feature. |
+| **cut-planner decides open design questions and flags for post-hoc review** | Autonomous design decisions — what Q2 exists to prevent. Post-hoc review of a decision already baked into N filed cuts is not a real gate. |
+| **File workflow-touching cuts anyway and let feature-bot discover it** | Spends a full generator-critic loop (~20+ min of Claude time on a contended bucket) on work that provably cannot be pushed. Run 37152238559 reached `APPROVED on attempt 1/5` before the push failed; the work was done, reviewed, and discarded. |
+| **Escalate on rate limit** | A quota failure says nothing about the cut or the plan. Escalating would misattribute an infrastructure limit to a content defect — the same error that made #526's skip entry read *"the cut is likely too large"* about a budget bug. |
+| **Heartbeat comment each run** | Violates absence-as-state; turns the planner issue into a log the maintainer must skim for signal. |
+
 ### Q7 — Planner issue: body is current state, comments are the append-only log
 
 Body answers *"where are we?"* in one cheap read (~2K tokens; cut bodies today run 0.9–2.9K against GitHub's 65,536-char limit, so there is ~20× headroom). Comments answer *"how did we get here?"* and are never edited.
@@ -339,6 +382,7 @@ The artifact table row *"Cut sub-issue → one GitHub issue per cut, referenced 
 | 6 | Refine path: consume `needs-refinement` queue → read cut comments for Agent B's note → revise body → swap label back → append decision comment; budgets 2/1 | 2, 3, 4 | api-first | Medium-high |
 | 7 | Re-decompose path: split one cut into smaller cuts, close the original with a pointer, file the first replacement | 6 | api-first | High |
 | 8 | Open-question path: `NEEDS_INPUT`-shaped question on the planner issue + `needs-info`; stop filing for that feature | 3, 4 | unit-first | Low |
+| 8a | Escalation paths (Q6a): planner-issue vs cut-issue targets; pre-flight refusal of `.github/workflows/**` cuts; repeat-escalation detection | 4, 6, 7 | unit-first | Low |
 | 9 | `feature-design-process.md` Phase 4 rewrite + artifact-table row + `dev-glossary.md` entries (`cut-planner`, `planner issue`, `needs-refinement`) | — | (docs) | Low |
 | 10 | First production migration: seed a planner issue for `review-workflow` from its design doc; validate end-to-end against a real cut | 5, 6, 9 | (manual smoke) | Medium |
 | 11 | `bots/README.md`: cut-planner row in the active-bots table; document the label handoff contract | 3 | (docs) | Low |
@@ -353,7 +397,9 @@ State (which cuts shipped) lives in GitHub sub-issue close-state, not in this ta
 - cut-planner files a cut from a seeded planner issue; the body carries at least one transcribed locked decision and names its target files
 - A deliberately under-specified cut gets refined once and then succeeds, with both the refinement and its reasoning visible on the planner issue
 - **Feedback-first holds (Q5a):** with a cut sitting in `needs-refinement`, a cut-planner run refines it and files **no** new cut. With a cut still `ready-for-agent` or awaiting PR review, the run files nothing at all.
-- An infrastructure failure (rate limit) does **not** route to refinement — the cut stays `ready-for-agent`
+- An infrastructure failure (rate limit) does **not** route to refinement — the cut stays `ready-for-agent`, and cut-planner escalates nothing
+- **Escalation targets are distinct (Q6a):** an open design question labels the **planner** issue `needs-info` and halts filing for the feature; an unsalvageable cut labels the **cut** issue `ready-for-human` and leaves the feature able to proceed
+- A cut whose edit surface includes `.github/workflows/**` is refused **before** filing, not after a full loop (#840)
 - A design question absent from the design doc produces a `needs-info` question, not an invented answer
 - Budgets terminate: 2 refinements + 1 re-decomposition → `ready-for-human` + skip entry
 
