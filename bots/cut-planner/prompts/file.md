@@ -21,11 +21,13 @@ Answer with ONE of these, written out in full (cut-spec fields are defined
 in the contract below):
 
 **File the cut** — `state` replaces the planner's `## State` section: what
-has landed, that this cut is now in flight, and what comes next. Set
+has landed, that this cut is now in flight, and what comes next. The cut
+has no number yet: write `#NEW` wherever you mean it, and it is replaced
+with the real issue number once filed. Set
 `deviation` to `null` unless you departed from the suggested plan.
 
 ```
-{"action": "file", "title": "...", "spec": "...", "acceptance": ["..."], "tests": ["..."], "solid": null, "lockIndices": [0], "files": ["path/to/file.ts"], "state": "Landed: ...\nIn flight: this cut\nNext: ...", "deviation": null}
+{"action": "file", "title": "...", "spec": "...", "acceptance": ["..."], "tests": ["..."], "solid": null, "lockIndices": [0], "files": ["path/to/file.ts"], "state": "Landed: ...\nIn flight: #NEW — <title>\nNext: ...", "deviation": null}
 ```
 
 **Ask for a decision** the planner issue does not lock:

@@ -168,7 +168,9 @@ async function fileNext(
       runId: ctx.runId,
     }),
   )
-  const state = p.state ?? deriveState(ctx.planner.state, [`In flight: #${filed.number} — ${p.title}`])
+  const state = p.state
+    ? withCutNumber(p.state, filed.number)
+    : deriveState(ctx.planner.state, [`In flight: #${filed.number} — ${p.title}`])
   await gh.updateBody(ctx.plannerIssueNumber, replaceSection(ctx.plannerBody, 'State', state))
   return { kind: 'acted', summary: `filed #${filed.number}${filed.queued ? '' : ' (not queued: workflow files)'}` }
 }
@@ -259,7 +261,7 @@ async function redecompose(
     }),
   )
   const state =
-    p.state ??
+    (p.state ? withCutNumber(p.state, filed.number) : null) ??
     deriveState(ctx.planner.state, [
       `Re-decomposed #${n}; in flight: #${filed.number} — ${p.first.title}`,
       ...p.remaining.map(r => `Next: ${r}`),
@@ -423,4 +425,15 @@ export async function escalateMalformedPlanner(
 export function deriveState(previous: string, newLines: readonly string[]): string {
   const kept = previous.split('\n').filter(l => !/^\s*(in flight|next|nothing has landed)/i.test(l) && l.trim() !== '')
   return [...kept, ...newLines].join('\n')
+}
+
+/**
+ * Replace the `#NEW` placeholder in Claude's state with the filed number.
+ *
+ * Claude writes `## State` before the cut exists, so it cannot know the
+ * number; the prompts ask for `#NEW` instead. Word-bounded so `#NEWS` or
+ * `#NEWER` in prose are left alone.
+ */
+export function withCutNumber(state: string, cutNumber: number): string {
+  return state.replace(/#NEW\b/g, `#${cutNumber}`)
 }
