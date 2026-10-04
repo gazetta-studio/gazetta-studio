@@ -202,15 +202,23 @@ reads a stale log).
 
 The reviewer-log is operational signal, not the forensic record
 (audit log + transcripts artifact serve that purpose). It persists
-via `actions/cache@v4` between runs:
+via `actions/cache` between runs, using the **restore/save split**
+(not the combined `actions/cache@vN`, which skips its save on a
+cache hit — #581):
 
-  - **Cache key:** `{bot-name}-reviewer-log-v1`. Bump the suffix
-    if the JSONL schema changes incompatibly.
+  - **Cache key:** `{bot-name}-reviewer-log-v1-${{ github.run_id }}`
+    on save — every run writes its own immutable entry. Restore uses
+    `restore-keys: {bot-name}-reviewer-log-v1-` (trailing dash, per
+    #620) to pick up the newest one. Bump the `v1` if the JSONL
+    schema changes incompatibly.
   - **Cache path:** `bots/{bot-name}/reviewer-log.jsonl`.
-  - **Workflows that touch it:** `dead-code-watcher.yml`,
-    `fix-bot.yml` (both write), and the corresponding jobs in
-    `bots-compact.yml` (both write — they prune after producing
-    the lessons rewrite).
+  - **Workflows that touch it:** each bot's daily workflow (appends)
+    and its job in `bots-compact.yml` (prunes after producing the
+    lessons rewrite). **Both must use the same split and key family.**
+    Until #854 the compactor jobs used a static exact key the daily
+    runs never write, so they read a stale log; a test in
+    `bots/_lib/tests/compact-cache-wiring.test.ts` now pins every
+    pair.
   - **Eviction:** GH Actions caches evict after 7 days from last
     access. Every daily cron touches the cache → effectively
     permanent under daily-bot cadence. A 7+ day bot outage = log
