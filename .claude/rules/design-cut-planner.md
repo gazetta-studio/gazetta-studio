@@ -38,6 +38,8 @@ cut-planner therefore **refines before it re-decomposes**, and is explicitly for
 **In v1:**
 - One long-lived **planner issue** per feature, replacing today's tracking issue
 - cut-planner files **one** cut sub-issue at a time (`enhancement` + `ready-for-agent` + `area: X`)
+- **Input contract: the planner issue, and nothing else.** cut-planner never reads a design doc or an impl doc; seeding is maintainer work (open-Q 4)
+- **Cron at 03:00 UTC** — before feature-bot's 04:17, off-peak so it does not contend with interactive sessions for the shared token bucket (open-Q 1)
 - Cut bodies carry functional requirements **and** technical suggestions — locked decisions transcribed from the design doc, named target files, the test files to add
 - feature-bot gains a non-terminal **`needs-refinement`** outcome: comment + label swap, no skip-list entry
 - cut-planner consumes the `needs-refinement` queue, revises the spec, swaps the label back
@@ -52,7 +54,9 @@ cut-planner therefore **refines before it re-decomposes**, and is explicitly for
 - Cross-feature planning (one planner issue per feature; no global queue)
 - Re-ordering the suggested plan's dependency graph wholesale
 - Writing or editing the design doc's `## Cut sequence` table (that stays maintainer-owned)
-- Any cost/quota awareness (see "Open questions")
+- Any cost/quota awareness — handled by off-peak scheduling instead (open-Q 1)
+- A pre-flight cut-size gate — dropped; re-decomposition is reactive only (open-Q 6)
+- Reading design docs or impl docs (open-Q 4)
 
 **Non-goals:**
 - Replacing the design pass. Decomposition is grilled by a human per [`design-feature-bot.md`](design-feature-bot.md) Q9; cut-planner starts from that output.
@@ -449,7 +453,7 @@ The artifact table row *"Cut sub-issue → one GitHub issue per cut, referenced 
 |---|---|---|---|---|
 | 1 | `needs-refinement` routing: new `RouteDecision` variant + `escalate-needs-refinement` branch in `route-attempt.ts`; parameterize `escalateToHuman` to skip the skip-entry when refining | — | unit-first | Low |
 | 2 | feature-bot emits the handoff: tagged comment + label swap (`ready-for-agent` → `needs-refinement`); refinement-attempt counting from outcome tags | 1 | api-first | Low |
-| 3 | `bots/cut-planner/` skeleton + workflow (cron, concurrency group, transcripts artifact); planner-issue parser (`**Feature**`, `## Suggested plan`, `## State`, `## Locked decisions`) | — | unit-first | Medium |
+| 3 | `bots/cut-planner/` skeleton + workflow (**cron 03:00 UTC** per open-Q 1, concurrency group, transcripts artifact); planner-issue parser (`**Feature**`, `## Suggested plan`, `## State`, `## Locked decisions`) — parses the planner issue ONLY, never a design doc | — | unit-first | Medium |
 | 4 | **Run dispatcher (Q5a)**: feedback-first precedence — drain `needs-refinement`, else stop if a cut is in flight, else file. One action per run. Pure decision function (peer to `route-attempt.ts`), tested without I/O | 3 | unit-first | Low |
 | 5 | File-next-cut path: read planner issue → render cut body (functional reqs + transcribed locks + target files + test files) → `gh issue create` → update `## State` → append decision comment | 3, 4 | api-first | Medium-high |
 | 6 | Refine path: consume `needs-refinement` queue → read cut comments for Agent B's note → revise body → swap label back → append decision comment; budgets 2/1 | 2, 3, 4 | api-first | Medium-high |
@@ -470,6 +474,7 @@ State (which cuts shipped) lives in GitHub sub-issue close-state, not in this ta
 
 - Cuts 1–2 shipped; a reject-exhausted cut lands in `needs-refinement` with Agent B's note quoted, and **no** skip-list entry is created
 - cut-planner files a cut from a seeded planner issue; the body carries at least one transcribed locked decision and names its target files
+- **Input contract holds (open-Q 4):** cut-planner completes a full run with no design doc present on disk — proving it reads only the planner issue
 - A deliberately under-specified cut gets refined once and then succeeds, with both the refinement and its reasoning visible on the planner issue
 - **Feedback-first holds (Q5a):** with a cut sitting in `needs-refinement`, a cut-planner run refines it and files **no** new cut. With a cut still `ready-for-agent` or awaiting PR review, the run files nothing at all.
 - An infrastructure failure (rate limit) does **not** route to refinement — the cut stays `ready-for-agent`, and cut-planner escalates nothing
@@ -506,28 +511,34 @@ Existing features have a tracking issue plus **all** their cut sub-issues alread
 
 ## Open questions
 
-1. **Quota.** cut-planner is a 7th consumer of the 5-hour rolling token bucket that is shared with interactive sessions and was the binding constraint on both 2026-10-03/04 runs. No cost model exists. The cheapest mitigation is scheduling it off-peak; a pre-call budget check in code (not in the prompt) is the research-endorsed form. Unresolved.
+1. ~~**Quota.**~~ **Resolved 2026-10-04: off-peak cron, no code.** cut-planner runs at **03:00 UTC** — before feature-bot's 04:17, and at an hour the maintainer is not consuming the shared 5-hour bucket. No pre-call budget check, no quota awareness in v1.
+
+   Rationale: the contention is *temporal*, not architectural. Both 2026-10-03/04 runs were starved because an interactive session was burning the same bucket; a cron that runs while nobody is working has no one to contend with. A pre-call budget check was considered and rejected for v1 — it converts a mid-flight cutoff into a clean skip but *creates no capacity*, and it needs a remaining-quota signal the CLI does not currently expose.
+
+   **Dependency:** this only works if cron actually fires. The 04:17 feature-bot cron silently did not fire on 2026-10-03 (verified — no `schedule` event in the run list, only `workflow_dispatch` and `push`). Diagnosing that is a prerequisite, not a nice-to-have, and is tracked separately from this design.
+
+
 2. **Single point of failure.** Under this design the queue stalls if cut-planner stalls, whereas today feature-bot can run for weeks with no upstream. Acceptable? Or should the maintainer retain a manual "file the next cut" path?
 3. ~~**Workflow-touching cuts (#840).**~~ **Resolved 2026-10-04:** cut-planner assigns them to a human immediately. It does not file the cut for feature-bot at all — it opens the cut issue with `ready-for-human` and a comment explaining that `GITHUB_TOKEN` cannot push `.github/workflows/**` (no permission grants it) and that the work needs a manual PR until #336 lands. Rationale in Q6a: run 37152238559 reached `APPROVED on attempt 1/5` before the push failed, so a full generator-critic loop was spent on work that provably could not be delivered. The cut is still *recorded* (so the feature's plan stays complete and the maintainer sees what is outstanding) — it is just never queued for the bot. Detection depends on the cut's declared edit surface; see "Future directions" on the `## Files` section.
 
 
-4. **Most design docs have no `## Cut sequence` to seed from — measured 2026-10-04.** Of 32 design docs (excluding `-implementation` and `-reference` companions): **4** have a `## Cut sequence` section, **20** still keep their cuts in a separate `design-{feature}-implementation.md` (the artifact [ADR-0015](../../docs/adr/0015-impl-doc-artifact-retires.md) retired but which was never migrated wholesale), and **8** have neither. `design-scheduling.md` is a concrete example of the 20: 12 cuts, all in its impl doc.
+4. ~~**Most design docs have no `## Cut sequence` to seed from.**~~ **Resolved 2026-10-04: the maintainer seeds; the bot never parses design docs.**
 
-   Consequence for this design: cut-planner's seeding step cannot assume the section exists. Three options, undecided —
-   (a) seeding is maintainer work regardless (Claude Code reads the impl doc and writes the planner issue by hand), which keeps cut-planner's input contract to exactly one shape;
-   (b) cut-planner accepts either shape, which means a second parser for a deprecated artifact;
-   (c) migrating a feature to cut-planner *requires* first adding a `## Cut sequence` to its design doc, making the ADR-0015 migration a prerequisite rather than a parallel track.
+   Measured first (2026-10-04): of 32 design docs excluding `-implementation`/`-reference` companions, **4** have a `## Cut sequence` section, **20** still keep their cuts in a `design-{feature}-implementation.md` (the artifact [ADR-0015](../../docs/adr/0015-impl-doc-artifact-retires.md) retired but never migrated wholesale), and **8** have neither. `design-scheduling.md` is a concrete case: 12 cuts, all in its impl doc.
 
-   (a) is the cheapest and keeps the deprecated shape out of bot code; (c) is the most honest about the real dependency. Either way, the four docs that already have the section are the only candidates for a first migration — which narrows the "migrate a low-activity feature first" advice in "Migration" considerably.
+   Lock: **cut-planner's only input is the planner issue.** It never reads a design doc or an impl doc. Seeding is maintainer work via Claude Code, which reads whichever artifact exists and writes the planner issue by hand.
+
+   Why: cut-planner's input contract stays exactly one shape, so no parser for a retired artifact enters bot code, and all 32 features are migratable today rather than being gated behind 20 doc migrations. It also means the `## Suggested plan` in a planner issue is *already* normalized by the time the bot sees it — the variability lives in a human-assisted step, where it belongs (producer/consumer rule).
+
+   Consequence: the `## Locked decisions` section is likewise maintainer-seeded. cut-planner may transcribe from it (Q2) but cannot discover new locks on its own — if the design doc gains a lock mid-feature, the maintainer adds it to the planner issue.
 
 
 5. **Does refinement actually rescue cuts?** CORAL argues the ordering conceptually and gives no success-rate numbers. n=1 locally (#519, hand-fixed). Cut 5's acceptance is the first real measurement.
-6. **Interaction with the pre-flight size gate.** A separate thread proposed gating cuts on declared edit surface (≤2 files / <50 lines, from [SWE-Bench Mobile](https://arxiv.org/html/2602.09540v1): 18% success at 1–2 files vs 2% at 7+; 20% under 50 lines vs 3% over 200). That gate and cut-planner's re-decomposition path address the same thing from different ends; they should be designed together or one dropped.
+6. ~~**Interaction with the pre-flight size gate.**~~ **Resolved 2026-10-04: no size gate. Re-decomposition only.**
 
-## Future directions
+   The proposal was to refuse cuts above a declared edit-surface threshold (≤2 files / <50 lines, from [SWE-Bench Mobile](https://arxiv.org/html/2602.09540v1): 18% success at 1–2 files vs 2% at 7+; 20% under 50 lines vs 3% over 200). Dropped.
 
-- **Pre-flight size gate** — require cut bodies to declare their edit surface in a `## Files` section, making the size check a 3-line count instead of intent inference. Naive regex over mentioned paths does **not** work: #519's body names 7 files but edits 2 (the others are read-only context, and `pages.ts`/`fragments.ts` are explicitly called out as *not* the place to change).
-- **Cross-feature scheduling** — one planner per feature today; a global view could prioritize across features.
-- **Transcript-driven refinement** — read Agent A's transcript to see *where* it went wrong, not just Agent B's verdict.
-- **Cost model + budget guard** — enforced in code per the research, once consumption is measured.
-- **Retiring `## Suggested plan`** — if deviation becomes the norm rather than the exception, the seed is not earning its keep.
+   Why: the thresholds come from 50 tasks on a production **iOS** codebase across four other agents — not from this repo, this bot, or these cuts. Calibrating a hard gate on borrowed numbers would block cuts that would have landed (#519 names 7 files in its body but edits **2**, so even measuring the input is unreliable without a `## Files` section), and it would spend design effort on the dimension that has been the attractive wrong answer four times this session. cut-planner already shrinks cuts *reactively* when the loop actually fails (Q6), which acts on evidence from this codebase instead of a benchmark.
+
+   Retained from the proposal: the `## Files` section stays in "Future directions" because the #840 workflow check needs a reliable edit surface regardless. If it ships, the success-rate data becomes something to calibrate against — at which point an **advisory** warning (not a gate) is the cheap next step.
+
