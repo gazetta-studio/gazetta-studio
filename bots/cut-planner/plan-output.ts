@@ -26,9 +26,15 @@ export interface CutSpec {
 }
 
 export type PlanOutput =
-  | ({ action: 'file'; state: string; deviation: string | null } & CutSpec)
+  /**
+   * `state` is OPTIONAL: `## State` is derived data (Q7), so when the answer
+   * omits it the executor derives a correct minimal one. Omitting a cosmetic
+   * field must not cost the whole cut an escalation — the first live run did
+   * exactly that (#857).
+   */
+  | ({ action: 'file'; state: string | null; deviation: string | null } & CutSpec)
   | ({ action: 'refine'; summary: string } & CutSpec)
-  | { action: 'redecompose'; first: CutSpec; remaining: string[]; summary: string; state: string }
+  | { action: 'redecompose'; first: CutSpec; remaining: string[]; summary: string; state: string | null }
   | { action: 'needs-input'; question: string; options: string[]; recommendation: string }
   | { action: 'plan-complete'; reason: string }
   | { action: 'design-objection'; reason: string }
@@ -105,12 +111,14 @@ export function parsePlanOutput(texts: readonly string[], mode: Mode, lockCount:
     case 'file': {
       const c = cutSpec(rec, lockCount)
       if (typeof c === 'string') return { ok: false, reason: c }
-      if (!str(rec.state)) return { ok: false, reason: 'state missing' }
+      if (rec.state !== null && rec.state !== undefined && typeof rec.state !== 'string') {
+        return { ok: false, reason: 'state must be a string or null' }
+      }
       if (rec.deviation !== null && rec.deviation !== undefined && typeof rec.deviation !== 'string') {
         return { ok: false, reason: 'deviation must be a string or null' }
       }
       const deviation = str(rec.deviation) ? rec.deviation : null
-      return { ok: true, value: { action, ...c, state: rec.state, deviation } }
+      return { ok: true, value: { action, ...c, state: str(rec.state) ? rec.state : null, deviation } }
     }
     case 'refine': {
       const c = cutSpec(rec, lockCount)
@@ -128,10 +136,18 @@ export function parsePlanOutput(texts: readonly string[], mode: Mode, lockCount:
         return { ok: false, reason: 'remaining must list at least one further cut' }
       }
       if (!str(rec.summary)) return { ok: false, reason: 'summary missing' }
-      if (!str(rec.state)) return { ok: false, reason: 'state missing' }
+      if (rec.state !== null && rec.state !== undefined && typeof rec.state !== 'string') {
+        return { ok: false, reason: 'state must be a string or null' }
+      }
       return {
         ok: true,
-        value: { action, first: c, remaining: rec.remaining.filter(str), summary: rec.summary, state: rec.state },
+        value: {
+          action,
+          first: c,
+          remaining: rec.remaining.filter(str),
+          summary: rec.summary,
+          state: str(rec.state) ? rec.state : null,
+        },
       }
     }
     case 'needs-input': {

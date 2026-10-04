@@ -73,7 +73,7 @@ describe('parsePlanOutput — rejections', () => {
       'file',
     ],
     ['a non-integer lock index', fence({ action: 'file', ...cut, lockIndices: [0.5], state: 's' }), 'file'],
-    ['a file action with no state', fence({ action: 'file', ...cut }), 'file'],
+    ['a non-string state', fence({ action: 'file', ...cut, state: 42 }), 'file'],
     [
       'a one-piece "split" (a refinement in disguise)',
       fence({ action: 'redecompose', first: cut, remaining: [], summary: 's', state: 's' }),
@@ -100,5 +100,36 @@ describe('touchesWorkflows (#840)', () => {
     [[], false],
   ])('%j → %s', (files, want) => {
     expect(touchesWorkflows(files)).toBe(want)
+  })
+})
+
+describe('parsePlanOutput — the first live answer (#857, run 37223010207)', () => {
+  it('accepts a file answer with no state and no deviation — both are optional', () => {
+    // The real answer was well-formed except that it omitted `state` (the
+    // prompt only showed it in shorthand). Rejecting it escalated a good cut
+    // to a human; `## State` is derived data, so the executor fills it in.
+    const real = {
+      action: 'file',
+      title: "Point README's cut-planner section at the design doc's Implementation notes",
+      spec: 'In `bots/README.md`, add exactly one sentence…',
+      acceptance: ['`bots/README.md` has exactly one new sentence…'],
+      tests: ['manual verification — open `bots/README.md` on the PR branch…'],
+      solid: null,
+      lockIndices: [0, 1],
+      files: ['bots/README.md'],
+    }
+    expect(parsePlanOutput(fence(real), 'file', 2)).toMatchObject({
+      ok: true,
+      value: { state: null, deviation: null, lockIndices: [0, 1] },
+    })
+  })
+
+  it('accepts a redecompose answer with no state', () => {
+    const r = parsePlanOutput(
+      fence({ action: 'redecompose', first: cut, remaining: ['b'], summary: 's' }),
+      'redecompose',
+      1,
+    )
+    expect(r).toMatchObject({ ok: true, value: { state: null } })
   })
 })

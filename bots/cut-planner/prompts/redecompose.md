@@ -22,13 +22,27 @@ $REVIEWER_NOTE
 
 ## What to do
 
-Answer with ONE of:
+Answer with ONE of these, written out in full (cut-spec fields are defined
+in the contract below):
 
-- `{"action": "redecompose", "first": <cut spec>, "remaining": ["one-line description of each further cut", "..."], "summary": "why it splits this way", "state": "<new State section>"}`
-  — `first` is filed now; `remaining` is recorded and filed one at a time
-  later, so `remaining` must name at least one more cut. `state` replaces the
-  planner's `## State` and must list the remaining pieces as next.
-- `{"action": "design-objection", "reason": "..."}`
-- `{"action": "needs-input", "question": "...", "options": ["...", "..."], "recommendation": "..."}`
+**Split it** — `first` is filed now; `remaining` is recorded and filed one
+at a time later, so it must name at least one more cut. `state` replaces
+the planner's `## State` and must list the remaining pieces as next:
+
+```
+{"action": "redecompose", "first": {"title": "...", "spec": "...", "acceptance": ["..."], "tests": ["..."], "solid": null, "lockIndices": [0], "files": ["path/to/file.ts"]}, "remaining": ["one-line description of each further cut"], "summary": "why it splits this way", "state": "In flight: the first piece\nNext: ..."}
+```
+
+**The objections are about the approach, not the size:**
+
+```
+{"action": "design-objection", "reason": "..."}
+```
+
+**Ask for a decision** the planner issue does not lock:
+
+```
+{"action": "needs-input", "question": "...", "options": ["...", "..."], "recommendation": "..."}
+```
 
 $CONTRACT

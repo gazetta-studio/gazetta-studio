@@ -72,3 +72,44 @@ describe('composePrompt — lessons (Q7a)', () => {
     }
   })
 })
+
+describe('prompt ↔ parser field parity', () => {
+  // The first live run failed because the prompt described the file answer
+  // in shorthand and the model omitted a field. Every field the parser reads
+  // for a mode's primary action must appear, literally, in that mode's prompt.
+  it.each<[Mode, string[]]>([
+    [
+      'file',
+      [
+        '"action": "file"',
+        '"title"',
+        '"spec"',
+        '"acceptance"',
+        '"tests"',
+        '"solid"',
+        '"lockIndices"',
+        '"files"',
+        '"state"',
+        '"deviation"',
+        '"needs-input"',
+        '"plan-complete"',
+      ],
+    ],
+    ['refine', ['"action": "refine"', '"lockIndices"', '"files"', '"summary"', '"design-objection"', '"needs-input"']],
+    [
+      'redecompose',
+      [
+        '"action": "redecompose"',
+        '"first"',
+        '"remaining"',
+        '"summary"',
+        '"state"',
+        '"lockIndices"',
+        '"design-objection"',
+      ],
+    ],
+  ])('%s prompt shows every field', (mode, fields) => {
+    const p = composePrompt(templates, mode, ctx)
+    for (const f of fields) expect(p, f).toContain(f)
+  })
+})
