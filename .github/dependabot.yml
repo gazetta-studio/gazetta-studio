@@ -10,7 +10,16 @@ updates:
       # bundling 5+ major bumps (#118) produced an unmergeable mess.
       production:
         patterns: ["*"]
-        exclude-patterns: ["@types/*"]
+        # 0.x packages are excluded so each gets its own PR. Dependabot treats
+        # every version as major.minor.patch, so 0.34 -> 0.35 counts as a
+        # "minor" bump and would land in this group — but under semver a 0.x
+        # minor is breaking. #866 bundled all three below with 43 safe updates.
+        # Add any new 0.x dependency here.
+        exclude-patterns:
+          - "@types/*"
+          - "@anthropic-ai/sdk"
+          - "@formkit/drag-and-drop" # pinned exactly; bump only after reading the changelog (design-component-ordering.md)
+          - "sharp"
         update-types: ["patch", "minor"]
       types:
         patterns: ["@types/*"]
