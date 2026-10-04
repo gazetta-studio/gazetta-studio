@@ -16,6 +16,7 @@ import {
   type GitHubPort,
   type PlannerPort,
   type PlannerResult,
+  withCutNumber,
 } from '../execute.js'
 import { featureBotHandoffMarker, redecomposedMarker, refinedMarker } from '../markers.js'
 import type { Mode } from '../plan-output.js'
@@ -362,5 +363,52 @@ describe('## State when the answer omits it (Q7: state is derived)', () => {
     ['works from an empty state', '', ['In flight: #10 — new', 'Next: b'], 'In flight: #10 — new\nNext: b'],
   ])('deriveState %s', (_l, prev, lines, want) => {
     expect(deriveState(prev, lines)).toBe(want)
+  })
+})
+
+describe('#NEW placeholder — Claude writes State before the cut has a number', () => {
+  it.each([
+    ['substitutes the placeholder', 'In flight: #NEW — gate saves', 'In flight: #100 — gate saves'],
+    [
+      'substitutes every occurrence',
+      'In flight: #NEW\nAfter #NEW lands: cut 6',
+      'In flight: #100\nAfter #100 lands: cut 6',
+    ],
+    ['leaves #NEWS and #NEWER alone', 'see #NEWS and #NEWER', 'see #NEWS and #NEWER'],
+    ['leaves state without a placeholder untouched', 'Landed: cut 1', 'Landed: cut 1'],
+  ])('withCutNumber %s', (_l, state, want) => {
+    expect(withCutNumber(state, 100)).toBe(want)
+  })
+
+  it('file-next writes the real number into ## State', async () => {
+    const gh = setup()
+    await executeDecision(
+      { kind: 'file-next' },
+      ctx(),
+      gh,
+      plannerReturning(answer({ action: 'file', ...spec, state: 'In flight: #NEW — gate saves', deviation: null })),
+    )
+    expect(gh.issues.get(1)!.body).toContain('In flight: #100 — gate saves')
+    expect(gh.issues.get(1)!.body).not.toContain('#NEW')
+  })
+
+  it('redecompose writes the first piece’s real number into ## State', async () => {
+    const gh = setup()
+    gh.issues.set(7, { title: 'rw: big', body: 'b', labels: ['enhancement', 'needs-refinement'] })
+    await executeDecision(
+      { kind: 'redecompose', issueNumber: 7 },
+      ctx(),
+      gh,
+      plannerReturning(
+        answer({
+          action: 'redecompose',
+          first: spec,
+          remaining: ['part b'],
+          summary: 's',
+          state: 'In flight: #NEW\nNext: part b',
+        }),
+      ),
+    )
+    expect(gh.issues.get(1)!.body).toContain('In flight: #100\nNext: part b')
   })
 })

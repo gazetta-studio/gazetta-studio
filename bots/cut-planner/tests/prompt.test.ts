@@ -113,3 +113,12 @@ describe('prompt ↔ parser field parity', () => {
     for (const f of fields) expect(p, f).toContain(f)
   })
 })
+
+describe('prompts teach the #NEW placeholder', () => {
+  it.each<Mode>(['file', 'redecompose'])('%s prompt uses #NEW, never a vague "this cut"', mode => {
+    const p = composePrompt(templates, mode, ctx)
+    expect(p).toContain('#NEW')
+    // The first live run copied the example's "In flight: this cut" verbatim.
+    expect(p).not.toContain('In flight: this cut')
+  })
+})

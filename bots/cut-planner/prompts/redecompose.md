@@ -27,10 +27,11 @@ in the contract below):
 
 **Split it** — `first` is filed now; `remaining` is recorded and filed one
 at a time later, so it must name at least one more cut. `state` replaces
-the planner's `## State` and must list the remaining pieces as next:
+the planner's `## State` and must list the remaining pieces as next. Write
+`#NEW` for the first piece; it has no number until it is filed:
 
 ```
-{"action": "redecompose", "first": {"title": "...", "spec": "...", "acceptance": ["..."], "tests": ["..."], "solid": null, "lockIndices": [0], "files": ["path/to/file.ts"]}, "remaining": ["one-line description of each further cut"], "summary": "why it splits this way", "state": "In flight: the first piece\nNext: ..."}
+{"action": "redecompose", "first": {"title": "...", "spec": "...", "acceptance": ["..."], "tests": ["..."], "solid": null, "lockIndices": [0], "files": ["path/to/file.ts"]}, "remaining": ["one-line description of each further cut"], "summary": "why it splits this way", "state": "In flight: #NEW — <first piece title>\nNext: ..."}
 ```
 
 **The objections are about the approach, not the size:**
