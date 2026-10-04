@@ -44,6 +44,7 @@ cut-planner therefore **refines before it re-decomposes**, and is explicitly for
 - Bounded budgets: 2 refinements, then 1 re-decomposition, then terminal
 - Planner issue carries current state (body) + append-only history (comments)
 - Deviations from the suggested plan are recorded as `> Decision:` comments
+- **No memory files** — the planner issue is the memory (Q7a); no own `skip-list.json`, no `lessons-learned.md`, no `reviewer-log.jsonl`
 
 **Out of v1:**
 - Autonomous *design* decisions — cut-planner transcribes locks, never invents them (see Q2)
@@ -51,6 +52,7 @@ cut-planner therefore **refines before it re-decomposes**, and is explicitly for
 - Re-ordering the suggested plan's dependency graph wholesale
 - Writing or editing the design doc's `## Cut sequence` table (that stays maintainer-owned)
 - Any cost/quota awareness (see "Open questions")
+- A compactor / cross-feature `lessons-learned.md` (Q7a — deferred on volume grounds, with explicit revisit triggers)
 
 **Non-goals:**
 - Replacing the design pass. Decomposition is grilled by a human per [`design-feature-bot.md`](design-feature-bot.md) Q9; cut-planner starts from that output.
@@ -305,6 +307,46 @@ Body edits are safe **because** the comment log is immutable: a bad run can garb
 
 This also matches the house convention: bots post append-only comments with outcome tags, and `bots/README.md` requires it for forensic queries. Body-as-state is the only new part.
 
+### Q7a — Memory: the planner issue IS the memory; no `skip-list.json`, no compactor in v1
+
+The durable-memory pattern ([`bots/README.md`](../../bots/README.md)) gives three bots three surfaces: a committed `skip-list.json`, a committed `lessons-learned.md`, and an uncommitted `reviewer-log.jsonl` persisted via `actions/cache`. cut-planner takes **none of them** in v1. Its memory is the planner issue.
+
+| Memory need | Where it lives | Why not a file |
+|---|---|---|
+| What's landed / in flight / next | planner issue `## State` (body) | Per-feature, and the maintainer reads it. A repo file would need a PR per update (async) while labels are sync — the race Q1 already rejected. |
+| Why the plan was deviated from | planner issue comments (`> Decision:`) | Append-only, immutable, co-located with the work. |
+| Which decisions may be transcribed | planner issue `## Locked decisions` | Derived from the design doc; the issue is the working copy. |
+| "Don't re-file this cut" | the cut issue's own close-state + feature-bot's existing `skip-list.json` | A cut-planner skip-list would **duplicate** feature-bot's. Terminal escalation already writes an entry there (Q6a); cut-planner reads it rather than keeping a second one. |
+| Cross-feature patterns | **nothing in v1** | See below. |
+
+**Why no `skip-list.json` of its own:** feature-bot's skip-list is already keyed by issue number and already records terminal escalations. cut-planner's "don't re-file" question is answered by the same data. A second file keyed the same way means two bots writing entries about the same cut, via two async PRs — exactly the contention that made the Q4 cross-post rejected. Rule 37 applies: one mechanism per failure mode.
+
+**Why no compactor / `lessons-learned.md` in v1 — following the `mutation-area-picker` precedent.** Per [`design-mutation-area-picker.md`](design-mutation-area-picker.md), that bot deliberately declined a compactor because *"compactor value depends on signal volume; at this cadence, the volume isn't there."* cut-planner's volume is comparable: Q5a caps it at **one action per run**, so a daily cron yields ~1 decision/day against dead-code-watcher's and fix-bot's 100+ per cron. At that rate:
+
+- A `lessons-learned.md` loaded into every run's prompt would be near-empty for months while costing prompt tokens on a contended bucket.
+- The planner issue's comment log already preserves per-feature reasoning in readable form — which is most of what a compactor would distill, and it's co-located with the work rather than in a separate file.
+
+**What a compactor WOULD eventually add:** cross-*feature* patterns — "specs that defer a decision fail; specs that state it land" is exactly the kind of lesson that only emerges across several features and that no single planner issue can hold. That is real value, just not at n=1.
+
+**Triggers to revisit** (any one):
+- 3+ features have completed, so cross-feature patterns have a sample to be drawn from
+- The same refinement reasoning is written on 3+ unrelated planner issues
+- A planner issue's comment log grows past ~50 entries, making per-run reading expensive
+
+**Why no `reviewer-log.jsonl`:** cut-planner has no Agent B. It is a single-agent producer; there are no verdicts to log. Its decisions are already recorded as outcome-tagged comments, which are queryable via `gh issue list --search` — the same forensic surface the other bots' logs provide, without the `actions/cache` fragility.
+
+**Consequence for Q7:** the body/comments split is not merely a storage choice, it *is* cut-planner's memory architecture. That raises the stakes on the Q7 lock — a run that garbles `## State` corrupts the bot's only persistent memory. Mitigations: the comment log is immutable (state is always reconstructible by replaying it), and Q5a's one-action-per-run bounds how much a bad run can damage.
+
+**Rejected alternatives:**
+
+| | Why rejected |
+|---|---|
+| **Full three-surface pattern (skip-list + lessons + reviewer-log)** | Cargo-culting the pattern without the volume that justifies it. The skip-list duplicates feature-bot's; lessons-learned would sit empty for months; reviewer-log has no verdicts to hold. |
+| **Own `skip-list.json`, no lessons/log** | Still duplicates feature-bot's file and introduces two-writer contention over entries about the same cut. |
+| **A committed `cut-planner-state.json` per feature instead of the issue body** | PR-per-update is async while label swaps are sync; the maintainer loses the single-`gh issue view` status surface that motivates Q1. |
+| **In-memory only, recompute from GitHub each run** | Loses deviation history (Q3's audit requirement) and re-derives the plan every run on a contended bucket. |
+| **Compactor from day one** | No signal to compact. `feature-bot`'s own `lessons-learned.md` has been an empty placeholder since it shipped — concrete local evidence that a compactor without volume produces nothing. |
+
 ### Q8 — Naming
 
 **`cut-planner`.** "Cut" is established project vocabulary ([`dev-glossary.md`](dev-glossary.md)); "planner" names the producer role without implying hierarchy over feature-bot.
@@ -402,6 +444,7 @@ State (which cuts shipped) lives in GitHub sub-issue close-state, not in this ta
 - A cut whose edit surface includes `.github/workflows/**` is refused **before** filing, not after a full loop (#840)
 - A design question absent from the design doc produces a `needs-info` question, not an invented answer
 - Budgets terminate: 2 refinements + 1 re-decomposition → `ready-for-human` + skip entry
+- **Memory is reconstructible (Q7a):** deleting the planner issue's `## State` section and replaying its comment log yields the same state — proving the comments, not the body, are the durable record
 
 ## Open questions
 
