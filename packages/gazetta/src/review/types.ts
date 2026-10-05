@@ -74,6 +74,38 @@ export type ReviewTransitionResult =
   | { ok: false; error: ReviewTransitionError }
 
 /**
+ * On-disk state file shape — the JSON stored at
+ * `.gazetta/review/{kind}/{name}/state.json`. Approvers are tracked
+ * separately as zero-byte files under `approvers/`; see
+ * `./sidecars.ts` for the storage layout.
+ *
+ * `requiredApprovers` is snapshotted at submit time per the locked
+ * invariant in `design-review-workflow.md`. Reject / approve
+ * comments are NOT stored here — the audit log is the forensic
+ * record of why an actor voted the way they did (locked invariant
+ * line 34).
+ */
+export interface ReviewSidecar {
+  /** FSM state at write time. */
+  state: ReviewState
+  /** Upstream subject identifier (`Principal.id`) of the actor who
+   *  submitted. Present when `state !== 'draft'`. */
+  submitter?: string
+  /** `requiredApprovers` snapshot captured at submit time. Present
+   *  when `state !== 'draft'`. */
+  requiredApprovers?: number
+  /** ISO 8601 UTC timestamp of the submit transition. Present when
+   *  `state !== 'draft'`. */
+  submittedAt?: string
+  /** ISO 8601 UTC timestamp of the approve threshold-crossing.
+   *  Present when `state === 'approved'`. */
+  approvedAt?: string
+  /** ISO 8601 UTC timestamp of the most recent write. Always
+   *  present — refreshed on every write regardless of transition. */
+  updatedAt: string
+}
+
+/**
  * Re-export the types the transition function consumes so callers
  * can import everything from `gazetta/review` without reaching into
  * auth/types or the top-level types module.

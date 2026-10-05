@@ -82,7 +82,7 @@ Failure outcomes (`forbidden`, `validation-failed`, `unauthenticated`) follow th
 - Strict `'always'` — every save invalidates (compliance-friendly)
 
 ### Storage shape (per-edge sidecars)
-- `.gazetta/review/{kind}/{name}/state.json` — current review state + timestamps + comments
+- `.gazetta/review/{kind}/{name}/state.json` — current review state + timestamps (comments live in the audit log — see "Audit event shape")
 - `.gazetta/review/{kind}/{name}/approvers/{actor}` — zero-byte per-approver sidecar
 - `{target-root}/.gazetta/publish-requests/{kind}/{name}/{request-id}.json` — publish request state
 - `{target-root}/.gazetta/publish-requests/{kind}/{name}/{request-id}/approvers/{actor}` — zero-byte per-approver sidecar
@@ -209,7 +209,7 @@ Each archetype gets a copy-paste-ready `site.config.ts` snippet + role mapping +
 - v2 / Tier 3; not in v1
 
 ### Right-to-be-forgotten
-- `gazetta audit scrub --actor=alice@example.com` extends to scrub review sidecars (per-approver, comments)
+- Review comments live in the audit log (locked invariant line 34), so `gazetta audit scrub --actor=alice@example.com` already covers them — it rewrites `actor.id` and `metadata.comment` on every `review-*` event the actor authored. Review sidecars carry only approver IDs; the scrub command also walks `.gazetta/review/{kind}/{name}/approvers/` and removes each `approvers/{alice}` zero-byte file so the actor's prior votes don't surface.
 - Free-text comments mentioning OTHER actors are NOT auto-scrubbed (documented limitation)
 
 ## Foundational checks
