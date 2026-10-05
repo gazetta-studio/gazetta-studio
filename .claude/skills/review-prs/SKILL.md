@@ -287,6 +287,8 @@ Pick labels by **task shape**, not by the source bot's domain:
 - **One-shot** (refactor, hygiene, SOLID/DRY fix, missing-test backfill, small enhancement without a design doc) → `bug + ready-for-agent` → fix-bot picks it up
 - **Cut of designed feature** (references a `design-{feature}.md`, depends on other cuts, under a tracking issue) → `enhancement + ready-for-agent` → feature-bot picks it up. **Exception:** if the feature has a cut-planner **planner issue**, don't file a cut — add the work to that planner issue's `## Suggested plan` instead. A directly filed cut gets no spec refinement on failure, and cut-planner treats it as in flight, so the feature's queue stalls until it closes. See `feature-design-process.md` Phase 4 "One cut filed directly".
 
+**Bots cannot deliver changes to `.github/workflows/**`.** Their `GITHUB_TOKEN` can't push workflow files under any permission (#840); an approved fix that needs one fails at delivery. If the fix needs CI wiring, route it through a package script the workflow already calls (e.g. chain a check into the package's `test` script), or keep the workflow edit for a maintainer PR. Say so in the issue. (#872 was first filed asking fix-bot to edit `ci.yml` — corrected before it ran.)
+
 Don't default to `flake` — that label is for tests intermittently failing, not for every test-adjacent issue. Apply `flake` only when the discovered behavior actually IS a CI flake.
 
 ### Issue body template
