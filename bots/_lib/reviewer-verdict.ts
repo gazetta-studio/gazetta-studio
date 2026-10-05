@@ -45,11 +45,13 @@ const VERDICT_LINE = /^\s*VERDICT:\s*(APPROVE|REJECT|NEEDS_HUMAN)\s*$/m
  */
 const SOFT_DECISION_LINE = /^[>*\s]*(?:Decision|Recommendation|Verdict)\s*:?\s+(approve|reject|needs[_-]?human)\b/im
 
-/** Pull the body following an optional `Note:` / `Reasoning:` keyword. */
-function extractNote(text: string, after: number): string {
-  // Take everything after the VERDICT line, strip leading "Note: " or
-  // "Reasoning: " if present, trim, truncate.
-  const tail = text.slice(after).trimStart()
+/**
+ * Pull the body following an optional `Note:` / `Reasoning:` keyword: the
+ * text from `after` up to `until` (the next VERDICT line, when there is one).
+ */
+function extractNote(text: string, after: number, until = text.length): string {
+  // Strip a leading "Note: " or "Reasoning: " if present, trim, truncate.
+  const tail = text.slice(after, until).trimStart()
   const stripped = tail.replace(/^(Note|Reasoning):\s*/i, '')
   return stripped.trim().slice(0, 2000)
 }
@@ -73,8 +75,21 @@ export function parseReviewerVerdict(text: string): ReviewerVerdict {
   const lastMatch = allMatches.at(-1)
   if (lastMatch) {
     const verdict = lastMatch[1]
-    const lineEnd = (lastMatch.index ?? 0) + lastMatch[0].length
-    const tail = extractNote(text, lineEnd)
+    // The note belonging to the i-th VERDICT line: text after it, up to the
+    // next VERDICT line.
+    const noteOf = (i: number): string => {
+      const m = allMatches[i]
+      return extractNote(text, (m.index ?? 0) + m[0].length, allMatches[i + 1]?.index ?? text.length)
+    }
+    // Reviewers often restate the verdict as a bare last line after the
+    // note and a summary (#517, run 37231172740). The LAST line still
+    // decides; if it carries no note, use the note of the nearest earlier
+    // line with the SAME verdict. Never borrow across verdicts: an earlier
+    // APPROVE's reasoning is not a REJECT's note.
+    let tail = noteOf(allMatches.length - 1)
+    for (let i = allMatches.length - 2; tail === '' && i >= 0; i--) {
+      if (allMatches[i][1] === verdict) tail = noteOf(i)
+    }
     if (verdict === 'APPROVE') {
       return { kind: 'approve', reasoning: tail || '(no reasoning provided)' }
     }

@@ -99,6 +99,57 @@ Reasoning: The test does pin the contract — reverting breaks it.`
       if (verdict.kind === 'approve') expect(verdict.reasoning).toMatch(/test does pin/)
     })
 
+    it('#517: a bare repeated VERDICT keeps the note written under the earlier one', () => {
+      // Real shape (feature-bot run 37231172740): the reviewer wrote the
+      // verdict + Note, then a summary, then restated the verdict as the
+      // last line. Reading only the text after the LAST line found nothing
+      // and escalated a perfectly actionable rejection to a human.
+      const text = `| Check | Result |
+|---|---|
+| Locked decisions | FAIL |
+
+VERDICT: REJECT
+Note: Impl uses plural {kind}s; the design doc locks singular {kind}.
+
+Summary: everything else passes; the blocker is cheap to fix on retry.
+
+VERDICT: REJECT`
+      const verdict = parseReviewerVerdict(text)
+      expect(verdict.kind).toBe('reject')
+      if (verdict.kind === 'reject') {
+        expect(verdict.note).toMatch(/^Impl uses plural/)
+        expect(verdict.note).toMatch(/cheap to fix on retry/)
+        expect(verdict.note).not.toMatch(/VERDICT:/)
+      }
+    })
+
+    it('the same holds for APPROVE: a bare repeat keeps the earlier Reasoning', () => {
+      const text = `VERDICT: APPROVE
+Reasoning: Reverting the fix makes the test fail.
+
+VERDICT: APPROVE`
+      const verdict = parseReviewerVerdict(text)
+      expect(verdict).toEqual({ kind: 'approve', reasoning: 'Reverting the fix makes the test fail.' })
+    })
+
+    it('never borrows a note from an earlier DIFFERENT verdict', () => {
+      const text = `VERDICT: APPROVE
+Reasoning: Looks fine at first glance.
+
+VERDICT: REJECT`
+      expect(parseReviewerVerdict(text).kind).toBe('needs-human')
+    })
+
+    it('a note stops at the next VERDICT line', () => {
+      const text = `VERDICT: REJECT
+Note: First objection.
+
+VERDICT: REJECT
+Note: Final objection.`
+      const verdict = parseReviewerVerdict(text)
+      expect(verdict).toEqual({ kind: 'reject', note: 'Final objection.' })
+    })
+
     it('a final VERDICT overrides an earlier soft signal', () => {
       const text = `> Decision: reject
 
