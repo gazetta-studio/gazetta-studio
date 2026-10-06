@@ -209,7 +209,7 @@ Each archetype gets a copy-paste-ready `site.config.ts` snippet + role mapping +
 - v2 / Tier 3; not in v1
 
 ### Right-to-be-forgotten
-- Review comments live in the audit log (locked invariant line 34), so `gazetta audit scrub --actor=alice@example.com` already covers them — it rewrites `actor.id` and `metadata.comment` on every `review-*` event the actor authored. Review sidecars carry only approver IDs; the scrub command also walks `.gazetta/review/{kind}/{name}/approvers/` and removes each `approvers/{alice}` zero-byte file so the actor's prior votes don't surface.
+- Review comments live in the audit log (locked invariant "Single reject action with mandatory comment"), not in review sidecars, which carry only approver IDs. When `gazetta audit scrub --actor=alice@example.com` ships (not implemented yet), it must cover both: rewrite `actor.id` and `metadata.comment` on every `review-*` event the actor authored, and remove each `.gazetta/review/{kind}/{name}/approvers/{alice}` zero-byte file so the actor's prior votes don't surface.
 - Free-text comments mentioning OTHER actors are NOT auto-scrubbed (documented limitation)
 
 ## Foundational checks
