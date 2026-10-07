@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest'
 import type { RunDecision } from '../dispatch-run.js'
 import {
   deriveState,
+  escalateMalformedPlanner,
   executeDecision,
   executeSafely,
   type FeatureContext,
@@ -18,7 +19,13 @@ import {
   type PlannerResult,
   withCutNumber,
 } from '../execute.js'
-import { featureBotHandoffMarker, redecomposedMarker, refinedMarker } from '../markers.js'
+import {
+  escalatedCutMarker,
+  escalatedFeatureMarker,
+  featureBotHandoffMarker,
+  redecomposedMarker,
+  refinedMarker,
+} from '../markers.js'
 import type { Mode } from '../plan-output.js'
 
 class FakeGitHub implements GitHubPort {
@@ -351,6 +358,77 @@ describe('executeSafely — the Q6a default', () => {
         plannerReturning({ kind: 'quota' }),
       ),
     ).rejects.toThrow('boom')
+  })
+})
+
+describe('escalateMalformedPlanner — Q6a, feature-scope: cut-planner cannot read its own input', () => {
+  // Fire-once behavior: the next cron sees `needs-info` and the issue is out of
+  // discovery, so the escalation lands exactly once. The function itself writes
+  // only two things (comment, then label); the "fire once" invariant lives in
+  // the discovery query, not here. These tests pin the two writes + their
+  // content, which is what a drift (missing-field name, lost doc link, wrong
+  // scope marker, swapped write order) would break.
+
+  it('names the missing field, points at the design doc, and labels needs-info — comment BEFORE label (Q7)', async () => {
+    const gh = setup()
+
+    await escalateMalformedPlanner(gh, 1, 'rw', ['**Design**'], 'r1')
+
+    // Write order: comment (durable log) BEFORE label (derived state).
+    // Reversing this would make an interrupted run leave `needs-info` without
+    // the explanation comment — exactly the opacity Q7 forbids.
+    expect(gh.log).toEqual(['comment #1', '+needs-info #1'])
+    expect(gh.issues.get(1)!.labels).toContain('needs-info')
+
+    const posted = gh.comments.get(1)!.at(-1)!
+    // Names the specific missing field, back-ticked. If the function stopped
+    // threading `missing` through to `detail`, this fails — the maintainer
+    // would see "something is missing" with no actionable name.
+    expect(posted).toContain('`**Design**`')
+    // Points at the fix location — a bare "add the missing field" without
+    // design-cut-planner.md Q1 would leave the maintainer guessing which
+    // doc defines the planner-issue shape.
+    expect(posted).toContain('`.claude/rules/design-cut-planner.md` Q1')
+    // The reason is forensically load-bearing — `gh issue list --search
+    // "malformed-planner-issue"` is how operators find every malformed
+    // planner issue across time.
+    expect(posted).toContain('malformed-planner-issue')
+  })
+
+  it('tags the comment with the FEATURE-scope marker (not cut-scope — Q6a scope rule)', async () => {
+    const gh = setup()
+
+    await escalateMalformedPlanner(gh, 1, 'rw', ['**Design**'], 'r1')
+
+    const posted = gh.comments.get(1)!.at(-1)!
+    // Feature-scope: a malformed planner halts the WHOLE feature's queue.
+    // If a future refactor accidentally emitted `escalatedCutMarker`, budget
+    // counting (which keys off the marker) would miscount a feature stall
+    // as a per-cut escalation and the per-feature escalation would never
+    // register.
+    expect(posted).toContain(escalatedFeatureMarker('rw'))
+    expect(posted).not.toContain(escalatedCutMarker(1))
+    // The run-id must appear in the outcome tag — scoping forensic queries
+    // to a single run depends on it.
+    expect(posted).toContain('run=r1')
+  })
+
+  it('falls the marker and heading back to #<issueNumber> when **Feature** is also missing', async () => {
+    const gh = setup()
+
+    // Both `**Feature**` and `**Design**` missing — the planner issue has
+    // nothing nameable, so cut-planner identifies it by its number.
+    await escalateMalformedPlanner(gh, 1, null, ['**Feature**', '**Design**'], 'r1')
+
+    const posted = gh.comments.get(1)!.at(-1)!
+    // Fallback to `#1`: without this the marker would read
+    // `escalated feature=null` (or similar), making the comment un-findable
+    // by any sensible search.
+    expect(posted).toContain(escalatedFeatureMarker('#1'))
+    // Multiple missing fields joined with ' and ', not ', ' — a human-readable
+    // list, not a code-shaped list. A silent change to `, ` would still parse
+    // but reads worse.
+    expect(posted).toContain('`**Feature**` and `**Design**`')
   })
 })
 
