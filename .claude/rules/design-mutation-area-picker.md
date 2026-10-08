@@ -34,7 +34,8 @@ The bot replaces `testing-plan.md`'s human-curated next-list. After ship, that l
 - Per-bot durable memory (skip-list + reviewer-log) per the project's bot memory pattern
 - Module-level granularity (one row per src file, NOT per-glob)
 - Bootstrap discipline: first 4 runs do not evict (need 4-week kill-ratio history)
-- Runtime budget env-overridable (`MUTATION_BUDGET_MINUTES`, default 105)
+- Runtime budget env-overridable (`MUTATION_BUDGET_MINUTES`, default 150)
+- Runtime anchor derived from recent nightly `Run Stryker` step durations (max of the last `MUTATION_RUNTIME_SAMPLE_SIZE` successful `mutation.yml` runs, default 5); falls back to `MUTATION_CURRENT_RUNTIME_MINUTES` (default 150) when gh run history is unavailable (see #871 for the frozen-constant bug the derivation replaces)
 
 **Out of v1 (explicit):**
 - A reviewer agent (Agent B). Mutation testing IS the empirical reviewer — Stryker's next run tells us whether the pick was right. Adding a reviewer here would be cargo-cult pattern-matching of dead-code-watcher's loop.
@@ -106,9 +107,15 @@ Today's mutate glob (`src/history-*.ts`, `src/publish*.ts`, `src/admin-api/**/*.
 
 ### Runtime budget
 
-Default `MUTATION_BUDGET_MINUTES=105` (= 1h 45m current). Hard ceiling 180 min (workflow timeout).
+Default `MUTATION_BUDGET_MINUTES=150` (allowing ~30 min margin below the 180-min workflow timeout). Hard ceiling 180 min (workflow timeout).
 
-Bot estimates per-module cost from Stryker's per-file timing reports (already in Stryker's JSON output). For un-mutated modules, the bot uses a conservative estimate: `(lines mutated) × 0.1 seconds per mutant × estimated mutant density`. Stryker reports mutant counts per file once mutation runs.
+**Current-portfolio runtime anchor.** The bot derives the "what does the current nightly actually take" value from recent observed data instead of a static constant (fixed in #871). On every run it reads the duration of the `Run Stryker` step from the most recent `MUTATION_RUNTIME_SAMPLE_SIZE` successful `mutation.yml` runs (default 5) via `gh run list` + `gh api /actions/runs/.../jobs`, and takes the **max** as the conservative anchor. If no run data is available (fresh repo, gh API outage), it falls back to `MUTATION_CURRENT_RUNTIME_MINUTES` (default 150) and logs a notice.
+
+Why max (not median / avg): the budget check is a worst-case guard against hitting the 180-min hard ceiling. A median under-estimates the tail; max of the recent sample is the honest anchor.
+
+Why derived (not static): the per-module runtime estimate is `scopedLOC × (anchor / totalScopedLOC)`, so the scoped set's sum always re-collapses to the anchor. A static anchor therefore reported the same runtime no matter how many modules the bot had added — the budget check could never see growth. The derivation grounds calibration in observed reality.
+
+Bot estimates per-module cost by applying the calibrated minutes-per-line factor to each module's LOC. Stryker reports mutant counts per file once mutation runs; future direction is to read Stryker's per-file timing report directly for finer-grained estimates.
 
 When budget is exceeded by sum-of-scoped: the bot SHOULD eventually propose REMOVE. In practice this only happens if humans manually expand the glob beyond the budget; bot's own ADDs respect the cap.
 

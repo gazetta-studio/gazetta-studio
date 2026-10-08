@@ -55,6 +55,7 @@ import {
   REVIEWER_LOG_PATH,
   type ReviewerLogEntry,
 } from './reviewer-log.js'
+import { derivePortfolioRuntimeMinutes } from './portfolio-runtime.js'
 import { composeInclusionScores, evaluateEviction } from './scoring.js'
 import { collectEvictionSignals, collectInclusionSignals } from './signals.js'
 import { createSignalEnv } from './signal-env.js'
@@ -94,14 +95,31 @@ const BOOTSTRAP_WEEKS = Number(process.env.BOOTSTRAP_WEEKS ?? '4')
 const BUDGET_MINUTES = Number(process.env.MUTATION_BUDGET_MINUTES ?? '150')
 
 /**
- * The bot's anchor for runtime calibration: what the CURRENT nightly
- * actually takes. The calibration factor is CURRENT ÷ scoped LOC; that
- * factor then estimates per-module runtime consistently across scoped
- * and candidate. Default 105 min = the observed 1h 45m nightly today.
- * Operators bump this only when Stryker's true runtime changes
- * meaningfully (different runner, different test suite).
+ * Fallback for the runtime anchor. In normal operation the bot derives
+ * the current nightly runtime from the last few successful mutation.yml
+ * runs' `Run Stryker` step durations — a self-referential constant was
+ * the root cause of issue #871 (the scoped-set estimate always summed
+ * to the constant, so the budget check never saw growth). This env
+ * value is used only when no run data is available (gh API outage,
+ * first run on a fresh repo, zero historical runs). Operators who
+ * really want to pin a value may still set it.
  */
-const CURRENT_RUNTIME_MINUTES = Number(process.env.MUTATION_CURRENT_RUNTIME_MINUTES ?? '105')
+const CURRENT_RUNTIME_FALLBACK_MINUTES = Number(process.env.MUTATION_CURRENT_RUNTIME_MINUTES ?? '150')
+
+/**
+ * How many recent successful mutation.yml runs to sample when
+ * deriving the portfolio runtime anchor. Max of the sample is used
+ * (conservative — see portfolio-runtime.ts).
+ */
+const RUNTIME_SAMPLE_SIZE = Number(process.env.MUTATION_RUNTIME_SAMPLE_SIZE ?? '5')
+
+/**
+ * Workflow file + step name feeding the runtime anchor. These match
+ * `.github/workflows/mutation.yml`; override via env for forked repos
+ * that renamed either.
+ */
+const MUTATION_WORKFLOW_FILE = process.env.MUTATION_WORKFLOW_FILE ?? 'mutation.yml'
+const STRYKER_STEP_NAME = process.env.MUTATION_STRYKER_STEP_NAME ?? 'Run Stryker'
 
 /** Min inclusion score required to ADD a module. Default 0.4 per design doc. */
 const INCLUSION_THRESHOLD = Number(process.env.INCLUSION_THRESHOLD ?? '0.4')
@@ -195,15 +213,35 @@ async function main(): Promise<void> {
   const scopedFiles = expandGlob(currentGlob, await listAllSrcTsFiles())
   printNotice(`Scoped modules (expanded from ${currentGlob.length} glob entries): ${scopedFiles.length}`)
 
-  // Compute calibration: KNOWN current nightly runtime / sum of scoped LOC.
-  // Anchored to actual observed runtime (CURRENT_RUNTIME_MINUTES), NOT
-  // the bot's growth budget. This way the factor stays grounded even
-  // as the bot expands the portfolio toward BUDGET.
+  // Compute calibration: observed current nightly runtime / sum of scoped LOC.
+  // The runtime anchor is derived from the last RUNTIME_SAMPLE_SIZE successful
+  // mutation.yml runs (max of their `Run Stryker` step durations — see
+  // portfolio-runtime.ts). Falls back to CURRENT_RUNTIME_FALLBACK_MINUTES only
+  // when gh returns no usable data. Prior shape (issue #871) hard-coded the
+  // anchor; because scoped-set runtime estimates re-collapse to the anchor,
+  // the 150-min budget check never saw growth.
+  const observedDurations = await env.fetchRecentStrykerRuntimes(
+    MUTATION_WORKFLOW_FILE,
+    STRYKER_STEP_NAME,
+    RUNTIME_SAMPLE_SIZE,
+  )
+  const derivedRuntime = derivePortfolioRuntimeMinutes(observedDurations)
+  const observedRuntimeMinutes = derivedRuntime ?? CURRENT_RUNTIME_FALLBACK_MINUTES
+  if (derivedRuntime === null) {
+    printNotice(
+      `No recent ${MUTATION_WORKFLOW_FILE} runs available — falling back to MUTATION_CURRENT_RUNTIME_MINUTES=${CURRENT_RUNTIME_FALLBACK_MINUTES} min.`,
+    )
+  } else {
+    printNotice(
+      `Observed runtime anchor: max of ${observedDurations.length} recent runs = ${observedRuntimeMinutes.toFixed(1)} min (durations: ${observedDurations.map(d => d.toFixed(1)).join(', ')})`,
+    )
+  }
+
   const scopedLOCs = await Promise.all(scopedFiles.map(p => env.countLines(resolve(REPO_ROOT, p))))
   const totalScopedLOC = scopedLOCs.reduce((a, b) => a + b, 0)
-  const minutesPerLine = computeRuntimeCalibration(totalScopedLOC, CURRENT_RUNTIME_MINUTES)
+  const minutesPerLine = computeRuntimeCalibration(totalScopedLOC, observedRuntimeMinutes)
   printNotice(
-    `Runtime calibration: ${totalScopedLOC} scoped LOC ÷ ${CURRENT_RUNTIME_MINUTES} min observed runtime = ${minutesPerLine.toFixed(4)} min/line`,
+    `Runtime calibration: ${totalScopedLOC} scoped LOC ÷ ${observedRuntimeMinutes.toFixed(1)} min observed runtime = ${minutesPerLine.toFixed(4)} min/line`,
   )
 
   // Now build candidates + scoped with the calibrated factor.
