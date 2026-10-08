@@ -84,6 +84,8 @@ describe('SaveResult type contract', () => {
           return 409
         case 'HOOK_CANCELLED':
           return 409
+        case 'EDIT_LOCKED':
+          return 409
         // No default — adding a variant produces a TS error here.
       }
     }

@@ -215,6 +215,9 @@ export function fragmentRoutes(
     if (result.code === 'VALIDATION_FAILED') {
       return c.json({ code: 'VALIDATION_FAILED' as const, issues: result.issues }, 409)
     }
+    if (result.code === 'EDIT_LOCKED') {
+      return c.json({ code: 'EDIT_LOCKED' as const, message: result.message }, 409)
+    }
     // HOOK_CANCELLED — exhaustive narrow per Q1 lock.
     return c.json({ code: 'HOOK_CANCELLED' as const, hook: result.hook, reason: result.reason }, 409)
   })

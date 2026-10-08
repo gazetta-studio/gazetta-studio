@@ -54,9 +54,12 @@ import {
 import { rebuildAssetRefs, type ItemRef } from './assets/asset-deps.js'
 import { rebuildFragmentDeps } from './fragment-deps.js'
 import { rebuildArchiveAliases } from './archive-aliases.js'
+import { clearReviewSidecar, readApprovers, readReviewSidecar } from './review/sidecars.js'
+import { transition as reviewTransition } from './review/state-machine.js'
+import type { ReviewStateSnapshot } from './review/types.js'
 import { computeSaveEtag } from './save-etag.js'
 import type { Site } from './site-loader.js'
-import type { StorageProvider } from './types.js'
+import { resolveReviewWorkflow, type ReviewWorkflowConfig, type StorageProvider } from './types.js'
 import { hasBlockingIssues, runSaveDelta } from './validation/save-delta.js'
 import type { ValidatorRegistry } from './validation/registry.js'
 import type { RescanCause, ValidationScanner } from './validation/scanner.js'
@@ -121,13 +124,27 @@ export interface SaveHookCancelled {
 }
 
 /**
+ * Edit refused because the item is currently in `pending-review`
+ * state per `design-review-workflow.md` locked invariant: "Edit
+ * during pending-review is locked." Author's path forward: withdraw
+ * the submission (`POST /api/review/.../withdraw`) which returns
+ * the item to `draft`, then edit. Prevents the revision-DAG
+ * complexity of editing content under review.
+ */
+export interface SaveEditLocked {
+  readonly ok: false
+  readonly code: 'EDIT_LOCKED'
+  readonly message: string
+}
+
+/**
  * Typed union of expected save outcomes. Routes project each
  * variant to HTTP (200 / 409). Callers (CLI, plugin-routes, future
  * save-via-hook) `switch` exhaustively. Adding a new variant is a
  * compile error at every call site — intentional, per the locked
  * decision in Q1.
  */
-export type SaveResult = SaveOk | SaveStale | SaveValidationFailed | SaveHookCancelled
+export type SaveResult = SaveOk | SaveStale | SaveValidationFailed | SaveHookCancelled | SaveEditLocked
 
 /**
  * Audit recorder shape the pipeline calls. Matches the existing
@@ -303,8 +320,28 @@ export async function saveManifestCore(input: SaveManifestInput): Promise<SaveRe
     }
   }
 
-  // Step 2 — review-state precheck. Reserved slot for Review-Workflow
-  // Cut 5 (pending-review state → 409 EDIT_LOCKED). No-op today.
+  // Step 2 — review-state precheck. Per Review-Workflow Cut 5 +
+  // design-review-workflow.md locked invariant "Edit during
+  // pending-review is locked." Reads the review sidecar from
+  // Cut 3 (`readReviewSidecar`) and refuses the save with
+  // 409 EDIT_LOCKED when the item is awaiting review. Author's
+  // escape hatch: withdraw the submission.
+  //
+  // Config resolution: targetConfig when `source.targetName` is
+  // set (the registry-sourced path), site-level when it isn't
+  // (`createSourceContext` without a registry). `enabled: false`
+  // or absent config = no gate; save behaves exactly as before.
+  const reviewConfig = resolveReviewConfig(input)
+  if (reviewConfig?.enabled) {
+    const sidecar = await readReviewSidecar(input.source.contentRoot, input.kind, input.name)
+    if (sidecar?.state === 'pending-review') {
+      return {
+        ok: false,
+        code: 'EDIT_LOCKED',
+        message: 'Withdraw submission to edit',
+      }
+    }
+  }
 
   // Step 3 — save-delta validation. Same shape as pages.ts:370-394.
   // Validators are pure functions; orchestrator catches infra errors
@@ -471,10 +508,36 @@ export async function saveManifestCore(input: SaveManifestInput): Promise<SaveRe
     await dispatchAfterSave(hooks, hookScope, { payload: finalManifest, etag: newEtag }, hookCtx)
   }
 
-  // Step 12 — cascades. Reserved slot for Soft-Delete Q6
-  // (auto-cancel scheduled actions on archive transition) and
-  // Review Cut 5 (invalidateOnSave policy → approved → draft).
-  // No-op today.
+  // Step 12 — cascades. `invalidateOnSave` policy fires here: when
+  // the item was `approved`, this save may transition it back to
+  // `draft` per the policy's rules (always invalidates, or only on
+  // content-diff). The FSM in `review/state-machine.ts` owns the
+  // decision; this step reads the current state, computes
+  // `contentDiffers`, and persists the next state. Transitioning
+  // to `draft` clears approver sidecars so stale approvals don't
+  // count against the next submission (locked in the design doc's
+  // `handleInvalidate` branch returning `{ state: 'draft' }`).
+  if (reviewConfig?.enabled) {
+    const sidecar = await readReviewSidecar(input.source.contentRoot, input.kind, input.name)
+    if (sidecar?.state === 'approved') {
+      const oldEtag = await computeSaveEtag({ ...input.before, ...input.etagExtras })
+      const contentDiffers = oldEtag !== newEtag
+      const approvers = await readApprovers(input.source.contentRoot, input.kind, input.name)
+      const current: ReviewStateSnapshot = {
+        state: 'approved',
+        submitter: sidecar.submitter ?? 'unknown',
+        approvers,
+      }
+      const outcome = reviewTransition(current, { kind: 'invalidate', contentDiffers }, input.principal, reviewConfig)
+      if (outcome.ok && outcome.next.state !== current.state) {
+        // approved → draft: remove the sidecar tree (state.json +
+        // approvers/*). The absence of a sidecar IS the draft
+        // state in Cut 3's data model (`readReviewSidecar` returns
+        // null → caller treats as draft).
+        await clearReviewSidecar(input.source.contentRoot, input.kind, input.name)
+      }
+    }
+  }
 
   // Step 13 — background validation scanner. Fire-and-forget — the
   // save response shouldn't block on scanner work; the scanner
@@ -489,4 +552,28 @@ export async function saveManifestCore(input: SaveManifestInput): Promise<SaveRe
   }
 
   return { ok: true, etag: newEtag }
+}
+
+/**
+ * Resolve the effective `ReviewWorkflowConfig` for this save's
+ * source. Three cases:
+ *   1. `source.targetName` is set AND the site manifest has that
+ *      target → run `resolveReviewWorkflow(target, site)` (target
+ *      wholesale-overrides site per the design doc's Configuration
+ *      lock).
+ *   2. `source.targetName` is set but the target isn't in the
+ *      site manifest (CLI / plugin wiring without full registry) →
+ *      fall through to site-level.
+ *   3. `source.targetName` is unset (`createSourceContext` without
+ *      a registry — tests, legacy paths) → use site-level directly.
+ *
+ * SRP: this helper owns the chain; the orchestrator calls it twice
+ * (precheck + cascade) without duplicating lookup logic.
+ */
+function resolveReviewConfig(input: SaveManifestInput): ReviewWorkflowConfig | undefined {
+  const siteManifest = input.site.manifest
+  const targetName = input.source.targetName
+  const targetConfig = targetName ? siteManifest.targets?.[targetName] : undefined
+  if (targetConfig) return resolveReviewWorkflow(targetConfig, siteManifest)
+  return siteManifest.reviewWorkflow
 }
