@@ -59,6 +59,17 @@ export interface SignalEnv {
    * those are now closed-merged.
    */
   countMutationIssues(modulePath: string, sinceDays: number): Promise<{ total: number; closedMerged: number }>
+  /**
+   * Return per-run durations (minutes) of the `Run Stryker` step from
+   * the most recent `limit` successful runs of the nightly mutation
+   * workflow. Used as the real anchor for portfolio runtime
+   * calibration (issue #871) — replaces the frozen
+   * `MUTATION_CURRENT_RUNTIME_MINUTES` constant.
+   *
+   * Returns an empty array when no run data is available or the gh
+   * API is unreachable; the caller falls back to the env default.
+   */
+  fetchRecentStrykerRuntimes(workflowFile: string, stepName: string, limit: number): Promise<number[]>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

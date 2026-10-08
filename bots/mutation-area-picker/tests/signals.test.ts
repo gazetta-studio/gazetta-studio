@@ -23,6 +23,7 @@ function fixtureEnv(fixtures: {
     findFlakeIssuesMentioning: async p => fixtures.flakes?.[p] ?? 0,
     countRecentFixPRsTouching: async (p, _) => fixtures.fixPRs?.[p] ?? 0,
     countMutationIssues: async (p, _) => fixtures.mutationIssues?.[p] ?? { total: 0, closedMerged: 0 },
+    fetchRecentStrykerRuntimes: async () => [],
   }
 }
 

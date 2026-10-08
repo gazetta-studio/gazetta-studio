@@ -13,6 +13,7 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { computeStepDurationMinutes } from './portfolio-runtime.js'
 import type { SignalEnv } from './signals.js'
 
 export interface SignalEnvOpts {
@@ -134,6 +135,72 @@ export function createSignalEnv(opts: SignalEnvOpts): SignalEnv {
         return output.trim().split('\n').filter(Boolean).length
       } catch {
         return 0
+      }
+    },
+
+    async fetchRecentStrykerRuntimes(workflowFile, stepName, limit) {
+      if (!opts.ghRepo) return []
+      try {
+        // Step 1: find the N most-recent successful runs of the
+        // nightly mutation workflow.
+        const runsOutput = execFileSync(
+          'gh',
+          [
+            'run',
+            'list',
+            '--repo',
+            opts.ghRepo,
+            '--workflow',
+            workflowFile,
+            '--status',
+            'success',
+            '--limit',
+            String(limit),
+            '--json',
+            'databaseId',
+          ],
+          { cwd: repoRoot, encoding: 'utf-8' },
+        )
+        const runs = JSON.parse(runsOutput) as Array<{ databaseId: number }>
+        if (runs.length === 0) return []
+
+        // Step 2: for each run, pull the step metadata and find the
+        // named step. Each call is one gh api hit; the limit is small
+        // (5 by default) so we stay well under the 5000 req/h ceiling.
+        const durations: number[] = []
+        for (const run of runs) {
+          try {
+            const jobsOutput = execFileSync(
+              'gh',
+              ['api', `/repos/${opts.ghRepo}/actions/runs/${run.databaseId}/jobs`],
+              { cwd: repoRoot, encoding: 'utf-8' },
+            )
+            const parsed = JSON.parse(jobsOutput) as {
+              jobs: Array<{
+                steps?: Array<{ name: string; started_at: string | null; completed_at: string | null }>
+              }>
+            }
+            // Flatten steps across jobs — the Mutation workflow has one
+            // job today, but matrix expansions would spread the step
+            // across multiple jobs. Take the max per run defensively.
+            let runMax: number | null = null
+            for (const job of parsed.jobs ?? []) {
+              for (const step of job.steps ?? []) {
+                if (step.name !== stepName) continue
+                const duration = computeStepDurationMinutes(step.started_at, step.completed_at)
+                if (duration === null) continue
+                if (runMax === null || duration > runMax) runMax = duration
+              }
+            }
+            if (runMax !== null) durations.push(runMax)
+          } catch {
+            // Skip the individual run on gh-api failure; other runs
+            // may still yield data.
+          }
+        }
+        return durations
+      } catch {
+        return []
       }
     },
 
