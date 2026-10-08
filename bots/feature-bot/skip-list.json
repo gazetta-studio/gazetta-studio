@@ -9,6 +9,15 @@
       "reasonNote": "Cuts 4-9, 11-18, and 20 have not shipped; only cuts 1-3 (#515-517) and 10 (#524) are in git log. Writing the operator guide and marking ROADMAP \"shipped\" would describe and announce features that don't exist.",
       "addedAt": "2026-06-09T08:53:51.317Z",
       "addedBy": "bot"
+    },
+    {
+      "fingerprint": {
+        "issueNumber": 519
+      },
+      "reason": "needs-human",
+      "reasonNote": "Reviewer crashed on attempt 1. See transcript /home/runner/work/gazetta-studio/gazetta-studio/bots/transcripts/2026-10-08T11-27-05-828Z-feature-cut-519-attempt1-B.jsonl.",
+      "addedAt": "2026-10-08T11:47:15.818Z",
+      "addedBy": "bot"
     }
   ]
 }
