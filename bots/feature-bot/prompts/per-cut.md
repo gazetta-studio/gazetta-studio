@@ -39,8 +39,13 @@ the reviewer approves.
 - `BRANCH_NAME` — the branch the orchestrator expects (`feat/cut-NNN`)
 - `ATTEMPT` — 1 for first attempt, 2+ if Agent B rejected your last attempt
 - `MAX_ATTEMPTS` — the cap. After this attempt, the orchestrator escalates
-- `PRIOR_REVIEWER_NOTE` — present only when `ATTEMPT > 1`. The reviewer's
-  specific feedback from your last attempt. Address it.
+- `PRIOR_REVIEWER_NOTE` — the reviewer's specific feedback from a prior
+  REJECT. Address it. Usually present when `ATTEMPT > 1` (same-run
+  reviewer rejection), but ALSO present on attempt 1 when the cut was
+  requeued (maintainer removed `ready-for-human`) after a previous run
+  escalated with a reviewer verdict. The feature-bot orchestrator seeds
+  this from the `source=reviewer` escalation comment the previous run
+  posted, so the lesson from that run isn't lost.
 - `MAINTAINER_INPUT` — present when the maintainer replied to a prior
   NEEDS_INPUT comment. Treat this as resolution of the open question.
 - `LESSONS_LEARNED` — cross-cut patterns the bot has accumulated from past

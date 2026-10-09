@@ -64,6 +64,7 @@ import {
 import { parseAgentASignal } from './agent-a-signal.js'
 import { decideIdempotency } from './idempotency.js'
 import { shouldEscalateForBudget } from './per-cut-budget.js'
+import { escalationOutcomeTag, extractPriorReviewerNote } from './prior-reviewer-note.js'
 import { appendReviewerLog, REVIEWER_LOG_PATH } from './reviewer-log.js'
 import { composeRefinementComment, countPriorRefinements, filedByCutPlanner } from './refinement-handoff.js'
 import { routeAttemptOutcome, type AttemptOutcome, type RouteContext, type RouteDecision } from './route-attempt.js'
@@ -340,6 +341,8 @@ async function fixOneCut(
       {
         reason: 'spec-too-vague',
         reasonNote: `Cut body references its own issue number in **Depends on**. This is a structurally broken spec.`,
+        // Pre-Claude gate — orchestrator-authored, no Agent B involvement.
+        source: 'orchestrator',
       },
     )
     return { rateLimited: false }
@@ -363,6 +366,8 @@ async function fixOneCut(
       {
         reason: 'missing-prereq',
         reasonNote: `Cut depends on #${validation.depNumber} which was closed without merging. The prerequisite work was rejected; this cut may need re-scoping.`,
+        // Pre-Claude gate — orchestrator-authored, no Agent B involvement.
+        source: 'orchestrator',
       },
     )
     return { rateLimited: false }
@@ -416,7 +421,18 @@ async function fixOneCut(
   const reviewerPromptTemplate = readFileSync(REVIEWER_PROMPT_PATH, 'utf-8')
 
   mkdirSync(TRANSCRIPTS_DIR, { recursive: true })
-  let priorReviewerNote: string | null = null
+  // Seed from historical reviewer-sourced escalation comments so a
+  // requeued cut doesn't start blind. When the maintainer removed
+  // `ready-for-human` to retry this cut, any prior Agent B rejection
+  // note lives only inside the escalation comment — without seeding,
+  // attempt 1 of the next run has no memory of what the reviewer said.
+  // Orchestrator-sourced escalations (budget, crash, dep) are ignored
+  // by the parser (prior-reviewer-note.ts) because their notes would
+  // mislead Agent A if fed back as reviewer feedback.
+  let priorReviewerNote: string | null = await fetchPriorReviewerNote(octokit, repo, issueNumber)
+  if (priorReviewerNote) {
+    printNotice(`#${issueNumber}: seeded PRIOR_REVIEWER_NOTE from a historical reviewer-sourced escalation.`)
+  }
   let finalOutcome: 'approved' | 'escalated' | 'needs-input-posted' | 'loop-exhausted' = 'loop-exhausted'
 
   // Per-cut wall-clock anchor. MUST be captured per cut (not at
@@ -450,6 +466,8 @@ async function fixOneCut(
       await escalateToHuman(octokit, repo, issueNumber, skipList, fingerprint, {
         reason: 'needs-human',
         reasonNote: `Cut exceeded the per-cut time budget (${Math.round(PER_CUT_BUDGET_MS / 60000)} min) after ${attempt - 1} generator-critic attempt(s) without an APPROVE. The cut is likely too large or the loop is thrashing — consider splitting it into smaller cuts or tightening its spec. (Stopped before the workflow's 60-min hard-kill to leave a record instead of a silent timeout.)`,
+        // Budget-exhausted — orchestrator-authored, not an Agent B verdict.
+        source: 'orchestrator',
       })
       finalOutcome = 'escalated'
       break
@@ -604,6 +622,8 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
             await escalateToHuman(octokit, repo, issueNumber, skipList, fingerprint, {
               reason: 'needs-human',
               reasonNote: `Reviewer crashed on attempt ${attempt}. See transcript ${reviewerTranscript}.`,
+              // Reviewer crash — orchestrator detected it, no verdict was produced.
+              source: 'orchestrator',
             })
             finalOutcome = 'escalated'
             break
@@ -688,6 +708,9 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
       await escalateToHuman(octokit, repo, issueNumber, skipList, fingerprint, {
         reason: decision.reason,
         reasonNote: decision.reasonNote,
+        // route-attempt.ts set source based on which path produced the
+        // decision (Agent B verdict vs orchestrator-detected failure).
+        source: decision.source,
       })
       finalOutcome = 'escalated'
       break
@@ -698,6 +721,8 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
       await escalateToHuman(octokit, repo, issueNumber, skipList, fingerprint, {
         reason: 'needs-human',
         reasonNote: `Agent A's Claude invocation exited ${decision.exitCode} on attempt ${attempt}. See transcript.`,
+        // Agent A non-zero exit — orchestrator-detected, not a reviewer verdict.
+        source: 'orchestrator',
       })
       finalOutcome = 'escalated'
       break
@@ -735,6 +760,11 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     await escalateToHuman(octokit, repo, issueNumber, skipList, fingerprint, {
       reason: 'needs-human',
       reasonNote: `Loop exhausted after ${MAX_ATTEMPTS} attempts. Last reviewer note: ${priorReviewerNote ?? '(none)'}`,
+      // Defense-in-depth fallthrough — should not fire in practice (route-attempt
+      // returns escalate-needs-human on the final reject). If priorReviewerNote
+      // exists, the embedded note is reviewer-sourced; if null, there was no
+      // Agent B verdict to carry over, so this is orchestrator-authored.
+      source: priorReviewerNote ? 'reviewer' : 'orchestrator',
     })
   }
 
@@ -783,6 +813,32 @@ async function countPriorRefinementsOnIssue(
   })
   return countPriorRefinements(
     comments.map(c => c.body),
+    issueNumber,
+  )
+}
+
+/**
+ * Fetch the latest reviewer-sourced note recorded in this cut's historical
+ * escalation comments (if any). I/O wrapper around the pure
+ * `extractPriorReviewerNote`.
+ *
+ * Mirrors `countPriorInputCycles` / `countPriorRefinementsOnIssue`: the
+ * outcome tag is the durable record, so a requeued cut survives runner
+ * teardown with no committed state. Returns null when no previous run
+ * escalated with a reviewer verdict for this cut.
+ */
+async function fetchPriorReviewerNote(
+  octokit: ReturnType<typeof octokitFromEnv>,
+  repo: RepoIdentity,
+  issueNumber: number,
+): Promise<string | null> {
+  const { data: comments } = await octokit.issues.listComments({
+    ...repo,
+    issue_number: issueNumber,
+    per_page: 100,
+  })
+  return extractPriorReviewerNote(
+    comments.map(c => c.body ?? null),
     issueNumber,
   )
 }
@@ -882,6 +938,9 @@ async function escalateDeliveryFailure(
   await escalateToHuman(octokit, repo, issueNumber, skipList, fingerprint, {
     reason: 'delivery-failed',
     reasonNote: `Approved by the reviewer, but the ${f.stage === 'push' ? 'push' : 'PR creation'} failed: ${f.error.slice(0, 400)}. See the delivery-failure comment above for the preserved work.`,
+    // Delivery failure is orchestrator-detected infrastructure, not an
+    // Agent B verdict (the reviewer DID approve — the push/PR step failed).
+    source: 'orchestrator',
   })
 }
 
@@ -1149,7 +1208,7 @@ async function escalateToHuman(
   issueNumber: number,
   skipList: SkipList,
   fingerprint: IssueFingerprint,
-  opts: { reason: SkipReason; reasonNote: string },
+  opts: { reason: SkipReason; reasonNote: string; source: 'reviewer' | 'orchestrator' },
 ): Promise<void> {
   // Step 0: back to a clean main FIRST. The skip-list branch below is cut
   // from HEAD, so a caller still on the cut branch would ship the cut's
@@ -1235,6 +1294,11 @@ Read the comment feature-bot just posted on #${issueNumber}. If the reasoning lo
     const workflowRunUrl =
       runId === 'local' ? '(local run — no workflow URL)' : `${ghServer}/${repoSlug}/actions/runs/${runId}`
 
+    // Multi-line reasonNote: prefix each line with `> ` so the whole
+    // note renders as one blockquote AND the parser in
+    // prior-reviewer-note.ts can simply consume consecutive `> ` lines.
+    const quotedNote = opts.reasonNote.slice(0, 2000).replace(/\n/g, '\n> ')
+    const tag = escalationOutcomeTag({ issueNumber, reason: opts.reason, runId, source: opts.source })
     const body = `> *This was generated by AI during triage.*
 
 ⚠ **Feature-bot escalation — needs human attention.**
@@ -1243,7 +1307,7 @@ Read the comment feature-bot just posted on #${issueNumber}. If the reasoning lo
 
 **Note from the loop:**
 
-> ${opts.reasonNote.slice(0, 2000)}
+> ${quotedNote}
 
 **Workflow run:** ${workflowRunUrl}
 
@@ -1253,7 +1317,7 @@ I've stopped attempting this cut and applied \`ready-for-human\` (removing it fr
 2. **If the reasoning is right** — close this cut OR implement it manually based on the analysis
 3. **If you want me to retry** — remove the \`ready-for-human\` label AND remove (or clear) the skip-list entry (the PR I just opened). Then the next cron picks this cut up again.
 
-<!-- feature-bot: escalation issue=${issueNumber} reason=${opts.reason} run=${runId} -->`
+${tag}`
 
     await octokit.issues.createComment({ ...repo, issue_number: issueNumber, body })
     await addLabel(octokit, repo, issueNumber, 'ready-for-human')
