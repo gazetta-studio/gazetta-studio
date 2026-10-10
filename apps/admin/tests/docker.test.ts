@@ -18,6 +18,7 @@ import { createAzureBlobProvider } from 'gazetta/providers/azure-blob'
 import { publishItems, resolveDependencies } from 'gazetta'
 import { publishPageRendered, publishFragmentRendered, publishSiteManifest } from 'gazetta'
 import { runProviderConformance } from './_helpers/provider-conformance.js'
+import { retryOnTransient } from './_helpers/retry-transient.js'
 
 const projectRoot = resolve(import.meta.dirname, '../../../examples/starter')
 const starterSiteDir = resolve(projectRoot, 'sites/main')
@@ -156,6 +157,13 @@ describe('Rendered publish (MinIO)', () => {
   beforeAll(async () => {
     target = s3('publish-rendered-test')
     await target.init()
+    // MinIO's testcontainers readiness probe tests port availability,
+    // not bucket-metadata propagation. The first PUT against a
+    // freshly-created bucket can race the propagation and drop the
+    // socket mid-request as `socket hang up`. One cheap list, retried
+    // on transient socket errors, flushes the race before the first
+    // test's PutObject runs. See #880.
+    await retryOnTransient(() => target.readDir(''))
     site = await getStarterSite()
   })
 
