@@ -62,7 +62,7 @@ export interface SkipEntry {
   refPR?: number
 }
 
-export interface SkipRule {
+interface SkipRule {
   /** Stable identifier for diagnostics + compaction replays. */
   rule: string
   /**
