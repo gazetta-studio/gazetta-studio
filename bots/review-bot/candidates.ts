@@ -13,7 +13,7 @@
  *   - rule               (doc.md[#anchor] | file:line citation)
  */
 
-export type CandidateSeverity = 'CRITICAL' | 'IMPORTANT' | 'NIT'
+type CandidateSeverity = 'CRITICAL' | 'IMPORTANT' | 'NIT'
 export type CandidateType = 'security' | 'architecture' | 'tests' | 'types' | 'comments' | 'style' | 'correctness'
 
 export interface Candidate {
