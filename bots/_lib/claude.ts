@@ -337,3 +337,18 @@ export function detectTransientAuthError(transcriptPath: string): boolean {
   }
   return false
 }
+
+/**
+ * True when a failed Claude call stopped for infrastructure reasons — the
+ * session rate limit or a transient auth/entitlement error — rather than
+ * anything about the work. Callers must treat it as "come back later":
+ * stop the queue, record nothing, leave the item where it was.
+ *
+ * Applies to EVERY agent a bot runs, not just the first. #519's reviewer
+ * (Agent B) hit the session limit in run 37770034162, and with the check
+ * only on Agent A the bot read it as a reviewer crash and parked the cut
+ * as needs-human (#892).
+ */
+export function detectInfraStop(transcriptPath: string): boolean {
+  return detectRateLimit(transcriptPath) || detectTransientAuthError(transcriptPath)
+}

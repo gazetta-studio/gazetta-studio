@@ -36,7 +36,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { runClaude } from '../_lib/claude.js'
+import { detectInfraStop, runClaude } from '../_lib/claude.js'
 import { type DeliveryResult, pushBranch, runGh, savePatch } from '../_lib/delivery.js'
 import { octokitFromEnv, repoFromEnv } from '../_lib/github.js'
 import { branchHasCommits, captureCommitMessages, captureDiff, resetToMain } from '../_lib/git-tree.js'
@@ -400,6 +400,14 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
       // Reviewer has Read for spot-checking, Bash for grep. NO Write/Edit.
       allowedTools: ['Bash', 'Read'],
     })
+    if (!bResult.success && detectInfraStop(reviewerTranscript)) {
+      // Quota / transient auth during review says nothing about the finding:
+      // record no skip entry, so next week's run looks at it again (#892).
+      printWarning(
+        `Agent B hit the session limit or a transient auth failure on attempt ${attempt}; leaving this finding for the next run`,
+      )
+      return 'invoked-claude'
+    }
     if (!bResult.success) {
       printWarning(`Agent B exited ${bResult.exitCode} on attempt ${attempt}; treating as needs-human`)
       recordSkipListEntry(skipList, finding, {

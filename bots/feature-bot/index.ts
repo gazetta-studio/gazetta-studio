@@ -37,7 +37,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { detectRateLimit, detectTransientAuthError, runClaude } from '../_lib/claude.js'
+import { detectInfraStop, detectRateLimit, detectTransientAuthError, runClaude } from '../_lib/claude.js'
 import { branchHasCommits, captureCommitMessages, captureDiff, resetToMain } from '../_lib/git-tree.js'
 import { type DeliveryResult, deliveryFailureComment, pushBranch, runGh, savePatch } from '../_lib/delivery.js'
 import {
@@ -410,7 +410,7 @@ async function fixOneCut(
     printNotice(`#${issueNumber}: ${priorInputCycles} prior NEEDS_INPUT cycle(s) recorded.`)
   }
 
-  const branchName = `feat/cut-${issueNumber}`
+  const branchName = cutBranch(issueNumber)
 
   const agentAPromptTemplate = readFileSync(PROMPT_PATH, 'utf-8')
   const reviewerPromptTemplate = readFileSync(REVIEWER_PROMPT_PATH, 'utf-8')
@@ -590,6 +590,15 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
             // Explicitly NOT Write/Edit — reviewer doesn't modify code.
             allowedTools: ['Bash', 'Read', 'Agent', 'Skill'],
           })
+          if (!bResult.success && detectInfraStop(reviewerTranscript)) {
+            // Quota / transient auth during review says nothing about the
+            // cut — same handling as Agent A's guard above (#892).
+            printWarning(
+              `Agent B hit the session limit or a transient auth failure on attempt ${attempt}; stopping the queue (this cut stays eligible for the next cron).`,
+            )
+            resetToMain(branchName, { cwd: REPO_ROOT })
+            return { rateLimited: true }
+          }
           if (!bResult.success) {
             printWarning(`Agent B exited ${bResult.exitCode} on attempt ${attempt}; treating as needs-human.`)
             await escalateToHuman(octokit, repo, issueNumber, skipList, fingerprint, {
@@ -1129,6 +1138,11 @@ async function applyLabelBestEffort(
  * Without steps 2-4, the only memory of the bot's reviewer loop is the
  * runner-local skip-list.json that vanishes on workflow teardown.
  */
+/** The working branch for a cut. One definition, so escalation resets the same branch the loop built. */
+function cutBranch(issueNumber: number): string {
+  return `feat/cut-${issueNumber}`
+}
+
 async function escalateToHuman(
   octokit: ReturnType<typeof octokitFromEnv>,
   repo: ReturnType<typeof repoFromEnv>,
@@ -1137,6 +1151,14 @@ async function escalateToHuman(
   fingerprint: IssueFingerprint,
   opts: { reason: SkipReason; reasonNote: string },
 ): Promise<void> {
+  // Step 0: back to a clean main FIRST. The skip-list branch below is cut
+  // from HEAD, so a caller still on the cut branch would ship the cut's
+  // unreviewed commits inside the skip-list PR (#892). Resetting here, not
+  // in each caller, means no caller can forget. It must precede step 1:
+  // resetToMain runs `git reset --hard`, which would discard the
+  // skip-list write.
+  resetToMain(cutBranch(issueNumber), { cwd: REPO_ROOT })
+
   // Step 1: write skip-list locally
   const entry: SkipListEntry = {
     fingerprint,
