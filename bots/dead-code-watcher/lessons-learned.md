@@ -13,22 +13,27 @@ Knip flags an exported symbol; grep shows no external consumers,
 but the declaration IS still referenced inside its own file. Drop
 `export` and keep the declaration.
 
-**Signal:** 13 first-attempt approves across 4 runs, by shape:
+**Signal:** 25 first-attempt approves across 7 runs, by shape:
 
+- Same-file field / parameter / element type (14): `RenderedFile`,
+  `RuntimeCapability`, `CapabilityGap`, `ActionableMutant`,
+  `SpawnLike`, `AssetAdapterResolver`, `DecisionAction`,
+  `CandidateSeverity`, `SkillSeverity`, `SkipRule`, and four
+  `SkipReason` unions in fix-bot / dead-code-watcher /
+  mutation-area-picker / review-bot — each typing their file's
+  `SkipEntry.reason` / `SkipRule.reason` fields.
 - Same-file discriminated-union arm (6): four `CreateFragment*`
   arms (`Ok`, `LiveConflict`, `ArchivedConflict`, `InvalidMode`)
   of `CreateFragmentResult`; `ComponentSelection` and
   `FragmentEditSelection` arms of `EditorSelection`.
-- Same-file field/parameter type (6): `RenderedFile` (field of
-  `RenderOutput`), `RuntimeCapability` (field of `CapabilityGap`
-  + `Set` type param), `CapabilityGap` (field of
-  `TargetCapabilities`), `ActionableMutant` (element of
-  `FileSummary.mutants`), two `SkipReason` unions typing
-  `SkipEntry.reason` / `SkipRule.reason` in fix-bot and
-  dead-code-watcher.
-- Runtime const with same-file caller (1):
-  `ARCHIVED_NAME_CONFLICT_MODES` used by same-file
-  `resolveArchivedNameConflict` for `.has()` validation.
+- Runtime const / function with same-file caller (5):
+  `ARCHIVED_NAME_CONFLICT_MODES` (used by same-file
+  `resolveArchivedNameConflict` for `.has()` validation);
+  `DEFAULT_INCLUSION_CONFIG` and `DEFAULT_EVICTION_CONFIG`
+  (default-parameter fallbacks for same-file collectors);
+  `readReviewerLog` (called by same-file `tailReviewerLog` /
+  `pruneReviewerLog`); `cliMain` (called by same-file script-entry
+  IIFE).
 
 **Guidance:** grep the declaring file for internal uses BEFORE
 proposing deletion. The diff is one word (drop `export`); the
@@ -37,6 +42,10 @@ declaration survives. For Zod findings specifically, check for a
 same-file `z.infer<typeof Schema>` — if the derived type IS
 externally consumed, un-export the schema value while the
 `export type` line stays. Cite recent identical precedents by SHA.
+Four separate bots now carry un-exported `SkipReason` unions on
+the same `SkipEntry.reason` / `SkipRule.reason` shape — this is
+the strongest-supported sub-pattern in the window; cite one when
+the next bot's `SkipReason` surfaces.
 
 ## 2. Verify BOTH public-surface paths before proposing removal
 
