@@ -35,7 +35,7 @@ export interface Fingerprint {
 }
 
 /** Reason categories — drives downstream filtering + future compaction patterns. */
-export type SkipReason =
+type SkipReason =
   /** Maintainer rejected the proposed improvement PR. */
   | 'maintainer-rejected'
   /** Bot tried but the generator-critic loop didn't converge. */
