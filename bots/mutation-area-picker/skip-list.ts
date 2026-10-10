@@ -36,7 +36,7 @@ export interface ModuleFingerprint {
 }
 
 /** Reason categories — drives which path the bot takes on subsequent runs. */
-export type SkipReason =
+type SkipReason =
   /** Generated code, third-party shims, no-runtime modules. Permanent. */
   | 'never-mutate'
   /** Bot proposed it; maintainer closed the PR. Durable until lessons compact it. */
