@@ -14,7 +14,7 @@
  * MAX_ATTEMPTS at the orchestrator level.
  */
 
-export type SkillSeverity = 'CRITICAL' | 'IMPORTANT' | 'NIT'
+type SkillSeverity = 'CRITICAL' | 'IMPORTANT' | 'NIT'
 
 export interface SkillFinding {
   severity: SkillSeverity
