@@ -17,8 +17,8 @@ const INDEX_PATH = resolve(HERE, '..', 'index.ts')
 const source = readFileSync(INDEX_PATH, 'utf-8')
 
 describe('fix-bot — rate-limit cascade stop', () => {
-  it('imports detectRateLimit from the shared lib', () => {
-    expect(source).toMatch(/import\s+\{[^}]*detectRateLimit[^}]*\}\s+from\s+['"]\.\.\/_lib\/claude/)
+  it('imports the shared infra-stop detector (rate limit + transient auth) from the shared lib', () => {
+    expect(source).toMatch(/import\s+\{[^}]*detectInfraStop[^}]*\}\s+from\s+['"]\.\.\/_lib\/claude/)
   })
 
   it('breaks the outer candidate loop when a rate-limit is detected', () => {
@@ -33,7 +33,7 @@ describe('fix-bot — rate-limit cascade stop', () => {
     expect(source).toMatch(/printWarning\([^)]*(?:rate[- ]?limit|session[- ]?limit)/i)
   })
 
-  it('checks detectRateLimit BEFORE postFailureComment so a rate-limited Agent A does NOT escalate', () => {
+  it('checks detectInfraStop BEFORE postFailureComment so a rate-limited Agent A does NOT escalate', () => {
     // The Agent A failure path used to be: `printWarning + postFailureComment
     // + break`. After the fix it's: check detectRateLimit FIRST → if true,
     // stop the queue; ONLY THEN post the failure comment + escalate. Without
@@ -42,9 +42,9 @@ describe('fix-bot — rate-limit cascade stop', () => {
     const failurePath = source.match(/if \(!aResult\.success\)[\s\S]+?postFailureComment/)
     expect(failurePath, 'Agent A failure path with postFailureComment must exist').toBeTruthy()
     const region = failurePath?.[0] ?? ''
-    // detectRateLimit must appear in the failure-handling region before
-    // postFailureComment is reached.
-    const detectIdx = region.indexOf('detectRateLimit')
+    // The infra-stop check (rate limit or transient auth, #892) must appear
+    // in the failure-handling region before postFailureComment is reached.
+    const detectIdx = region.indexOf('detectInfraStop')
     const escalateIdx = region.indexOf('postFailureComment')
     expect(detectIdx).toBeGreaterThan(-1)
     expect(detectIdx).toBeLessThan(escalateIdx)

@@ -48,7 +48,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { detectRateLimit, runClaude } from '../_lib/claude.js'
+import { detectInfraStop, runClaude } from '../_lib/claude.js'
 import { type DeliveryResult, deliveryFailureComment, pushBranch, runGh, savePatch } from '../_lib/delivery.js'
 import { branchHasCommits, captureCommitMessages, captureDiff, resetToMain } from '../_lib/git-tree.js'
 import {
@@ -446,7 +446,7 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
     let agentASummary = ''
 
     if (!aResult.success) {
-      outcome = detectRateLimit(agentATranscript)
+      outcome = detectInfraStop(agentATranscript)
         ? { kind: 'agent-a-rate-limited' }
         : { kind: 'agent-a-failure', exitCode: aResult.exitCode }
     } else if (!branchHasCommits(branchName, { cwd: REPO_ROOT })) {
@@ -504,6 +504,15 @@ RUN_ID=${process.env.GITHUB_RUN_ID ?? 'local'}`
         // Explicitly NOT Write/Edit — reviewer doesn't modify code.
         allowedTools: ['Bash', 'Read', 'Agent', 'Skill'],
       })
+      if (!bResult.success && detectInfraStop(reviewerTranscript)) {
+        // Quota / transient auth during review says nothing about the fix —
+        // stop the queue and leave the issue where it was (#892, rule 38).
+        printWarning(
+          `Agent B hit the session limit or a transient auth failure on attempt ${attempt}; stopping the queue (this issue stays eligible for the next cron).`,
+        )
+        resetToMain(branchName, { cwd: REPO_ROOT })
+        return { rateLimited: true }
+      }
       if (!bResult.success) {
         printWarning(`Agent B exited ${bResult.exitCode} on attempt ${attempt}; treating as needs-human.`)
         await escalateToHuman(octokit, repo, issueNumber, branchName, skipList, fingerprint, {
