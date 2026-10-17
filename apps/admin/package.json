@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@formkit/drag-and-drop": "0.5.3",
+    "@formkit/drag-and-drop": "0.6.1",
     "@hono/node-server": "^2.0.2",
     "@primeuix/themes": "^2.0.3",
     "@tanstack/query-async-storage-persister": "^5.100.10",
