@@ -464,7 +464,7 @@ export function useEditorActions() {
     // Fragment links are synchronous — no fetch, no abort needed
     if (sel.kind === 'fragmentLink') {
       ec.showFragmentLink(sel.treePath)
-      void draftsLoaded().then(activateDrafts)
+      void draftsLoaded().then(activateMetadataDraft)
       return
     }
 
@@ -513,7 +513,7 @@ export function useEditorActions() {
       // Drafts for this target may still be loading from the draft store.
       await draftsLoaded()
       if (signal.aborted) return
-      activateDrafts()
+      activateMetadataDraft()
       const persisted = persistedKey ? usePersistedEditsStore().get(persistedKey) : null
       if (persisted) {
         await ec.open(target, persisted.editedContent)
@@ -606,10 +606,8 @@ export function useEditorActions() {
 
   // --- Page metadata ---
 
-  /** Restored structural and metadata drafts become pending once their page is open in that locale. */
-  function activateDrafts() {
-    const manifestKey = currentManifestKey()
-    if (manifestKey) structural.activate(inCurrentLocale(manifestKey))
+  /** A restored metadata draft becomes pending once its page is open in that locale. */
+  function activateMetadataDraft() {
     const key = currentMetadataKey()
     if (key) metadata.activate(key)
   }
@@ -745,7 +743,7 @@ export function useEditorActions() {
     persistence.saving = false
     persistence.lastSaveError = null
     stash.clearAll()
-    structural.clearActive()
+    structural.clearAll()
     metadata.clearActive()
   }
 
