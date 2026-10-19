@@ -812,26 +812,6 @@ export function useEditorActions() {
   }
 
   /**
-   * After a save wrote `written` (component path → content JSON): the open
-   * editor takes what was written as its baseline, stash entries still equal
-   * to it go away, and a path's stored draft is cleared unless an edit made
-   * since is pending there.
-   */
-  function markContentWritten(written: Map<string, string>) {
-    const openWritten = ec.target ? written.get(ec.target.path) : undefined
-    if (openWritten !== undefined) ec.markSaved(JSON.parse(openWritten))
-    for (const [path, entry] of [...stash.entries]) {
-      if (written.get(path) === JSON.stringify(entry.editedContent)) stash.revert(path)
-    }
-    const persistedStore = usePersistedEditsStore()
-    for (const path of written.keys()) {
-      if ((ec.target?.path === path && ec.dirty) || stash.has(path)) continue
-      const k = persistedKeyForStashEntry(path)
-      if (k) persistedStore.clear(k)
-    }
-  }
-
-  /**
    * Save every pending edit. Resolves true when everything was written,
    * false when the save failed (the error is already shown as a toast or
    * the validation banner). Never throws. Callers that navigate after a
@@ -840,11 +820,7 @@ export function useEditorActions() {
   async function save(): Promise<boolean> {
     const current = ec.target && ec.content ? { target: ec.target, content: ec.content } : null
     const stashedEntries = [...stash.values()]
-    // What each content write sends, by component path. Edits made while the
-    // save runs differ from it, so they stay pending afterwards.
-    const writtenContent = new Map<string, string>()
-    if (current) writtenContent.set(current.target.path, JSON.stringify(current.content))
-    for (const [path, entry] of stash.entries) writtenContent.set(path, JSON.stringify(entry.editedContent))
+    const stashedKeys = [...stash.entries].map(([k]) => k)
     const structuralEntries = structural.allEntries()
     const metadataEntries = metadata.allEntries()
     const manifestWrites = [
@@ -854,8 +830,20 @@ export function useEditorActions() {
     const validationStore = useValidationIssuesStore()
     const result = await persistence.save(current, stashedEntries, manifestWrites)
     if (result.success) {
-      markContentWritten(writtenContent)
-      structural.markWritten(structuralEntries)
+      ec.markSaved()
+      // Cut 8b: clear cross-page persisted entries for everything
+      // that just saved successfully. The current edit + all stashed
+      // entries are now on the server; the persisted-edits mirror
+      // for those keys would otherwise re-apply on the next reload.
+      const persistedStore = usePersistedEditsStore()
+      const currentKey = persistedKeyForCurrent()
+      if (currentKey) persistedStore.clear(currentKey)
+      for (const key of stashedKeys) {
+        const k = persistedKeyForStashEntry(key)
+        if (k) persistedStore.clear(k)
+      }
+      for (const key of stashedKeys) stash.revert(key)
+      structural.clearActive()
       metadata.markWritten(metadataEntries)
       validationStore.clear()
       // Reload the affected manifests so selection.detail reflects the saved

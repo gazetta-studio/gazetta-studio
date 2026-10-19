@@ -105,21 +105,6 @@ export const useEditorStructuralStore = defineStore('editorStructural', () => {
     if (!entries.has(k)) entries.set(k, draft)
   }
 
-  /**
-   * After a save wrote `written`: an entry whose order now is the one written
-   * goes away. One changed while the save ran stays pending, with the written
-   * order as its new baseline.
-   */
-  function markWritten(written: Array<[string, StructuralEntry]>) {
-    for (const [k, entry] of written) {
-      const now = entries.get(k)
-      if (!now) continue
-      const original = toRaw(entry).pending.slice()
-      if (JSON.stringify(now.pending) === JSON.stringify(original)) entries.delete(k)
-      else entries.set(k, { original, pending: toRaw(now).pending })
-    }
-  }
-
   /** Current pending components for a key, or null if no entry exists. */
   function pendingFor(key: ManifestFileKey): ComponentEntry[] | null {
     return entries.get(manifestFileKeyToString(key))?.pending ?? null
@@ -166,7 +151,6 @@ export const useEditorStructuralStore = defineStore('editorStructural', () => {
     discard,
     clearActive,
     activate,
-    markWritten,
     pendingFor,
     hasPendingFor,
     allEntries,
