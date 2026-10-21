@@ -644,4 +644,73 @@ describe('publishRun — history recording (#1079)', () => {
       }),
     ).rejects.toThrow(/history is per-target/)
   })
+
+  it('copySourceItems copies the source manifests to the target', async () => {
+    const { site, manifest, sourceRoot, targetStorage } = await setupHistory()
+    const pageName = [...site.pages.keys()].find(k => !k.includes('['))!
+
+    const result = await publishRun({
+      items: [{ kind: 'page', name: pageName }],
+      targets: ['local'],
+      site,
+      sourceRoot,
+      siteManifest: manifest,
+      targetStorages: new Map([['local', targetStorage]]),
+      copySourceItems: true,
+    })
+
+    expect(result.ok).toBe(true)
+    const sourceManifest = await sourceRoot.storage.readFile(sourceRoot.path(`pages/${pageName}/page.json`))
+    const onTarget = await targetStorage.readFile(`pages/${pageName}/page.json`)
+    expect(onTarget).toBe(sourceManifest)
+  })
+
+  it('without copySourceItems the target gets no source manifests (default unchanged)', async () => {
+    const { site, manifest, sourceRoot, targetStorage } = await setupHistory()
+    const pageName = [...site.pages.keys()].find(k => !k.includes('['))!
+
+    const result = await publishRun({
+      items: [{ kind: 'page', name: pageName }],
+      targets: ['local'],
+      site,
+      sourceRoot,
+      siteManifest: manifest,
+      targetStorages: new Map([['local', targetStorage]]),
+    })
+
+    expect(result.ok).toBe(true)
+    expect([...targetStorage.dump().keys()]).not.toContain(`pages/${pageName}/page.json`)
+  })
+
+  it('copies after the history record, so the baseline stays pre-publish and undo can restore it', async () => {
+    const { site, manifest, sourceRoot, targetStorage, history } = await setupHistory()
+    const pageName = [...site.pages.keys()].find(k => !k.includes('['))!
+
+    const result = await publishRun({
+      items: [{ kind: 'page', name: pageName }],
+      targets: ['local'],
+      site,
+      sourceRoot,
+      siteManifest: manifest,
+      targetStorages: new Map([['local', targetStorage]]),
+      history,
+      historySource: 'local',
+      copySourceItems: true,
+    })
+
+    expect(result.ok).toBe(true)
+    // Baseline revision (recorded before the copy) must NOT contain the
+    // source manifest content - the fresh target did not have it yet.
+    // Otherwise undo would restore the post-publish manifest and no-op.
+    const revisions = await history.listRevisions()
+    const baseline = revisions.find(r => r.message === 'Initial baseline')
+    expect(baseline).toBeDefined()
+    const baselineRev = await history.readRevision(baseline!.id)
+    expect(Object.keys(baselineRev.snapshot)).not.toContain(`pages/${pageName}/page.json`)
+    // The publish revision describes exactly what the copy put on the target.
+    const publishes = revisions.filter(r => r.operation === 'publish')
+    expect(publishes).toHaveLength(1)
+    const publishRev = await history.readRevision(publishes[0]!.id)
+    expect(Object.keys(publishRev.snapshot)).toContain(`pages/${pageName}/page.json`)
+  })
 })
