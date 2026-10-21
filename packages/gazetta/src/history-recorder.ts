@@ -250,8 +250,16 @@ async function scanManifestsInto(
   } else {
     try {
       entries = await storage.readDir(absDir)
-    } catch {
-      return // Root scan location doesn't exist (or provider threw) — nothing to scan.
+    } catch (err) {
+      // Root scan location: a genuinely missing directory means "nothing
+      // to scan", but readDir errors carry no portable not-found signal
+      // across providers, so confirm absence with exists(). Any other
+      // failure (transient, permission, storage outage) must abort the
+      // write - recording a baseline without the whole location would
+      // let a later restore DELETE every manifest in it (#1100 review).
+      // exists() throwing also fails closed.
+      if (await storage.exists(absDir)) throw err
+      return
     }
   }
   // `page.json` + `page.<locale>.json` (locale is one dot-free segment,
