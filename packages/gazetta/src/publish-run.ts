@@ -47,6 +47,7 @@
  */
 
 import { publishAssets } from './assets/publish.js'
+import { publishItems } from './publish.js'
 import type { Principal } from './auth/types.js'
 import { createContentRoot, type ContentRoot } from './content-root.js'
 import { publishFragment, resolveFragmentRenderMode } from './fragments/publish.js'
@@ -209,6 +210,18 @@ export interface PublishRunInput {
   readonly history?: HistoryProvider
   /** Source (editable target) name recorded on the publish revision. */
   readonly historySource?: string
+
+  /**
+   * Copy the source item directories (manifests and sidecars) to the
+   * target before the render loop - the same `publishItems` step the
+   * admin route runs (`admin-api/routes/publish.ts`). Runs AFTER the
+   * step-13 history record so the recorded baseline still captures
+   * pre-publish target state. Opt-in: the admin route copies on its
+   * own before calling publishRun, so it leaves this off; the CLI
+   * passes it so CLI publishes go through the same pipeline and the
+   * revision matches what is on the target (#1079 review).
+   */
+  readonly copySourceItems?: boolean
   /** Cache purge strategy (reserved — fire-and-forget post-publish). */
   readonly purgeStrategy?: PurgeStrategy
   /**
@@ -251,7 +264,9 @@ function itemKey(ref: PublishItemRef): string {
  *   - Cache purge (purgeStrategy — runs after publishRun, reserved input)
  *   - History recording for the admin route's source-copy step
  *     (recordWrite before publishItems — publishRun's step 13 covers
- *     the render-loop writes; the admin's own copy still precedes it)
+ *     the render-loop writes; the admin's own copy still precedes it.
+ *     Callers that do not copy themselves pass `copySourceItems` and
+ *     get the same publishItems step here, right after step 13.)
  *   - Audit events (per-item + per-run — reserved Cut 5+)
  *
  * Per Q4 fail-soft: per-target init failures fail just that target;
@@ -368,11 +383,28 @@ export async function publishRun(input: PublishRunInput): Promise<PublishRunResu
       }
     }
 
+    // Step 13b - source manifest copy (opt-in; CLI passes this, the
+    // admin route copies before calling publishRun). The target ends up
+    // with the manifests the step-13 revision describes, so `undo`
+    // restores the target's real pre-publish state. Runs after the
+    // record so the baseline still captures pre-publish state. A copy
+    // failure fails this target: publishing without it would leave the
+    // revision describing files the target does not have.
+    if (input.copySourceItems && input.items.length > 0) {
+      try {
+        const itemDirs = [...new Set(input.items.map(ref => `${ref.kind === 'page' ? 'pages' : 'fragments'}/${ref.name}`))]
+        const { copiedFiles } = await publishItems(input.sourceRoot, targetRoot, itemDirs)
+        targetFilesWritten += copiedFiles
+      } catch (err) {
+        targetFailureReason = `source manifest copy failed: ${err instanceof Error ? err.message : String(err)}`
+      }
+    }
+
     // Step 10a — asset publish before per-item renders so static-mode
     // pages don't bake URLs to bytes that aren't on the target yet.
     // Per-target failure here marks the whole target failed (no
     // point publishing pages whose assets aren't there).
-    if (doAssetPublish) {
+    if (doAssetPublish && !targetFailureReason) {
       try {
         const itemNames = [
           ...[...input.site.pages.keys()].map(n => `pages/${n}`),
