@@ -746,7 +746,6 @@ export function useEditorActions() {
     if (currentKey) usePersistedEditsStore().clear(currentKey)
     dropStash()
     ec.clear()
-    persistence.saving = false
     persistence.lastSaveError = null
     structural.clearActive()
     metadata.clearActive()
