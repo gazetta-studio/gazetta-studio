@@ -5,8 +5,16 @@
  * path recorded nothing, so CLI publishes were invisible to history and
  * could not be undone.
  *
+ * Publishes to the starter's `staging` target (./dist/staging), a real
+ * filesystem target separate from the source content root, so the test
+ * also covers the CLI writing source manifests to the target: the
+ * revision describes files the target actually has, and undo restores
+ * the target's pre-publish manifest. (The earlier local-target version
+ * could not catch a missing manifest copy because source == target
+ * there.)
+ *
  * Spawns the CLI against a temp copy of the starter site (filesystem
- * `local` target — no credentials or containers needed).
+ * targets only - no credentials or containers needed).
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { spawn } from 'node:child_process'
@@ -35,7 +43,7 @@ function runCli(cwd: string, args: string[]): Promise<{ output: string; code: nu
   })
 }
 
-describe('gazetta publish — history recording (#1079)', { timeout: 180000 }, () => {
+describe('gazetta publish - history recording (#1079)', { timeout: 180000 }, () => {
   let projectDir: string
 
   beforeEach(async () => {
@@ -50,30 +58,35 @@ describe('gazetta publish — history recording (#1079)', { timeout: 180000 }, (
     await rm(projectDir, { recursive: true, force: true })
   })
 
-  it('lists a publish revision after a CLI publish, and undo restores the pre-publish state', async () => {
-    const pagePath = resolve(projectDir, 'sites/main/targets/local/pages/home/page.json')
-    const before = await readFile(pagePath, 'utf8')
+  it('writes manifests to the target, lists a publish revision, and undo restores the pre-publish manifest', async () => {
+    const sourcePage = resolve(projectDir, 'sites/main/targets/local/pages/home/page.json')
+    const targetPage = resolve(projectDir, 'sites/main/dist/staging/pages/home/page.json')
+    const before = await readFile(sourcePage, 'utf8')
+
+    // Baseline publish: the original source lands on staging.
+    let res = await runCli(projectDir, ['publish', 'staging', 'sites/main', '--force'])
+    expect(res.code).toBe(0)
+    // The CLI now copies the source manifests to the target (same
+    // publishItems step as the admin route), so the target holds the
+    // manifest its history revision describes.
+    expect(await readFile(targetPage, 'utf8')).toBe(before)
 
     // Change the source page so the second publish has something to record.
     const edited = before.replace(/"title"\s*:\s*"[^"]*"/, '"title": "Edited by #1079 test"')
     expect(edited).not.toBe(before)
-
-    // Baseline state: publish the original first, then the edit.
-    let res = await runCli(projectDir, ['publish', 'local', 'sites/main', '--force'])
+    await (await import('node:fs/promises')).writeFile(sourcePage, edited)
+    res = await runCli(projectDir, ['publish', 'staging', 'sites/main', '--force'])
     expect(res.code).toBe(0)
-    await (await import('node:fs/promises')).writeFile(pagePath, edited)
-    res = await runCli(projectDir, ['publish', 'local', 'sites/main', '--force'])
-    expect(res.code).toBe(0)
+    expect(await readFile(targetPage, 'utf8')).toBe(edited)
 
-    // History lists publish revisions — before the fix there were none.
-    res = await runCli(projectDir, ['history', 'local', 'sites/main'])
+    // History lists publish revisions - before the fix there were none.
+    res = await runCli(projectDir, ['history', 'staging', 'sites/main'])
     expect(res.code).toBe(0)
     expect(res.output).toContain('publish')
 
-    // Undo restores the pre-publish page state.
-    res = await runCli(projectDir, ['undo', 'local', 'sites/main', '--yes'])
+    // Undo restores the staging target's pre-publish manifest.
+    res = await runCli(projectDir, ['undo', 'staging', 'sites/main', '--yes'])
     expect(res.code).toBe(0)
-    const restored = await readFile(pagePath, 'utf8')
-    expect(restored).toBe(before)
+    expect(await readFile(targetPage, 'utf8')).toBe(before)
   })
 })
