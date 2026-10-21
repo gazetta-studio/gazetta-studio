@@ -379,7 +379,9 @@ export async function publishRun(input: PublishRunInput): Promise<PublishRunResu
         })
       } catch (err) {
         // eslint-disable-next-line no-console
-        console.warn(`publishRun: history record failed for ${targetName}: ${err instanceof Error ? err.message : String(err)}`)
+        console.warn(
+          `publishRun: history record failed for ${targetName}: ${err instanceof Error ? err.message : String(err)}`,
+        )
       }
     }
 
@@ -392,7 +394,9 @@ export async function publishRun(input: PublishRunInput): Promise<PublishRunResu
     // revision describing files the target does not have.
     if (input.copySourceItems && input.items.length > 0) {
       try {
-        const itemDirs = [...new Set(input.items.map(ref => `${ref.kind === 'page' ? 'pages' : 'fragments'}/${ref.name}`))]
+        const itemDirs = [
+          ...new Set(input.items.map(ref => `${ref.kind === 'page' ? 'pages' : 'fragments'}/${ref.name}`)),
+        ]
         const { copiedFiles } = await publishItems(input.sourceRoot, targetRoot, itemDirs)
         targetFilesWritten += copiedFiles
       } catch (err) {
