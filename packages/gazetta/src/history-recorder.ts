@@ -238,12 +238,21 @@ async function scanManifestsInto(
   relPrefix: string,
   manifestName: string,
   items: Map<string, BlobContent>,
+  prefetchedEntries?: Awaited<ReturnType<StorageProvider['readDir']>>,
 ): Promise<void> {
   let entries: Awaited<ReturnType<StorageProvider['readDir']>>
-  try {
-    entries = await storage.readDir(absDir)
-  } catch {
-    return // Directory doesn't exist (or provider threw) — nothing to scan.
+  if (prefetchedEntries) {
+    // Recursion: the parent already listed this directory to discover it,
+    // so reuse that listing. Re-listing here behind the catch below would
+    // silently drop this subtree from the baseline on a transient error,
+    // and a later restore would DELETE those paths (#1100 review).
+    entries = prefetchedEntries
+  } else {
+    try {
+      entries = await storage.readDir(absDir)
+    } catch {
+      return // Root scan location doesn't exist (or provider threw) — nothing to scan.
+    }
   }
   // `page.json` + `page.<locale>.json` (locale is one dot-free segment,
   // per localeFilename's normalizeLocale). The locale-variant pattern
@@ -268,7 +277,8 @@ async function scanManifestsInto(
       if (!matches) continue
       items.set(`${relSub}/${f.name}`, await storage.readFile(join(sub, f.name)))
     }
-    // Recurse for nested routes (pages/blog/[slug]/page.json).
-    await scanManifestsInto(storage, sub, relSub, manifestName, items)
+    // Recurse for nested routes (pages/blog/[slug]/page.json), reusing
+    // the listing already fetched above instead of reading it again.
+    await scanManifestsInto(storage, sub, relSub, manifestName, items, subEntries)
   }
 }
