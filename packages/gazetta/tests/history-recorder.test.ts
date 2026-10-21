@@ -133,6 +133,68 @@ describe('recordWrite', () => {
     expect(aboutListings).toBe(1)
   })
 
+  it('a failed root scan-location listing fails the baseline instead of recording an empty one (#1100 review)', async () => {
+    // The root probe must not treat a transient/permission listing error
+    // as "location missing": that would record a baseline without the
+    // whole location, and restore would delete every manifest in it.
+    const inner = memoryStorage()
+    inner.seed({
+      'site.config.ts': "export default { name: 'demo' }\n",
+      'pages/home/page.json': 'home',
+    })
+    const storage = {
+      ...inner,
+      async readDir(path: string) {
+        if (path === 'pages') throw new Error('storage transient')
+        return inner.readDir(path)
+      },
+    }
+    const history = createHistoryProvider({ storage })
+    const contentRoot = createContentRoot(storage)
+
+    await expect(
+      recordWrite({
+        history,
+        contentRoot,
+        operation: 'save',
+        items: [{ path: 'pages/home/page.json', content: 'home-v2' }],
+      }),
+    ).rejects.toThrow(/storage transient/)
+    expect(await history.listRevisions()).toHaveLength(0)
+  })
+
+  it('a genuinely missing root scan location still scans as empty (#1100 review)', async () => {
+    // Missing-location semantics are preserved: providers whose readDir
+    // throws on absent directories (fs, S3) must not fail the write when
+    // the location simply does not exist.
+    const inner = memoryStorage()
+    inner.seed({
+      'site.config.ts': "export default { name: 'demo' }\n",
+      'pages/home/page.json': 'home',
+    })
+    const storage = {
+      ...inner,
+      async readDir(path: string) {
+        if (path === 'fragments') throw new Error('ENOENT: no such directory')
+        return inner.readDir(path)
+      },
+    }
+    const history = createHistoryProvider({ storage })
+    const contentRoot = createContentRoot(storage)
+
+    await recordWrite({
+      history,
+      contentRoot,
+      operation: 'save',
+      items: [{ path: 'pages/home/page.json', content: 'home-v2' }],
+    })
+
+    const list = await history.listRevisions()
+    expect(list).toHaveLength(2)
+    const baseline = await history.readRevision(list[1].id)
+    expect(Object.keys(baseline.snapshot)).toContain('pages/home/page.json')
+  })
+
   it('custom scan-location manifest names with regex metacharacters match literally (#1098 review)', async () => {
     storage.seed({
       'data/main/page+v2.json': 'exact',
