@@ -96,6 +96,43 @@ describe('recordWrite', () => {
     expect(await history.listRevisions()).toHaveLength(0)
   })
 
+  it('a failed nested-directory listing cannot silently omit a subtree; directories are listed once (#1100 review)', async () => {
+    // Depth >= 2: recursion into an existing subdirectory must reuse the
+    // listing the parent already fetched. Re-listing behind a catch would
+    // swallow transient errors and omit the subtree from the baseline,
+    // with the same restore-deletes consequence. This fault throws if the
+    // directory is listed a SECOND time, so a regression that reintroduces
+    // a swallowed re-listing fails here instead of reaching users.
+    const inner = memoryStorage()
+    inner.seed({
+      'site.config.ts': "export default { name: 'demo' }\n",
+      'pages/about/page.json': 'about',
+      'pages/about/[id]/page.json': 'nested',
+    })
+    let aboutListings = 0
+    const storage = {
+      ...inner,
+      async readDir(path: string) {
+        if (path.endsWith('pages/about') && ++aboutListings === 2) throw new Error('storage transient')
+        return inner.readDir(path)
+      },
+    }
+    const history = createHistoryProvider({ storage })
+    const contentRoot = createContentRoot(storage)
+
+    await recordWrite({
+      history,
+      contentRoot,
+      operation: 'save',
+      items: [{ path: 'pages/about/page.json', content: 'about-v2' }],
+    })
+
+    const list = await history.listRevisions()
+    const baseline = await history.readRevision(list[1].id)
+    expect(Object.keys(baseline.snapshot)).toContain('pages/about/[id]/page.json')
+    expect(aboutListings).toBe(1)
+  })
+
   it('custom scan-location manifest names with regex metacharacters match literally (#1098 review)', async () => {
     storage.seed({
       'data/main/page+v2.json': 'exact',
