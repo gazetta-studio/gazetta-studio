@@ -14,11 +14,7 @@
  * 5K-envelope check lives in Cut 5c's purge-route integration test.
  */
 import { describe, it, expect } from 'vitest'
-import {
-  ARCHIVE_ALIASES,
-  applyArchiveAliasesDiff,
-  rebuildArchiveAliases,
-} from '../src/archive-aliases.js'
+import { ARCHIVE_ALIASES, applyArchiveAliasesDiff, rebuildArchiveAliases } from '../src/archive-aliases.js'
 import { createContentRoot } from '../src/content-root.js'
 import type { ItemRef } from '../src/dep-sidecars.js'
 import { memoryStorage } from './_helpers/memory-storage.js'
