@@ -1008,7 +1008,9 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
         const baseFrom = deriveRoute(entry.name)
         const baseTo = entry.page.aliasOf ? deriveRoute(entry.page.aliasOf) : undefined
         for (const loc of rowLocales) {
-          const prefix = loc ? localeRoutePrefix(loc, { ...resolvedLoc!, default: siteDefault, defaultPrefix: false }) : ''
+          const prefix = loc
+            ? localeRoutePrefix(loc, { ...resolvedLoc!, default: siteDefault, defaultPrefix: false })
+            : ''
           const from = baseFrom === '/' ? prefix || '/' : `${prefix}${baseFrom}`
           const to = baseTo === undefined ? undefined : baseTo === '/' ? prefix || '/' : `${prefix}${baseTo}`
           archives.push(to !== undefined ? { from, to } : { from })
