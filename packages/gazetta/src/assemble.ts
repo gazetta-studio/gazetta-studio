@@ -50,7 +50,7 @@ export interface EsiMarker {
  * openings took quadratic time before (CodeQL js/polynomial-redos), and
  * markers are scanned on every request in the worker and in `gazetta serve`.
  */
-export function scanEsiMarkers(html: string): EsiMarker[] {
+export function scanEsiMarkers(html: string, kinds: readonly ('head' | 'body')[] = ['head', 'body']): EsiMarker[] {
   const markers: EsiMarker[] = []
   let pos = 0
   // The first `>` found by the last forward scan, and whether it closes a
@@ -79,6 +79,16 @@ export function scanEsiMarkers(html: string): EsiMarker[] {
       // Not an ESI opening. Advance one character, like a failed regex match.
       pos = open + 1
       continue
+    }
+
+    if (!kinds.includes(kind)) {
+      // Scanning for the other kind only: this opening is invisible, but an
+      // opening of the wanted kind can still start inside it.
+      pos = open + 1
+      continue
+    }
+
+    if (false) {
     }
 
     if (pathStart <= deadUntil) {
@@ -141,7 +151,10 @@ export function findEsiPaths(html: string): string[] {
 
 /** Assemble page HTML with fragment head and body content */
 export function assembleEsi(pageHtml: string, fragments: Map<string, { head: string; body: string }>): string {
-  const markers = scanEsiMarkers(pageHtml)
+  // Head-only scan, equivalent to the old `esiHeadRegex` / `esiHeadRegex2`
+  // pair: a head marker nested inside an unclosed body opening is still
+  // matched, exactly as the old head-only regex matched it.
+  const markers = scanEsiMarkers(pageHtml, ['head'])
 
   // Collect ESI head order from page
   const esiHeadOrder: string[] = []
@@ -197,14 +210,10 @@ export function assembleEsi(pageHtml: string, fragments: Map<string, { head: str
   // Replace esi body tags with fragment body content. Rescan rather than reuse
   // positions: the passes above rewrote the HTML, and their replacement text
   // could itself contain markers the body pass would have matched.
-  html = replaceEsiMarkers(
-    html,
-    scanEsiMarkers(html).filter(m => m.kind === 'body'),
-    marker => {
-      const frag = fragments.get(marker.path)
-      return frag?.body ?? `<!-- fragment not found: ${marker.path} -->`
-    },
-  )
+  html = replaceEsiMarkers(html, scanEsiMarkers(html, ['body']), marker => {
+    const frag = fragments.get(marker.path)
+    return frag?.body ?? `<!-- fragment not found: ${marker.path} -->`
+  })
 
   return html
 }
