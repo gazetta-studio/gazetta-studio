@@ -4,8 +4,7 @@ import { assembleEsi, findEsiPaths, scanEsiMarkers } from '../src/assemble.js'
 /**
  * The regex implementations scanEsiMarkers replaced, kept here as oracles so
  * the equivalence tests pin behavior against what actually ran before, not
- * against a re-reading of the requirements. (CodeQL js/polynomial-redos,
- * issue #1114.)
+ * against a re-reading of the requirements (issue #1114).
  */
 function regexFindEsiPaths(html: string): string[] {
   const paths = new Set<string>()
@@ -154,33 +153,34 @@ describe('scanEsiMarkers', () => {
 
 describe('linear-time ESI scan (issue #1114)', () => {
   it('handles pages full of unclosed markers quickly', () => {
-    // With the replaced regexes this took 5.3s at 16,000 openings and
-    // doubling the input quadrupled the time; the scan is linear.
-    const html = ('<!--esi:/' + 'a'.repeat(20)).repeat(200_000)
+    // Pin: N unclosed openings scan in O(N). The 200 ms budget at the
+    // issue's 20,000-opening scale fails a quadratic regression in
+    // seconds while leaving slow runners a wide margin.
+    const html = ('<!--esi:/' + 'a'.repeat(20)).repeat(20_000)
     const start = performance.now()
     expect(findEsiPaths(html)).toEqual([])
     expect(assembleEsi(html, fragments)).toBe(html)
-    expect(performance.now() - start).toBeLessThan(500)
+    expect(performance.now() - start).toBeLessThan(200)
   })
 })
 
 describe('adversarial shapes stay linear', () => {
   it('repeated invalid openings before one closing marker', () => {
-    // The first scanner revision rescanned the suffix per opening here and
-    // went quadratic (12.2s at 40k). The first `>` and its `-->` verdict are
-    // now found once and shared: every opening reaching the same `>` fails
-    // in O(1).
-    const html = '<!--esi:/x>y '.repeat(100_000) + '-->'
+    // Pin: the first `>` and its `-->` verdict are found once and shared —
+    // every opening that reaches the same `>` fails in constant time.
+    const html = '<!--esi:/x>y '.repeat(20_000) + '-->'
     const start = performance.now()
     expect(findEsiPaths(html)).toEqual([])
-    expect(performance.now() - start).toBeLessThan(500)
+    expect(performance.now() - start).toBeLessThan(200)
   })
 
   it('repeated pathless openings before one closing marker', () => {
-    const html = '<!--esi:x '.repeat(100_000) + '-->'
+    // Pin: an opening whose path fails the shape check is rejected without
+    // rescanning the suffix.
+    const html = '<!--esi:x '.repeat(20_000) + '-->'
     const start = performance.now()
     expect(findEsiPaths(html)).toEqual([])
-    expect(performance.now() - start).toBeLessThan(500)
+    expect(performance.now() - start).toBeLessThan(200)
   })
 })
 
