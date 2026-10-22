@@ -18,7 +18,7 @@ import type { SiteManifest, StorageProvider, TargetType } from './types.js'
 import { assembleEsi, parseCacheComment } from './assemble.js'
 import { isPublicSitePath } from './public-site-path.js'
 import { archiveResponse } from './runtime/archive-response.js'
-import { parseArchiveMarker } from './runtime/archive-marker.js'
+import { aliasTargetIssue, parseArchiveMarker } from './runtime/archive-marker.js'
 import { deriveRoute } from './runtime/derive-route.js'
 import { resolveSiteLocales } from './locale.js'
 import { fetchFragmentEntries } from './runtime/fragment-fetch.js'
@@ -218,23 +218,22 @@ export function createServer(options: ServeOptions) {
     let effectiveLocale = locale
     if (locale && locale !== siteDefault) {
       const marker = parseArchiveMarker(html)
-      if (marker?.kind === 'alias') {
+      if (marker?.kind === 'alias' && aliasTargetIssue(marker.target) === null) {
         const route = deriveRoute(marker.target)
         const rel = `${locale}${route === '/' ? '' : route}/index.html`
         let hasVersion = false
         for (const candidate of [`/${rel}`, rel]) {
-          try {
-            await storage.readFile(candidate)
+          if (await storage.exists(candidate)) {
             hasVersion = true
             break
-          } catch {
-            /* destination version missing at this key shape */
           }
         }
         if (!hasVersion) effectiveLocale = undefined
       }
     }
-    return archiveResponse(html, { locale: effectiveLocale, defaultLocale: siteDefault, defaultPrefix })
+    // Static publish writes default-language pages unprefixed until #1146,
+    // so prefixing the default locale here would redirect to a 404.
+    return archiveResponse(html, { locale: effectiveLocale, defaultLocale: siteDefault, defaultPrefix: false })
   }
   const readFragment = (path: string) => readFragmentHtml(storage, path)
   const app = new Hono()
@@ -317,8 +316,11 @@ export function createServer(options: ServeOptions) {
   if (detection && nonDefaultLocales.length > 0) {
     app.get('*', async (c, next) => {
       const requestPath = new URL(c.req.url).pathname
-      // Only redirect paths that don't already have a locale prefix
-      const { locale: existingLocale } = extractLocale(requestPath, nonDefaultLocales)
+      // Only redirect paths that don't already have a locale prefix. With
+      // defaultPrefix on, the default locale's prefix counts too — otherwise
+      // /en/about would look unlocalized and redirect to /fr/en/about.
+      const prefixLocales = defaultPrefix ? (locales ?? []) : nonDefaultLocales
+      const { locale: existingLocale } = extractLocale(requestPath, prefixLocales)
       if (existingLocale) return next()
       // Check cookie opt-out (user explicitly chose a locale)
       const localeCookie = c.req.header('Cookie')?.match(/(?:^|;\s*)locale=([a-z-]+)/)?.[1]
