@@ -88,9 +88,6 @@ export function scanEsiMarkers(html: string, kinds: readonly ('head' | 'body')[]
       continue
     }
 
-    if (false) {
-    }
-
     if (pathStart <= deadUntil) {
       pos = open + 1
       continue
@@ -159,7 +156,7 @@ export function assembleEsi(pageHtml: string, fragments: Map<string, { head: str
   // Collect ESI head order from page
   const esiHeadOrder: string[] = []
   for (const marker of markers) {
-    if (marker.kind === 'head' && !esiHeadOrder.includes(marker.path)) esiHeadOrder.push(marker.path)
+    if (!esiHeadOrder.includes(marker.path)) esiHeadOrder.push(marker.path)
   }
 
   // Collect CSS and JS separately, preserving fragment order, deduplicating
@@ -190,17 +187,13 @@ export function assembleEsi(pageHtml: string, fragments: Map<string, { head: str
   // Replace first esi-head with other + CSS, remove the rest
   const collectedCss = [...otherLines, ...cssLines].join('\n  ')
   let cssInserted = false
-  let html = replaceEsiMarkers(
-    pageHtml,
-    markers.filter(m => m.kind === 'head'),
-    () => {
-      if (!cssInserted && collectedCss) {
-        cssInserted = true
-        return collectedCss
-      }
-      return ''
-    },
-  )
+  let html = replaceEsiMarkers(pageHtml, markers, () => {
+    if (!cssInserted && collectedCss) {
+      cssInserted = true
+      return collectedCss
+    }
+    return ''
+  })
 
   // Insert JS before </head> (after all CSS, preserving fragment order)
   if (jsLines.length > 0) {
