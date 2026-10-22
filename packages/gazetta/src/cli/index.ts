@@ -1012,7 +1012,14 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
             ? localeRoutePrefix(loc, { ...resolvedLoc!, default: siteDefault, defaultPrefix: false })
             : ''
           const from = baseFrom === '/' ? prefix || '/' : `${prefix}${baseFrom}`
-          const to = baseTo === undefined ? undefined : baseTo === '/' ? prefix || '/' : `${prefix}${baseTo}`
+          // A language with no destination version falls back to the
+          // destination's default-language page (#1124 Q10): static
+          // publish only writes /<locale>/<page> when the page has
+          // that version, while the archived page's own row exists
+          // for every published route.
+          const destEntry = entry.page.aliasOf ? site.pageLocales.get(entry.page.aliasOf) : undefined
+          const destPrefix = loc === '' || loc === siteDefault || (destEntry?.locales.has(loc) ?? false) ? prefix : ''
+          const to = baseTo === undefined ? undefined : baseTo === '/' ? destPrefix || '/' : `${destPrefix}${baseTo}`
           archives.push(to !== undefined ? { from, to } : { from })
         }
       }
