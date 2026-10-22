@@ -43,13 +43,17 @@ export function createFilesystemProvider(basePath?: string): StorageProvider {
         await access(resolvePath(path))
         return true
       } catch (err) {
-        // Only ENOENT means "genuinely missing". Any other failure -
-        // typically EACCES from an unsearchable ancestor directory -
-        // means "cannot tell", and must surface: callers probing
-        // absence (the history baseline scan, rm-ignore-missing) would
-        // otherwise mistake a permission error for a missing path and
-        // record or restore over real content (#1105 review).
-        if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false
+        // "Path cannot exist" answers from the filesystem map to false:
+        // ENOENT (genuinely missing), ENOTDIR (an ancestor is a file,
+        // so the path cannot exist), ENAMETOOLONG (unrepresentable).
+        // Anything else - typically EACCES from an unsearchable
+        // ancestor directory - means "cannot tell", and must surface:
+        // callers probing absence (the history baseline scan,
+        // rm-ignore-missing) would otherwise mistake a permission
+        // error for a missing path and record or restore over real
+        // content (#1105 review, #1106).
+        const code = (err as NodeJS.ErrnoException).code
+        if (code === 'ENOENT' || code === 'ENOTDIR' || code === 'ENAMETOOLONG') return false
         throw err
       }
     },
