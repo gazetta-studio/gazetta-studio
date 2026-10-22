@@ -70,7 +70,11 @@ export function createHistoryProvider(opts: CreateHistoryProviderOptions): Histo
   const retention = Math.max(1, opts.retention ?? DEFAULT_HISTORY_RETENTION)
   const indexPath = join(root, 'index.json')
 
-  /** Read the index or return an empty one if it doesn't exist yet. */
+  /**
+   * Read the index cache or return an empty one if it doesn't exist yet.
+   * The cache is never the source of truth - the revisions/ listing is
+   * (see listRevisionIds); a stale or lost cache is rebuilt from it.
+   */
   async function readIndex(): Promise<HistoryIndex> {
     if (!(await storage.exists(indexPath))) {
       return { revisions: [] }
@@ -111,6 +115,39 @@ export function createHistoryProvider(opts: CreateHistoryProviderOptions): Histo
   }
 
   /**
+   * The revisions/ directory listing is the source of truth for which
+   * revisions exist. Per-revision files never serialize through one
+   * shared file, so concurrent writers on one target cannot lose each
+   * other's entries - the per-edge pattern the rest of Gazetta uses
+   * for multi-instance writes (sidecars.md). index.json is only a
+   * cache of this listing (#1089).
+   *
+   * Ids are timestamp-based and fixed-width, so lexicographic sort is
+   * chronological (oldest first), matching the old index order.
+   */
+  async function listRevisionIds(): Promise<string[]> {
+    if (!(await storage.exists(join(root, 'revisions')))) return []
+    const entries = await storage.readDir(join(root, 'revisions'))
+    return entries
+      .filter(e => !e.isDirectory && e.name.endsWith('.json'))
+      .map(e => e.name.slice(0, -'.json'.length))
+      .sort()
+  }
+
+  /**
+   * Best-effort rewrite of the index cache from the listing. Merges
+   * instead of replacing so a concurrent writer's just-written id is
+   * not dropped from the cache; the listing stays authoritative either
+   * way, so a lost cache update is harmless.
+   */
+  async function syncIndexCache(): Promise<void> {
+    const idx = await readIndex()
+    const merged = [...new Set([...idx.revisions, ...(await listRevisionIds())])].sort()
+    if (merged.length === idx.revisions.length && merged.every((v, i) => v === idx.revisions[i])) return
+    await writeIndex({ revisions: merged })
+  }
+
+  /**
    * SHA-256 hex of the content. Strong enough that collisions can be
    * ignored for practical purposes (blob identity), cheap enough at
    * our scale (tens of KB per item, hundreds of items per revision).
@@ -128,10 +165,11 @@ export function createHistoryProvider(opts: CreateHistoryProviderOptions): Histo
   /**
    * Allocate a fresh revision id. Scheme: `rev-<unixMillis>`, with a
    * `-<seq>` suffix on same-millisecond collisions ("rev-1760...050",
-   * "rev-1760...050-2", ...). Collision tracking uses the current
-   * index's revisions list — assumes no concurrent writers against
-   * the same target (already true: Gazetta never has two admins
-   * writing the same target's history simultaneously).
+   * "rev-1760...050-2", ...). Collision tracking uses a FRESH revisions/
+   * listing, and the caller verifies the manifest write by read-back
+   * and retries on overwrite (no create-exclusive in the storage
+   * contract), so concurrent writers on one target end up with
+   * distinct ids (#1089).
    *
    * Why millis + suffix rather than a monotonic counter:
    *   - Retention evictions leave you with a window of revisions you
@@ -178,11 +216,9 @@ export function createHistoryProvider(opts: CreateHistoryProviderOptions): Histo
   }
 
   async function recordRevision(input: RevisionInput): Promise<Revision> {
-    const idx = await readIndex()
-    const id = formatId(idx.revisions, Date.now())
-
     // Write blobs (dedup via content-addressing) and build the
-    // path → hash snapshot.
+    // path → hash snapshot. Content-addressed writes commute, so
+    // concurrent writers can do this phase simultaneously safely.
     const snapshot: Record<string, string> = {}
     // Deterministic order so rev manifests diff cleanly on inspection.
     const sortedEntries = [...input.items.entries()].sort((a, b) => a[0].localeCompare(b[0]))
@@ -190,26 +226,45 @@ export function createHistoryProvider(opts: CreateHistoryProviderOptions): Histo
       snapshot[path] = await writeBlob(content)
     }
 
-    const manifest: RevisionManifest = {
-      id,
-      timestamp: new Date().toISOString(),
-      operation: input.operation,
-      author: input.author,
-      source: input.source,
-      items: [...input.items.keys()].sort(),
-      message: input.message,
-      restoredFrom: input.restoredFrom,
-      snapshot,
+    // Allocate the id against a FRESH listing, write the manifest, then
+    // read it back: with no create-exclusive write in the storage
+    // contract, two writers in the same millisecond can pick the same
+    // id, and the later writeFile would silently overwrite the earlier
+    // manifest. The loser detects the overwrite on read-back and
+    // retries against a fresh listing (which by then includes the
+    // winner's id, so the seq suffix diverges). Converges unless the
+    // pair stays write-locked in sync; bounded, then throws (#1089).
+    let id = ''
+    let manifest: RevisionManifest | null = null
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      id = formatId(await listRevisionIds(), Date.now())
+      manifest = {
+        id,
+        timestamp: new Date().toISOString(),
+        operation: input.operation,
+        author: input.author,
+        source: input.source,
+        items: [...input.items.keys()].sort(),
+        message: input.message,
+        restoredFrom: input.restoredFrom,
+        snapshot,
+      }
+      const json = JSON.stringify(manifest, null, 2) + '\n'
+      await writeWithParents(revisionPath(id), json)
+      const written = await storage.readFile(revisionPath(id)).catch(() => null)
+      if (written === json) break
+      manifest = null
     }
-    await writeWithParents(revisionPath(id), JSON.stringify(manifest, null, 2) + '\n')
+    if (manifest === null) {
+      throw new Error('recordRevision: revision id kept colliding under concurrent writes')
+    }
 
-    // Update the index (append) then apply retention. Do the index
-    // write last so a mid-write failure leaves orphan blobs and an
-    // orphan manifest (both harmless) rather than a dangling index
-    // entry pointing at a missing manifest.
-    idx.revisions.push(id)
-    await writeIndex(idx)
-    await applyRetention(idx)
+    // Refresh the index cache, then apply retention. The manifest is
+    // already durable at this point, and the listing - not the cache -
+    // is what readers use, so a mid-write failure here leaves only a
+    // stale cache that the next write rebuilds (#1089).
+    await syncIndexCache()
+    await applyRetention()
 
     // Return the public Revision shape (no snapshot).
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -224,21 +279,18 @@ export function createHistoryProvider(opts: CreateHistoryProviderOptions): Histo
    * fine for v1 (disk is cheap; a future `gazetta gc` command can walk
    * all manifests and prune orphans).
    */
-  async function applyRetention(idx: HistoryIndex): Promise<void> {
-    const excess = idx.revisions.length - retention
+  async function applyRetention(): Promise<void> {
+    const ids = await listRevisionIds()
+    const excess = ids.length - retention
     if (excess <= 0) return
-    const toEvict = idx.revisions.slice(0, excess)
-    idx.revisions = idx.revisions.slice(excess)
-    for (const id of toEvict) {
-      const path = revisionPath(id)
-      if (await storage.exists(path)) await storage.rm(path)
+    for (const id of ids.slice(0, excess)) {
+      await storage.rm(revisionPath(id))
     }
-    await writeIndex(idx)
+    await syncIndexCache()
   }
 
   async function listRevisions(limit?: number): Promise<Revision[]> {
-    const idx = await readIndex()
-    const ids = [...idx.revisions].reverse() // newest first
+    const ids = (await listRevisionIds()).reverse() // newest first
     const sliced = typeof limit === 'number' ? ids.slice(0, limit) : ids
     // Read manifests in parallel; strip snapshot for the summary list.
     return Promise.all(
@@ -268,13 +320,10 @@ export function createHistoryProvider(opts: CreateHistoryProviderOptions): Histo
   }
 
   async function deleteRevision(id: string): Promise<void> {
-    const idx = await readIndex()
-    const at = idx.revisions.indexOf(id)
-    if (at === -1) return
-    idx.revisions.splice(at, 1)
-    await writeIndex(idx)
     const path = revisionPath(id)
-    if (await storage.exists(path)) await storage.rm(path)
+    if (!(await storage.exists(path))) return
+    await storage.rm(path)
+    await syncIndexCache()
     // Orphan blobs left for lazy GC — see applyRetention rationale.
   }
 
