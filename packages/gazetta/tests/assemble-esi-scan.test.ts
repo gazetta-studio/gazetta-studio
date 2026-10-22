@@ -185,17 +185,19 @@ describe('adversarial shapes stay linear', () => {
 })
 
 describe('nested openings', () => {
-  it('an opening inside a valid marker path is consumed with it', () => {
-    // findEsiPaths' old combined regex behaved this way; assembleEsi's old
-    // head-only regex disagreed and matched the inner head marker instead.
-    // The scanner keeps the combined-marker semantics the issue specifies.
-    // Pages with well-formed markers never hit this shape and assemble
-    // byte-identically to before (see the oracle tests above).
+  it('each API keeps its own legacy regex semantics on nested input', () => {
+    // The old code was internally inconsistent on this shape: findEsiPaths'
+    // combined regex consumed the outer marker, while assembleEsi's head-only
+    // regex matched the inner head marker. The kind-filtered scans preserve
+    // each API's own old semantics exactly, so even this malformed shape
+    // assembles byte-identically to before.
     const html = '<!--esi:/a <!--esi-head:/b.html-->'
     expect(findEsiPaths(html)).toEqual(['/a <!--esi-head:/b.html'])
     const nested = new Map([['/b.html', { head: '<link rel="stylesheet" href="/b.css">', body: '<div>B</div>' }]])
     const result = assembleEsi(html, nested)
-    expect(result).toBe('<!-- fragment not found: /a <!--esi-head:/b.html -->')
-    expect(result).not.toContain('b.css')
+    expect(result).toBe(regexAssembleEsi(html, nested))
+    // The old head-only regex matched the inner head marker, so the CSS is
+    // inserted and the unclosed outer body opening is left in place.
+    expect(result).toBe('<!--esi:/a <link rel="stylesheet" href="/b.css">')
   })
 })
