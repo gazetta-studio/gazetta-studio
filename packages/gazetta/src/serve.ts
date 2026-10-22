@@ -16,6 +16,7 @@ import { logger } from 'hono/logger'
 import { createHash } from 'node:crypto'
 import type { StorageProvider, TargetType } from './types.js'
 import { assembleEsi, parseCacheComment, splitFragment, findEsiPaths } from './assemble.js'
+import { isPublicSitePath } from './public-site-path.js'
 
 export interface ServeOptions {
   storage: StorageProvider
@@ -207,6 +208,11 @@ export function createServer(options: ServeOptions) {
   if (type === 'static') {
     app.get('*', async c => {
       const requestPath = new URL(c.req.url).pathname
+      // Private storage (audit log, history, manifests, sidecars) reads as
+      // a missing page, same as dynamic serve and the worker.
+      if (!isPublicSitePath(requestPath)) {
+        return c.html('<h1>404 — Page not found</h1>', 404)
+      }
       const filePath = requestPath === '/' ? 'index.html' : `${requestPath.replace(/\/$/, '')}/index.html`
       try {
         const html = await storage.readFile(filePath)
