@@ -50,6 +50,12 @@ async function seedArchivedPages(projectDir: string): Promise<void> {
     await mkdir(dir, { recursive: true })
     await writeFile(join(dir, 'page.json'), JSON.stringify(manifest))
   }
+  // welcome gets a French version only: the fr row keeps the language,
+  // ar/ja fall back to the default-language page (#1124 Q10).
+  await writeFile(
+    join(projectDir, 'sites/main/targets/local/pages/welcome/page.fr.json'),
+    JSON.stringify({ template: 'page-default', content: {} }),
+  )
 }
 
 async function addRedirectsFormat(projectDir: string): Promise<void> {
@@ -83,8 +89,12 @@ describe('gazetta publish — redirects rows per target language (#1130)', { tim
     const body = await readFile(join(projectDir, 'sites/main/targets/local/_redirects'), 'utf8')
     expect(body).toContain('/landing  /welcome  301')
     expect(body).toContain('/fr/landing  /fr/welcome  301')
-    expect(body).toContain('/ar/landing  /ar/welcome  301')
-    expect(body).toContain('/ja/landing  /ja/welcome  301')
+    // welcome has no ar/ja version: those rows point at the
+    // default-language page instead of routes nothing published.
+    expect(body).toContain('/ar/landing  /welcome  301')
+    expect(body).toContain('/ja/landing  /welcome  301')
+    expect(body).not.toContain('/ar/welcome')
+    expect(body).not.toContain('/ja/welcome')
     expect(body).toContain('/old  /  410')
     expect(body).toContain('/fr/old  /  410')
     expect(body).toContain('/ar/old  /  410')
