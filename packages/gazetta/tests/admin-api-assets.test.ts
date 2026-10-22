@@ -308,6 +308,21 @@ describe('DELETE /api/assets/:name', () => {
     expect(await listRes.json()).toEqual([])
   })
 
+  it('204s for a source without a manifest — the route falls back to an internal load', async () => {
+    // Regression: the route loads the site through the source's cache,
+    // which needs a manifest; manifest-less sources (legal per
+    // SourceContext) must fall through to deleteAsset's own load.
+    const storage = createFilesystemProvider(testDir)
+    const source = createSourceContext({ storage, siteDir: '' })
+    const app = new Hono()
+    app.use('/api/*', principalMiddleware())
+    app.route('/', assetRoutes(staticSourceResolver(source)))
+    await uploadHero(app)
+
+    const res = await app.request('/api/assets/hero', { method: 'DELETE' })
+    expect(res.status).toBe(204)
+  })
+
   it('409s with the usage list when a page references the asset', async () => {
     const { app } = buildApp()
     await uploadHero(app)
