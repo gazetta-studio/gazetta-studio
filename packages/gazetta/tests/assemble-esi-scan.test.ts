@@ -163,3 +163,39 @@ describe('linear-time ESI scan (issue #1114)', () => {
     expect(performance.now() - start).toBeLessThan(500)
   })
 })
+
+describe('adversarial shapes stay linear', () => {
+  it('repeated invalid openings before one closing marker', () => {
+    // The first scanner revision rescanned the suffix per opening here and
+    // went quadratic (12.2s at 40k). The first `>` and its `-->` verdict are
+    // now found once and shared: every opening reaching the same `>` fails
+    // in O(1).
+    const html = '<!--esi:/x>y '.repeat(100_000) + '-->'
+    const start = performance.now()
+    expect(findEsiPaths(html)).toEqual([])
+    expect(performance.now() - start).toBeLessThan(500)
+  })
+
+  it('repeated pathless openings before one closing marker', () => {
+    const html = '<!--esi:x '.repeat(100_000) + '-->'
+    const start = performance.now()
+    expect(findEsiPaths(html)).toEqual([])
+    expect(performance.now() - start).toBeLessThan(500)
+  })
+})
+
+describe('nested openings', () => {
+  it('an opening inside a valid marker path is consumed with it', () => {
+    // findEsiPaths' old combined regex behaved this way; assembleEsi's old
+    // head-only regex disagreed and matched the inner head marker instead.
+    // The scanner keeps the combined-marker semantics the issue specifies.
+    // Pages with well-formed markers never hit this shape and assemble
+    // byte-identically to before (see the oracle tests above).
+    const html = '<!--esi:/a <!--esi-head:/b.html-->'
+    expect(findEsiPaths(html)).toEqual(['/a <!--esi-head:/b.html'])
+    const nested = new Map([['/b.html', { head: '<link rel="stylesheet" href="/b.css">', body: '<div>B</div>' }]])
+    const result = assembleEsi(html, nested)
+    expect(result).toBe('<!-- fragment not found: /a <!--esi-head:/b.html -->')
+    expect(result).not.toContain('b.css')
+  })
+})
