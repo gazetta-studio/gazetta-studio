@@ -551,25 +551,32 @@ export function publishRoutes(
         if (redirectsFormat && redirectsFormat !== 'none') {
           const { emitRedirects } = await import('../../runtime/redirects-emit.js')
           const { allPageEntries, deriveRoute } = await import('../../site-loader.js')
-          const { resolveSiteLocales, defaultLocaleFor, localeRoutePrefix } = await import('../../locale.js')
+          const { resolveSiteLocales, localeRoutePrefix } = await import('../../locale.js')
           const archives: { from: string; to?: string }[] = []
-          // One row per language the target publishes: a redirect keeps
-          // the visitor's language (#1124). Languages, default and
-          // prefixes are worked out the way the sitemap does. Locale
-          // variant entries share the parent's archive state in v1 (per
-          // `design-soft-delete.md` future directions), so rows expand
-          // from the default-locale entry.
+          // One row per published route: a redirect keeps the visitor's
+          // language (#1124). Locale variant entries share the parent's
+          // archive state in v1 (per `design-soft-delete.md` future
+          // directions), so rows expand from the default-locale entry.
           const publishManifest = source.manifest ?? { name: '(publish)' }
           const resolvedLoc = resolveSiteLocales(publishManifest)
-          const rowLocales = resolvedLoc ? (config?.locales ?? resolvedLoc.supported) : ['']
-          const rowDefault = resolvedLoc ? (config?.locale ?? defaultLocaleFor(publishManifest)) : ''
+          // Rows mirror the static write path (staticPageIndexPath):
+          // default-locale content is always published unprefixed — the
+          // target's locales filter only gates variants — and each
+          // published variant lives at /<locale>/. The site default is
+          // therefore always in the row set, and prefixes never apply
+          // target.locale/defaultPrefix overrides, which the static
+          // write path ignores.
+          const siteDefault = resolvedLoc?.default ?? ''
+          const rowLocales = resolvedLoc
+            ? [siteDefault, ...(config?.locales ?? resolvedLoc.supported).filter(l => l !== siteDefault)]
+            : ['']
           for (const entry of allPageEntries(site)) {
             if (entry.page.archived !== true) continue
             if (entry.locale) continue
             const baseFrom = deriveRoute(entry.name)
             const baseTo = entry.page.aliasOf ? deriveRoute(entry.page.aliasOf) : undefined
             for (const loc of rowLocales) {
-              const prefix = loc ? localeRoutePrefix(loc, { ...resolvedLoc!, default: rowDefault }) : ''
+              const prefix = loc ? localeRoutePrefix(loc, { ...resolvedLoc!, default: siteDefault, defaultPrefix: false }) : ''
               const from = baseFrom === '/' ? prefix || '/' : `${prefix}${baseFrom}`
               const to = baseTo === undefined ? undefined : baseTo === '/' ? prefix || '/' : `${prefix}${baseTo}`
               archives.push(to !== undefined ? { from, to } : { from })
