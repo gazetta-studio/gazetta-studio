@@ -151,8 +151,9 @@ async function runReplace(opts: ResolveOptions): Promise<ArchivedNameConflictRes
     // target is a different physical item now (live, not archived).
     // The sidecar update is therefore a no-op for the archive-aliases
     // index — same source ref, same target name. No write needed; only
-    // report the cascade.
-    flattenedAliases.push(ref.name)
+    // report the cascade, once per archive (locale variants share the
+    // bare name).
+    if (!flattenedAliases.includes(ref.name)) flattenedAliases.push(ref.name)
   }
 
   return { kind: 'replaced', flattenedAliases }
@@ -205,7 +206,8 @@ async function runMoveAside(opts: ResolveOptions): Promise<ArchivedNameConflictR
   const flattenedAliases: string[] = []
   for (const ref of aliasingArchives) {
     if (ref.source !== opts.kind) continue
-    flattenedAliases.push(ref.name)
+    // Locale variants share the bare name — report each archive once.
+    if (!flattenedAliases.includes(ref.name)) flattenedAliases.push(ref.name)
   }
 
   // Step 5 — create the new live manifest at the original name.
