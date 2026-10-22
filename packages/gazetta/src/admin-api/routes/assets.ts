@@ -224,7 +224,10 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
         manifest: source.manifest,
         history: source.history,
         contentRoot: source.contentRoot,
-        site: await loadSiteFromSource(source),
+        // Load the site through the source's cache when the source has a
+        // manifest; manifest-less sources fall through to deleteAsset's
+        // own load with its `(refs-scan)` fallback (#1139).
+        site: source.manifest ? await loadSiteFromSource(source) : undefined,
       })
       // 204 No Content — standard REST for successful delete with no body.
       return c.body(null, 204)
