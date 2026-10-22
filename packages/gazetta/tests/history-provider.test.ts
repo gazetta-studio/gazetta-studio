@@ -224,3 +224,45 @@ describe('createHistoryProvider', () => {
     })
   })
 })
+
+describe('concurrent recordRevision (#1089)', () => {
+  it('two unawaited recordRevision calls both land in listRevisions with distinct ids', async () => {
+    // Storage double that delays the index read so both writers read the
+    // same starting index - the interleaving that used to lose a revision.
+    const inner = memoryStorage()
+    const storage = {
+      ...inner,
+      async readFile(path: string) {
+        if (path.endsWith('index.json')) await new Promise(r => setTimeout(r, 10))
+        return inner.readFile(path)
+      },
+    }
+    const h = createHistoryProvider({ storage })
+    const [r1, r2] = await Promise.all([
+      h.recordRevision(input({ 'pages/home': 'from-a' })),
+      h.recordRevision(input({ 'pages/about': 'from-b' })),
+    ])
+    expect(r1.id).not.toBe(r2.id)
+    const list = await h.listRevisions()
+    const ids = list.map(r => r.id)
+    expect(ids).toContain(r1.id)
+    expect(ids).toContain(r2.id)
+    // And both revisions' content must be intact - no manifest overwrite.
+    const m1 = await h.readRevision(r1.id)
+    const m2 = await h.readRevision(r2.id)
+    expect(m1.items).toContain('pages/home')
+    expect(m2.items).toContain('pages/about')
+  })
+
+  it('listRevisions reflects revisions whose manifest exists even when index.json is stale', async () => {
+    // The revisions/ listing is the source of truth; index.json is a cache.
+    const storage = memoryStorage()
+    const h = createHistoryProvider({ storage })
+    const r = await h.recordRevision(input({ 'pages/home': 'a' }))
+    // Simulate a lost index update (the #1089 failure): rewrite the index
+    // without the id, leaving the manifest on disk.
+    await storage.writeFile('.gazetta/history/index.json', JSON.stringify({ revisions: [] }) + '\n')
+    const list = await h.listRevisions()
+    expect(list.map(x => x.id)).toContain(r.id)
+  })
+})
