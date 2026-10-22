@@ -266,3 +266,52 @@ describe('concurrent recordRevision (#1089)', () => {
     expect(list.map(x => x.id)).toContain(r.id)
   })
 })
+
+describe('index cache hygiene and concurrent retention (#1107 review)', () => {
+  it('the index cache drops evicted ids after retention', async () => {
+    const storage = memoryStorage()
+    const h = createHistoryProvider({ storage, retention: 2 })
+    const r1 = await h.recordRevision(input({ 'pages/home': 'a' }))
+    const r2 = await h.recordRevision(input({ 'pages/home': 'b' }))
+    const r3 = await h.recordRevision(input({ 'pages/home': 'c' }))
+    expect(r1.id).not.toBe(r2.id)
+    const raw = JSON.parse(await storage.readFile('.gazetta/history/index.json')) as { revisions: string[] }
+    expect(raw.revisions).toHaveLength(2)
+    expect(raw.revisions).not.toContain(r1.id)
+    expect(raw.revisions).toContain(r3.id)
+  })
+
+  it('two concurrent writers past retention do not fail on duplicate eviction', async () => {
+    // fs-faithful rm: deleting a missing path throws, like the real
+    // filesystem provider. Two writers that both decide to evict the
+    // same oldest revision must not fail on the duplicate delete.
+    const inner = memoryStorage()
+    const storage = {
+      ...inner,
+      async rm(path: string) {
+        if (!(await inner.exists(path))) throw new Error(`Cannot delete ${path}: ENOENT`)
+        return inner.rm(path)
+      },
+      async readFile(path: string) {
+        if (path.endsWith('index.json')) await new Promise(r => setTimeout(r, 10))
+        return inner.readFile(path)
+      },
+      async readDir(path: string) {
+        // Delay the revisions/ listing so both writers compute the same
+        // eviction set before either deletes - the reported race.
+        if (path.endsWith('revisions')) await new Promise(r => setTimeout(r, 10))
+        return inner.readDir(path)
+      },
+    }
+    const h = createHistoryProvider({ storage, retention: 1 })
+    await h.recordRevision(input({ 'pages/home': 'seed' }))
+    const [r1, r2] = await Promise.all([
+      h.recordRevision(input({ 'pages/a': 'from-a' })),
+      h.recordRevision(input({ 'pages/b': 'from-b' })),
+    ])
+    expect(r1.id).not.toBe(r2.id)
+    // retention=1: exactly one revision survives, and it is one of the two.
+    const list = await h.listRevisions()
+    expect(list).toHaveLength(1)
+  })
+})
