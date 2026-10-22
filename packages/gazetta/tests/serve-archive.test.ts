@@ -259,6 +259,46 @@ describe('serve archive markers (static, localized)', () => {
     expect(res.headers.get('location')).toBe('/fr/welcome')
     expect(res.headers.get('cache-control')).toBe(ARCHIVE_CACHE_CONTROL)
   })
+
+  it('does not prefix the default language on static targets with defaultPrefix on', async () => {
+    // Static publish writes default-language pages unprefixed until #1146.
+    const storage = memoryStorage()
+    storage.seed({
+      '/welcome/index.html': LIVE_PAGE,
+      '/fr/landing/index.html': archiveMarker({ kind: 'alias', target: 'welcome' }),
+    })
+    const app = createServer({
+      storage,
+      type: 'static',
+      locales: ['en', 'fr'],
+      defaultLocale: 'en',
+      defaultPrefix: true,
+    })
+
+    const res = await app.request('http://localhost/fr/landing')
+    expect(res.status).toBe(301)
+    expect(res.headers.get('location')).toBe('/welcome')
+  })
+
+  it('still keeps the request language with defaultPrefix on when the destination version exists', async () => {
+    const storage = memoryStorage()
+    storage.seed({
+      '/welcome/index.html': LIVE_PAGE,
+      '/fr/welcome/index.html': LIVE_PAGE,
+      '/fr/landing/index.html': archiveMarker({ kind: 'alias', target: 'welcome' }),
+    })
+    const app = createServer({
+      storage,
+      type: 'static',
+      locales: ['en', 'fr'],
+      defaultLocale: 'en',
+      defaultPrefix: true,
+    })
+
+    const res = await app.request('http://localhost/fr/landing')
+    expect(res.status).toBe(301)
+    expect(res.headers.get('location')).toBe('/fr/welcome')
+  })
 })
 
 describe('serve archive markers (static)', () => {
