@@ -29,7 +29,7 @@ function buildApp() {
   const storage = createFilesystemProvider(testDir)
   // Storage is already rooted at `testDir`, so siteDir within that root
   // is the empty string — otherwise content paths double the prefix.
-  const source = createSourceContext({ storage, siteDir: '' })
+  const source = createSourceContext({ storage, siteDir: '', manifest: { name: 'test-site' } })
   const resolve = staticSourceResolver(source)
   const app = new Hono()
   // Wire the principal middleware (none-mode by default → admin role)
