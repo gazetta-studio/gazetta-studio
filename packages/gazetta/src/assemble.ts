@@ -1,5 +1,5 @@
 /**
- * ESI assembly — pure string functions, no I/O, no platform deps.
+ * ESI assembly â pure string functions, no I/O, no platform deps.
  * Used by edge workers and Node servers to compose pages from fragments.
  */
 
@@ -29,26 +29,92 @@ export function splitFragment(html: string): { head: string; body: string } {
   }
 }
 
+/** One ESI marker found by scanEsiMarkers */
+export interface EsiMarker {
+  kind: 'head' | 'body'
+  path: string
+  /** Index of the marker's opening '<' in the scanned HTML */
+  start: number
+  /** Index just past the marker's closing '-->' */
+  end: number
+}
+
+/**
+ * Find every ESI marker in linear time.
+ *
+ * A marker is `<!--esi:/path-->` or `<!--esi-head:/path-->` where the path
+ * starts with `/` plus at least one more character and contains no `>`. An
+ * opening with no `-->` after it, or with `>` before the `-->`, is not a
+ * marker. This matches what the previous regexes matched, but indexOf
+ * scanning does not backtrack: page HTML with many unclosed `<!--esi:`
+ * openings took quadratic time before (CodeQL js/polynomial-redos), and
+ * markers are scanned on every request in the worker and in `gazetta serve`.
+ */
+export function scanEsiMarkers(html: string): EsiMarker[] {
+  const markers: EsiMarker[] = []
+  let pos = 0
+  while (pos < html.length) {
+    const open = html.indexOf('<!--esi', pos)
+    if (open === -1) break
+
+    let kind: 'head' | 'body'
+    let pathStart: number
+    if (html.startsWith('-head:', open + 7)) {
+      kind = 'head'
+      pathStart = open + 13
+    } else if (html.startsWith(':', open + 7)) {
+      kind = 'body'
+      pathStart = open + 8
+    } else {
+      // Not an ESI opening. Advance one character, like a failed regex match.
+      pos = open + 1
+      continue
+    }
+
+    const close = html.indexOf('-->', pathStart)
+    if (close === -1) break
+
+    const path = html.slice(pathStart, close)
+    // Equivalent of `(\/[^>]+)`: a slash plus at least one character, no `>`.
+    if (path.length > 1 && path.startsWith('/') && !path.includes('>')) {
+      markers.push({ kind, path, start: open, end: close + 3 })
+      // A consumed marker hides any '<!--esi' inside it, like regex lastIndex.
+      pos = close + 3
+    } else {
+      pos = open + 1
+    }
+  }
+  return markers
+}
+
+/** Replace each marker in place, reading positions from the scanned HTML */
+function replaceEsiMarkers(html: string, markers: EsiMarker[], replacement: (marker: EsiMarker) => string): string {
+  if (markers.length === 0) return html
+  const parts: string[] = []
+  let last = 0
+  for (const marker of markers) {
+    parts.push(html.slice(last, marker.start), replacement(marker))
+    last = marker.end
+  }
+  parts.push(html.slice(last))
+  return parts.join('')
+}
+
 /** Find all ESI paths referenced in the page HTML */
 export function findEsiPaths(html: string): string[] {
   const paths = new Set<string>()
-  const regex = /<!--esi(?:-head)?:(\/[^>]+)-->/g
-  let match
-  while ((match = regex.exec(html)) !== null) paths.add(match[1])
+  for (const marker of scanEsiMarkers(html)) paths.add(marker.path)
   return [...paths]
 }
 
 /** Assemble page HTML with fragment head and body content */
 export function assembleEsi(pageHtml: string, fragments: Map<string, { head: string; body: string }>): string {
-  const esiHeadRegex = /<!--esi-head:(\/[^>]+)-->/g
-  const esiBodyRegex = /<!--esi:(\/[^>]+)-->/g
+  const markers = scanEsiMarkers(pageHtml)
 
   // Collect ESI head order from page
   const esiHeadOrder: string[] = []
-  const esiHeadRegex2 = /<!--esi-head:(\/[^>]+)-->/g
-  let m
-  while ((m = esiHeadRegex2.exec(pageHtml)) !== null) {
-    if (!esiHeadOrder.includes(m[1])) esiHeadOrder.push(m[1])
+  for (const marker of markers) {
+    if (marker.kind === 'head' && !esiHeadOrder.includes(marker.path)) esiHeadOrder.push(marker.path)
   }
 
   // Collect CSS and JS separately, preserving fragment order, deduplicating
@@ -77,27 +143,36 @@ export function assembleEsi(pageHtml: string, fragments: Map<string, { head: str
   }
 
   // Replace first esi-head with other + CSS, remove the rest
-  let html = pageHtml
   const collectedCss = [...otherLines, ...cssLines].join('\n  ')
   let cssInserted = false
-  html = html.replace(esiHeadRegex, () => {
-    if (!cssInserted && collectedCss) {
-      cssInserted = true
-      return collectedCss
-    }
-    return ''
-  })
+  let html = replaceEsiMarkers(
+    pageHtml,
+    markers.filter(m => m.kind === 'head'),
+    () => {
+      if (!cssInserted && collectedCss) {
+        cssInserted = true
+        return collectedCss
+      }
+      return ''
+    },
+  )
 
   // Insert JS before </head> (after all CSS, preserving fragment order)
   if (jsLines.length > 0) {
     html = html.replace('</head>', `  ${jsLines.join('\n  ')}\n</head>`)
   }
 
-  // Replace esi body tags with fragment body content
-  html = html.replace(esiBodyRegex, (_match, path: string) => {
-    const frag = fragments.get(path)
-    return frag?.body ?? `<!-- fragment not found: ${path} -->`
-  })
+  // Replace esi body tags with fragment body content. Rescan rather than reuse
+  // positions: the passes above rewrote the HTML, and their replacement text
+  // could itself contain markers the body pass would have matched.
+  html = replaceEsiMarkers(
+    html,
+    scanEsiMarkers(html).filter(m => m.kind === 'body'),
+    marker => {
+      const frag = fragments.get(marker.path)
+      return frag?.body ?? `<!-- fragment not found: ${marker.path} -->`
+    },
+  )
 
   return html
 }
