@@ -229,11 +229,10 @@ existing sidecars). Locale variants get a `:locale` suffix.
 
 ### Read path
 
-`delete.ts` switches from `findAssetRefs` (walk all manifests) to `readDir`
-of the asset's sidecar directory. Same return shape (`AssetRef[]`), but
-without `componentPath` detail (sidecar filename encodes only `path`).
-For breadcrumb display in the in-use error, re-read the named manifests
-on demand to recover `componentPath`. Most callers don't need it.
+`deleteAsset` does not read the sidecar directory. It scans the loaded
+site's pages and fragments (`allPageEntries` / `allFragmentEntries`) with
+`scanManifestForAsset`, so the returned `AssetRef[]` keeps full
+`componentPath` detail from the manifests themselves (#1139).
 
 ### Drift recovery
 
