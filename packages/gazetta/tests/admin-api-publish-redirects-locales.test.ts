@@ -25,6 +25,7 @@ import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
 interface BuildOpts {
   manifestExtra?: Record<string, unknown>
   targetConfigExtra?: Record<string, unknown>
+  seedExtra?: Record<string, string>
 }
 
 function buildApp(opts: BuildOpts = {}): { app: Hono; targetStorage: MemoryStorage } {
@@ -44,6 +45,9 @@ function buildApp(opts: BuildOpts = {}): { app: Hono; targetStorage: MemoryStora
       archived: true,
     }),
     'pages/welcome/page.json': JSON.stringify({ template: 'page-default', content: {} }),
+    'pages/welcome/page.fr.json': JSON.stringify({ template: 'page-default', content: {} }),
+    'pages/home/page.json': JSON.stringify({ template: 'page-default', content: {} }),
+    ...opts.seedExtra,
   })
 
   const targetConfig = {
@@ -142,6 +146,44 @@ describe('publish route — redirects rows per target language (#1130)', () => {
     expect(body).toContain('/fr/landing  /fr/welcome  301')
     expect(body).toContain('/fr/old  /  410')
     expect(body.trim().split('\n')).toHaveLength(4)
+  })
+
+  it('points a language row at the destination default-language page when the destination lacks that language (#1124 Q10)', async () => {
+    // welcome has a French version, contact and home do not. Static
+    // publish only writes /<locale>/<page> when the page has that
+    // version, so rows for `fr` must fall back to the destination's
+    // default-language page rather than a route nothing published.
+    const { app, targetStorage } = buildApp({
+      manifestExtra: { locales: { default: 'en', supported: ['en', 'fr'] } },
+      seedExtra: {
+        'pages/contact/page.json': JSON.stringify({ template: 'page-default', content: {} }),
+        'pages/obsolete/page.json': JSON.stringify({
+          template: 'page-default',
+          content: {},
+          archived: true,
+          aliasOf: 'contact',
+        }),
+        'pages/ancien/page.json': JSON.stringify({
+          template: 'page-default',
+          content: {},
+          archived: true,
+          aliasOf: 'home',
+        }),
+      },
+    })
+
+    const body = await publishAndReadRedirects(app, targetStorage)
+
+    // Destination with a French version keeps the language.
+    expect(body).toContain('/fr/landing  /fr/welcome  301')
+    // Destination without one falls back to its default-language page.
+    expect(body).toContain('/obsolete  /contact  301')
+    expect(body).toContain('/fr/obsolete  /contact  301')
+    // An alias to home falls back to `/` when home lacks the language.
+    expect(body).toContain('/ancien  /  301')
+    expect(body).toContain('/fr/ancien  /  301')
+    expect(body).not.toContain('/fr/contact')
+    expect(body.trim().split('\n')).toHaveLength(8)
   })
 
   it('writes the same rows as before for a site without locales', async () => {
