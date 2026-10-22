@@ -117,17 +117,19 @@ incrementally on every page/fragment save. The shape was reconsidered after a
 measurement run and a multi-instance correctness review; the v1 implementation
 uses **per-edge zero-byte sidecars** instead of an aggregate JSON file.
 
+The delete check does not read this index: `deleteAsset` scans the loaded
+site — pages + fragments via `site-users.ts` — for live refs (#1139). The
+sidecar is derived state consumed by other readers, today the
+`gazetta assets info` CLI references listing.
+
 ### Why we measured first
 
-Walk-on-demand (`findAssetRefs`, today) reads every page + fragment manifest on
-every delete check. Bench shape and cost:
-
-Test: [packages/gazetta/tests/perf-refs.bench.ts](../../packages/gazetta/tests/perf-refs.bench.ts) —
-runs against docker-compose (MinIO + Azurite via testcontainers). Reproduce with
-`cd packages/gazetta && npx vitest bench tests/perf-refs.bench.ts --run`.
-
-Mean ms per operation. Walk-on-demand vs sidecar lookup, both measured
-against fully populated synthetic sites:
+Walk-on-demand (`findAssetRefs`) used to read every page + fragment manifest
+on every delete check; the walk was removed when the delete check moved to
+the loaded site, and the benchmark (`perf-refs.bench.ts`) went with it. The
+measurements below are kept as the record of that decision. Mean ms per
+operation, walk-on-demand vs sidecar lookup, both measured against fully
+populated synthetic sites:
 
 **Read path — `findAssetRefs` (walk) vs `readRefsForAsset` (sidecar):**
 
