@@ -1,0 +1,89 @@
+/**
+ * #1130, CLI end-to-end: `gazetta publish` to a plain-static target with
+ * `redirects: { format: 'cloudflare' }` writes one `_redirects` row per
+ * language the target publishes for each archived page, instead of only
+ * the default-language row. The starter site declares en/fr/ar/ja
+ * locales, so the alias and 410 rows appear unprefixed for English and
+ * prefixed for every other published language.
+ *
+ * Runs the real CLI against a temp copy of examples/starter (matching
+ * cli-publish-exit-code.test.ts). Pages are seeded into the editable
+ * local target's storage (sites/main/targets/local/pages/), which is
+ * where the CLI reads site content from, and the local target gets a
+ * redirects format.
+ */
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { spawn } from 'node:child_process'
+import { cp, mkdir, rm, readFile, writeFile } from 'node:fs/promises'
+import { join, resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { tempDir } from './_helpers/temp.js'
+
+const here = dirname(fileURLToPath(import.meta.url))
+const repoRoot = resolve(here, '../../..')
+const starterDir = resolve(repoRoot, 'examples/starter')
+const cliPath = resolve(repoRoot, 'packages/gazetta/src/cli/index.ts')
+const tsxBin = resolve(repoRoot, 'node_modules/.bin/tsx')
+
+function runCli(cwd: string, args: string[]): Promise<{ output: string; code: number }> {
+  return new Promise(done => {
+    const child = spawn(tsxBin, [cliPath, ...args], {
+      cwd,
+      env: { ...process.env, CI: 'true' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    let output = ''
+    child.stdout?.on('data', d => (output += d.toString()))
+    child.stderr?.on('data', d => (output += d.toString()))
+    child.on('close', code => done({ output, code: code ?? 0 }))
+  })
+}
+
+async function seedArchivedPages(projectDir: string): Promise<void> {
+  const pages: Record<string, object> = {
+    landing: { template: 'page-default', content: {}, archived: true, aliasOf: 'welcome' },
+    old: { template: 'page-default', content: {}, archived: true },
+    welcome: { template: 'page-default', content: {} },
+  }
+  for (const [name, manifest] of Object.entries(pages)) {
+    const dir = join(projectDir, 'sites/main/targets/local/pages', name)
+    await mkdir(dir, { recursive: true })
+    await writeFile(join(dir, 'page.json'), JSON.stringify(manifest))
+  }
+}
+
+async function addRedirectsFormat(projectDir: string): Promise<void> {
+  const configPath = join(projectDir, 'sites/main/site.config.ts')
+  const config = await readFile(configPath, 'utf8')
+  const updated = config.replace('local: {', "local: {\n      redirects: { format: 'cloudflare' as const },")
+  await writeFile(configPath, updated)
+}
+
+describe('gazetta publish — redirects rows per target language (#1130)', { timeout: 120000 }, () => {
+  let projectDir: string
+
+  beforeEach(async () => {
+    projectDir = tempDir(`cli-publish-redirects-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+    await cp(starterDir, projectDir, {
+      recursive: true,
+      filter: src => !src.includes('/node_modules') && !src.includes('/dist'),
+    })
+    await seedArchivedPages(projectDir)
+    await addRedirectsFormat(projectDir)
+  })
+
+  afterEach(async () => {
+    await rm(projectDir, { recursive: true, force: true })
+  })
+
+  it('writes one _redirects row per published language for archived pages', async () => {
+    const res = await runCli(projectDir, ['publish', 'local', 'sites/main', '--force'])
+    expect(res.code).toBe(0)
+
+    const body = await readFile(join(projectDir, 'sites/main/targets/local/_redirects'), 'utf8')
+    expect(body).toContain('/landing  /welcome  301')
+    expect(body).toContain('/fr/landing  /fr/welcome  301')
+    expect(body).toContain('/old  /  410')
+    expect(body).toContain('/fr/old  /  410')
+  })
+})
