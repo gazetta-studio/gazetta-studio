@@ -125,6 +125,25 @@ describe('publish route — redirects rows per target language (#1130)', () => {
     expect(body.trim().split('\n')).toHaveLength(2)
   })
 
+  it('still writes the default-language rows when the target locale subset excludes the site default', async () => {
+    // The target's locales filter only gates variants: default-locale
+    // content is still published at the unprefixed route, so its rows
+    // must not disappear (regression: an earlier cut emitted only the
+    // /fr rows here).
+    const { app, targetStorage } = buildApp({
+      manifestExtra: { locales: { default: 'en', supported: ['en', 'fr'] } },
+      targetConfigExtra: { locales: ['fr'] },
+    })
+
+    const body = await publishAndReadRedirects(app, targetStorage)
+
+    expect(body).toContain('/landing  /welcome  301')
+    expect(body).toContain('/old  /  410')
+    expect(body).toContain('/fr/landing  /fr/welcome  301')
+    expect(body).toContain('/fr/old  /  410')
+    expect(body.trim().split('\n')).toHaveLength(4)
+  })
+
   it('writes the same rows as before for a site without locales', async () => {
     const { app, targetStorage } = buildApp({})
 
