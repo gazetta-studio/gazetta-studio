@@ -551,16 +551,29 @@ export function publishRoutes(
         if (redirectsFormat && redirectsFormat !== 'none') {
           const { emitRedirects } = await import('../../runtime/redirects-emit.js')
           const { allPageEntries, deriveRoute } = await import('../../site-loader.js')
+          const { resolveSiteLocales, defaultLocaleFor, localeRoutePrefix } = await import('../../locale.js')
           const archives: { from: string; to?: string }[] = []
+          // One row per language the target publishes: a redirect keeps
+          // the visitor's language (#1124). Languages, default and
+          // prefixes are worked out the way the sitemap does. Locale
+          // variant entries share the parent's archive state in v1 (per
+          // `design-soft-delete.md` future directions), so rows expand
+          // from the default-locale entry.
+          const publishManifest = source.manifest ?? { name: '(publish)' }
+          const resolvedLoc = resolveSiteLocales(publishManifest)
+          const rowLocales = resolvedLoc ? (config?.locales ?? resolvedLoc.supported) : ['']
+          const rowDefault = resolvedLoc ? (config?.locale ?? defaultLocaleFor(publishManifest)) : ''
           for (const entry of allPageEntries(site)) {
             if (entry.page.archived !== true) continue
-            // Locale variants share the parent's archive state in v1
-            // (per design-soft-delete.md future directions). Default-
-            // locale row is the canonical entry.
             if (entry.locale) continue
-            const from = deriveRoute(entry.name)
-            const to = entry.page.aliasOf ? deriveRoute(entry.page.aliasOf) : undefined
-            archives.push(to !== undefined ? { from, to } : { from })
+            const baseFrom = deriveRoute(entry.name)
+            const baseTo = entry.page.aliasOf ? deriveRoute(entry.page.aliasOf) : undefined
+            for (const loc of rowLocales) {
+              const prefix = loc ? localeRoutePrefix(loc, { ...resolvedLoc!, default: rowDefault }) : ''
+              const from = baseFrom === '/' ? prefix || '/' : `${prefix}${baseFrom}`
+              const to = baseTo === undefined ? undefined : baseTo === '/' ? prefix || '/' : `${prefix}${baseTo}`
+              archives.push(to !== undefined ? { from, to } : { from })
+            }
           }
           const result = emitRedirects(redirectsFormat, archives)
           if (result && result.body !== '') {
