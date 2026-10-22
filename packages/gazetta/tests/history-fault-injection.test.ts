@@ -237,12 +237,16 @@ describe('history fault injection — mid-index-write failure', () => {
       }),
     ).rejects.toThrow(/index write fails/)
 
-    // Index is still the pre-failure snapshot — listRevisions only sees rev 1.
+    // Index is still the pre-failure snapshot — the failed write did not
+    // corrupt the cache file.
     const indexAfter = await readIndex(storage)
     expect(indexAfter).toEqual(indexBefore)
+    // But the revision itself is NOT lost: since #1089 the revisions/
+    // listing is the source of truth and index.json only a cache, so
+    // listRevisions sees both revisions despite the failed cache write.
     const list = await history2.listRevisions()
-    expect(list).toHaveLength(1)
-    expect(list[0].id).toBe(firstList[0].id)
+    expect(list).toHaveLength(2)
+    expect(list.map(r => r.id)).toContain(firstList[0].id)
   })
 })
 
