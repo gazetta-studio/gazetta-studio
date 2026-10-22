@@ -308,3 +308,25 @@ describe('serveLocaleOptions', () => {
     expect(await res.text()).toContain('\u00c0 propos')
   })
 })
+
+describe('detection with defaultPrefix', () => {
+  it('does not treat the default locale prefix as unlocalized', async () => {
+    const storage = memoryStorage()
+    storage.seed({
+      'pages/about/index.en.html': '<!DOCTYPE html><html><body>About EN</body></html>',
+      'pages/about/index.fr.html': '<!DOCTYPE html><html><body>\u00c0 propos</body></html>',
+    })
+    const app = createServer({
+      storage,
+      type: 'dynamic',
+      locales: ['en', 'fr'],
+      defaultLocale: 'en',
+      defaultPrefix: true,
+      detection: true,
+    })
+
+    const res = await app.request('http://localhost/en/about', { headers: { Cookie: 'locale=fr' } })
+    expect(res.status).toBe(200)
+    expect(await res.text()).toContain('About EN')
+  })
+})
