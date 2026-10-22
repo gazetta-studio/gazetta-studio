@@ -24,6 +24,7 @@
  */
 
 import { createHash } from 'node:crypto'
+import { rmIgnoreMissing } from './providers/_rm-ignore-missing.js'
 import type { StorageProvider } from './types.js'
 import type { BlobContent, HistoryProvider, Revision, RevisionInput, RevisionManifest } from './history.js'
 import { DEFAULT_HISTORY_RETENTION } from './types.js'
@@ -135,16 +136,18 @@ export function createHistoryProvider(opts: CreateHistoryProviderOptions): Histo
   }
 
   /**
-   * Best-effort rewrite of the index cache from the listing. Merges
-   * instead of replacing so a concurrent writer's just-written id is
-   * not dropped from the cache; the listing stays authoritative either
-   * way, so a lost cache update is harmless.
+   * Best-effort rewrite of the index cache from the listing. Every
+   * writer syncs only AFTER its manifest is durable, and a durable
+   * manifest is visible in the listing - so the listing alone is a
+   * complete cache source. Unioning with the previous cache instead
+   * would resurrect evicted and deleted ids forever (#1107 review).
+   * A lost cache update is harmless: the listing stays authoritative.
    */
   async function syncIndexCache(): Promise<void> {
     const idx = await readIndex()
-    const merged = [...new Set([...idx.revisions, ...(await listRevisionIds())])].sort()
-    if (merged.length === idx.revisions.length && merged.every((v, i) => v === idx.revisions[i])) return
-    await writeIndex({ revisions: merged })
+    const ids = await listRevisionIds()
+    if (ids.length === idx.revisions.length && ids.every((v, i) => v === idx.revisions[i])) return
+    await writeIndex({ revisions: ids })
   }
 
   /**
@@ -284,7 +287,10 @@ export function createHistoryProvider(opts: CreateHistoryProviderOptions): Histo
     const excess = ids.length - retention
     if (excess <= 0) return
     for (const id of ids.slice(0, excess)) {
-      await storage.rm(revisionPath(id))
+      // Idempotent delete: a concurrent writer can pick the same
+      // eviction set, and a plain rm on the already-deleted manifest
+      // would fail the whole write (#1107 review).
+      await rmIgnoreMissing(storage, revisionPath(id))
     }
     await syncIndexCache()
   }
