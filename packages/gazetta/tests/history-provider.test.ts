@@ -215,6 +215,104 @@ describe('createHistoryProvider', () => {
     })
   })
 
+  describe('id validation (#1107 review)', () => {
+    it('deleteRevision never issues an rm for ids outside the generated shape', async () => {
+      // join() is string concatenation; on providers that normalize paths
+      // (filesystem) an id like '../../../secret' would resolve OUTSIDE
+      // revisions/ and delete an unrelated file inside the storage root.
+      const inner = memoryStorage()
+      const rmCalls: string[] = []
+      const spy = {
+        ...inner,
+        async rm(path: string) {
+          rmCalls.push(path)
+          return inner.rm(path)
+        },
+      }
+      const h = createHistoryProvider({ storage: spy })
+      await h.recordRevision(input({ a: '1' }))
+      rmCalls.length = 0
+      // Seed the path a traversal id would resolve to, so a missing guard
+      // is observable as an rm call (memory storage keys are literal; the
+      // filesystem provider would normalize the same path outside
+      // revisions/).
+      await inner.writeFile('.gazetta/history/revisions/../../../secret.json', 'x')
+      await h.deleteRevision('../../../secret')
+      await h.deleteRevision('rev-123.json')
+      await h.deleteRevision('not-a-revision-id')
+      expect(rmCalls).toEqual([])
+      // The real revision is untouched.
+      expect(await h.listRevisions()).toHaveLength(1)
+    })
+
+    it('readRevision rejects ids outside the generated shape', async () => {
+      const h = createHistoryProvider({ storage })
+      await expect(h.readRevision('../../../secret')).rejects.toThrow(/invalid revision id/)
+      await expect(h.readRevision('rev-123.json')).rejects.toThrow(/invalid revision id/)
+    })
+  })
+
+  describe('listing order (#1107 review)', () => {
+    it('orders same-millisecond sequence suffixes numerically, not lexicographically', async () => {
+      // 'rev-<ms>-10' sorts before 'rev-<ms>-2' in a plain string sort,
+      // which would corrupt both listRevisions order and retention's
+      // oldest-first eviction once one millisecond sees 10+ revisions.
+      const h = createHistoryProvider({ storage })
+      const base = 'rev-1700000000000'
+      for (const seq of [10, 2]) {
+        await storage.writeFile(
+          `.gazetta/history/revisions/${base}-${seq}.json`,
+          JSON.stringify({
+            id: `${base}-${seq}`,
+            timestamp: '2023-11-14T22:13:20.000Z',
+            operation: 'save',
+            items: [],
+            snapshot: {},
+          }),
+        )
+      }
+      const list = await h.listRevisions() // newest first
+      expect(list.map(r => r.id)).toEqual([`${base}-10`, `${base}-2`])
+    })
+  })
+
+  describe('retention under clock skew (#1107 review)', () => {
+    it('never evicts the revision the current write just recorded', async () => {
+      // A skewed-clock instance can hold a future-dated id; a normal write
+      // then sorts OLDER than it, and naive oldest-first eviction at
+      // retention=1 would delete the revision this very call just made
+      // durable. The writer's own id is protected instead.
+      const h = createHistoryProvider({ storage, retention: 1 })
+      await storage.writeFile(
+        '.gazetta/history/revisions/rev-9999999999999.json',
+        JSON.stringify({
+          id: 'rev-9999999999999',
+          timestamp: '2286-11-20T17:46:39.000Z',
+          operation: 'save',
+          items: [],
+          snapshot: {},
+        }),
+      )
+      const r = await h.recordRevision(input({ a: '1' }))
+      const list = await h.listRevisions()
+      expect(list.map(x => x.id)).toEqual([r.id])
+    })
+  })
+
+  describe('index cache resilience (#1107 review)', () => {
+    it('a corrupt index.json neither blocks writes nor stays corrupt', async () => {
+      const h = createHistoryProvider({ storage })
+      await h.recordRevision(input({ a: '1' }))
+      await storage.writeFile('.gazetta/history/index.json', 'not json{{{')
+      // The cache is disposable; the listing is truth. This must not throw.
+      const r2 = await h.recordRevision(input({ a: '2' }))
+      expect(await h.listRevisions()).toHaveLength(2)
+      // The next sync healed the cache from the listing.
+      const healed = JSON.parse(await storage.readFile('.gazetta/history/index.json'))
+      expect(healed.revisions).toContain(r2.id)
+    })
+  })
+
   describe('rootPath option', () => {
     it('stores history under the provided path', async () => {
       const h = createHistoryProvider({ storage, rootPath: 'custom/path' })
