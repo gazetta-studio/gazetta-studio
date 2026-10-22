@@ -152,10 +152,11 @@ describe('runInit', () => {
 
     execSync('git init -q .', { cwd: testDir, stdio: 'pipe' })
     // Real git verdicts, not text comparison: the pattern must cover nested
-    // target state, not only a top-level .gazetta/.
+    // target state, not only a top-level .gazetta/. Global excludes are
+    // disabled so a match can only come from the generated .gitignore.
     const ignored = (path: string) => {
       try {
-        execSync(`git check-ignore -q "${path}"`, { cwd: testDir, stdio: 'pipe' })
+        execSync(`git -c core.excludesFile=/dev/null check-ignore -q "${path}"`, { cwd: testDir, stdio: 'pipe' })
         return true
       } catch {
         return false
