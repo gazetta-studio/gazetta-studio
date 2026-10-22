@@ -1,5 +1,5 @@
 /**
- * ESI assembly â pure string functions, no I/O, no platform deps.
+ * ESI assembly — pure string functions, no I/O, no platform deps.
  * Used by edge workers and Node servers to compose pages from fragments.
  */
 
