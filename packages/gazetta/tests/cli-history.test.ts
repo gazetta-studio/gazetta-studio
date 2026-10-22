@@ -110,6 +110,9 @@ describe('gazetta history / undo / rollback', { timeout: 60000 }, () => {
     // tag should appear AFTER the others in the output.
     const baselineAt = res.stdout.indexOf('Initial baseline')
     const firstSaveAt = res.stdout.search(/rev-\d+(?:-\d+)?(?:-[0-9a-f]{8})?\s+save\s+/)
+    // search() returns -1 on no match, which would make the ordering
+    // assertion vacuous — require an actual save row first.
+    expect(firstSaveAt).toBeGreaterThanOrEqual(0)
     expect(baselineAt).toBeGreaterThan(firstSaveAt)
   })
 
