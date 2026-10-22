@@ -25,6 +25,14 @@ describe('filesystemStorage.exists', () => {
     expect(await storage.exists('missing/pages')).toBe(false)
   })
 
+  it('returns false for paths that cannot exist (ENOTDIR, ENAMETOOLONG)', async () => {
+    // Public-facing callers (asset serving) rely on these mapping to a
+    // plain miss - a malformed URL path must not become a 500 (#1106).
+    const storage = createFilesystemProvider(base)
+    expect(await storage.exists('site/pages/page.json/child')).toBe(false)
+    expect(await storage.exists(`site/${'x'.repeat(300)}`)).toBe(false)
+  })
+
   it.skipIf(!canChmod)('throws - not false - when an ancestor is not searchable', async () => {
     chmodSync(join(base, 'site'), 0o000)
     try {
