@@ -571,7 +571,7 @@ export default template
       ) + '\n',
 
     'admin/.gitkeep': '',
-    '.gitignore': `node_modules/\ndist/\n.env.local\n`,
+    '.gitignore': `node_modules/\ndist/\n.env\n.env.local\n**/.gazetta/\n`,
 
     'package.json':
       JSON.stringify(
