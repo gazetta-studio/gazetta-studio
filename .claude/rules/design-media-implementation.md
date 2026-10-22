@@ -118,9 +118,10 @@ measurement run and a multi-instance correctness review; the v1 implementation
 uses **per-edge zero-byte sidecars** instead of an aggregate JSON file.
 
 The delete check does not read this index: `deleteAsset` scans the loaded
-site — pages + fragments via `site-users.ts` — for live refs (#1139). The
-sidecar is derived state consumed by other readers, today the
-`gazetta assets info` CLI references listing.
+site's pages and fragments (`allPageEntries` / `allFragmentEntries`) with
+`scanManifestForAsset` for live refs (#1139). The sidecar is derived state
+consumed by other readers, today the `gazetta assets info` CLI references
+listing.
 
 ### Why we measured first
 
