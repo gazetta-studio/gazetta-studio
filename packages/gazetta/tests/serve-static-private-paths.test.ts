@@ -92,14 +92,21 @@ describe('static serve keeps private storage private', () => {
   })
 
   it.each([
-    '/pages/home/page.json',
-    '/pages/home/page.fr.json',
-    '/pages/home/page.foo.bar.json',
-    '/assets/hero.asset.json',
-  ])('GET %s returns 404 for a reserved manifest name', async url => {
+    { url: '/pages/home/page.json', marker: 'reviewState' },
+    { url: '/pages/home/page.fr.json', marker: 'reviewState' },
+    { url: '/pages/home/page.foo.bar.json', marker: 'reviewState' },
+    { url: '/assets/hero.asset.json', marker: 'uploadedBy' },
+  ])('GET $url returns 404 without the manifest content', async ({ url, marker }) => {
     const res = await staticApp().request(url)
     expect(res.status).toBe(404)
-    expect(await res.text()).not.toContain('admin@example.com')
+    expect(await res.text()).not.toContain(marker)
+  })
+
+  it('returns 404 for a case variant of a manifest name', async () => {
+    // Case-insensitive volumes resolve PAGE.JSON to the stored page.json.
+    const res = await staticApp().request('/pages/home/PAGE.JSON')
+    expect(res.status).toBe(404)
+    expect(await res.text()).not.toContain('reviewState')
   })
 
   it('serves a normal asset', async () => {
@@ -123,6 +130,8 @@ describe('isPublicSitePath', () => {
     ['/fragments/header/fragment.json'],
     ['/assets/hero.asset.json'],
     ['/assets/hero.asset.fr.json'],
+    ['/pages/home/PAGE.JSON'],
+    ['/assets/hero.Asset.JSON'],
   ])('private: %s', path => {
     expect(isPublicSitePath(path)).toBe(false)
   })
