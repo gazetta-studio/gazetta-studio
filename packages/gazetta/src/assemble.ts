@@ -53,6 +53,16 @@ export interface EsiMarker {
 export function scanEsiMarkers(html: string): EsiMarker[] {
   const markers: EsiMarker[] = []
   let pos = 0
+  // The first `>` found by the last forward scan, and whether it closes a
+  // `-->`. A later opening whose path starts before knownGt shares that same
+  // first `>` (the scan proved nothing in between is one), so it is reused
+  // instead of rescanning.
+  let knownGt = -1
+  let knownGtCloses = false
+  // Openings whose path starts at or before deadUntil are known not to be
+  // markers: their first `>` does not close a `-->`.
+  let deadUntil = -1
+
   while (pos < html.length) {
     const open = html.indexOf('<!--esi', pos)
     if (open === -1) break
@@ -71,16 +81,38 @@ export function scanEsiMarkers(html: string): EsiMarker[] {
       continue
     }
 
-    const close = html.indexOf('-->', pathStart)
-    if (close === -1) break
+    if (pathStart <= deadUntil) {
+      pos = open + 1
+      continue
+    }
 
+    let gt: number
+    if (pathStart <= knownGt) {
+      gt = knownGt
+    } else {
+      gt = html.indexOf('>', pathStart)
+      if (gt === -1) break
+      knownGt = gt
+      knownGtCloses = html.startsWith('-->', gt - 2)
+    }
+
+    if (!knownGtCloses) {
+      // Every opening whose path reaches this same `>` fails the same way.
+      deadUntil = gt
+      pos = open + 1
+      continue
+    }
+
+    const close = gt - 2
     const path = html.slice(pathStart, close)
     // Equivalent of `(\/[^>]+)`: a slash plus at least one character, no `>`.
-    if (path.length > 1 && path.startsWith('/') && !path.includes('>')) {
-      markers.push({ kind, path, start: open, end: close + 3 })
+    if (path.length > 1 && path.startsWith('/')) {
+      markers.push({ kind, path, start: open, end: gt + 1 })
       // A consumed marker hides any '<!--esi' inside it, like regex lastIndex.
-      pos = close + 3
+      pos = gt + 1
     } else {
+      // Not a marker, but a `<!--esi` inside this opening's would-be path can
+      // still start one (the same `>` and close apply to it without rescanning).
       pos = open + 1
     }
   }
