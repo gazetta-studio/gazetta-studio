@@ -208,8 +208,8 @@ export function createServer(options: ServeOptions) {
   if (type === 'static') {
     app.get('*', async c => {
       const requestPath = new URL(c.req.url).pathname
-      // Private storage (audit log, history, manifests, sidecars) reads as
-      // a missing page, same as dynamic serve and the worker.
+      // Private storage (audit log, history, manifests, sidecars) answers
+      // 404, like a missing page.
       if (!isPublicSitePath(requestPath)) {
         return c.html('<h1>404 — Page not found</h1>', 404)
       }
