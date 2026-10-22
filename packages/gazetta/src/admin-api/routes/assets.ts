@@ -26,7 +26,7 @@ import { isValidLocale } from '../../locale.js'
 import { isValidTheme } from '../../themes.js'
 import { suggestAltForAsset } from '../../alt/route-handler.js'
 import { respondWithAssetError } from '../error-response.js'
-import type { SourceContextResolver } from '../source-context.js'
+import { loadSiteFromSource, type SourceContextResolver } from '../source-context.js'
 import { requireCapability } from '../middleware/capability.js'
 import type { AuditEnv } from '../middleware/audit.js'
 import {
@@ -224,6 +224,7 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
         manifest: source.manifest,
         history: source.history,
         contentRoot: source.contentRoot,
+        site: await loadSiteFromSource(source),
       })
       // 204 No Content — standard REST for successful delete with no body.
       return c.body(null, 204)
