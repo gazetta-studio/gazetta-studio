@@ -54,9 +54,10 @@ export function findFragmentUsersInSite(site: Site, name: string): ItemRef[] {
   const refs: ItemRef[] = []
   const seen = new Set<string>()
   for (const entry of allPageEntries(site)) {
-    if (seen.has(entry.name)) continue
+    const key = `page:${entry.name}`
+    if (seen.has(key)) continue
     if (!FRAGMENT_DEPS.extract(entry.page as ManifestLike).has(name)) continue
-    seen.add(entry.name)
+    seen.add(key)
     if (site.pages.get(entry.name)?.archived === true) continue
     refs.push({ source: 'page', name: entry.name })
   }
