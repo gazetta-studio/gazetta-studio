@@ -18,10 +18,13 @@
  *   `page.json`, `page.<anything>.json`, `fragment.json`,
  *   `fragment.<anything>.json`, `<name>.asset.json`,
  *   `<name>.asset.<anything>.json`. Any suffix matches, not only valid
- *   locales, because the site loader accepts any suffix.
+ *   locales, because the site loader accepts any suffix. The match is
+ *   case-insensitive: deployments on case-insensitive volumes resolve
+ *   `PAGE.JSON` to the same stored file, and no public file needs a
+ *   case variant of a reserved name.
  */
 
-const MANIFEST_NAME = /^(?:page|fragment)(?:\.[^/]+)?\.json$|^[^/]+\.asset(?:\.[^/]+)?\.json$/
+const MANIFEST_NAME = /^(?:page|fragment)(?:\.[^/]+)?\.json$|^[^/]+\.asset(?:\.[^/]+)?\.json$/i
 
 export function isPublicSitePath(path: string): boolean {
   const segments = path.split('/').filter(Boolean)
