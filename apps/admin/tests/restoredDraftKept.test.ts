@@ -1,0 +1,108 @@
+/**
+ * #1108: a restored content draft stays in storage until it is saved
+ * or discarded, so any number of reloads bring it back; and a fragment
+ * edit opened from a page is persisted under the same key the restore
+ * lookup uses, so it comes back after a reload like a component edit.
+ *
+ * Verified fail-unfixed before commit: on main the restore clears the
+ * persisted entry as soon as it is applied (the first test fails: the
+ * draft is gone from storage and the second reload shows the saved
+ * content), and a fragment edit is stashed under
+ * page:home:<locale>:@header but looked up under
+ * fragment:header:<locale>:_root (the second test fails: the editor
+ * shows the stored content).
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import { api } from '../src/client/api/client.js'
+import { useEditorActions } from '../src/client/composables/useEditorActions.js'
+import { useEditorContentStore } from '../src/client/stores/editorContent.js'
+import { attachDraftPersistence, type DraftPersistenceHandle } from '../src/client/drafts/persistence.js'
+import { createMemoryDraftStore } from '../src/client/drafts/memory-draft-store.js'
+import type { DraftScope, DraftStore } from '../src/client/drafts/types.js'
+import { useSelectionStore } from '../src/client/stores/selection.js'
+import { useSiteStore } from '../src/client/stores/site.js'
+
+const scope: DraftScope = { site: 'main', owner: 'none:unknown:admin', target: 'local' }
+const detail = {
+  name: 'home',
+  route: '/',
+  template: 'page-default',
+  content: { title: 'Home' },
+  components: [],
+  dir: 'pages/home',
+  metadata: { title: 'Home' },
+}
+const headerFragment = {
+  name: 'header',
+  template: 'header-layout',
+  content: { title: 'Stored' },
+  components: [],
+  dir: 'fragments/header',
+}
+
+let drafts: DraftStore
+let handle: DraftPersistenceHandle | null = null
+
+async function freshSession() {
+  handle?.dispose()
+  setActivePinia(createPinia())
+  useSiteStore().$patch({ manifest: { name: 'main' } as never })
+  handle = attachDraftPersistence(drafts, () => scope, { debounceMs: 0 })
+  await handle.loaded()
+  await useSelectionStore().selectPage('home')
+  return useEditorActions()
+}
+
+beforeEach(() => {
+  drafts = createMemoryDraftStore()
+  vi.spyOn(api, 'getTemplateSchema').mockResolvedValue({ properties: { title: { type: 'string' } } } as never)
+  vi.spyOn(api, 'getPageWithEtag').mockImplementation(
+    async () => ({ data: structuredClone(detail), etag: 'v1' }) as never,
+  )
+  vi.spyOn(api, 'getFragmentWithEtag').mockImplementation(
+    async () => ({ data: structuredClone(headerFragment), etag: 'f1' }) as never,
+  )
+})
+
+afterEach(() => {
+  handle?.dispose()
+  handle = null
+  vi.restoreAllMocks()
+})
+
+describe('a restored content draft (#1108)', () => {
+  it('stays in storage after it is restored, so a second reload brings it back', async () => {
+    let actions = await freshSession()
+    await actions.openPageRoot()
+    actions.markDirty({ title: 'Mine' })
+    await handle!.flush()
+    expect((await drafts.list(scope, 'edit')).length).toBe(1)
+
+    // First reload: the draft is restored into the editor and stays stored.
+    actions = await freshSession()
+    await actions.openPageRoot()
+    expect(useEditorContentStore().dirty).toBe(true)
+    expect(useEditorContentStore().content).toEqual({ title: 'Mine' })
+    await handle!.flush()
+    expect((await drafts.list(scope, 'edit')).length).toBe(1)
+
+    // Second reload: still there, without a keystroke in between.
+    actions = await freshSession()
+    await actions.openPageRoot()
+    expect(useEditorContentStore().content).toEqual({ title: 'Mine' })
+  })
+
+  it('a fragment edit opened from a page comes back after a reload', async () => {
+    let actions = await freshSession()
+    await actions.openPageRoot()
+    await actions.openFragment('header')
+    actions.markDirty({ title: 'Edited' })
+    await handle!.flush()
+    expect((await drafts.list(scope, 'edit')).length).toBe(1)
+
+    actions = await freshSession()
+    await actions.openFragment('header')
+    expect(useEditorContentStore().content).toEqual({ title: 'Edited' })
+  })
+})
