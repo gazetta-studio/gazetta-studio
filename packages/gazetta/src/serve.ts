@@ -216,13 +216,13 @@ export function createServer(options: ServeOptions) {
   // destination has a version in it; otherwise the 301 goes to the
   // destination's default-language page, like the `_redirects` row
   // (design-soft-delete.md Q10).
-  const staticArchiveFor = async (html: string, locale: string | undefined, params?: Record<string, string>) => {
+  const staticArchiveFor = async (html: string, locale: string | undefined) => {
     const siteDefault = defaultLocale ?? locales?.[0]
     let effectiveLocale = locale
     if (locale && locale !== siteDefault) {
       const marker = parseArchiveMarker(html)
       if (marker?.kind === 'alias' && aliasTargetIssue(marker.target) === null) {
-        const route = fillRouteParams(deriveRoute(marker.target), params)
+        const route = fillRouteParams(deriveRoute(marker.target))
         if (route === null) return archiveGoneResponse()
         const rel = `${locale}${route === '/' ? '' : route}/index.html`
         let hasVersion = false
@@ -237,7 +237,7 @@ export function createServer(options: ServeOptions) {
     }
     // Static publish writes default-language pages unprefixed until #1146,
     // so prefixing the default locale here would redirect to a 404.
-    return archiveResponse(html, { locale: effectiveLocale, defaultLocale: siteDefault, defaultPrefix: false, params })
+    return archiveResponse(html, { locale: effectiveLocale, defaultLocale: siteDefault, defaultPrefix: false })
   }
   const readFragment = (path: string) => readFragmentHtml(storage, path)
   const app = new Hono()
