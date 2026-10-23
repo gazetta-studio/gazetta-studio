@@ -106,3 +106,82 @@ describe('a restored content draft (#1108)', () => {
     expect(useEditorContentStore().content).toEqual({ title: 'Edited' })
   })
 })
+
+describe('Save and Discard are the only clears once a restore keeps the draft (#1108)', () => {
+  it('after Save, a reload restores nothing (restored root draft)', async () => {
+    let actions = await freshSession()
+    await actions.openPageRoot()
+    actions.markDirty({ title: 'Mine' })
+    await handle!.flush()
+
+    const updatePage = vi.spyOn(api, 'updatePage').mockResolvedValue({ ok: true, etag: 'v2' } as never)
+    actions = await freshSession()
+    await actions.openPageRoot()
+    expect(useEditorContentStore().dirty).toBe(true)
+    expect(await actions.save()).toBe(true)
+    expect(updatePage).toHaveBeenCalledWith('home', expect.anything(), expect.objectContaining({ ifMatch: 'v1' }))
+    await handle!.flush()
+    expect((await drafts.list(scope, 'edit')).length).toBe(0)
+
+    actions = await freshSession()
+    await actions.openPageRoot()
+    expect(useEditorContentStore().dirty).toBe(false)
+  })
+
+  it('after Discard, a reload restores nothing (restored root draft)', async () => {
+    let actions = await freshSession()
+    await actions.openPageRoot()
+    actions.markDirty({ title: 'Mine' })
+    await handle!.flush()
+
+    actions = await freshSession()
+    await actions.openPageRoot()
+    expect(useEditorContentStore().dirty).toBe(true)
+    actions.discard()
+    await handle!.flush()
+    expect((await drafts.list(scope, 'edit')).length).toBe(0)
+
+    actions = await freshSession()
+    await actions.openPageRoot()
+    expect(useEditorContentStore().dirty).toBe(false)
+    expect(useEditorContentStore().content).toEqual({ title: 'Home' })
+  })
+
+  it('after Save, a reload restores nothing (fragment edit opened from a page)', async () => {
+    let actions = await freshSession()
+    await actions.openFragment('header')
+    actions.markDirty({ title: 'Edited' })
+    await handle!.flush()
+
+    const updateFragment = vi.spyOn(api, 'updateFragment').mockResolvedValue({ ok: true, etag: 'f2' } as never)
+    actions = await freshSession()
+    await actions.openFragment('header')
+    expect(useEditorContentStore().content).toEqual({ title: 'Edited' })
+    expect(await actions.save()).toBe(true)
+    expect(updateFragment).toHaveBeenCalledWith('header', expect.anything(), expect.objectContaining({ ifMatch: 'f1' }))
+    await handle!.flush()
+    expect((await drafts.list(scope, 'edit')).length).toBe(0)
+
+    actions = await freshSession()
+    await actions.openFragment('header')
+    expect(useEditorContentStore().content).toEqual({ title: 'Stored' })
+  })
+
+  it('after Discard, a reload restores nothing (fragment edit opened from a page)', async () => {
+    let actions = await freshSession()
+    await actions.openFragment('header')
+    actions.markDirty({ title: 'Edited' })
+    await handle!.flush()
+
+    actions = await freshSession()
+    await actions.openFragment('header')
+    expect(useEditorContentStore().content).toEqual({ title: 'Edited' })
+    actions.discard()
+    await handle!.flush()
+    expect((await drafts.list(scope, 'edit')).length).toBe(0)
+
+    actions = await freshSession()
+    await actions.openFragment('header')
+    expect(useEditorContentStore().content).toEqual({ title: 'Stored' })
+  })
+})
