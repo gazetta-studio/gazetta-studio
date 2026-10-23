@@ -805,6 +805,9 @@ export function useEditorActions() {
    * metadata.
    */
   function discard() {
+    // The open editor can be a fragment under a page selection; its
+    // draft keys under the fragment, outside clearItem's prefix below.
+    const openKey = persistedKeyForCurrent()
     ec.discard()
     dropStash()
     const key = currentManifestKey()
@@ -814,6 +817,7 @@ export function useEditorActions() {
     // Includes drafts restored after a reload for components not opened
     // since: opening one later would apply it over the other author's version.
     if (key) usePersistedEditsStore().clearItem(key.kind, key.name, useLocaleStore().effectiveLocale ?? undefined)
+    if (openKey) usePersistedEditsStore().clear(openKey)
     usePreviewStore().invalidateDraft()
   }
 
