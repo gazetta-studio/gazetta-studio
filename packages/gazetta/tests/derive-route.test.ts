@@ -19,8 +19,9 @@ describe('fillRouteParams param names (#1126)', () => {
     expect(fillRouteParams('/x/:constructor', { constructor: 'real' })).toBe('/x/real')
   })
 
-  it('keeps the existing rules: no params keeps the literal route; a missing value answers null', () => {
-    expect(fillRouteParams('/blog/:slug')).toBe('/blog/:slug')
+  it('routes without parameters are unchanged; a parameter with no captured value answers null', () => {
+    expect(fillRouteParams('/posts/hello')).toBe('/posts/hello')
+    expect(fillRouteParams('/blog/:slug')).toBeNull()
     expect(fillRouteParams('/blog/:slug', {})).toBeNull()
   })
 })
