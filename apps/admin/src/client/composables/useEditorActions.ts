@@ -782,9 +782,14 @@ export function useEditorActions() {
     // Cut 8b: also drop the cross-page persisted mirror for this
     // path. The component is being removed from the manifest;
     // re-applying its persisted dirty content after a reload would
-    // resurrect content that no longer has a home.
-    const k = persistedKeyForStashEntry(path)
-    if (k) usePersistedEditsStore().clear(k)
+    // resurrect content that no longer has a home. A fragment
+    // reference ('@name') is the exception: the fragment survives the
+    // unlink and its draft keys under the fragment, shared across
+    // pages, so it is not orphaned with this page's reference (#1108).
+    if (!path.startsWith('@')) {
+      const k = persistedKeyForStashEntry(path)
+      if (k) usePersistedEditsStore().clear(k)
+    }
   }
 
   /**
