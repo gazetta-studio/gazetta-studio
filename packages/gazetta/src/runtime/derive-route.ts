@@ -45,6 +45,6 @@ export function fillRouteParams(route: string, params?: Record<string, string>):
 export function encodeRoutePattern(route: string): string {
   return route
     .split(/(:[^/]+)/g)
-    .map((part) => (part.startsWith(':') ? part : encodeURI(part)))
+    .map(part => (part.startsWith(':') ? part : encodeURI(part)))
     .join('')
 }
