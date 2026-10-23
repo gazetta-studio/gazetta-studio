@@ -3,7 +3,7 @@ import { streamSSE } from 'hono/streaming'
 import { getType, getEnvironment, isEditable, isHistoryEnabled, getHistoryRetention } from '../../types.js'
 import type { StorageProvider, TargetConfig } from '../../types.js'
 import { publishItems, resolveDependencies, findFragmentDependents, findDependentsFromSidecars } from '../../publish.js'
-import { localeFilename } from '../../locale.js'
+import { localeFilename, localeFromFilename, isValidLocale } from '../../locale.js'
 import type { SourceContextResolver } from '../source-context.js'
 import type { PublishResult } from '../../publish.js'
 import { createCloudflarePurge, lookupCloudflareZoneId } from '../../publish-rendered.js'
@@ -430,7 +430,11 @@ export function publishRoutes(
         for (const it of targetItems) {
           const m = /^(pages|fragments)\/([^:]+):([^:]+)$/.exec(it)
           if (m) {
-            variantKeys.push(`${m[1]}/${m[2]}/${localeFilename(m[1] === 'pages' ? 'page' : 'fragment', m[3])}`)
+            // The locale part names a file — fail closed on anything
+            // isValidLocale rejects (path traversal, dots, bad shape).
+            if (isValidLocale(m[3])) {
+              variantKeys.push(`${m[1]}/${m[2]}/${localeFilename(m[1] === 'pages' ? 'page' : 'fragment', m[3])}`)
+            }
           } else {
             folderItems.push(it)
           }
@@ -1099,7 +1103,8 @@ async function collectPublishedItemsForHistory(
     const names: string[] = []
     if (m[3]) {
       // Locale-qualified: exactly the requested variant's manifest.
-      names.push(localeFilename(base, m[3]))
+      // Fail closed on an invalid locale — it never reaches a path.
+      if (isValidLocale(m[3])) names.push(localeFilename(base, m[3]))
     } else {
       // Bare item: the copy writes the whole folder, so record the
       // default manifest plus every translation manifest present —
@@ -1109,8 +1114,9 @@ async function collectPublishedItemsForHistory(
       try {
         const entries = await sourceRoot.storage.readDir(sourceRoot.path(dir))
         for (const e of entries) {
-          const t = new RegExp(`^${base}\\.([a-z]{2}(?:-[a-z]+)?)\\.json$`).exec(e.name)
-          if (t && !e.isDirectory) names.push(localeFilename(base, t[1]))
+          if (e.isDirectory) continue
+          const locale = localeFromFilename(e.name, base)
+          if (locale && isValidLocale(locale)) names.push(localeFilename(base, locale))
         }
       } catch {
         // Folder missing on source — the default-manifest read below
