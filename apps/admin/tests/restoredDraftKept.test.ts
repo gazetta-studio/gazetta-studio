@@ -234,3 +234,24 @@ describe('kept drafts vs later saves and page-level Discard (review follow-ups)'
     expect(useEditorContentStore().content).toEqual({ title: 'Stored' })
   })
 })
+
+describe('removing a fragment reference from a page (#1108 review)', () => {
+  it('keeps the fragment draft: the fragment survives the unlink, shared across pages', async () => {
+    vi.spyOn(api, 'getPageWithEtag').mockImplementation(
+      async () => ({ data: { ...structuredClone(detail), components: ['@header'] }, etag: 'v1' }) as never,
+    )
+    let actions = await freshSession()
+    await actions.openFragment('header')
+    actions.markDirty({ title: 'Edited' })
+    await handle!.flush()
+
+    // The page unlinks the fragment; the fragment itself still exists.
+    actions.clearEditorForRemovedPath('@header')
+    await handle!.flush()
+    expect((await drafts.list(scope, 'edit')).length).toBe(1)
+
+    actions = await freshSession()
+    await actions.openFragment('header')
+    expect(useEditorContentStore().content).toEqual({ title: 'Edited' })
+  })
+})
