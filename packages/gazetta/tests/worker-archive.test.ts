@@ -315,3 +315,43 @@ describe('Cloudflare worker archive markers', () => {
     expect(body).not.toContain('gazetta:archived')
   })
 })
+
+describe('worker archived dynamic-route aliases (#1126)', () => {
+  const dynamicAliasSeed = (): Record<string, string> => ({
+    'pages/blog/[slug]/index.html': archiveMarker({ kind: 'alias', target: 'posts/[slug]' }),
+    'pages/news/[slug]/index.html': archiveMarker({ kind: 'alias', target: 'posts/[year]/[slug]' }),
+  })
+
+  it('redirects to the alias route with the captured params filled', async () => {
+    const { bucket } = fakeBucket(dynamicAliasSeed())
+    const app = createWorker()
+
+    const res = await fetchPage(app, bucket, '/blog/hello')
+
+    expect(res.status).toBe(301)
+    expect(res.headers.get('location')).toBe('/posts/hello')
+    expect(res.headers.get('cache-control')).toBe(ARCHIVE_CACHE_CONTROL)
+  })
+
+  it('keeps the request locale on the filled alias route', async () => {
+    const seed = dynamicAliasSeed()
+    seed['pages/blog/[slug]/index.fr.html'] = seed['pages/blog/[slug]/index.html']
+    const { bucket } = fakeBucket(seed)
+    const app = createWorker({ locales: ['en', 'fr'], defaultLocale: 'en' })
+
+    const res = await fetchPage(app, bucket, '/fr/blog/hello')
+
+    expect(res.status).toBe(301)
+    expect(res.headers.get('location')).toBe('/fr/posts/hello')
+  })
+
+  it('answers 410 when an alias route segment has no captured value', async () => {
+    const { bucket } = fakeBucket(dynamicAliasSeed())
+    const app = createWorker()
+
+    const res = await fetchPage(app, bucket, '/news/hello')
+
+    expect(res.status).toBe(410)
+    expect(res.headers.get('cache-control')).toBe(ARCHIVE_CACHE_CONTROL)
+  })
+})
