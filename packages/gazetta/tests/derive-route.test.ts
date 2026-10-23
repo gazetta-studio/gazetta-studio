@@ -21,7 +21,7 @@ describe('fillRouteParams param names (#1126)', () => {
 
   it('fills param names from the full deriveRoute grammar — dotted and non-ASCII included', () => {
     expect(fillRouteParams('/posts/:post.slug', { 'post.slug': 'a%2Fb' })).toBe('/posts/a%2Fb')
-    expect(fillRouteParams('/posts/:slúg', { 'slúg': 'h%C3%A9llo' })).toBe('/posts/h%C3%A9llo')
+    expect(fillRouteParams('/posts/:slúg', { slúg: 'h%C3%A9llo' })).toBe('/posts/h%C3%A9llo')
   })
 
   it('routes without parameters are unchanged; a parameter with no captured value answers null', () => {
