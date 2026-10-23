@@ -74,6 +74,25 @@ export function useEditorActions() {
   // --- Cross-page persisted-edits key helper (Cut 8b) ---
 
   /**
+   * Build the persisted-edits key for a target path. A fragment target
+   * (`@header`, `@header/logo`) keys as fragment:name:locale:path with a
+   * `_root` page root, matching persistedEditKeyForSelection's
+   * fragmentEdit case, so a fragment draft is found after a reload no
+   * matter which entry point opened it (#1108).
+   */
+  function persistedKeyForTargetPath(targetPath: string): string | null {
+    const sel = useSelectionStore()
+    if (!sel.selection) return null
+    const locale = useLocaleStore().effectiveLocale ?? undefined
+    if (targetPath.startsWith('@')) {
+      const [name, ...rest] = targetPath.slice(1).split('/')
+      return persistedEditKey('fragment', name, locale, rest.join('/') || '_root')
+    }
+    const kind = sel.selection.type === 'page' ? 'page' : 'fragment'
+    return persistedEditKey(kind, sel.selection.name, locale, targetPath)
+  }
+
+  /**
    * Build the persisted-edits key for a (selection, target) pair.
    * Returns null when the active context isn't a persistable target
    * (no selection, no target, fragment-link host).
@@ -81,18 +100,12 @@ export function useEditorActions() {
   function persistedKeyForCurrent(): string | null {
     const sel = useSelectionStore()
     if (!sel.selection || !ec.target) return null
-    const kind = sel.selection.type === 'page' ? 'page' : 'fragment'
-    const locale = useLocaleStore().effectiveLocale ?? undefined
-    return persistedEditKey(kind, sel.selection.name, locale, ec.target.path)
+    return persistedKeyForTargetPath(ec.target.path)
   }
 
   /** Same shape, but for a stash entry's target.path. */
   function persistedKeyForStashEntry(targetPath: string): string | null {
-    const sel = useSelectionStore()
-    if (!sel.selection) return null
-    const kind = sel.selection.type === 'page' ? 'page' : 'fragment'
-    const locale = useLocaleStore().effectiveLocale ?? undefined
-    return persistedEditKey(kind, sel.selection.name, locale, targetPath)
+    return persistedKeyForTargetPath(targetPath)
   }
 
   /** The version the open editor's content is edited on: the manifest its save writes, with that manifest's etag. */
@@ -555,10 +568,12 @@ export function useEditorActions() {
         // Saved against the version the draft was made on, not the one just loaded.
         if (persisted.base) useEditorEtagsStore().set(persisted.base.manifest, persisted.base.etag)
         await ec.open(target, persisted.editedContent)
-        // Promote: the entry is now live in the editor; remove from
-        // the persisted store so a subsequent navigate-away → stash
-        // → restore flow doesn't re-apply the same content twice.
-        usePersistedEditsStore().clear(persistedKey!)
+        // The entry stays in the persisted store until Save or Discard
+        // (#1108): a restore overlays the content, it does not consume
+        // it, so re-applying after another reload is idempotent, and
+        // stashCurrent / markDirty overwrite the entry with newer
+        // content. Clearing here would drop the draft from storage the
+        // moment it is restored, and a second reload would lose it.
       } else {
         await ec.open(target)
       }
