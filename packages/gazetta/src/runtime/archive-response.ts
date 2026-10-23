@@ -13,7 +13,7 @@
  */
 import { localeRoutePrefix } from '../locale.js'
 import { parseArchiveMarker } from './archive-marker.js'
-import { deriveRoute } from './derive-route.js'
+import { deriveRoute, fillRouteParams } from './derive-route.js'
 
 export const ARCHIVE_CACHE_CONTROL = 'max-age=300'
 
@@ -21,6 +21,11 @@ export interface ArchiveResponseOptions {
   locale?: string
   defaultLocale?: string
   defaultPrefix?: boolean
+  /** Values captured from the request's dynamic route segments, substituted
+   * into the alias's route. When values were captured and an alias route
+   * segment has none, the answer is 410: there is no URL to redirect to
+   * (#1126). */
+  params?: Record<string, string>
 }
 
 export function archiveGoneResponse(): Response {
@@ -33,7 +38,8 @@ export function archiveResponse(input: Uint8Array | string, options: ArchiveResp
 
   if (marker.kind === 'gone') return archiveGoneResponse()
 
-  const route = deriveRoute(marker.target)
+  const route = fillRouteParams(deriveRoute(marker.target), options.params)
+  if (route === null) return archiveGoneResponse()
   const requestLocale = options.locale ?? (options.defaultPrefix ? options.defaultLocale : undefined)
   const localePrefix = requestLocale
     ? localeRoutePrefix(requestLocale, {
