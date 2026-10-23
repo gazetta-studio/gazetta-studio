@@ -185,3 +185,52 @@ describe('Save and Discard are the only clears once a restore keeps the draft (#
     expect(useEditorContentStore().content).toEqual({ title: 'Stored' })
   })
 })
+
+describe('kept drafts vs later saves and page-level Discard (review follow-ups)', () => {
+  it('a stored draft equal to the content just loaded is dropped, not kept', async () => {
+    let actions = await freshSession()
+    await actions.openPageRoot()
+    actions.markDirty({ title: 'Mine' })
+    await handle!.flush()
+
+    // Another tab saved the same edit: the server now has it, at a newer etag.
+    vi.spyOn(api, 'getPageWithEtag').mockImplementation(
+      async () => ({ data: { ...structuredClone(detail), content: { title: 'Mine' } }, etag: 'v2' }) as never,
+    )
+    actions = await freshSession()
+    await actions.openPageRoot()
+    expect(useEditorContentStore().dirty).toBe(false)
+    await handle!.flush()
+    expect((await drafts.list(scope, 'edit')).length).toBe(0)
+
+    // A later, different save must not see the old draft applied over it.
+    vi.spyOn(api, 'getPageWithEtag').mockImplementation(
+      async () => ({ data: { ...structuredClone(detail), content: { title: 'Theirs' } }, etag: 'v3' }) as never,
+    )
+    actions = await freshSession()
+    await actions.openPageRoot()
+    expect(useEditorContentStore().content).toEqual({ title: 'Theirs' })
+    expect(useEditorContentStore().dirty).toBe(false)
+  })
+
+  it('Discard on a page clears a restored fragment draft not opened since the reload', async () => {
+    vi.spyOn(api, 'getPageWithEtag').mockImplementation(
+      async () => ({ data: { ...structuredClone(detail), components: ['@header'] }, etag: 'v1' }) as never,
+    )
+    let actions = await freshSession()
+    await actions.openFragment('header')
+    actions.markDirty({ title: 'Edited' })
+    await handle!.flush()
+
+    // Reload: open only the page root, then Discard without opening the fragment.
+    actions = await freshSession()
+    await actions.openPageRoot()
+    actions.discard()
+    await handle!.flush()
+    expect((await drafts.list(scope, 'edit')).length).toBe(0)
+
+    actions = await freshSession()
+    await actions.openFragment('header')
+    expect(useEditorContentStore().content).toEqual({ title: 'Stored' })
+  })
+})
