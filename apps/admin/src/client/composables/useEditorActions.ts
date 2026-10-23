@@ -523,6 +523,15 @@ export function useEditorActions() {
    * go through here.
    */
   async function navigate(sel: EditorSelection) {
+    // A fragment's own root has one editor on its own page (#1108):
+    // the tree root row, the preview's fragment-root click and a
+    // `#@name` hash are the same target, with one stash entry and one
+    // stored draft. Two editors for one content could hold different
+    // text under one stored key.
+    const navSelection = useSelectionStore().selection
+    if (sel.kind === 'fragmentEdit' && navSelection?.type === 'fragment' && navSelection.name === sel.fragmentName) {
+      sel = { kind: 'root' }
+    }
     cancelPending()
     stashCurrent()
 
@@ -648,23 +657,12 @@ export function useEditorActions() {
     if (key) usePersistedEditsStore().set(key, deepClone(newContent), baseForCurrent())
   }
 
-  /** True while the open editor or a stash entry still mirrors the persisted key. */
-  function persistedKeyStillMirrored(k: string): boolean {
-    if (ec.target && ec.dirty && persistedKeyForCurrent() === k) return true
-    for (const [p] of stash.entries) {
-      if (persistedKeyForStashEntry(p) === k) return true
-    }
-    return false
-  }
-
   function revertStashed(componentPath: string) {
     stash.revert(componentPath)
     // Cut 8b: drop the cross-page persisted mirror for this stash
-    // entry too — author explicitly chose to discard, not keep. Keep
-    // it while another live edit mirrors the same key: a fragment root
-    // is reachable as _root and @name, one draft for both (#1108).
+    // entry too — author explicitly chose to discard, not keep.
     const k = persistedKeyForStashEntry(componentPath)
-    if (k && !persistedKeyStillMirrored(k)) usePersistedEditsStore().clear(k)
+    if (k) usePersistedEditsStore().clear(k)
     usePreviewStore().invalidateDraft()
   }
 
@@ -958,8 +956,9 @@ export function useEditorActions() {
     }
     const persistedStore = usePersistedEditsStore()
     for (const path of written.keys()) {
+      if ((ec.target?.path === path && ec.dirty) || stash.has(path)) continue
       const k = persistedKeyForStashEntry(path)
-      if (k && !persistedKeyStillMirrored(k)) persistedStore.clear(k)
+      if (k) persistedStore.clear(k)
     }
   }
 
