@@ -255,3 +255,40 @@ describe('removing a fragment reference from a page (#1108 review)', () => {
     expect(useEditorContentStore().content).toEqual({ title: 'Edited' })
   })
 })
+
+describe('shared fragment-root key (#1108 review)', () => {
+  it('reverting the stashed tree-root row keeps the open fragment-root editor draft', async () => {
+    handle?.dispose()
+    setActivePinia(createPinia())
+    useSiteStore().$patch({ manifest: { name: 'main' } as never })
+    handle = attachDraftPersistence(drafts, () => scope, { debounceMs: 0 })
+    await handle.loaded()
+    await useSelectionStore().selectFragment('header')
+    let actions = useEditorActions()
+
+    // The fragment root is reachable as the tree root row (_root) and
+    // as the fragment editor (@header): one shared draft key.
+    await actions.openPageRoot()
+    actions.markDirty({ title: 'Root A' })
+    await actions.openFragment('header')
+    expect(useEditorContentStore().content).toEqual({ title: 'Root A' })
+    actions.markDirty({ title: 'Frag B' })
+    await handle!.flush()
+    expect((await drafts.list(scope, 'edit')).length).toBe(1)
+
+    // Revert the stashed tree-root row: the open editor's draft stays stored.
+    actions.revertStashed('_root')
+    await handle!.flush()
+    expect((await drafts.list(scope, 'edit')).length).toBe(1)
+
+    handle?.dispose()
+    setActivePinia(createPinia())
+    useSiteStore().$patch({ manifest: { name: 'main' } as never })
+    handle = attachDraftPersistence(drafts, () => scope, { debounceMs: 0 })
+    await handle.loaded()
+    await useSelectionStore().selectFragment('header')
+    actions = useEditorActions()
+    await actions.openFragment('header')
+    expect(useEditorContentStore().content).toEqual({ title: 'Frag B' })
+  })
+})
