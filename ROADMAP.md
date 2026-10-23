@@ -2,7 +2,7 @@
 
 Forward-looking priorities for Gazetta. What's committed, what's planned, what's parked, what's not happening.
 
-**Updated**: 2026-05-13
+**Updated**: 2026-10-23
 
 ## How to read this
 
@@ -18,15 +18,28 @@ Priorities derive from [`docs/audits/cms-feature-audit.md`](docs/audits/cms-feat
 
 ## Now (committed, 4-8 weeks)
 
-### Onboarding sprint (3-4 weeks)
+The publishing-safety designs and the review workflow's cuts ship one cut at a time through feature-bot's weekly run (Friday nights, `night-shift.yml`), so 4–8 weeks covers their first cuts, not their completion. Target removal's first cut waits for its planner issue (see its row).
 
-Reduce time-to-first-deploy for new operators. Closes the bulk of the deploy-adapters cluster:
+### Publishing safety
 
-- ✓ ~~[#203](https://github.com/gazetta-studio/gazetta-studio/issues/203) deploy adapter contract~~ — v1 shipped (2026-05-14). `DeployAdapter` Pattern 1 Provider surface + `cloudflareWorkersDeploy()` + 2 validators + delete `target.worker`. End-to-end verified against `sites/gazetta.studio` (real CF deploy + live worker). Durable design in [`design-deploy.md`](.claude/rules/design-deploy.md) + [ADR-0010](docs/adr/0010-deploy-publish-independence.md); operator guide in [`docs/deploy.md`](docs/deploy.md)
-- 3 priority adapters proving the contract: [#204](https://github.com/gazetta-studio/gazetta-studio/issues/204) Cloudflare Pages+Functions, [#206](https://github.com/gazetta-studio/gazetta-studio/issues/206) Vercel Edge, [#209](https://github.com/gazetta-studio/gazetta-studio/issues/209) Netlify static — each ships as a standalone PR against the v1 contract
-- [#213](https://github.com/gazetta-studio/gazetta-studio/issues/213) container deployment guide
-- [#79](https://github.com/gazetta-studio/gazetta-studio/issues/79) Docker example for `gazetta serve`
-- [#214](https://github.com/gazetta-studio/gazetta-studio/issues/214) first-run Cloudflare setup
+October's designs fix wrong results on live sites: deleted pages stay live, undo doesn't change what visitors see, and a target's private files can be public. Where a design has a planner issue, its cuts reach feature-bot one at a time through it.
+
+| Design | Tracking |
+|---|---|
+| Live check ([`design-live-check.md`](.claude/rules/design-live-check.md)) | planner [#1081](https://github.com/gazetta-studio/gazetta-studio/issues/1081) |
+| Public storage ([`design-public-storage.md`](.claude/rules/design-public-storage.md)) | planner [#1085](https://github.com/gazetta-studio/gazetta-studio/issues/1085) |
+| Publish undo ([`design-publish-undo.md`](.claude/rules/design-publish-undo.md)) | planner [#1092](https://github.com/gazetta-studio/gazetta-studio/issues/1092) |
+| Target indices ([`sidecars.md`](.claude/rules/sidecars.md), [#1077](https://github.com/gazetta-studio/gazetta-studio/issues/1077)) | planner [#1093](https://github.com/gazetta-studio/gazetta-studio/issues/1093) |
+| Target removal ([`design-target-removal.md`](.claude/rules/design-target-removal.md)) | [#1094](https://github.com/gazetta-studio/gazetta-studio/issues/1094); its planner issue opens after publish undo cut 2, target indices cut 2 and review workflow cuts 12–13 |
+| Archived pages on plain-static hosts ([`design-soft-delete.md`](.claude/rules/design-soft-delete.md) Q10) | [#1152](https://github.com/gazetta-studio/gazetta-studio/issues/1152); cut 1 is [#1164](https://github.com/gazetta-studio/gazetta-studio/issues/1164) |
+
+### Review workflow — finish
+
+The back end ([#515](https://github.com/gazetta-studio/gazetta-studio/issues/515)–[#520](https://github.com/gazetta-studio/gazetta-studio/issues/520)) and the UI primitives and story runner ([#522](https://github.com/gazetta-studio/gazetta-studio/issues/522)–[#524](https://github.com/gazetta-studio/gazetta-studio/issues/524)) shipped. Queued for feature-bot: [#521](https://github.com/gazetta-studio/gazetta-studio/issues/521) (API routes) and [#535](https://github.com/gazetta-studio/gazetta-studio/issues/535) (screenshots in bot PRs), then [#525](https://github.com/gazetta-studio/gazetta-studio/issues/525) (review banner and dialog) and [#531](https://github.com/gazetta-studio/gazetta-studio/issues/531) (pending-review queue). [#526](https://github.com/gazetta-studio/gazetta-studio/issues/526) and [#527](https://github.com/gazetta-studio/gazetta-studio/issues/527) (publish requests) wait for publish undo cut 1 (`design-review-workflow.md`, lock 1), and [#528](https://github.com/gazetta-studio/gazetta-studio/issues/528)–[#530](https://github.com/gazetta-studio/gazetta-studio/issues/530) and [#532](https://github.com/gazetta-studio/gazetta-studio/issues/532) wait for them. [#533](https://github.com/gazetta-studio/gazetta-studio/issues/533) (docs) is labelled `ready-for-human`. Design: [`design-review-workflow.md`](.claude/rules/design-review-workflow.md); request [#199](https://github.com/gazetta-studio/gazetta-studio/issues/199), tracking issue [#514](https://github.com/gazetta-studio/gazetta-studio/issues/514).
+
+### MCP server design pass
+
+[#49](https://github.com/gazetta-studio/gazetta-studio/issues/49): design now, build in Next. The design starts from one decision: agents save through the same path as the admin, as their own principal with their own capabilities, and the audit log records them. By default they can't publish, so a person decides what reaches visitors, and undo covers mistakes. Bulk edits ([#1170](https://github.com/gazetta-studio/gazetta-studio/issues/1170)) are one of its use cases. Still to design: how an agent authenticates (scripts and CI share the single `GAZETTA_TOKEN` today), how agents appear in the audit log, and how an agent's run is undone without undoing other people's saves (undo and rollback restore whole revisions).
 
 ### Creation UX design pass
 
@@ -34,9 +47,49 @@ Reduce time-to-first-deploy for new operators. Closes the bulk of the deploy-ada
 
 ### Bug backlog
 
-- [#360](https://github.com/gazetta-studio/gazetta-studio/issues/360) `gazetta init` template emits `engines.node = ">=22"` — should match `>=22.22.2` root constraint. `bug + ready-for-agent`; fix-bot territory.
+User-visible bugs, all with fix-bot except [#1162](https://github.com/gazetta-studio/gazetta-studio/issues/1162), which waits for its contributor:
 
-## Next (planned, this quarter)
+- [#1068](https://github.com/gazetta-studio/gazetta-studio/issues/1068) closing the tab during a publish stops it
+- [#1108](https://github.com/gazetta-studio/gazetta-studio/issues/1108), [#1109](https://github.com/gazetta-studio/gazetta-studio/issues/1109) restored drafts: lost fragment edits, false conflicts
+- [#1125](https://github.com/gazetta-studio/gazetta-studio/issues/1125) a page read during a publish can be cached again after the purge
+- [#1146](https://github.com/gazetta-studio/gazetta-studio/issues/1146) publish and serving ignore a target's language settings
+- [#1149](https://github.com/gazetta-studio/gazetta-studio/issues/1149) `_redirects`: 410 rows hosts don't support, and no warning past 2,000 rows
+- [#1159](https://github.com/gazetta-studio/gazetta-studio/issues/1159) the publish panel sends target-only rows
+- [#1162](https://github.com/gazetta-studio/gazetta-studio/issues/1162) component tree: a fast second keyboard move acts on the old order
+- [#1165](https://github.com/gazetta-studio/gazetta-studio/issues/1165) capability checks don't know `gazetta serve` serves a static target
+- [#1174](https://github.com/gazetta-studio/gazetta-studio/issues/1174) a translation-only admin publish leaves the old manifest on the target
+- [#1180](https://github.com/gazetta-studio/gazetta-studio/issues/1180) `gazetta publish` and `gazetta history` wait 10 seconds after they finish
+- [#1181](https://github.com/gazetta-studio/gazetta-studio/issues/1181) the `.gitignore` from `gazetta init` doesn't cover what publish writes
+- [#1182](https://github.com/gazetta-studio/gazetta-studio/issues/1182) the capability-gap warning on a new site links to a page that answers 404
+- [#1183](https://github.com/gazetta-studio/gazetta-studio/issues/1183) a new site fails its own broken-links check
+- [#1184](https://github.com/gazetta-studio/gazetta-studio/issues/1184) `gazetta dev` on a busy port prints a Node stack trace
+- [#1191](https://github.com/gazetta-studio/gazetta-studio/issues/1191) an editor can publish to production: `publish:production` is never checked
+- [#1192](https://github.com/gazetta-studio/gazetta-studio/issues/1192) denied admin requests (401 and 403) aren't recorded in the audit log
+- [#1193](https://github.com/gazetta-studio/gazetta-studio/issues/1193) the offline docs say offline saves are sent later, and "Send now" only checks the connection
+- [#1196](https://github.com/gazetta-studio/gazetta-studio/issues/1196) publish and fetch copy folders from outside the site when an item name contains `..`
+
+Decided: maintainer, 2026-10-23 (#1179)
+
+## Next (planned, the quarter after Now)
+
+### Onboarding sprint
+
+Reduce time-to-first-deploy for new operators. Moved from Now on 2026-10-23.
+
+- [#214](https://github.com/gazetta-studio/gazetta-studio/issues/214) first-run Cloudflare setup
+- [#213](https://github.com/gazetta-studio/gazetta-studio/issues/213) container deployment guide
+- [#79](https://github.com/gazetta-studio/gazetta-studio/issues/79) Docker example for `gazetta serve`
+- Function-based adapters on the v1 contract: [#204](https://github.com/gazetta-studio/gazetta-studio/issues/204) Cloudflare Pages + Functions, [#206](https://github.com/gazetta-studio/gazetta-studio/issues/206) Vercel Edge
+- [#1177](https://github.com/gazetta-studio/gazetta-studio/issues/1177) a new site's first publish (in discovery)
+- [#1178](https://github.com/gazetta-studio/gazetta-studio/issues/1178) docs, npm and gazetta.studio describe different versions (in discovery)
+- Found on the 2026-10-23 onboarding walk, each waiting for a decision or a test on a real host:
+  - [#1185](https://github.com/gazetta-studio/gazetta-studio/issues/1185) a site with an R2 target can't run `gazetta dev` without the R2 keys
+  - [#1186](https://github.com/gazetta-studio/gazetta-studio/issues/1186) docs and code disagree on a cloud target's default environment
+  - [#1187](https://github.com/gazetta-studio/gazetta-studio/issues/1187) the generated `wrangler.toml` uses a subdomain as `zone_name` (needs a test on a real account)
+  - [#1188](https://github.com/gazetta-studio/gazetta-studio/issues/1188) docs and `init` put pages in different folders, and new pages need a `gazetta dev` restart
+  - [#1189](https://github.com/gazetta-studio/gazetta-studio/issues/1189) the README's quick start is for contributors
+- [#1171](https://github.com/gazetta-studio/gazetta-studio/issues/1171) starter themes
+- [#209](https://github.com/gazetta-studio/gazetta-studio/issues/209) Netlify static, after [#1152](https://github.com/gazetta-studio/gazetta-studio/issues/1152)'s cuts 1–2 and [#1149](https://github.com/gazetta-studio/gazetta-studio/issues/1149). #1152's cut 2 waits for target removal cut 1, whose planner issue opens after publish undo cut 2, target indices cut 2 and review workflow cuts 12–13
 
 ### Phase 1 — Remaining foundations
 
@@ -50,38 +103,45 @@ Other foundations (TS config / AuthIdentity / Component IDs / AdminCache / Audit
 
 | Feature | Depends on | Estimate |
 |---|---|---|
-| Per-field translation ([#192](https://github.com/gazetta-studio/gazetta-studio/issues/192)) | i18n design + Component IDs (both shipped) | 2-3w |
-| Review workflow MVP ([#199](https://github.com/gazetta-studio/gazetta-studio/issues/199)) | AuthIdentity + Audit + Hooks (all shipped) | 2-3w |
+| Per-field translation ([#192](https://github.com/gazetta-studio/gazetta-studio/issues/192)) and AI translation ([#1167](https://github.com/gazetta-studio/gazetta-studio/issues/1167)): one discovery and design pass, since both have to settle which fields get translated and how a translation is reviewed and marked | i18n design + Component IDs (both shipped) | — |
 | Comments-first collaboration v1 | AuthIdentity + Audit + Component IDs (shipped) + NotificationProvider (pending) | 3w |
 
-### AI translation task
+### Static targets
 
-Per [`design-ai-implementation.md`](.claude/rules/design-ai-implementation.md) deferred items. Second AI task alongside alt-text; validates cross-task `ai/` infrastructure. ~1 week.
+What remains wrong or undecided on static targets:
 
-### Static publish fan-out
+- [#202](https://github.com/gazetta-studio/gazetta-studio/issues/202) an admin publish of a fragment misses nested pages that use it
+- [#1175](https://github.com/gazetta-studio/gazetta-studio/issues/1175) save doesn't render on editable static targets, though the design says it should (in discovery)
+- [#1176](https://github.com/gazetta-studio/gazetta-studio/issues/1176) pages with a dynamic route (`[param]`) answer 404 (in discovery)
 
-[#202](https://github.com/gazetta-studio/gazetta-studio/issues/202) — real correctness gap. Fragment changes don't trigger fan-out re-renders on static targets. Touches the same dependency-tracking machinery validation Cut 2 uses. 1-2 weeks.
+### Page listings for templates
 
-### Small content-feature bundle (1-2 weeks)
+[#1168](https://github.com/gazetta-studio/gazetta-studio/issues/1168): a discovery and design pass. Templates can't list pages yet (`PageQuery` in [`design-rendering.md`](.claude/rules/design-rendering.md) Q4 isn't built), and RSS ([#58](https://github.com/gazetta-studio/gazetta-studio/issues/58)) and pagination ([#57](https://github.com/gazetta-studio/gazetta-studio/issues/57)) both need it, so they follow it.
 
-- [#58](https://github.com/gazetta-studio/gazetta-studio/issues/58) RSS / Atom feeds
-- [#57](https://github.com/gazetta-studio/gazetta-studio/issues/57) pagination for list pages
-- [#91](https://github.com/gazetta-studio/gazetta-studio/issues/91) `gazetta validate` checks target connectivity
+### `gazetta validate` checks target connectivity
 
-### Offline mode e2e tests
+[#91](https://github.com/gazetta-studio/gazetta-studio/issues/91).
 
-[#253](https://github.com/gazetta-studio/gazetta-studio/issues/253) — three Playwright specs covering the validation-gate scenarios in `docs/offline.md`. Offline-v1 ships 15 of 16 cuts with 699 unit + integration tests; e2e is the final validation gate. ~1 week.
+### Offline: save queue, editor offline and e2e tests
 
-### MCP server (1-2 weeks)
+Three pieces of offline mode that aren't built or tested yet, planned together:
 
-[#49](https://github.com/gazetta-studio/gazetta-studio/issues/49). Auto-generates MCP tools from existing `admin-api/schemas/` Zod schemas; stdio + HTTP transports; auth via existing API auth. No architectural change required.
+- The save queue (`design-offline-implementation.md`, "Cut 9c: Save queue"): a save made offline goes out by itself once the connection returns. Its audit events carry replay metadata (Cut 15).
+- Opening a page in the editor on an offline cold load ([#969](https://github.com/gazetta-studio/gazetta-studio/issues/969)), which #253's reload step needs. It needs a decision first: how custom editor and field modules are cached offline.
+- The e2e tests in [#253](https://github.com/gazetta-studio/gazetta-studio/issues/253) for the two scenarios no test covers yet: editing offline, reloading, then reconnecting and saving; and the offline save conflict. Cold load offline (`tests/e2e/production-offline.test.ts`) and drafts surviving an online reload are covered.
+
+### MCP server build
+
+[#49](https://github.com/gazetta-studio/gazetta-studio/issues/49), after its design pass in Now.
 
 ### CSP design passes
 
-Two research+design issues filed 2026-05-13. Tier 3 implementation; this quarter for the design work.
+Two research+design issues filed 2026-05-13. Tier 3 implementation; the design work is in Next.
 
 - [#361](https://github.com/gazetta-studio/gazetta-studio/issues/361) Content Security Policy: admin surface
 - [#362](https://github.com/gazetta-studio/gazetta-studio/issues/362) Content Security Policy: target / published-site surface
+
+Decided: maintainer, 2026-10-23 (#1179)
 
 ## Later (sequenced behind Now / Next)
 
@@ -91,10 +151,11 @@ Post-contract additions to the onboarding sprint:
 
 - [#205](https://github.com/gazetta-studio/gazetta-studio/issues/205) Deno Deploy
 - [#207](https://github.com/gazetta-studio/gazetta-studio/issues/207) Netlify Edge Functions
-- [#208](https://github.com/gazetta-studio/gazetta-studio/issues/208) GitHub Pages (static-only)
-- [#210](https://github.com/gazetta-studio/gazetta-studio/issues/210) Cloudflare Pages (static-only, no Functions)
-- [#211](https://github.com/gazetta-studio/gazetta-studio/issues/211) S3 static website
-- [#212](https://github.com/gazetta-studio/gazetta-studio/issues/212) Azure Blob static website
+- Static hosts:
+  - [#208](https://github.com/gazetta-studio/gazetta-studio/issues/208) GitHub Pages (static-only)
+  - [#210](https://github.com/gazetta-studio/gazetta-studio/issues/210) Cloudflare Pages (static-only, no Functions)
+  - [#211](https://github.com/gazetta-studio/gazetta-studio/issues/211) S3 static website
+  - [#212](https://github.com/gazetta-studio/gazetta-studio/issues/212) Azure Blob static website
 
 ### Operability cluster (demand-driven)
 
@@ -103,9 +164,9 @@ Operator-facing features for mature production deployments:
 - [#19](https://github.com/gazetta-studio/gazetta-studio/issues/19) configure cache from CMS admin UI
 - [#38](https://github.com/gazetta-studio/gazetta-studio/issues/38) cache dynamic route lookups in worker
 - [#39](https://github.com/gazetta-studio/gazetta-studio/issues/39) minimal observability for Cloudflare worker
-- [#75](https://github.com/gazetta-studio/gazetta-studio/issues/75) parallelize R2 REST API uploads
+- [#75](https://github.com/gazetta-studio/gazetta-studio/issues/75) publish uploads rendered pages and history one file at a time; dependency-index writes have no limit
 - [#76](https://github.com/gazetta-studio/gazetta-studio/issues/76) in-memory cache for `gazetta serve`
-- [#195](https://github.com/gazetta-studio/gazetta-studio/issues/195) webhooks / post-publish hooks
+- [#195](https://github.com/gazetta-studio/gazetta-studio/issues/195) webhooks: a first-party webhook hook factory (an npm contribution, [ADR-0009](docs/adr/0009-no-plugin-runtime-factory-contributions.md)), after live-check cut 7a makes CLI publishes run hooks. Admin publishes already run `afterPublish` hooks; CLI publishes run none.
 - [#198](https://github.com/gazetta-studio/gazetta-studio/issues/198) scheduled publishing — composes with scheduling primitive when shipped
 
 ### Compare polish (~1 week)
@@ -113,15 +174,20 @@ Operator-facing features for mature production deployments:
 - [#109](https://github.com/gazetta-studio/gazetta-studio/issues/109) compare targets — polish and edge cases
 - [#111](https://github.com/gazetta-studio/gazetta-studio/issues/111) standalone compare view
 
+### Content features
+
+- [#1170](https://github.com/gazetta-studio/gazetta-studio/issues/1170) bulk edits; also a use case in the MCP design pass
+- [#1169](https://github.com/gazetta-studio/gazetta-studio/issues/1169) template schema changes: starts when publish undo refuses content on a real site, or a template developer reports the problem (scenario TD3 in [`docs/actor-scenarios.md`](docs/actor-scenarios.md)). Until then undo stays correct by refusing.
+
 ### Tier 3 strategic bets (parallel tracks)
 
 These can run alongside Phase 2 since they don't block foundations:
 
-- SEO metadata editor with SERP preview, OG preview, JSON-LD ([#193](https://github.com/gazetta-studio/gazetta-studio/issues/193))
-- RBAC implementation against the shipped design ([#194](https://github.com/gazetta-studio/gazetta-studio/issues/194))
-- Audit log implementation against the shipped design ([#200](https://github.com/gazetta-studio/gazetta-studio/issues/200))
+- SEO metadata editor ([#193](https://github.com/gazetta-studio/gazetta-studio/issues/193)): what's left is the OG preview and JSON-LD helpers; the SERP preview and reload-safe metadata edits shipped
 - Large-site editor UX ([#196](https://github.com/gazetta-studio/gazetta-studio/issues/196)) — `design-scale.md` shipped; implementation pending
 - Environment-specific content ([#62](https://github.com/gazetta-studio/gazetta-studio/issues/62)) — design pass needed first
+
+Decided: maintainer, 2026-10-23 (#1179)
 
 ## Deferred — real gaps, no current trigger
 
@@ -157,11 +223,15 @@ These can run alongside Phase 2 since they don't block foundations:
 | Synced blocks (inline content reuse) | Inline-reuse demand materializes; Fragments cover ~80% today |
 | Visual editing mode (parallel to form-driven) | Marketing-team operator asks specifically |
 | Bidirectional relations beyond Usages | Wiki-style use case surfaces |
-| OG image preview + JSON-LD helpers | Part of [#193](https://github.com/gazetta-studio/gazetta-studio/issues/193) when picked up |
 | Admin `theme.ts` JS preset bridge ([#135](https://github.com/gazetta-studio/gazetta-studio/issues/135)) | Per `css-theming.md`: product matures past prototype phase |
 | Google Cloud Storage provider ([#8](https://github.com/gazetta-studio/gazetta-studio/issues/8)) | Operator asks |
 | Pass dynamic route params at request time ([#80](https://github.com/gazetta-studio/gazetta-studio/issues/80)) | Composes with `design-rendering.md` request-SSR work when shipped |
-| Publish from static target ([#92](https://github.com/gazetta-studio/gazetta-studio/issues/92)) | Static targets don't store source manifests; real "publish from static" workflow surfaces |
+| Publish from static target ([#92](https://github.com/gazetta-studio/gazetta-studio/issues/92)): CLI publishes to a static target copy no fragment manifests, so it can't be a publish source | A real "publish from a static target" workflow surfaces |
+| `llms.txt` and Markdown versions of pages for AI agents | Evidence that AI platforms read them, or an operator asks |
+| Agent instructions (skills) for template developers | The MCP server ships |
+| Asset folders and a crop rectangle | Operators ask |
+
+Decided: maintainer, 2026-10-23 (#1179)
 
 ## Non-goals
 
@@ -183,7 +253,7 @@ When a Now item ships, the next item from Next promotes (or is deliberately re-p
 
 Every issue is classified into a bucket above at file time per [`feature-design-process.md`](.claude/rules/feature-design-process.md) "Issue-classification discipline." Unclassified issues are a process bug.
 
-Tier transitions are tracked here. Ship-status of individual cuts lives in `design-{feature}-implementation.md` files.
+Tier transitions are tracked here. Ship-status of individual cuts lives in each feature's planner or tracking issue ([ADR-0015](docs/adr/0015-impl-doc-artifact-retires.md)).
 
 ---
 
@@ -211,6 +281,17 @@ Cross-cutting dimensions every feature design must respect (see [`feature-design
 14. **[`design-soft-delete.md`](.claude/rules/design-soft-delete.md)** — **implementation also shipped 2026-05** — all 15 cuts merged on `soft-delete-v1`. Archive + alias + rename + restore + purge for pages/fragments. HTML comment marker as the universal mechanism; capability-gap UX surfaced at four points.
 15. **[`design-scheduling.md`](.claude/rules/design-scheduling.md)** — single-shot actions + time-windowed visibility. Background scheduler with lock-with-TTL multi-instance coordination; lazy visibility evaluation at render time. Implementation pending in [#198](https://github.com/gazetta-studio/gazetta-studio/issues/198) (12 cuts + UX research pass, ~22 days).
 
+## Publishing-safety design passes — complete 2026-10
+
+Implementation is in Now (see "Publishing safety").
+
+1. **[`design-live-check.md`](.claude/rules/design-live-check.md)** — after each publish or deploy, check that the live site serves what was published; published-version marker, route planner, reports on the target.
+2. **[`design-public-storage.md`](.claude/rules/design-public-storage.md)** — a target whose storage visitors can reach keeps no history, audit or review state; `isPublicSitePath`; a probe that locks publishing on a leak.
+3. **[`design-publish-undo.md`](.claude/rules/design-publish-undo.md)** — undo and rollback on a publish destination restore the previous content and re-render it through one shared target-publish function.
+4. **Target indices that describe the target** ([`sidecars.md`](.claude/rules/sidecars.md), [#1077](https://github.com/gazetta-studio/gazetta-studio/issues/1077)) — each published item's edges replaced from its own forward record.
+5. **[`design-target-removal.md`](.claude/rules/design-target-removal.md)** — items deleted on the source are removed from a target only when the author chooses, after a check that nothing staying there uses them.
+6. **Archived pages on plain-static hosts** ([`design-soft-delete.md`](.claude/rules/design-soft-delete.md) Q10, [#1152](https://github.com/gazetta-studio/gazetta-studio/issues/1152), decided in [#1163](https://github.com/gazetta-studio/gazetta-studio/pull/1163)) — static publish leaves no marker file at an archived route; plain hosts apply their `_redirects` rows, serve a redirect page at an alias's old route, or answer 404 with the target's `404.html`.
+
 ## Phase 0 — Implementation planning artifacts (complete 2026-05)
 
 All 19 `design-{feature}-implementation.md` docs shipped: ai, audit, auth-rbac, cache, collaboration, config, hooks, i18n, media, offline, plugins, provider-config, rendering, review-workflow, scale, scheduling, soft-delete, themes, validation.
@@ -221,9 +302,10 @@ All 19 `design-{feature}-implementation.md` docs shipped: ai, audit, auth-rbac, 
 |---|---|
 | TS config migration | ✓ shipped |
 | AuthIdentity layer | ✓ shipped (6 trust-mode providers; 9 test files; 66 admin-API integrations) |
+| RBAC ([#194](https://github.com/gazetta-studio/gazetta-studio/issues/194)) | ✓ shipped 2026-05-13 (capabilities, built-in and custom roles, route gates; [`docs/auth.md`](docs/auth.md)), except the per-target `publish:production` check ([#1191](https://github.com/gazetta-studio/gazetta-studio/issues/1191)) |
 | Component IDs | ✓ shipped (`component-ids.ts`; called from page + fragment save handlers) |
 | AdminCache abstraction | ✓ shipped (interface + `MemoryCache` + per-site + 6 test files) |
-| Audit primitive (v1 scope) | ✓ shipped (recorder + middleware + `HistoryAuditProvider`) |
+| Audit log ([#200](https://github.com/gazetta-studio/gazetta-studio/issues/200), v1 scope) | ✓ shipped (recorder + middleware + `HistoryAuditProvider`, audit drawer, retention; [`docs/audit.md`](docs/audit.md)). Denied requests aren't recorded yet ([#1192](https://github.com/gazetta-studio/gazetta-studio/issues/1192)). External sinks are demand-driven; CSV export, role and config-change events, a target filter, and date and item filters in the drawer are in `design-audit.md`'s future directions |
 | Hooks lifecycle | ✓ shipped (factory contributions via `admin.hooks` per ADR-0009; 10 test files) |
 | Deploy adapter contract (#203) | ✓ shipped 2026-05-14 ([`design-deploy.md`](.claude/rules/design-deploy.md) + [ADR-0010](docs/adr/0010-deploy-publish-independence.md) + [`docs/deploy.md`](docs/deploy.md); `cloudflareWorkersDeploy()` + 2 validators + `target.worker` deleted; verified end-to-end against `sites/gazetta.studio` — real CF deploy, live worker on https://gazetta.studio) |
 | NotificationProvider (in-admin) | ☐ pending — see Next |
@@ -235,8 +317,18 @@ All 19 `design-{feature}-implementation.md` docs shipped: ai, audit, auth-rbac, 
 - ✓ Validation Cut 2 (background scanner) — scanner manages its own memoization
 - ✓ Validation Cut 3 (render-for-analysis + a11y)
 - ✓ Offline mode v1 — AdminCache + Vue Query + `idb` + `vite-plugin-pwa` + 5-state connection machine + conflict UI + 9 test files
+- ✓ Offline drafts scoped to their author, and the site tree offline ([#962](https://github.com/gazetta-studio/gazetta-studio/issues/962)); drafts survive a reload, page metadata included (2026-10-18)
+- ✓ Review workflow back end ([#515](https://github.com/gazetta-studio/gazetta-studio/issues/515)–[#520](https://github.com/gazetta-studio/gazetta-studio/issues/520)) and its UI primitives and story runner ([#522](https://github.com/gazetta-studio/gazetta-studio/issues/522)–[#524](https://github.com/gazetta-studio/gazetta-studio/issues/524)), with Storybook stories running in CI ([#524](https://github.com/gazetta-studio/gazetta-studio/issues/524))
 
-Remaining (see Next): per-field translation, review workflow MVP, comments-first collaboration v1.
+Remaining: per-field translation and comments-first collaboration (Next); the review workflow's remaining cuts (Now).
+
+## Publish correctness and safer defaults — shipped 2026-10
+
+- ✓ CLI publishes record history ([#1079](https://github.com/gazetta-studio/gazetta-studio/issues/1079)); concurrent history writes keep every revision ([#1089](https://github.com/gazetta-studio/gazetta-studio/issues/1089), [#1112](https://github.com/gazetta-studio/gazetta-studio/issues/1112)); a revision lists only the items it changed ([#1078](https://github.com/gazetta-studio/gazetta-studio/issues/1078))
+- ✓ Translated pages publish their own hash, metadata and noindex setting ([#1000](https://github.com/gazetta-studio/gazetta-studio/issues/1000), [#1024](https://github.com/gazetta-studio/gazetta-studio/issues/1024), [#1048](https://github.com/gazetta-studio/gazetta-studio/issues/1048)); static pages update when a nested fragment changes ([#1090](https://github.com/gazetta-studio/gazetta-studio/issues/1090))
+- ✓ Served sites honour archive markers ([#1060](https://github.com/gazetta-studio/gazetta-studio/issues/1060)); `gazetta serve` and the worker serve every language ([#1138](https://github.com/gazetta-studio/gazetta-studio/issues/1138)); `_redirects` has rows for every language ([#1130](https://github.com/gazetta-studio/gazetta-studio/issues/1130))
+- ✓ `gazetta dev` and `gazetta admin` listen on 127.0.0.1 ([#1074](https://github.com/gazetta-studio/gazetta-studio/issues/1074)); static `gazetta serve` answers 404 for private paths ([#1071](https://github.com/gazetta-studio/gazetta-studio/issues/1071)); `gazetta init` gitignores `.env` and `.gazetta/` ([#1075](https://github.com/gazetta-studio/gazetta-studio/issues/1075))
+- ✓ gazetta.studio checks its live site after each deploy (CI)
 
 ## Validation Cuts 1-6 — shipped
 

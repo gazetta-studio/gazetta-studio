@@ -33,6 +33,7 @@ Branch: `offline-v1` off `main`. Sequenced after AdminCache (depends on `AdminCa
 | 8c | Draft store + principal scoping: own IndexedDB store keyed `[site, owner, target, …]`, `GET /api/me`, boot classification + purge before hydration (design-offline.md "Unsaved drafts live in their own store"; #962) | ✓ | Medium-high | No draft crosses users, targets, sites or tabs |
 | 9 | Save-etag plumbing: server `ETag` + `If-Match` + 409 STALE + client `StaleSaveError` + `getPageWithEtag` / `updatePage(..., ifMatch)` | ✓ | High | Conflict-detection contract |
 | 9b | useEditorEtags Pinia store + useEditorActions integration (selection.ts If-Match plumbing, updateManifest helper, EditorPanel ConflictBanner wiring) | ✓ | High | End-to-end save-conflict flow |
+| 9c | Save queue: client-generated ids, chained If-Match, replay on reconnect (see "Cut 9c: Save queue" below) | ☐ | High | Offline saves go out after reconnect |
 | 10 | Conflict UX: useSaveConflictsStore + ConflictBanner.vue + ConflictDiffView.vue (Show / Discard actions; no overwrite per Krug lock) | ✓ | High | Conflict resolution UX |
 | 11 | Service worker via vite-plugin-pwa (injectManifest): app-shell precache + skipWaiting handshake + Refresh-toast update flow | ✓ | Medium | Cold-load offline reliability |
 | 12 | OfflineBanner global visibility + Send now + reconnect toast (per-item cloud-slash icons defer to Cut 13's queue) | ✓ | Medium | Krug-aligned visibility |
@@ -165,9 +166,9 @@ Replaces Cuts 8a/8b's snapshot persistence (two coordinators writing whole snaps
 
 **Tests:** see file references above. All tests green; no regressions on existing `VALIDATION_FAILED` 409 path.
 
-**Why Cut 9 is split into 9 + 9b:** the server contract + client API plumbing (this cut) is sufficient for any consumer that tracks the etag itself. The full save-queue Pinia store with Vue Query mutation-queue integration + per-item chain state machine is a separate surface area that would bloat this commit. Cut 9b lands when concrete consumer demand surfaces (likely with `useEditorActions` integration when Cut 8b's content-edit persistence ships).
+**Why Cut 9 is split into 9 + 9b:** the server contract + client API plumbing (this cut) is sufficient for any consumer that tracks the etag itself. The full save-queue Pinia store with Vue Query mutation-queue integration + per-item chain state machine is a separate surface area that would bloat this commit. The save queue is Cut 9c below, planned in ROADMAP Next.
 
-### Cut 9b: Save queue (deferred)
+### Cut 9c: Save queue (not built; planned in ROADMAP Next)
 
 **Files added:**
 - `apps/admin/src/client/queries/save-queue.ts` — client-generated UUIDs; chained If-Match projections; sequential replay on reconnect
@@ -230,7 +231,7 @@ Replaces Cuts 8a/8b's snapshot persistence (two coordinators writing whole snaps
 
 ## Validation gate (definition of done)
 
-- [ ] All 18 cuts merged (1-7, 8a, 8b, 9, 9b, 10-16)
+- [ ] All 21 cuts merged (1-5, 5b, 6, 7, 8a, 8b, 8c, 9, 9b, 9c, 10-16)
 - [ ] Manual test: edit page offline → close laptop → reopen → edits persist → reconnect → sync invisibly
 - [ ] Conflict scenario test: edit offline + concurrent online edit → reconnect → conflict banner surfaces
 - [x] Service worker test: cold-load admin offline → SPA loads from cache (`tests/e2e/production-offline.test.ts`, CI job `e2e-prod`; site data from IndexedDB on that cold load does not load yet)
@@ -265,7 +266,7 @@ Replaces Cuts 8a/8b's snapshot persistence (two coordinators writing whole snaps
 | 8a (Structural pending-edits) | 0.5 day |
 | 8b (Stash + content pending-edits, with closure rebuild) | 1.5 days |
 | 9 (Save-etag plumbing) | 1 day |
-| 9b (Save queue + Vue Query integration) | 1.5 days |
+| 9c (Save queue + Vue Query integration) | 1.5 days |
 | 10 (Conflict UX) | 2 days |
 | 11 (Service worker) | 1.5 days |
 | 12 (UX indicators) | 1.5 days |

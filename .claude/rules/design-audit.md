@@ -10,7 +10,7 @@ paths:
 
 Foundational dimension #5 of 13. Pluggable audit-event recording with multiple provider implementations (history-extended at v1; external sinks reserved). Composes with auth/RBAC's `Principal` for actor identity and with the real-time event-source discipline (audit log = source of real-time events for presence + live publish status).
 
-**Status**: design pass complete (2026-05). Implementation phases sit in Tier 3.
+**Status**: design pass complete (2026-05); implementation shipped 2026-05 (Cuts 1–10, [`design-audit-implementation.md`](design-audit-implementation.md)), except recording denied requests: the capability middleware's 401 and 403 aren't recorded yet ([#1192](https://github.com/gazetta-studio/gazetta-studio/issues/1192)). External audit sinks are demand-driven.
 
 **Companion docs**:
 - [`feature-design-process.md`](feature-design-process.md) — defines the **Audit check** every new feature design must answer
@@ -613,4 +613,9 @@ Sites without `admin.audit` config use `HistoryAuditProvider` automatically. Exi
 - **Index sidecar** at hard-limit scale.
 - **Audit log query CLI** (`gazetta audit query --actor=X --since=Y`). Lands with validation Cut 5 CLI rewrite.
 - **Right-to-be-forgotten scrub CLI** (`gazetta audit scrub`). Same trigger.
-- **Audit retention separate from history retention** — for compliance teams who keep audit longer than content history.
+- **CSV export.** `GET /api/audit` returns JSON; there's no export in the drawer. Left from [#200](https://github.com/gazetta-studio/gazetta-studio/issues/200).
+- **Events for role and config changes.** `configure-roles` is reserved but never recorded, and `site.config.ts` edits aren't recorded. Left from #200.
+- **A filter by target** in the drawer and `GET /api/audit`; publish events carry the target name in their metadata. Left from #200.
+- **Date-range and item filters in the drawer.** `GET /api/audit` takes dates and an item name; the drawer filters by action, outcome, kind and person only. Left from #200.
+
+Decided: maintainer, 2026-10-23 (#1179)
