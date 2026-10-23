@@ -139,6 +139,45 @@ describe('publish route — translation manifests copied and recorded (#1174)', 
     expect(rev.snapshot).toHaveProperty('pages/about/page.fr.json')
   })
 
+  it('fails closed on an invalid locale: no manifest path is built from it, and history records none', async () => {
+    // `pages/about:../escape`: isValidLocale rejects the locale before
+    // it reaches a manifest filename, so the copy writes no variant
+    // manifest and the revision records nothing derived from it.
+    // (publishRun's render-side locale handling is out of scope here.)
+    const { app, sourceStorage, targetStorage } = buildApp()
+    // The manifest an unvalidated `../escape` locale would name. On a
+    // hierarchical filesystem this path escapes the item folder; the
+    // flat in-memory storage keys it literally.
+    sourceStorage.seed({
+      'pages/about/page.../escape.json': JSON.stringify({ template: 'page-default', content: {} }),
+    })
+
+    await publish(app, ['pages/about:../escape'])
+
+    const manifestKeys = [...targetStorage.dump().keys()].filter(k => k.endsWith('.json') && !k.startsWith('.gazetta/'))
+    expect(manifestKeys.some(k => k.includes('..'))).toBe(false)
+
+    const rev = publishRevision(await readRevisions(targetStorage))
+    expect(Object.keys(rev.snapshot).some(k => k.includes('..'))).toBe(false)
+  })
+
+  it('does not record a translation manifest whose locale fails LOCALE_PATTERN', async () => {
+    // `page.fr-x.json` carries a one-letter subtag that LOCALE_PATTERN
+    // rejects (`-[a-z]{2,8}`). The copy still writes it (whole-folder
+    // copy), but history records only valid translation manifests.
+    const { app, sourceStorage, targetStorage } = buildApp()
+    sourceStorage.seed({
+      'pages/about/page.fr-x.json': JSON.stringify({ template: 'page-default', content: {} }),
+    })
+
+    await publish(app, ['pages/about'])
+
+    const rev = publishRevision(await readRevisions(targetStorage))
+    expect(rev.snapshot).toHaveProperty('pages/about/page.json')
+    expect(rev.snapshot).toHaveProperty('pages/about/page.fr.json')
+    expect(rev.snapshot).not.toHaveProperty('pages/about/page.fr-x.json')
+  })
+
   it('a translation-only fragment publish on an ESI target copies fragment.fr.json and records it', async () => {
     const { app, sourceStorage, targetStorage } = buildApp()
 
