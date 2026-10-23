@@ -208,14 +208,13 @@ describe('Cloudflare worker archive markers', () => {
     expect(body).not.toContain('gazetta:archived')
   })
 
-  it('uses the derived route for non-trivial page names', async () => {
+  it('answers 410 for a plain page whose alias route needs a parameter', async () => {
     const { bucket } = fakeBucket(esiSeed())
     const app = createWorker()
 
     const res = await fetchPage(app, bucket, '/old-docs')
 
-    expect(res.status).toBe(301)
-    expect(res.headers.get('location')).toBe('/blog/:slug')
+    expect(res.status).toBe(410)
   })
 
   it('returns 410 Gone for a gone page', async () => {
@@ -350,6 +349,28 @@ describe('worker archived dynamic-route aliases (#1126)', () => {
     const app = createWorker()
 
     const res = await fetchPage(app, bucket, '/news/hello')
+
+    expect(res.status).toBe(410)
+    expect(res.headers.get('cache-control')).toBe(ARCHIVE_CACHE_CONTROL)
+  })
+
+  it('inserts an encoded slug without encoding it a second time', async () => {
+    const { bucket } = fakeBucket(dynamicAliasSeed())
+    const app = createWorker()
+
+    const res = await fetchPage(app, bucket, '/blog/h%C3%A9llo')
+
+    expect(res.status).toBe(301)
+    expect(res.headers.get('location')).toBe('/posts/h%C3%A9llo')
+  })
+
+  it('answers 410 for a plain page archived with a parameterized alias', async () => {
+    const { bucket } = fakeBucket({
+      'pages/promo/index.html': archiveMarker({ kind: 'alias', target: 'posts/[slug]' }),
+    })
+    const app = createWorker()
+
+    const res = await fetchPage(app, bucket, '/promo')
 
     expect(res.status).toBe(410)
     expect(res.headers.get('cache-control')).toBe(ARCHIVE_CACHE_CONTROL)
