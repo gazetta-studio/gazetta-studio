@@ -648,12 +648,23 @@ export function useEditorActions() {
     if (key) usePersistedEditsStore().set(key, deepClone(newContent), baseForCurrent())
   }
 
+  /** True while the open editor or a stash entry still mirrors the persisted key. */
+  function persistedKeyStillMirrored(k: string): boolean {
+    if (ec.target && ec.dirty && persistedKeyForCurrent() === k) return true
+    for (const [p] of stash.entries) {
+      if (persistedKeyForStashEntry(p) === k) return true
+    }
+    return false
+  }
+
   function revertStashed(componentPath: string) {
     stash.revert(componentPath)
     // Cut 8b: drop the cross-page persisted mirror for this stash
-    // entry too — author explicitly chose to discard, not keep.
+    // entry too — author explicitly chose to discard, not keep. Keep
+    // it while another live edit mirrors the same key: a fragment root
+    // is reachable as _root and @name, one draft for both (#1108).
     const k = persistedKeyForStashEntry(componentPath)
-    if (k) usePersistedEditsStore().clear(k)
+    if (k && !persistedKeyStillMirrored(k)) usePersistedEditsStore().clear(k)
     usePreviewStore().invalidateDraft()
   }
 
@@ -947,9 +958,8 @@ export function useEditorActions() {
     }
     const persistedStore = usePersistedEditsStore()
     for (const path of written.keys()) {
-      if ((ec.target?.path === path && ec.dirty) || stash.has(path)) continue
       const k = persistedKeyForStashEntry(path)
-      if (k) persistedStore.clear(k)
+      if (k && !persistedKeyStillMirrored(k)) persistedStore.clear(k)
     }
   }
 
