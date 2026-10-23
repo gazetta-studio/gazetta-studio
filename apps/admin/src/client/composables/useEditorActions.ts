@@ -24,7 +24,7 @@ import { useEditorPersistenceStore, type ManifestWrite } from '../stores/editorP
 import { useEditorContentStore, type EditingTarget } from '../stores/editorContent.js'
 import { useValidationIssuesStore } from '../stores/validationIssues.js'
 import { type EditorSelection, selectionToStashKey, selectionToErrorLabel } from './editorSelection.js'
-import { api, type PageMetadata, StaleSaveError, ValidationFailedError } from '../api/client.js'
+import { api, type ComponentEntry, type PageMetadata, StaleSaveError, ValidationFailedError } from '../api/client.js'
 import { useLocaleStore } from '../stores/locale.js'
 import { useEditorEtagsStore, manifestPath } from '../stores/editorEtags.js'
 import { useSaveConflictsStore } from '../stores/saveConflicts.js'
@@ -90,6 +90,19 @@ export function useEditorActions() {
     }
     const kind = sel.selection.type === 'page' ? 'page' : 'fragment'
     return persistedEditKey(kind, sel.selection.name, locale, targetPath)
+  }
+
+  /** Names of the fragments a component list references, at any depth. */
+  function fragmentRefsOf(components: ComponentEntry[] | undefined): string[] {
+    const out: string[] = []
+    for (const c of components ?? []) {
+      if (typeof c === 'string') {
+        if (c.startsWith('@')) out.push(c.slice(1).split('/')[0])
+      } else {
+        out.push(...fragmentRefsOf(c.components))
+      }
+    }
+    return out
   }
 
   /**
@@ -564,7 +577,15 @@ export function useEditorActions() {
       if (signal.aborted) return
       activateDrafts()
       const persisted = persistedKey ? usePersistedEditsStore().get(persistedKey) : null
-      if (persisted) {
+      if (persisted && JSON.stringify(persisted.editedContent) === JSON.stringify(target.content)) {
+        // A draft that matches the content just loaded holds nothing
+        // new (#1108): another tab saved the same edit. Drop the entry
+        // instead of keeping it, or a later reopen would apply it as a
+        // stale edit against its old base. Compared before ec.open so a
+        // newer navigation can't race the check.
+        usePersistedEditsStore().clear(persistedKey!)
+        await ec.open(target)
+      } else if (persisted) {
         // Saved against the version the draft was made on, not the one just loaded.
         if (persisted.base) useEditorEtagsStore().set(persisted.base.manifest, persisted.base.etag)
         await ec.open(target, persisted.editedContent)
@@ -818,6 +839,13 @@ export function useEditorActions() {
     // since: opening one later would apply it over the other author's version.
     if (key) usePersistedEditsStore().clearItem(key.kind, key.name, useLocaleStore().effectiveLocale ?? undefined)
     if (openKey) usePersistedEditsStore().clear(openKey)
+    // Fragment drafts key under the fragment, outside the prefix
+    // clears above. Discard on a selection removes every edit you'd
+    // see on it (#1108), whether or not it was opened since the reload.
+    const locale = useLocaleStore().effectiveLocale ?? undefined
+    for (const name of fragmentRefsOf(useSelectionStore().selection?.detail?.components)) {
+      usePersistedEditsStore().clearItem('fragment', name, locale)
+    }
     usePreviewStore().invalidateDraft()
   }
 
