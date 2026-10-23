@@ -26,7 +26,7 @@ describe('archiveResponse', () => {
 
   it('fills a non-ASCII param name and encodes its captured value once', () => {
     const res = archiveResponse(archiveMarker({ kind: 'alias', target: 'posts/[slúg]' }), {
-      params: { 'slúg': 'h%C3%A9llo' },
+      params: { slúg: 'h%C3%A9llo' },
     })!
     expect(res.status).toBe(301)
     expect(res.headers.get('location')).toBe('/posts/h%C3%A9llo')
