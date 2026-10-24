@@ -99,13 +99,15 @@ export const useEditorMetadataStore = defineStore('editorMetadata', () => {
     }
   }
 
-  /** A write on the manifest conflicted: every entry for it is now on `to`, so the next Save goes through (#1109). */
+  /**
+   * A write on the manifest conflicted: the active entry moves to `to`, so
+   * the next Save goes through (#1109). A restored draft not activated this
+   * session keeps its version, like an unopened content draft (#1233 review).
+   */
   function rebaseAll(key: MetadataKey, to: string) {
     const k = manifestFileKeyToString(key)
-    for (const map of [entries, restored]) {
-      const entry = map.get(k)
-      if (entry?.baseEtag) map.set(k, { ...toRaw(entry), baseEtag: to })
-    }
+    const entry = entries.get(k)
+    if (entry?.baseEtag) entries.set(k, { ...toRaw(entry), baseEtag: to })
   }
 
   function setField(key: MetadataKey, loaded: PageMetadata | null, field: MetadataTextField, value: string) {
