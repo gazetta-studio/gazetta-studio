@@ -23,8 +23,9 @@
  *    `withStructuralOverride` (clone-only-the-patched-manifest, original
  *    site untouched). The starter home page's `hero` and nested
  *    `features/fast` components pin content overrides; a structural
- *    override keyed `page:home` pins the manifest patch, and a follow-up
- *    GET pins that the original site was never mutated.
+ *    override keyed `page:home` pins the manifest patch, a follow-up
+ *    GET pins that overrides never persist, and direct unit tests pin
+ *    that the original Site is never mutated in memory.
  *
  *  - Surviving mutants on the fragment branch (`/@name`, the locale
  *    prefix regex, the Template Error 500) and the final "Page not
@@ -41,10 +42,10 @@ import { resolve } from 'node:path'
 import { Hono } from 'hono'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
 import { createAdminApp } from '../src/admin-api/index.js'
-import { createSourceContext } from '../src/admin-api/source-context.js'
-import { previewRoutes } from '../src/admin-api/routes/preview.js'
+import { createSourceContext, loadSiteFromSource } from '../src/admin-api/source-context.js'
+import { previewRoutes, withStructuralOverride } from '../src/admin-api/routes/preview.js'
 import { loadSiteConfig, siteConfigToManifest } from '../src/config/loader.js'
-import type { StorageProvider } from '../src/types.js'
+import type { DraftOverrides, StorageProvider } from '../src/types.js'
 import { memoryStorage } from './_helpers/memory-storage.js'
 import { tempDir } from './_helpers/temp.js'
 
@@ -62,7 +63,7 @@ afterAll(async () => {
  * `patch` to the copy first so a test can corrupt content on disk.
  * Mirrors the harness in preview-capability-gate.test.ts.
  */
-async function buildStarterApp(patch?: (projectRoot: string) => Promise<void>): Promise<Hono> {
+async function buildStarterSource(patch?: (projectRoot: string) => Promise<void>) {
   const projectRoot = tempDir(`preview-mut-${Date.now()}-${Math.random()}`)
   createdRoots.push(projectRoot)
   await rm(projectRoot, { recursive: true, force: true })
@@ -77,10 +78,15 @@ async function buildStarterApp(patch?: (projectRoot: string) => Promise<void>): 
   if (!loaded) throw new Error('site.config.ts missing')
   const manifest = siteConfigToManifest(loaded.config)
   const source = createSourceContext({ storage, siteDir: '', projectSiteDir, manifest })
+  return { source, projectRoot, projectSiteDir, templatesDir: resolve(projectRoot, 'templates') }
+}
+
+async function buildStarterApp(patch?: (projectRoot: string) => Promise<void>): Promise<Hono> {
+  const { source, projectRoot, projectSiteDir, templatesDir } = await buildStarterSource(patch)
   return createAdminApp({
     source,
     siteDir: projectSiteDir,
-    templatesDir: resolve(projectRoot, 'templates'),
+    templatesDir,
     adminDir: resolve(projectRoot, 'admin'),
     disableCacheStatsLogger: true,
   })
@@ -197,8 +203,10 @@ describe('preview POST overrides (#1128)', () => {
     // The features section is gone from the overridden components array.
     expect(body).not.toContain('Why Gazetta?')
 
-    // Concurrency-safety invariant: the original Site is never mutated,
-    // so the next render without the override is the stored page.
+    // Each preview request loads the site fresh from storage, so the
+    // follow-up render pins that the override was never persisted. The
+    // in-memory immutability of withStructuralOverride itself is pinned
+    // directly by the unit tests below.
     const after = await app.request('/preview/')
     expect(after.status).toBe(200)
     const afterBody = await after.text()
@@ -279,6 +287,49 @@ describe('preview empty target and loader errors (#1128)', () => {
   })
 })
 
+describe('withStructuralOverride (#1128)', () => {
+  it('returns a copy with only the keyed manifest patched and never mutates the original Site', async () => {
+    const { source, templatesDir } = await buildStarterSource()
+    const site = await loadSiteFromSource(source, { templatesDir })
+    const homeBefore = site.pages.get('home')
+    if (!homeBefore) throw new Error('starter home page missing')
+    const aboutBefore = site.pages.get('about')
+    const componentsBefore = homeBefore.components
+
+    const replacement: DraftOverrides['structural'][string] = [
+      { name: 'hero', template: 'hero', content: { title: 'Unit Override' } },
+    ]
+    const patched = withStructuralOverride(
+      site,
+      { kind: 'page', name: 'home' },
+      { content: {}, structural: { 'page:home': replacement } },
+    )
+
+    expect(patched).not.toBe(site)
+    expect(patched.pages.get('home')?.components).toBe(replacement)
+    // In-memory immutability: the original Site keeps its own manifest...
+    expect(site.pages.get('home')).toBe(homeBefore)
+    expect(site.pages.get('home')?.components).toBe(componentsBefore)
+    // ...and only the patched manifest is cloned - unrelated state is shared.
+    expect(patched.pages.get('about')).toBe(aboutBefore)
+    expect(patched.fragments).toBe(site.fragments)
+    expect(patched.manifest).toBe(site.manifest)
+  })
+
+  it('returns the original Site when no structural override matches the key', async () => {
+    const { source, templatesDir } = await buildStarterSource()
+    const site = await loadSiteFromSource(source, { templatesDir })
+    expect(withStructuralOverride(site, { kind: 'page', name: 'home' }, { content: {}, structural: {} })).toBe(site)
+    expect(
+      withStructuralOverride(
+        site,
+        { kind: 'page', name: 'no-such-page-1128' },
+        { content: {}, structural: { 'page:no-such-page-1128': [] } },
+      ),
+    ).toBe(site)
+  })
+})
+
 describe('preview fragment branch (#1128)', () => {
   it('GET /preview/@header renders the fragment', async () => {
     const app = await buildStarterApp()
@@ -301,13 +352,15 @@ describe('preview fragment branch (#1128)', () => {
 
   it('GET /preview/@missing answers the Template Error 500, escaping the message', async () => {
     const app = await buildStarterApp()
-    const res = await app.request('/preview/@missing-fragment-1128')
+    // The fragment name carries angle brackets so the escaping is
+    // actually exercised: an unescaped render would emit the raw name
+    // and inject markup into the error page.
+    const res = await app.request('/preview/@%3Cscript%3Ealert(1)')
     expect(res.status).toBe(500)
     const body = await res.text()
     expect(body).toContain('Template Error')
-    // The fragment name lands in the error message; the error HTML
-    // escapes angle brackets so a crafted name cannot inject markup.
-    expect(body).not.toContain('<missing-fragment-1128>')
+    expect(body).not.toContain('<script>alert(1)')
+    expect(body).toContain('&lt;script&gt;alert(1)')
   })
 
   it('a page whose template cannot render answers the Template Error 500', async () => {
