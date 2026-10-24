@@ -310,6 +310,36 @@ describe('drafts made on different versions (#1109)', () => {
   })
 })
 
+describe('an unopened draft on the conflicted manifest (#1233 review)', () => {
+  it('keeps the version it was made on, so opening it later still conflicts', async () => {
+    let actions = await openSession()
+    await actions.openComponent('hero', 'hero')
+    actions.markDirty({ title: 'Hero on v1' })
+    await handle!.flush()
+
+    colleagueSaves()
+
+    // The hero draft is persisted but never opened this session.
+    actions = await openSession()
+    actions.markDirty({ title: 'Root on theirs-1' })
+    colleagueSaves()
+
+    // The root write conflicts; the session's entries move so the next
+    // Save goes through, but the unopened hero draft must not move.
+    expect(await actions.save()).toBe(false)
+    expect(await actions.save()).toBe(true)
+
+    await actions.openComponent('hero', 'hero')
+    expect(await actions.save()).toBe(false)
+    expect(useSaveConflictsStore().has(PATH)).toBe(true)
+    expect(api.updatePage).toHaveBeenLastCalledWith(
+      'home',
+      expect.anything(),
+      expect.objectContaining({ ifMatch: 'v1' }),
+    )
+  })
+})
+
 describe('a conflict on a restored draft (#1109)', () => {
   it('lets the next Save go through, as in an open tab', async () => {
     let actions = await openSession()
