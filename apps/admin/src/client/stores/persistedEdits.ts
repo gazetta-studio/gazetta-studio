@@ -134,12 +134,20 @@ export const usePersistedEditsStore = defineStore('persistedEdits', () => {
     if (changed) entries.value = next
   }
 
-  /** A write on `manifest` conflicted: every entry for it is now on `to`, so the next Save goes through (#1109). */
-  function rebaseAll(manifest: string, to: string): void {
+  /**
+   * A write on `manifest` conflicted: this session's pending entries (the
+   * open editor and the stash) move to `to`, so the next Save goes through
+   * (#1109). A draft never opened this session keeps the version it was
+   * made on: it was no part of the conflict, and moving it would let its
+   * later save skip the conflict check and silently overwrite the remote
+   * change (#1233 review).
+   */
+  function rebaseOpened(keys: readonly string[], manifest: string, to: string): void {
+    const wanted = new Set(keys)
     let changed = false
     const next = new Map(entries.value)
     for (const [k, entry] of entries.value) {
-      if (entry.base?.manifest !== manifest) continue
+      if (!wanted.has(k) || entry.base?.manifest !== manifest) continue
       next.set(k, { ...entry, base: { manifest, etag: to } })
       changed = true
     }
@@ -196,7 +204,7 @@ export const usePersistedEditsStore = defineStore('persistedEdits', () => {
     clearItem,
     clearAll,
     rebase,
-    rebaseAll,
+    rebaseOpened,
     _hydrateAll,
   }
 })
