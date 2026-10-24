@@ -55,11 +55,11 @@ export const useEditorStructuralStore = defineStore('editorStructural', () => {
     })
   }
 
-  /** Record the version a pending entry is made on. */
+  /** Record the version a pending entry is made on: set when the edit starts, kept over later edits (#1109). */
   function setBaseEtag(key: ManifestFileKey, etag: string) {
     const k = manifestFileKeyToString(key)
     const existing = entries.get(k)
-    if (existing && existing.baseEtag !== etag) entries.set(k, { ...toRaw(existing), baseEtag: etag })
+    if (existing && !existing.baseEtag) entries.set(k, { ...toRaw(existing), baseEtag: etag })
   }
 
   /** A write made on `from` succeeded with `to`: entries made on `from` are now on `to`. */
@@ -68,6 +68,15 @@ export const useEditorStructuralStore = defineStore('editorStructural', () => {
     for (const map of [entries, restored]) {
       const entry = map.get(k)
       if (entry?.baseEtag === from) map.set(k, { ...toRaw(entry), baseEtag: to })
+    }
+  }
+
+  /** A write on the manifest conflicted: every entry for it is now on `to`, so the next Save goes through (#1109). */
+  function rebaseAll(key: ManifestFileKey, to: string) {
+    const k = manifestFileKeyToString(key)
+    for (const map of [entries, restored]) {
+      const entry = map.get(k)
+      if (entry?.baseEtag) map.set(k, { ...toRaw(entry), baseEtag: to })
     }
   }
 
@@ -195,6 +204,7 @@ export const useEditorStructuralStore = defineStore('editorStructural', () => {
     markWritten,
     setBaseEtag,
     rebase,
+    rebaseAll,
     pendingFor,
     hasPendingFor,
     allEntries,
