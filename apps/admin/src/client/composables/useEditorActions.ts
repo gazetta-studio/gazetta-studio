@@ -127,10 +127,9 @@ export function useEditorActions() {
     if (!sel || !ec.target) return undefined
     const locale = useLocaleStore().effectiveLocale ?? undefined
     const path = ec.target.path
-    const manifest =
-      sel.type === 'page' && path.startsWith('@')
-        ? manifestPath('fragment', path.slice(1).split('/')[0], locale)
-        : manifestPath(sel.type, sel.name, locale)
+    const manifest = path.startsWith('@')
+      ? manifestPath('fragment', path.slice(1).split('/')[0], locale)
+      : manifestPath(sel.type, sel.name, locale)
     const etag = useEditorEtagsStore().get(manifest)
     return etag ? { manifest, etag } : undefined
   }
