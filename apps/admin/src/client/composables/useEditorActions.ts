@@ -347,12 +347,24 @@ export function useEditorActions() {
   }
 
   /**
-   * A write on the manifest got a 409 STALE: every pending entry for it
-   * moves to the current version, whatever version it was made on (#1109).
+   * A write on the manifest got a 409 STALE: this session's pending entries
+   * for it move to the current version, whatever version they were made on
+   * (#1109), so the next Save goes through as it does in an open tab. The
+   * keys come from the open editor and the stash - the entries the save
+   * writes. A draft never opened this session keeps its version (#1233
+   * review): moving it would let its later save silently overwrite the
+   * remote change this conflict surfaced.
    */
   function rebaseAllForManifest(kind: 'page' | 'fragment', name: string, locale: string | undefined, to: string) {
     const fileKey: ManifestFileKey = locale ? { kind, name, locale } : { kind, name }
-    usePersistedEditsStore().rebaseAll(manifestPath(kind, name, locale), to)
+    const keys: string[] = []
+    const currentKey = persistedKeyForCurrent()
+    if (currentKey) keys.push(currentKey)
+    for (const [path] of stash.entries) {
+      const k = persistedKeyForStashEntry(path)
+      if (k) keys.push(k)
+    }
+    usePersistedEditsStore().rebaseOpened(keys, manifestPath(kind, name, locale), to)
     structural.rebaseAll(fileKey, to)
     if (kind === 'page') metadata.rebaseAll({ ...fileKey, kind }, to)
   }
