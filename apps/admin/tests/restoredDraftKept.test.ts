@@ -22,6 +22,7 @@ import { createMemoryDraftStore } from '../src/client/drafts/memory-draft-store.
 import type { DraftScope, DraftStore } from '../src/client/drafts/types.js'
 import { useSelectionStore } from '../src/client/stores/selection.js'
 import { useSiteStore } from '../src/client/stores/site.js'
+import { manifestPath, useEditorEtagsStore } from '../src/client/stores/editorEtags.js'
 
 const scope: DraftScope = { site: 'main', owner: 'none:unknown:admin', target: 'local' }
 const detail = {
@@ -289,5 +290,49 @@ describe("a fragment's own root has one editor (#1108 review)", () => {
     await actions.openPageRoot()
     expect(useEditorContentStore().content).toEqual({ title: 'Stored' })
     expect(useEditorContentStore().dirty).toBe(false)
+  })
+})
+
+describe('a nested fragment draft under a host fragment (#1108 review)', () => {
+  it('bases on the nested fragment: host etag untouched, draft base pinned for conflict checks', async () => {
+    const footerFragment = {
+      name: 'footer',
+      template: 'footer-layout',
+      content: { title: 'FStored' },
+      components: [],
+      dir: 'fragments/footer',
+    }
+    const versions: Record<string, string> = { header: 'h1', footer: 'f1' }
+    vi.spyOn(api, 'getFragmentWithEtag').mockImplementation(async name => {
+      const base = name === 'footer' ? footerFragment : headerFragment
+      return { data: structuredClone(base), etag: versions[name] } as never
+    })
+
+    async function freshFragmentSession() {
+      handle?.dispose()
+      setActivePinia(createPinia())
+      useSiteStore().$patch({ manifest: { name: 'main' } as never })
+      handle = attachDraftPersistence(drafts, () => scope, { debounceMs: 0 })
+      await handle.loaded()
+      await useSelectionStore().selectFragment('header')
+      return useEditorActions()
+    }
+
+    let actions = await freshFragmentSession()
+    await actions.openFragment('footer')
+    actions.markDirty({ title: 'Nested' })
+    await handle!.flush()
+
+    // Other tabs save both manifests since: fresh etags on the reload.
+    versions.header = 'h2'
+    versions.footer = 'f2'
+    actions = await freshFragmentSession()
+    await actions.openFragment('footer')
+    expect(useEditorContentStore().content).toEqual({ title: 'Nested' })
+
+    // The host's etag stays the fresh one; the draft pins the nested
+    // fragment's base, so its save still conflict-checks.
+    expect(useEditorEtagsStore().get(manifestPath('fragment', 'header', undefined))).toBe('h2')
+    expect(useEditorEtagsStore().get(manifestPath('fragment', 'footer', undefined))).toBe('f1')
   })
 })
