@@ -115,7 +115,9 @@ export const usePersistedEditsStore = defineStore('persistedEdits', () => {
 
   function set(key: string, editedContent: Record<string, unknown>, base?: DraftBase): void {
     const next = new Map(entries.value)
-    const kept = base ?? entries.value.get(key)?.base
+    // The version is pinned when the edit starts; later edits keep it
+    // (#1109). It moves only via rebase, after a write lands.
+    const kept = entries.value.get(key)?.base ?? base
     next.set(key, { key, editedContent, updatedAt: new Date().toISOString(), ...(kept ? { base: kept } : {}) })
     entries.value = next
   }
@@ -126,6 +128,18 @@ export const usePersistedEditsStore = defineStore('persistedEdits', () => {
     const next = new Map(entries.value)
     for (const [k, entry] of entries.value) {
       if (entry.base?.manifest !== manifest || entry.base.etag !== from) continue
+      next.set(k, { ...entry, base: { manifest, etag: to } })
+      changed = true
+    }
+    if (changed) entries.value = next
+  }
+
+  /** A write on `manifest` conflicted: every entry for it is now on `to`, so the next Save goes through (#1109). */
+  function rebaseAll(manifest: string, to: string): void {
+    let changed = false
+    const next = new Map(entries.value)
+    for (const [k, entry] of entries.value) {
+      if (entry.base?.manifest !== manifest) continue
       next.set(k, { ...entry, base: { manifest, etag: to } })
       changed = true
     }
@@ -182,6 +196,7 @@ export const usePersistedEditsStore = defineStore('persistedEdits', () => {
     clearItem,
     clearAll,
     rebase,
+    rebaseAll,
     _hydrateAll,
   }
 })
