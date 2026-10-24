@@ -21,7 +21,7 @@ How the CMS surfaces correctness, integrity, and quality issues to authors and o
 
 **Out of scope:**
 - Real-time keystroke validation (already covered by @rjsf's Zod-driven form layer)
-- Reimplementing accessibility / HTML / CSS analysis (use real tools — axe-core, html-validate, stylelint, linkinator — under the abstraction)
+- Reimplementing accessibility / HTML / CSS analysis (use real tools — axe-core, html-validate, stylelint, and linkinator for outbound links — under the abstraction)
 - A "site SEO score" or content scoring (per [seo-plan.md](seo-plan.md): weakly correlated with rankings, encourages over-optimization)
 - Blocking save on accumulated pre-existing issues (hostile UX; the background scanner surfaces them visibly without blocking)
 - Server-side keystroke validation (the form layer is sufficient)
@@ -136,9 +136,11 @@ export interface Issue {
 
 - **background**: Admin server runs a long-lived scanner. Initial scan on admin boot. Incremental rescan when file watcher detects manifest/template/asset changes. Per-page validation run cached by content hash; only re-runs when something material changed. Issues stored in a Pinia store, surfaced in the UI.
 
-- **pre-publish**: Publish dialog gains a "Run audit" affordance (or always-runs for opted-in targets). Operator sees consolidated `Issue[]` with severity per their target's config. Fix / ignore / promote-to-error per issue. Block publish on remaining errors. (The heavy-validator slot — originally Lighthouse — is intentionally empty; see implementation-doc deferred-items table.)
+- **pre-publish**: The admin runs the audit on every Publish, and the server runs it again before publishing. Decided: maintainer, 2026-10-24 (#1295). Operator sees consolidated `Issue[]` with severity per their target's config. Fix / ignore / promote-to-error per issue. Block publish on remaining errors. (The heavy-validator slot — originally Lighthouse — is intentionally empty; see implementation-doc deferred-items table.)
 
 - **cli**: `gazetta validate` runs all validators in non-interactive mode. Exit non-zero on any error. Useful for CI gating before deploy.
+
+The shipped publish audit differs from this in several ways; see "Current code alignment".
 
 ### Stage × validator matrix
 
@@ -154,9 +156,17 @@ export interface Issue {
 | `accessibility` (axe-core) | — | ✓ warn | ✓ warn (operator promotes) | ✓ warn |
 | `html-validity` (html-validate) | — | ✓ warn | ✓ warn | ✓ warn |
 | `css-validity` (stylelint) | — | ✓ info | ✓ warn | ✓ warn |
-| `broken-links` (linkinator) | — | — | ✓ warn (opt-in) | ✓ warn (opt-in) |
+| `broken-links` (internal links) | — | ✓ warn | ✓ warn | ✓ warn (`--include-quality`) |
 | `orphaned-locale-file` | — | ✓ warn | — | ✓ warn |
 | `unused-fragment` | — | ✓ info | — | ✓ info |
+
+`broken-links` runs for every page in the background scan and on every Publish from the admin; [#1294](https://github.com/gazetta-studio/gazetta-studio/issues/1294) tracks its cost. What the shipped publish dialog does with its warnings is under "Current code alignment".
+
+Decided: maintainer, 2026-10-24 (#1295)
+
+| Rejected | Why |
+|---|---|
+| Make it opt-in in code, as these docs said before | Sites that don't opt in would get no broken-link warnings, and #1294's fix brings the cost to about 3 ms a page |
 
 **Why save-delta has so few entries:** the save handler should be fast and narrow. Reference-existence checks run; everything else is the background scanner's job.
 
@@ -262,7 +272,25 @@ The architectural call: use real tools for the actual analysis. Each tool plugs 
 | Accessibility | `axe-core` | Run via `jsdom` in admin process; ~50-100ms per page. Battle-tested by every major a11y product. |
 | HTML validity | `html-validate` | Fast, configurable, widely used in CI. |
 | CSS lint | `stylelint` | Industry standard. |
-| Broken links | `linkinator` | Crawl rendered output for outbound link rot. |
+| Broken links | Gazetta's own route matching (`jsdom` parses the HTML) | Every internal `href` or `src` in rendered output (on `a`, `link`, `img`, `source`, `video`, `audio` and `script`) must match a page route, including `:param` routes, or start with `/assets/` (or `assets/`); anything else is reported, such as the scaffold's `/admin` link ([#1183](https://github.com/gazetta-studio/gazetta-studio/issues/1183)). `/assets/` and `assets/` paths aren't checked yet. External links are skipped on purpose; `?query` and `#hash` are stripped before matching. |
+
+The broken-links check covers internal links only. Outbound link checking (`linkinator`) and #anchor targets are deferred (`design-validation-implementation.md`, "What's deferred from this plan").
+
+Decided: maintainer, 2026-10-24 (#1295)
+
+| Rejected | Why |
+|---|---|
+| Change the code: add outbound and #anchor checks now | Outbound checks need a request to every external URL in each check, and a new dependency (`linkinator` is in no package today); #1272 can pull anchor checks in when the docs site needs them |
+| File an issue and decide later | The docs would keep describing a check that doesn't exist |
+
+Links to `/assets/` paths will be checked too: [#1301](https://github.com/gazetta-studio/gazetta-studio/issues/1301) reports at least the `__missing__` placeholder a page renders when it references an asset that doesn't exist. Until it lands, any `/assets/` or `assets/` path passes.
+
+Decided: maintainer, 2026-10-24 (#1295)
+
+| Rejected | Why |
+|---|---|
+| Defer it, like outbound links and #anchors | `/assets/` links written into content would stay unchecked, and until [#1302](https://github.com/gazetta-studio/gazetta-studio/issues/1302) is fixed nothing at publish reports a missing asset reference |
+| Leave it as documented, with no deferred row | The same gap, with no deferred row or issue to come back to it |
 
 Lighthouse was originally specced for the "Performance / SEO score" slot but is deferred indefinitely (see `design-validation-implementation.md` deferred-items table). Reasoning: accessibility is covered better by direct axe-core; SEO by `seo-plan.md`'s primitives; the remaining performance + best-practices value doesn't justify the ~200MB Chromium + Lighthouse deps, the 5-15s per-page runtime, and the maintenance burden of tracking scoring methodology changes. Operators wanting publish-time perf budgets use CI-side Lighthouse. The pre-publish audit framework supports adding the validator later if concrete demand surfaces.
 
@@ -325,7 +353,7 @@ Validation is itself foundational dimension #9 of 13. This section answers how e
 
 - **Multi-instance check** (discipline) — save-delta runs on the instance receiving the save request; no cross-instance coordination. Background scanner (Cut 2) per-page cache is per-admin-instance (each instance scans + caches independently); the multi-instance pattern is "every instance reads source-of-truth from storage on demand, caches results in-process, no cross-instance cache sharing." Per-page content-hash cache key ensures different instances arrive at the same cached result without coordination. Suppression state (when shipped) lives in storage, not in-memory.
 
-- **Scale check** — save-delta is O(diff) per save; only checks refs introduced by THIS save, not the full site. Background scanner (Cut 2) caches per-page validation results by content hash; only re-validates when something material changed. Pre-publish-only validators (Cut 4 linkinator) are opt-in. The framework scales because phase-separation matches detection cost to author commitment level. Gates: Cut 2 must reuse the existing sidecar dependency tracking (`findDependentsFromSidecars`) so a fragment edit only invalidates pages that use that fragment.
+- **Scale check** — save-delta is O(diff) per save; only checks refs introduced by THIS save, not the full site. Background scanner (Cut 2) caches per-page validation results by content hash; only re-validates when something material changed. Cut 4's broken-links check runs for every page in the background scan and on every Publish from the admin. It fetches no URLs: it matches internal links against the loaded site's routes ([#1294](https://github.com/gazetta-studio/gazetta-studio/issues/1294) tracks a per-link cost that grows with site size). Decided: maintainer, 2026-10-24 (#1295). The framework scales because phase-separation matches detection cost to author commitment level. Gates: Cut 2 must reuse the existing sidecar dependency tracking (`findDependentsFromSidecars`) so a fragment edit only invalidates pages that use that fragment.
 
 - **Theme check** — validation runs against rendered output for quality validators (Cut 3 axe-core, html-validate). Render-for-analysis composes with the active theme: when themes ship per [`design-themes.md`](design-themes.md), render-for-analysis renders per-(content, locale, theme) tuple, and validators see theme-specific output. Cache key includes theme. v1 (single-theme world): no impact.
 
@@ -342,6 +370,28 @@ Validation is itself foundational dimension #9 of 13. This section answers how e
 - **Cache check** — Cut 1 (save-delta) is uncached: each save runs validators against the incoming manifest fresh. Cut 2 (background scanner) caches per-page validation results by content hash; cache key includes content + dependency hashes per `design-cache.md`. Cut 3 render-for-analysis caches rendered HTML by content + template + transitive-dependency hash. All caching goes through `AdminCache` once the design pass formalizes the abstraction; v1 cuts use per-instance memory cache via `MemoryCache` provider.
 
 - **Offline check** — save-delta validation runs locally during offline (validators are pure functions over a manifest; no server roundtrip required). Issues surface in the standard banner. Background scanner (Cut 2) pauses while offline; resumes on reconnect with incremental rescan. Render-for-analysis (Cut 3) serves last-cached output; staleness indicator visible in surfaced issues. Per `design-offline.md`.
+
+## Current code alignment
+
+Where the shipped publish audit differs from this design, read from code on 2026-10-24: a list to reconcile or accept (`feature-design-process.md`, "Keeping design docs aligned with reality").
+
+Decided: maintainer, 2026-10-24 (#1295)
+
+| Design | Shipped code | Status |
+|---|---|---|
+| The pre-publish modal offers Fix, Ignore once and Promote to error per issue | Ignore once only, for warnings | Open |
+| The modal shows the audit's issues before publishing | When the dialog's audit finds no errors, it publishes without showing its warnings; they show in Site health. When it finds an error on any destination, it shows every destination's issues, and each warning must be ignored before publishing. The server gate blocks only on errors; `publishAudit.strict` turns a destination's warnings into errors | Kept for now (below) |
+| The admin runs the audit on every Publish | After the confirmation a production destination asks for, the dialog's audit doesn't run; only the server's gate does, so only its errors show | Bug: [#1328](https://github.com/gazetta-studio/gazetta-studio/issues/1328). Decided: maintainer, 2026-10-24 (#1295) |
+| The matrix's validators run at pre-publish | Only accessibility, html-validity and broken-links handle the pre-publish stage, and all three only warn. The other twelve that declare it return nothing there, so nothing blocks a publish to a destination without `publishAudit.strict` | Bug: [#1302](https://github.com/gazetta-studio/gazetta-studio/issues/1302) |
+| Pre-publish checks the items being published | Translations (`pages/<name>:<locale>`) are dropped, and pages are rendered in the default language only | Bug: [#1329](https://github.com/gazetta-studio/gazetta-studio/issues/1329) |
+| Not settled | The pages that use a published fragment aren't audited, although static targets republish them | Question: [#1331](https://github.com/gazetta-studio/gazetta-studio/issues/1331) |
+
+Warning-only audits publishing without showing their warnings is kept for now, with no code change. Decided: maintainer, 2026-10-24 (#1295)
+
+| Rejected | Why |
+|---|---|
+| Show warning-only results in the dialog before publishing | One more click on every publish whose audit finds warnings |
+| Run `broken-links` at publish only on strict targets | It would change where the check runs (the stage matrix), and #1294's fix brings its cost to about 3 ms a page |
 
 ## Migration
 
