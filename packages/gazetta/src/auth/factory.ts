@@ -93,7 +93,7 @@ export function buildAuthProvider(config: AuthConfig | undefined): AuthIdentityP
       })
     case 'tailscale':
       return createTailscaleAuthProvider({
-        roleMapping: config.roleMapping,
+        defaultRole: config.defaultRole,
         customRoles: flattenRoles(config.roles),
       })
     default: {
