@@ -108,10 +108,10 @@
     "axe-core": "^4.11.4",
     "file-type": "^22.2.0",
     "hono": "^4.13.13",
-    "html-validate": "^11.16.4",
+    "html-validate": "^11.17.0",
     "isomorphic-dompurify": "^3.12.0",
     "jiti": "^2.7.0",
-    "jose": "^6.2.12",
+    "jose": "^6.2.13",
     "jsdom": "^29.1.1",
     "marked": "^18.1.1",
     "music-metadata": "^11.12.3",
@@ -142,8 +142,8 @@
     }
   },
   "devDependencies": {
-    "@aws-sdk/client-s3": "^3.1152.0",
-    "@aws-sdk/lib-storage": "^3.1152.0",
+    "@aws-sdk/client-s3": "^3.1156.0",
+    "@aws-sdk/lib-storage": "^3.1156.0",
     "@azure/storage-blob": "^12.34.0",
     "@cloudflare/workers-types": "^4.20260511.1",
     "@stryker-mutator/core": "^9.6.1",
@@ -159,7 +159,7 @@
     "msw": "^2.14.6",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
-    "vite": "^8.3.4",
+    "vite": "^8.3.5",
     "vitest": "^4.1.12"
   }
 }
