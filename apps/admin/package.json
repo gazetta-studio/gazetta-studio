@@ -15,7 +15,7 @@
   "dependencies": {
     "@formkit/drag-and-drop": "0.6.1",
     "@hono/node-server": "^2.1.5",
-    "@primeuix/themes": "^2.0.3",
+    "@primeuix/themes": "^3.1.0",
     "@tanstack/query-async-storage-persister": "^5.104.4",
     "@tanstack/vue-query": "^5.104.4",
     "@vueuse/core": "^14.3.0",
