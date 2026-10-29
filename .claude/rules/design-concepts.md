@@ -57,7 +57,7 @@ the CMS adapts its UI progressively based on what's configured (see design-edito
 |----------|--------|---------|
 | **Type** | `static` / `dynamic` | When rendering happens (publish time vs request time) |
 | **Environment** | `local` / `staging` / `production` (or unset) | Drives UI treatment (colors, prod warnings) and suggestion hints. No custom values. |
-| **Editable** | `yes` / `no` | Whether author can save form-edits to this target and receive publishes into it. Default: `yes` for `environment: local`, `no` for `staging` and `production`. Explicit override always wins. |
+| **Editable** | `yes` / `no` | Whether author can save form-edits to this target. Publish destinations don't need it: a read-only target still receives publishes (`design-decisions.md` #16). Default: `no` when the target's storage is public; otherwise `yes` for `environment: local` (also when `environment` is unset, which resolves to `local`) and `no` for `staging` and `production`. An explicit `editable: true` needs private storage: on public storage it's a validation error. |
 
 Properties are independent. Examples: `{type: static, environment: local, editable: yes}` for
 a local dev target; `{type: static, environment: production, editable: no}` for a publish-only
@@ -68,11 +68,14 @@ Environments have no system-defined hierarchy — the CMS suggests flows (e.g. "
 setups use the same `environment` value across peer targets (e.g. `prod-us` and `prod-eu`
 both have `environment: production`); they're distinguished by target name, not by environment.
 
-**Current code:** `environment` is already implemented on `TargetConfig`
-([packages/gazetta/src/types.ts](../../packages/gazetta/src/types.ts)). `type` replaces
-the existing `publishMode` field (`esi` → `dynamic`, `static` → `static`) with no
-backward-compatible alias — all `site.config.ts` files must be migrated in the same change.
-`editable` is a new optional field, defaulting to `true`.
+**Current code:** `type`, `environment` and `editable` are all on `TargetConfig`
+([packages/gazetta/src/types.ts](../../packages/gazetta/src/types.ts); `publishMode` is gone).
+`isEditable` resolves public storage first ([`design-public-storage.md`](design-public-storage.md) Q6).
+`isPublicStorage` takes an explicit `publicStorage` value when set; otherwise storage is
+private for a filesystem target with `editable: true` or a target deployed by a copy adapter,
+and public for everything else. So an editing target sets `editable: true` on filesystem
+storage, or `publicStorage: false` and lets `editable` follow the environment, as `gazetta init`
+does for its `local` and `staging` targets.
 
 ## Active Target
 
@@ -138,7 +141,7 @@ export default (params: { content, children?, params? }) => { html, css, js, hea
 export const schema = z.object({ title: z.string(), ... })
 ```
 
-A custom editor is not a template export. It's a separate file in the project's `admin/editors/`, matched to the template by name (`admin/editors/hero.tsx` or `admin/editors/hero/index.tsx` for `templates/hero/`; `hasEditorFile` in `template-loader.ts`). Editors run in the admin's browser bundle, with the admin's dependencies, while templates run on the server; see `configurations.md` "Modularity". The editor file's default export is an `EditorMount`:
+A custom editor is not a template export. It's a separate file in the project's `admin/editors/`, matched to the template by name (`admin/editors/hero.tsx` or `hero.ts` for `templates/hero/`). Only a flat file loads: `hasEditorFile` in `template-loader.ts` also detects `admin/editors/hero/index.tsx`, but the dev schema route and the production editor build don't load it ([#1532](https://github.com/gazetta-studio/gazetta-studio/issues/1532)). Editors run in the admin's browser bundle, with the admin's dependencies, while templates run on the server; see `configurations.md` "Modularity". The editor file's default export is an `EditorMount`:
 
 ```ts
 // admin/editors/hero.tsx

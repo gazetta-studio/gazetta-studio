@@ -16,6 +16,11 @@
           "description": "Install Gazetta, start the dev server and publish your first page."
         },
         {
+          "file": "publishing.md",
+          "label": "Publishing",
+          "description": "Publish from the admin and CLI, compare targets, and use history with current undo limitations."
+        },
+        {
           "file": "cloudflare.md",
           "label": "Cloudflare",
           "description": "Deploy to Cloudflare Workers + R2, with pages assembled at the edge by a Worker."
@@ -59,6 +64,16 @@
           "file": "templates.md",
           "label": "Templates",
           "description": "Write templates: the contract and schema, template fields, frameworks, and composite layouts."
+        },
+        {
+          "file": "pages-and-fragments.md",
+          "label": "Pages and fragments",
+          "description": "Page and fragment manifests, routes, translations, custom 404 pages and project layout."
+        },
+        {
+          "file": "customize-editor.md",
+          "label": "Customize the editor",
+          "description": "Custom editor and field mount contracts, embedded forms, admin CSS themes and token overrides."
         },
         {
           "file": "migration.md",
