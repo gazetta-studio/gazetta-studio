@@ -88,6 +88,13 @@ function repoModule(moduleName: string): ts.ResolvedModuleFull | undefined {
   if (moduleName === 'gazetta') {
     return { resolvedFileName: gazettaTypes, extension: ts.Extension.Dts, isExternalLibraryImport: true }
   }
+  if (moduleName === 'gazetta/schema') {
+    return {
+      resolvedFileName: resolve(repoRoot, 'packages/gazetta/dist/schema/index.d.ts'),
+      extension: ts.Extension.Dts,
+      isExternalLibraryImport: true,
+    }
+  }
   if (moduleName === 'zod') {
     return { resolvedFileName: zodTypes, extension: ts.Extension.Dcts, isExternalLibraryImport: true }
   }
