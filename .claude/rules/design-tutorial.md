@@ -2,7 +2,7 @@
 
 The Stage 1 tutorial: one path a newcomer follows from `npx gazetta init` to undoing a publish on a second target, kept true by a CI check that runs its commands word for word. Also how today's `docs/getting-started.md` splits into the tutorial and six other pages.
 
-**Status**: design pass complete (2026-10-24), grilled Q1–Q17 (Q14–Q17 added after review). The tester protocol is a separate round before tester round 1 (Q12). Implementation not started.
+**Status**: design pass complete (2026-10-24), grilled Q1–Q17 (Q14–Q17 added after review); the tester protocol (Q12) settled in Q18–Q25 on 2026-10-30. Cuts 1–6 landed; cut 7 is #1543.
 
 **Companion docs:**
 - [`docs/audits/website-and-channels.md`](../../docs/audits/website-and-channels.md): the website plan. Stage 1 opens when "a release on npm matches the docs; the tutorial passes in CI; 3–5 people the maintainer watches get from install to a publish on a second target without help"
@@ -22,7 +22,6 @@ The Stage 1 tutorial: one path a newcomer follows from `npx gazetta init` to und
 - A release candidate on npm for testers (Q7)
 
 **Out of v1:**
-- The tester protocol (Q12: decided before round 1)
 - A "How Gazetta works" explanation page (Q11)
 - A stated time to complete, until it's measured (Q11)
 
@@ -210,6 +209,98 @@ Decided: maintainer, 2026-10-24 (#1338)
 |---|---|
 | Publish the rc by hand | You run `npm publish --tag rc` locally for the one rc, without provenance; no workflow change |
 
+## Tester protocol
+
+The protocol round Q12 asked for, run on 2026-10-30. Q1 already settled whether undo counts: round 1 runs without it, and round 2, once #1092 lands, includes it (cut 10). The options came from a draft protocol written on 2026-10-24 from usability-testing guidance (NN/g, GOV.UK Service Manual, MeasuringU, Krug); the draft itself isn't in the repo.
+
+### Q18: Testers may use AI assistants, and finishing with one counts
+
+Testers use their usual tools, AI coding assistants included. Each session records which assistant was used, and AI users are reported separately: if only AI users finish a step, that's a problem to fix. "Without help" in the gate means without the maintainer's help, not without the tester's own tools.
+
+Decided: maintainer, 2026-10-30 (#PR)
+
+| Rejected | Shown to the maintainer as |
+|---|---|
+| Allowed, not counted | Testers may use AI, but a session that used it doesn't count towards the gate. Needs more testers to get 3 sessions that count |
+| Not allowed | Testers are asked not to use AI. It tests the docs alone, but not how many people actually try a new tool today |
+
+### Q19: A round passes when every tester gets through
+
+A round of at least 3 new testers passes when every tester gets through install, editing with an image, and publishing to staging without the maintainer's help, and no problem rated major or catastrophe is left open. In round 2, undo counts too (Q1).
+
+Decided: maintainer, 2026-10-30 (#PR)
+
+| Rejected | Shown to the maintainer as |
+|---|---|
+| 3 of 5 | A round of 5 passes when at least 3 finish without help. Tolerates one bad session, but lets a step that loses 2 in 5 people through |
+| Problems only, no rule | No pass/fail: you read the findings and decide. Flexible, but the gate stays subjective |
+
+### Q20: Sessions are live and remote, on the tester's own machine
+
+The maintainer watches over a screen share while the tester works on their own computer, OS, shell and Node, thinking aloud. About 60 minutes, plus a 15-minute tech check the day before. The maintainer only prompts neutrally; any hint is logged as an assist.
+
+Decided: maintainer, 2026-10-30 (#PR)
+
+| Rejected | Shown to the maintainer as |
+|---|---|
+| Unmoderated recording | The tester records themselves following written tasks, and you watch later. Easier to schedule, but nobody can ask what they expected, and stuck testers just stop |
+| In person, your machine | Same room, a prepared laptop. Easiest to observe, but it hides problems with their own setup (Node version, shell, OS), which is what install testing should find |
+
+### Q21: Testers start on the gazetta.studio home page
+
+The tester's browser opens on the gazetta.studio home page, with an empty folder in their terminal. The tasks state goals, not commands, so the site, README and docs are tested too, as a real newcomer meets them.
+
+Decided: maintainer, 2026-10-30 (#PR)
+
+| Rejected | Shown to the maintainer as |
+|---|---|
+| The tutorial page | They start on /docs. Tests the tutorial itself more directly, but skips how people find it from the home page |
+| The GitHub README | They start on the repo. Matches people arriving from GitHub, but Stage 1's path runs through the site |
+
+### Q22: Testers are second-degree contacts, screened
+
+Testers build websites, use a terminal and npm, and have never seen Gazetta. They're found through friends of friends, a local meetup or a developer community the maintainer belongs to, and a 5-question screener filters them. Excluded: the October contributors, close friends, colleagues, and people who build CMSes. No public post, since Stage 1 opens no channels. One stand-by per round.
+
+Decided: maintainer, 2026-10-30 (#PR)
+
+| Rejected | Shown to the maintainer as |
+|---|---|
+| Your own network | Colleagues and friends who fit the profile. Quickest, but they're likely to be kinder and to know your habits, so problems hide |
+| Public call | A post asking for testers. Reaches strangers, but it's a public channel before Stage 1 opens |
+
+### Q23: No incentive
+
+Testers volunteer; nothing is paid or donated.
+
+Decided: maintainer, 2026-10-30 (#PR)
+
+| Rejected | Shown to the maintainer as |
+|---|---|
+| Gift card, paid at start | A gift card worth about an hour of a developer's time (for example €50), given at the start of the session so it doesn't depend on finishing (GOV.UK's advice). The exact amount is yours to set |
+| Donation in their name | The same amount to a charity or open-source project they choose. Some developers prefer it; costs the same |
+
+### Q24: Recorded with consent, kept private, deleted within 30 days
+
+The tester agrees before recording, out loud or in writing, after hearing who watches, what is recorded, where it's kept, and that they can stop and have it deleted. The maintainer keeps a record of each consent; consent is the legal basis. Recordings and notes stay on the maintainer's machine, never on GitHub, and are deleted once the round's issues are filed, at the latest 30 days after the session. Claude may help analyse anonymised notes, and the consent says so.
+
+Decided: maintainer, 2026-10-30 (#PR)
+
+| Rejected | Shown to the maintainer as |
+|---|---|
+| Same, but no AI on notes | As above, but notes are analysed by you only. Simpler consent, more of your time |
+| Notes only, no recording | No screen or audio recording, only your live notes. Least sensitive data, but you can't re-check what someone did or the exact error text |
+
+### Q25: Each round publishes issues and a findings note
+
+One GitHub issue per problem rated minor or worse, quoting what happened without names. One findings note per round in `docs/audits/`, with problems, counts such as "2 of 3", ratings and what changed. Testers appear as P1, P2, with no names, employers or screenshots.
+
+Decided: maintainer, 2026-10-30 (#PR)
+
+| Rejected | Shown to the maintainer as |
+|---|---|
+| Issues only | Each problem becomes an anonymised issue; the round summary stays private |
+| Nothing public | Findings stay private and you fix them. Less exposure, but contributors can't see why changes were made |
+
 ## UX check
 
 Follows from Q1–Q4 and Q14. Rule 23: the reader does one thing per step and sees its effect; nothing is explained before it's needed.
@@ -257,7 +348,7 @@ Docs and CI, no product surface: multi-instance, scale, themes, auth, audit, rev
 | 6 | `cli.md`: every command, argument and flag, default ports and `--host`, auto-detection, CI behaviour, exit codes | #1272 | docs | Low |
 | 7 | The tutorial: `docs/getting-started.md` rewritten as the UX table above; the spec, the Verdaccio config, the integrity check and an npm script that runs them | 1–4, #1284, #1300, #1304, #1345, #1330, #1249 | e2e-first | Medium |
 | 8 | The `tutorial` CI job, and the weekly and after-release run (maintainer PR: workflow files) | 7 | (CI) | Low |
-| 9 | Tester round 1 on a release candidate (Q7, Q12); before it, `publish.yml` passes `--tag rc` for prereleases (Q17, maintainer PR) | 7, 8, the tester protocol round, #1281 (Q16) | (manual) | Medium |
+| 9 | Tester round 1 on a release candidate (Q7, Q12); before it, `publish.yml` passes `--tag rc` for prereleases (Q17, maintainer PR) | 7, 8, the tester protocol (Q18–Q25), #1281 (Q16) | (manual) | Medium |
 | 10 | When #1092 lands: remove `test.fail()` from the undo step; tester round 2 includes undo | 9, #1092 | e2e | Low |
 
 Cuts 1–7 go to feature-bot through a planner issue. The tutorial waits for pages 1–4 so the text it drops already has a home.
@@ -276,8 +367,7 @@ None: no production users. Links to getting-started's sections: none today (READ
 
 ## Open questions
 
-1. The tester protocol (Q12).
-2. Whether `smoke`'s Ubuntu leg can be dropped once the tutorial job is stable.
+1. Whether `smoke`'s Ubuntu leg can be dropped once the tutorial job is stable.
 
 ## Future directions
 
