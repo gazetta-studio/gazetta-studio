@@ -112,6 +112,11 @@ describe('removeItemFromTarget', () => {
     { kind: 'page', name: '../pages/about' },
     { kind: 'page', name: 'about/..' },
     { kind: 'fragment', name: '' },
+    { kind: 'page', name: 'about\\..\\x' },
+    { kind: 'page', name: 'about', route: 'about' },
+    { kind: 'page', name: 'about', route: '' },
+    { kind: 'page', name: 'about', route: '/./about' },
+    { kind: 'page', name: 'about', route: '/about\\..\\x' },
   ] as const)('rejects %o without deleting anything', async ref => {
     const storage = seeded()
     const before = [...storage.dump().keys()].length
@@ -132,6 +137,54 @@ describe('removeItemFromTarget', () => {
     expect(result).toEqual({ ok: true, filesRemoved: 3 })
     expect(await storage.exists('fragments/header/logo/fragment.json')).toBe(true)
     expect(await storage.exists('header/index.html')).toBe(true)
+    expect(await storage.exists('pages/about/page.json')).toBe(true)
+  })
+
+  it("deletes the removed item's dependency edges and forward records, and keeps the rest", async () => {
+    const storage = seeded({
+      '.gazetta/fragment-deps/header/pages.about': '',
+      '.gazetta/deps-of/fragment-deps/pages.about': '["header"]',
+      '.gazetta/fragment-deps/header/pages.about:fr': '',
+      '.gazetta/deps-of/fragment-deps/pages.about:fr': '["header"]',
+      '.gazetta/asset-refs/hero/pages.about': '',
+      '.gazetta/deps-of/asset-refs/pages.about': '["hero"]',
+      '.gazetta/fragment-deps/header/pages.about.team': '',
+      '.gazetta/deps-of/fragment-deps/pages.about.team': '["header"]',
+    })
+    expect((await removeItemFromTarget(storage, { kind: 'page', name: 'about' }, esi)).ok).toBe(true)
+    for (const path of [
+      '.gazetta/fragment-deps/header/pages.about',
+      '.gazetta/deps-of/fragment-deps/pages.about',
+      '.gazetta/fragment-deps/header/pages.about:fr',
+      '.gazetta/deps-of/fragment-deps/pages.about:fr',
+      '.gazetta/asset-refs/hero/pages.about',
+      '.gazetta/deps-of/asset-refs/pages.about',
+    ]) {
+      expect(await storage.exists(path)).toBe(false)
+    }
+    expect(await storage.exists('.gazetta/fragment-deps/header/pages.about.team')).toBe(true)
+    expect(await storage.exists('.gazetta/deps-of/fragment-deps/pages.about.team')).toBe(true)
+  })
+
+  it("removing a translation deletes only that translation's dependency records", async () => {
+    const storage = seeded({
+      '.gazetta/fragment-deps/header/pages.about': '',
+      '.gazetta/deps-of/fragment-deps/pages.about': '["header"]',
+      '.gazetta/fragment-deps/header/pages.about:fr': '',
+      '.gazetta/deps-of/fragment-deps/pages.about:fr': '["header"]',
+    })
+    expect((await removeItemFromTarget(storage, { kind: 'page', name: 'about', locale: 'fr' }, esi)).ok).toBe(true)
+    expect(await storage.exists('.gazetta/deps-of/fragment-deps/pages.about:fr')).toBe(false)
+    expect(await storage.exists('.gazetta/fragment-deps/header/pages.about:fr')).toBe(false)
+    expect(await storage.exists('.gazetta/deps-of/fragment-deps/pages.about')).toBe(true)
+    expect(await storage.exists('.gazetta/fragment-deps/header/pages.about')).toBe(true)
+  })
+
+  it('reports a folder listing that fails instead of removing nothing', async () => {
+    const storage = seeded()
+    const failing = { ...storage, readDir: async () => Promise.reject(new Error('throttled')) }
+    const result = await removeItemFromTarget(failing, { kind: 'page', name: 'about' }, esi)
+    expect(result).toEqual({ ok: false, reason: 'storage delete failed: throttled' })
     expect(await storage.exists('pages/about/page.json')).toBe(true)
   })
 
