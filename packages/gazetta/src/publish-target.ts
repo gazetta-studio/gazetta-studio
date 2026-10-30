@@ -13,6 +13,10 @@
  *      variant manifests for `item:locale` forms.
  *   3. Render loop - `publishRun` (per-item renders, dependency
  *      indices, site manifest). Progress events pass through.
+ *   3b. Removals - delete each removed item's own files
+ *      (publish-remove.ts). After the render loop so a failed run
+ *      removes nothing; before the generated files so the sitemap
+ *      no longer lists a removed page.
  *   4. sitemap.xml / robots.txt / host-format redirects - generated
  *      files are written or DELETED, never skipped: no sitemap
  *      content deletes sitemap.xml; no redirect rows deletes the
@@ -48,6 +52,9 @@ import { trimTrailingSlashes } from './url.js'
 import type { Site } from './site-loader.js'
 import type { TemplateInfo } from './templates-scan.js'
 import type { PublishItemRef, PublishRunResult } from './publish-run.js'
+import { manifestPathsToRemove, removeItemFromTarget, type PublishRemovalRef } from './publish-remove.js'
+
+export type { PublishRemovalRef } from './publish-remove.js'
 
 /** How wide the post-publish CDN purge goes. Callers decide; the
  * function never inspects who called. */
@@ -83,6 +90,12 @@ export interface PublishToTargetInput {
    * indices before its item loop, so the published items rebuild them.
    */
   readonly force?: boolean
+  /**
+   * Items to delete from the target (design-publish-undo.md Q4). They
+   * run after the render loop and before the generated files, so the
+   * sitemap no longer lists them; a failed run removes nothing.
+   */
+  readonly removals?: readonly PublishRemovalRef[]
   /** Progress events from publishRun, bridged to the caller's output. */
   readonly onProgress?: Parameters<typeof import('./publish-run.js').publishRun>[0]['onProgress']
   /**
@@ -115,6 +128,9 @@ export interface PublishToTargetResult {
   readonly deletedFiles: string[]
   /** What the purge step did, for the caller to report. */
   readonly purge: PurgeOutcome
+  /** Removals that deleted the item's files (or found them already gone). */
+  readonly removed: PublishRemovalRef[]
+  readonly removalFailures: { readonly ref: PublishRemovalRef; readonly reason: string }[]
 }
 
 /**
@@ -142,6 +158,7 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
     purgeScope,
     onProgress,
   } = input
+  const removals = input.removals ?? []
   // Step 0 - the approval gate's place (no-op, see above).
   await publishApprovalGate(input)
 
@@ -152,13 +169,20 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
   // and `undo` restores it (#1079). One `publish` revision per target
   // for every caller. Best-effort: a history failure never breaks the
   // publish (same rule publishRun's step 13 and the admin route used).
-  if (targetConfig && isHistoryEnabled(targetConfig) && items.length > 0) {
+  if (targetConfig && isHistoryEnabled(targetConfig) && (items.length > 0 || removals.length > 0)) {
     try {
       const history = createHistoryProvider({
         storage: targetStorage,
         retention: getHistoryRetention(targetConfig),
       })
       const historyItems = await collectPublishedItemsForHistory(sourceRoot, items)
+      // Removed manifests are read from the TARGET: the revision then
+      // describes the target without them.
+      for (const ref of removals) {
+        for (const path of await manifestPathsToRemove(targetStorage, ref)) {
+          historyItems.push({ path, content: null })
+        }
+      }
       await recordWrite({
         history,
         contentRoot: targetRoot,
@@ -202,6 +226,8 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
       generatedFiles: [],
       deletedFiles: [],
       purge: { kind: 'none' },
+      removed: [],
+      removalFailures: [],
     }
   }
   let variantFiles = 0
@@ -245,6 +271,23 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
       generatedFiles: [],
       deletedFiles: [],
       purge: { kind: 'none' },
+      removed: [],
+      removalFailures: [],
+    }
+  }
+
+  // Removals - after the render loop, before the generated files.
+  const targetType = targetConfig ? getType(targetConfig) : 'static'
+  const removed: PublishRemovalRef[] = []
+  const removalFailures: { ref: PublishRemovalRef; reason: string }[] = []
+  if (removals.length > 0) {
+    const { resolveSiteLocales } = await import('./locale.js')
+    const resolved = resolveSiteLocales(siteManifest)
+    const ctx = { targetType, locales: resolved?.supported ?? [], defaultLocale: resolved?.default }
+    for (const ref of removals) {
+      const result = await removeItemFromTarget(targetStorage, ref, ctx)
+      if (result.ok) removed.push(ref)
+      else removalFailures.push({ ref, reason: result.reason })
     }
   }
 
@@ -255,7 +298,6 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
   // missing paths (#1152). It is a generated file like the others and
   // goes out before the generation and the purge, as both callers had
   // it (#1430 review).
-  const targetType = targetConfig ? getType(targetConfig) : 'static'
   if (targetType === 'static') {
     const { writeStatic404 } = await import('./static-404.js')
     await writeStatic404(targetStorage)
@@ -267,6 +309,18 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
     const { generateSitemap } = await import('./sitemap.js')
     const { generateRobotsTxt } = await import('./robots.js')
     const targetPageSidecars = await listSidecars(targetStorage, 'pages')
+    // The listing can still return just-deleted sidecars (R2 list
+    // consistency); a removed page must not reach the sitemap.
+    for (const ref of removed) {
+      if (ref.kind !== 'page') continue
+      if (ref.locale) {
+        targetPageSidecars.delete(`${ref.name}:${ref.locale.toLowerCase()}`)
+      } else {
+        for (const key of [...targetPageSidecars.keys()]) {
+          if (key === ref.name || key.startsWith(`${ref.name}:`)) targetPageSidecars.delete(key)
+        }
+      }
+    }
 
     // Merge source-side knowledge for the items published in THIS RUN
     // only: listSidecars may miss just-written entries on R2 due to
@@ -485,6 +539,8 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
     generatedFiles,
     deletedFiles,
     purge,
+    removed,
+    removalFailures,
   }
 }
 

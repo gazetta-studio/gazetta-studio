@@ -59,6 +59,10 @@ function recordingStorage(inner: MemoryStorage, log: string[]): StorageProvider 
       log.push(`write:${path}`)
       return writeFileBound(path, content)
     },
+    rm: async (path: string) => {
+      log.push(`rm:${path}`)
+      return inner.rm(path)
+    },
   } as StorageProvider
 }
 
@@ -359,5 +363,134 @@ describe('publishToTarget (#1426)', () => {
     const rev = await history.readRevision(publishes[0]!.id)
     expect(Object.keys(rev.snapshot)).toContain(`pages/${localized}/page.json`)
     expect(Object.keys(rev.snapshot)).toContain(`pages/${localized}/page.fr.json`)
+  })
+  describe('removals', () => {
+    const goneFolder = {
+      'pages/old-landing/page.json': '{"template":"page-default"}',
+      'pages/old-landing/page.fr.json': '{"template":"page-default"}',
+      'pages/old-landing/index.html': '<old>',
+      'pages/old-landing/.cf120e4b.hash': '',
+      'pages/old-landing/.pub-20260417T220000Z': '',
+    }
+
+    const publishWithRemovals = (opts: { items?: string[]; storage?: StorageProvider; config?: TargetConfig } = {}) =>
+      publishToTarget({
+        targetName: 'staging',
+        targetStorage: opts.storage ?? targetStorage,
+        targetConfig: opts.config ?? stagingConfig({ cache: { purge: PURGE_CONFIG } }),
+        sourceRoot,
+        sourceName: 'local',
+        site,
+        siteManifest: manifest,
+        items: opts.items ?? [`pages/${pageName()}`],
+        itemRefs: (opts.items ?? [`pages/${pageName()}`]).map(i => ({ kind: 'page' as const, name: i.slice(6) })),
+        templateInfos,
+        purgeScope: 'all',
+        removals: [{ kind: 'page', name: 'old-landing' }],
+      })
+
+    it('run after the render loop and before the generated files, generation and purge', async () => {
+      innerTarget.seed(goneFolder)
+      const result = await publishWithRemovals()
+      expect(result.run?.failed).not.toBe(true)
+      expect(result.removed).toEqual([{ kind: 'page', name: 'old-landing' }])
+      expect(result.removalFailures).toEqual([])
+      // The site manifest is the render loop's last write.
+      const renderIndex = events.indexOf('write:site.json')
+      const removeIndex = events.indexOf('rm:pages/old-landing/page.json')
+      const sitemapIndex = events.indexOf('write:sitemap.xml')
+      const generationIndex = events.indexOf(`write:${PUBLISH_GENERATION_PATH}`)
+      expect(renderIndex).toBeGreaterThan(-1)
+      expect(removeIndex).toBeGreaterThan(renderIndex)
+      expect(sitemapIndex).toBeGreaterThan(removeIndex)
+      expect(generationIndex).toBeGreaterThan(sitemapIndex)
+      expect(purgeCalls).toEqual(['purgeAll'])
+      expect(await innerTarget.exists('pages/old-landing/index.html')).toBe(false)
+    })
+
+    it('keep a removed page out of sitemap.xml when the listing still returns its sidecar', async () => {
+      innerTarget.seed(goneFolder)
+      // R2 listings can lag deletes: sidecar deletes leave the files listed.
+      const lagging = {
+        ...targetStorage,
+        rm: async (path: string) => (/\/\.(pub-|[0-9a-f]{8}\.hash)/.test(path) ? undefined : innerTarget.rm(path)),
+      } as StorageProvider
+      await publishWithRemovals({ storage: lagging })
+      expect(await innerTarget.exists('pages/old-landing/.pub-20260417T220000Z')).toBe(true)
+      const sitemap = await innerTarget.readFile('sitemap.xml')
+      expect(sitemap).toContain(`/${pageName()}`)
+      expect(sitemap).not.toContain('/old-landing')
+    })
+
+    it('a removals-only call records history, writes the generated files and the generation, and purges', async () => {
+      innerTarget.seed(goneFolder)
+      const result = await publishWithRemovals({ items: [] })
+      expect(result.run?.failed).not.toBe(true)
+      expect(result.removed).toHaveLength(1)
+      expect(events).toContain(`write:${PUBLISH_GENERATION_PATH}`)
+      expect(purgeCalls).toEqual(['purgeAll'])
+      const history = createHistoryProvider({ storage: innerTarget })
+      const publishes = (await history.listRevisions()).filter(r => r.operation === 'publish')
+      expect(publishes).toHaveLength(1)
+      const rev = await history.readRevision(publishes[0]!.id)
+      expect(Object.keys(rev.snapshot)).not.toContain('pages/old-landing/page.json')
+      expect(Object.keys(rev.snapshot)).not.toContain('pages/old-landing/page.fr.json')
+    })
+
+    it('leave no snapshot entry for removed manifests that the baseline had', async () => {
+      innerTarget.seed(goneFolder)
+      // A first publish records the baseline, which includes old-landing.
+      await publish(stagingConfig())
+      const history = createHistoryProvider({ storage: innerTarget })
+      const first = (await history.listRevisions()).filter(r => r.operation === 'publish')
+      const firstRev = await history.readRevision(first[first.length - 1]!.id)
+      expect(Object.keys(firstRev.snapshot)).toContain('pages/old-landing/page.json')
+
+      await publishWithRemovals()
+      const revisions = (await history.listRevisions()).filter(r => r.operation === 'publish')
+      expect(revisions).toHaveLength(2)
+      const latest = revisions.reduce((a, b) => (a.id > b.id ? a : b))
+      const rev = await history.readRevision(latest.id)
+      expect(Object.keys(rev.snapshot)).toContain(`pages/${pageName()}/page.json`)
+      expect(Object.keys(rev.snapshot)).not.toContain('pages/old-landing/page.json')
+      expect(Object.keys(rev.snapshot)).not.toContain('pages/old-landing/page.fr.json')
+    })
+
+    it('do not run when the render run fails', async () => {
+      innerTarget.seed(goneFolder)
+      const failing = {
+        ...targetStorage,
+        writeFile: async (path: string, content: string) => {
+          if (path.endsWith('.html')) throw new Error('render write exploded')
+          return innerTarget.writeFile(path, content)
+        },
+      } as StorageProvider
+      const result = await publishWithRemovals({ storage: failing })
+      expect(result.run?.failed).toBe(true)
+      expect(result.removed).toEqual([])
+      expect(events.filter(e => e.startsWith('rm:pages/old-landing'))).toEqual([])
+      for (const path of Object.keys(goneFolder)) expect(await innerTarget.exists(path)).toBe(true)
+    })
+
+    it('report an invalid ref as a failure without touching any file', async () => {
+      innerTarget.seed(goneFolder)
+      const result = await publishToTarget({
+        targetName: 'staging',
+        targetStorage,
+        targetConfig: stagingConfig(),
+        sourceRoot,
+        sourceName: 'local',
+        site,
+        siteManifest: manifest,
+        items: [],
+        itemRefs: [],
+        templateInfos,
+        purgeScope: 'all',
+        removals: [{ kind: 'page', name: 'old-landing', locale: '../x' }],
+      })
+      expect(result.removed).toEqual([])
+      expect(result.removalFailures).toHaveLength(1)
+      expect(events.filter(e => e.startsWith('rm:pages/'))).toEqual([])
+    })
   })
 })
