@@ -59,7 +59,7 @@ Publish approval and a CSP (#362) are therefore not what stops script from conte
 
 ### Q2 — Field type decides; templates escape plain text; save refuses script
 
-Markdown and rich-text fields are sanitized when rendered (`processContent`, DOMPurify) and reach the template as HTML. The sanitizer removes forms, form controls, `iframe`, `object`, `embed` and `style` as well as script and event handlers, since DOMPurify keeps forms and `style` by default (follows from Q1). Plain text fields are escaped by templates: `gazetta` exports an escaping `html` tag (`` html`<h1>${content.title}</h1>` ``), which the starter and `docs/templates.md` use. As a backstop, saving refuses script or event handlers typed into a plain text field: a save-delta validator, error severity, using DOMPurify to find what it would remove. Text such as `a < b` or `<b>` saves and shows as text.
+Markdown and rich-text fields are sanitized when rendered (`processContent`, DOMPurify) and reach the template as HTML. The sanitizer removes forms, form controls, `iframe`, `object`, `embed` and the `<style>` element as well as script and event handlers, since DOMPurify keeps forms and `<style>` by default (follows from Q1). Plain text fields are escaped by templates: `gazetta` exports an escaping `html` tag (`` html`<h1>${content.title}</h1>` ``), which the starter and `docs/templates.md` use. As a backstop, saving refuses script or event handlers typed into a plain text field: a save-delta validator, error severity, using DOMPurify to find what it would remove. Text such as `a < b` or `<b>` saves and shows as text.
 
 Decided: maintainer, 2026-10-30 (#1579)
 
@@ -71,6 +71,38 @@ Decided: maintainer, 2026-10-30 (#1579)
 |---|---|
 | Return those fields as a marked-safe value that `` html`` `` inserts unescaped | Fields stop being strings (`.length`, string methods, React needs `String()`): a breaking change for every template using them |
 | Build those fields outside the tag (`` html`…` + `<article>${content.body}</article>` ``) | Two styles in one template, and moving the field inside the tag escapes it |
+
+Rendered children go into `` html`` `` unescaped without `raw()`: the renderer marks each child's `html` as already rendered, and the tag inserts it as is. Composite templates only switch to `` html`` ``.
+
+Decided: maintainer, 2026-10-30 (#1579)
+
+| Rejected | Why |
+|---|---|
+| `raw()` for children too (`${raw(children.map(c => c.html).join(''))}`) | Nine composite templates and the docs' composite example change, and developers meet `raw()` in two unrelated places |
+
+The sanitizer keeps `target` and `rel` on links, so rich-text links still open in a new tab; cut 1's tests pin a rich-text link's round-trip.
+
+Decided: maintainer, 2026-10-30 (#1579)
+
+| Rejected | Why |
+|---|---|
+| Drop `target`, DOMPurify's default | Every rich-text and Markdown link would stop opening in a new tab after cut 1 |
+
+The sanitizer also removes the `style` attribute; formatting comes from templates' CSS. Tiptap emits no inline styles.
+
+Decided: maintainer, 2026-10-30 (#1579)
+
+| Rejected | Why |
+|---|---|
+| Keep the attribute and strip only unsafe CSS (network-loading `url()`, `position:fixed`), as `svg-sanitize.ts` does for `url()` | A list of unsafe CSS to maintain, for formatting templates already provide |
+
+The save check also refuses `javascript:`, `vbscript:` and `data:` addresses (except `data:image`) in string fields, with the same banner; `docs/templates.md` says `href` and `src` take `format.uri()`, `format.link()` or `format.image()` fields. A plain-text address like `javascript:alert(1)` contains nothing for escaping or DOMPurify to change, yet runs when clicked.
+
+Decided: maintainer, 2026-10-30 (#1579)
+
+| Rejected | Why |
+|---|---|
+| Leave addresses to templates, documented | The starter's `card` and `showcase` templates put text fields into `href` and `src` today |
 
 | Rejected | Why |
 |---|---|
@@ -141,7 +173,7 @@ Decided: maintainer, 2026-10-30 (#1579)
 
 ### Q8 — A Formatted/Markdown toggle; untouched fields are never rewritten
 
-The field shows formatted text by default, with a toggle to the raw Markdown: a plain text box, saved exactly as typed. The choice is remembered per browser. The editor writes the field only after an edit, so opening and saving a page doesn't reformat its Markdown. Switching from Markdown to Formatted can normalise syntax (for example `*` lists become `-`), and the toggle says so.
+The field shows formatted text by default, with a toggle to the raw Markdown: a plain text box, saved exactly as typed. The choice is remembered per browser. The editor writes the field only after an edit, so opening and saving a page doesn't reformat its Markdown. Switching from Markdown to Formatted can normalise syntax (for example `*` lists become `-`), and the toggle says so. The Formatted view reads Markdown with `@tiptap/markdown` while published pages use `marked`; cut 4 compares the two before shipping, and the toggle note names any known differences.
 
 Decided: maintainer, 2026-10-30 (#1579)
 
@@ -170,6 +202,7 @@ Uses the existing validation banner and Site health drawer; no new component.
 |---|---|---|
 | Save refused | Banner: "Script isn't allowed in Title: remove onerror." (the field's label, and what would be removed: a tag such as `<script>` or an attribute such as `onerror`) | existing `validation-banner`, `validation-issue-script-in-text` |
 | Several fields | One issue per field | as above |
+| Unsafe address | Banner: "Script isn't allowed in Link: remove javascript:." | as above |
 | Site health | "about: Title holds script (onerror). Remove it before the next save of this field." with a link to the field | existing `site-health-drawer` rows |
 | Plain `a < b` or `<b>` | Saves; shown as text | — |
 
@@ -215,9 +248,9 @@ Decided: maintainer, 2026-10-30 (#1579)
 | # | What | Depends on | Test tier | Risk |
 |---|---|---|---|---|
 | 1 | Sanitizer in `processContent` for Markdown and rich-text fields, nested fields included, removing forms and embeds too (Q2); the exported `html` tag and `raw()` helper; `RENDER_FORMAT_VERSION` raised; cost measured at 5K pages | — | unit + api | Medium |
-| 2 | `script-in-text` validator at save-delta and background; banner and Site health wording per the state table | 1 | api + component | Low |
+| 2 | `script-in-text` validator at save-delta and background, unsafe address schemes included; banner and Site health wording per the state table | 1 | api + component | Low |
 | 3 | Starter templates to `` html`` `` or rich text; gazetta.studio's `text` template to rich text; `docs/templates.md` teaches `` html`` ``, `raw()` and markdown vs richtext | 1 | unit + docs | Low |
-| 4 | Markdown editor: Tiptap with `@tiptap/markdown`, the toggle, untouched fields never rewritten; the page preview shows the field as published (sanitized by cut 1); round-trip, keyboard, screen-reader and RTL checks first | 1 | component + e2e | Medium-high |
+| 4 | Markdown editor: Tiptap with `@tiptap/markdown`, the toggle, untouched fields never rewritten; the page preview shows the field as published (sanitized by cut 1); round-trip, keyboard, screen-reader and RTL checks first, and a parity check of `@tiptap/markdown` against `marked` on the constructs the starter blog uses | 1 | component + e2e | Medium-high |
 | 5 | Docs for authors and operators: the content-trust rule and the Markdown editor | 2, 3, 4 | docs | Low |
 
 ## Migration
