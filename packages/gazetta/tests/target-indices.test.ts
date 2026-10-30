@@ -13,11 +13,27 @@ import { scanTemplates } from '../src/templates-scan.js'
 import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
 import { starterManifest, starterProjectRoot, starterTargetDir, starterTemplatesDir } from './_helpers/starter.js'
 
+// The starter site and its templates are read-only here, so the file loads
+// them once; each test still gets its own empty target.
+let starter: Promise<{
+  manifest: Awaited<ReturnType<typeof starterManifest>>
+  sourceRoot: ReturnType<typeof createContentRoot>
+  site: Site
+  templateInfos: Awaited<ReturnType<typeof scanTemplates>>
+}> | null = null
+function loadStarter() {
+  starter ??= (async () => {
+    const manifest = await starterManifest()
+    const sourceRoot = createContentRoot(createFilesystemProvider(starterTargetDir), '')
+    const site = await loadSite({ contentRoot: sourceRoot, templatesDir: starterTemplatesDir, manifest })
+    const templateInfos = await scanTemplates(starterTemplatesDir, starterProjectRoot)
+    return { manifest, sourceRoot, site, templateInfos }
+  })()
+  return starter
+}
+
 async function setup() {
-  const manifest = await starterManifest()
-  const sourceRoot = createContentRoot(createFilesystemProvider(starterTargetDir), '')
-  const site = await loadSite({ contentRoot: sourceRoot, templatesDir: starterTemplatesDir, manifest })
-  const templateInfos = await scanTemplates(starterTemplatesDir, starterProjectRoot)
+  const { manifest, sourceRoot, site, templateInfos } = await loadStarter()
   const target = memoryStorage()
   const run = (
     items: PublishItemRef[],
