@@ -9,6 +9,15 @@
       "reasonNote": "Cuts 4-9, 11-18, and 20 have not shipped; only cuts 1-3 (#515-517) and 10 (#524) are in git log. Writing the operator guide and marking ROADMAP \"shipped\" would describe and announce features that don't exist.",
       "addedAt": "2026-06-09T08:53:51.317Z",
       "addedBy": "bot"
+    },
+    {
+      "fingerprint": {
+        "issueNumber": 521
+      },
+      "reason": "needs-human",
+      "reasonNote": "Loop exhausted after 2 attempts. Last reviewer note: review-architecture flagged a missing check at `design-public-storage.md#q5--publicstorage-on-the-target-implies-the-rest`, and I verified it. The transition route in `packages/gazetta/src/admin-api/routes/review.ts` (`app.post('/api/review/:kind/:path{.+}', …)`, around line 104) does not check whether the target is editable. As a result, `POST /api/review/page/home/submit?target=production` writes the following into a read-only target's storage, which may be public:\n- `.gazetta/review/` state\n- approver IDs\n- the pending marker\n\nThe cut spec says to resolve policy against the editable source target, and `state-folders.ts` marks `review` as `safeOnPublic: false`. Every other content-write route (`pages.ts`, `fragments.ts`, `archive.ts`, `redirects.ts`, `assets.ts`) mounts `requireEditableTarget(resolve)` from `middleware/editable-target.ts`.\n\nFix:\n1. Mount `requireEditableTarget(resolve)` on the POST transition route. Run it after the capability denial so the \"403 whether or not the item exists\" behaviour stays. Alternatively, check `source.editable === false` inside `handleTransition` right after `denyTransition` and return the same `403 { code: 'TARGET_NOT_EDITABLE' }`.\n2. Leave GET unchanged.\n3. Add a test that gives the harness a second target with `editable: false`. A submit with `?target=<that target>` should return `403 TARGET_NOT_EDITABLE`, and neither the review sidecar nor the pending marker should exist on that target's storage afterwards.\n\nEverything else passed, so leave the rest of the diff as it is.",
+      "addedAt": "2026-10-30T00:48:01.532Z",
+      "addedBy": "bot"
     }
   ]
 }
