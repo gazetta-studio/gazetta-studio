@@ -47,7 +47,7 @@ Read from code on main, 2026-10-30:
 
 Fields that accept HTML or Markdown keep formatting, links and images, but script and event handlers are removed for every role. Scripts and embeds (forms, widgets) come only through templates.
 
-Decided: maintainer, 2026-10-30 (#PR)
+Decided: maintainer, 2026-10-30 (#1579)
 
 Publish approval and a CSP (#362) are therefore not what stops script from content; they stay defence in depth. Follows from Q1.
 
@@ -61,7 +61,7 @@ Publish approval and a CSP (#362) are therefore not what stops script from conte
 
 Markdown and rich-text fields are sanitized when rendered (`processContent`, DOMPurify) and reach the template as HTML. Plain text fields are escaped by templates: `gazetta` exports an escaping `html` tag (`` html`<h1>${content.title}</h1>` ``), which the starter and `docs/templates.md` use. As a backstop, saving refuses script or event handlers typed into a plain text field: a save-delta validator, error severity, using DOMPurify to find what it would remove. Text such as `a < b` or `<b>` saves and shows as text.
 
-Decided: maintainer, 2026-10-30 (#PR)
+Decided: maintainer, 2026-10-30 (#1579)
 
 | Rejected | Why |
 |---|---|
@@ -73,7 +73,7 @@ Decided: maintainer, 2026-10-30 (#PR)
 
 Manifests stay as they are. Cut 1 raises `RENDER_FORMAT_VERSION`, so the next publish re-renders every page once with Markdown and rich-text fields sanitized. The save check also runs in the background scan and lists plain text fields that already hold script in Site health. Save-delta refuses only script the current edit adds, so editing another field of the same item still saves.
 
-Decided: maintainer, 2026-10-30 (#PR)
+Decided: maintainer, 2026-10-30 (#1579)
 
 | Rejected | Why |
 |---|---|
@@ -84,7 +84,7 @@ Decided: maintainer, 2026-10-30 (#PR)
 
 Such fields switch to `format.richtext()`: gazetta.studio's `text` template, and any starter template whose content holds HTML (cut 3 checks; templates whose content is plain text switch to `` html`` `` instead). Stored HTML is unchanged and authors edit it in the existing rich-text editor.
 
-Decided: maintainer, 2026-10-30 (#PR)
+Decided: maintainer, 2026-10-30 (#1579)
 
 | Rejected | Why |
 |---|---|
@@ -96,7 +96,7 @@ Tiptap keeps only the markup it supports, so the first edit of such a field can 
 
 `format.markdown()` becomes a real editor (Q7, Q8), Markdown in nested fields is converted, and `docs/templates.md` says when to pick Markdown or rich text (Q6).
 
-Decided: maintainer, 2026-10-30 (#PR)
+Decided: maintainer, 2026-10-30 (#1579)
 
 | Rejected | Why |
 |---|---|
@@ -108,7 +108,7 @@ Decided: maintainer, 2026-10-30 (#PR)
 
 `format.markdown()` (stores Markdown) and `format.richtext()` (stores HTML) both stay. `docs/templates.md` says: Markdown for authors who write Markdown or content kept in git as text; rich text for authors who want a word-processor editor. Both are sanitized at render (Q1).
 
-Decided: maintainer, 2026-10-30 (#PR)
+Decided: maintainer, 2026-10-30 (#1579)
 
 | Rejected | Why |
 |---|---|
@@ -119,7 +119,7 @@ Decided: maintainer, 2026-10-30 (#PR)
 
 `@tiptap/markdown` (MIT; 3.32.1 on npm, 2026-10-28) adds Markdown storage to the Tiptap 3 stack the rich-text field already uses, so the two fields share styling and dark/light handling. Before the editor ships, cut 4 checks that untouched Markdown comes back byte-identical, and that the editor works with a keyboard, with a screen reader and in Arabic (RTL).
 
-Decided: maintainer, 2026-10-30 (#PR)
+Decided: maintainer, 2026-10-30 (#1579)
 
 | Rejected | Why |
 |---|---|
@@ -133,7 +133,7 @@ Decided: maintainer, 2026-10-30 (#PR)
 
 The field shows formatted text by default, with a toggle to the raw Markdown: a plain text box, saved exactly as typed. The choice is remembered per browser. The editor writes the field only after an edit, so opening and saving a page doesn't reformat its Markdown. Switching from Markdown to Formatted can normalise syntax (for example `*` lists become `-`), and the toggle says so.
 
-Decided: maintainer, 2026-10-30 (#PR)
+Decided: maintainer, 2026-10-30 (#1579)
 
 | Rejected | Why |
 |---|---|
@@ -150,7 +150,7 @@ Decided: maintainer, 2026-10-30 (#PR)
 
 Per [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md), each UI cut transcribes its table into stories.
 
-Decided: maintainer, 2026-10-30 (#PR)
+Decided: maintainer, 2026-10-30 (#1579)
 
 #### Save check (cut 2): validator `script-in-text`
 
@@ -196,7 +196,7 @@ Uses the existing validation banner and Site health drawer; no new component.
 
 Security first: live sites stop publishing script from content before the editor work starts.
 
-Decided: maintainer, 2026-10-30 (#PR)
+Decided: maintainer, 2026-10-30 (#1579)
 
 | Rejected | Why |
 |---|---|
