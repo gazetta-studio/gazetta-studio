@@ -93,7 +93,7 @@ Decided: maintainer, 2026-10-30 (#1579)
 
 | Rejected | Why |
 |---|---|
-| `raw()` around composed lists (`${raw(items.map(…).join(''))}`) | Lists are the commonest template pattern; five templates build them this way today |
+| `raw()` around composed lists (`${raw(items.map(…).join(''))}`) | Lists are the commonest template pattern; six templates build them this way today |
 
 The sanitizer keeps `target` and `rel` on links, so rich-text links still open in a new tab; cut 1's tests pin a rich-text link's round-trip.
 
@@ -111,7 +111,7 @@ Decided: maintainer, 2026-10-30 (#1579)
 |---|---|
 | Keep the attribute and strip only unsafe CSS (network-loading `url()`, `position:fixed`), as `svg-sanitize.ts` does for `url()` | A list of unsafe CSS to maintain, for formatting templates already provide |
 
-The save check also refuses a string value that is a `javascript:`, `vbscript:` or `data:` address (except `data:image/` in a raster format the media pipeline accepts, AVIF included, base64 or percent-encoded; `svg+xml` stays out), with the same banner. The allowed formats are one exported constant that `svg-sanitize.ts` uses too. It reads the value as a browser reads an address: entities decoded, tabs and newlines removed, leading control characters and spaces ignored, scheme case-insensitive, so `java	script:` and `&#106;avascript:` are refused too. Links inside Markdown and rich-text fields are left to the sanitizer. `docs/templates.md` says `href` and `src` take `format.uri()`, `format.link()` or `format.image()` fields. A plain-text address like `javascript:alert(1)` contains nothing for escaping or DOMPurify to change, yet runs when clicked.
+The save check also refuses a string value that is a `javascript:`, `vbscript:` or `data:` address (except `data:image/png`, `jpeg`, `gif`, `webp` and `avif`, the raster formats `design-media.md` serves as images, base64 or percent-encoded; `svg+xml` stays out), with the same banner. The allowed formats are one exported constant that `svg-sanitize.ts` uses too. It reads the value as a browser reads an address: entities decoded, tabs and newlines removed, leading control characters and spaces ignored, scheme case-insensitive, so `java	script:` and `&#106;avascript:` are refused too. Links inside Markdown and rich-text fields are left to the sanitizer. `docs/templates.md` says `href` and `src` take `format.uri()`, `format.link()` or `format.image()` fields. A plain-text address like `javascript:alert(1)` contains nothing for escaping or DOMPurify to change, yet runs when clicked.
 
 Decided: maintainer, 2026-10-30 (#1579)
 
@@ -120,6 +120,7 @@ Decided: maintainer, 2026-10-30 (#1579)
 | Leave addresses to templates, documented | The starter's `card` template puts a plain text field into `href`, and `format.link()` and `format.image()` fields (the starter's `showcase`) don't restrict schemes either (`formats.ts`) |
 | Allow any `data:image` | `data:image/svg+xml` would pass without SVG sanitizing, and two allow-lists would drift |
 | `svg-sanitize.ts`'s list (png, jpeg, gif, webp, base64 only) | Chosen for images inside SVGs; it would refuse AVIF, which `design-media.md` lists as supported, and percent-encoded images, with a banner naming nothing that is script |
+| Upload's list today (png, jpeg, gif) | WebP would leave the SVG sanitizer's list; HEIC and TIFF are converted on upload and never served, so they stay out either way |
 
 The save check, script and addresses alike, walks every string value, nested objects and list items included, as the sanitizer does.
 
@@ -129,7 +130,7 @@ Decided: maintainer, 2026-10-30 (#1579)
 |---|---|
 | Top-level fields only | The links that motivated the address check sit in list items (the starter's `nav`, gazetta.studio's `nav-bar` and `link-list`) |
 
-A `format.file()` field must hold `data:<type>;base64,…`, the only shape its widget writes; any other value is refused with the same banner. This replaces skipping file fields, which would have let `javascript:` through them.
+A `format.file()` field must hold `data:<type>[;name=<encoded name>];base64,…`, the shape its widget writes (rjsf adds the file name); any other value is refused with the same banner. This replaces skipping file fields, which would have let `javascript:` through them.
 
 Decided: maintainer, 2026-10-30 (#1579)
 
@@ -138,6 +139,7 @@ Decided: maintainer, 2026-10-30 (#1579)
 | Remove `format.file()` | Not needed to keep the check correct; files can still go through the asset library |
 | Skip file fields entirely | A script or the MCP server could save `javascript:alert(1)` in one, and a template linking the file runs it on click |
 | Skip only the `data:` rule for file fields | Accepts values the widget never writes |
+| Require `data:<type>;base64,…` without `;name=` | Refuses every file the widget saves |
 
 `format.code()` fields skip the whole save check: their content is code shown as text, and templates escape code fields like plain text, so once a template does (cut 3), an example containing `<script>` shows and never runs. The background scan lists code fields holding script as info in Site health, so a template that still inserts one raw is visible.
 
@@ -156,11 +158,11 @@ Decided: maintainer, 2026-10-30 (#1579)
 |---|---|
 | Escape every string field of that template | The page renders with rich text showing its tags |
 | Keep failing open, documented | Rare, but the one way unsanitized HTML would still reach a page |
-| Fail closed on zod's default conversion | It throws on `z.date()`, `.transform()`, `z.custom()` and `z.bigint()`, so templates that publish today would stop at publish, with nothing in Site health beforehand |
+| Fail closed on zod's default conversion, with the validator | It throws on `z.date()`, `.transform()`, `z.custom()` and `z.bigint()`, so templates that publish today would stop publishing |
 
 ### Q3 — Existing content: sanitize at render, list the rest in Site health
 
-Manifests stay as they are. Cut 1 raises `RENDER_FORMAT_VERSION`, so the next publish re-renders every page once with Markdown and rich-text fields sanitized. The save check also runs in the background scan and lists plain text fields that already hold script in Site health. Save-delta refuses only script the current edit adds, so editing another field of the same item still saves.
+Manifests stay as they are. Cut 1 raises `RENDER_FORMAT_VERSION`, so the next publish of everything re-renders every page once (Migration: publish everything once after cut 1; a publish of only some items leaves the rest's old HTML live) with Markdown and rich-text fields sanitized. The save check also runs in the background scan and lists plain text fields that already hold script in Site health. Save-delta refuses only script the current edit adds, so editing another field of the same item still saves.
 
 Decided: maintainer, 2026-10-30 (#1579)
 
@@ -298,12 +300,14 @@ Decided: maintainer, 2026-10-30 (#1579)
 | 1 | Sanitizer in `processContent` for Markdown and rich-text fields, nested fields included, removing forms and embeds too (Q2); draft content in the admin preview goes through the same conversion and sanitizer (`preview.ts` applies draft overrides after `processContent` today); the exported `html` tag (inserting children the renderer marks and its own results as is, arrays included) and `raw()` helper; tolerant schema conversion, and a template whose schema still can't be read fails to render; `RENDER_FORMAT_VERSION` raised; cost measured at 5K pages | — | unit + api | Medium |
 | 2 | `script-in-text` validator at save-delta and background, walking nested values, unsafe address schemes and the file-field shape included, code fields as Site health info; a validator naming templates whose schema can't be read; banner and Site health wording per the state table | 1 | api + component | Low |
 | 3 | Starter templates to `` html`` `` or rich text; gazetta.studio's `text` template to rich text; the ten composite templates interpolate rendered children inside `` html`` ``; the starter `showcase` escapes its `format.code()` snippet; `docs/templates.md` teaches `` html`` ``, `raw()`, children and markdown vs richtext | 1 | unit + docs | Low |
-| 4 | Markdown editor: Tiptap with `@tiptap/markdown`, the toggle, untouched fields never rewritten; the page preview shows the field as published (sanitized by cut 1); round-trip, keyboard, screen-reader and RTL checks first, and a parity check of `@tiptap/markdown` against `marked` on the constructs the starter blog uses | 1 | component + e2e | Medium-high |
+| 4 | Markdown editor: Tiptap with `@tiptap/markdown`, the toggle, untouched fields never rewritten; the page preview shows the field as published (sanitized by cut 1); round-trip, keyboard, screen-reader and RTL checks first, and a parity check of `@tiptap/markdown` against `marked` on the constructs the starter blog uses | 1, 2, 3 | component + e2e | Medium-high |
 | 5 | Docs for authors and operators: the content-trust rule and the Markdown editor | 2, 3, 4 | docs | Low |
 
 ## Migration
 
-No production users. The first publish after cut 1 re-renders every page once. Templates that interpolate plain text raw keep working but aren't protected until they use `` html`` ``; the save check covers content meanwhile, except code fields, which it skips: the starter `showcase` inserts its code snippet raw until cut 3.
+No production users. Cut 1 marks every page changed; publish everything once after it (the CLI, or every item in the panel), since a publish of only some items leaves the rest's old, unsanitized HTML live.
+
+Decided: maintainer, 2026-10-30 (#1579) Templates that interpolate plain text raw keep working but aren't protected until they use `` html`` ``; the save check covers content meanwhile, except code fields, which it skips: the starter `showcase` inserts its code snippet raw until cut 3.
 
 ## Open questions
 
