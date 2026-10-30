@@ -31,8 +31,9 @@
  *      don't deploy
  *   8. (RESERVED) dispatchBeforePublishRun hooks
  *   9. for each target: { for each item: per-item pipeline }
- *  10. for each target: publishDepIndices (asset-refs, fragment-deps,
- *      archive-aliases sidecars)
+ *  10. dependency indices: each published item replaces its own edges
+ *      (publishItemCore); with `force`, the target's indices are
+ *      wiped before the item loop so the loop rebuilds them
  *  11. for each target: publishSiteManifest (site.json snapshot)
  *  12. cache purge: runs in the shared target-publish function
  *      (publish-target.ts, publish-undo cut 1, #1426) - publishRun
@@ -62,7 +63,7 @@ import { recordWrite, type WrittenItem } from './history-recorder.js'
 import { localeFilename } from './locale.js'
 import { publishPage, resolvePageRenderMode } from './pages/publish.js'
 import type { PublishItemKind, PublishItemResult, PublishRenderMode, PublishTarget } from './publish-item.js'
-import { publishDepIndices, publishSiteManifest } from './publish-rendered.js'
+import { publishSiteManifest, wipeDepIndices } from './publish-rendered.js'
 import type { Site } from './site-loader.js'
 import { templateHashesFrom, type TemplateInfo } from './templates-scan.js'
 import { getType } from './types.js'
@@ -192,12 +193,6 @@ export interface PublishRunInput {
    */
   readonly publishAssetsBeforeItems?: boolean
   /**
-   * Per-target dep-index emit. When true (default), orchestrator runs
-   * `publishDepIndices` after all items publish (asset-refs +
-   * fragment-deps + archive-aliases sidecars on target).
-   */
-  readonly publishDepIndicesAfter?: boolean
-  /**
    * Per-target site manifest emit. When true (default), orchestrator
    * runs `publishSiteManifest` after items publish so target's
    * `site.json` reflects the source's site name + version.
@@ -231,9 +226,10 @@ export interface PublishRunInput {
   /** Cache purge strategy (reserved — fire-and-forget post-publish). */
   readonly purgeStrategy?: PurgeStrategy
   /**
-   * `--force`: reserved for future incremental skip logic. Today's
-   * orchestrator publishes every item in the list verbatim — caller
-   * pre-filters via compareTargets if it wants to skip unchanged.
+   * `--force`: wipe each target's dependency indices and forward
+   * records before the item loop, so the items this run publishes
+   * rebuild them. The item list itself is the caller's: publishRun
+   * publishes every item it is given.
    */
   readonly force?: boolean
   /** Streaming callback emitted at run / target / item boundaries. */
@@ -265,7 +261,6 @@ function itemKey(ref: PublishItemRef): string {
  *   - Asset publish (publishAssets — runs before publishRun)
  *   - Dependency expansion (findDependentsFromSidecars — caller pre-expands items)
  *   - Compare/incremental skip (compareTargets — caller pre-filters items)
- *   - Per-target dep indices (publishDepIndices — runs after publishRun)
  *   - Site manifest emit (publishSiteManifest — runs after publishRun)
  *   - Cache purge (purgeStrategy — runs after publishRun, reserved input)
  *   - History recording for the admin route's source-copy step
@@ -317,7 +312,6 @@ export async function publishRun(input: PublishRunInput): Promise<PublishRunResu
 
   // Defaults for per-target side-effects (Q5 spine steps 10-12).
   const doAssetPublish = input.publishAssetsBeforeItems ?? true
-  const doDepIndices = input.publishDepIndicesAfter ?? true
   const doSiteManifest = input.publishSiteManifestAfter ?? true
 
   input.onProgress?.({
@@ -446,6 +440,17 @@ export async function publishRun(input: PublishRunInput): Promise<PublishRunResu
       continue
     }
 
+    // Step 10 (force) — a forced publish rebuilds the target's
+    // dependency indices from the items it writes.
+    if (input.force) {
+      try {
+        await wipeDepIndices(targetStorage)
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn(`publishRun: dependency index wipe failed for ${targetName}: ${err}`)
+      }
+    }
+
     for (const ref of input.items) {
       // Compute per-item hash from caller-supplied map OR templateInfos.
       let manifestHash = input.itemHashes?.get(itemKey(ref))
@@ -508,22 +513,6 @@ export async function publishRun(input: PublishRunInput): Promise<PublishRunResu
       if (result.ok) {
         targetFilesWritten += result.files
         targetFilesRemoved += result.removed
-      }
-    }
-
-    // Step 10b — dep indices (asset-refs + fragment-deps + alias-targets
-    // sidecars on target). Walks the source site once; rebuilds per-edge
-    // index files at target's `.gazetta/` namespace. Failures here are
-    // logged to failureReason but don't mark the whole target failed
-    // (items already published successfully).
-    if (doDepIndices) {
-      try {
-        await publishDepIndices(input.sourceRoot, targetStorage, input.site)
-      } catch (err) {
-        // Soft-fail: dep indices are derivable; reindex CLI recovers.
-        // Eslint-suppress: a future audit consumer can read this.
-        // eslint-disable-next-line no-console
-        console.warn(`publishRun: publishDepIndices failed for ${targetName}: ${err}`)
       }
     }
 

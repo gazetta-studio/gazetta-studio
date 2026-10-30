@@ -3,7 +3,7 @@
  *
  * v1 spine is pure fan-out: validate → loop targets × items via
  * publishPage / publishFragment → aggregate. Caller owns template
- * scan, loadSite, asset publish, dep indices, site manifest, cache
+ * scan, loadSite, asset publish, site manifest, cache
  * purge (CLI / admin do these around publishRun).
  *
  * Per Q4 fail-soft: per-item failures continue; per-target init
@@ -251,7 +251,6 @@ describe('publishRun — fan-out', () => {
       targetStorages: new Map([['local', targetStorage]]),
       templateInfos,
       publishAssetsBeforeItems: false,
-      publishDepIndicesAfter: false,
       publishSiteManifestAfter: false,
     })
 
@@ -372,29 +371,31 @@ describe('publishRun — per-target side effects', () => {
       siteManifest: manifest,
       targetStorages: new Map([['local', targetStorage]]),
     })
-    // After dep indices run, .gazetta/asset-refs/ AND/OR .gazetta/fragment-deps/
-    // should be present (depending on what the starter actually references).
+    // The published page's edges and forward records land under .gazetta/.
     const gazettaExists = await targetStorage.exists('.gazetta')
     expect(gazettaExists).toBe(true)
   })
 
-  it('publishDepIndicesAfter: false skips dep index rebuild', async () => {
+  it('writes dep-index records only for the items it publishes', async () => {
     const { site, manifest, sourceRoot } = await setup()
     const targetStorage = memoryStorage()
-    const pageName = [...site.pages.keys()].find(k => !k.includes('['))!
+    const [published, ...others] = [...site.pages.keys()].filter(k => !k.includes('['))
 
     await publishRun({
-      items: [{ kind: 'page', name: pageName }],
+      items: [{ kind: 'page', name: published! }],
       targets: ['local'],
       site,
       sourceRoot,
       siteManifest: manifest,
       targetStorages: new Map([['local', targetStorage]]),
-      publishDepIndicesAfter: false,
       publishSiteManifestAfter: false,
     })
-    // No dep indices written → no .gazetta/asset-refs/
-    expect(await targetStorage.exists('.gazetta/asset-refs')).toBe(false)
+    expect(await targetStorage.exists(`.gazetta/deps-of/fragment-deps/pages.${published}`)).toBe(true)
+    for (const other of others) {
+      expect(await targetStorage.exists(`.gazetta/deps-of/fragment-deps/pages.${other.replace(/\//g, '.')}`)).toBe(
+        false,
+      )
+    }
   })
 })
 

@@ -78,6 +78,11 @@ export interface PublishToTargetInput {
   readonly templateInfos: readonly TemplateInfo[]
   /** Explicit purge scope - see PurgeScope. */
   readonly purgeScope: PurgeScope
+  /**
+   * `gazetta publish --force`: publishRun wipes the target's dependency
+   * indices before its item loop, so the published items rebuild them.
+   */
+  readonly force?: boolean
   /** Progress events from publishRun, bridged to the caller's output. */
   readonly onProgress?: Parameters<typeof import('./publish-run.js').publishRun>[0]['onProgress']
   /**
@@ -211,9 +216,10 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
     }
   }
 
-  // Step 3 - render loop. publishRun owns per-item renders, dependency
-  // indices and the site manifest; history and the source copy already
-  // happened here, so it runs without its step 13/13b inputs.
+  // Step 3 - render loop. publishRun owns per-item renders (each one
+  // replacing its own dependency edges) and the site manifest; history
+  // and the source copy already happened here, so it runs without its
+  // step 13/13b inputs.
   const { publishRun } = await import('./publish-run.js')
   const runResult = await publishRun({
     items: [...itemRefs],
@@ -223,6 +229,7 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
     siteManifest,
     targetStorages: new Map([[targetName, targetStorage]]),
     templateInfos: [...templateInfos],
+    force: input.force,
     onProgress,
   })
   const run = runResult.targets.find(t => t.name === targetName)

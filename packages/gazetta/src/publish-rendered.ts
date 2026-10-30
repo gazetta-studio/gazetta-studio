@@ -5,13 +5,12 @@ import { createContentRoot, type ContentRoot } from './content-root.js'
 import type { DepRelation } from './dep-sidecars.js'
 import { rebuildItemDeps } from './dep-sidecars.js'
 import { stateFolderPath } from './state-folders.js'
-import { ASSET_REFS } from './assets/asset-deps.js'
-import { FRAGMENT_DEPS } from './fragment-deps.js'
+import { DEP_RELATIONS } from './dep-relations.js'
 
 // The old per-item publish functions (publishPageRendered /
 // publishPageStatic / publishFragmentRendered) moved to publish-compat.ts
 // as thin wrappers over the live pipeline. This file keeps the
-// publish-run helpers: site manifest, dependency indices, CDN purge.
+// publish-run helpers: site manifest, whole-index rebuilds, CDN purge.
 
 /**
  * Publish site manifest (stripped of targets config).
@@ -27,21 +26,17 @@ export async function publishSiteManifest(
 }
 
 /**
- * Rebuild a dep-sidecar index on the destination for one relation.
+ * Rebuild one relation's dep-sidecar index from a site's manifests.
  *
- * Walks every page + fragment manifest (including locale variants) from
- * the source site and writes per-edge sidecars at
- * `{dest}/.gazetta/{rel.rootName}/{target}/{item}`. Wipes the existing
- * index dir first to avoid stale entries from previous runs.
+ * Walks every page + fragment manifest (including locale variants) and
+ * writes per-edge sidecars at `{dest}/.gazetta/{rel.rootName}/{target}/{item}`
+ * plus each item's forward record at `.gazetta/deps-of/{rel.rootName}/{item}`.
+ * Wipes both first so the index describes exactly this site.
  *
- * Used by:
- *   - publish flow (CLI + admin route) at end of publish, once per relation
- *   - reindex CLI for source-side recovery
- *   - history-restorer after rollback
- *
- * Why rebuild rather than incremental: a full rebuild is one walk +
- * N zero-byte writes — simpler than tracking diffs against the dest's
- * prior state and equally fast for typical sites.
+ * For whole-index rebuilds of a store from its own manifests (history
+ * restore, the source's first rebuild, `gazetta assets reindex`). A
+ * publish never calls this: it replaces the edges of each item it
+ * writes (`replaceItemDeps`), so a target's index describes the target.
  */
 export async function rebuildDepIndex(
   rel: DepRelation,
@@ -51,11 +46,7 @@ export async function rebuildDepIndex(
 ): Promise<void> {
   const destRoot = createContentRoot(destStorage, destRootPath)
 
-  // Wipe existing index — full rebuild semantics. Stale entries from
-  // targets that no longer exist in source manifests get cleared.
-  await destStorage.rm(destRoot.path(stateFolderPath(rel.rootName))).catch(() => {
-    // Missing dir = nothing to wipe; fine.
-  })
+  await wipeRelation(rel, destRoot)
 
   const writes: Promise<void>[] = []
   for (const { name, page, locale } of allPageEntries(sourceSite)) {
@@ -69,26 +60,42 @@ export async function rebuildDepIndex(
   await Promise.all(writes)
 }
 
-/**
- * Backwards-compatible alias for the single-relation asset-refs rebuild.
- * Kept until callers (history-restorer, reindex CLI) migrate to the
- * generic `rebuildDepIndex(rel, …)` shape.
- */
-export function rebuildAssetRefsIndex(
-  sourceSite: Site,
-  destStorage: StorageProvider,
-  destRootPath = '',
-): Promise<void> {
-  return rebuildDepIndex(ASSET_REFS, sourceSite, destStorage, destRootPath)
+async function wipeRelation(rel: DepRelation, root: ContentRoot): Promise<void> {
+  await Promise.all(
+    [stateFolderPath(rel.rootName), stateFolderPath('deps-of', rel.rootName)].map(dir =>
+      root.storage.rm(root.path(dir)).catch(() => {
+        // Missing dir = nothing to wipe.
+      }),
+    ),
+  )
+}
+
+/** Rebuild every relation's index (see `rebuildDepIndex`). */
+export async function rebuildAllDepIndices(site: Site, destStorage: StorageProvider, destRootPath = ''): Promise<void> {
+  await Promise.all(DEP_RELATIONS.map(rel => rebuildDepIndex(rel, site, destStorage, destRootPath)))
 }
 
 /**
- * Publish-flow wrapper: load the site if needed and rebuild every
- * dep-sidecar index on the target. Run once per publish (alongside
- * `publishSiteManifest`). Indices rebuilt:
- *   - asset-refs (queried by delete-block check, library usage panel)
- *   - fragment-deps (queried by `findFragmentDependents` for the
- *     publish-UI blast radius and fragment cache-purge URL lookup)
+ * Delete every relation's index and forward records. A forced publish
+ * runs this before its item loop, so the per-item path rebuilds the
+ * index from what that publish writes.
+ */
+export async function wipeDepIndices(storage: StorageProvider, rootPath = ''): Promise<void> {
+  const root = createContentRoot(storage, rootPath)
+  const dirs = [...DEP_RELATIONS.map(rel => stateFolderPath(rel.rootName)), stateFolderPath('deps-of')]
+  await Promise.all(
+    dirs.map(dir =>
+      storage.rm(root.path(dir)).catch(() => {
+        // Missing dir = nothing to wipe.
+      }),
+    ),
+  )
+}
+
+/**
+ * Rebuild every relation's index on a store from a site's manifests.
+ * Not part of publish (each published item replaces its own edges);
+ * kept for callers that rebuild a whole store from its own site.
  */
 export async function publishDepIndices(
   sourceRoot: ContentRoot,
@@ -96,10 +103,7 @@ export async function publishDepIndices(
   preloadedSite?: Site,
 ): Promise<void> {
   const site = preloadedSite ?? (await loadSite({ contentRoot: sourceRoot, manifest: { name: '(publish)' } }))
-  await Promise.all([
-    rebuildDepIndex(ASSET_REFS, site, targetStorage, ''),
-    rebuildDepIndex(FRAGMENT_DEPS, site, targetStorage, ''),
-  ])
+  await rebuildAllDepIndices(site, targetStorage, '')
 }
 
 /** Purge via Cloudflare zone cache API */

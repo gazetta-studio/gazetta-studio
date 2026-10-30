@@ -6,6 +6,7 @@
  *   - readDepsFor on missing dir returns []
  *   - applyDepDiff write/remove diff
  *   - rebuildItemDeps convenience over the diff
+ *   - forward records: readDepRecord / replaceItemDeps / removeItemDeps
  *   - The asset-deps binding (via ASSET_REFS relation) so the asset-side
  *     wrapper isn't separately tested
  *
@@ -24,12 +25,16 @@ import {
   filenameToItemRef,
   itemRefToFilename,
   readDepsFor,
+  readDepRecord,
   rebuildItemDeps,
+  removeItemDeps,
+  replaceItemDeps,
   type DepRelation,
   type ItemRef,
 } from '../src/dep-sidecars.js'
 import { ASSET_REFS, itemRefToAssetRef } from '../src/assets/asset-deps.js'
 import { tempDir } from './_helpers/temp.js'
+import { memoryStorage } from './_helpers/memory-storage.js'
 
 const testDir = tempDir(`dep-sidecars-${Date.now()}`)
 
@@ -239,5 +244,120 @@ describe('encoding edge cases', () => {
     const root = createContentRoot(createFilesystemProvider(testDir), '')
     const item: ItemRef = { source: 'page', name: 'home' }
     await expect(applyDepDiff(REL, root, item, new Set(), new Set(['bad.name']))).rejects.toThrow(/dot is reserved/)
+  })
+})
+
+describe('forward records (deps-of)', () => {
+  const page = (...assets: string[]) => ({
+    template: 'p',
+    content: Object.fromEntries(assets.map(a => [a, { _asset: a }])),
+    components: [],
+  })
+  const item: ItemRef = { source: 'page', name: 'home' }
+  const recordPath = '.gazetta/deps-of/asset-refs/pages.home'
+  const edge = (asset: string, ref: ItemRef = item) => `.gazetta/asset-refs/${asset}/${itemRefToFilename(ref)}`
+
+  function setup() {
+    const storage = memoryStorage()
+    return { storage, root: createContentRoot(storage, '') }
+  }
+
+  it('readDepRecord is null when the record is missing or malformed', async () => {
+    const { storage, root } = setup()
+    expect(await readDepRecord(REL, root, item)).toBeNull()
+    storage.seed({ [recordPath]: 'not json' })
+    expect(await readDepRecord(REL, root, item)).toBeNull()
+    storage.seed({ [recordPath]: '{"a":1}' })
+    expect(await readDepRecord(REL, root, item)).toBeNull()
+  })
+
+  it('replaceItemDeps with no record only writes edges, then the record', async () => {
+    const { storage, root } = setup()
+    storage.seed({ [edge('stale')]: '' }) // an edge no record lists stays
+    await replaceItemDeps(REL, root, item, page('hero', 'banner'))
+    expect(await storage.exists(edge('hero'))).toBe(true)
+    expect(await storage.exists(edge('banner'))).toBe(true)
+    expect(await storage.exists(edge('stale'))).toBe(true)
+    expect(await readDepRecord(REL, root, item)).toEqual(new Set(['banner', 'hero']))
+  })
+
+  it('replaceItemDeps drops the edges the record lists that the new manifest lacks', async () => {
+    const { storage, root } = setup()
+    await replaceItemDeps(REL, root, item, page('hero', 'banner'))
+    await replaceItemDeps(REL, root, item, page('banner', 'logo'))
+    expect(await storage.exists(edge('hero'))).toBe(false)
+    expect(await storage.exists(edge('banner'))).toBe(true)
+    expect(await storage.exists(edge('logo'))).toBe(true)
+    expect(await readDepRecord(REL, root, item)).toEqual(new Set(['banner', 'logo']))
+  })
+
+  it('replaceItemDeps reads the record, never a stored manifest', async () => {
+    const { storage, root } = setup()
+    // The record says the item uses `hero`, whatever any manifest says.
+    storage.seed({ [recordPath]: '["hero"]', [edge('hero')]: '', 'pages/home/page.json': JSON.stringify(page('x')) })
+    await replaceItemDeps(REL, root, item, page('banner'))
+    expect(await storage.exists(edge('hero'))).toBe(false)
+    expect(await storage.exists(edge('x'))).toBe(false)
+    expect(await storage.exists(edge('banner'))).toBe(true)
+  })
+
+  it('replaceItemDeps is idempotent when rerun', async () => {
+    const { storage, root } = setup()
+    await replaceItemDeps(REL, root, item, page('hero'))
+    const snapshot = () => new Map([...storage.dump()].map(([k, v]) => [k, new TextDecoder().decode(v)]))
+    const before = snapshot()
+    await replaceItemDeps(REL, root, item, page('hero'))
+    expect(snapshot()).toEqual(before)
+  })
+
+  it('locale variants keep their own edges and record', async () => {
+    const { storage, root } = setup()
+    const fr: ItemRef = { source: 'page', name: 'home', locale: 'fr' }
+    await replaceItemDeps(REL, root, item, page('hero'))
+    await replaceItemDeps(REL, root, fr, page('hero-fr'))
+    expect(await readDepRecord(REL, root, item)).toEqual(new Set(['hero']))
+    expect(await readDepRecord(REL, root, fr)).toEqual(new Set(['hero-fr']))
+    expect(await storage.exists('.gazetta/deps-of/asset-refs/pages.home:fr')).toBe(true)
+    expect(await storage.exists(edge('hero-fr', fr))).toBe(true)
+    expect(await storage.exists(edge('hero-fr'))).toBe(false)
+  })
+
+  it('removeItemDeps deletes exactly the recorded edges, then the record', async () => {
+    const { storage, root } = setup()
+    const other: ItemRef = { source: 'page', name: 'about' }
+    await replaceItemDeps(REL, root, item, page('hero'))
+    await replaceItemDeps(REL, root, other, page('hero'))
+    storage.seed({ [edge('unrecorded')]: '' })
+    await removeItemDeps(REL, root, item)
+    expect(await storage.exists(edge('hero'))).toBe(false)
+    expect(await storage.exists(edge('hero', other))).toBe(true)
+    expect(await storage.exists(edge('unrecorded'))).toBe(true)
+    expect(await storage.exists(recordPath)).toBe(false)
+  })
+
+  it('rebuildItemDeps writes the record with the new set and deletes it with the item', async () => {
+    const { storage, root } = setup()
+    await rebuildItemDeps(REL, root, item, null, page('hero'))
+    expect(await readDepRecord(REL, root, item)).toEqual(new Set(['hero']))
+    await rebuildItemDeps(REL, root, item, page('hero'), page('banner'))
+    expect(await readDepRecord(REL, root, item)).toEqual(new Set(['banner']))
+    await rebuildItemDeps(REL, root, item, page('banner'), null)
+    expect(await storage.exists(recordPath)).toBe(false)
+  })
+
+  it('an item whose name has a dot gets no edges and no record', async () => {
+    const { storage, root } = setup()
+    const dotted: ItemRef = { source: 'page', name: 'release.notes' }
+    await replaceItemDeps(REL, root, dotted, page('hero'))
+    await rebuildItemDeps(REL, root, dotted, null, page())
+    await removeItemDeps(REL, root, dotted)
+    expect(await readDepRecord(REL, root, dotted)).toBeNull()
+    expect(storage.dump().size).toBe(0)
+  })
+
+  it('applyDepDiff records the new target set', async () => {
+    const { root } = setup()
+    await applyDepDiff(REL, root, item, new Set(['hero']), new Set(['banner']))
+    expect(await readDepRecord(REL, root, item)).toEqual(new Set(['banner']))
   })
 })

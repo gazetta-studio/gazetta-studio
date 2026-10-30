@@ -24,6 +24,7 @@ export const STATE_FOLDERS = {
   'fragment-deps': { safeOnPublic: false },
   'asset-refs': { safeOnPublic: false },
   'alias-targets': { safeOnPublic: false },
+  'deps-of': { safeOnPublic: false },
   'publish-generation': { safeOnPublic: true },
 } as const
 

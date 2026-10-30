@@ -30,9 +30,11 @@
  *   7. list old hashed files at item dir
  *   8. write new hashed files (per-file atomic via storage.writeFile;
  *      transient failures retry inline 3x with backoff)
- *   9. write item HTML + content-hash sidecar (.{8hex}.hash)
+ *   9. write item HTML
  *  10. cleanup oldFiles − newFiles
- *  11. write publish-state sidecar (.pub-{ts}, includes noindex flag)
+ *  10b. replace the item's dependency edges + forward records
+ *  11. write content-hash + publish-state sidecars (.{8hex}.hash,
+ *      .pub-{ts} with noindex flag)
  *  12. (RESERVED) dispatchAfterPublishItem hooks
  *  13. return PublishItemResult
  *
@@ -54,6 +56,9 @@ import {
   type RenderOutput,
 } from './publish-renderers.js'
 import { writeSidecars } from './sidecars.js'
+import { createContentRoot } from './content-root.js'
+import { DEP_RELATIONS } from './dep-relations.js'
+import { replaceItemDeps, type ItemRef } from './dep-sidecars.js'
 import { publishedPageNoindex } from './seo.js'
 import type { CacheConfig, StorageProvider } from './types.js'
 import type { Site } from './site-loader.js'
@@ -311,6 +316,7 @@ function itemDir(kind: PublishItemKind, name: string): string {
  *   8. list old hashed files
  *   9. mkdir + write index file + write hashed files
  *  10. cleanup oldFiles − newFiles
+ *  10b. replace the item's dependency edges + forward records
  *  11. write content-hash + publish-state sidecars
  *  12. (RESERVED) dispatchAfterPublishItem hooks
  *  13. return PublishItemResult
@@ -397,6 +403,19 @@ export async function publishItemCore(input: PublishItemInput): Promise<PublishI
 
     // Step 10 — cleanup old hashed files not in newFiles.
     const removed = await cleanupOldFiles(target.storage, oldFiles, newFiles)
+
+    // Step 10b — replace this item's dependency edges on the target
+    // with the ones its published manifest has. Only after the writes
+    // above succeed (a failed item keeps edges that describe what the
+    // target still serves) and before the hash sidecar (a crash in
+    // between leaves the item changed, so the next publish redoes it).
+    // sidecars.md "Target indices describe the target".
+    const published = locale
+      ? ((kind === 'page' ? site.pageLocales : site.fragmentLocales).get(name)?.locales.get(locale) ?? item)
+      : item
+    const ref: ItemRef = locale ? { source: kind, name, locale } : { source: kind, name }
+    const targetRoot = createContentRoot(target.storage)
+    await Promise.all(DEP_RELATIONS.map(rel => replaceItemDeps(rel, targetRoot, ref, published)))
 
     // Step 11 — sidecars (hash + publish-state). Skipped when caller
     // doesn't pass manifestHash (CLI / tests sometimes omit). Archive
