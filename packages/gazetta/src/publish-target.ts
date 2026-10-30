@@ -283,8 +283,17 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
   if (removals.length > 0) {
     const { resolveSiteLocales } = await import('./locale.js')
     const resolved = resolveSiteLocales(siteManifest)
-    const ctx = { targetType, locales: resolved?.supported ?? [], defaultLocale: resolved?.default }
+    const locales = [...new Set([...(resolved?.supported ?? []), ...(targetConfig?.locales ?? [])])]
+    const ctx = { targetType, locales, defaultLocale: resolved?.default }
     for (const ref of removals) {
+      // Removing an item this run also publishes would delete what was just rendered.
+      const published = itemRefs.some(
+        r => r.kind === ref.kind && r.name === ref.name && (ref.locale === undefined || r.locale === ref.locale),
+      )
+      if (published) {
+        removalFailures.push({ ref, reason: 'also published in this run' })
+        continue
+      }
       const result = await removeItemFromTarget(targetStorage, ref, ctx)
       if (result.ok) removed.push(ref)
       else removalFailures.push({ ref, reason: result.reason })

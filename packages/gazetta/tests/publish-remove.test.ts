@@ -188,6 +188,25 @@ describe('removeItemFromTarget', () => {
     expect(await storage.exists('pages/about/page.json')).toBe(true)
   })
 
+  it("refuses a locale ref naming the default locale, which would delete another page's output", async () => {
+    const storage = seeded({ 'en/about/index.html': '<a page named en/about>' })
+    const result = await removeItemFromTarget(storage, { kind: 'page', name: 'about', locale: 'en' }, staticCtx)
+    expect(result.ok).toBe(false)
+    expect(await storage.exists('en/about/index.html')).toBe(true)
+    expect(await storage.exists('pages/about/page.json')).toBe(true)
+  })
+
+  it("removes a translation's static output even when the site no longer lists its locale", async () => {
+    const storage = seeded({
+      'pages/about/page.de.json': '{}',
+      'pages/about/.cf120e4b.hash.de': '',
+      'about/index.html': '<about>',
+      'de/about/index.html': '<about de>',
+    })
+    expect((await removeItemFromTarget(storage, { kind: 'page', name: 'about' }, staticCtx)).ok).toBe(true)
+    expect(await storage.exists('de/about/index.html')).toBe(false)
+  })
+
   it('reports a failing storage delete', async () => {
     const storage = seeded()
     const failing = { ...storage, rm: async () => Promise.reject(new Error('denied')) }
