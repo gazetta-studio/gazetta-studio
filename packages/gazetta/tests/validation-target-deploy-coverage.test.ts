@@ -79,6 +79,17 @@ describe('target-deploy-coverage', () => {
     expect(issues).toEqual([])
   })
 
+  it('skips targets whose omitted environment defaults to local', async () => {
+    const site = makeSite({
+      local: {
+        type: 'dynamic',
+        storage: memoryStorage() as unknown as StorageProvider,
+      },
+    })
+    const issues = await targetDeployCoverage.validate(cliInput(site))
+    expect(issues).toEqual([])
+  })
+
   it('skips when target has a deploy adapter configured', async () => {
     const site = makeSite({
       prod: {
