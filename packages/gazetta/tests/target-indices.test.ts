@@ -19,7 +19,10 @@ async function setup() {
   const site = await loadSite({ contentRoot: sourceRoot, templatesDir: starterTemplatesDir, manifest })
   const templateInfos = await scanTemplates(starterTemplatesDir, starterProjectRoot)
   const target = memoryStorage()
-  const run = (items: PublishItemRef[], opts: { site?: Site; force?: boolean } = {}) =>
+  const run = (
+    items: PublishItemRef[],
+    opts: { site?: Site; force?: boolean; onProgress?: Parameters<typeof publishRun>[0]['onProgress'] } = {},
+  ) =>
     publishRun({
       items,
       targets: ['t'],
@@ -31,6 +34,7 @@ async function setup() {
       publishAssetsBeforeItems: false,
       publishSiteManifestAfter: false,
       force: opts.force,
+      onProgress: opts.onProgress,
     })
   return { site, target, run }
 }
@@ -176,6 +180,26 @@ describe('target dependency indices', () => {
     expect(next.items[0]?.ok).toBe(true)
     expect(await record(target, 'fragment-deps', 'pages.home')).toEqual(['footer', 'header'])
     expect(await target.exists('.gazetta/fragment-deps/header/pages.home')).toBe(true)
+  })
+
+  it('a forced publish that stops partway leaves the pages it never reached without a hash sidecar', async () => {
+    const { target, run } = await setup()
+    const pages: PublishItemRef[] = [
+      { kind: 'page', name: 'home' },
+      { kind: 'page', name: 'about' },
+    ]
+    await run(pages)
+    expect((await listNames(target, 'pages/about')).filter(n => n.endsWith('.hash'))).toHaveLength(1)
+
+    const crash = run(pages, {
+      force: true,
+      onProgress: e => {
+        if (e.kind === 'item-done') throw new Error('crash')
+      },
+    })
+    await expect(crash).rejects.toThrow('crash')
+    expect(await record(target, 'fragment-deps', 'pages.about')).toBeNull()
+    expect((await listNames(target, 'pages/about')).filter(n => n.endsWith('.hash'))).toEqual([])
   })
 
   it('an archived page with aliasOf gets an alias-targets edge and record', async () => {
