@@ -22,7 +22,7 @@ Every `gazetta` command, its arguments and flags, and how the CLI picks a site a
 | `gazetta archive <list\|purge\|restore\|rename> ...` | Archive operations on pages and fragments |
 | `gazetta help` | Print the built-in help |
 
-Any other command prints "Unknown command" and the help, and exits 1.
+Any other command prints "Unknown command" and the help, and exits 1. The CLI looks for the site first, so where it finds none, or several, you get that error or question instead.
 
 ## Choosing the site and target
 
@@ -30,7 +30,7 @@ Arguments in square brackets are optional. The CLI fills them in:
 
 **Site.** A `[site]` argument can be a site directory (`sites/main`), a name under `sites/` (`main`), or a project root that contains `sites/main`. Without one, the CLI uses the current directory if it has a `site.config.ts` (or `.js`, `.mjs`); otherwise it looks in `sites/`. One site there is used as is; with several, you're asked to choose. With none, the command stops and suggests `gazetta init`.
 
-**Target.** For commands that take `[target] [site]`, the first argument is read as a site when it contains a `/` or is a directory with a site config; otherwise it's the target name. Without a target, a site with one target uses it, and a site with several asks you to choose. So name the target in scripts:
+**Target.** For `publish`, `serve`, `deploy`, `history` and `undo`, the first argument is read as a site when it contains a `/` or is a directory with a site config; otherwise it's the target name. The other commands take the target first and the site after it. Without a target, a site with one target uses it (`publish` then stops: it needs a second target to publish to), and a site with several asks you to choose. So name the target in scripts:
 
 ```bash
 npx gazetta publish staging
@@ -98,7 +98,7 @@ Checks every page and fragment for broken references (templates, fragments, asse
 | `--no-warn-as-error` | Don't fail the run on warnings |
 | `--verbose`, `-v` | Show each issue, not just a mark per item |
 
-Exit code: 1 when there are errors. With `--severity=warn` or `--severity=all`, warnings fail the run too unless `--no-warn-as-error` is set; with the default `--severity=error`, warnings are neither shown nor counted.
+Exit code: 1 when there are errors, or warnings unless `--no-warn-as-error` is set. `--severity` changes what's shown, not what fails: the default `--severity=error` hides warnings on pages and fragments but still counts them. Site config issues and the editor and field checks are shown whatever `--severity` is.
 
 ### `gazetta translate <item> --to <locale> [target]`
 
@@ -143,7 +143,7 @@ gazetta archive restore <name> [--kind=...] [target] [site]
 gazetta archive rename <oldname> <newname> [--kind=...] [--no-keep-alias] [--force] [target] [site]
 ```
 
-Lists, permanently deletes, restores and renames archived pages and fragments on an editable target, the same operations as the admin. `--kind` is only needed when a page and a fragment share the name. See [Soft delete](./soft-delete.md#cli).
+Lists, permanently deletes and restores archived pages and fragments, and renames a live one, on an editable target, the same operations as the admin. `rename` keeps a redirect from the old name; `--no-keep-alias` drops it, and `--keep-alias` restores the default after an earlier `--no-keep-alias`. `--kind` is only needed when a page and a fragment share the name. See [Soft delete](./soft-delete.md#cli).
 
 ## In CI
 
