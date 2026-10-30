@@ -30,7 +30,7 @@ Arguments in square brackets are optional. The CLI fills them in:
 
 **Site.** A `[site]` argument can be a site directory (`sites/main`), a name under `sites/` (`main`), or a project root that contains `sites/main`. Without one, the CLI uses the current directory if it has a `site.config.ts` (or `.js`, `.mjs`); otherwise it looks in `sites/`. One site there is used as is; with several, you're asked to choose. With none, the command stops and suggests `gazetta init`.
 
-**Target.** For `publish`, `serve`, `deploy`, `history` and `undo`, the first argument is read as a site when it contains a `/` or is a directory with a site config; otherwise it's the target name. The other commands take the target first and the site after it. Without a target, a site with one target uses it (`publish` then stops: it needs a second target to publish to), and a site with several asks you to choose. So name the target in scripts:
+**Target.** For `publish`, `serve`, `deploy`, `history` and `undo`, and for `rollback` after its revision, the target argument is read as a site when it contains a `/` or is a directory with a site config; otherwise it's the target name. The other commands take the target first and the site after it. Without a target, these six commands use a site's only target (`publish` then stops: it needs a second target to publish to), and on a site with several they ask you to choose. The other commands use the editing target (below). So name the target in scripts:
 
 ```bash
 npx gazetta publish staging
