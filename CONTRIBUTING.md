@@ -88,10 +88,11 @@ different decision, ask on the issue first.
 - After changing types, run `npm run build`: `tsc --noEmit` misses some errors.
 - For UI changes, give new interactive elements a `data-testid`, and check both light
   and dark mode.
-- If you changed anything in `docs/`, run `npm run docs:site` and commit what it
-  generates: the gazetta.studio docs pages are built from `docs/`, and CI fails when
-  they're out of date. A new docs page also needs an entry in
-  `sites/gazetta.studio/scripts/docs-nav.json` and in AGENTS.md's "Public docs" list.
+- If you changed anything in `docs/` or in `sites/gazetta.studio/scripts/docs-nav.json`,
+  run `npm run docs:site` and commit what it generates: the gazetta.studio docs pages
+  are built from both, and CI fails when they're out of date. A new public docs page
+  also needs an entry in `docs-nav.json`'s groups and in AGENTS.md's "Public docs" list;
+  a new page that isn't published goes in `docs-nav.json`'s `internal` list instead.
 - Leave `.github/workflows/` alone unless the issue asks for a workflow change. If you
   think one is needed, say so on the issue and the maintainer will make it.
 - For a feature cut (an issue whose body starts with `**Feature**:`), put the issue
