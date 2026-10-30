@@ -88,6 +88,17 @@ different decision, ask on the issue first.
 - After changing types, run `npm run build`: `tsc --noEmit` misses some errors.
 - For UI changes, give new interactive elements a `data-testid`, and check both light
   and dark mode.
+- If you changed anything in `docs/`, run `npm run docs:site` and commit what it
+  generates: the gazetta.studio docs pages are built from `docs/`, and CI fails when
+  they're out of date. A new docs page also needs an entry in
+  `sites/gazetta.studio/scripts/docs-nav.json` and in AGENTS.md's "Public docs" list.
+- Leave `.github/workflows/` alone unless the issue asks for a workflow change. If you
+  think one is needed, say so on the issue and the maintainer will make it.
+- For a feature cut (an issue whose body starts with `**Feature**:`), put the issue
+  number in the PR title, for example `Rewrite getting-started as the Stage 1 tutorial (#1543)`. The bot
+  that files the next cut counts a cut as done only when the merged PR's title, branch
+  name (`feat/cut-1543`) or bot marker names it; `Fixes #1543` in the description isn't
+  enough.
 
 ### After you open a PR
 
