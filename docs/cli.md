@@ -95,10 +95,10 @@ Checks every page and fragment for broken references (templates, fragments, asse
 |---|---|
 | `--severity=<level>` | What to show and count: `error` (default), `warn` (errors and warnings) or `all` (also info). Write it with `=`: `--severity warn` would be read as a site named `warn` |
 | `--include-quality` | Also render each page and run the accessibility, HTML validity and broken-link checks. Slower |
-| `--no-warn-as-error` | Don't fail the run on warnings |
+| `--no-warn-as-error` | Don't fail the run on warnings (with `--severity=warn` or `all`) |
 | `--verbose`, `-v` | Show each issue, not just a mark per item |
 
-Exit code: 1 when there are errors, or warnings unless `--no-warn-as-error` is set. `--severity` changes what's shown, not what fails: the default `--severity=error` hides warnings on pages and fragments but still counts them. Site config issues and the editor and field checks are shown whatever `--severity` is.
+Exit code: 1 when there are errors. With `--severity=warn` or `all`, warnings fail the run too, unless `--no-warn-as-error` is set; with the default `--severity=error`, a run with only warnings reports "All good." and exits 0. Site config issues and the editor and field checks are shown whatever `--severity` is.
 
 ### `gazetta translate <item> --to <locale> [target]`
 
