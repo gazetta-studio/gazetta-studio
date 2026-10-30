@@ -65,6 +65,7 @@ import { publishPage, resolvePageRenderMode } from './pages/publish.js'
 import type { PublishItemKind, PublishItemResult, PublishRenderMode, PublishTarget } from './publish-item.js'
 import { publishSiteManifest, wipeDepIndices } from './publish-rendered.js'
 import { removeHashSidecar } from './sidecars.js'
+import { mapLimit } from './concurrency.js'
 import type { Site } from './site-loader.js'
 import { templateHashesFrom, type TemplateInfo } from './templates-scan.js'
 import { getType } from './types.js'
@@ -450,6 +451,20 @@ export async function publishRun(input: PublishRunInput): Promise<PublishRunResu
         // eslint-disable-next-line no-console
         console.warn(`publishRun: dependency index wipe failed for ${targetName}: ${err}`)
       }
+      // The wipe dropped every item's edges. An item that fails, or that a
+      // crash keeps the run from reaching, would keep its old hash sidecar
+      // and be skipped as unchanged by the next publish; clearing the
+      // sidecars now makes that publish redo it. Items that succeed write a
+      // new one.
+      await mapLimit(input.items, async ref => {
+        const dir = `${ref.kind === 'page' ? 'pages' : 'fragments'}/${ref.name}`
+        try {
+          await removeHashSidecar(targetStorage, dir, ref.locale)
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn(`publishRun: couldn't clear the hash sidecar of ${dir} on ${targetName}: ${err}`)
+        }
+      })
     }
 
     for (const ref of input.items) {
@@ -514,17 +529,6 @@ export async function publishRun(input: PublishRunInput): Promise<PublishRunResu
       if (result.ok) {
         targetFilesWritten += result.files
         targetFilesRemoved += result.removed
-      } else if (input.force) {
-        // The wipe above dropped this item's edges, and it failed before
-        // writing new ones. Its old hash sidecar would make the next publish
-        // skip it as unchanged; removing it makes that publish redo the item.
-        const dir = `${ref.kind === 'page' ? 'pages' : 'fragments'}/${ref.name}`
-        try {
-          await removeHashSidecar(targetStorage, dir, ref.locale)
-        } catch (err) {
-          // eslint-disable-next-line no-console
-          console.warn(`publishRun: couldn't clear the hash sidecar of ${dir} on ${targetName}: ${err}`)
-        }
       }
     }
 
