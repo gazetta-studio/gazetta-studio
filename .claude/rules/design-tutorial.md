@@ -270,7 +270,7 @@ Decided: maintainer, 2026-10-30 (#1585)
 
 ### Q23: No incentive
 
-Testers volunteer; nothing is paid or donated.
+Testers volunteer; nothing is paid or donated. Free, but harder to recruit strangers and more no-shows.
 
 Decided: maintainer, 2026-10-30 (#1585)
 
