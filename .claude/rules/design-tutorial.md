@@ -217,7 +217,7 @@ The protocol round Q12 asked for, run on 2026-10-30. Q1 already settled whether 
 
 Testers use their usual tools, AI coding assistants included. Each session records which assistant was used, and AI users are reported separately: if only AI users finish a step, that's a problem to fix. "Without help" in the gate means without the maintainer's help, not without the tester's own tools.
 
-Decided: maintainer, 2026-10-30 (#PR)
+Decided: maintainer, 2026-10-30 (#1585)
 
 | Rejected | Shown to the maintainer as |
 |---|---|
@@ -228,7 +228,7 @@ Decided: maintainer, 2026-10-30 (#PR)
 
 A round of at least 3 new testers passes when every tester gets through install, editing with an image, and publishing to staging without the maintainer's help, and no problem rated major or catastrophe is left open. In round 2, undo counts too (Q1).
 
-Decided: maintainer, 2026-10-30 (#PR)
+Decided: maintainer, 2026-10-30 (#1585)
 
 | Rejected | Shown to the maintainer as |
 |---|---|
@@ -239,7 +239,7 @@ Decided: maintainer, 2026-10-30 (#PR)
 
 The maintainer watches over a screen share while the tester works on their own computer, OS, shell and Node, thinking aloud. About 60 minutes, plus a 15-minute tech check the day before. The maintainer only prompts neutrally; any hint is logged as an assist.
 
-Decided: maintainer, 2026-10-30 (#PR)
+Decided: maintainer, 2026-10-30 (#1585)
 
 | Rejected | Shown to the maintainer as |
 |---|---|
@@ -250,7 +250,7 @@ Decided: maintainer, 2026-10-30 (#PR)
 
 The tester's browser opens on the gazetta.studio home page, with an empty folder in their terminal. The tasks state goals, not commands, so the site, README and docs are tested too, as a real newcomer meets them.
 
-Decided: maintainer, 2026-10-30 (#PR)
+Decided: maintainer, 2026-10-30 (#1585)
 
 | Rejected | Shown to the maintainer as |
 |---|---|
@@ -261,7 +261,7 @@ Decided: maintainer, 2026-10-30 (#PR)
 
 Testers build websites, use a terminal and npm, and have never seen Gazetta. They're found through friends of friends, a local meetup or a developer community the maintainer belongs to, and a 5-question screener filters them. Excluded: the October contributors, close friends, colleagues, and people who build CMSes. No public post, since Stage 1 opens no channels. One stand-by per round.
 
-Decided: maintainer, 2026-10-30 (#PR)
+Decided: maintainer, 2026-10-30 (#1585)
 
 | Rejected | Shown to the maintainer as |
 |---|---|
@@ -272,7 +272,7 @@ Decided: maintainer, 2026-10-30 (#PR)
 
 Testers volunteer; nothing is paid or donated.
 
-Decided: maintainer, 2026-10-30 (#PR)
+Decided: maintainer, 2026-10-30 (#1585)
 
 | Rejected | Shown to the maintainer as |
 |---|---|
@@ -283,7 +283,7 @@ Decided: maintainer, 2026-10-30 (#PR)
 
 The tester agrees before recording, out loud or in writing, after hearing who watches, what is recorded, where it's kept, and that they can stop and have it deleted. The maintainer keeps a record of each consent; consent is the legal basis. Recordings and notes stay on the maintainer's machine, never on GitHub, and are deleted once the round's issues are filed, at the latest 30 days after the session. Claude may help analyse anonymised notes, and the consent says so.
 
-Decided: maintainer, 2026-10-30 (#PR)
+Decided: maintainer, 2026-10-30 (#1585)
 
 | Rejected | Shown to the maintainer as |
 |---|---|
@@ -294,7 +294,7 @@ Decided: maintainer, 2026-10-30 (#PR)
 
 One GitHub issue per problem rated minor or worse, quoting what happened without names. One findings note per round in `docs/audits/`, with problems, counts such as "2 of 3", ratings and what changed. Testers appear as P1, P2, with no names, employers or screenshots.
 
-Decided: maintainer, 2026-10-30 (#PR)
+Decided: maintainer, 2026-10-30 (#1585)
 
 | Rejected | Shown to the maintainer as |
 |---|---|
