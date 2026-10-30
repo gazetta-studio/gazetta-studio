@@ -53,6 +53,7 @@
 import { publishAssets } from './assets/publish.js'
 import { publishItems } from './publish.js'
 import type { Principal } from './auth/types.js'
+import { mapLimit } from './concurrency.js'
 import { createContentRoot, type ContentRoot } from './content-root.js'
 import { publishFragment, resolveFragmentRenderMode } from './fragments/publish.js'
 import { fragmentHashLookup } from './fragment-hashes.js'
@@ -446,7 +447,7 @@ export async function publishRun(input: PublishRunInput): Promise<PublishRunResu
       continue
     }
 
-    for (const ref of input.items) {
+    const publishOne = async (ref: PublishItemRef): Promise<PublishItemResult> => {
       // Compute per-item hash from caller-supplied map OR templateInfos.
       let manifestHash = input.itemHashes?.get(itemKey(ref))
       if (!manifestHash && input.templateInfos) {
@@ -501,10 +502,27 @@ export async function publishRun(input: PublishRunInput): Promise<PublishRunResu
               target: itemTarget,
             })
 
+      input.onProgress?.({ kind: 'item-done', result, target: targetName })
+      return result
+    }
+
+    // Up to DEFAULT_CONCURRENCY items at once. Items sharing a directory
+    // (locale variants) run one after another: each lists and cleans up
+    // the directory's hashed files.
+    const groups = new Map<string, number[]>()
+    input.items.forEach((ref, i) => {
+      const dir = `${ref.kind}/${ref.name}`
+      const group = groups.get(dir)
+      if (group) group.push(i)
+      else groups.set(dir, [i])
+    })
+    const itemResults = new Array<PublishItemResult>(input.items.length)
+    await mapLimit([...groups.values()], async group => {
+      for (const i of group) itemResults[i] = await publishOne(input.items[i]!)
+    })
+    for (const result of itemResults) {
       allItems.push(result)
       targetItemResults.push(result)
-      input.onProgress?.({ kind: 'item-done', result, target: targetName })
-
       if (result.ok) {
         targetFilesWritten += result.files
         targetFilesRemoved += result.removed

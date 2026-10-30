@@ -132,9 +132,9 @@ describe('history fault injection — mid-blob-write failure', () => {
 
     // Index was never updated — listRevisions sees nothing.
     expect(await history.listRevisions()).toEqual([])
-    // Orphan blobs may be present (2 that made it before the fault) —
-    // that's explicitly allowed by the design (lazy GC).
-    expect(blobCount(storage)).toBeLessThanOrEqual(2)
+    // Orphan blobs may be present (blobs are written concurrently, so every
+    // blob but the failed one can land) — allowed by the design (lazy GC).
+    expect(blobCount(storage)).toBeLessThanOrEqual(3)
     // No manifest was written (blobs fail before manifest).
     expect(manifestCount(storage)).toBe(0)
   })

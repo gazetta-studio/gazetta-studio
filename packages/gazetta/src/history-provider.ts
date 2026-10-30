@@ -24,6 +24,7 @@
  */
 
 import { createHash, randomBytes } from 'node:crypto'
+import { mapLimit } from './concurrency.js'
 import { rmIgnoreMissing } from './providers/_rm-ignore-missing.js'
 import type { StorageProvider } from './types.js'
 import type { BlobContent, HistoryProvider, Revision, RevisionInput, RevisionManifest } from './history.js'
@@ -281,9 +282,10 @@ export function createHistoryProvider(opts: CreateHistoryProviderOptions): Histo
     const snapshot: Record<string, string> = {}
     // Deterministic order so rev manifests diff cleanly on inspection.
     const sortedEntries = [...input.items.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-    for (const [path, content] of sortedEntries) {
-      snapshot[path] = await writeBlob(content)
-    }
+    const hashes = await mapLimit(sortedEntries, ([, content]) => writeBlob(content))
+    sortedEntries.forEach(([path], i) => {
+      snapshot[path] = hashes[i]!
+    })
 
     // Allocate the id against a FRESH listing, then write the manifest
     // once. Ids carry a random suffix (see formatId), so two writers that

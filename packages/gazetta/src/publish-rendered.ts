@@ -2,8 +2,9 @@ import type { StorageProvider, PurgeStrategy } from './types.js'
 import type { Site } from './site-loader.js'
 import { allFragmentEntries, allPageEntries, loadSite } from './site-loader.js'
 import { createContentRoot, type ContentRoot } from './content-root.js'
-import type { DepRelation } from './dep-sidecars.js'
-import { rebuildItemDeps } from './dep-sidecars.js'
+import type { DepRelation, ItemRef } from './dep-sidecars.js'
+import { applyDepDiff } from './dep-sidecars.js'
+import { mapLimit } from './concurrency.js'
 import { stateFolderPath } from './state-folders.js'
 import { ASSET_REFS } from './assets/asset-deps.js'
 import { FRAGMENT_DEPS } from './fragment-deps.js'
@@ -57,16 +58,18 @@ export async function rebuildDepIndex(
     // Missing dir = nothing to wipe; fine.
   })
 
-  const writes: Promise<void>[] = []
+  // One write per edge, at most DEFAULT_CONCURRENCY at once.
+  const edges: { item: ItemRef; target: string }[] = []
+  const none = new Set<string>()
   for (const { name, page, locale } of allPageEntries(sourceSite)) {
-    const item = locale ? { source: 'page' as const, name, locale } : { source: 'page' as const, name }
-    writes.push(rebuildItemDeps(rel, destRoot, item, null, page))
+    const item: ItemRef = locale ? { source: 'page', name, locale } : { source: 'page', name }
+    for (const target of rel.extract(page)) edges.push({ item, target })
   }
   for (const { name, fragment, locale } of allFragmentEntries(sourceSite)) {
-    const item = locale ? { source: 'fragment' as const, name, locale } : { source: 'fragment' as const, name }
-    writes.push(rebuildItemDeps(rel, destRoot, item, null, fragment))
+    const item: ItemRef = locale ? { source: 'fragment', name, locale } : { source: 'fragment', name }
+    for (const target of rel.extract(fragment)) edges.push({ item, target })
   }
-  await Promise.all(writes)
+  await mapLimit(edges, ({ item, target }) => applyDepDiff(rel, destRoot, item, none, new Set([target])))
 }
 
 /**
@@ -96,10 +99,9 @@ export async function publishDepIndices(
   preloadedSite?: Site,
 ): Promise<void> {
   const site = preloadedSite ?? (await loadSite({ contentRoot: sourceRoot, manifest: { name: '(publish)' } }))
-  await Promise.all([
-    rebuildDepIndex(ASSET_REFS, site, targetStorage, ''),
-    rebuildDepIndex(FRAGMENT_DEPS, site, targetStorage, ''),
-  ])
+  // One relation at a time, so the per-relation write limit holds overall.
+  await rebuildDepIndex(ASSET_REFS, site, targetStorage, '')
+  await rebuildDepIndex(FRAGMENT_DEPS, site, targetStorage, '')
 }
 
 /** Purge via Cloudflare zone cache API */

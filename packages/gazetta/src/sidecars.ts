@@ -120,7 +120,9 @@ async function doWriteSidecars(
     /* dir doesn't exist yet — mkdir below */
   }
   await storage.mkdir(dir)
-  await Promise.all([...want].map(name => storage.writeFile(`${dir}/${name}`, '')))
+  // One at a time: publish runs up to DEFAULT_CONCURRENCY items at once,
+  // and each item's writes count toward that limit.
+  for (const name of want) await storage.writeFile(`${dir}/${name}`, '')
 }
 
 /**
