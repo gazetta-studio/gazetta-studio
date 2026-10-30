@@ -129,7 +129,7 @@ Without `CLOUDFLARE_API_TOKEN`, the site loads but `gazetta deploy production` s
 Two validators surface deploy-related issues at `gazetta validate`:
 
 - **`deploy-target-type-supported`** (error severity) — flags target.type incompatible with adapter.supports. E.g., `type: 'dynamic'` paired with a `['static']`-only adapter.
-- **`target-deploy-coverage`** (info severity) — reminds operators that non-local runtime-constrained targets without a `deploy:` field rely on container-host deploy tooling (tracked in [#213](https://github.com/gazetta-studio/gazetta-studio/issues/213)).
+- **`target-deploy-coverage`** (info severity) — reminds operators that non-local runtime-constrained targets without a `deploy:` field rely on container-host deploy tooling (tracked in [#213](https://github.com/gazetta-studio/gazetta-studio/issues/213)). Targets with `environment: 'local'` or no `environment` setting are skipped, because the default environment is local.
 
 ## Error messages
 

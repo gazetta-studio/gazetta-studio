@@ -41,7 +41,7 @@
  *   - OCP: future target.type values flow through unchanged.
  *   - DIP: depends on `TargetConfig` shape, not on provider concretions.
  */
-import type { TargetConfig } from '../../types.js'
+import { getEnvironment, type TargetConfig } from '../../types.js'
 import type { Issue, Validator, ValidatorInput } from '../types.js'
 
 export const targetDeployCoverage: Validator = {
@@ -67,7 +67,7 @@ export const targetDeployCoverage: Validator = {
       // Targets with a deploy adapter already declare their platform.
       if (target.deploy) continue
       // Local targets are dev / `gazetta serve` self-hosted — no platform deploy needed.
-      if (target.environment === 'local') continue
+      if (getEnvironment(target) === 'local') continue
 
       issues.push({
         validator: 'target-deploy-coverage',
