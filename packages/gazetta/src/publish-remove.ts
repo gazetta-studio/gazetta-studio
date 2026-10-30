@@ -3,7 +3,8 @@
  * the item's own files only - its manifest, its rendered output, its
  * hashed css/js and its per-item sidecars - so the item answers 404.
  * A nested item's folder stays (removing `about` leaves `pages/about/team/`),
- * and no archive marker is ever written.
+ * and no archive marker is ever written. Its dependency edges and forward
+ * records go too (sidecars.md, "Target indices describe the target").
  */
 
 import { isValidLocale, localeFilename, normalizeLocale } from './locale.js'
@@ -11,6 +12,9 @@ import { parsePubSidecarLocale, parsePubSidecarName, parseSidecarLocale, parseSi
 import { staticPageIndexPath } from './publish-item.js'
 import { deriveRoute } from './runtime/derive-route.js'
 import type { StorageProvider, TargetType } from './types.js'
+import { createContentRoot } from './content-root.js'
+import { DEP_RELATIONS } from './dep-relations.js'
+import { removeItemDeps } from './dep-sidecars.js'
 
 export interface PublishRemovalRef {
   readonly kind: 'page' | 'fragment'
@@ -39,11 +43,21 @@ export type RemovalResult =
 /** Why a ref can't be removed safely, or null when it can. No path is built from a rejected ref. */
 function invalidRemovalReason(ref: PublishRemovalRef): string | null {
   if (ref.kind !== 'page' && ref.kind !== 'fragment') return `unknown kind "${String(ref.kind)}"`
-  if (!ref.name || ref.name.startsWith('/') || ref.name.split('/').some(s => s === '..' || s === '.' || s === '')) {
+  if (
+    !ref.name ||
+    ref.name.startsWith('/') ||
+    ref.name.includes('\\') ||
+    ref.name.split('/').some(s => s === '..' || s === '.' || s === '')
+  ) {
     return `invalid name "${ref.name}"`
   }
   if (ref.locale !== undefined && !isValidLocale(ref.locale)) return `invalid locale "${ref.locale}"`
-  if (ref.route !== undefined && ref.route.split('/').some(s => s === '..')) return `invalid route "${ref.route}"`
+  if (
+    ref.route !== undefined &&
+    (!ref.route.startsWith('/') || ref.route.includes('\\') || ref.route.split('/').some(s => s === '..' || s === '.'))
+  ) {
+    return `invalid route "${ref.route}"`
+  }
   return null
 }
 
@@ -67,6 +81,18 @@ export async function removeItemFromTarget(
   const invalid = invalidRemovalReason(ref)
   if (invalid) return { ok: false, reason: invalid }
 
+  try {
+    return await removeValidItem(storage, ref, ctx)
+  } catch (err) {
+    return { ok: false, reason: `storage delete failed: ${err instanceof Error ? err.message : String(err)}` }
+  }
+}
+
+async function removeValidItem(
+  storage: StorageProvider,
+  ref: PublishRemovalRef,
+  ctx: RemovalContext,
+): Promise<RemovalResult> {
   const dir = itemFolder(ref)
   // Same mapping as publishRun: every target but a dynamic one renders static pages.
   const staticPage = ref.kind === 'page' && ctx.targetType !== 'dynamic'
@@ -97,14 +123,22 @@ export async function removeItemFromTarget(
   }
 
   let filesRemoved = 0
-  try {
-    for (const path of new Set(paths)) {
-      if (!(await storage.exists(path))) continue
-      await storage.rm(path)
-      filesRemoved++
+  for (const path of new Set(paths)) {
+    if (!(await storage.exists(path))) continue
+    await storage.rm(path)
+    filesRemoved++
+  }
+
+  // The removed versions' edges and forward records, in every relation.
+  const root = createContentRoot(storage)
+  const source = ref.kind
+  const versions: (string | undefined)[] = ref.locale
+    ? [normalizeLocale(ref.locale)]
+    : [undefined, ...ctx.locales.filter(isValidLocale).map(normalizeLocale)]
+  for (const rel of DEP_RELATIONS) {
+    for (const locale of versions) {
+      await removeItemDeps(rel, root, locale ? { source, name: ref.name, locale } : { source, name: ref.name })
     }
-  } catch (err) {
-    return { ok: false, reason: `storage delete failed: ${err instanceof Error ? err.message : String(err)}` }
   }
   return { ok: true, filesRemoved }
 }
@@ -113,13 +147,14 @@ function itemFolder(ref: PublishRemovalRef): string {
   return `${ref.kind === 'page' ? 'pages' : 'fragments'}/${ref.name}`
 }
 
-/** Files directly in `dir`; subdirectories are nested items and stay. */
+/**
+ * Files directly in `dir`; subdirectories are nested items and stay.
+ * Only a missing folder counts as empty: a listing that fails throws, so a
+ * removal never reports success without having seen the item's files.
+ */
 async function listFiles(storage: StorageProvider, dir: string): Promise<string[]> {
-  try {
-    return (await storage.readDir(dir)).filter(e => !e.isDirectory).map(e => e.name)
-  } catch {
-    return []
-  }
+  if (!(await storage.exists(dir))) return []
+  return (await storage.readDir(dir)).filter(e => !e.isDirectory).map(e => e.name)
 }
 
 function isManifestName(name: string, base: string): boolean {
