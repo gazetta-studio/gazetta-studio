@@ -162,6 +162,22 @@ describe('CreateRedirectDialog — capability-gap badges (Cut 5)', () => {
     wrapper.unmount()
   })
 
+  it('links the capability-gap note to the runtime capabilities doc on GitHub', async () => {
+    seedSite()
+    vi.spyOn(api, 'getTargets').mockResolvedValue([plainStaticTarget('production-static')])
+
+    const wrapper = mountDialog(makeRedirectsApi())
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    const link = document.querySelector('[data-testid="redirect-capability-gaps"] a') as HTMLAnchorElement
+    expect(link.getAttribute('href')).toBe(
+      'https://github.com/gazetta-studio/gazetta-studio/blob/main/docs/runtime-capabilities.md',
+    )
+
+    wrapper.unmount()
+  })
+
   it('worker-served target only → no capability-gap warning rendered (absence is the state)', async () => {
     seedSite()
     vi.spyOn(api, 'getTargets').mockResolvedValue([workerServedTarget('local', 'local')])

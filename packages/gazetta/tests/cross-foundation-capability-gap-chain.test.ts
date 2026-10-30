@@ -132,7 +132,8 @@ describe('Cross-foundation gap #3 — capability-gap surfaces fire at all four p
       expect(msg).toContain('plain-static')
       expect(msg).toContain('redirects')
       expect(msg).toContain('gone-status')
-      expect(msg).toContain('runtime-capabilities')
+      expect(msg).toContain('https://github.com/gazetta-studio/gazetta-studio/blob/main/docs/runtime-capabilities.md')
+      expect(msg).not.toContain('gazetta.studio/docs/runtime-capabilities')
     } finally {
       warnSpy.mockRestore()
     }
