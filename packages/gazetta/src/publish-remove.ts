@@ -80,6 +80,11 @@ export async function removeItemFromTarget(
 ): Promise<RemovalResult> {
   const invalid = invalidRemovalReason(ref)
   if (invalid) return { ok: false, reason: invalid }
+  // The default version is `page.json` and unprefixed output: naming its
+  // locale would delete `<default>/<route>`, another page's folder.
+  if (ref.locale && ctx.defaultLocale && normalizeLocale(ref.locale) === normalizeLocale(ctx.defaultLocale)) {
+    return { ok: false, reason: `"${ref.locale}" is the default locale: remove the item without a locale` }
+  }
 
   try {
     return await removeValidItem(storage, ref, ctx)
@@ -98,6 +103,7 @@ async function removeValidItem(
   const staticPage = ref.kind === 'page' && ctx.targetType !== 'dynamic'
   const route = ref.route ?? deriveRoute(ref.name)
   const paths: string[] = []
+  let itemLocales: string[] = []
 
   if (ref.locale) {
     const locale = normalizeLocale(ref.locale)
@@ -110,10 +116,12 @@ async function removeValidItem(
       if (hashScope === locale || pubScope === locale) paths.push(`${dir}/${name}`)
     }
   } else {
-    for (const name of await listFiles(storage, dir)) paths.push(`${dir}/${name}`)
+    const files = await listFiles(storage, dir)
+    itemLocales = publishedLocales(files, ref, ctx)
+    for (const name of files) paths.push(`${dir}/${name}`)
     if (staticPage) {
       paths.push(staticPageIndexPath(route))
-      for (const loc of ctx.locales) {
+      for (const loc of itemLocales) {
         // The default locale's output is unprefixed; `<default>/<route>` would
         // name another page's folder.
         if (loc === ctx.defaultLocale || !isValidLocale(loc)) continue
@@ -132,15 +140,39 @@ async function removeValidItem(
   // The removed versions' edges and forward records, in every relation.
   const root = createContentRoot(storage)
   const source = ref.kind
-  const versions: (string | undefined)[] = ref.locale
-    ? [normalizeLocale(ref.locale)]
-    : [undefined, ...ctx.locales.filter(isValidLocale).map(normalizeLocale)]
+  const versions: (string | undefined)[] = ref.locale ? [normalizeLocale(ref.locale)] : [undefined, ...itemLocales]
   for (const rel of DEP_RELATIONS) {
     for (const locale of versions) {
       await removeItemDeps(rel, root, locale ? { source, name: ref.name, locale } : { source, name: ref.name })
     }
   }
   return { ok: true, filesRemoved }
+}
+
+/**
+ * The locales an item may have output in: the site's supported locales,
+ * plus any its folder still names (a translation manifest or a sidecar of
+ * that locale), so a locale the site has since dropped is removed too.
+ */
+function publishedLocales(files: readonly string[], ref: PublishRemovalRef, ctx: RemovalContext): string[] {
+  const base = ref.kind === 'page' ? 'page' : 'fragment'
+  const found = new Set<string>()
+  for (const loc of ctx.locales) found.add(loc)
+  for (const name of files) {
+    const manifest = new RegExp(`^${base}\\.([^.]+)\\.json$`).exec(name)?.[1]
+    const scope =
+      manifest ??
+      (parseSidecarName(name)
+        ? parseSidecarLocale(name)
+        : parsePubSidecarName(name)
+          ? parsePubSidecarLocale(name)
+          : null)
+    if (scope) found.add(scope)
+  }
+  return [...found]
+    .filter(isValidLocale)
+    .map(normalizeLocale)
+    .filter(loc => loc !== ctx.defaultLocale)
 }
 
 function itemFolder(ref: PublishRemovalRef): string {

@@ -492,5 +492,27 @@ describe('publishToTarget (#1426)', () => {
       expect(result.removalFailures).toHaveLength(1)
       expect(events.filter(e => e.startsWith('rm:pages/'))).toEqual([])
     })
+
+    it('refuse to remove an item this run also publishes', async () => {
+      const result = await publishToTarget({
+        targetName: 'staging',
+        targetStorage,
+        targetConfig: stagingConfig(),
+        sourceRoot,
+        sourceName: 'local',
+        site,
+        siteManifest: manifest,
+        items: [`pages/${pageName()}`],
+        itemRefs: [{ kind: 'page', name: pageName() }],
+        templateInfos,
+        purgeScope: 'all',
+        removals: [{ kind: 'page', name: pageName() }],
+      })
+      expect(result.removed).toEqual([])
+      expect(result.removalFailures).toEqual([
+        { ref: { kind: 'page', name: pageName() }, reason: 'also published in this run' },
+      ])
+      expect(await innerTarget.exists(`pages/${pageName()}/page.json`)).toBe(true)
+    })
   })
 })
