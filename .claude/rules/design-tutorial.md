@@ -305,7 +305,7 @@ Decided: maintainer, 2026-10-30 (#1585)
 
 A problem that is a security vulnerability is reported privately, as `SECURITY.md` describes, not as a public issue, and the findings note mentions it only once it's fixed and disclosed. Everything else stays as Q25 says.
 
-Decided: maintainer, 2026-10-30 (#PR)
+Decided: maintainer, 2026-10-30 (#1587)
 
 | Rejected | Shown to the maintainer as |
 |---|---|
@@ -315,7 +315,7 @@ Decided: maintainer, 2026-10-30 (#PR)
 
 The consent (Q24) also says anonymised findings and short quotes are published. Before publishing, anything that could identify a tester (their project, company names in paths, usernames in terminal output, unusual details) is removed or reworded, not only names, employers and screenshots.
 
-Decided: maintainer, 2026-10-30 (#PR)
+Decided: maintainer, 2026-10-30 (#1587)
 
 | Rejected | Shown to the maintainer as |
 |---|---|
@@ -326,7 +326,7 @@ Decided: maintainer, 2026-10-30 (#PR)
 
 0 not a problem, 1 cosmetic, 2 minor, 3 major (important to fix, high priority), 4 catastrophe (must be fixed before release). Each problem is rated on how often it happens, how badly it blocks the tester, and whether they can get past it. The maintainer rates; Claude sessions may rate the anonymised notes independently as a cross-check. Q19's gate and Q25's issues use these levels.
 
-Decided: maintainer, 2026-10-30 (#PR)
+Decided: maintainer, 2026-10-30 (#1587)
 
 | Rejected | Shown to the maintainer as |
 |---|---|
