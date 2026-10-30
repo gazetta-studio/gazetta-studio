@@ -52,9 +52,9 @@ describe('target-deploy-coverage', () => {
     expect(targetDeployCoverage.defaultSeverity('cli')).toBe('info')
   })
 
-  it('emits info when non-local dynamic target has no deploy', async () => {
+  it.each(['production-fly', 'local'])('emits info when production target %s has no deploy', async name => {
     const site = makeSite({
-      'production-fly': {
+      [name]: {
         type: 'dynamic',
         environment: 'production',
         storage: memoryStorage() as unknown as StorageProvider,
@@ -63,7 +63,7 @@ describe('target-deploy-coverage', () => {
     const issues = await targetDeployCoverage.validate(cliInput(site))
     expect(issues).toHaveLength(1)
     expect(issues[0].severity).toBe('info')
-    expect(issues[0].message).toContain('production-fly')
+    expect(issues[0].message).toContain(name)
     expect(issues[0].message).toContain('container-deployment.md')
   })
 
@@ -81,7 +81,7 @@ describe('target-deploy-coverage', () => {
 
   it('skips targets whose omitted environment defaults to local', async () => {
     const site = makeSite({
-      local: {
+      preview: {
         type: 'dynamic',
         storage: memoryStorage() as unknown as StorageProvider,
       },
