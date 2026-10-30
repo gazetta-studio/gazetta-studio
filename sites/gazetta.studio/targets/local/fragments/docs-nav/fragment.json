@@ -81,6 +81,10 @@
         "title": "Admin and operations",
         "items": [
           {
+            "label": "Command line",
+            "href": "/docs/cli"
+          },
+          {
             "label": "Auth",
             "href": "/docs/auth"
           },

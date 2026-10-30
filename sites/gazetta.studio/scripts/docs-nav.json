@@ -101,6 +101,11 @@
       "title": "Admin and operations",
       "docs": [
         {
+          "file": "cli.md",
+          "label": "Command line",
+          "description": "Every gazetta command and flag, site and target auto-detection, ports, CI behaviour and exit codes."
+        },
+        {
           "file": "auth.md",
           "label": "Auth",
           "description": "Upstream identity plus role-based capability gates for the admin."
