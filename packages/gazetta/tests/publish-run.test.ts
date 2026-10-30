@@ -714,3 +714,72 @@ describe('publishRun — history recording (#1079)', () => {
     expect(Object.keys(publishRev.snapshot)).toContain(`pages/${pageName}/page.json`)
   })
 })
+
+// ─── Bounded write concurrency (#75) ───────────────────────────────
+
+describe('publishRun — bounded write concurrency (#75)', () => {
+  /** Wraps a storage so every write takes a tick, and records in-flight peak + finish order. */
+  function countingStorage(inner: MemoryStorage) {
+    let inFlight = 0
+    let peak = 0
+    const finished: string[] = []
+    const track = async (path: string, write: () => Promise<void>) => {
+      inFlight++
+      peak = Math.max(peak, inFlight)
+      try {
+        await new Promise(r => setTimeout(r, 1))
+        await write()
+        finished.push(path)
+      } finally {
+        inFlight--
+      }
+    }
+    const storage: MemoryStorage = {
+      ...inner,
+      writeFile: (path, content) => track(path, () => inner.writeFile(path, content)),
+      writeBytes: (path, bytes) => track(path, () => inner.writeBytes(path, bytes)),
+    }
+    return { storage, peak: () => peak, finished }
+  }
+
+  it('publishing 100 items keeps at most 20 writes in flight; each .hash lands after its HTML', async () => {
+    const base = await loadStarterSite()
+    const manifest = await starterManifest()
+    const template = base.pages.get('home') ?? [...base.pages.values()][0]!
+    const pages = new Map(base.pages)
+    const sourceStorage = memoryStorage()
+    const items: PublishItemRef[] = []
+    const itemHashes = new Map<string, string>()
+    for (let i = 0; i < 100; i++) {
+      const name = `bulk-${i}`
+      const page = { ...template, route: `/bulk-${i}` }
+      pages.set(name, page)
+      sourceStorage.seed({ [`pages/${name}/page.json`]: JSON.stringify(page) })
+      items.push({ kind: 'page', name })
+      itemHashes.set(`pages/${name}`, (0xa0000000 + i).toString(16))
+    }
+    const site: Site = { ...base, pages }
+    const counted = countingStorage(memoryStorage())
+
+    const result = await publishRun({
+      items,
+      targets: ['local'],
+      site,
+      sourceRoot: createContentRoot(sourceStorage, ''),
+      siteManifest: manifest,
+      targetStorages: new Map([['local', counted.storage]]),
+      history: createHistoryProvider({ storage: counted.storage }),
+      itemHashes,
+    })
+
+    expect(result.ok).toBe(true)
+    expect(counted.peak()).toBeGreaterThan(1)
+    expect(counted.peak()).toBeLessThanOrEqual(20)
+    for (let i = 0; i < 100; i++) {
+      const html = counted.finished.indexOf(`bulk-${i}/index.html`)
+      const hash = counted.finished.indexOf(`pages/bulk-${i}/.${(0xa0000000 + i).toString(16)}.hash`)
+      expect(html, `bulk-${i} html`).toBeGreaterThanOrEqual(0)
+      expect(hash, `bulk-${i} hash after html`).toBeGreaterThan(html)
+    }
+  })
+})
