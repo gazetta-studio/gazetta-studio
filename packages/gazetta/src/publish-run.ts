@@ -64,6 +64,7 @@ import { localeFilename } from './locale.js'
 import { publishPage, resolvePageRenderMode } from './pages/publish.js'
 import type { PublishItemKind, PublishItemResult, PublishRenderMode, PublishTarget } from './publish-item.js'
 import { publishSiteManifest, wipeDepIndices } from './publish-rendered.js'
+import { removeHashSidecar } from './sidecars.js'
 import type { Site } from './site-loader.js'
 import { templateHashesFrom, type TemplateInfo } from './templates-scan.js'
 import { getType } from './types.js'
@@ -513,6 +514,17 @@ export async function publishRun(input: PublishRunInput): Promise<PublishRunResu
       if (result.ok) {
         targetFilesWritten += result.files
         targetFilesRemoved += result.removed
+      } else if (input.force) {
+        // The wipe above dropped this item's edges, and it failed before
+        // writing new ones. Its old hash sidecar would make the next publish
+        // skip it as unchanged; removing it makes that publish redo the item.
+        const dir = `${ref.kind === 'page' ? 'pages' : 'fragments'}/${ref.name}`
+        try {
+          await removeHashSidecar(targetStorage, dir, ref.locale)
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn(`publishRun: couldn't clear the hash sidecar of ${dir} on ${targetName}: ${err}`)
+        }
       }
     }
 

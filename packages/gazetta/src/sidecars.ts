@@ -124,6 +124,29 @@ async function doWriteSidecars(
 }
 
 /**
+ * Delete one item's `.{hash}.hash` sidecar (for `locale`, or the default
+ * locale), so the next publish sees the item as changed and writes it again.
+ */
+export async function removeHashSidecar(storage: StorageProvider, dir: string, locale?: string): Promise<void> {
+  return withDirLock(dir, async () => {
+    let entries
+    try {
+      entries = await storage.readDir(dir)
+    } catch {
+      return
+    }
+    for (const e of entries) {
+      if (!parseSidecarName(e.name) || parseSidecarLocale(e.name) !== (locale ?? undefined)) continue
+      try {
+        await storage.rm(`${dir}/${e.name}`)
+      } catch {
+        /* already gone */
+      }
+    }
+  })
+}
+
+/**
  * Per-directory Promise-queue serialization for `writeSidecars`.
  *
  * Single responsibility: ensure at most one `writeSidecars` call is

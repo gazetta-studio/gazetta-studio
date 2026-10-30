@@ -162,6 +162,22 @@ describe('target dependency indices', () => {
     expect(await target.exists('.gazetta/fragment-deps/header/pages.home')).toBe(true)
   })
 
+  it('a page that fails during a forced publish loses its hash sidecar, so the next publish redoes it', async () => {
+    const { site, target, run } = await setup()
+    await run([{ kind: 'page', name: 'home' }])
+    expect((await listNames(target, 'pages/home')).filter(n => n.endsWith('.hash'))).toHaveLength(1)
+
+    const broken = withPage(site, 'home', { route: '/', template: 'no-such-template', components: ['@header'] })
+    const forced = await run([{ kind: 'page', name: 'home' }], { site: broken, force: true })
+    expect(forced.items[0]?.ok).toBe(false)
+    expect((await listNames(target, 'pages/home')).filter(n => n.endsWith('.hash'))).toEqual([])
+
+    const next = await run([{ kind: 'page', name: 'home' }])
+    expect(next.items[0]?.ok).toBe(true)
+    expect(await record(target, 'fragment-deps', 'pages.home')).toEqual(['footer', 'header'])
+    expect(await target.exists('.gazetta/fragment-deps/header/pages.home')).toBe(true)
+  })
+
   it('an archived page with aliasOf gets an alias-targets edge and record', async () => {
     const { site, target, run } = await setup()
     const archived = withPage(site, 'landing', {
