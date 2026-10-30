@@ -891,6 +891,7 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
       itemRefs,
       templateInfos,
       purgeScope: 'all',
+      force: opts.force,
       onProgress: ev => {
         if (ev.kind === 'item-done') {
           if (ev.result.ok) {

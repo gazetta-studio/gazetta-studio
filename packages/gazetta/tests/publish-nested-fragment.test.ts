@@ -79,7 +79,6 @@ describe.each(['static', 'dynamic'] as const)('nested fragment changes on a %s t
       targetStorages: new Map([['t', target]]),
       templateInfos,
       publishAssetsBeforeItems: false,
-      publishDepIndicesAfter: false,
       publishSiteManifestAfter: false,
     })
 
@@ -133,7 +132,6 @@ describe('nested fragments resolve like rendering does (#1090)', () => {
       targetStorages: new Map([['t', target]]),
       templateInfos,
       publishAssetsBeforeItems: false,
-      publishDepIndicesAfter: false,
       publishSiteManifestAfter: false,
     })
     return () =>

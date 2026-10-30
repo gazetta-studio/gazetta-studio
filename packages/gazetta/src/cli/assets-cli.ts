@@ -200,16 +200,11 @@ async function runReindex(opts: { siteDir: string; targetName?: string; sink: Ou
   })
 
   const { loadSite } = await import('../site-loader.js')
-  const { rebuildDepIndex } = await import('../publish-rendered.js')
-  const { ASSET_REFS } = await import('../assets/asset-deps.js')
-  const { FRAGMENT_DEPS } = await import('../fragment-deps.js')
+  const { rebuildAllDepIndices } = await import('../publish-rendered.js')
 
   const site = await loadSite({ contentRoot: source.contentRoot, manifest })
   const t0 = Date.now()
-  await Promise.all([
-    rebuildDepIndex(ASSET_REFS, site, source.contentRoot.storage, source.contentRoot.rootPath),
-    rebuildDepIndex(FRAGMENT_DEPS, site, source.contentRoot.storage, source.contentRoot.rootPath),
-  ])
+  await rebuildAllDepIndices(site, source.contentRoot.storage, source.contentRoot.rootPath)
   const elapsed = Date.now() - t0
 
   sink.line(`✓ Rebuilt dep indices for ${site.pages.size} page(s) + ${site.fragments.size} fragment(s) in ${elapsed}ms`)

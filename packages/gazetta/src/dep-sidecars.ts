@@ -15,6 +15,11 @@
  *
  * Files are zero bytes. Existence is the index.
  *
+ * Each indexed item also has a forward record,
+ * `{root}/.gazetta/deps-of/{relation-root}/{encoded-source-item}`,
+ * listing the targets it has edges to, so its edges can be replaced
+ * without reading the manifest that produced them.
+ *
  * Why per-edge sidecars over an aggregate JSON file:
  *   - Multi-instance correctness: two admin instances saving different
  *     items both adding refs to `hero` write to *different paths*. No
@@ -146,7 +151,93 @@ export async function readDepsFor(rel: DepRelation, contentRoot: ContentRoot, ta
 }
 
 /**
- * Apply the diff for one item's deps in this relation.
+ * Item names may contain dots (`release.notes`), but dots are reserved
+ * by the sidecar name encoding, so such an item has no sidecar path:
+ * it gets no edges and no forward record, and readers treat its
+ * dependencies as unknown.
+ */
+function isIndexable(item: ItemRef): boolean {
+  return !item.name.includes('.')
+}
+
+/**
+ * Path of an item's forward record for one relation:
+ * `.gazetta/deps-of/{relation}/{item}`. The record is a JSON array of
+ * the target names the index holds edges for, so an item's edges can be
+ * replaced without reading the manifest that produced them (a target
+ * may not hold that manifest at all).
+ */
+export function depRecordPath(rel: DepRelation, contentRoot: ContentRoot, item: ItemRef): string {
+  return contentRoot.path(stateFolderPath('deps-of', rel.rootName, itemRefToFilename(item)))
+}
+
+/**
+ * Read an item's forward record. Null when the record is missing or
+ * unreadable: the index then can't say which edges the item has.
+ */
+export async function readDepRecord(
+  rel: DepRelation,
+  contentRoot: ContentRoot,
+  item: ItemRef,
+): Promise<Set<string> | null> {
+  if (!isIndexable(item)) return null
+  let raw: string
+  try {
+    raw = await contentRoot.storage.readFile(depRecordPath(rel, contentRoot, item))
+  } catch {
+    return null
+  }
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed) || !parsed.every(t => typeof t === 'string')) return null
+    return new Set(parsed)
+  } catch {
+    return null
+  }
+}
+
+async function writeDepRecord(
+  rel: DepRelation,
+  contentRoot: ContentRoot,
+  item: ItemRef,
+  targets: ReadonlySet<string>,
+): Promise<void> {
+  if (!isIndexable(item)) return
+  await contentRoot.storage.mkdir(contentRoot.path(stateFolderPath('deps-of', rel.rootName))).catch(() => {
+    // Already exists — fine.
+  })
+  await contentRoot.storage.writeFile(depRecordPath(rel, contentRoot, item), JSON.stringify([...targets].sort()))
+}
+
+async function deleteDepRecord(rel: DepRelation, contentRoot: ContentRoot, item: ItemRef): Promise<void> {
+  if (!isIndexable(item)) return
+  await contentRoot.storage.rm(depRecordPath(rel, contentRoot, item)).catch(() => {
+    // Already gone — fine.
+  })
+}
+
+/** Write added edges and remove dropped ones; touches no record. */
+async function applyEdgeDiff(
+  rel: DepRelation,
+  contentRoot: ContentRoot,
+  item: ItemRef,
+  oldTargets: ReadonlySet<string>,
+  newTargets: ReadonlySet<string>,
+): Promise<void> {
+  const added: string[] = []
+  const removed: string[] = []
+  for (const t of newTargets) if (!oldTargets.has(t)) added.push(t)
+  for (const t of oldTargets) if (!newTargets.has(t)) removed.push(t)
+
+  // Adds before removes: a reader mid-update sees a superset of the
+  // item's edges, which is the safe side for "is this still used?".
+  await Promise.all(added.map(target => writeSidecar(rel, contentRoot, target, item)))
+  await Promise.all(removed.map(target => removeSidecar(rel, contentRoot, target, item)))
+}
+
+/**
+ * Apply the diff for one item's deps in this relation, then record
+ * `newTargets` as the item's forward record.
  *
  * For each target in `oldTargets ∪ newTargets`:
  *   - If new and not old → write the sidecar file (creating the target dir)
@@ -165,16 +256,8 @@ export async function applyDepDiff(
   oldTargets: ReadonlySet<string>,
   newTargets: ReadonlySet<string>,
 ): Promise<void> {
-  const added: string[] = []
-  const removed: string[] = []
-  for (const t of newTargets) if (!oldTargets.has(t)) added.push(t)
-  for (const t of oldTargets) if (!newTargets.has(t)) removed.push(t)
-
-  // Adds first — order doesn't affect correctness, but adds-before-removes
-  // means a transient observer mid-update sees a superset of refs (safe
-  // for delete-blocking) rather than a subset.
-  await Promise.all(added.map(target => writeSidecar(rel, contentRoot, target, item)))
-  await Promise.all(removed.map(target => removeSidecar(rel, contentRoot, target, item)))
+  await applyEdgeDiff(rel, contentRoot, item, oldTargets, newTargets)
+  await writeDepRecord(rel, contentRoot, item, newTargets)
 }
 
 async function writeSidecar(rel: DepRelation, contentRoot: ContentRoot, target: string, item: ItemRef): Promise<void> {
@@ -193,7 +276,9 @@ async function removeSidecar(rel: DepRelation, contentRoot: ContentRoot, target:
 
 /**
  * Rebuild the deps sidecars for one item by diffing old vs new manifest
- * via the relation's `extract` function.
+ * via the relation's `extract` function, and keep the item's forward
+ * record in step: written with the new set, or deleted when
+ * `newManifest` is null.
  *
  * Use cases:
  *   - Save handler: pass `oldManifest` (loaded for history-recording);
@@ -212,5 +297,37 @@ export async function rebuildItemDeps(
 ): Promise<void> {
   const oldTargets = oldManifest ? rel.extract(oldManifest) : new Set<string>()
   const newTargets = newManifest ? rel.extract(newManifest) : new Set<string>()
-  await applyDepDiff(rel, contentRoot, item, oldTargets, newTargets)
+  await applyEdgeDiff(rel, contentRoot, item, oldTargets, newTargets)
+  if (newManifest) await writeDepRecord(rel, contentRoot, item, newTargets)
+  else await deleteDepRecord(rel, contentRoot, item)
+}
+
+/**
+ * Replace one item's edges with those of `newManifest`, using the
+ * item's forward record (not any stored manifest) to find the edges to
+ * drop. The record is written last, so a run that stops part-way leaves
+ * the old record and a retry deletes and rewrites the same edges.
+ * Without a record the item has no known edges and this only writes.
+ */
+export async function replaceItemDeps(
+  rel: DepRelation,
+  contentRoot: ContentRoot,
+  item: ItemRef,
+  newManifest: ManifestLike,
+): Promise<void> {
+  if (!isIndexable(item)) return
+  const oldTargets = (await readDepRecord(rel, contentRoot, item)) ?? new Set<string>()
+  const newTargets = rel.extract(newManifest)
+  await applyEdgeDiff(rel, contentRoot, item, oldTargets, newTargets)
+  await writeDepRecord(rel, contentRoot, item, newTargets)
+}
+
+/**
+ * Remove an item from the index: delete the edges its forward record
+ * lists, then the record.
+ */
+export async function removeItemDeps(rel: DepRelation, contentRoot: ContentRoot, item: ItemRef): Promise<void> {
+  const oldTargets = await readDepRecord(rel, contentRoot, item)
+  if (oldTargets) await Promise.all([...oldTargets].map(target => removeSidecar(rel, contentRoot, target, item)))
+  await deleteDepRecord(rel, contentRoot, item)
 }

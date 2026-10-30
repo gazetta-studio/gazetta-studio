@@ -86,7 +86,7 @@ export async function restoreRevision(opts: RestoreRevisionOptions): Promise<Rev
     await contentRoot.storage.writeBytes(abs, bytes)
   }
 
-  // After restoring manifests, rebuild the asset-refs sidecar index.
+  // After restoring manifests, rebuild the dep-sidecar indices.
   // Manifests are the source of truth; a restore can change which
   // assets and fragments each item references, which would leave the
   // per-edge dep sidecars stale. Easier to rebuild than diff per-item —
@@ -94,14 +94,9 @@ export async function restoreRevision(opts: RestoreRevisionOptions): Promise<Rev
   if (toWrite.length > 0 || toDelete.length > 0) {
     try {
       const { loadSite } = await import('./site-loader.js')
-      const { rebuildDepIndex } = await import('./publish-rendered.js')
-      const { ASSET_REFS } = await import('./assets/asset-deps.js')
-      const { FRAGMENT_DEPS } = await import('./fragment-deps.js')
+      const { rebuildAllDepIndices } = await import('./publish-rendered.js')
       const site = await loadSite({ contentRoot, manifest: { name: '(history-restore)' } })
-      await Promise.all([
-        rebuildDepIndex(ASSET_REFS, site, contentRoot.storage, contentRoot.rootPath),
-        rebuildDepIndex(FRAGMENT_DEPS, site, contentRoot.storage, contentRoot.rootPath),
-      ])
+      await rebuildAllDepIndices(site, contentRoot.storage, contentRoot.rootPath)
     } catch (err) {
       // Non-fatal: if site config is missing or load fails, dep indices
       // might drift. Reindex CLI recovers.

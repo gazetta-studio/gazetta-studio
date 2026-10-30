@@ -260,6 +260,46 @@ describe('restoreRevision', () => {
    * page would render as live but with stale URL semantics; if
    * `aliasOf` were dropped, the 301 redirect would silently break.
    */
+  it('rebuilds fragment-deps, asset-refs and alias-targets with forward records', async () => {
+    const home = JSON.stringify({
+      route: '/',
+      template: 'page-default',
+      content: { hero: { _asset: 'hero' } },
+      components: ['@header'],
+    })
+    const landing = JSON.stringify({ route: '/landing', template: 'page-default', archived: true, aliasOf: 'home' })
+    storage.seed({
+      'pages/home/page.json': home,
+      'pages/landing/page.json': landing,
+      'fragments/header/fragment.json': JSON.stringify({ template: 'header' }),
+    })
+    const history = createHistoryProvider({ storage })
+    const contentRoot = createContentRoot(storage)
+    const rev = await recordWrite({
+      history,
+      contentRoot,
+      operation: 'save',
+      items: [{ path: 'pages/home/page.json', content: home }],
+    })
+    const plain = JSON.stringify({ route: '/', template: 'page-default' })
+    storage.seed({ 'pages/home/page.json': plain })
+    await recordWrite({
+      history,
+      contentRoot,
+      operation: 'save',
+      items: [{ path: 'pages/home/page.json', content: plain }],
+    })
+
+    await restoreRevision({ history, contentRoot, revisionId: rev.id })
+
+    expect(await storage.exists('.gazetta/fragment-deps/header/pages.home')).toBe(true)
+    expect(await storage.exists('.gazetta/asset-refs/hero/pages.home')).toBe(true)
+    expect(await storage.exists('.gazetta/alias-targets/home/pages.landing')).toBe(true)
+    expect(JSON.parse(await storage.readFile('.gazetta/deps-of/fragment-deps/pages.home'))).toEqual(['header'])
+    expect(JSON.parse(await storage.readFile('.gazetta/deps-of/asset-refs/pages.home'))).toEqual(['hero'])
+    expect(JSON.parse(await storage.readFile('.gazetta/deps-of/alias-targets/pages.landing'))).toEqual(['home'])
+  })
+
   it('preserves archive fields when restoring an archived revision (alias variant)', async () => {
     const archivedManifest = JSON.stringify({
       template: 'page-default',
