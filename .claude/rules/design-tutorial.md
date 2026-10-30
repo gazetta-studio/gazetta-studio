@@ -2,7 +2,7 @@
 
 The Stage 1 tutorial: one path a newcomer follows from `npx gazetta init` to undoing a publish on a second target, kept true by a CI check that runs its commands word for word. Also how today's `docs/getting-started.md` splits into the tutorial and six other pages.
 
-**Status**: design pass complete (2026-10-24), grilled Q1–Q17 (Q14–Q17 added after review); the tester protocol (Q12) settled in Q18–Q25 on 2026-10-30. Cuts 1–6 landed; cut 7 is #1543.
+**Status**: design pass complete (2026-10-24), grilled Q1–Q17 (Q14–Q17 added after review); the tester protocol (Q12) settled in Q18–Q28 on 2026-10-30. Cuts 1–6 landed; cut 7 is #1543.
 
 **Companion docs:**
 - [`docs/audits/website-and-channels.md`](../../docs/audits/website-and-channels.md): the website plan. Stage 1 opens when "a release on npm matches the docs; the tutorial passes in CI; 3–5 people the maintainer watches get from install to a publish on a second target without help"
@@ -226,7 +226,7 @@ Decided: maintainer, 2026-10-30 (#1585)
 
 ### Q19: A round passes when every tester gets through
 
-A round of at least 3 new testers passes when every tester gets through install, editing with an image, and publishing to staging without the maintainer's help, and no problem rated major or catastrophe is left open. In round 2, undo counts too (Q1).
+A round of at least 3 new testers passes when every tester gets through install, editing with an image, and publishing to staging without the maintainer's help, and no problem rated major or catastrophe is left open. In round 2, undo counts too (Q1). Severity levels: Q28.
 
 Decided: maintainer, 2026-10-30 (#1585)
 
@@ -281,7 +281,7 @@ Decided: maintainer, 2026-10-30 (#1585)
 
 ### Q24: Recorded with consent, kept private, deleted within 30 days
 
-The tester agrees before recording, out loud or in writing, after hearing who watches, what is recorded, where it's kept, and that they can stop and have it deleted. The maintainer keeps a record of each consent; consent is the legal basis. Recordings and notes stay on the maintainer's machine, never on GitHub, and are deleted once the round's issues are filed, at the latest 30 days after the session. Claude may help analyse anonymised notes, and the consent says so.
+The tester agrees before recording, out loud or in writing, after hearing who watches, what is recorded, where it's kept, and that they can stop and have it deleted. The maintainer keeps a record of each consent; consent is the legal basis. Recordings and notes stay on the maintainer's machine, never on GitHub, and are deleted once the round's issues are filed, at the latest 30 days after the session. Claude may help analyse anonymised notes, and the consent says so. What testers are told about public reporting: Q27.
 
 Decided: maintainer, 2026-10-30 (#1585)
 
@@ -292,7 +292,7 @@ Decided: maintainer, 2026-10-30 (#1585)
 
 ### Q25: Each round publishes issues and a findings note
 
-One GitHub issue per problem rated minor or worse, quoting what happened without names. One findings note per round in `docs/audits/`, with problems, counts such as "2 of 3", ratings and what changed. Testers appear as P1, P2, with no names, employers or screenshots.
+One GitHub issue per problem rated minor or worse, quoting what happened without names. One findings note per round in `docs/audits/`, with problems, counts such as "2 of 3", ratings and what changed. Testers appear as P1, P2, with no names, employers or screenshots. Security problems and further redaction: Q26, Q27.
 
 Decided: maintainer, 2026-10-30 (#1585)
 
@@ -300,6 +300,38 @@ Decided: maintainer, 2026-10-30 (#1585)
 |---|---|
 | Issues only | Each problem becomes an anonymised issue; the round summary stays private |
 | Nothing public | Findings stay private and you fix them. Less exposure, but contributors can't see why changes were made |
+
+### Q26: Security problems found in a session are reported privately
+
+A problem that is a security vulnerability is reported privately, as `SECURITY.md` describes, not as a public issue, and the findings note mentions it only once it's fixed and disclosed. Everything else stays as Q25 says.
+
+Decided: maintainer, 2026-10-30 (#PR)
+
+| Rejected | Shown to the maintainer as |
+|---|---|
+| Keep Q25 as it is | Every problem becomes a public issue. Simplest, but a security problem found in a session would be public with its reproduction steps before a fix |
+
+### Q27: Testers are told about public reporting, and more is redacted
+
+The consent (Q24) also says anonymised findings and short quotes are published. Before publishing, anything that could identify a tester (their project, company names in paths, usernames in terminal output, unusual details) is removed or reworded, not only names, employers and screenshots.
+
+Decided: maintainer, 2026-10-30 (#PR)
+
+| Rejected | Shown to the maintainer as |
+|---|---|
+| Tell them only | Add public reporting to what the tester agrees to; keep Q25's list of what's removed as it is |
+| Keep as decided | No change. Quotes and details can appear in public with only names, employers and screenshots removed, without the tester being told beforehand |
+
+### Q28: Problems are rated on Nielsen's 0–4 scale
+
+0 not a problem, 1 cosmetic, 2 minor, 3 major (important to fix, high priority), 4 catastrophe (must be fixed before release). Each problem is rated on how often it happens, how badly it blocks the tester, and whether they can get past it. The maintainer rates; Claude sessions may rate the anonymised notes independently as a cross-check. Q19's gate and Q25's issues use these levels.
+
+Decided: maintainer, 2026-10-30 (#PR)
+
+| Rejected | Shown to the maintainer as |
+|---|---|
+| Our own wording | Define the levels by what happens in the session: minor = the tester noticed and carried on; major = they needed more than a few minutes or a wrong turn to get past; catastrophe = they couldn't continue without help |
+| Leave undefined | The maintainer rates each problem by judgement; no written criteria |
 
 ## UX check
 
@@ -348,7 +380,7 @@ Docs and CI, no product surface: multi-instance, scale, themes, auth, audit, rev
 | 6 | `cli.md`: every command, argument and flag, default ports and `--host`, auto-detection, CI behaviour, exit codes | #1272 | docs | Low |
 | 7 | The tutorial: `docs/getting-started.md` rewritten as the UX table above; the spec, the Verdaccio config, the integrity check and an npm script that runs them | 1–4, #1284, #1300, #1304, #1345, #1330, #1249 | e2e-first | Medium |
 | 8 | The `tutorial` CI job, and the weekly and after-release run (maintainer PR: workflow files) | 7 | (CI) | Low |
-| 9 | Tester round 1 on a release candidate (Q7, Q12); before it, `publish.yml` passes `--tag rc` for prereleases (Q17, maintainer PR) | 7, 8, the tester protocol (Q18–Q25), #1281 (Q16) | (manual) | Medium |
+| 9 | Tester round 1 on a release candidate (Q7, Q12); before it, `publish.yml` passes `--tag rc` for prereleases (Q17, maintainer PR) | 7, 8, the tester protocol (Q18–Q28), #1281 (Q16) | (manual) | Medium |
 | 10 | When #1092 lands: remove `test.fail()` from the undo step; tester round 2 includes undo | 9, #1092 | e2e | Low |
 
 Cuts 1–7 go to feature-bot through a planner issue. The tutorial waits for pages 1–4 so the text it drops already has a home.
