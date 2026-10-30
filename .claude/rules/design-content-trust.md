@@ -1,0 +1,225 @@
+# Content trust and Markdown fields
+
+What people who can save may put on the published site, where that rule is enforced, and how `format.markdown()` becomes a real editor. Resolves [#1484](https://github.com/gazetta-studio/gazetta-studio/issues/1484) (content trust) and [#1483](https://github.com/gazetta-studio/gazetta-studio/issues/1483) (Markdown in the admin), designed in one round because every Markdown option takes on the content-trust answer.
+
+**Status**: design pass complete (2026-10-30), grilled Q1–Q8. Implementation not started.
+
+**Companion docs:**
+- Discovery research: [#1484](https://github.com/gazetta-studio/gazetta-studio/issues/1484) and [#1483](https://github.com/gazetta-studio/gazetta-studio/issues/1483) (discovery-prep-bot comments, 2026-10-30)
+- [`design-media.md`](design-media.md): SVG sanitizing with DOMPurify; images written inside Markdown aren't tracked
+- [`design-validation.md`](design-validation.md): the save-delta and background stages the save check runs at
+- [`design-auth-rbac.md`](design-auth-rbac.md): no new capability (Q1)
+- [`sidecars.md`](sidecars.md): `RENDER_FORMAT_VERSION`, raised in cut 1
+- [`design-tutorial.md`](design-tutorial.md): `docs/templates.md` (tutorial cut 2) is where template developers learn escaping
+- [`css-theming.md`](css-theming.md): the editor uses the admin tokens through `.gz-editor`
+
+## Scope
+
+**In v1:**
+- Markdown and rich-text fields come out as sanitized HTML; script and event handlers are removed for everyone
+- An escaping `html` template tag exported by `gazetta`, taught by the starter and `docs/templates.md`
+- Save refuses script in plain text fields; Site health lists existing cases
+- Markdown converted in nested fields (objects, list items), not only top-level ones
+- `format.markdown()` becomes a Tiptap editor that saves Markdown, with a Formatted/Markdown toggle
+
+**Out of v1:**
+- Pages written as `.md` files, editing `.md` files in the admin, and a `.md` import (Q5)
+- Tracking images written inside Markdown (`design-media.md`)
+- A raw HTML field type (`format.html()`, Q4)
+- Whether the admin and the site may share an origin in production (Open questions)
+
+**Non-goals:**
+- Script or embeds from content. They come through templates (Q1).
+
+## Discovery
+
+Read from code on main, 2026-10-30:
+
+1. `processContent` (`packages/gazetta/src/content.ts`) runs `marked` on top-level `format: 'markdown'` fields only, with no sanitizer; a Markdown field inside an object or list item reaches the template as raw Markdown.
+2. String templates interpolate raw (`text-block`: `<p>${content.body ?? ''}</p>`), as `docs/templates.md`'s first example teaches; React templates escape (`renderToStaticMarkup`).
+3. gazetta.studio's `text` template takes HTML on purpose (`body: z.string().describe('Text content (HTML allowed)')`); its one use, the blog page, holds `<p>`, `<strong>` and `<a>` only.
+4. `format.richtext()` is a Tiptap 3 editor that stores HTML (`editor/mount.tsx`); `format.markdown()` is a text box.
+5. `isomorphic-dompurify` is already a dependency (SVG uploads, `assets/svg-sanitize.ts`).
+
+## Locked decisions
+
+### Q1 — Safe HTML for everyone; script only through templates
+
+Fields that accept HTML or Markdown keep formatting, links and images, but script and event handlers are removed for every role. Scripts and embeds (forms, widgets) come only through templates.
+
+Decided: maintainer, 2026-10-30 (#PR)
+
+Publish approval and a CSP (#362) are therefore not what stops script from content; they stay defence in depth. Follows from Q1.
+
+| Rejected | Why |
+|---|---|
+| Anything, as today, documented as the trust model | One pasted snippet runs script on the live site, and every site copied from the starter inherits it |
+| Role-gated raw HTML (WordPress's `unfiltered_html`) | The same paste behaves differently by role; one more capability; admins can still publish pasted script by accident |
+| No HTML in content: everything escaped, formatting only through structured fields | Rich text would need structured storage, Markdown's inline HTML stops working, and existing templates break |
+
+### Q2 — Field type decides; templates escape plain text; save refuses script
+
+Markdown and rich-text fields are sanitized when rendered (`processContent`, DOMPurify) and reach the template as HTML. Plain text fields are escaped by templates: `gazetta` exports an escaping `html` tag (`` html`<h1>${content.title}</h1>` ``), which the starter and `docs/templates.md` use. As a backstop, saving refuses script or event handlers typed into a plain text field: a save-delta validator, error severity, using DOMPurify to find what it would remove. Text such as `a < b` or `<b>` saves and shows as text.
+
+Decided: maintainer, 2026-10-30 (#PR)
+
+| Rejected | Why |
+|---|---|
+| The same without the save check | One template that forgets to escape publishes script |
+| The renderer escapes every plain string | React templates escape again, so readers see `&amp;`; the result depends on the template's framework |
+| Sanitize every string on save | The same double-encoding, and it rewrites what the author typed |
+
+### Q3 — Existing content: sanitize at render, list the rest in Site health
+
+Manifests stay as they are. Cut 1 raises `RENDER_FORMAT_VERSION`, so the next publish re-renders every page once with Markdown and rich-text fields sanitized. The save check also runs in the background scan and lists plain text fields that already hold script in Site health. Save-delta refuses only script the current edit adds, so editing another field of the same item still saves.
+
+Decided: maintainer, 2026-10-30 (#PR)
+
+| Rejected | Why |
+|---|---|
+| Sanitize only from each item's next save | Script stays on the live site until someone happens to edit each item, with no list of affected items |
+| A one-time command that rewrites every manifest | Edits content the author never touched, and adds history noise, for fields render-time sanitizing already covers |
+
+### Q4 — Plain text fields that hold HTML on purpose move to rich text
+
+Such fields switch to `format.richtext()`: gazetta.studio's `text` template, and any starter template whose content holds HTML (cut 3 checks; templates whose content is plain text switch to `` html`` `` instead). Stored HTML is unchanged and authors edit it in the existing rich-text editor.
+
+Decided: maintainer, 2026-10-30 (#PR)
+
+| Rejected | Why |
+|---|---|
+| A new `format.html()` field (raw HTML, sanitized at render) | A second HTML field type next to rich text, and authors edit tags by hand; no current content needs markup outside Tiptap's set (Future directions) |
+
+Tiptap keeps only the markup it supports, so the first edit of such a field can drop unsupported tags or classes; today's blog body has none.
+
+### Q5 — Markdown in the admin means better Markdown fields
+
+`format.markdown()` becomes a real editor (Q7, Q8), Markdown in nested fields is converted, and `docs/templates.md` says when to pick Markdown or rich text (Q6).
+
+Decided: maintainer, 2026-10-30 (#PR)
+
+| Rejected | Why |
+|---|---|
+| The same plus a one-way `.md` import command | Helps only migrations, which nobody has asked for yet (Future directions) |
+| Pages written as `.md` with frontmatter | Reopens the website plan's deferral and adds a second manifest format to the loader, hash, compare, publish, locale suffixes, validators and history, with no named trigger |
+| Editing `.md` files in the admin | A new item kind outside pages and fragments, for gazetta.studio's docs, which stay generated from `docs/` (#1289) |
+
+### Q6 — Keep both rich fields, and document when to pick each
+
+`format.markdown()` (stores Markdown) and `format.richtext()` (stores HTML) both stay. `docs/templates.md` says: Markdown for authors who write Markdown or content kept in git as text; rich text for authors who want a word-processor editor. Both are sanitized at render (Q1).
+
+Decided: maintainer, 2026-10-30 (#PR)
+
+| Rejected | Why |
+|---|---|
+| Rich text canonical, Markdown deprecated (Decap's direction) | Drops the field Q5 improves and migrates starter content |
+| Markdown canonical: rich text stores Markdown | Converting stored HTML to Markdown loses what Markdown can't express (tables, classes, spans) |
+
+### Q7 — The Markdown editor is Tiptap with `@tiptap/markdown`
+
+`@tiptap/markdown` (MIT; 3.32.1 on npm, 2026-10-28) adds Markdown storage to the Tiptap 3 stack the rich-text field already uses, so the two fields share styling and dark/light handling. Before the editor ships, cut 4 checks that untouched Markdown comes back byte-identical, and that the editor works with a keyboard, with a screen reader and in Arabic (RTL).
+
+Decided: maintainer, 2026-10-30 (#PR)
+
+| Rejected | Why |
+|---|---|
+| Our own toolbar on the text box, preview with `marked` | Our own selection, shortcut and accessibility code to maintain, and no formatted editing for authors who don't know Markdown |
+| EasyMDE (MIT) | Built on CodeMirror 5, the older line; its styling must be mapped to the admin tokens; RTL unchecked |
+| Milkdown (MIT) | A second ProseMirror-based editor next to Tiptap, and the largest package of these |
+| DoMD (`@do-md/core-react`) | Its package is GPL-3.0-only with extra permissions, not MIT |
+| MDXEditor, `@uiw/react-md-editor` (MIT) | A second rich-text engine (Lexical) next to Tiptap; the largest package (4.3 MB unpacked) |
+
+### Q8 — A Formatted/Markdown toggle; untouched fields are never rewritten
+
+The field shows formatted text by default, with a toggle to the raw Markdown: a plain text box, saved exactly as typed. The choice is remembered per browser. The editor writes the field only after an edit, so opening and saving a page doesn't reformat its Markdown. Switching from Markdown to Formatted can normalise syntax (for example `*` lists become `-`), and the toggle says so.
+
+Decided: maintainer, 2026-10-30 (#PR)
+
+| Rejected | Why |
+|---|---|
+| Formatted only | No way to keep exact Markdown or to edit what Tiptap can't show (tables with multi-line cells, inline HTML) |
+
+## UX check
+
+- **Actors:** content authors (the Markdown editor, the save refusal, Site health); template developers (the `html` tag, picking markdown or richtext, moving HTML fields to rich text).
+- **Absence as state:** nothing new shows unless script is found; a Markdown field looks like the rich-text field.
+- **Same for every role:** the sanitizer and the save check don't depend on role (Q1).
+- **Failure states:** the save refusal names the field and what to remove, in the existing validation banner; existing cases show in Site health with a link to the field (Q3).
+
+### State tables
+
+Per [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md), each UI cut transcribes its table into stories.
+
+Decided: maintainer, 2026-10-30 (#PR)
+
+#### Save check (cut 2): validator `script-in-text`
+
+Uses the existing validation banner and Site health drawer; no new component.
+
+| State | What shows | `data-testid` |
+|---|---|---|
+| Save refused | Banner: "Script isn't allowed in Title: remove onerror." (the field's label, and what would be removed: a tag such as `<script>` or an attribute such as `onerror`) | existing `validation-banner`, `validation-issue-script-in-text` |
+| Several fields | One issue per field | as above |
+| Site health | "about: Title holds script (onerror). Remove it before the next save of this field." with a link to the field | existing `site-health-drawer` rows |
+| Plain `a < b` or `<b>` | Saves; shown as text | — |
+
+#### Markdown editor (cut 4)
+
+| State | What shows | `data-testid` |
+|---|---|---|
+| Default | Formatted view with the rich-text toolbar (bold, italic, heading, list, link, quote, code) | `markdown-editor` |
+| Toggle | Two buttons: "Formatted" · "Markdown", the active one pressed | `markdown-mode-formatted`, `markdown-mode-markdown` |
+| Markdown view | A plain text box with the raw Markdown, saved as typed | `markdown-source` |
+| In Markdown view | Note under the toggle: "Formatted view may reformat Markdown." | `markdown-mode-note` |
+| Empty | Placeholder from the field's description, as rich text does | — |
+| Arabic active | The editor follows the admin's `dir`, in both views | — |
+| Untouched field saved | The field's Markdown unchanged | — |
+
+## Foundational checks
+
+- **Multi-instance:** escaping and sanitizing are pure functions; the validator is stateless.
+- **Scale:** sanitizing runs per Markdown or rich-text field at render and publish; cut 1 measures it on the 5K-page synthetic site, since DOMPurify server-side needs a DOM. The validator runs per changed field at save and per field in the background scan.
+- **Locale:** every locale variant is rendered and validated like the default; the editor follows `dir`; the sanitizer keeps `dir` and `<bdi>`.
+- **Themes:** none; the editor uses the admin tokens.
+- **Auth + RBAC:** no new capability (Q1).
+- **Audit:** none new; refused saves aren't written.
+- **Review:** none; approval isn't relied on (Q1).
+- **Hooks:** `beforeSave` hooks run after validation, as today.
+- **Render:** sanitizing in `processContent`; `RENDER_FORMAT_VERSION` raised (Q3).
+- **Validation:** one validator, `script-in-text`, at save-delta (error) and background (error, Site health).
+- **Plugin:** none.
+- **Cache:** the render-format change invalidates publish hashes once; render-for-analysis output follows.
+- **Offline:** save-delta validation runs offline.
+- **Collaboration:** none.
+
+## Cut sequence
+
+Security first: live sites stop publishing script from content before the editor work starts.
+
+Decided: maintainer, 2026-10-30 (#PR)
+
+| Rejected | Why |
+|---|---|
+| Editor first | Plain text fields keep publishing script, and the starter keeps teaching raw interpolation, for longer; the editor's page preview needs cut 1 anyway |
+
+| # | What | Depends on | Test tier | Risk |
+|---|---|---|---|---|
+| 1 | Sanitizer in `processContent` for Markdown and rich-text fields, nested fields included; the exported `html` tag; `RENDER_FORMAT_VERSION` raised; cost measured at 5K pages | — | unit + api | Medium |
+| 2 | `script-in-text` validator at save-delta and background; banner and Site health wording per the state table | 1 | api + component | Low |
+| 3 | Starter templates to `` html`` `` or rich text; gazetta.studio's `text` template to rich text; `docs/templates.md` teaches `` html`` `` and markdown vs richtext | 1 | unit + docs | Low |
+| 4 | Markdown editor: Tiptap with `@tiptap/markdown`, the toggle, untouched fields never rewritten; round-trip, keyboard, screen-reader and RTL checks first | 1 | component + e2e | Medium-high |
+| 5 | Docs for authors and operators: the content-trust rule and the Markdown editor | 2, 3, 4 | docs | Low |
+
+## Migration
+
+No production users. The first publish after cut 1 re-renders every page once. Templates that interpolate plain text raw keep working but aren't protected until they use `` html`` ``; the save check covers content meanwhile.
+
+## Open questions
+
+1. **The admin and the site on one origin.** `gazetta dev` serves both on one origin, so script in a template, or in content saved before cut 2, runs next to the admin's cookies when someone opens the site URL. Whether production setups may do this, or the docs require a separate origin as for SVG, is undecided.
+
+## Future directions
+
+- **A `.md` import command**, when the first operator migrating from Hugo, Astro or WordPress asks (Q5).
+- **A raw HTML field (`format.html()`)**, when a site needs markup outside Tiptap's set (Q4).
+- **Tracking images written inside Markdown**, with per-edge `asset-refs` edges (`design-media.md`).
