@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { RUNTIME_CAPABILITIES_DOCS_URL } from 'gazetta/types'
 /**
  * CreateRedirectDialog — Manual Redirect creation UX. Per `design-redirect-ui.md`
  * Q2 (POST /api/{page,fragment}-redirects), Q3 (peer to CreatePageDialog /
@@ -260,7 +261,7 @@ onUnmounted(() => {
         </ul>
         <p class="create-gaps-note">
           You can still create the redirect — see
-          <a href="https://gazetta.studio/docs/runtime-capabilities" target="_blank" rel="noopener">runtime capabilities</a>
+          <a :href="RUNTIME_CAPABILITIES_DOCS_URL" target="_blank" rel="noopener">runtime capabilities</a>
           for resolution paths.
         </p>
       </div>

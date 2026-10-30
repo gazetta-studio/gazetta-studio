@@ -15,6 +15,7 @@
   "all good" rows that would be visual noise.
 -->
 <script setup lang="ts">
+import { RUNTIME_CAPABILITIES_DOCS_URL } from 'gazetta/types'
 import { computed, onMounted, ref, watch } from 'vue'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
@@ -145,7 +146,7 @@ function handleCancel() {
           </li>
         </ul>
         <p class="archive-gaps-note">
-          You can still archive — see <a href="https://gazetta.studio/docs/runtime-capabilities" target="_blank" rel="noopener">runtime capabilities</a>
+          You can still archive — see <a :href="RUNTIME_CAPABILITIES_DOCS_URL" target="_blank" rel="noopener">runtime capabilities</a>
           for resolution paths.
         </p>
       </div>

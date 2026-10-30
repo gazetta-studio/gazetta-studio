@@ -28,6 +28,7 @@
  */
 import type { SiteManifest, TargetConfig } from '../types.js'
 import { inspectTarget } from './runtime-capabilities.js'
+import { RUNTIME_CAPABILITIES_DOCS_URL } from '../types.js'
 
 /**
  * Walk the site's targets at boot; emit a warning per target that
@@ -59,7 +60,7 @@ export function warnOnCapabilityGaps(manifest: SiteManifest, opts: { anyArchived
     console.warn(
       `  Warning: target "${name}" has runtime capability gaps. ${reasons}. ` +
         'Archive operations on this target may not emit 301/410 redirects. ' +
-        'See https://gazetta.studio/docs/runtime-capabilities for resolution paths.',
+        `See ${RUNTIME_CAPABILITIES_DOCS_URL} for resolution paths.`,
     )
   }
   return count

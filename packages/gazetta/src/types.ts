@@ -618,6 +618,10 @@ export interface HistoryConfig {
   retention?: number
 }
 
+/** Where the runtime capabilities doc lives; linked from the capability-gap warnings in the CLI and admin. */
+export const RUNTIME_CAPABILITIES_DOCS_URL =
+  'https://github.com/gazetta-studio/gazetta-studio/blob/main/docs/runtime-capabilities.md'
+
 /** Determine rendering type for a target — centralised logic used by CLI and admin API */
 export function getType(target: TargetConfig): TargetType {
   // Pre-Cut 3 fallback was `target.worker ? 'dynamic' : 'static'`.
