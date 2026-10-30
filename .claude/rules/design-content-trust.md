@@ -18,7 +18,7 @@ What people who can save may put on the published site, where that rule is enfor
 **In v1:**
 - Markdown and rich-text fields come out as sanitized HTML; script, event handlers, forms and embeds are removed for everyone
 - An escaping `html` template tag exported by `gazetta`, taught by the starter and `docs/templates.md`
-- Save refuses script in plain text fields; Site health lists existing cases
+- Save refuses script, and `javascript:`, `vbscript:` and `data:` addresses (except raster images), in plain text fields (code and file fields excepted); Site health lists existing cases
 - Markdown converted in nested fields (objects, list items), not only top-level ones
 - `format.markdown()` becomes a Tiptap editor that saves Markdown, with a Formatted/Markdown toggle
 
@@ -63,6 +63,12 @@ Markdown and rich-text fields are sanitized when rendered (`processContent`, DOM
 
 Decided: maintainer, 2026-10-30 (#1579)
 
+| Rejected | Why |
+|---|---|
+| The same without the save check | One template that forgets to escape publishes script |
+| The renderer escapes every plain string | React templates escape again, so readers see `&amp;`; the result depends on the template's framework |
+| Sanitize every string on save | The same double-encoding, and it rewrites what the author typed |
+
 Markdown and rich-text fields go into an `` html`` `` template through an exported `raw()` helper (`` html`<article>${raw(content.body)}</article>` ``), which inserts the sanitized HTML unescaped. Field values stay strings, so React templates keep using `dangerouslySetInnerHTML`. A template that forgets `raw()` shows the tags as text, which is visible and safe.
 
 Decided: maintainer, 2026-10-30 (#1579)
@@ -72,13 +78,14 @@ Decided: maintainer, 2026-10-30 (#1579)
 | Return those fields as a marked-safe value that `` html`` `` inserts unescaped | Fields stop being strings (`.length`, string methods, React needs `String()`): a breaking change for every template using them |
 | Build those fields outside the tag (`` html`…` + `<article>${content.body}</article>` ``) | Two styles in one template, and moving the field inside the tag escapes it |
 
-Rendered children go into `` html`` `` unescaped without `raw()`: the renderer marks each child's `html` as already rendered, and the tag inserts it as is. Composite templates only switch to `` html`` ``.
+Rendered children go into `` html`` `` unescaped: the tag inserts `RenderOutput` values and arrays of them as is, so composite templates write `` html`<header>${children}</header>` ``. `c.html` stays a string. Cut 3 updates the ten composite templates (six starter, four gazetta.studio) and the composite example in `docs/templates.md`, which today write `${children.map(c => c.html).join('\n')}`.
 
 Decided: maintainer, 2026-10-30 (#1579)
 
 | Rejected | Why |
 |---|---|
-| `raw()` for children too (`${raw(children.map(c => c.html).join(''))}`) | Nine composite templates and the docs' composite example change, and developers meet `raw()` in two unrelated places |
+| `raw()` for children (`${raw(children.map(c => c.html).join(''))}`) | The same ten templates change, and developers meet `raw()` in two unrelated places |
+| The renderer marks each child's `html` as already rendered | `.join()` returns a plain string, so the mark is lost before the tag sees it; keeping it would make `c.html` an object, the breaking change rejected for fields |
 
 The sanitizer keeps `target` and `rel` on links, so rich-text links still open in a new tab; cut 1's tests pin a rich-text link's round-trip.
 
@@ -96,19 +103,32 @@ Decided: maintainer, 2026-10-30 (#1579)
 |---|---|
 | Keep the attribute and strip only unsafe CSS (network-loading `url()`, `position:fixed`), as `svg-sanitize.ts` does for `url()` | A list of unsafe CSS to maintain, for formatting templates already provide |
 
-The save check also refuses `javascript:`, `vbscript:` and `data:` addresses (except `data:image`) in string fields, with the same banner; `docs/templates.md` says `href` and `src` take `format.uri()`, `format.link()` or `format.image()` fields. A plain-text address like `javascript:alert(1)` contains nothing for escaping or DOMPurify to change, yet runs when clicked.
+The save check also refuses a string field whose value, trimmed, is a `javascript:`, `vbscript:` or `data:` address (except `data:image/png`, `jpeg`, `gif` and `webp`, the pattern `svg-sanitize.ts` already allows), with the same banner; links inside Markdown and rich-text fields are left to the sanitizer; `docs/templates.md` says `href` and `src` take `format.uri()`, `format.link()` or `format.image()` fields. A plain-text address like `javascript:alert(1)` contains nothing for escaping or DOMPurify to change, yet runs when clicked.
+
+Decided: maintainer, 2026-10-30 (#1579)
+
+The check skips `format.file()` fields, which store the file as a `data:` value, and `format.code()` fields, whose content is code shown as text: templates escape code fields like plain text, so an example containing `<script>` shows and never runs.
 
 Decided: maintainer, 2026-10-30 (#1579)
 
 | Rejected | Why |
 |---|---|
-| Leave addresses to templates, documented | The starter's `card` and `showcase` templates put text fields into `href` and `src` today |
+| Remove `format.file()` | Not needed to keep the check correct; files can still go through the asset library |
+| Check code fields too | An HTML or JS example containing `<script>` or `onclick` could never be saved |
+| Allow any `data:image` | `data:image/svg+xml` would pass without SVG sanitizing, and two allow-lists would drift |
+
+If a template's schema can't be read, its page fails to render with an error naming the template, as for other broken templates, instead of publishing its fields unsanitized (`processContent` returns content unchanged today).
+
+Decided: maintainer, 2026-10-30 (#1579)
 
 | Rejected | Why |
 |---|---|
-| The same without the save check | One template that forgets to escape publishes script |
-| The renderer escapes every plain string | React templates escape again, so readers see `&amp;`; the result depends on the template's framework |
-| Sanitize every string on save | The same double-encoding, and it rewrites what the author typed |
+| Escape every string field of that template | The page renders with rich text showing its tags |
+| Keep failing open, documented | Rare, but the one way unsanitized HTML would still reach a page |
+
+| Rejected | Why |
+|---|---|
+| Leave addresses to templates, documented | The starter's `card` template puts a plain text field into `href`, and `format.link()` and `format.image()` fields (the starter's `showcase`) don't restrict schemes either (`formats.ts`) |
 
 ### Q3 — Existing content: sanitize at render, list the rest in Site health
 
@@ -213,7 +233,7 @@ Uses the existing validation banner and Site health drawer; no new component.
 | Default | Formatted view with the rich-text toolbar (bold, italic, heading, list, link, quote, code) | `markdown-editor` |
 | Toggle | Two buttons: "Formatted" · "Markdown", the active one pressed | `markdown-mode-formatted`, `markdown-mode-markdown` |
 | Markdown view | A plain text box with the raw Markdown, saved as typed | `markdown-source` |
-| In Markdown view | Note under the toggle: "Formatted view may reformat Markdown." | `markdown-mode-note` |
+| In Markdown view | Note under the toggle: "Formatted view may reformat Markdown.", followed by any known differences cut 4's parity check finds (Q8) | `markdown-mode-note` |
 | Empty | Placeholder "Start writing...", as the rich-text editor shows | — |
 | Arabic active | The editor follows the admin's `dir`, in both views | — |
 | Untouched field saved | The field's Markdown unchanged | — |
@@ -247,9 +267,9 @@ Decided: maintainer, 2026-10-30 (#1579)
 
 | # | What | Depends on | Test tier | Risk |
 |---|---|---|---|---|
-| 1 | Sanitizer in `processContent` for Markdown and rich-text fields, nested fields included, removing forms and embeds too (Q2); the exported `html` tag and `raw()` helper; `RENDER_FORMAT_VERSION` raised; cost measured at 5K pages | — | unit + api | Medium |
+| 1 | Sanitizer in `processContent` for Markdown and rich-text fields, nested fields included, removing forms and embeds too (Q2); draft content in the admin preview goes through the same conversion and sanitizer (`preview.ts` applies draft overrides after `processContent` today); the exported `html` tag (inserting `RenderOutput` children as is) and `raw()` helper; a template whose schema can't be read fails to render; `RENDER_FORMAT_VERSION` raised; cost measured at 5K pages | — | unit + api | Medium |
 | 2 | `script-in-text` validator at save-delta and background, unsafe address schemes included; banner and Site health wording per the state table | 1 | api + component | Low |
-| 3 | Starter templates to `` html`` `` or rich text; gazetta.studio's `text` template to rich text; `docs/templates.md` teaches `` html`` ``, `raw()` and markdown vs richtext | 1 | unit + docs | Low |
+| 3 | Starter templates to `` html`` `` or rich text; gazetta.studio's `text` template to rich text; the ten composite templates write `${children}` inside `` html`` ``; `docs/templates.md` teaches `` html`` ``, `raw()`, children and markdown vs richtext | 1 | unit + docs | Low |
 | 4 | Markdown editor: Tiptap with `@tiptap/markdown`, the toggle, untouched fields never rewritten; the page preview shows the field as published (sanitized by cut 1); round-trip, keyboard, screen-reader and RTL checks first, and a parity check of `@tiptap/markdown` against `marked` on the constructs the starter blog uses | 1 | component + e2e | Medium-high |
 | 5 | Docs for authors and operators: the content-trust rule and the Markdown editor | 2, 3, 4 | docs | Low |
 
