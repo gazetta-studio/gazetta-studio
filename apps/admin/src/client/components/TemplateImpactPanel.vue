@@ -120,7 +120,7 @@ function navigateToItem(item: TemplateImpactItem) {
 <template>
   <div class="template-impact" data-testid="template-impact-panel">
     <div v-if="loading" class="impact-empty" data-testid="template-impact-loading">
-      <LoaderCircle class="impact-icon spin" aria-hidden="true" />
+      <LoaderCircle class="impact-icon ui-spin" aria-hidden="true" />
       <span>Loading impact…</span>
     </div>
     <div v-else-if="errorMessage" class="impact-error" data-testid="template-impact-error">
@@ -217,19 +217,6 @@ function navigateToItem(item: TemplateImpactItem) {
 .impact-icon-svg {
   inline-size: 100%;
   block-size: 100%;
-}
-.spin {
-  animation: spin 0.8s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .spin {
-    animation-duration: 2.4s;
-  }
 }
 .impact-summary code {
   font-family: var(--font-mono);

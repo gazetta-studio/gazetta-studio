@@ -109,7 +109,7 @@ watch(
     role="status"
     data-testid="offline-banner"
     data-state="degraded">
-    <LoaderCircle class="banner-icon spin" aria-hidden="true" />
+    <LoaderCircle class="banner-icon ui-spin" aria-hidden="true" />
     <span class="banner-text">Connection unstable</span>
   </div>
 
@@ -119,7 +119,7 @@ watch(
     role="status"
     data-testid="offline-banner"
     data-state="reconnecting">
-    <LoaderCircle class="banner-icon spin" aria-hidden="true" />
+    <LoaderCircle class="banner-icon ui-spin" aria-hidden="true" />
     <span class="banner-text">Reconnecting</span>
   </div>
 </template>
@@ -151,19 +151,6 @@ watch(
   inline-size: 0.875rem;
   block-size: 0.875rem;
   flex-shrink: 0;
-}
-.spin {
-  animation: spin 0.8s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .spin {
-    animation-duration: 2.4s;
-  }
 }
 .banner-text {
   flex: 1;
