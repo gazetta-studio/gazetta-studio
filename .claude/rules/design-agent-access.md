@@ -72,7 +72,7 @@ Decided: maintainer, 2026-10-31 (#1623)
 | Name the fork now; the #49 pass decides | The maintainer asked for a separate discovery first |
 | Upstream identity only, decided now | The maintainer asked for a separate discovery first |
 
-The #49 pass then designs agent principals from that discovery's outcome (product owner's sequencing). The maintainer's starting idea for the discovery, not a decision: the person authenticates from the admin UI and the CLIs get their credentials from that; other ways if needed.
+The #49 pass then designs agent principals from that discovery's outcome (product owner's sequencing).
 
 ### Q3 — "Can't publish" is enforced on hosted admins; locally, presets and a plain statement
 
@@ -214,7 +214,7 @@ Both CLIs can return URLs that an AI can use to see rendered content.
 
 Decided: maintainer, 2026-10-31 (#1623)
 
-Open for the #49 pass (product owner's note): which URLs (the preview of a page just edited, the page on a target after publish) and, on a hosted admin, how an agent opens preview URLs that sit behind authentication with its own identity (#1624).
+Open for the #49 pass (product owner's note): which URLs (the preview of a page just edited, the page on a target after publish) and, on a hosted admin, how an agent opens preview URLs that sit behind authentication with its own identity (#1624). The maintainer's ideas for that discovery, not decisions (posted on #1624): "to authenticate, user can do that from ui, or we can think of other ways if needed"; "maybe a pincode"; "or gz auth login" (`gz` as a candidate name for the Go CLI).
 
 ## What this changes in the plan
 
