@@ -349,7 +349,7 @@ Follows from Q1–Q4 and Q14. Rule 23: the reader does one thing per step and se
 | 7 | Publish the change | Publish → staging again; reload localhost:3001: the new title and the image |
 | 8 | Undo the publish | Click Undo in the publish result; reload localhost:3001 and the old title is back. The edit is still in the admin: undo changed staging, not `local` |
 | — | What you did | A target holds the whole site; Publish copies content between targets; each target keeps its own history |
-| — | Next steps | "Put it online" (cloudflare.md, self-hosted.md), then templates, customizing the editor, targets |
+| — | Next steps | "Put it online" (cloudflare.md, self-hosted.md), then templates, customizing the editor, targets, and editing content with a coding agent (follows from `design-ai-direction.md` Q7) |
 | — | If something goes wrong | Unsupported Node (#1304), `init`'s npm install failed (#1300), port in use (#1184), Ctrl+C stops a server |
 
 About 900–1,100 words. Shell blocks: steps 1 (init, cd), 2 (dev) and 4 (serve); the troubleshooting section has none, or the spec's step list covers them too. At least one highlighted code block, which `deploy-site.yml`'s check on `/docs` needs.
