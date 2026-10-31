@@ -150,13 +150,13 @@ function navigateToItem(item: TemplateImpactItem) {
           :key="row.item.itemPath"
           :class="['impact-row', `severity-${row.worst ?? 'clean'}`]"
           :data-testid="`template-impact-row-${row.item.kind}-${row.item.name}`">
-          <component
-            :is="severityIcon(row.worst)"
+          <span
             :class="['impact-icon', `severity-${row.worst ?? 'clean'}`]"
             role="img"
-            aria-hidden="false"
             :aria-label="severityLabel(row.worst)"
-            :title="severityLabel(row.worst)" />
+            :title="severityLabel(row.worst)">
+            <component :is="severityIcon(row.worst)" class="impact-icon-svg" aria-hidden="true" />
+          </span>
           <div class="row-body">
             <div class="row-head">
               <span class="row-kind">{{ row.item.kind === 'page' ? 'Page' : 'Fragment' }}</span>
@@ -211,9 +211,14 @@ function navigateToItem(item: TemplateImpactItem) {
   color: var(--color-danger-fg);
 }
 .impact-icon {
+  display: inline-flex;
   inline-size: 1rem;
   block-size: 1rem;
   flex: none;
+}
+.impact-icon-svg {
+  inline-size: 100%;
+  block-size: 100%;
 }
 .spin {
   animation: spin 0.8s linear infinite;

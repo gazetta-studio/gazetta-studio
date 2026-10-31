@@ -69,4 +69,6 @@ export function storedDraftKeys(page: Page, kind: 'edit' | 'structural' | 'metad
 export async function expectSaveSettled(save: Locator, options: { timeout?: number } = {}): Promise<void> {
   await expect(save).toBeDisabled(options)
   await expect(save).not.toHaveAttribute('aria-busy', 'true', options)
+  // Still disabled once the save has finished: nothing left to save.
+  await expect(save).toBeDisabled(options)
 }

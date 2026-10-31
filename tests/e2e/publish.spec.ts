@@ -307,9 +307,9 @@ test.describe('Save button labeling', () => {
     await openEditor(page, 'home')
     const save = page.locator('[data-testid="save-btn"]')
     await expect(save).toHaveText(/^\s*Save\s*$/)
-    // Primary severity — PrimeVue adds no class for p-button-primary, so
-    // assert the button is NOT the danger variant.
-    await expect(save).not.toHaveClass(/p-button-danger/)
+    // Primary severity on a non-production target, not the danger variant.
+    await expect(save).toHaveClass(/ui-button--primary/)
+    await expect(save).not.toHaveClass(/ui-button--danger/)
   })
 })
 
