@@ -101,7 +101,6 @@ Research by discovery-prep-bot, then a design round with the maintainer where on
 - [#1484](https://github.com/gazetta-studio/gazetta-studio/issues/1484) content trust: whether editors can put markup or script on published pages
 - [#1485](https://github.com/gazetta-studio/gazetta-studio/issues/1485) AI direction: forms, AI helpers in forms, or agents operating the CMS; its answer feeds the MCP server design pass above
 - [#1540](https://github.com/gazetta-studio/gazetta-studio/issues/1540) executable specifications for AI-written code (Dave Farley's four layers)
-- [#1542](https://github.com/gazetta-studio/gazetta-studio/issues/1542) PrimeVue 5 and `@primeuix/themes` 3 are no longer MIT: decided 2026-10-31, the admin moves now to Reka UI with our own styles and Lucide icons ([`design-admin-ui.md`](.claude/rules/design-admin-ui.md))
 
 ## Next (planned, the quarter after Now)
 
@@ -412,6 +411,7 @@ Closes [#40](https://github.com/gazetta-studio/gazetta-studio/issues/40).
 
 ## Other shipped
 
+- ✓ [#1542](https://github.com/gazetta-studio/gazetta-studio/issues/1542) the admin moved off PrimeUI to Reka UI with our own styles and Lucide icons ([`design-admin-ui.md`](.claude/rules/design-admin-ui.md); #1596, #1608, #1611; closed 2026-10-31)
 - ✓ [#1348](https://github.com/gazetta-studio/gazetta-studio/issues/1348) `Content<T>` types optional, nullable and array asset fields (closed 2026-10-29)
 - ✓ [#1490](https://github.com/gazetta-studio/gazetta-studio/issues/1490) `gazetta init`'s templates are typed (closed 2026-10-26)
 - ✓ [#1491](https://github.com/gazetta-studio/gazetta-studio/issues/1491) the worker answers routes with a trailing slash (closed 2026-10-26)
