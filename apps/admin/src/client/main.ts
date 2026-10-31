@@ -1,6 +1,5 @@
 import { createApp, shallowRef } from 'vue'
 import { createPinia } from 'pinia'
-import PrimeVue from 'primevue/config'
 import { VueQueryPlugin } from '@tanstack/vue-query'
 import App from './App.vue'
 import { createRouter } from './router.js'
@@ -14,10 +13,8 @@ import { askIdentity, resolveDraftIdentity, retryIdentity } from './drafts/ident
 import { useActiveTargetStore } from './stores/activeTarget.js'
 import { configureReadThrough } from './queries/read-through.js'
 import { useServiceWorkerUpdate } from './composables/useServiceWorkerUpdate.js'
-import 'primeicons/primeicons.css'
 import './assets/tokens.css'
 import './assets/base.css'
-import { adminPreset } from './assets/preset.js'
 
 // Async boot: provider selection probes IndexedDB before constructing
 // the L6 cache. Vue's createApp is sync but Vue's plugin install can
@@ -56,12 +53,6 @@ async function bootstrap(): Promise<void> {
 
   const app = createApp(App)
   app.use(createPinia())
-  app.use(PrimeVue, {
-    theme: {
-      preset: adminPreset,
-      options: { darkModeSelector: '.dark' },
-    },
-  })
   app.use(VueQueryPlugin, {
     queryClient,
     clientPersister,
@@ -96,11 +87,8 @@ async function bootstrap(): Promise<void> {
 
   app.mount('#app')
 
-  // User theme — append AFTER PrimeVue (which injects styles at runtime
-  // via app.use(PrimeVue)) so user declarations win the cascade. Must be
-  // INSIDE bootstrap and AFTER app.mount() so the order is deterministic
-  // even when bootstrap awaits cache + persistence hydration. A static
-  // <link> at module scope would race with PrimeVue's runtime injection.
+  // User theme — appended last, after the admin's own styles (which the dev
+  // server injects at runtime), so its token overrides win the cascade.
   // The server returns an empty stylesheet when the user has no
   // admin/theme.css, so no onerror handling needed.
   {
