@@ -72,7 +72,7 @@ Decided: maintainer, 2026-10-31 (#1623)
 | Name the fork now; the #49 pass decides | The maintainer asked for a separate discovery first |
 | Upstream identity only, decided now | The maintainer asked for a separate discovery first |
 
-The #49 pass then designs agent principals from that discovery's outcome (product owner's sequencing).
+The #49 pass then designs agent principals from that discovery's outcome (product owner's sequencing). The maintainer's starting idea for the discovery, not a decision: the person authenticates from the admin UI and the CLIs get their credentials from that; other ways if needed.
 
 ### Q3 — "Can't publish" is enforced on hosted admins; locally, presets and a plain statement
 
