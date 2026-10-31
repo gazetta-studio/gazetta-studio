@@ -219,7 +219,7 @@ The admin keeps every screen, action, copy and `data-testid`; only the look chan
 | # | What | Depends on | Test tier | Risk |
 |---|---|---|---|---|
 | 1 | Our components for the 11 kinds on Reka primitives (The components), the tokens they use, `@lucide/vue` and `reka-ui` added; a story per component in light and dark passing the axe gate; nothing in the admin uses them yet | — | component | Medium |
-| 2 | Switch all 33 files and the 148 icons to the new components and Lucide in one PR; remove `primevue`, `@primeuix/*`, `primeicons`, `adminPreset` and the `--p-*` uses; e2e and stories pass unchanged by test id | 1 | component + e2e | High |
+| 2 | Switch all 33 files and the 148 icons to the new components and Lucide in one PR; remove `primevue`, `@primeuix/*`, `primeicons`, `adminPreset` and the `--p-*` uses (including `main.ts`, `.storybook/preview.ts`, and the `woff2` precache line in `vite.config.ts`); tests that select PrimeVue classes (`.p-dialog` and others) or `pi pi-*` icons, or check the primeicons font, move to test ids (`tests/e2e/`: `unsaved-guard`, `deep-linking`, `publish`, `target-switch`, `a11y`, `production-offline`, the `PublishPanel` and `ComponentTree` page objects; `apps/admin/tests/Banner.test.ts`) | 1 | component + e2e | High |
 | 3 | Docs: `docs/customize-editor.md` (`--color-*` overrides), `css-theming.md`, `architecture.md`, `AGENTS.md`, regenerated site docs | 2 | docs | Low |
 
 ## Migration
