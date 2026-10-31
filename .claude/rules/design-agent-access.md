@@ -36,9 +36,7 @@ Decided: maintainer, 2026-10-31 (#1623)
 
 ### Q2 — A separate thin CLI that only calls the admin API
 
-The CLI for agents is a separate, small client that calls a Gazetta admin's API, local (`gazetta dev`) or remote, so the admin is always the writer: saves go through its save path, and the agent's own identity is enforced on an admin that authenticates callers (not `trust: 'none'`, the local default; see Q3). Instances of a multi-replica admin still see each other's changes only through the storage-backed change feed (`design-ai-direction.md` Q8; today's cache is per instance, `design-cache.md`).
-
-Decided: maintainer, 2026-10-31 (#1623): the benefit reworded after the Fable second opinion showed the multi-instance claim was overstated.
+The CLI for agents is a separate, small client that calls a Gazetta admin's API, local (`gazetta dev`) or remote, so the admin is always the writer: saves go through its save path, and the agent's own identity is enforced on an admin that authenticates callers (not `trust: 'none'`, the local default; see Q3).
 
 Decided: maintainer, 2026-10-31 (#1623)
 
@@ -46,17 +44,35 @@ Decided: maintainer, 2026-10-31 (#1623)
 |---|---|
 | Content commands in the `gazetta` CLI, calling the API when an admin is configured or running and writing in-process otherwise | The maintainer chose an API-only client |
 | A separate CLI that falls back to writing in-process | It needs the whole core for the fallback, so it's no lighter than `gazetta` and is a second package to keep in step |
+
+Follows from this: in CI and scripts, the client needs an admin to talk to (a hosted one, or `gazetta dev` / `gazetta admin` started for the job). The #49 pass designs the package name, how the client finds a local admin, and the MCP server's relation to it. The client is written in Go (Q8).
+
+Instances of a multi-replica admin still see each other's changes only through the storage-backed change feed (`design-ai-direction.md` Q8); today's cache is per instance (`design-cache.md`). The first version of this decision said other instances see the change; the Fable second opinion showed that was overstated.
+
+Decided: maintainer, 2026-10-31 (#1623)
+
+| Rejected | Why |
+|---|---|
+| Leave the wording as written | A multi-instance claim the cache design contradicts |
+
+The thin CLI has a publish command too, through the API: on a target that needs approval it creates a publish request, where `gazetta publish` refuses. Two commands named publish with different behaviour depart from team rule 7 (one word per concept); the maintainer chose to keep both and record the difference. With it, an agent with publish rights on a hosted admin can publish or request a publish through the same client.
+
+Decided: maintainer, 2026-10-31 (#1623)
+
+| Rejected | Why |
+|---|---|
 | No publish command in the thin CLI (presets deny only `gazetta publish`) | The maintainer chose to keep publish in both, with the difference recorded |
 
-Follows from this: in CI and scripts, the client needs an admin to talk to (a hosted one, or `gazetta dev` / `gazetta admin` started for the job). The #49 pass designs the package name, how the client finds a local admin, authentication, and the MCP server's relation to it. The client is written in Go (Q8).
-
-The thin CLI has a publish command, through the API: on a target that needs approval it creates a publish request, where `gazetta publish` refuses. Two commands named publish with different behaviour depart from team rule 7 (one word per concept); kept because an agent with publish rights on a hosted admin should be able to publish or request a publish through the same client.
+How an agent gets its own identity (upstream service identities mapped to a role, or Gazetta-issued tokens, which would amend `design-auth-rbac.md`'s no-built-in-auth lock) gets its own discovery: [#1624](https://github.com/gazetta-studio/gazetta-studio/issues/1624).
 
 Decided: maintainer, 2026-10-31 (#1623)
 
-How an agent gets its own identity (upstream service identities mapped to a role, or Gazetta-issued tokens, which would amend `design-auth-rbac.md`'s no-built-in-auth lock) has its own discovery, [#1624](https://github.com/gazetta-studio/gazetta-studio/issues/1624); #49 decides after it.
+| Rejected | Why |
+|---|---|
+| Name the fork now; the #49 pass decides | The maintainer asked for a separate discovery first |
+| Upstream identity only, decided now | The maintainer asked for a separate discovery first |
 
-Decided: maintainer, 2026-10-31 (#1623)
+The #49 pass then designs agent principals from that discovery's outcome (product owner's sequencing).
 
 ### Q3 — "Can't publish" is enforced on hosted admins; locally, presets and a plain statement
 
@@ -90,24 +106,42 @@ Decided: maintainer, 2026-10-31 (#1623)
 
 ### Q5 — A public, versioned admin API with an OpenAPI document; the admin is one of its clients
 
-The admin API becomes a public, versioned API with an OpenAPI document, designed contract-first. The admin UI, the thin CLI, MCP and any script or LLM app are all clients of the same public API; there is no separate private API for the admin. Follows from this and AGENTS.md's MCP schema discipline (admin-API routes use the Zod schemas under `admin-api/schemas/`): every route parses its input with its Zod schema, and the OpenAPI document is generated from those schemas.
+The admin API becomes a public, versioned API with an OpenAPI document, designed contract-first. The admin UI, the thin CLI, MCP and any script or LLM app are all clients of the same public API; there is no separate private API for the admin.
 
 Decided: maintainer, 2026-10-31 (#1623)
 
 | Rejected | Why |
 |---|---|
 | Internal OpenAPI, generated from Zod, not promised as public | The maintainer chose a public, versioned API |
-| A public set of routes, with the admin's other routes kept internal | The maintainer chose one API that the admin uses too; only dev-only routes and the draft wire format stay unversioned |
-| Promise v1 now | Breaking changes within weeks, as the planned route changes land |
-| Version per route group | Several version lines to track |
-| Per-item saves only | A large agent run can't be undone as a run once it passes the 50-revision history |
+| A public set of routes, with the admin's other routes kept internal | The maintainer chose one API that the admin uses too |
 | No OpenAPI; CLI commands and MCP tools are the only contracts | No shared contract between the CLI, MCP and the admin |
 
-Its cost: routes shaped for the Vue admin become a public contract, and every admin feature becomes public surface (the dev playground and cache stats included, or redesigned to fit). The #49 pass designs the versioning scheme and the contract.
+Follows from this and `feature-design-process.md`'s MCP schema discipline (admin-API routes use the Zod schemas under `admin-api/schemas/`): every route parses its input with its Zod schema, and the OpenAPI document is generated from those schemas. Its cost: routes shaped for the Vue admin become a public contract. The #49 pass designs the versioning scheme and the contract.
 
-The OpenAPI marks dev-only routes (`/__validation`, `/__reload`, the dev playground) and the preview's draft-overrides format (internal per `design-editor-ux.md`) as unversioned; everything agents use (content, publish, history, validation, assets) is public and versioned, and the admin uses those same routes. v1 is promised after the route changes already planned in Now land (review-workflow routes, publish requests and removals on `POST /api/publish`, rollback requests, media's routes, live check's on-demand route); until then the API is published as a preview, and the thin CLI targets v1. The public API carries a bulk save that records one revision per agent run, which per-run undo builds on (one save = one revision, and a target keeps the last 50: `design-publishing.md`).
+The OpenAPI marks dev-only routes (`/__validation`, `/__reload`, the dev playground) and the preview's draft-overrides format (internal per `design-editor-ux.md`) as unversioned. They are in the same API, so there is still no private API; everything agents use (content, publish, history, validation, assets) is versioned, and the admin uses those same routes.
 
-Decided: maintainer, 2026-10-31 (#1623), after the Fable second opinion.
+Decided: maintainer, 2026-10-31 (#1623)
+
+| Rejected | Why |
+|---|---|
+| All public and versioned, as first decided | Freezes the editor's draft lanes, which `design-editor-ux.md` keeps internal |
+
+v1 is promised after the route changes already planned in Now land (review-workflow routes, publish requests and removals on `POST /api/publish`, rollback requests, media's routes, live check's on-demand route); until then the API is published as a preview, and the thin CLI targets v1.
+
+Decided: maintainer, 2026-10-31 (#1623)
+
+| Rejected | Why |
+|---|---|
+| Promise v1 now | v2 likely within weeks, as the planned route changes land |
+| Version per route group | Several version lines to track |
+
+The public API carries a bulk save that records one revision per agent run, which per-run undo builds on: one save is one revision, and a target keeps the last 50 (`design-publishing.md`).
+
+Decided: maintainer, 2026-10-31 (#1623)
+
+| Rejected | Why |
+|---|---|
+| Leave it to #49, no mention now | Risk of a v1 contract with only per-item saves |
 
 ### Q6 — Agents learn about changes from the live feed and webhooks
 
@@ -135,17 +169,28 @@ Decided: maintainer, 2026-10-31 (#1623)
 
 One binary for macOS, Linux and Windows (x64 and arm64), cross-compiled with Go's built-in targets; its API client is generated from the OpenAPI document (Q5). It is the repo's first non-TypeScript code: a CI job, a Dependabot ecosystem and a toolchain to learn. A release tool (for example goreleaser) is a separate choice for the maintainer.
 
-The skill (npm) and the commands it names (the Go binary) are two releases kept in step: Q4's reason for rejecting a separate skills repo partly applies to the chosen design too. The npm package's drift test needs the binary, and the #49 pass picks how users install it (per-platform npm packages, like esbuild and Biome, or an installer). The bots can't check Go cuts yet (feature-bot's reviewer tells tests from implementation by TypeScript paths; the runners install Node only; Biome doesn't format Go), so the product owner files the Go cuts and the REVIEW PRS session builds them; Go support for feature-bot and fix-bot is a later issue.
+Decided: maintainer, 2026-10-31 (#1623)
 
-Decided: maintainer, 2026-10-31 (#1623), after the Fable second opinion.
+| Rejected | Why |
+|---|---|
+| Rust | Slower builds, and cross-compiling needs more setup per target; its gains matter less for a thin HTTP client |
+| TypeScript compiled to one binary (Bun or Deno compile, Node SEA) | Binaries of 50–100 MB with a JS runtime inside each |
+
+The skill (npm) and the commands it names (the Go binary) are two releases kept in step: Q4's reason for rejecting a separate skills repo partly applies to the chosen design too. The npm package's drift test needs the binary, and the #49 pass picks how users install it (per-platform npm packages, like esbuild and Biome, or an installer).
+
+Decided: maintainer, 2026-10-31 (#1623)
+
+| Rejected | Why |
+|---|---|
+| Revisit Q4 | Reopens a decision made the same evening |
+
+The bots can't check Go cuts yet (feature-bot's reviewer tells tests from implementation by TypeScript paths; the runners install Node only; Biome doesn't format Go), so the product owner files the Go cuts and the REVIEW PRS session builds them; Go support for feature-bot and fix-bot is a later issue.
 
 Decided: maintainer, 2026-10-31 (#1623)
 
 | Rejected | Why |
 |---|---|
 | Bot support for Go before any Go cut is filed | Delays the CLI behind bot and workflow changes |
-| Rust | Slower builds, and cross-compiling needs more setup per target; its gains matter less for a thin HTTP client |
-| TypeScript compiled to one binary (Bun or Deno compile, Node SEA) | Binaries of 50–100 MB with a JS runtime inside each |
 
 ## What this changes in the plan
 
