@@ -6,8 +6,8 @@ The admin's components and icons move off PrimeUI, whose new major versions are 
 
 **Companion docs:**
 - [ADR-0018](../../docs/adr/0018-admin-ui-on-reka.md): the load-bearing decision (no PrimeUI; Reka UI with our own styles); supersedes [`design-decisions.md`](design-decisions.md) #13
-- [`css-theming.md`](css-theming.md): today's token layering (`--p-*` → `--color-*`), `adminPreset`, the `admin/theme.css` load order; cut 3 rewrites it
-- [`docs/customize-editor.md`](../../docs/customize-editor.md): the public `admin/theme.css` contract; cut 3 rewrites its token section
+- [`css-theming.md`](css-theming.md): today's token layering (`--p-*` → `--color-*`), `adminPreset`, the `admin/theme.css` load order; cut 2 rewrites it
+- [`docs/customize-editor.md`](../../docs/customize-editor.md): the public `admin/theme.css` contract; cut 2 rewrites its token section
 - [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md): stories as bot specs; cut 1's components get theirs
 - [`design-component-ordering.md`](design-component-ordering.md): drag and drop uses `@formkit/drag-and-drop`, unaffected
 - Research: the discovery comment on #1542 (licence terms, v4 maintenance, OpenVue, other libraries), and this round's comparisons of exit options, icon sets and Reka-based libraries (2026-10-31)
@@ -235,7 +235,7 @@ No production users. An existing `admin/theme.css` that overrides `--p-*` stops 
 
 ## Open questions
 
-1. Which new Gazetta tokens (radius, spacing, focus ring) join `--color-*` as overridable in `admin/theme.css`: cut 1 proposes, cut 3 documents.
+1. Which new Gazetta tokens (radius, spacing, focus ring) join `--color-*` as overridable in `admin/theme.css`: cut 1 proposes, cut 2 documents in `docs/customize-editor.md`.
 
 ## Future directions
 
