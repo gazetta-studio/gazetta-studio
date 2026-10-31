@@ -194,28 +194,30 @@ has no theme. To follow switches immediately, style with CSS tokens
 ## Customize admin appearance
 
 If your project has a file at `admin/theme.css`, Gazetta loads it after the
-admin's own styles. At equal specificity, later declarations win; component-token injection has the ordering limit described below.
+admin's own styles, so at equal specificity your declarations win.
 
 Use it to:
 
-**Override Gazetta's tokens** - change brand color, status colors, etc.
+**Override Gazetta's tokens** - change brand color, status colors, radii, etc.
 
 ```css
 /* admin/theme.css */
 :root {
-  --p-primary-color: #7c3aed;
-  --color-danger-bg: #fef2f2;
+  --color-primary: #6d28d9;
+  --color-on-primary: #ffffff;
   --color-env-prod-bg: #fff5e6;
 }
 .dark {
-  --p-primary-color: #a78bfa;
-  --color-danger-bg: #2a0a0a;
+  --color-primary: #a78bfa;
+  --color-on-primary: #1e0b3b;
   --color-env-prod-bg: #3a2a10;
 }
 ```
 
 A `:root`-only override applies in both themes - the light `--color-env-prod-bg`
-above would sit behind dark-mode text without its `.dark` counterpart.
+above would sit behind dark-mode text without its `.dark` counterpart. Keep each
+colour readable against what it sits on: text on `--color-bg`, and
+`--color-on-<name>` text on a `--color-<name>` fill.
 
 **Define custom tokens for custom editors and fields** - pick a prefix you own:
 
@@ -232,42 +234,42 @@ above would sit behind dark-mode text without its `.dark` counterpart.
 ```
 
 Your custom editor consumes via `var(--myapp-json-key)`. `theme.css` is appended
-after the app mounts; at equal specificity its later declarations win, subject to
-the component-token limit below. The admin doesn't wait
-for it to load, so first paint can precede it.
+after the app mounts; the admin doesn't wait for it to load, so first paint can
+precede it.
 
-`theme.css` reliably overrides the global tokens above. PrimeVue component tokens
-(`--p-button-*`, `--p-dialog-*`) are order-dependent: PrimeVue injects each
-component's tokens when the component first appears. Components on the first
-screen usually get theirs before `theme.css`, and your override wins; ones that
-first mount later (a badge, say) get theirs after it and
-win instead. To override a component token reliably, use a more specific selector
-than PrimeVue's, e.g. `html .p-button { ... }`.
+### Tokens you can override
+
+All of these have a light value on `:root` and, where it differs, a dark value
+on `.dark`.
+
+| Token | Purpose |
+|---|---|
+| `--color-primary` / `--color-on-primary` | Brand accent (primary buttons, links, active states) and text on it |
+| `--color-bg` / `--color-fg` / `--color-muted` | Page and panel background, text, secondary text |
+| `--color-border` / `--color-hover-bg` | Borders and dividers; hovered rows and quiet buttons |
+| `--color-input-bg` / `--color-input-border` | Text fields, selects, checkboxes |
+| `--color-bg-chip` / `--color-bg-code` | Chips and badges; code and JSON blocks |
+| `--color-accent` | Selected component in the component tree |
+| `--color-danger` / `--color-success` / `--color-warn` / `--color-info` | Severity fills and text (buttons, badges, status icons), each with `--color-on-danger` etc. for text on the fill |
+| `--color-danger-bg` / `--color-danger-fg` | Error banners (likewise `success`, `warning`, `info`) |
+| `--color-env-prod-bg` / `--color-env-prod-fg` | Production target badge (likewise `staging`) |
+| `--color-change-added` / `--color-change-modified` / `--color-change-deleted` | Change marks in the publish panel |
+| `--color-focus-ring`, `--focus-ring-width`, `--focus-ring-offset` | Keyboard focus outline |
+| `--color-overlay`, `--shadow-overlay` | Dialog backdrop; shadow of dialogs and menus |
+| `--radius-xs` / `--radius-sm` / `--radius-md` / `--radius-full` | Corner radii |
+| `--font-mono` | Monospace text |
 
 ### Reserved prefixes
 
 | Prefix | Owner | What you can do |
 |---|---|---|
-| `--p-*` | PrimeVue | Override existing - don't add new |
-| `--color-*` | Gazetta semantic layer | Override existing - don't add new |
+| `--color-*`, `--radius-*`, `--focus-ring-*`, `--shadow-*`, `--font-*` | Gazetta | Override existing - don't add new |
 | Anything else | You | Pick a prefix you own (`--myapp-*`, `--mycorp-*`) |
 
-The most useful Gazetta tokens to override:
+### Migrating from `--p-*` tokens
 
-| Token | Purpose |
-|---|---|
-| `--p-primary-color` | Brand accent - buttons, focus rings, active states |
-| `--color-danger-bg` / `--color-danger-fg` | Error banners |
-| `--color-success-bg` / `--color-success-fg` | Success banners |
-| `--color-warning-bg` / `--color-warning-fg` | Warning banners |
-| `--color-info-bg` / `--color-info-fg` | Info banners |
-| `--color-env-prod-bg` / `--color-env-prod-fg` | Production target badge |
-| `--color-env-staging-bg` / `--color-env-staging-fg` | Staging target badge |
-
-### Known limitation: brand color cascade
-
-Overriding `--p-primary-color` cascades to some downstream tokens
-(button background, focus rings) but not to derived shades
-(`--p-primary-hover-color`, `--p-primary-active-color`,
-`--p-primary-contrast-color`). For a full brand palette swap, declare
-each shade. A JS preset API is not available; set these values with CSS overrides.
+Earlier versions of the admin were built on PrimeVue, and `admin/theme.css`
+overrode its `--p-*` tokens (for example `--p-primary-color`). The admin no
+longer uses PrimeVue, so those overrides have no effect: rename them to the
+`--color-*` token with the same purpose (`--p-primary-color` becomes
+`--color-primary`).
