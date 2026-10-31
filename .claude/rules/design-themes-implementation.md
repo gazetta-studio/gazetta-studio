@@ -163,7 +163,7 @@ Branch: `themes-render-context` off `main`. **No backwards compatibility** — s
 | Theme-aware validator (e.g., "missing dark variant" warning) | Validation Cut 3 (render-for-analysis); concrete demand |
 | Theme marketplace / curated registry | Strategic; not in v1 scope |
 | Independent theme versioning | Strategic; not in v1 |
-| Admin chrome theming via Theme entity (vs PrimeVue tokens) | `css-theming.md`'s scope; product matures past prototype |
+| Admin chrome theming via Theme entity (vs the `--color-*` tokens) | `css-theming.md`'s scope; product matures past prototype |
 | Per-role theme gating | Concrete demand from accessibility-context operators |
 | Custom theme dimensions beyond presentation (audience, campaign, A/B, multi-tenant) | Each gets its own design pass when demand surfaces |
 

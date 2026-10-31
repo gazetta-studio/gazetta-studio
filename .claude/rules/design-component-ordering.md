@@ -76,7 +76,7 @@ The grip handle subsumes both. Trash button stays (delete is a different action;
 
 ### Q4 — Drop indicator: thin insertion line
 
-A 2px colored line renders between rows during drag and while a row is lifted by keyboard, indicating exactly where the dropped item will land. Color: matches `--color-primary` (PrimeVue Aura emerald in our tokens). The keyboard line maps the final array index back to a boundary in the still-rendered order: moving down draws it after the row currently at the destination index, moving up draws it before that row.
+A 2px colored line renders between rows during drag and while a row is lifted by keyboard, indicating exactly where the dropped item will land. Color: matches `--color-primary` (emerald in `tokens.css`). The keyboard line maps the final array index back to a boundary in the still-rendered order: moving down draws it after the row currently at the destination index, moving up draws it before that row.
 
 **Rejected alternatives:**
 - **Reflow / placeholder gap** — ambiguous in nested trees (when hovering near a parent's last child, does the gap mean "after this child" or "after this parent"?). An insertion line at a specific Y-coordinate disambiguates.
@@ -229,7 +229,7 @@ No migration required. Sites without any DnD-related config continue to work —
 1. **Library version pinning.** `@formkit/drag-and-drop` is 0.6.1 (pre-1.0). Pin to exact version; document in `package.json` with a comment. Bump only after reading changelog + smoke-testing the playground.
 2. **Touch threshold for long-press.** FormKit's default is 250ms. Verify it doesn't interfere with row-tap-to-select on iPad. If it does, increase to 500ms or add an explicit "touch-drag mode" toggle.
 3. **Animation duration for reflow.** Library default ~200ms. Confirm against the dev playground's "feels right" bar.
-4. **Drop indicator color in dark mode.** PrimeVue Aura's `--color-primary` is a brighter emerald in dark mode; should be visible against `--color-bg` either way, but verify with a real dark-mode capture.
+4. **Drop indicator color in dark mode.** `--color-primary` is a brighter emerald in dark mode; should be visible against `--color-bg` either way, but verify with a real dark-mode capture.
 
 ## Future directions
 

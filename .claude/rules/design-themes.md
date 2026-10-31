@@ -16,12 +16,12 @@ Foundational dimension #3 of 13. Establishes presentation theming (light/dark, c
 **Companion docs**:
 - [`feature-design-process.md`](feature-design-process.md) — defines the **Theme check** every new feature design must answer
 - [`design-media.md`](design-media.md) — locked theme invariants on the asset side
-- [`css-theming.md`](css-theming.md) — admin UI theming via PrimeVue tokens
+- [`css-theming.md`](css-theming.md) — admin UI theming via the `--color-*` tokens
 - [`design-i18n.md`](design-i18n.md) — sibling foundational dimension; locale + theme compose
 
 ## Why this is foundational
 
-Themes is half-shipped: assets have full per-theme variant support; admin uses theme tokens via PrimeVue; pages and fragments do NOT have theme variants. Without a uniform contract, every new feature shipped between now and the design pass either ignores theme or guesses how it should behave. Retrofit risk.
+Themes is half-shipped: assets have full per-theme variant support; the admin uses theme tokens (`--color-*` in `tokens.css`); pages and fragments do NOT have theme variants. Without a uniform contract, every new feature shipped between now and the design pass either ignores theme or guesses how it should behave. Retrofit risk.
 
 ## Scope: presentation theming only
 

@@ -65,14 +65,12 @@ Minor future-risk signal: imgproxy has a Pro business model, so upstream has com
 - **Save vs publish pipelines.** Save writes manifests directly via `storage.writeFile()` (no render). Publish renders + assembles + writes via `publishItems()` + `publishPageRendered()`. Both call `recordWrite()` into history. The media work extends publish, not save.
 - **Schema helpers don't exist yet.** No `packages/gazetta/src/schema.ts`, no `gazetta/schema` export. `embeddedAsset()` / `downloadable()` / `fontAsset()` are new surface to add.
 - **Storage providers confirmed:** filesystem, R2, S3, Azure Blob — four providers at `packages/gazetta/src/providers/*.ts`, all implementing the current text-only `StorageProvider` interface. Nothing else in the directory.
-- **Hono v4** (`^4.12.0`) + **Zod v4** (`^4.3.6`) + **PrimeVue v4** (`^4.5.0`) + **Vue 3.5** + **Vite v8** (admin uses `^8.0.8`). All current majors as of 2026-04.
+- **Hono v4** (`^4.12.0`) + **Zod v4** (`^4.3.6`) + **Vue 3.5** + **Vite v8** (admin uses `^8.0.8`). All current majors as of 2026-04.
 - **TypeScript strict mode confirmed** in `packages/gazetta/tsconfig.json` (`"strict": true`).
 - **SEO usage of `siteUrl`** — used as the base URL for canonical tags, sitemap, and robots generation. Reusing it for asset URLs is a light additional load; add a dedicated `assetsUrl` override per target if/when CDN split is needed (not v1).
 
 ## Unverified — check before citing as fact
 
 - **Sanity's asset hash algorithm** (SHA-1 vs SHA-256) — asserted as SHA-1 in earlier research but not confirmed from Sanity's public docs. Don't cite as a fact when making comparison claims.
-- **PrimeVue DataView keyboard navigation** — does not provide full keyboard navigation out of the box; only the layout toggle buttons are keyboard-responsive. Grid keyboard nav will be custom work.
 - **Strapi bug references** — issue #4384 ("Deleting file from 'Files Upload' breaks any other content that has reference as a 'Media' relation to that file"; created 2019-10-28, **CLOSED**, 7 comments) is the canonical historical example of delete-leaves-broken-refs. Cite #4384 as a historical reference for this bug class; do not cite #11939 (different bug). Closure status does not mean the bug class is fully resolved in Strapi — it's the public-record example of the pattern we're avoiding.
 - **Hono version** — codebase uses Hono v4 (`^4.12.0`); Hono current major is v4. All admin-api routes import `Hono` from `hono`.
-- **PrimeVue version** — admin uses PrimeVue v4 (`^4.5.0`). Keyboard navigation limitation noted above applies to v4's DataView.

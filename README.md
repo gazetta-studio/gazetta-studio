@@ -37,7 +37,7 @@ The CMS stores nothing — all content lives in targets (filesystem, S3, Azure B
 packages/
   gazetta/          Core package — renderer, CLI, admin API, editor, storage providers
 apps/
-  admin/            CMS admin frontend (Vue 3 + PrimeVue)
+  admin/            CMS admin frontend (Vue 3, Reka UI)
 tools/
   mcp-dev/          MCP dev server (screenshot tool for Claude Code)
 examples/

@@ -416,7 +416,7 @@ How rendering composes with each of the other 12 foundational dimensions plus th
 - Theme-variant assets resolve per `design-media.md`'s cross-dimension fallback.
 - Dynamic templates receive `ctx.theme`.
 - Page query API auto-filters by active theme; opt out via `where({ theme: 'all' })`.
-- Pages/fragments are theme-agnostic at the data layer in v1 (per `design-themes.md`); themes affect render via PrimeVue tokens / class-based cascade in templates.
+- Pages/fragments are theme-agnostic at the data layer in v1 (per `design-themes.md`); themes affect render via CSS custom properties / class-based cascade in templates.
 
 ### Auth + RBAC (#4)
 - Dynamic templates receive `ctx.principal` from auth/RBAC's `Principal`.

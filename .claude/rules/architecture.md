@@ -35,14 +35,14 @@ CMS (stateless web app)  <---->  Targets (state holders)
 
 | Package | Path | Purpose |
 |---------|------|---------|
-| admin | `apps/admin/` | Admin frontend — Vue 3 + PrimeVue shell, editor mounting, preview |
+| admin | `apps/admin/` | Admin frontend — Vue 3 shell, editor mounting, preview |
 | gazetta | `packages/gazetta/` | Core — renderer, CLI, admin API, editor, storage providers, types |
 | mcp-dev | `tools/mcp-dev/` | MCP dev server (screenshot tool for Claude Code) |
 
 ## Admin UI Architecture (apps/admin)
 
 The CMS is a shell that manages layout, navigation, and editor mounting.
-Built with Vue 3 + Vite + PrimeVue (Tree, Splitter, Drawer, Toolbar).
+Built with Vue 3 + Vite and our own components (`apps/admin/src/client/components/ui/`: Button, Dialog, Splitter, Toolbar, Menu, …) on Reka UI primitives, with Lucide icons ([`design-admin-ui.md`](design-admin-ui.md), ADR-0018).
 
 All editors (default @rjsf forms and custom template editors) mount into DOM
 elements via the `mount(el, { content, onChange })` / `unmount(el)` contract.
@@ -50,7 +50,7 @@ The shell doesn't render forms — it provides a `<div>` and calls mount.
 
 ```
 ┌─────────────────────────────────────────────┐
-│ CMS Shell (Vue 3 + PrimeVue)                │
+│ CMS Shell (Vue 3 + our ui/ components)      │
 │ ┌──────────┐ ┌────────────┐ ┌─────────────┐ │
 │ │ Site     │ │ Editor     │ │ Preview     │ │
 │ │ Tree     │ │ Slot       │ │ (iframe)    │ │

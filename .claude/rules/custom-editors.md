@@ -131,7 +131,7 @@ Forbidden: `import { something } from '../../admin/...'` (runtime import).
 `createEditorMount` and `DefaultEditorForm` from `gazetta/editor` mount a React form
 into any DOM element. They work outside the admin UI — useful for embedding a schema-driven
 form in custom applications. Not officially supported or tested for standalone use, but
-architecturally independent of Vue/PrimeVue.
+architecturally independent of the admin's Vue shell.
 
 ## Admin UI in Dev Mode — Source vs Pre-built
 
