@@ -6,7 +6,7 @@ Where Gazetta's AI work goes: forms, AI helpers in forms, agents operating the C
 
 **Companion docs:**
 - [`ROADMAP.md`](../../ROADMAP.md): where the items below sit
-- [#49](https://github.com/gazetta-studio/gazetta-studio/issues/49): the MCP server design pass, whose starting decision ROADMAP already locks (agents save through the admin's path as their own principal, audited, can't publish by default)
+- [#49](https://github.com/gazetta-studio/gazetta-studio/issues/49): the MCP server design pass, renamed the agent access design pass on 2026-10-31 ([`design-agent-access.md`](design-agent-access.md)); "the MCP design pass" below means this pass. Its starting decision ROADMAP already locks (agents save through the admin's path as their own principal, audited, can't publish by default)
 - [`design-ai.md`](design-ai.md): the `ai/` layer and providers that helpers in forms reuse
 - [`design-tutorial.md`](design-tutorial.md): the Stage 1 tutorial (Q7)
 - Research: the discovery comment on #1485 (2026-10-30): vendors, adoption surveys, fit with Gazetta's model, cost per layer
