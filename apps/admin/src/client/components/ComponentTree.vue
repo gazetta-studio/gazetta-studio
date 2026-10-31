@@ -1002,9 +1002,9 @@ function nextDuplicateName(
 .empty { color: var(--color-muted); }
 .node-item { display: flex; align-items: center; gap: 4px; height: 22px; padding: 0 6px; margin: 0 2px; cursor: pointer; border-radius: 3px; }
 .node-item:hover, .node-item.hovered { background: var(--color-hover-bg); }
-.node-item.selected { background: rgba(167, 139, 250, 0.15); box-shadow: inset 2px 0 0 var(--color-accent); }
+.node-item.selected { background: color-mix(in srgb, var(--color-accent) 15%, transparent); box-shadow: inset 2px 0 0 var(--color-accent); }
 .node-root { font-weight: 600; padding: 0 6px; height: 26px; line-height: 26px; border-radius: 0; margin: 0 0 2px 0; border-bottom: 1px solid var(--color-border); }
-.node-root.selected { background: rgba(167, 139, 250, 0.1); box-shadow: none; border-bottom-color: var(--color-accent); }
+.node-root.selected { background: color-mix(in srgb, var(--color-accent) 10%, transparent); box-shadow: none; border-bottom-color: var(--color-accent); }
 .node-icon { width: 16px; height: 10px; text-align: center; font-size: 10px; color: var(--color-muted); flex-shrink: 0; }
 .node-error-icon { display: inline-flex; align-items: center; justify-content: center; }
 .node-error-glyph { inline-size: 10px; block-size: 10px; }

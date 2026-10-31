@@ -107,9 +107,9 @@ async function handleCreate() {
 <style scoped>
 .create-content { display: flex; flex-direction: column; gap: 1rem; }
 .create-field { display: flex; flex-direction: column; gap: 0.375rem; }
-.create-field label { font-size: 0.75rem; text-transform: uppercase; color: #888; letter-spacing: 0.03em; }
+.create-field label { font-size: 0.75rem; text-transform: uppercase; color: var(--color-muted); letter-spacing: 0.03em; }
 .create-input { width: 100%; }
 .create-list { width: 100%; }
-.create-hint { font-size: 0.75rem; color: #666; }
-.create-error { color: #f87171; font-size: 0.875rem; }
+.create-hint { font-size: 0.75rem; color: var(--color-muted); }
+.create-error { color: var(--color-danger-fg); font-size: 0.875rem; }
 </style>

@@ -64,8 +64,8 @@ async function handleCreate() {
 <style scoped>
 .add-content { display: flex; flex-direction: column; gap: 1rem; }
 .add-field { display: flex; flex-direction: column; gap: 0.375rem; }
-.add-field label { font-size: 0.75rem; text-transform: uppercase; color: #888; letter-spacing: 0.03em; }
+.add-field label { font-size: 0.75rem; text-transform: uppercase; color: var(--color-muted); letter-spacing: 0.03em; }
 .add-input { width: 100%; }
 .add-list { width: 100%; }
-.add-error { color: #f87171; font-size: 0.875rem; }
+.add-error { color: var(--color-danger-fg); font-size: 0.875rem; }
 </style>

@@ -514,92 +514,60 @@ function generateMockContent(schema: Record<string, unknown>): Record<string, un
 .playground { display: flex; height: calc(100% - 60px); }
 
 /* Sidebar */
-.playground-sidebar { width: 220px; flex-shrink: 0; overflow-y: auto; border-right: 1px solid #e5e7eb; padding: 0.75rem 0; }
-.sidebar-header { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 0 1rem; margin-bottom: 0.75rem; color: #6b7280; }
-.sidebar-loading { padding: 1rem; color: #9ca3af; font-size: 0.8125rem; }
+.playground-sidebar { width: 220px; flex-shrink: 0; overflow-y: auto; border-right: 1px solid var(--color-border); padding: 0.75rem 0; }
+.sidebar-header { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 0 1rem; margin-bottom: 0.75rem; color: var(--color-muted); }
+.sidebar-loading { padding: 1rem; color: var(--color-muted); font-size: 0.8125rem; }
 .sidebar-section { margin-bottom: 0.5rem; }
-.section-label { font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; padding: 0.375rem 1rem; font-weight: 600; }
+.section-label { font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-muted); padding: 0.375rem 1rem; font-weight: 600; }
 .section-label-toggle { cursor: pointer; display: flex; align-items: center; gap: 0.375rem; user-select: none; }
-.section-label-toggle:hover { color: #6b7280; }
+.section-label-toggle:hover { color: var(--color-fg); }
 .toggle-icon { inline-size: 0.625rem; block-size: 0.625rem; }
-.sidebar-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.3125rem 1rem; cursor: pointer; font-size: 0.8125rem; color: #6b7280; }
-.sidebar-item:hover { background: rgba(128, 128, 128, 0.08); color: #374151; }
-.sidebar-item.active { background: rgba(102, 126, 234, 0.1); color: #667eea; }
+.sidebar-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.3125rem 1rem; cursor: pointer; font-size: 0.8125rem; color: var(--color-muted); }
+.sidebar-item:hover { background: var(--color-hover-bg); color: var(--color-fg); }
+.sidebar-item.active { background: color-mix(in srgb, var(--color-primary) 10%, transparent); color: var(--color-primary); }
 .item-icon { inline-size: 0.6875rem; block-size: 0.6875rem; flex-shrink: 0; }
 .btn-icon { inline-size: 0.875em; block-size: 0.875em; vertical-align: -0.125em; }
 .empty-icon { inline-size: 2rem; block-size: 2rem; }
 .item-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sidebar-empty { padding: 1.5rem 1rem; color: #9ca3af; font-size: 0.8125rem; line-height: 1.6; }
+.sidebar-empty { padding: 1.5rem 1rem; color: var(--color-muted); font-size: 0.8125rem; line-height: 1.6; }
 .sidebar-empty .hint { margin-top: 0.75rem; }
-.sidebar-empty code { font-family: monospace; font-size: 0.75rem; background: rgba(128, 128, 128, 0.1); padding: 1px 4px; border-radius: 3px; }
+.sidebar-empty code { font-family: monospace; font-size: 0.75rem; background: var(--color-bg-code); padding: 1px 4px; border-radius: 3px; }
 
 /* Main */
 .playground-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-.main-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #9ca3af; font-size: 0.875rem; }
-.main-toolbar { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 1rem; border-bottom: 1px solid #e5e7eb; font-size: 0.8125rem; flex-shrink: 0; }
-.toolbar-label { flex: 1; display: flex; align-items: baseline; gap: 0.5rem; color: #6b7280; }
+.main-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--color-muted); font-size: 0.875rem; }
+.main-toolbar { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 1rem; border-bottom: 1px solid var(--color-border); font-size: 0.8125rem; flex-shrink: 0; }
+.toolbar-label { flex: 1; display: flex; align-items: baseline; gap: 0.5rem; color: var(--color-muted); }
 .toolbar-type { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.03em; }
-.toolbar-label strong { color: #374151; font-size: 0.875rem; }
-.toolbar-hint { font-size: 0.6875rem; color: #9ca3af; font-style: italic; }
-.toolbar-btn { display: flex; align-items: center; gap: 0.375rem; padding: 0.25rem 0.625rem; border: 1px solid #e5e7eb; border-radius: 6px; background: transparent; color: #6b7280; font-size: 0.75rem; cursor: pointer; white-space: nowrap; }
-.toolbar-btn:hover { background: rgba(128, 128, 128, 0.08); color: #374151; }
+.toolbar-label strong { color: var(--color-fg); font-size: 0.875rem; }
+.toolbar-hint { font-size: 0.6875rem; color: var(--color-muted); font-style: italic; }
+.toolbar-btn { display: flex; align-items: center; gap: 0.375rem; padding: 0.25rem 0.625rem; border: 1px solid var(--color-border); border-radius: 6px; background: transparent; color: var(--color-muted); font-size: 0.75rem; cursor: pointer; white-space: nowrap; }
+.toolbar-btn:hover { background: var(--color-hover-bg); color: var(--color-fg); }
 
 /* Tabs (Cut 6) — Preview / Impact strip below the main toolbar.
    Storybook-style tab pattern; one selected at a time. */
-.playground-tabs { display: flex; gap: 0; padding: 0 1rem; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; }
-.playground-tab { background: transparent; border: none; border-bottom: 2px solid transparent; padding: 0.5rem 0.75rem; font-size: 0.75rem; color: #6b7280; cursor: pointer; }
-.playground-tab:hover { color: #374151; }
-.playground-tab.active { color: #667eea; border-bottom-color: #667eea; font-weight: 600; }
+.playground-tabs { display: flex; gap: 0; padding: 0 1rem; border-bottom: 1px solid var(--color-border); flex-shrink: 0; }
+.playground-tab { background: transparent; border: none; border-bottom: 2px solid transparent; padding: 0.5rem 0.75rem; font-size: 0.75rem; color: var(--color-muted); cursor: pointer; }
+.playground-tab:hover { color: var(--color-fg); }
+.playground-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); font-weight: 600; }
 
 /* Body — side by side, equal width */
 .main-body { flex: 1; display: flex; overflow: hidden; }
 .main-body-impact { display: block; overflow-y: auto; }
 .main-content { flex: 1; overflow-y: auto; padding: 1.5rem; min-width: 0; }
 .mount-container { max-width: 600px; }
-.mount-error { color: #dc2626; font-size: 0.8125rem; margin-bottom: 1rem; padding: 0.75rem; background: rgba(220, 38, 38, 0.08); border-radius: 6px; }
+.mount-error { color: var(--color-danger-fg); font-size: 0.8125rem; margin-bottom: 1rem; padding: 0.75rem; background: var(--color-danger-bg); border-radius: 6px; }
 
 /* Value inspector — equal width side panel */
-.value-inspector { flex: 1; min-width: 0; border-left: 1px solid #e5e7eb; overflow-y: auto; display: flex; flex-direction: column; }
-.inspector-header { font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; padding: 0.5rem 0.75rem; font-weight: 600; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; }
-.inspector-value { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.75rem; line-height: 1.7; padding: 0.75rem; color: #374151; margin: 0; white-space: pre-wrap; word-break: break-word; flex: 1; }
+.value-inspector { flex: 1; min-width: 0; border-left: 1px solid var(--color-border); background: var(--color-bg-code); overflow-y: auto; display: flex; flex-direction: column; }
+.inspector-header { font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-muted); padding: 0.5rem 0.75rem; font-weight: 600; border-bottom: 1px solid var(--color-border); flex-shrink: 0; }
+.inspector-value { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.75rem; line-height: 1.7; padding: 0.75rem; color: var(--color-fg); margin: 0; white-space: pre-wrap; word-break: break-word; flex: 1; }
 
 /* JSON syntax colors */
-.inspector-value .jv-key { color: #6b7280; }
-.inspector-value .jv-str { color: #16a34a; }
-.inspector-value .jv-num { color: #d97706; }
-.inspector-value .jv-bool { color: #7c3aed; }
-.inspector-value .jv-null { color: #9ca3af; }
+.inspector-value .jv-key { color: var(--color-muted); }
+.inspector-value .jv-str { color: var(--color-success); }
+.inspector-value .jv-num { color: var(--color-warn); }
+.inspector-value .jv-bool { color: var(--color-info); }
+.inspector-value .jv-null { color: var(--color-muted); }
 
-</style>
-
-<!-- Dark mode — non-scoped (avoids HMR issues with :global() in scoped
-     blocks). Each rule is anchored under `.playground` so the styles
-     only apply on the dev playground page; otherwise generic class
-     names like `.section-label` and `.sidebar-item` would leak into
-     other components that happen to share them (e.g. SiteTree's
-     `.section-label`, which would inherit the playground's `#555`
-     dark color and fail color-contrast). -->
-<style>
-.dark .playground .playground-sidebar { border-right-color: #27272a; }
-.dark .playground .sidebar-header { color: #666; }
-.dark .playground .section-label { color: #555; }
-.dark .playground .section-label-toggle:hover { color: #999; }
-.dark .playground .sidebar-item { color: #bbb; }
-.dark .playground .sidebar-item:hover { background: rgba(255, 255, 255, 0.05); color: #e4e4e7; }
-.dark .playground .sidebar-item.active { background: rgba(102, 126, 234, 0.15); color: #667eea; }
-.dark .playground .main-toolbar { border-bottom-color: #27272a; }
-.dark .playground .toolbar-label { color: #999; }
-.dark .playground .toolbar-label strong { color: #e4e4e7; }
-.dark .playground .toolbar-hint { color: #555; }
-.dark .playground .toolbar-btn { border-color: #333; color: #999; }
-.dark .playground .toolbar-btn:hover { background: rgba(255, 255, 255, 0.05); color: #e4e4e7; }
-.dark .playground .mount-error { color: #f87171; background: rgba(248, 113, 113, 0.08); }
-.dark .playground .value-inspector { border-left-color: #27272a; background: #0c0c14; }
-.dark .playground .inspector-header { color: #666; border-bottom-color: #27272a; }
-.dark .playground .inspector-value { color: #e4e4e7; }
-.dark .playground .inspector-value .jv-key { color: #8888a0; }
-.dark .playground .inspector-value .jv-str { color: #4ade80; }
-.dark .playground .inspector-value .jv-num { color: #fbbf24; }
-.dark .playground .inspector-value .jv-bool { color: #a78bfa; }
-.dark .playground .inspector-value .jv-null { color: #52525b; }
 </style>

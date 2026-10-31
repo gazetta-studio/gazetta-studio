@@ -72,7 +72,7 @@ function switchLocale(loc: string) {
   display: none; position: absolute; top: 100%; left: 0; margin-top: 4px;
   background: var(--color-bg); border: 1px solid var(--color-border);
   border-radius: 4px; padding: 2px; z-index: 100; min-width: 48px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: var(--shadow-overlay);
 }
 .locale-dropdown:hover .locale-menu,
 .locale-dropdown:focus-within .locale-menu { display: flex; flex-direction: column; gap: 1px; }

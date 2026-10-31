@@ -136,7 +136,7 @@ onMounted(() => {
 html, body, #app, .cms-app { height: 100%; }
 .cms-error { padding: 2rem; color: var(--color-danger-fg); }
 .cms-loading { padding: 2rem; color: var(--color-muted); }
-.global-toast { position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 1001; background: var(--color-bg); color: var(--color-fg); border: 1px solid var(--color-border); border-top: none; border-radius: 0 0 8px 8px; padding: 8px 20px; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-width: 400px; }
+.global-toast { position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 1001; background: var(--color-bg); color: var(--color-fg); border: 1px solid var(--color-border); border-top: none; border-radius: 0 0 8px 8px; padding: 8px 20px; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 8px; box-shadow: var(--shadow-overlay); max-width: 400px; }
 .toast-success { color: var(--color-success-fg); }
 .toast-error { color: var(--color-danger-fg); }
 .toast-info { color: var(--color-info-fg); }
