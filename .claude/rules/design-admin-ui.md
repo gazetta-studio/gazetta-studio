@@ -43,7 +43,7 @@ Checked 2026-10-29 to 2026-10-31:
 
 Gazetta ships the admin, with its UI library compiled in, inside the `gazetta` npm package, so a PrimeUI-licensed version would likely need an OEM licence, and users' own organisations may miss the Community licence's thresholds.
 
-Decided: maintainer, 2026-10-31 (#1592)
+Decided: maintainer, 2026-10-31 (#1593)
 
 | Rejected | Why |
 |---|---|
@@ -54,7 +54,7 @@ Decided: maintainer, 2026-10-31 (#1592)
 
 `primevue` 4.5.5, `@primeuix/themes` 2.0.3, `@primeuix/styled` 0.7.4 and `primeicons` 7.0.0 stay; `primeicons >=8` joins Dependabot's ignore list.
 
-Decided: maintainer, 2026-10-31 (#1592)
+Decided: maintainer, 2026-10-31 (#1593)
 
 | Rejected | Why |
 |---|---|
@@ -64,7 +64,7 @@ Decided: maintainer, 2026-10-31 (#1592)
 
 The admin moves off PrimeUI now. An earlier answer the same day set triggers for leaving (an unfixed advisory on 4.x, or a Vue release that breaks it); choosing Reka UI as the destination replaced it.
 
-Decided: maintainer, 2026-10-31 (#1592)
+Decided: maintainer, 2026-10-31 (#1593)
 
 | Rejected | Why |
 |---|---|
@@ -75,7 +75,7 @@ Decided: maintainer, 2026-10-31 (#1592)
 
 Site authors override `--color-*` (and new Gazetta tokens such as radius) in `admin/theme.css`. `--p-*` is removed, and the docs change with the cut that removes it. An earlier answer the same day kept `--p-*` through an alias layer; the clean rebuild replaced it.
 
-Decided: maintainer, 2026-10-31 (#1592)
+Decided: maintainer, 2026-10-31 (#1593)
 
 | Rejected | Why |
 |---|---|
@@ -86,7 +86,7 @@ Decided: maintainer, 2026-10-31 (#1592)
 
 The admin's components are built on Reka UI (MIT) primitives, styled with our own CSS. It's the option where we own the look and the token contract, so no vendor's licence or theme engine can affect the admin again; its primitives cover all 11 kinds, and RTL is built in.
 
-Decided: maintainer, 2026-10-31 (#1592)
+Decided: maintainer, 2026-10-31 (#1593)
 
 | Rejected | Why |
 |---|---|
@@ -102,7 +102,7 @@ Decided: maintainer, 2026-10-31 (#1592)
 
 `@lucide/vue` (ISC) SVG components replace primeicons. All 51 icons are covered; only the icons used are bundled, so nothing joins the offline precache; `aria-hidden` is the default; a wrong icon name fails type-checking.
 
-Decided: maintainer, 2026-10-31 (#1592)
+Decided: maintainer, 2026-10-31 (#1593)
 
 | Rejected | Why |
 |---|---|
@@ -120,7 +120,7 @@ Decided: maintainer, 2026-10-31 (#1592)
 
 Components are Reka primitives plus our own scoped CSS on our tokens and `.dark`. shadcn-vue (MIT, by Reka's maintainers) is the model for component structure and accessibility wiring; where its code is copied, its MIT notice is kept. Listbox and Toolbar, which shadcn-vue lacks, are written on Reka's primitives.
 
-Decided: maintainer, 2026-10-31 (#1592)
+Decided: maintainer, 2026-10-31 (#1593)
 
 | Rejected | Why |
 |---|---|
@@ -132,7 +132,7 @@ Decided: maintainer, 2026-10-31 (#1592)
 
 The admin isn't restyled to match today's Aura look. We write the simplest clean CSS ourselves, following no library's look; colours must pass the Storybook axe gate in light and dark.
 
-Decided: maintainer, 2026-10-31 (#1592)
+Decided: maintainer, 2026-10-31 (#1593)
 
 | Rejected | Why |
 |---|---|
@@ -144,7 +144,7 @@ Decided: maintainer, 2026-10-31 (#1592)
 
 One cut switches every use, with PrimeVue never alongside the new components in the shipped admin.
 
-Decided: maintainer, 2026-10-31 (#1592)
+Decided: maintainer, 2026-10-31 (#1593)
 
 | Rejected | Why |
 |---|---|
@@ -155,7 +155,7 @@ Decided: maintainer, 2026-10-31 (#1592)
 
 An advisory in PrimeVue 4 before the move lands is handled by finishing the move; no fork in between.
 
-Decided: maintainer, 2026-10-31 (#1592)
+Decided: maintainer, 2026-10-31 (#1593)
 
 | Rejected | Why |
 |---|---|
@@ -166,7 +166,7 @@ Decided: maintainer, 2026-10-31 (#1592)
 
 [ADR-0018](../../docs/adr/0018-admin-ui-on-reka.md) records the move and supersedes `design-decisions.md` #13; this doc holds the decisions, the cut sequence and the components' spec.
 
-Decided: maintainer, 2026-10-31 (#1592)
+Decided: maintainer, 2026-10-31 (#1593)
 
 | Rejected | Why |
 |---|---|
@@ -176,7 +176,7 @@ Decided: maintainer, 2026-10-31 (#1592)
 
 Three cuts (Cut sequence): build the components with their stories first, then switch everything and remove PrimeUI in one PR, then the docs.
 
-Decided: maintainer, 2026-10-31 (#1592)
+Decided: maintainer, 2026-10-31 (#1593)
 
 | Rejected | Why |
 |---|---|
