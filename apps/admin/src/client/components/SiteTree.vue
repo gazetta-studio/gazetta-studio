@@ -288,9 +288,8 @@ async function handleDelete(node: SiteNode, e: Event) {
 
 <style scoped>
 .site-tree { font-size: 13px; line-height: 22px; }
-/* Color via tokens — `--color-muted` resolves to PrimeVue's
-   text-muted-color which auto-flips between light (#64748b) and dark
-   (#a1a1aa). Both pass WCAG AA against their respective content
+/* Color via tokens — `--color-muted` flips between light (#64748b) and
+   dark (#a1a1aa) with the theme. Both pass WCAG AA against their respective content
    backgrounds, fixing the color-contrast violations the previous
    hardcoded #9ca3af / #6b7280 produced in dark mode (where the
    `:global(.dark)` overrides lost specificity to the scoped selectors —

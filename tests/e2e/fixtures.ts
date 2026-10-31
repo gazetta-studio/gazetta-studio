@@ -36,7 +36,7 @@ export const test = base.extend<{ page: Page }, { testSite: TestSite; baseURL: s
   // Capture browser console + page errors.
   // - Console errors and uncaught exceptions fail the test (silent bugs fly
   //   under text-assertion radar; this catches Vue runtime errors, unhandled
-  //   rejections, PrimeVue warnings that shouldn't ship).
+  //   rejections, Vue warnings that shouldn't ship).
   // - All captured logs are attached to the report on any failure (including
   //   ones we trigger ourselves), for diagnosis.
   //

@@ -49,7 +49,7 @@ server.tool(
   'Click an element by data-testid (primary) or CSS selector (fallback).',
   {
     testId: z.string().describe('data-testid value'),
-    selector: z.string().optional().describe('CSS selector fallback (for PrimeVue internals)'),
+    selector: z.string().optional().describe('CSS selector fallback (for elements without a data-testid)'),
   },
   async ({ testId, selector }) => {
     const p = await getPage()

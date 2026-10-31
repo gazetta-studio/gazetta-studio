@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /**
  * Spinner (design-admin-ui.md, "The components"): the one 1.5rem loading
- * indicator the admin uses, replacing PrimeVue ProgressSpinner. It's a status,
- * so it carries a label (default "Loading"); override with `aria-label`.
- * `strokeWidth` is in ProgressSpinner's units (a 100-unit circle of radius 20),
- * so call sites keep their value.
+ * indicator the admin uses. It's a status, so it carries a label (default
+ * "Loading"); override with `aria-label`. `strokeWidth` is in PrimeVue
+ * ProgressSpinner's units (a 100-unit circle of radius 20), which the admin's
+ * call sites were written against.
  */
 withDefaults(defineProps<{ strokeWidth?: number | string }>(), { strokeWidth: 2 })
 </script>

@@ -91,8 +91,7 @@ export class ComponentTreePom {
     const nameInput = this.page.locator('[data-testid="add-component-name"]')
     await nameInput.waitFor({ timeout: 5000 })
     await nameInput.fill(name)
-    // PrimeVue Listbox — options don't carry testids; text match is the
-    // only stable handle short of patching PrimeVue.
+    // Listbox options carry no testids; select by role and accessible name.
     await this.page.getByRole('option', { name: template, exact: true }).click()
     await this.page.click('[data-testid="add-component-submit"]')
   }

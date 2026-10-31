@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * Button (design-admin-ui.md, "The components"): a native <button> with
- * PrimeVue's prop names, so cut 2 swaps imports without touching call sites.
+ * PrimeVue's prop names, which the admin's call sites were written against.
  * `icon` takes a Lucide component.
  * Attributes (data-testid, title, aria-*, class) land on the <button>.
  */
