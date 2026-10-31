@@ -2,7 +2,7 @@
 
 Forward-looking priorities for Gazetta. What's committed, what's planned, what's parked, what's not happening.
 
-**Updated**: 2026-10-29
+**Updated**: 2026-10-31
 
 ## How to read this
 

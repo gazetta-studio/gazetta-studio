@@ -2,7 +2,7 @@
 
 The admin's components and icons move off PrimeUI, whose new major versions are commercial, onto Reka UI primitives with Gazetta's own CSS, and Lucide icons. Resolves [#1542](https://github.com/gazetta-studio/gazetta-studio/issues/1542).
 
-**Status**: design pass complete (2026-10-31), grilled Q1–Q12. Implementation not started.
+**Status**: design pass complete (2026-10-31), grilled Q1–Q12. Implemented: cuts 1–3 shipped 2026-10-31 (#1596, #1608, #1611).
 
 **Companion docs:**
 - [ADR-0018](../../docs/adr/0018-admin-ui-on-reka.md): the load-bearing decision (no PrimeUI; Reka UI with our own styles); supersedes [`design-decisions.md`](design-decisions.md) #13
