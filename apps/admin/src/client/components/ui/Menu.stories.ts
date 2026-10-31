@@ -102,3 +102,27 @@ export const Keyboard: Story = {
     await waitFor(() => expect(menu).not.toBeInTheDocument())
   },
 }
+
+/** Clicking another control closes the menu and leaves focus on that control. */
+export const OutsideClick: Story = {
+  render: () => ({
+    components: { Menu, Button },
+    setup: () => {
+      const menu = ref<InstanceType<typeof Menu> | null>(null)
+      return { menu, model }
+    },
+    template: `
+      <div style="block-size: 360px; display: flex; gap: 1rem; align-items: start">
+        <Button label="local" severity="secondary" aria-haspopup="menu" @click="menu?.toggle($event)" />
+        <label>Search <input data-testid="search" /></label>
+        <Menu ref="menu" :model="model" :popup="true" />
+      </div>`,
+  }),
+  play: async ({ canvasElement }) => {
+    const menu = await open(canvasElement)
+    const input = within(canvasElement).getByTestId('search')
+    await userEvent.click(input)
+    await waitFor(() => expect(menu).not.toBeInTheDocument())
+    await expect(input).toHaveFocus()
+  },
+}
