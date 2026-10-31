@@ -173,7 +173,7 @@ async function handleConflictDiscard() {
       <!-- The custom editor mounts only once its code has loaded (#912), so
            say so instead of showing an empty pane. -->
       <p v-if="editorLoading" class="editor-loading" role="status" data-testid="editor-loading">
-        <LoaderCircle class="loading-icon spin" aria-hidden="true" />
+        <LoaderCircle class="loading-icon ui-spin" aria-hidden="true" />
         <span>Loading editor…</span>
       </p>
       <div v-if="hasProperties" ref="containerRef" class="editor-container" data-testid="editor-container" :data-path="editing.path" :key="editing.path" />
@@ -211,7 +211,4 @@ async function handleConflictDiscard() {
 .editor-loading { display: flex; align-items: center; gap: 0.5rem; color: var(--color-muted); font-size: 0.875rem; }
 .state-icon { inline-size: 2rem; block-size: 2rem; }
 .loading-icon { inline-size: 1rem; block-size: 1rem; }
-.spin { animation: spin 0.8s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .spin { animation-duration: 2.4s; } }
 </style>

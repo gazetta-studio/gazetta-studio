@@ -199,17 +199,4 @@ const variant = computed(() => (props.link ? 'link' : props.text ? 'text' : prop
   --ui-badge-tone: var(--color-info);
   --ui-badge-on: var(--color-on-info);
 }
-.ui-spin {
-  animation: ui-spin 0.8s linear infinite;
-}
-@keyframes ui-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ui-spin {
-    animation-duration: 2.4s;
-  }
-}
 </style>
