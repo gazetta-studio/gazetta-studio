@@ -266,7 +266,7 @@ The recommended dependencies for implementation:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ Vue 3 Admin App (Pinia + PrimeVue)                          │
+│ Vue 3 Admin App (Pinia + our ui/ components)                │
 │                                                             │
 │   useQuery → useMutation (Vue Query)                        │
 │   ├── In-memory query cache (QueryClient)                   │
@@ -690,7 +690,7 @@ This isn't an "opt-out" path — it's a graceful degradation when the browser en
 | `vite-plugin-pwa`-generated service worker (Workbox runtime) | ~50KB |
 | **Total offline UX overhead** | ~80-100KB minified |
 
-Acceptable for admin SPA at typical scale (PrimeVue + Vue 3 base is ~200KB+; the offline addition is ~40-50% of base).
+Acceptable for the admin SPA at typical scale.
 
 ### Migration
 

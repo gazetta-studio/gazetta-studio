@@ -309,7 +309,7 @@ Scope: ~1 week after aspects exist. Enterprise-grade compliance feature at near-
 5. **Reindex against very large targets.** 10,000+ assets stretches the linear scan. Pagination/batching strategy needed at that scale.
 6. **History integration surface.** Gazetta already has `history.ts`, `history-recorder.ts`, `history-restorer.ts`, and the `/api/history` route. The asset work extends this surface rather than building it — audit the existing recorder API before estimating the integration effort.
 7. **Worker request billing.** Cloudflare Workers requests are billed even on cache hits (the Worker runs before cache). Sites hosting the admin or serving assets through Workers should expect per-request costs at load.
-8. **RTL validation.** Library modal, picker modal, and detail pane need verification with Arabic active. Starter has Arabic content; test RTL flips for grid, sidebar, metadata-field alignment, focal-point editor crosshair direction. PrimeVue v4 RTL support is largely automatic but custom components need CSS logical properties audit.
+8. **RTL validation.** Library modal, picker modal, and detail pane need verification with Arabic active. Starter has Arabic content; test RTL flips for grid, sidebar, metadata-field alignment, focal-point editor crosshair direction. The `ui/` components use CSS logical properties; other custom components need the same audit.
 
 ## Migration from current string-URL pattern
 

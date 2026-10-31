@@ -67,7 +67,7 @@ gazetta/
   tools/
     mcp-dev/                   # MCP dev server (screenshot tool)
   apps/
-    admin/                  # CMS admin frontend — Vue 3 + PrimeVue shell
+    admin/                  # CMS admin frontend — Vue 3 shell
       src/client/              # Vue SPA (stores, components, composables, router)
       src/server/              # Dev server entry
       vite.config.ts

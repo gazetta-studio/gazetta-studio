@@ -17,7 +17,7 @@ Storybook is a maintainer-facing tool for admin SFC development. Template develo
 ```
 .storybook/
   main.ts         # Storybook config — story glob, addons, Vite plugin overrides
-  preview.ts      # Per-preview setup: Pinia, PrimeVue, tokens.css, theme decorator
+  preview.ts      # Per-preview setup: Pinia, tokens.css, base.css, theme decorator
 
 apps/admin/src/client/
   components/
@@ -99,7 +99,7 @@ Same as single-store: just call each `useXStore()` inside `setup()` and seed eac
 
 ## Theme toggle
 
-The toolbar's theme switcher (top of the Storybook UI) flips between `light` and `dark` by toggling the corresponding class on `<html>`. PrimeVue Aura's `darkModeSelector: '.dark'` is configured in `preview.ts` so all Aura semantic tokens (`--p-text-color`, `--p-content-background`, `--p-primary-color`, etc.) re-resolve when the class flips.
+The toolbar's theme switcher (top of the Storybook UI) flips between `light` and `dark` by toggling the corresponding class on `<html>`. The `.dark` block in `assets/tokens.css` re-points the `--color-*` tokens, so every component re-themes when the class flips.
 
 Verify every story renders correctly in **both themes**. Per `.claude/rules/team-preferences.md` rule 14: every UI change must be tested in both themes before committing.
 
@@ -128,13 +128,14 @@ Components that fire `api.foo()` on mount will hit the network (and fail). Mock 
 
 ### Smoke story
 
-`apps/admin/src/client/__storybook__/smoke.stories.ts` renders a PrimeVue `Button` with no admin-component dependency. A regression here means the Storybook setup itself is broken (preview decorators, plugin registration, theme decorator) — not an admin component. Keep it as the canary.
+`apps/admin/src/client/__storybook__/smoke.stories.ts` renders a `ui/Button` with no admin-screen dependency. A regression here means the Storybook setup itself is broken (preview decorators, plugin registration, theme decorator) — not an admin component. Keep it as the canary.
 
 ### Story title convention
 
 `Category / ComponentName`. Examples in the codebase:
 
-- `Smoke / PrimeVue Button` (the boot canary)
+- `Smoke / Button` (the boot canary)
+- `UI / Button`, `UI / Dialog` (the components in `components/ui/`)
 - `Asset / FocalPointEditor`, `Asset / AltEditor`
 - `Validation / Banner`
 - `Archive / ArchiveBanner`

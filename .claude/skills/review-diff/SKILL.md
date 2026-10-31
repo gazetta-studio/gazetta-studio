@@ -42,7 +42,7 @@ Match the diff's path patterns; read at most ONE additional doc when relevant:
 
 | When the diff touches… | Read |
 |---|---|
-| Files under `apps/admin/src/client/` (Vue) | Look for PrimeVue conventions; check [`.claude/rules/css-theming.md`](../../rules/css-theming.md) only if styles change |
+| Files under `apps/admin/src/client/` (Vue) | Look for use of the `components/ui/` components and `--color-*` tokens; check [`.claude/rules/css-theming.md`](../../rules/css-theming.md) only if styles change |
 | `bots/` | Skim [`bots/README.md`](../../../bots/README.md) "Producer vs consumer" |
 | `packages/gazetta/src/cli/` | No extra reading — CLAUDE.md "Build & Test" covers it |
 

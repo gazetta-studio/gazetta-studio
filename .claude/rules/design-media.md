@@ -22,7 +22,7 @@ How the CMS handles media — images, videos, audio, documents, and fonts — as
 - Usage panel (reverse-dep lookup; shows locale coverage per referencing page)
 - Publish carries transitive asset dependencies
 - i18n — locale-suffix asset manifests (`hero.asset.fr.json`) with fallback chain, active-locale editing in library, resolution-chain UX in picker, and optional per-locale byte overrides (`hero-{hash}.fr.jpg`) for text-in-image or region-specific assets
-- Theme dimension (`light` / `dark` / etc.) as a peer override axis to locale — assets carry per-theme byte overrides; resolver picks per render context. v1 ships theme on **assets only**; page/fragment theme variants and runtime SSR theme branching are deferred (templates emit theme-aware CSS via PrimeVue tokens / class-based cascade — see css-theming.md). Cross-dimension fallback is **locale-priority**: `(fr, dark) → (fr, light) → (default-locale, dark) → (default-locale, light)`. Documented as a non-configurable contract — language matters more than visual presentation when content has to fall back.
+- Theme dimension (`light` / `dark` / etc.) as a peer override axis to locale — assets carry per-theme byte overrides; resolver picks per render context. v1 ships theme on **assets only**; page/fragment theme variants and runtime SSR theme branching are deferred (templates emit theme-aware CSS via CSS custom properties / class-based cascade). Cross-dimension fallback is **locale-priority**: `(fr, dark) → (fr, light) → (default-locale, dark) → (default-locale, light)`. Documented as a non-configurable contract — language matters more than visual presentation when content has to fall back.
 - **Three asset kinds: embedded, downloadable, font.** Fonts are first-class because typography is locale-dimensioned (Arabic needs different glyphs than Latin, CJK needs different fonts entirely) and the `@font-face` with `unicode-range` pattern needs first-class resolver support for multi-script rendering
 
 **Reserved in v1 (model supports, UI does not expose):**
@@ -197,7 +197,7 @@ When `themes` is absent, the theme dimension is unused — assets are theme-agno
 
 Locale wins over theme because language matters more than visual presentation when content has to fall back. Locked as a non-configurable contract.
 
-**v1 scope of theme**: assets only. Pages/fragments don't yet have theme variants — templates emit theme-aware CSS via PrimeVue tokens / class-based cascade (see `css-theming.md`); the runtime doesn't yet route a theme value into render context. The asset resolver accepts `theme` in its context so step 18+ runtime work (cookie / `prefers-color-scheme`) can pass it without resolver changes.
+**v1 scope of theme**: assets only. Pages/fragments don't yet have theme variants — templates emit theme-aware CSS via CSS custom properties / class-based cascade; the runtime doesn't yet route a theme value into render context. The asset resolver accepts `theme` in its context so step 18+ runtime work (cookie / `prefers-color-scheme`) can pass it without resolver changes.
 
 **Why a closed dimension set (not user-defined)**: 90% of value is locale + theme. Arbitrary dimensions complicate the picker UI ("which dimensions for this asset?"), the fallback chain semantics, and the storage scheme. Deferred until concrete demand.
 
@@ -773,7 +773,7 @@ Inline upload: dragging a new file into the picker uploads it and auto-selects.
 
 **Mounting mechanism.** The picker is a Vue component in the admin shell, opened via a Pinia store action. Custom field widgets (whether Vue-native or React-via-rjsf) invoke it through `openAssetPicker()` — see "Custom field API" below. The store holds picker state; the component mounts once in the shell and toggles visibility.
 
-**Modal-in-modal concern.** If the picker opens while the author is inside another modal (rare — Publish dialog uses asset refs, History doesn't), modals stack via PrimeVue's z-index layering. No special handling needed.
+**Modal-in-modal concern.** If the picker opens while the author is inside another modal (rare — Publish dialog uses asset refs, History doesn't), modals stack in the order they open (each `ui/Dialog` renders at the end of `<body>`). No special handling needed.
 
 **Active locale applies.** Alt/title/description shown in the picker's detail pane reflect the active locale. Editing alt in the reference-options step creates a per-reference override — that override lives in the page manifest (locale-specific page file), not on the asset manifest.
 
@@ -1027,7 +1027,7 @@ css: content.bodyFont.variants.map(v => `
 - Library grid cards can show small chips indicating which locales have explicit metadata
 - `[en ✓ fr ✓ ar —]` — spot un-localized assets at a glance
 - Analogous to the existing SiteTree's per-page locale indicator
-- v1 if cheap to add via PrimeVue DataView; v1.5 otherwise
+- v1 if cheap to add to the library grid; v1.5 otherwise
 
 **Locale/target switching mid-picker:**
 - Picker closes when the route changes (locale or target switch, unsaved-edits guard applies first)
@@ -1035,7 +1035,7 @@ css: content.bodyFont.variants.map(v => `
 - Author reopens the picker if they want to pick again in the new context
 
 **RTL admin support:**
-- Library modal, picker modal, and detail pane inherit document `dir` from the admin root (set from active locale). PrimeVue components generally support RTL when `dir="rtl"` is on the ancestor
+- Library modal, picker modal, and detail pane inherit document `dir` from the admin root (set from active locale). The admin's `ui/` components use CSS logical properties, so they flip when `dir="rtl"` is on the ancestor
 - Custom components (focal-point editor, upload queue, usage panel) use CSS logical properties (`margin-inline-start` over `margin-left`) so they flip with locale
 - Text alignment is automatic via `dir` inheritance; grid layout (first asset placement) flips when `dir="rtl"` via CSS Grid's logical-axis behavior
 - The starter site has Arabic content (`page.ar.json`), so admin RTL for media is a must-have, not a nice-to-have. Validate during implementation with Arabic active.
@@ -1046,8 +1046,8 @@ Existing admin shortcuts: `Cmd+S` (save), `Esc` (exit edit / close modal). Media
 
 - **`Cmd+L`** — open the library modal from anywhere in the admin
 - **`Enter`** — in picker/library, confirm selection (when a single asset is focused)
-- **Arrow keys** — navigate grid in library/picker (needs custom handler; PrimeVue DataView only ships keyboard support for the layout-toggle buttons)
-- **`Esc`** — close picker/library modal (inherited from PrimeVue Dialog default)
+- **Arrow keys** — navigate grid in library/picker (needs a custom handler; the library grid is our own markup)
+- **`Esc`** — close picker/library modal (`ui/Dialog` closes on Escape)
 
 ### Delete dialog
 

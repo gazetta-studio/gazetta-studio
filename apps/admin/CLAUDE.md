@@ -1,6 +1,6 @@
 # Admin
 
-CMS admin frontend — Vue 3 + PrimeVue shell with editor mounting and preview.
+CMS admin frontend — Vue 3 shell with editor mounting and preview, built on our own components (`src/client/components/ui/`, on Reka UI primitives) and Lucide icons.
 
 ## Structure
 

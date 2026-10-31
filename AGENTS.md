@@ -6,7 +6,7 @@ These are the instructions for any coding agent working in this repository. Clau
 
 ## Structure
 
-- `apps/admin/` — CMS admin frontend (Vue 3 + PrimeVue editor shell)
+- `apps/admin/` — CMS admin frontend (Vue 3 editor shell on our own components, `apps/admin/src/client/components/ui/`)
 - `packages/gazetta/` — Core package (renderer, CLI, admin API, editor, storage providers)
 - `tools/mcp-dev/` — MCP dev server (screenshot tool)
 - `bots/` — Autonomous repo bots run on GitHub Actions cron (e.g., flake-watcher); see `bots/README.md`

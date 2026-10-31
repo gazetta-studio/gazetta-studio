@@ -529,7 +529,7 @@ Editor tests: mount the EditorMount into a DOM element (jsdom), simulate onChang
 Output should be identical. Exception: non-deterministic values (`Date.now()`, `Math.random()`)
 produce different output. Templates should avoid non-deterministic rendering.
 
-**Accessibility:** The admin UI uses PrimeVue components with ARIA attributes and keyboard
+**Accessibility:** The admin UI's components (built on Reka UI primitives) carry ARIA attributes and keyboard
 navigation. Template developers are responsible for accessible HTML output: semantic HTML,
 alt attributes, ARIA labels. Future: `gazetta validate --a11y` checks.
 

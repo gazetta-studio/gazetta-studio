@@ -383,7 +383,7 @@ Decided 2026-06-07 during the UX-grilling pass (Phase 2a, which the original des
 - **`<StateBadge variant color label? tooltip?>`** — extracts the dot/pill pattern duplicated verbatim across `SiteTree.vue` + `ComponentTree.vue` (dirty dot, validation dot, locale pill). **Cheap, pure-CSS DRY.** The review-state SiteTree badge (Cut 8) consumes it.
 - **`<Banner severity role icon? :dismissible>` + content/actions slots** — extracts the icon+message+actions+dismiss skeleton shared by `ValidationBanner` / `ArchiveBanner` / `OfflineBanner` / `StorageQuotaBanner`. **Moderate, ~30–40 LOC, strictly additive** — the four shipped banners are **not** refactored onto it (recon confirmed migration is non-mandatory; ValidationBanner's nested issue-list resists generic slots, so leaving it inline is correct). ReviewBanner (Cut 8) is the first consumer.
 
-**No `<ActionButton>` primitive.** PrimeVue `<Button>` is already the de-facto action-button primitive — conventions (label/icon/`size="small"`/severity/`:loading`/`data-testid`) are uniform across the admin. The review components use `<Button>` directly; stories cite its conventions.
+**No `<ActionButton>` primitive.** The admin's `ui/Button` (`apps/admin/src/client/components/ui/Button.vue`) is the action-button primitive — conventions (label/icon/`size="small"`/severity/`:loading`/`data-testid`) are uniform across the admin. The review components use `<Button>` directly; stories cite its conventions.
 
 This is *not* the design-system work deferred by [`css-theming.md`](css-theming.md): no token taxonomy, no primitive library, no refactor of shipped components. Two additive primitives, scoped to what review-workflow needs, justified by *bot-codegen reliability* (a different rationale than the visual-regression rationale that deferral addressed).
 
@@ -418,7 +418,7 @@ Root testid `review-banner` with `data-state` (the `OfflineBanner` pattern). The
 
 Each action button has an in-flight `:loading` variant (the `archive.status === 'unarchiving'` pattern) — stories include the loading state for `PendingAsApprover` (approving / rejecting) and `DraftClean` (submitting).
 
-**`ReviewRejectDialog.vue`** (small companion) — a PrimeVue `Dialog` with a required textarea + **Reject** (`review-reject-confirm`) / **Cancel** (`review-reject-cancel`). Reject comment is mandatory (locked invariant); a dialog (not inline-expand) matches how the codebase does confirmable actions and keeps the banner clean.
+**`ReviewRejectDialog.vue`** (small companion) — a `ui/Dialog` with a required textarea + **Reject** (`review-reject-confirm`) / **Cancel** (`review-reject-cancel`). Reject comment is mandatory (locked invariant); a dialog (not inline-expand) matches how the codebase does confirmable actions and keeps the banner clean.
 
 **Q-A — no approval retraction in v1.** Once cast, an approval is final while `pending-review`. The audit enum has no `review-unapprove`; adding one is scope creep. An approver who changes their mind rejects instead (reject-after-own-approve is the escape hatch). `PendingApproverVoted` therefore shows no action.
 
