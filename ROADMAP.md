@@ -39,7 +39,11 @@ The back end's first cuts, the UI primitives, the story runner and screenshots i
 
 ### Agent access design pass
 
-[#49](https://github.com/gazetta-studio/gazetta-studio/issues/49): design now, build in Next. Its direction is set in [`design-agent-access.md`](.claude/rules/design-agent-access.md): an Agent Skill first, then a separate thin CLI that calls a public, versioned admin API, then an MCP server for chat apps; agents learn about changes from the live feed and webhooks. The design starts from one decision: agents save through the same path as the admin, as their own principal with their own capabilities, and the audit log records them. By default they can't publish, so a person decides what reaches visitors, and undo covers mistakes. Bulk edits ([#1170](https://github.com/gazetta-studio/gazetta-studio/issues/1170)) are one of its use cases. Still to design: how an agent authenticates (scripts and CI share the single `GAZETTA_TOKEN` today), how agents appear in the audit log, and how an agent's run is undone without undoing other people's saves (undo and rollback restore whole revisions). Agents lead Gazetta's AI work ([`design-ai-direction.md`](.claude/rules/design-ai-direction.md), #1485), the MCP tools are designed so a later chat panel in the admin can reuse them, and the pass also designs how the admin shows agents' changes as they happen.
+[#49](https://github.com/gazetta-studio/gazetta-studio/issues/49): design now, build in Next. Its direction is set in [`design-agent-access.md`](.claude/rules/design-agent-access.md): an Agent Skill first, then a separate thin CLI in Go that calls a public, versioned admin API the admin itself uses, then an MCP server for chat apps; agents learn about changes from the live feed and webhooks.
+
+- An Agent Skill that `gazetta init` adds, teaching coding agents to edit content and write templates, with permission presets that deny publishing ([#1622](https://github.com/gazetta-studio/gazetta-studio/issues/1622))
+
+The design starts from one decision: agents save through the same path as the admin, as their own principal with their own capabilities, and the audit log records them. By default they can't publish, so a person decides what reaches visitors, and undo covers mistakes. Bulk edits ([#1170](https://github.com/gazetta-studio/gazetta-studio/issues/1170)) are one of its use cases. Still to design: how an agent authenticates (scripts and CI share the single `GAZETTA_TOKEN` today), how agents appear in the audit log, and how an agent's run is undone without undoing other people's saves (undo and rollback restore whole revisions). Agents lead Gazetta's AI work ([`design-ai-direction.md`](.claude/rules/design-ai-direction.md), #1485), the MCP tools are designed so a later chat panel in the admin can reuse them, and the pass also designs how the admin shows agents' changes as they happen.
 
 ### AI direction: first steps
 
@@ -47,7 +51,6 @@ From [`design-ai-direction.md`](.claude/rules/design-ai-direction.md):
 
 - A docs page on editing content with a coding agent: the agent edits files on the local target, `gazetta validate` checks them, Publish is the checkpoint ([#1615](https://github.com/gazetta-studio/gazetta-studio/issues/1615))
 - An actor scenario for an operator reviewing an agent's batch ([#1619](https://github.com/gazetta-studio/gazetta-studio/issues/1619))
-- An Agent Skill that `gazetta init` adds, teaching coding agents the content model, editing files and `gazetta validate`, with permission presets that deny publishing ([#1622](https://github.com/gazetta-studio/gazetta-studio/issues/1622))
 
 ### Creation UX design pass
 
