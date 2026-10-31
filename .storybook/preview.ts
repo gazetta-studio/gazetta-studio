@@ -1,7 +1,7 @@
 import type { Preview } from '@storybook/vue3-vite'
 import { setup } from '@storybook/vue3-vite'
 import { withThemeByClassName } from '@storybook/addon-themes'
-import { createPinia } from 'pinia'
+import { createPinia } from '../apps/admin/src/client/__storybook__/pinia'
 
 // App-level CSS tokens and page base styles, as main.ts loads them. See
 // .claude/rules/css-theming.md for the token model.
