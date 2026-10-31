@@ -299,7 +299,7 @@ async function handleDelete(node: SiteNode, e: Event) {
 .section-divider { border-top: 1px solid var(--color-border); margin: 4px 8px; }
 .node-item { display: flex; align-items: center; gap: 4px; height: 22px; padding: 0 6px; margin: 0 2px; cursor: pointer; border-radius: 3px; }
 .node-item:hover { background: var(--color-hover-bg); }
-.node-item.selected { background: rgba(167, 139, 250, 0.15); box-shadow: inset 2px 0 0 #a78bfa; }
+.node-item.selected { background: color-mix(in srgb, var(--color-accent) 15%, transparent); box-shadow: inset 2px 0 0 var(--color-accent); }
 .node-icon { width: 16px; height: 10px; text-align: center; font-size: 10px; color: var(--color-muted); flex-shrink: 0; opacity: 0.85; }
 .node-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--color-muted); }
 .node-item.selected .node-label,
