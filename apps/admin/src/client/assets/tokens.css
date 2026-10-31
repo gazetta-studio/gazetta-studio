@@ -88,3 +88,49 @@
 
   --color-bg-code: var(--p-surface-900);
 }
+
+/*
+ * === Gazetta component tokens (design-admin-ui.md, cut 1) ===
+ *
+ * Used by the components in components/ui/. Literal values, not PrimeVue
+ * palette references, so they survive PrimeVue's removal in cut 2. Each
+ * `--color-<severity>` is both a fill (with `--color-on-<severity>` text)
+ * and a text colour on `--color-bg`; both pairs pass WCAG AA in light and
+ * dark (the Storybook axe gate checks them).
+ */
+:root {
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-full: 999px;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --color-focus-ring: #2563eb;
+  --color-overlay: rgb(15 23 42 / 0.45);
+  --shadow-overlay: 0 10px 30px rgb(15 23 42 / 0.18), 0 2px 6px rgb(15 23 42 / 0.12);
+
+  --color-on-primary: #ffffff;
+  --color-danger: #b91c1c;
+  --color-on-danger: #ffffff;
+  --color-success: #15803d;
+  --color-on-success: #ffffff;
+  --color-warn: #a1460a;
+  --color-on-warn: #ffffff;
+  --color-info: #1d4ed8;
+  --color-on-info: #ffffff;
+}
+
+.dark {
+  --color-focus-ring: #60a5fa;
+  --color-overlay: rgb(0 0 0 / 0.6);
+  --shadow-overlay: 0 10px 30px rgb(0 0 0 / 0.5), 0 2px 6px rgb(0 0 0 / 0.4);
+
+  --color-on-primary: #022c22;
+  --color-danger: #f87171;
+  --color-on-danger: #1f0303;
+  --color-success: #4ade80;
+  --color-on-success: #032010;
+  --color-warn: #fbbf24;
+  --color-on-warn: #1f1300;
+  --color-info: #60a5fa;
+  --color-on-info: #031230;
+}
