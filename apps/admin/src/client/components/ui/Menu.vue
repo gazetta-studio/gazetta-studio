@@ -70,16 +70,22 @@ function select(item: MenuItem, event: Event) {
   item.command?.({ originalEvent: event, item })
 }
 
+// Set when a click or focus elsewhere closes the menu: focus then stays where
+// the user moved it instead of returning to the opening button.
+let interactedOutside = false
+
 // A press on the button that opened the menu would close it here and reopen
 // it in the button's own click handler; leave closing to toggle().
 function onInteractOutside(event: Event) {
   if (reference.value && event.target instanceof Node && reference.value.contains(event.target)) event.preventDefault()
+  else interactedOutside = true
 }
 
 // Without a Reka trigger, return focus to the opening button ourselves.
 function onCloseAutoFocus(event: Event) {
   event.preventDefault()
-  reference.value?.focus()
+  if (!interactedOutside) reference.value?.focus()
+  interactedOutside = false
 }
 </script>
 
