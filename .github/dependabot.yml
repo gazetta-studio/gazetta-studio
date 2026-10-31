@@ -25,8 +25,9 @@ updates:
         patterns: ["@types/*"]
         update-types: ["patch", "minor"]
     # PrimeUI moved to a proprietary licence ("PrimeUI License", licence key
-    # required) in @primeuix/themes 3, @primeuix/styled 1 and PrimeVue 5.
-    # Stay on the MIT lines (#1519).
+    # required) in @primeuix/themes 3, @primeuix/styled 1, PrimeVue 5 and
+    # primeicons 8. Stay on the MIT lines (#1519) until the admin leaves
+    # PrimeUI (design-admin-ui.md Q2).
     ignore:
       - dependency-name: "@primeuix/themes"
         versions: [">=3"]
@@ -34,6 +35,8 @@ updates:
         versions: [">=1"]
       - dependency-name: "primevue"
         versions: [">=5"]
+      - dependency-name: "primeicons"
+        versions: [">=8"]
     open-pull-requests-limit: 10
 
   - package-ecosystem: github-actions
