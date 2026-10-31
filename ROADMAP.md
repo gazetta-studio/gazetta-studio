@@ -110,6 +110,7 @@ Research by discovery-prep-bot, then a design round with the maintainer where on
 
 - [#1483](https://github.com/gazetta-studio/gazetta-studio/issues/1483) Markdown in the admin: which Markdown support authors and template developers need
 - [#1484](https://github.com/gazetta-studio/gazetta-studio/issues/1484) content trust: whether editors can put markup or script on published pages
+- [#1624](https://github.com/gazetta-studio/gazetta-studio/issues/1624) agent identity: upstream service identities or Gazetta-issued tokens; feeds the agent access design pass
 
 ## Next (planned, the quarter after Now)
 
