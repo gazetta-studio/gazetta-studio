@@ -12,10 +12,11 @@
  * presence — Cut 1 ships banner-presence as the visible signal, save button
  * disabling is wired in Cut 2 alongside the Site Health drawer).
  */
-import { CircleX, Info, TriangleAlert, X } from '@lucide/vue'
-import { type Component, computed } from 'vue'
+import { CircleX, X } from '@lucide/vue'
+import { computed } from 'vue'
 import Button from './ui/Button.vue'
 import { useValidationIssuesStore } from '../stores/validationIssues.js'
+import { ISSUE_SEVERITY_ICON } from '../utils/issue-severity-icon.js'
 
 const validation = useValidationIssuesStore()
 
@@ -32,12 +33,6 @@ const headline = computed(() => {
 
 function dismiss() {
   validation.clear()
-}
-
-function severityIcon(severity: 'error' | 'warn' | 'info'): Component {
-  if (severity === 'error') return CircleX
-  if (severity === 'warn') return TriangleAlert
-  return Info
 }
 </script>
 
@@ -65,7 +60,7 @@ function severityIcon(severity: 'error' | 'warn' | 'info'): Component {
         :key="`${issue.validator}-${idx}`"
         :class="['issue', `issue-${issue.severity}`]"
         :data-testid="`validation-issue-${issue.validator}`">
-        <component :is="severityIcon(issue.severity)" class="issue-icon" aria-hidden="true" />
+        <component :is="ISSUE_SEVERITY_ICON[issue.severity]" class="issue-icon" aria-hidden="true" />
         <div class="issue-body">
           <span class="issue-message">{{ issue.message }}</span>
           <span v-if="issue.contentPath" class="issue-path">at <code>{{ issue.contentPath }}</code></span>

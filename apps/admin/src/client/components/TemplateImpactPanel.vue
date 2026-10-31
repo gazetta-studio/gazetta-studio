@@ -23,12 +23,13 @@
  *   - DIP: depends on `TemplatesApi.getTemplateImpact` + the scanner
  *     store's `byItem` lookup. No coupling to the SSE channel.
  */
-import { CircleAlert, CircleCheck, CircleX, Info, LoaderCircle, TriangleAlert } from '@lucide/vue'
+import { CircleAlert, CircleCheck, Info, LoaderCircle } from '@lucide/vue'
 import { type Component, ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTemplatesApi } from '../composables/api.js'
 import { useValidationScannerStore } from '../stores/validationScanner.js'
 import type { TemplateImpactItem, TemplateImpactResponse, ValidationIssue } from '../api/client.js'
+import { ISSUE_SEVERITY_ICON } from '../utils/issue-severity-icon.js'
 
 const props = defineProps<{
   /** Template name. The panel re-fetches when this changes. */
@@ -97,10 +98,7 @@ const rows = computed<DisplayRow[]>(() => {
 })
 
 function severityIcon(worst: DisplayRow['worst']): Component {
-  if (worst === 'error') return CircleX
-  if (worst === 'warn') return TriangleAlert
-  if (worst === 'info') return Info
-  return CircleCheck
+  return worst ? ISSUE_SEVERITY_ICON[worst] : CircleCheck
 }
 
 function severityLabel(worst: DisplayRow['worst']): string {
