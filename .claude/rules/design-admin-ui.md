@@ -77,17 +77,16 @@ Site authors override `--color-*` (and new Gazetta tokens such as radius) in `ad
 
 Decided: maintainer, 2026-10-31 (#1593)
 
+| Rejected | Why |
+|---|---|
+| Keep the `--p-*` names through our own alias layer | 47 tokens named after a removed library, kept for `admin/theme.css` files that don't exist in production yet |
+| Tie the override names to whatever library is in use | The public contract would change whenever the library does |
+
 The public docs change in cut 2, not after it. Decided: maintainer, 2026-10-31 (#1593)
 
 | Rejected | Why |
 |---|---|
 | All docs in cut 3, one cut behind | Between cuts 2 and 3, `docs/customize-editor.md` would tell authors to override tokens that do nothing; AGENTS.md and team rule 8 ask for docs in the same PR |
-
-
-| Rejected | Why |
-|---|---|
-| Keep the `--p-*` names through our own alias layer | 47 tokens named after a removed library, kept for `admin/theme.css` files that don't exist in production yet |
-| Tie the override names to whatever library is in use | The public contract would change whenever the library does |
 
 ### Q5 — Reka UI with our own styles
 
@@ -197,12 +196,12 @@ Follows from Q5–Q8. Cut 1 builds these under `apps/admin/src/client/components
 |---|---|---|
 | Button | none (native `<button>`) | default (primary), `secondary`, `danger`, `success`, `warn`, set dynamically too; `text`, `link`, `outlined`, `rounded`; small; icon-only (with an accessible label); loading (disabled, spinner); disabled; a count badge with a severity, including `info` (the site-health button, `CmsToolbar.vue`) |
 | Dialog | Dialog | modal; title; close button, which can be turned off (`UnsavedDialog.vue`) or off while busy (`AssetDeleteConfirm.vue`); closing by clicking the backdrop where it's allowed today (`PublishPanel`, `HistoryPanel`, `AuditDrawer`); footer actions |
-| TextInput | none (native `<input>`) | default, small, invalid, disabled |
-| Spinner | none (SVG) | small, default; `aria-label` |
+| TextInput | none (native `<input>`) | default, small |
+| Spinner | none (SVG) | one size (1.5rem); `aria-label` |
 | Listbox | Listbox | single select; keyboard |
-| Select | Select | placeholder, selected, small, clearable, disabled |
-| RadioGroup | RadioGroup | default, disabled |
-| Checkbox | Checkbox | unchecked, checked, indeterminate (`PublishPanel.vue`), disabled |
+| Select | Select | placeholder, selected, small, clearable |
+| RadioGroup | RadioGroup | default |
+| Checkbox | Checkbox | unchecked, checked, indeterminate (`PublishPanel.vue`) |
 | Toolbar | Toolbar | start and end groups |
 | Splitter | Splitter (SplitterGroup, SplitterPanel, SplitterResizeHandle) | horizontal; keyboard-resizable handle; initial sizes and minimum sizes as `EditorView.vue` sets them today (35/65, minimum 25/35) |
 | Menu | DropdownMenu | items with icons; grouped sections with labels (per environment, `ActiveTargetIndicator.vue`); the active item marked; separator |
@@ -226,8 +225,8 @@ The admin keeps every screen, action, copy and `data-testid`; only the look chan
 | # | What | Depends on | Test tier | Risk |
 |---|---|---|---|---|
 | 1 | Our components for the 11 kinds on Reka primitives (The components), the tokens they use, `@lucide/vue` and `reka-ui` added; a story per component in light and dark passing the axe gate; nothing in the admin uses them yet; `primeicons >=8` added to Dependabot's ignore list (Q2) | — | component | Medium |
-| 2 | Switch all 33 files and the 148 icons to the new components and Lucide in one PR; remove `primevue`, `@primeuix/*`, `primeicons`, `adminPreset` and the `--p-*` uses (including `main.ts`, `.storybook/preview.ts`, and the `woff2` precache line in `vite.config.ts`); tests that select PrimeVue classes (`.p-dialog` and others) or `pi pi-*` icons, or check the primeicons font, move to test ids (`tests/e2e/`: `unsaved-guard`, `deep-linking`, `publish`, `target-switch`, `a11y`, `production-offline`, the `PublishPanel` and `ComponentTree` page objects; `apps/admin/tests/Banner.test.ts`, `ComponentTree.test.ts`'s `pi-clone`); the admin unit tests that install PrimeVue from `primevue/config`; the `vendor-primevue` chunk in `vite.config.ts` and `tests/sw-build.test.ts`; `Banner.stories.ts` and `__storybook__/smoke.stories.ts`; `docs/customize-editor.md` (overriding `--color-*`) and `css-theming.md` (Q4) | 1 | component + e2e | High |
-| 3 | The remaining docs that name PrimeVue: `architecture.md`, `AGENTS.md`, `README.md`, `configurations.md`, `design-themes.md`, `design-offline.md`, `design-component-ordering.md`, `custom-editors.md`; regenerated site docs | 2 | docs | Low |
+| 2 | Switch all 33 files and the 148 icons to the new components and Lucide in one PR; remove `primevue`, `@primeuix/*`, `primeicons`, `adminPreset` and the `--p-*` uses (including `main.ts`, `.storybook/preview.ts`, and the `woff2` precache line in `vite.config.ts`); tests that select PrimeVue classes (`.p-dialog` and others) or `pi pi-*` icons, or check the primeicons font, move to test ids (`tests/e2e/`: `unsaved-guard`, `deep-linking`, `publish`, `target-switch`, `a11y`, `production-offline`, the `PublishPanel` and `ComponentTree` page objects; `apps/admin/tests/Banner.test.ts`, `ComponentTree.test.ts`'s `pi-clone`); the admin unit tests that install PrimeVue from `primevue/config`; the `vendor-primevue` chunk in `vite.config.ts` and `tests/sw-build.test.ts`; `Banner.stories.ts` and `__storybook__/smoke.stories.ts`; `docs/customize-editor.md` (overriding `--color-*`) and its regenerated site page (`npm run docs:site`), and `css-theming.md` (Q4) | 1 | component + e2e | High |
+| 3 | The remaining docs that name PrimeVue: `architecture.md`, `AGENTS.md`, `README.md`, `configurations.md`, `design-themes.md`, `design-offline.md`, `design-component-ordering.md`, `custom-editors.md` | 2 | docs | Low |
 
 ## Migration
 
