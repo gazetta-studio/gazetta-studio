@@ -37,9 +37,9 @@ October's designs fix wrong results on live sites: deleted pages stay live, undo
 
 The back end's first cuts, the UI primitives, the story runner and screenshots in bot PRs shipped (see the appendix). Queued for feature-bot: [#521](https://github.com/gazetta-studio/gazetta-studio/issues/521) (API routes), then [#525](https://github.com/gazetta-studio/gazetta-studio/issues/525) (review banner and dialog) and [#531](https://github.com/gazetta-studio/gazetta-studio/issues/531) (pending-review queue). [#526](https://github.com/gazetta-studio/gazetta-studio/issues/526) and [#527](https://github.com/gazetta-studio/gazetta-studio/issues/527) (publish requests) wait for publish undo cut 1 (`design-review-workflow.md`, lock 1), and [#528](https://github.com/gazetta-studio/gazetta-studio/issues/528)–[#530](https://github.com/gazetta-studio/gazetta-studio/issues/530) and [#532](https://github.com/gazetta-studio/gazetta-studio/issues/532) wait for them. [#533](https://github.com/gazetta-studio/gazetta-studio/issues/533) (docs) is labelled `ready-for-human`. Design: [`design-review-workflow.md`](.claude/rules/design-review-workflow.md); request [#199](https://github.com/gazetta-studio/gazetta-studio/issues/199), tracking issue [#514](https://github.com/gazetta-studio/gazetta-studio/issues/514).
 
-### MCP server design pass
+### Agent access design pass
 
-[#49](https://github.com/gazetta-studio/gazetta-studio/issues/49): design now, build in Next. The design starts from one decision: agents save through the same path as the admin, as their own principal with their own capabilities, and the audit log records them. By default they can't publish, so a person decides what reaches visitors, and undo covers mistakes. Bulk edits ([#1170](https://github.com/gazetta-studio/gazetta-studio/issues/1170)) are one of its use cases. Still to design: how an agent authenticates (scripts and CI share the single `GAZETTA_TOKEN` today), how agents appear in the audit log, and how an agent's run is undone without undoing other people's saves (undo and rollback restore whole revisions). Agents lead Gazetta's AI work ([`design-ai-direction.md`](.claude/rules/design-ai-direction.md), #1485), the MCP tools are designed so a later chat panel in the admin can reuse them, and the pass also designs how the admin shows agents' changes as they happen.
+[#49](https://github.com/gazetta-studio/gazetta-studio/issues/49): design now, build in Next. Its direction is set in [`design-agent-access.md`](.claude/rules/design-agent-access.md): an Agent Skill first, then a separate thin CLI that calls a public, versioned admin API, then an MCP server for chat apps; agents learn about changes from the live feed and webhooks. The design starts from one decision: agents save through the same path as the admin, as their own principal with their own capabilities, and the audit log records them. By default they can't publish, so a person decides what reaches visitors, and undo covers mistakes. Bulk edits ([#1170](https://github.com/gazetta-studio/gazetta-studio/issues/1170)) are one of its use cases. Still to design: how an agent authenticates (scripts and CI share the single `GAZETTA_TOKEN` today), how agents appear in the audit log, and how an agent's run is undone without undoing other people's saves (undo and rollback restore whole revisions). Agents lead Gazetta's AI work ([`design-ai-direction.md`](.claude/rules/design-ai-direction.md), #1485), the MCP tools are designed so a later chat panel in the admin can reuse them, and the pass also designs how the admin shows agents' changes as they happen.
 
 ### AI direction: first steps
 
@@ -47,6 +47,7 @@ From [`design-ai-direction.md`](.claude/rules/design-ai-direction.md):
 
 - A docs page on editing content with a coding agent: the agent edits files on the local target, `gazetta validate` checks them, Publish is the checkpoint ([#1615](https://github.com/gazetta-studio/gazetta-studio/issues/1615))
 - An actor scenario for an operator reviewing an agent's batch ([#1619](https://github.com/gazetta-studio/gazetta-studio/issues/1619))
+- An Agent Skill that `gazetta init` adds, teaching coding agents the content model, editing files and `gazetta validate`, with permission presets that deny publishing ([#1622](https://github.com/gazetta-studio/gazetta-studio/issues/1622))
 
 ### Creation UX design pass
 
@@ -175,9 +176,9 @@ Three pieces of offline mode that aren't built or tested yet, planned together:
 
 - A field-level diff for each modified item in the publish list and in History, so reviewers see what changed, an agent's edits or a person's ([#1616](https://github.com/gazetta-studio/gazetta-studio/issues/1616)); a UX design pass first
 
-### MCP server build
+### Agent access build
 
-[#49](https://github.com/gazetta-studio/gazetta-studio/issues/49), after its design pass in Now.
+[#49](https://github.com/gazetta-studio/gazetta-studio/issues/49), after its design pass in Now: the thin CLI and the public admin API, then the MCP server.
 
 ### CSP design passes
 
@@ -221,14 +222,14 @@ Operator-facing features for mature production deployments:
 
 ### Content features
 
-- [#1170](https://github.com/gazetta-studio/gazetta-studio/issues/1170) bulk edits; also a use case in the MCP design pass
+- [#1170](https://github.com/gazetta-studio/gazetta-studio/issues/1170) bulk edits; also a use case in the agent access design pass
 - [#1169](https://github.com/gazetta-studio/gazetta-studio/issues/1169) template schema changes: starts when publish undo refuses content on a real site, or a template developer reports the problem (scenario TD3 in [`docs/actor-scenarios.md`](docs/actor-scenarios.md)). Until then undo stays correct by refusing.
 
 ### AI
 
 Ordered by [`design-ai-direction.md`](.claude/rules/design-ai-direction.md):
 
-- A review screen for one agent run: every item it touched, revert per item; after the MCP server build gives agents a run id
+- A review screen for one agent run: every item it touched, revert per item; after the agent access build gives agents a run id
 - A design pass for a chat panel in the admin, built on the MCP tools ([#1617](https://github.com/gazetta-studio/gazetta-studio/issues/1617))
 - AI suggestions for page metadata, after translation ([#1618](https://github.com/gazetta-studio/gazetta-studio/issues/1618))
 
@@ -289,7 +290,6 @@ Decided: maintainer, 2026-10-24 (#1243)
 | Publish from static target ([#92](https://github.com/gazetta-studio/gazetta-studio/issues/92)): CLI publishes to a static target copy no fragment manifests, so it can't be a publish source | A real "publish from a static target" workflow surfaces |
 | `llms.txt` for every site Gazetta publishes | Evidence that AI platforms read other sites' `llms.txt` (none found on 2026-10-24: Google says Search ignores it), or an operator asks |
 | Markdown versions of every site's pages, served when an agent asks for Markdown | gazetta.studio's own logs show agents fetching its Markdown docs (Stage 0 experiment); coding agents already ask for Markdown |
-| Agent instructions (skills) for template developers | The MCP server ships |
 | Asset folders and a crop rectangle | Operators ask |
 | Per-target publish lock: one write to a target at a time ([#1537](https://github.com/gazetta-studio/gazetta-studio/issues/1537)) | Concurrent publishes to one target become common, or two writes to a target overwrite each other |
 
