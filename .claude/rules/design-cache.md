@@ -442,7 +442,7 @@ How cache composes with each of the other 12 foundational dimensions plus the mu
 
 **v1 (this design pass + scale implementation):**
 
-- **`MemoryCache`** — `Map`-backed, per-instance, no expiry by default (TTL optional). Default for all deployments. Multi-instance-correct via per-instance independence.
+- **`MemoryCache`** — `Map`-backed, per-instance, no expiry: it accepts a `ttl` option but ignores it in v1, so eviction is LRU-only (`cache/memory.ts`). Default for all deployments. Multi-instance-correct via per-instance independence.
 
 **v2 (post-design-pass, demand-driven):**
 

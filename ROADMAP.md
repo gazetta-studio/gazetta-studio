@@ -80,6 +80,17 @@ The asset library is broken at several layers: published images return 404 on de
 
 Decided: maintainer, 2026-10-24 (#1358)
 
+The editor flow's design round is done ([`design-media.md`](.claude/rules/design-media.md) M1–M7):
+
+- Planner for the media editor flow: replace in place, language versions, per-use alt and focal point, rename, documents and fonts ([#1573](https://github.com/gazetta-studio/gazetta-studio/issues/1573)); held until #1334 lands
+- Storage: an atomic create-if-absent write on every provider, which media's upload naming needs ([#1554](https://github.com/gazetta-studio/gazetta-studio/issues/1554))
+
+### Content trust and Markdown fields
+
+Designed in [`design-content-trust.md`](.claude/rules/design-content-trust.md): safe HTML for everyone in HTML and Markdown fields, sanitized at render; Markdown fields edited with Tiptap.
+
+- Planner; cut-planner files the cuts ([#1581](https://github.com/gazetta-studio/gazetta-studio/issues/1581))
+
 ### Bug backlog
 
 User-visible bugs, with fix-bot or outside contributors ([#1162](https://github.com/gazetta-studio/gazetta-studio/issues/1162) waits for its contributor):
@@ -100,6 +111,8 @@ User-visible bugs, with fix-bot or outside contributors ([#1162](https://github.
 - [#1471](https://github.com/gazetta-studio/gazetta-studio/issues/1471) History treats a stray file in `revisions/` as the newest revision
 - [#1499](https://github.com/gazetta-studio/gazetta-studio/issues/1499) `gazetta dev` logs `.json` changes outside the content root
 - [#1538](https://github.com/gazetta-studio/gazetta-studio/issues/1538) publishing a page also copies its nested pages' manifests
+- [#1614](https://github.com/gazetta-studio/gazetta-studio/issues/1614) the preview toolbar's active device button has low contrast in light mode
+- [#1625](https://github.com/gazetta-studio/gazetta-studio/issues/1625) "Delete permanently" on an archived item opens no confirmation
 - [#1262](https://github.com/gazetta-studio/gazetta-studio/issues/1262) requests refused before a route is matched (401) aren't recorded in the audit log. Decided: maintainer, 2026-10-24 (#1259).
 
 Decided: maintainer, 2026-10-23 (#1179)
