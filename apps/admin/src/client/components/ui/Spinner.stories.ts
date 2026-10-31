@@ -29,3 +29,6 @@ export const CustomLabel: Story = {
     await expect(within(canvasElement).getByRole('status', { name: 'Loading history' })).toBeInTheDocument()
   },
 }
+
+/** The stroke width the admin's call sites pass today. */
+export const StrokeWidth4: Story = { args: { strokeWidth: 4 } }
