@@ -174,6 +174,8 @@ HMR is unreliable across frameworks (full remount on change, acceptable).
 
 ## 13. Vue 3 + PrimeVue for CMS shell
 
+**Superseded** by [ADR-0018](../../docs/adr/0018-admin-ui-on-reka.md) (2026-10-31): the admin moves to Reka UI primitives with our own styles. Follows from design-admin-ui.md Q11.
+
 **Decision:** The CMS admin UI is built with Vue 3 + Vite + PrimeVue. All editors (default
 and custom) mount into DOM elements via the mount function contract.
 
