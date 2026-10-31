@@ -57,18 +57,3 @@ export const Default: Story = {
     await expect(canvas.getByTestId('choice')).toHaveTextContent('moveAside')
   },
 }
-
-export const Disabled: Story = {
-  render: () => ({
-    components: { RadioGroup, RadioGroupItem },
-    template: `
-      <RadioGroup modelValue="page" disabled aria-label="Redirect kind" style="display: flex; gap: 1rem">
-        <label style="display: flex; align-items: center; gap: 0.5rem">
-          <RadioGroupItem inputId="kind-page" value="page" /><span>Page</span>
-        </label>
-        <label style="display: flex; align-items: center; gap: 0.5rem">
-          <RadioGroupItem inputId="kind-fragment" value="fragment" /><span>Fragment</span>
-        </label>
-      </RadioGroup>`,
-  }),
-}

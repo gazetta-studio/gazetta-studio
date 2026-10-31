@@ -10,12 +10,11 @@ defineProps<{
   // `any`: matches RadioGroup's modelValue.
   value: any
   inputId?: string
-  disabled?: boolean
 }>()
 </script>
 
 <template>
-  <RadioGroupItem :id="inputId" class="ui-radio" :value="value" :disabled="disabled">
+  <RadioGroupItem :id="inputId" class="ui-radio" :value="value">
     <RadioGroupIndicator class="ui-radio-dot" />
   </RadioGroupItem>
 </template>
@@ -35,16 +34,12 @@ defineProps<{
   cursor: pointer;
 }
 .ui-radio[data-state='checked'],
-.ui-radio:hover:not(:disabled) {
+.ui-radio:hover {
   border-color: var(--color-primary);
 }
 .ui-radio:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);
-}
-.ui-radio:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 .ui-radio-dot {
   inline-size: 0.5rem;

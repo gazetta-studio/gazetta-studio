@@ -9,8 +9,6 @@
 import { SplitterGroup, SplitterResizeHandle } from 'reka-ui'
 import { Comment, Fragment, ref, type VNode, useSlots } from 'vue'
 
-withDefaults(defineProps<{ layout?: 'horizontal' | 'vertical' }>(), { layout: 'horizontal' })
-
 const slots = useSlots()
 const sizes = ref<number[]>([])
 
@@ -37,13 +35,13 @@ function panels() {
 </script>
 
 <template>
-  <SplitterGroup :direction="layout" :keyboard-resize-by="5" class="ui-splitter" @layout="sizes = $event">
+  <SplitterGroup direction="horizontal" :keyboard-resize-by="5" class="ui-splitter" @layout="sizes = $event">
     <template v-for="({ panel, handleMin, handleMax }, i) in panels()" :key="i">
       <SplitterResizeHandle
         v-if="i > 0"
         class="ui-splitter-gutter"
         aria-label="Resize panels"
-        :aria-orientation="layout === 'horizontal' ? 'vertical' : 'horizontal'"
+        aria-orientation="vertical"
         :aria-valuenow="sizes[i - 1] === undefined ? undefined : Math.round(sizes[i - 1])"
         :aria-valuemin="handleMin"
         :aria-valuemax="handleMax"
@@ -65,20 +63,12 @@ function panels() {
   inline-size: 1px;
   background: var(--color-border);
 }
-.ui-splitter-gutter[data-orientation='vertical'] {
-  inline-size: auto;
-  block-size: 1px;
-}
 /* A wider hit area than the 1px line, without shifting the layout. */
 .ui-splitter-gutter::before {
   content: '';
   position: absolute;
   inset-block: 0;
   inset-inline: -4px;
-}
-.ui-splitter-gutter[data-orientation='vertical']::before {
-  inset-block: -4px;
-  inset-inline: 0;
 }
 .ui-splitter-grip {
   position: relative;
@@ -87,10 +77,6 @@ function panels() {
   block-size: 1.5rem;
   border-radius: var(--radius-full);
   background: var(--color-border);
-}
-.ui-splitter-gutter[data-orientation='vertical'] .ui-splitter-grip {
-  inline-size: 1.5rem;
-  block-size: 4px;
 }
 .ui-splitter-gutter:hover,
 .ui-splitter-gutter[data-state='drag'],

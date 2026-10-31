@@ -207,8 +207,7 @@ function onClick(event: Event) {
       <span v-if="!activeTarget.isActiveEditable" class="readonly-badge">read-only</span>
       <ChevronDown v-if="interactive" class="chevron" aria-hidden="true" />
     </button>
-    <Menu v-if="interactive" ref="menu" :model="menuItems" :popup="true"
-      data-testid="active-target-menu" />
+    <Menu v-if="interactive" ref="menu" :model="menuItems" data-testid="active-target-menu" />
     <HistoryPanel v-model:visible="showHistory" />
     <AuditDrawer v-model:visible="showAudit" />
   </template>

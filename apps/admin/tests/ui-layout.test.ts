@@ -85,7 +85,7 @@ describe('ui/Menu', () => {
     wrapper = mount(
       defineComponent(() => () => [
         h('button', { id: 'opener', onClick: (e: Event) => menu.value?.toggle(e) }, 'local'),
-        h(Menu, { ref: menu, model, popup: true, 'data-testid': 'active-target-menu' }),
+        h(Menu, { ref: menu, model, 'data-testid': 'active-target-menu' }),
       ]),
       { attachTo: document.body },
     )

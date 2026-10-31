@@ -33,7 +33,7 @@ Checked 2026-10-29 to 2026-10-31:
 - `primevue` 5, `@primeuix/themes` 3, `@primeuix/styled` 1 and `primeicons` 8 are under the PrimeUI licence ("SEE LICENSE IN LICENSE.md"), which needs a licence key and an OEM licence when "third parties develop with the Software". The admin is on the MIT lines: `primevue` 4.5.5, `@primeuix/themes` 2.0.3, `@primeuix/styled` 0.7.4, `primeicons` 7.0.0 (`package-lock.json`). #1541 keeps Dependabot off the first three; `primeicons` 8 isn't on its ignore list.
 - PrimeTek says 4.x gets security fixes only, with no end date. `primevue` 4.5.5 is from 2026-04-08; no 4.x release since.
 - The admin imports 11 component kinds in 33 of its 52 `.vue` files: Button (31 imports), Dialog (15), InputText (6), ProgressSpinner, Listbox (3 each), Select, RadioButton, Checkbox (2 each), Toolbar, Splitter, Menu (1 each). No Tree or Drawer: `SiteTree.vue` and `ComponentTree.vue` are our own, so two of #13's four reasons no longer hold. No PrimeVue Toast, ConfirmDialog or Tooltip.
-- Button variants in use: `severity` secondary, danger, success, warn; `text`, `link`, `outlined`, `rounded`; `size="small"`; `:loading`.
+- Button variants in use: `severity` secondary, danger, success, warn; `text`, `outlined`, `rounded`; `size="small"`; `:loading`.
 - 148 icon uses of 51 distinct `pi pi-*` icons: Button `icon=` props, class strings returned from script, and `<i>` elements; 45 of the 59 `<i>` icons lack `aria-hidden`. The service worker precaches the primeicons font.
 - 47 distinct `--p-*` tokens are used, and `docs/customize-editor.md` tells site authors to override `--p-*` in `admin/theme.css`.
 
@@ -194,7 +194,7 @@ Follows from Q5–Q8. Cut 1 builds these under `apps/admin/src/client/components
 
 | Kind | Reka primitive | Variants and states the admin uses today |
 |---|---|---|
-| Button | none (native `<button>`) | default (primary), `secondary`, `danger`, `success`, `warn`, set dynamically too; `text`, `link`, `outlined`, `rounded`; small; icon-only (with an accessible label); loading (disabled, spinner); disabled; a count badge with a severity, including `info` (the site-health button, `CmsToolbar.vue`) |
+| Button | none (native `<button>`) | default (primary), `secondary`, `danger`, `success`, `warn`, set dynamically too; `text`, `outlined`, `rounded`; small; icon-only (with an accessible label); loading (disabled, spinner); disabled; a count badge with a severity, including `info` (the site-health button, `CmsToolbar.vue`) |
 | Dialog | Dialog | modal; title; close button, which can be turned off (`UnsavedDialog.vue`) or off while busy (`AssetDeleteConfirm.vue`); closing by clicking the backdrop where it's allowed today (`PublishPanel`, `HistoryPanel`, `AuditDrawer`); footer actions |
 | TextInput | none (native `<input>`) | default, small |
 | Spinner | none (SVG) | one size (1.5rem); `aria-label` |

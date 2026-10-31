@@ -21,7 +21,7 @@ const labelled = (initial: boolean, indeterminate = false) => ({
   setup: () => ({ value: ref(initial), indeterminate: ref(indeterminate) }),
   template: `
     <div style="display: flex; align-items: center; gap: 0.5rem">
-      <Checkbox v-model="value" :indeterminate="indeterminate" :binary="true" inputId="cb"
+      <Checkbox v-model="value" :indeterminate="indeterminate" inputId="cb"
         data-testid="cb" @update:modelValue="indeterminate = false" />
       <label for="cb">staging</label>
     </div>`,
@@ -67,7 +67,7 @@ export const WrappedInLabel: Story = {
     setup: () => ({ value: ref(false) }),
     template: `
       <label style="display: inline-flex; align-items: center; gap: 0.5rem">
-        <Checkbox v-model="value" :binary="true" inputId="ignore-1" />
+        <Checkbox v-model="value" inputId="ignore-1" />
         <span>Ignore once</span>
       </label>`,
   }),
@@ -76,15 +76,4 @@ export const WrappedInLabel: Story = {
     await userEvent.click(canvas.getByText('Ignore once'))
     await expect(canvas.getByRole('checkbox', { name: 'Ignore once' })).toHaveAttribute('aria-checked', 'true')
   },
-}
-
-export const Disabled: Story = {
-  render: () => ({
-    components: { Checkbox },
-    template: `
-      <div style="display: flex; align-items: center; gap: 0.5rem">
-        <Checkbox :modelValue="true" :binary="true" inputId="cb-off" disabled />
-        <label for="cb-off">production</label>
-      </div>`,
-  }),
 }

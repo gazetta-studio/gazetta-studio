@@ -21,16 +21,16 @@ export const Primary: Story = {}
 
 const severities = ['primary', 'secondary', 'danger', 'success', 'warn', 'info'] as const
 
-/** Every severity in each variant: solid, outlined, text and link. */
+/** Every severity in each variant: solid, outlined and text. */
 export const Severities: Story = {
   render: () => ({
     components: { Button },
-    setup: () => ({ severities, variants: ['solid', 'outlined', 'text', 'link'] }),
+    setup: () => ({ severities, variants: ['solid', 'outlined', 'text'] }),
     template: `
       <div style="display: grid; gap: 0.75rem">
         <div v-for="v in variants" :key="v" style="display: flex; gap: 0.5rem; flex-wrap: wrap">
           <Button v-for="s in severities" :key="s" :label="s" :severity="s"
-            :outlined="v === 'outlined'" :text="v === 'text'" :link="v === 'link'" />
+            :outlined="v === 'outlined'" :text="v === 'text'" />
         </div>
       </div>`,
   }),
@@ -79,7 +79,7 @@ export const WithBadge: Story = {
         <Button :icon="ShieldCheck" text rounded size="small" severity="info" badge="3" aria-label="Site health: 3 issues" />
         <Button :icon="ShieldCheck" text rounded size="small" severity="warn" badge="12" aria-label="Site health: 12 warnings" />
         <Button :icon="ShieldCheck" text rounded size="small" severity="danger" badge="1" aria-label="Site health: 1 error" />
-        <Button label="Filters" severity="secondary" badge="2" badge-severity="info" />
+        <Button label="Filters" severity="info" badge="2" />
       </div>`,
   }),
 }

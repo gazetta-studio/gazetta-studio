@@ -41,11 +41,11 @@ describe('ui/Button', () => {
     expect(w.get('button').attributes()).toMatchObject({ 'data-testid': 'publish-btn', title: 'Publish now' })
   })
 
-  it('shows the badge with its own severity, falling back to the button severity', () => {
-    const own = mount(Button, { props: { label: 'x', badge: '3', severity: 'warn', badgeSeverity: 'info' } })
-    expect(own.get('.ui-button-badge').classes()).toContain('ui-button-badge--info')
-    const inherited = mount(Button, { props: { label: 'x', badge: '3', severity: 'danger' } })
-    expect(inherited.get('.ui-button-badge').classes()).toContain('ui-button-badge--danger')
+  it('colours the badge with the button severity, primary by default', () => {
+    const danger = mount(Button, { props: { label: 'x', badge: '3', severity: 'danger' } })
+    expect(danger.get('.ui-button-badge').classes()).toContain('ui-button-badge--danger')
+    const plain = mount(Button, { props: { label: 'x', badge: '3' } })
+    expect(plain.get('.ui-button-badge').classes()).toContain('ui-button-badge--primary')
   })
 })
 
