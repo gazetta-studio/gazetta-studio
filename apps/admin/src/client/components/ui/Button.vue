@@ -9,24 +9,18 @@ import { LoaderCircle } from '@lucide/vue'
 import { type Component, computed, useAttrs, useSlots, watchEffect } from 'vue'
 import type { Severity } from './severity'
 
-const props = withDefaults(
-  defineProps<{
-    label?: string
-    icon?: Component
-    severity?: Severity
-    text?: boolean
-    link?: boolean
-    outlined?: boolean
-    rounded?: boolean
-    size?: 'small'
-    loading?: boolean
-    disabled?: boolean
-    badge?: string
-    badgeSeverity?: Severity
-    type?: 'button' | 'submit' | 'reset'
-  }>(),
-  { type: 'button' },
-)
+const props = defineProps<{
+  label?: string
+  icon?: Component
+  severity?: Severity
+  text?: boolean
+  outlined?: boolean
+  rounded?: boolean
+  size?: 'small'
+  loading?: boolean
+  disabled?: boolean
+  badge?: string
+}>()
 
 const attrs = useAttrs()
 const slots = useSlots()
@@ -42,12 +36,12 @@ if (import.meta.env.DEV) {
   })
 }
 
-const variant = computed(() => (props.link ? 'link' : props.text ? 'text' : props.outlined ? 'outlined' : 'solid'))
+const variant = computed(() => (props.text ? 'text' : props.outlined ? 'outlined' : 'solid'))
 </script>
 
 <template>
   <button
-    :type="type"
+    type="button"
     class="ui-button"
     :class="[
       `ui-button--${severity ?? 'primary'}`,
@@ -60,7 +54,7 @@ const variant = computed(() => (props.link ? 'link' : props.text ? 'text' : prop
     <LoaderCircle v-if="loading" class="ui-button-icon ui-spin" aria-hidden="true" />
     <component :is="icon" v-else-if="icon" class="ui-button-icon" aria-hidden="true" />
     <span v-if="label || $slots.default" class="ui-button-label"><slot>{{ label }}</slot></span>
-    <span v-if="badge" class="ui-button-badge" :class="`ui-button-badge--${badgeSeverity ?? severity ?? 'primary'}`">{{ badge }}</span>
+    <span v-if="badge" class="ui-button-badge" :class="`ui-button-badge--${severity ?? 'primary'}`">{{ badge }}</span>
   </button>
 </template>
 
@@ -116,8 +110,7 @@ const variant = computed(() => (props.link ? 'link' : props.text ? 'text' : prop
   background: transparent;
   color: var(--ui-tone);
 }
-.ui-button--text,
-.ui-button--link {
+.ui-button--text {
   background: transparent;
   border-color: transparent;
   color: var(--ui-tone);
@@ -125,11 +118,6 @@ const variant = computed(() => (props.link ? 'link' : props.text ? 'text' : prop
 .ui-button--secondary.ui-button--outlined,
 .ui-button--secondary.ui-button--text {
   color: var(--color-fg);
-}
-.ui-button--link {
-  padding-inline: 0.25rem;
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
 .ui-button:hover:not(:disabled) {
   filter: brightness(0.92);

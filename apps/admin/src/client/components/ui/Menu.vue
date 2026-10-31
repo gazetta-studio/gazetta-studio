@@ -11,9 +11,6 @@ export interface MenuItem {
   /** Child items render as a group under this item's label. */
   items?: MenuItem[]
   separator?: boolean
-  disabled?: boolean
-  visible?: boolean
-  key?: string
 }
 </script>
 
@@ -40,7 +37,7 @@ import { ref } from 'vue'
 
 defineOptions({ inheritAttrs: false })
 
-withDefaults(defineProps<{ model?: MenuItem[]; popup?: boolean }>(), { model: () => [], popup: true })
+withDefaults(defineProps<{ model?: MenuItem[] }>(), { model: () => [] })
 
 const open = ref(false)
 const reference = ref<HTMLElement>()
@@ -61,10 +58,9 @@ function toggle(event: Event) {
   else show(event)
 }
 
-defineExpose({ toggle, show, hide })
+defineExpose({ toggle })
 
 const isActive = (item: MenuItem) => item.class === 'active' || item.class?.split(/\s+/).includes('active')
-const visible = (items: MenuItem[]) => items.filter(item => item.visible !== false)
 
 function select(item: MenuItem, event: Event) {
   item.command?.({ originalEvent: event, item })
@@ -107,16 +103,15 @@ function onCloseAutoFocus(event: Event) {
         @interact-outside="onInteractOutside"
         @close-auto-focus="onCloseAutoFocus"
       >
-        <template v-for="(item, i) in visible(model)" :key="item.key ?? i">
+        <template v-for="(item, i) in model" :key="i">
           <DropdownMenuSeparator v-if="item.separator" class="ui-menu-separator" />
           <DropdownMenuGroup v-else-if="item.items" class="ui-menu-group">
             <DropdownMenuLabel class="ui-menu-label">{{ item.label }}</DropdownMenuLabel>
             <DropdownMenuItem
-              v-for="(child, j) in visible(item.items)"
-              :key="child.key ?? j"
+              v-for="(child, j) in item.items"
+              :key="j"
               class="ui-menu-item"
               :class="child.class"
-              :disabled="child.disabled"
               :data-active="isActive(child) || undefined"
               :aria-current="isActive(child) || undefined"
               @select="select(child, $event)"
@@ -130,7 +125,6 @@ function onCloseAutoFocus(event: Event) {
             v-else
             class="ui-menu-item"
             :class="item.class"
-            :disabled="item.disabled"
             :data-active="isActive(item) || undefined"
             :aria-current="isActive(item) || undefined"
             @select="select(item, $event)"
@@ -194,10 +188,6 @@ function onCloseAutoFocus(event: Event) {
 .ui-menu-item:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-width));
-}
-.ui-menu-item[data-disabled] {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 .ui-menu-item[data-active] {
   font-weight: 600;

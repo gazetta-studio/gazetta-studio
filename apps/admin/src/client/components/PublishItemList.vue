@@ -129,7 +129,6 @@ function rowStateLabel(kind: ItemChangeKind): string {
           v-if="item.summary !== 'deleted'"
           :modelValue="selected.has(item.path)"
           @update:modelValue="(v: boolean) => toggle(item.path, v)"
-          :binary="true"
           :inputId="`pub-${item.path}`"
           :aria-label="`Publish ${item.path}`"
         />

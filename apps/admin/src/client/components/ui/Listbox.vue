@@ -20,7 +20,6 @@ const props = defineProps<{
   optionLabel?: string
   optionValue?: string
   modelValue?: any
-  disabled?: boolean
 }>()
 
 const emit = defineEmits<{ 'update:modelValue': [value: any] }>()
@@ -42,7 +41,6 @@ const valueOf = (option: any): any => (props.optionValue ? option?.[props.option
     :class="attrs.class"
     :style="attrs.style"
     :model-value="modelValue ?? undefined"
-    :disabled="disabled"
     @update:model-value="v => emit('update:modelValue', v ?? null)"
   >
     <ListboxContent class="ui-listbox-content" v-bind="contentAttrs">
@@ -67,9 +65,6 @@ const valueOf = (option: any): any => (props.optionValue ? option?.[props.option
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-input-bg);
-}
-.ui-listbox[data-disabled] {
-  opacity: 0.55;
 }
 .ui-listbox-content {
   display: flex;

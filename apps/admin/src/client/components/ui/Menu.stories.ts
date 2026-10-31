@@ -46,7 +46,7 @@ const render = () => ({
   template: `
     <div style="block-size: 360px">
       <Button id="target-button" label="local" severity="secondary" aria-haspopup="menu" @click="menu?.toggle($event)" />
-      <Menu ref="menu" :model="model" :popup="true" data-testid="active-target-menu" />
+      <Menu ref="menu" :model="model" data-testid="active-target-menu" />
     </div>`,
 })
 
@@ -115,7 +115,7 @@ export const OutsideClick: Story = {
       <div style="block-size: 360px; display: flex; gap: 1rem; align-items: start">
         <Button label="local" severity="secondary" aria-haspopup="menu" @click="menu?.toggle($event)" />
         <label>Search <input data-testid="search" /></label>
-        <Menu ref="menu" :model="model" :popup="true" />
+        <Menu ref="menu" :model="model" />
       </div>`,
   }),
   play: async ({ canvasElement }) => {

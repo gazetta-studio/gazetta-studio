@@ -12,9 +12,7 @@ import { RadioGroupRoot } from 'reka-ui'
 defineProps<{
   // `any`: matches PrimeVue's `any`, so typed handlers at call sites still type-check.
   modelValue?: any
-  disabled?: boolean
   name?: string
-  orientation?: 'vertical' | 'horizontal'
 }>()
 
 // `any`: see modelValue.
@@ -25,9 +23,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: any] }>()
   <RadioGroupRoot
     class="ui-radio-group"
     :model-value="modelValue"
-    :disabled="disabled"
     :name="name"
-    :orientation="orientation"
     @update:model-value="v => emit('update:modelValue', v)"
   >
     <slot />

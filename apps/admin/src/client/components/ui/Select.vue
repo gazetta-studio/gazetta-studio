@@ -34,8 +34,6 @@ const props = defineProps<{
   placeholder?: string
   showClear?: boolean
   size?: 'small'
-  disabled?: boolean
-  defaultOpen?: boolean
 }>()
 
 const emit = defineEmits<{ 'update:modelValue': [value: any] }>()
@@ -62,8 +60,6 @@ const hasValue = computed(() => props.modelValue !== null && props.modelValue !=
   >
     <SelectRoot
       :model-value="modelValue ?? undefined"
-      :disabled="disabled"
-      :default-open="defaultOpen"
       @update:model-value="v => emit('update:modelValue', v)"
     >
       <SelectTrigger class="ui-select-trigger" v-bind="triggerAttrs">
@@ -89,7 +85,7 @@ const hasValue = computed(() => props.modelValue !== null && props.modelValue !=
       </SelectPortal>
     </SelectRoot>
     <button
-      v-if="showClear && hasValue && !disabled"
+      v-if="showClear && hasValue"
       type="button"
       class="ui-select-clear"
       aria-label="Clear selection"
@@ -126,16 +122,12 @@ const hasValue = computed(() => props.modelValue !== null && props.modelValue !=
   text-align: start;
   cursor: pointer;
 }
-.ui-select-trigger:hover:not(:disabled) {
+.ui-select-trigger:hover {
   border-color: var(--color-muted);
 }
 .ui-select-trigger:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);
-}
-.ui-select-trigger:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 .ui-select-trigger[data-placeholder] .ui-select-value {
   color: var(--color-muted);

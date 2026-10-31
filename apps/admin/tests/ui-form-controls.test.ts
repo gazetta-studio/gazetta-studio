@@ -23,12 +23,12 @@ afterEach(() => {
 
 describe('Checkbox', () => {
   it('renders aria-checked="mixed" when indeterminate', () => {
-    const wrapper = mount(Checkbox, { props: { modelValue: false, indeterminate: true, binary: true } })
+    const wrapper = mount(Checkbox, { props: { modelValue: false, indeterminate: true } })
     expect(wrapper.get('[role="checkbox"]').attributes('aria-checked')).toBe('mixed')
   })
 
   it('emits the toggled boolean', async () => {
-    const wrapper = mount(Checkbox, { props: { modelValue: false, binary: true } })
+    const wrapper = mount(Checkbox, { props: { modelValue: false } })
     await wrapper.get('[role="checkbox"]').trigger('click')
     expect(wrapper.emitted('update:modelValue')).toEqual([[true]])
   })
@@ -37,7 +37,7 @@ describe('Checkbox', () => {
     const Host = defineComponent({
       components: { Checkbox },
       setup: () => ({ value: ref(false) }),
-      template: `<div><Checkbox v-model="value" :binary="true" inputId="dest-staging" data-testid="cb" />
+      template: `<div><Checkbox v-model="value" inputId="dest-staging" data-testid="cb" />
         <label for="dest-staging">staging</label></div>`,
     })
     const wrapper = mount(Host, { attachTo: document.body })

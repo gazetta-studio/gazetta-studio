@@ -516,7 +516,6 @@ function envClass(env: string | undefined): string {
                 :modelValue="selectedDestinations.has(entry.target.name)"
                 @update:modelValue="() => toggleDestination(entry.target.name)"
                 :inputId="`dest-${entry.target.name}`"
-                :binary="true"
               />
               <span class="dest-name">{{ entry.target.name }}</span>
               <span v-if="!entry.target.editable" class="dest-badge">read-only</span>
@@ -532,7 +531,6 @@ function envClass(env: string | undefined): string {
                   :modelValue="groupState(entry.group) === 'all'"
                   :indeterminate="groupState(entry.group) === 'some'"
                   :inputId="`dest-group-${entry.group.environment}`"
-                  :binary="true"
                   @update:modelValue="() => toggleGroup(entry.group)"
                 />
                 <span class="group-label">{{ entry.group.environment }}</span>
@@ -547,7 +545,6 @@ function envClass(env: string | undefined): string {
                   :modelValue="selectedDestinations.has(t.name)"
                   @update:modelValue="() => toggleDestination(t.name)"
                   :inputId="`dest-${t.name}`"
-                  :binary="true"
                 />
                 <span class="dest-name">{{ t.name }}</span>
                 <span v-if="!t.editable" class="dest-badge">read-only</span>
@@ -612,7 +609,6 @@ function envClass(env: string | undefined): string {
               <label v-if="issue.severity === 'warn'" class="audit-ignore">
                 <Checkbox
                   :modelValue="isWarnIgnored(perTarget.target, issue)"
-                  :binary="true"
                   @update:modelValue="() => toggleIgnoreWarn(perTarget.target, issue)"
                   :inputId="`ignore-${auditIssueKey(perTarget.target, issue)}`"
                   :data-testid="`publish-audit-ignore-${perTarget.target}-${issue.validator}`"
