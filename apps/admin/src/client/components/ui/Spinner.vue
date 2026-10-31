@@ -3,14 +3,17 @@
  * Spinner (design-admin-ui.md, "The components"): the one 1.5rem loading
  * indicator the admin uses, replacing PrimeVue ProgressSpinner. It's a status,
  * so it carries a label (default "Loading"); override with `aria-label`.
+ * `strokeWidth` is in ProgressSpinner's units (a 100-unit circle of radius 20),
+ * so call sites keep their value.
  */
+withDefaults(defineProps<{ strokeWidth?: number | string }>(), { strokeWidth: 2 })
 </script>
 
 <template>
   <span class="ui-spinner" role="status" aria-label="Loading">
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle class="ui-spinner-track" cx="12" cy="12" r="9.5" />
-      <circle class="ui-spinner-arc" cx="12" cy="12" r="9.5" />
+    <svg viewBox="25 25 50 50" aria-hidden="true">
+      <circle class="ui-spinner-track" cx="50" cy="50" r="20" :stroke-width="strokeWidth" />
+      <circle class="ui-spinner-arc" cx="50" cy="50" r="20" :stroke-width="strokeWidth" />
     </svg>
   </span>
 </template>
@@ -28,7 +31,6 @@
 }
 .ui-spinner circle {
   fill: none;
-  stroke-width: 3;
 }
 .ui-spinner-track {
   stroke: var(--color-border);
@@ -36,8 +38,8 @@
 .ui-spinner-arc {
   stroke: var(--color-primary);
   stroke-linecap: round;
-  stroke-dasharray: 60;
-  stroke-dashoffset: 42;
+  stroke-dasharray: 126;
+  stroke-dashoffset: 88;
 }
 @keyframes ui-spinner-rotate {
   to {

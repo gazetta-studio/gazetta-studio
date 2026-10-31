@@ -69,3 +69,11 @@ describe('ui/Spinner', () => {
     ).toBe('Loading history')
   })
 })
+
+describe('ui/Spinner strokeWidth', () => {
+  it('draws with the stroke width call sites pass, defaulting to ProgressSpinner’s 2', () => {
+    const widths = (w: ReturnType<typeof mount>) => w.findAll('circle').map(c => c.attributes('stroke-width'))
+    expect(widths(mount(Spinner, { props: { strokeWidth: '4' } }))).toEqual(['4', '4'])
+    expect(widths(mount(Spinner))).toEqual(['2', '2'])
+  })
+})
