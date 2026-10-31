@@ -730,8 +730,7 @@ export interface LocalesConfig {
  * declare locale-specific bytes, theme-specific bytes, or both.
  *
  * v1 enables themes on **assets only**. Page/fragment theme variants are
- * deferred; templates emit theme-aware CSS via PrimeVue tokens / class-based
- * cascade. See design-media.md and css-theming.md.
+ * deferred; templates emit theme-aware CSS via a class-based cascade. See design-media.md and css-theming.md.
  */
 export interface ThemesConfig {
   /** Supported theme names (lowercase ASCII, no dots). Conventionally `['light', 'dark']`. */

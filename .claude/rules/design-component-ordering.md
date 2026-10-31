@@ -171,7 +171,7 @@ Not implemented in this cut. The pinned `@formkit/drag-and-drop` 0.6.1 build has
 
 ### Color and theming
 
-- Drop indicator: `var(--color-primary)` (Aura emerald light, brighter dark)
+- Drop indicator: `var(--color-primary)` (emerald, brighter in dark mode)
 - Drag handle default: `var(--color-muted)`
 - Drag handle hover: `var(--color-fg)`
 - Picked-up row background: `var(--color-hover-bg)` with a subtle shadow

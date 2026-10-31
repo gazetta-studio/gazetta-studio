@@ -1,10 +1,10 @@
 /**
  * Accessibility scans of the admin UI — testing-plan.md Priority 2.3.
  *
- * PrimeVue claims WCAG 2.1 AA compliance per their accessibility guide
- * but has known open issues. The custom chrome Gazetta layers on top
- * (env-colored indicators, read-only badges, unified Publish panel,
- * history UI) had no a11y coverage — this file adds it.
+ * The admin's components (Reka UI primitives) are checked one by one by
+ * the Storybook axe gate; the screens built from them (env-colored
+ * indicators, read-only badges, unified Publish panel, history UI) are
+ * checked here.
  *
  * Strategy: scan each major surface with @axe-core/playwright and fail
  * on any *new* violations not in the baseline allowlist. The baseline
@@ -16,7 +16,7 @@
  *
  * Automated scans catch an estimated 30-40% of real WCAG issues. This
  * is the floor, not the ceiling. Scoped to `wcag2a wcag2aa wcag21a
- * wcag21aa` to match PrimeVue's stated target.
+ * wcag21aa`: the admin's target is WCAG 2.1 AA.
  */
 import { test, expect } from './fixtures'
 import { AxeBuilder } from '@axe-core/playwright'
@@ -75,7 +75,7 @@ test.describe('accessibility', () => {
     await page.goto('/admin')
     await expect(page.locator('[data-testid="site-page-home"]')).toBeVisible()
     await page.locator('[data-testid="publish-btn"]').click()
-    // Publish panel is a PrimeVue Dialog — rendered into body via Teleport.
+    // Publish panel is a Dialog — rendered into body via Teleport.
     await page.waitForSelector('[data-testid="publish-panel"]', { timeout: 5000 })
 
     const results = await scan(page)

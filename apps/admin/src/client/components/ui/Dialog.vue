@@ -2,10 +2,10 @@
 /**
  * Dialog (design-admin-ui.md, "The components"): Reka's Dialog with PrimeVue's
  * prop and event names (`visible` / `update:visible`, `header`, `modal`,
- * `closable`, `dismissableMask`, `#footer`), so cut 2 swaps imports without
- * touching call sites. Attributes (data-testid, class, style, listeners such
- * as @keydown) land on the dialog panel, not the overlay. `pt.mask.style`
- * styles the overlay, as PrimeVue's pass-through did for UnsavedDialog.
+ * `closable`, `dismissableMask`, `#footer`), which the admin's call sites were
+ * written against. Attributes (data-testid, class, style, listeners such as
+ * @keydown) land on the dialog panel, not the overlay. `pt.mask.style` styles
+ * the overlay (UnsavedDialog).
  */
 import { X } from '@lucide/vue'
 import { DialogClose, DialogContent, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'

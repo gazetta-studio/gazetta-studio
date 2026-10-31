@@ -2257,7 +2257,7 @@ async function runDev(siteDir: string, port: number, hostFlag?: string) {
  * Mount a Hono route serving the user's admin/theme.css. 404 if not present.
  * Cache-Control no-cache so devs see edits immediately.
  *
- * The link tag is added at runtime by main.ts (after PrimeVue + tokens.css)
+ * The link tag is added at runtime by main.ts (after tokens.css and the component styles)
  * so user declarations win the cascade. See #134 and css-theming.md.
  */
 function mountUserThemeRoute(cmsApp: Hono, adminDir: string) {
