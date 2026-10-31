@@ -525,7 +525,7 @@ function generateMockContent(schema: Record<string, unknown>): Record<string, un
 .sidebar-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.3125rem 1rem; cursor: pointer; font-size: 0.8125rem; color: #6b7280; }
 .sidebar-item:hover { background: rgba(128, 128, 128, 0.08); color: #374151; }
 .sidebar-item.active { background: rgba(102, 126, 234, 0.1); color: #667eea; }
-.item-icon { inline-size: 0.6875rem; block-size: 0.6875rem; width: 14px; flex-shrink: 0; }
+.item-icon { inline-size: 0.6875rem; block-size: 0.6875rem; flex-shrink: 0; }
 .btn-icon { inline-size: 0.875em; block-size: 0.875em; vertical-align: -0.125em; }
 .empty-icon { inline-size: 2rem; block-size: 2rem; }
 .item-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

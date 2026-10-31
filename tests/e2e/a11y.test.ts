@@ -87,7 +87,7 @@ test.describe('accessibility', () => {
     await page.goto('/admin')
     await expect(page.locator('[data-testid="active-target-indicator"]')).toBeVisible()
     await page.locator('[data-testid="active-target-indicator"]').click()
-    // The menu is a PrimeVue popup — wait for it to be rendered in the DOM.
+    // The menu content is rendered on open — wait for it in the DOM.
     await page.waitForSelector('[data-testid="active-target-menu"]', { timeout: 3000 })
 
     const results = await scan(page)
