@@ -14,9 +14,8 @@
  *      expected DOM order intact (logical order doesn't reverse —
  *      the browser flips visually via CSS).
  *
- * Why static audit instead of computed-style inspection: PrimeVue's
- * CSS is concatenated into the same `<style>` tags as our scoped
- * styles in jsdom, so a CSS-text scan hits PrimeVue's own properties.
+ * Why static audit instead of computed-style inspection: jsdom doesn't
+ * apply layout, and library CSS shares the document's `<style>` tags.
  * Reading from disk reads only the component author's CSS — exactly
  * the surface this audit is responsible for.
  *
@@ -25,12 +24,11 @@
  * must work right-to-left from day one. Visual layout regression is a
  * Playwright e2e concern; this catches the property-level slip-ups.
  */
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import PrimeVue from 'primevue/config'
 import AssetDetailLocaleSection from '../src/client/components/AssetDetailLocaleSection.vue'
 import AssetLibraryGrid from '../src/client/components/AssetLibraryGrid.vue'
 import AssetUploadPrompt from '../src/client/components/AssetUploadPrompt.vue'
@@ -38,22 +36,6 @@ import { useAssetsListStore } from '../src/client/stores/assetsList.js'
 import { useAssetsUploadPromptStore } from '../src/client/stores/assetsUploadPrompt.js'
 import { useSiteStore } from '../src/client/stores/site.js'
 import type { AssetSummary } from 'gazetta/schema'
-
-beforeAll(() => {
-  if (typeof window.matchMedia !== 'function') {
-    window.matchMedia = (query: string) =>
-      ({
-        matches: false,
-        media: query,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-        onchange: null,
-      }) as unknown as MediaQueryList
-  }
-})
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -201,7 +183,6 @@ describe('RTL: runtime smoke', () => {
     expect(() =>
       mount(AssetLibraryGrid, {
         attachTo: document.body,
-        global: { plugins: [PrimeVue] },
       }),
     ).not.toThrow()
     expect(document.documentElement.getAttribute('dir')).toBe('rtl')
@@ -215,7 +196,6 @@ describe('RTL: runtime smoke', () => {
 
     const wrapper = mount(AssetLibraryGrid, {
       attachTo: document.body,
-      global: { plugins: [PrimeVue] },
     })
 
     // DOM order is stable regardless of `dir` — visual reversal is the
@@ -234,7 +214,6 @@ describe('RTL: runtime smoke', () => {
     const wrapper = mount(AssetDetailLocaleSection, {
       attachTo: document.body,
       props: { asset: sample({ overrideLocales: ['fr'] }) },
-      global: { plugins: [PrimeVue] },
     })
 
     expect(wrapper.find('[data-testid="locale-row-default"]').exists()).toBe(true)
@@ -246,7 +225,6 @@ describe('RTL: runtime smoke', () => {
     const promptStore = useAssetsUploadPromptStore()
     mount(AssetUploadPrompt, {
       attachTo: document.body,
-      global: { plugins: [PrimeVue] },
     })
     void promptStore.prompt({
       file: new File(['x'], 'hero.jpg', { type: 'image/jpeg' }),

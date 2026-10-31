@@ -43,8 +43,9 @@
  * push the orchestration into the parent. The `v-if` chain over
  * connectionState.status keeps the surface narrow.
  */
+import { CloudOff, LoaderCircle } from '@lucide/vue'
 import { onMounted, watch } from 'vue'
-import Button from 'primevue/button'
+import Button from './ui/Button.vue'
 import { useConnectionState } from '../stores/connectionState.js'
 import { useToastStore } from '../stores/toast.js'
 
@@ -90,7 +91,7 @@ watch(
     role="alert"
     data-testid="offline-banner"
     data-state="offline">
-    <i class="pi pi-cloud-slash banner-icon" aria-hidden="true" />
+    <CloudOff class="banner-icon" aria-hidden="true" />
     <span class="banner-text">Offline</span>
     <Button
       size="small"
@@ -108,7 +109,7 @@ watch(
     role="status"
     data-testid="offline-banner"
     data-state="degraded">
-    <i class="pi pi-spin pi-spinner banner-icon" aria-hidden="true" />
+    <LoaderCircle class="banner-icon spin" aria-hidden="true" />
     <span class="banner-text">Connection unstable</span>
   </div>
 
@@ -118,7 +119,7 @@ watch(
     role="status"
     data-testid="offline-banner"
     data-state="reconnecting">
-    <i class="pi pi-spin pi-spinner banner-icon" aria-hidden="true" />
+    <LoaderCircle class="banner-icon spin" aria-hidden="true" />
     <span class="banner-text">Reconnecting</span>
   </div>
 </template>
@@ -147,7 +148,22 @@ watch(
   padding-block: 0.25rem;
 }
 .banner-icon {
-  font-size: 0.875rem;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  flex-shrink: 0;
+}
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation-duration: 2.4s;
+  }
 }
 .banner-text {
   flex: 1;

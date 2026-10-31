@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import type { Page } from '@playwright/test'
 import { test, expect } from './fixtures'
 import { ComponentTreePom } from './pages/ComponentTree'
+import { expectSaveSettled } from './helpers'
 
 /**
  * Drag-reordering must move the array that was dragged, whatever its shape.
@@ -110,7 +111,7 @@ for (const [target, expected] of [
 
     const saveBtn = page.locator('[data-testid="save-btn"]')
     await saveBtn.click()
-    await expect(saveBtn).toBeDisabled({ timeout: 10000 })
+    await expectSaveSettled(saveBtn, { timeout: 10000 })
     const saved = JSON.parse(readFileSync(pageJson, 'utf8')).components[0].content
     const savedLabels = (arr: Array<{ label: string }>) => arr.map(x => x.label).join(',')
     const byId: Record<string, string> = {

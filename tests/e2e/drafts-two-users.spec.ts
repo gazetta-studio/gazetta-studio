@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { openEditor, storedDraftTitles } from './helpers'
+import { openEditor, storedDraftTitles, expectSaveSettled } from './helpers'
 import { ComponentTreePom } from './pages/ComponentTree'
 
 /**
@@ -35,7 +35,7 @@ test("a user never sees another user's unsaved draft", async ({ page, context })
   await page.goto('/admin/pages/home/edit')
   await openHero()
   await expect(title).toHaveValue(original)
-  await expect(page.locator('[data-testid="save-btn"]')).toBeDisabled()
+  await expectSaveSettled(page.locator('[data-testid="save-btn"]'))
   // Bob's boot deleted Alice's draft rather than just hiding it.
   await expect.poll(() => storedDraftTitles(page)).not.toContain(draft)
 })

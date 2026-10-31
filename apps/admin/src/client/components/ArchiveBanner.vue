@@ -13,8 +13,9 @@
   live (no "this is live" banner; the empty state IS the message).
 -->
 <script setup lang="ts">
+import { Archive, Pencil, Trash2, Undo2 } from '@lucide/vue'
 import { computed } from 'vue'
-import Button from 'primevue/button'
+import Button from './ui/Button.vue'
 import { useArchiveStore } from '../stores/archive.js'
 import { useSiteStore } from '../stores/site.js'
 
@@ -76,7 +77,7 @@ function onPurge() {
 <template>
   <div v-if="isArchived" class="archive-banner" role="alert" :data-testid="`archive-banner-${kind}-${name}`">
     <div class="archive-banner-message">
-      <i class="pi pi-archive archive-banner-icon" />
+      <Archive class="archive-banner-icon" aria-hidden="true" />
       <div class="archive-banner-text">
         <strong>Archived.</strong>
         <span v-if="aliasOf">
@@ -91,7 +92,7 @@ function onPurge() {
       <Button
         v-if="!isRedirect"
         label="Restore"
-        icon="pi pi-undo"
+        :icon="Undo2"
         size="small"
         severity="secondary"
         :loading="archive.status === 'unarchiving'"
@@ -100,7 +101,7 @@ function onPurge() {
       />
       <Button
         label="Edit alias"
-        icon="pi pi-pencil"
+        :icon="Pencil"
         size="small"
         text
         :data-testid="`archive-edit-alias-${kind}-${name}`"
@@ -108,7 +109,7 @@ function onPurge() {
       />
       <Button
         label="Delete permanently"
-        icon="pi pi-trash"
+        :icon="Trash2"
         size="small"
         text
         severity="danger"
@@ -127,7 +128,7 @@ function onPurge() {
   gap: 1rem;
   background: var(--color-warning-bg);
   border: 1px solid var(--color-warning-fg);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 0.625rem 0.875rem;
   margin: 0.5rem 0;
 }
@@ -140,7 +141,8 @@ function onPurge() {
 }
 .archive-banner-icon {
   color: var(--color-warning-fg);
-  font-size: 1.125rem;
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
   flex-shrink: 0;
 }
 .archive-banner-text {

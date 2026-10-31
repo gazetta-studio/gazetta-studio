@@ -32,7 +32,7 @@ defineProps<{
 
 <style scoped>
 .asset-delete-kind-detail {
-  color: var(--p-text-muted-color);
+  color: var(--color-muted);
   font-size: 0.875rem;
 }
 </style>

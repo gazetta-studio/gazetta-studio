@@ -4,19 +4,19 @@ import { join } from 'node:path'
 
 test.describe('User theme', () => {
   test('admin/theme.css overrides Gazetta tokens and exposes custom tokens', async ({ page, testSite }) => {
-    // Seed a theme.css that overrides --p-primary-color, --color-env-prod-bg
+    // Seed a theme.css that overrides --color-primary, --color-env-prod-bg
     // (a Gazetta token), and adds a user-namespaced custom token. The dev
     // server's user-theme route picks this up without restart.
     await writeFile(
       join(testSite.projectDir, 'admin/theme.css'),
       `
       :root {
-        --p-primary-color: rgb(124, 58, 237);
+        --color-primary: rgb(124, 58, 237);
         --color-env-prod-bg: rgb(255, 245, 230);
         --myapp-test-color: rgb(255, 0, 255);
       }
       .dark {
-        --p-primary-color: rgb(167, 139, 250);
+        --color-primary: rgb(167, 139, 250);
         --color-env-prod-bg: rgb(42, 26, 5);
         --myapp-test-color: rgb(0, 255, 255);
       }
@@ -24,7 +24,7 @@ test.describe('User theme', () => {
     )
     // Force a fresh cold load so the runtime <link> injection runs from main.ts
     await page.goto('/admin')
-    // Wait for the theme.css link to actually load (main.ts appends it after PrimeVue)
+    // Wait for the theme.css link to actually load (main.ts appends it after the admin's own styles)
     await page.waitForFunction(
       () => {
         return getComputedStyle(document.documentElement).getPropertyValue('--myapp-test-color').trim() !== ''
@@ -35,7 +35,7 @@ test.describe('User theme', () => {
     const dark = await page.evaluate(() => {
       const cs = getComputedStyle(document.documentElement)
       return {
-        primary: cs.getPropertyValue('--p-primary-color').trim(),
+        primary: cs.getPropertyValue('--color-primary').trim(),
         envProdBg: cs.getPropertyValue('--color-env-prod-bg').trim(),
         myapp: cs.getPropertyValue('--myapp-test-color').trim(),
       }
@@ -49,7 +49,7 @@ test.describe('User theme', () => {
     const light = await page.evaluate(() => {
       const cs = getComputedStyle(document.documentElement)
       return {
-        primary: cs.getPropertyValue('--p-primary-color').trim(),
+        primary: cs.getPropertyValue('--color-primary').trim(),
         envProdBg: cs.getPropertyValue('--color-env-prod-bg').trim(),
         myapp: cs.getPropertyValue('--myapp-test-color').trim(),
       }

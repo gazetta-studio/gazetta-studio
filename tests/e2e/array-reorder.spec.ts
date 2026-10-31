@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import type { Locator, Page } from '@playwright/test'
 import { test, expect } from './fixtures'
 import { ComponentTreePom } from './pages/ComponentTree'
+import { expectSaveSettled } from './helpers'
 
 /**
  * Reordering items in an array field of the default editor
@@ -37,7 +38,7 @@ async function save(page: Page): Promise<void> {
   const saveBtn = page.locator('[data-testid="save-btn"]')
   await expect(saveBtn).toBeEnabled()
   await saveBtn.click()
-  await expect(saveBtn).toBeDisabled({ timeout: 10000 })
+  await expectSaveSettled(saveBtn, { timeout: 10000 })
 }
 
 test.describe('Array field reorder', () => {

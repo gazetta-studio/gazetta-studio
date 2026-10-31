@@ -20,11 +20,13 @@
  *     `?onConflict=<mode>`.
  *   - Esc / Cancel button → close
  */
+import { Plus, TriangleAlert } from '@lucide/vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import Dialog from 'primevue/dialog'
-import Button from 'primevue/button'
-import InputText from 'primevue/inputtext'
-import RadioButton from 'primevue/radiobutton'
+import Dialog from './ui/Dialog.vue'
+import Button from './ui/Button.vue'
+import TextInput from './ui/TextInput.vue'
+import RadioGroup from './ui/RadioGroup.vue'
+import RadioGroupItem from './ui/RadioGroupItem.vue'
 import { useRedirectsApi } from '../composables/api.js'
 import { useSiteStore } from '../stores/site.js'
 import { useArchivedConflict } from '../composables/useArchivedConflict.js'
@@ -149,7 +151,7 @@ async function handleSubmit() {
 }
 
 /**
- * Esc-to-close handler. Primevue's Dialog ships its own dismissal logic
+ * Esc-to-close handler. The Dialog ships its own dismissal logic
  * via `update:visible`, but the dialog renders into a teleported overlay,
  * so Esc on the dialog chrome isn't always observable to wrapper tests.
  * Listening on document is the robust path + matches the user expectation
@@ -195,22 +197,22 @@ onUnmounted(() => {
 
     <div v-else class="create-content">
       <div class="create-field create-field--kind">
-        <label class="create-label-row">Kind</label>
-        <div class="create-kind-row">
+        <span id="redirect-kind-label" class="create-label-row">Kind</span>
+        <RadioGroup v-model="kind" class="create-kind-row" aria-labelledby="redirect-kind-label">
           <label class="create-kind-option" data-testid="create-redirect-kind-page">
-            <RadioButton v-model="kind" inputId="redirect-kind-page" value="page" />
+            <RadioGroupItem input-id="redirect-kind-page" value="page" />
             <span>Page</span>
           </label>
           <label class="create-kind-option" data-testid="create-redirect-kind-fragment">
-            <RadioButton v-model="kind" inputId="redirect-kind-fragment" value="fragment" />
+            <RadioGroupItem input-id="redirect-kind-fragment" value="fragment" />
             <span>Fragment</span>
           </label>
-        </div>
+        </RadioGroup>
       </div>
 
       <div class="create-field">
         <label class="create-label-row" for="redirect-from">Redirect from</label>
-        <InputText
+        <TextInput
           id="redirect-from"
           v-model="fromInput"
           placeholder="e.g. /old-products or old-products"
@@ -221,7 +223,7 @@ onUnmounted(() => {
 
       <div class="create-field">
         <label class="create-label-row" for="redirect-to">Redirect to</label>
-        <InputText
+        <TextInput
           id="redirect-to"
           v-model="toInput"
           :placeholder="kind === 'page' ? 'e.g. products/featured' : 'e.g. header'"
@@ -230,7 +232,7 @@ onUnmounted(() => {
           data-testid="create-redirect-to-input" />
         <!--
           Native <datalist> driven by the live-items list. Cheap autocomplete
-          without pulling a new PrimeVue component; respects the kind toggle.
+          without a separate autocomplete component; respects the kind toggle.
         -->
         <datalist id="redirect-target-suggestions">
           <option v-for="name in aliasTargetSuggestions" :key="name" :value="name" />
@@ -248,7 +250,7 @@ onUnmounted(() => {
       -->
       <div v-if="targetsWithGaps.length > 0" class="create-gaps" data-testid="redirect-capability-gaps">
         <p class="create-gaps-title">
-          <i class="pi pi-exclamation-triangle" /> Some targets won't emit this redirect
+          <TriangleAlert class="gaps-icon" aria-hidden="true" /> Some targets won't emit this redirect
         </p>
         <ul class="create-gaps-list">
           <li v-for="t in targetsWithGaps" :key="t.name">
@@ -281,7 +283,7 @@ onUnmounted(() => {
         @click="emit('close')" />
       <Button
         label="Create redirect"
-        icon="pi pi-plus"
+        :icon="Plus"
         :loading="creating"
         :disabled="!canSubmit"
         data-testid="create-redirect-submit"
@@ -305,6 +307,7 @@ onUnmounted(() => {
 .create-gaps-title { margin: 0 0 0.5rem; font-weight: 600; font-size: 0.875rem; color: var(--color-warning-fg); display: flex; align-items: center; gap: 0.375rem; }
 .create-gaps-list { margin: 0; padding-left: 1.25rem; font-size: 0.8125rem; color: var(--color-fg); }
 .create-gaps-list li { margin-bottom: 0.25rem; }
+.gaps-icon { inline-size: 1rem; block-size: 1rem; flex-shrink: 0; }
 .gap-reason { font-style: italic; }
 .env-tag { font-size: 0.75rem; color: var(--color-muted); }
 .create-gaps-note { margin: 0.5rem 0 0; font-size: 0.75rem; color: var(--color-muted); }

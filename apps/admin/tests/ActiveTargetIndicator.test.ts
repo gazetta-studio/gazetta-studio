@@ -7,14 +7,12 @@
  * component; that refactor is deferred (see testing-plan.md Priority 1.1
  * follow-up).
  *
- * Uses real Pinia + a real vue-router memory instance. PrimeVue is
- * registered globally so the Menu component resolves. HistoryPanel is
+ * Uses real Pinia + a real vue-router memory instance. HistoryPanel is
  * stubbed — its internals aren't the subject here.
  */
 import { describe, it, expect, beforeEach } from 'vitest'
 import { mount, type ComponentMountingOptions } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import PrimeVue from 'primevue/config'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import ActiveTargetIndicator from '../src/client/components/ActiveTargetIndicator.vue'
 import { useActiveTargetStore } from '../src/client/stores/activeTarget.js'
@@ -37,7 +35,7 @@ function mountWithGlobals(options?: ComponentMountingOptions<typeof ActiveTarget
   })
   return mount(ActiveTargetIndicator, {
     global: {
-      plugins: [PrimeVue, router],
+      plugins: [router],
       stubs: { HistoryPanel: true, AuditDrawer: true },
       ...options?.global,
     },
@@ -257,7 +255,7 @@ describe('ActiveTargetIndicator', () => {
       ]
       setup(targets, 'local')
       const w = mountWithGlobals()
-      // PrimeVue Menu teleports its popup; the root hosting element is
+      // ui/Menu teleports its popup; the root hosting element is
       // enough to verify it was instantiated.
       expect(w.findComponent({ name: 'Menu' }).exists()).toBe(true)
     })

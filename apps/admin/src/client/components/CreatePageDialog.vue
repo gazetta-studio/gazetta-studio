@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import { Plus } from '@lucide/vue'
 import { ref, onMounted, computed } from 'vue'
-import Dialog from 'primevue/dialog'
-import Button from 'primevue/button'
-import InputText from 'primevue/inputtext'
-import Listbox from 'primevue/listbox'
+import Dialog from './ui/Dialog.vue'
+import Button from './ui/Button.vue'
+import TextInput from './ui/TextInput.vue'
+import Listbox from './ui/Listbox.vue'
 import { usePagesApi, useTemplatesApi } from '../composables/api.js'
 import { useSiteStore } from '../stores/site.js'
 import { useArchivedConflict } from '../composables/useArchivedConflict.js'
@@ -81,14 +82,14 @@ async function handleCreate() {
 
     <div v-else class="create-content">
       <div class="create-field">
-        <label>Page name</label>
-        <InputText v-model="pageName" placeholder="e.g. contact or blog/my-post" class="create-input" />
+        <label for="create-page-name">Page name</label>
+        <TextInput id="create-page-name" v-model="pageName" placeholder="e.g. contact or blog/my-post" class="create-input" />
         <span v-if="pageName.trim()" class="create-hint">Route: {{ derivedRoute }}</span>
       </div>
 
       <div class="create-field">
-        <label>Page template</label>
-        <Listbox v-model="selectedTemplate" :options="templates" optionLabel="name" optionValue="name"
+        <label id="create-page-template-label">Page template</label>
+        <Listbox v-model="selectedTemplate" aria-labelledby="create-page-template-label" :options="templates" optionLabel="name" optionValue="name"
           class="create-list" :style="{ maxHeight: '200px' }" />
       </div>
 
@@ -97,7 +98,7 @@ async function handleCreate() {
 
     <template v-if="!conflict" #footer>
       <Button label="Cancel" severity="secondary" text @click="emit('close')" />
-      <Button label="Create" icon="pi pi-plus" :loading="creating"
+      <Button label="Create" :icon="Plus" :loading="creating"
         :disabled="!selectedTemplate || !pageName.trim()" @click="handleCreate" />
     </template>
   </Dialog>

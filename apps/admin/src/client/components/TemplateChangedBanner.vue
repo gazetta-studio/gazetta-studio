@@ -23,7 +23,8 @@
  *   - DIP: depends on `useTemplateImpactStore`'s typed surface.
  */
 import { useRouter } from 'vue-router'
-import Button from 'primevue/button'
+import { Code, X } from '@lucide/vue'
+import Button from './ui/Button.vue'
 import { useTemplateImpactStore } from '../stores/templateImpact.js'
 
 const store = useTemplateImpactStore()
@@ -49,7 +50,7 @@ function viewImpact() {
     class="template-changed-banner"
     role="status"
     data-testid="template-changed-banner">
-    <i class="pi pi-code banner-icon" aria-hidden="true" />
+    <Code class="banner-icon" aria-hidden="true" />
     <span class="banner-text">
       <strong>Template <code>{{ store.current.name }}</code> changed</strong>
       <span v-if="typeof store.current.affectedItemCount === 'number'">
@@ -66,7 +67,7 @@ function viewImpact() {
       View impact →
     </button>
     <Button
-      icon="pi pi-times"
+      :icon="X"
       text
       rounded
       size="small"
@@ -90,16 +91,18 @@ function viewImpact() {
   border-bottom: 1px solid var(--color-info-fg);
 }
 .banner-icon {
-  font-size: 0.875rem;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  flex-shrink: 0;
 }
 .banner-text {
   flex: 1;
 }
 .banner-text code {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8125rem;
   padding: 0.0625rem 0.25rem;
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
   background: var(--color-bg);
 }
 .banner-link {

@@ -15,22 +15,23 @@
   can pass `role="status"` to avoid an assertive announcement.
 -->
 <script setup lang="ts">
-import { computed } from 'vue'
-import Button from 'primevue/button'
+import { CircleCheck, CircleX, Info, TriangleAlert, X } from '@lucide/vue'
+import { type Component, computed } from 'vue'
+import Button from './ui/Button.vue'
 
 type Severity = 'danger' | 'warning' | 'info' | 'success'
 
-const DEFAULT_ICON: Record<Severity, string> = {
-  danger: 'pi pi-times-circle',
-  warning: 'pi pi-exclamation-triangle',
-  info: 'pi pi-info-circle',
-  success: 'pi pi-check-circle',
+const DEFAULT_ICON: Record<Severity, Component> = {
+  danger: CircleX,
+  warning: TriangleAlert,
+  info: Info,
+  success: CircleCheck,
 }
 
 const props = defineProps<{
   severity: Severity
   role?: 'alert' | 'status'
-  icon?: string
+  icon?: Component
   dismissible?: boolean
 }>()
 
@@ -45,7 +46,7 @@ const resolvedIcon = computed(() => props.icon ?? DEFAULT_ICON[props.severity])
 <template>
   <div :class="['banner', `banner-${severity}`]" :role="resolvedRole" :data-severity="severity">
     <div class="banner-message">
-      <i :class="[resolvedIcon, 'banner-icon']" aria-hidden="true" />
+      <component :is="resolvedIcon" class="banner-icon" aria-hidden="true" />
       <div class="banner-text"><slot /></div>
     </div>
     <div v-if="$slots.actions" class="banner-actions">
@@ -53,7 +54,7 @@ const resolvedIcon = computed(() => props.icon ?? DEFAULT_ICON[props.severity])
     </div>
     <Button
       v-if="dismissible"
-      icon="pi pi-times"
+      :icon="X"
       size="small"
       text
       rounded
@@ -72,7 +73,7 @@ const resolvedIcon = computed(() => props.icon ?? DEFAULT_ICON[props.severity])
   align-items: center;
   gap: 1rem;
   border: 1px solid;
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
   padding: 0.625rem 0.875rem;
   margin: 0.5rem 0;
 }
@@ -84,7 +85,8 @@ const resolvedIcon = computed(() => props.icon ?? DEFAULT_ICON[props.severity])
   min-width: 0;
 }
 .banner-icon {
-  font-size: 1.125rem;
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
   flex-shrink: 0;
 }
 .banner-text {

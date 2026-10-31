@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Archive, EyeOff } from '@lucide/vue'
 import { useSelectionStore } from '../stores/selection.js'
 import { useSiteStore } from '../stores/site.js'
 import { useEditingStore } from '../stores/editing.js'
@@ -92,7 +93,7 @@ function onArchive() {
           @click="onArchive"
           data-testid="page-archive-btn"
           title="Archive this page (soft-delete)">
-          <i class="pi pi-archive" /> Archive
+          <Archive class="inline-icon" aria-hidden="true" /> Archive
         </button>
       </div>
     </div>
@@ -139,7 +140,7 @@ function onArchive() {
       <!-- SERP preview — always light-themed to match Google's appearance -->
       <div :class="['serp-preview', { 'serp-noindex': noindex }]" data-testid="serp-preview">
         <div v-if="noindex" class="serp-noindex-badge">
-          <i class="pi pi-eye-slash" aria-hidden="true" /> noindex — hidden from search engines
+          <EyeOff class="inline-icon" aria-hidden="true" /> noindex — hidden from search engines
         </div>
         <div class="serp-card">
           <div class="serp-url">{{ serpUrl }}</div>
@@ -169,6 +170,7 @@ function onArchive() {
   letter-spacing: 0.05em;
   margin: 0;
 }
+.inline-icon { inline-size: 1em; block-size: 1em; flex-shrink: 0; }
 .meta-header-actions {
   display: flex;
   gap: 0.375rem;
@@ -177,7 +179,7 @@ function onArchive() {
   font-size: 0.6875rem;
   padding: 0.1875rem 0.5rem;
   border: 1px solid var(--color-border);
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-muted);
   cursor: pointer;
@@ -202,7 +204,7 @@ function onArchive() {
   font-size: 0.8125rem;
   padding: 0.375rem 0.5rem;
   border: 1px solid var(--color-input-border);
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
   background: var(--color-input-bg);
   color: var(--color-fg);
   font-family: inherit;
@@ -214,7 +216,7 @@ function onArchive() {
   font-style: italic;
 }
 .field input:focus, .field textarea:focus {
-  outline: 2px solid var(--p-primary-color);
+  outline: 2px solid var(--color-primary);
   outline-offset: -1px;
 }
 .char-count {

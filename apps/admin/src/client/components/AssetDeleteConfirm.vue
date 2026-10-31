@@ -21,8 +21,8 @@
  * the store stays pure and testable on its own.
  */
 import { computed } from 'vue'
-import Dialog from 'primevue/dialog'
-import Button from 'primevue/button'
+import Dialog from './ui/Dialog.vue'
+import Button from './ui/Button.vue'
 import { useAssetsDeleteStore } from '../stores/assetsDelete.js'
 import { useAssetsListStore } from '../stores/assetsList.js'
 import { useAssetsSelectionStore } from '../stores/assetsSelection.js'

@@ -13,7 +13,6 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
-import PrimeVue from 'primevue/config'
 import SiteHealthDrawer from '../src/client/components/SiteHealthDrawer.vue'
 import { useValidationScannerStore } from '../src/client/stores/validationScanner.js'
 
@@ -31,7 +30,7 @@ async function makeWrapper(visible = true) {
   return mount(SiteHealthDrawer, {
     props: { visible },
     global: {
-      plugins: [PrimeVue, router],
+      plugins: [router],
     },
     attachTo: document.body,
   })

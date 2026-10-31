@@ -20,7 +20,7 @@ test.describe('Production admin offline', () => {
     test.setTimeout(90_000)
 
     // First visit online: the app registers the service worker, which
-    // precaches the bundle (including the primeicons woff2).
+    // precaches the bundle.
     await page.goto('/admin')
     await expect(page.locator('[data-testid="site-page-home"]')).toBeVisible({ timeout: 20_000 })
     await page.waitForFunction(
@@ -38,10 +38,8 @@ test.describe('Production admin offline', () => {
     // App shell from the service worker.
     await expect(page).toHaveTitle('Gazetta CMS')
     await expect(page.locator('[data-testid="publish-btn"]')).toBeVisible()
-    // Icon font precached (not just the CSS): icons render offline.
-    await expect
-      .poll(() => page.evaluate(async () => (await document.fonts.ready, document.fonts.check('1em primeicons'))))
-      .toBe(true)
+    // Icons are inline SVG in the bundle: they render offline with no font.
+    await expect(page.locator('[data-testid="publish-btn"] svg')).toBeVisible()
     // Connection state settles on Offline (passes through "Connection unstable").
     await expect(page.locator('[data-testid="offline-banner"]')).toContainText('Offline', { timeout: 30_000 })
     // Site tree from the persisted query cache, not "Failed to fetch".

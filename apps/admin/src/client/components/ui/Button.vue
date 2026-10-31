@@ -2,7 +2,7 @@
 /**
  * Button (design-admin-ui.md, "The components"): a native <button> with
  * PrimeVue's prop names, so cut 2 swaps imports without touching call sites.
- * `icon` takes a Lucide component instead of a `pi pi-*` class string.
+ * `icon` takes a Lucide component.
  * Attributes (data-testid, title, aria-*, class) land on the <button>.
  */
 import { LoaderCircle } from '@lucide/vue'

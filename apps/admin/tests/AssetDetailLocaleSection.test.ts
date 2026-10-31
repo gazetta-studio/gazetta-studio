@@ -2,30 +2,13 @@
  * Vue tests for AssetDetailLocaleSection — the per-locale rows and
  * "+ Add" buttons in the asset detail pane.
  */
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import PrimeVue from 'primevue/config'
 import AssetDetailLocaleSection from '../src/client/components/AssetDetailLocaleSection.vue'
 import { useSiteStore } from '../src/client/stores/site.js'
 import { useAssetsUploadStore } from '../src/client/stores/assetsUpload.js'
 import type { AssetSummary } from 'gazetta/schema'
-
-beforeAll(() => {
-  if (typeof window.matchMedia !== 'function') {
-    window.matchMedia = (query: string) =>
-      ({
-        matches: false,
-        media: query,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-        onchange: null,
-      }) as unknown as MediaQueryList
-  }
-})
 
 function sampleAsset(overrides: Partial<AssetSummary> = {}): AssetSummary {
   return {
@@ -62,7 +45,6 @@ beforeEach(() => {
 function render(asset: AssetSummary) {
   return mount(AssetDetailLocaleSection, {
     props: { asset },
-    global: { plugins: [PrimeVue] },
   })
 }
 

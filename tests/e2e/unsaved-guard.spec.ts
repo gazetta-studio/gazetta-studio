@@ -19,7 +19,7 @@ test.describe('Unsaved changes dialog', () => {
     await page.click('[data-testid="back-to-browse"]')
 
     // Verify styled dialog appears (not native confirm)
-    const dialog = page.locator('.p-dialog')
+    const dialog = page.getByRole('dialog', { name: 'Unsaved Changes' })
     await expect(dialog).toBeVisible({ timeout: 5000 })
     await expect(dialog).toContainText('Unsaved Changes')
     await expect(dialog.getByRole('button', { name: 'Save', exact: true })).toBeVisible()
@@ -37,13 +37,13 @@ test.describe('Unsaved changes dialog', () => {
     await input.fill('changed content')
 
     await page.click('[data-testid="back-to-browse"]')
-    await page.locator('.p-dialog').waitFor({ timeout: 5000 })
+    await page.getByRole('dialog', { name: 'Unsaved Changes' }).waitFor({ timeout: 5000 })
 
     // Click Cancel
-    await page.locator('.p-dialog button', { hasText: 'Cancel' }).click()
+    await page.getByRole('dialog', { name: 'Unsaved Changes' }).getByRole('button', { name: 'Cancel' }).click()
 
     // Dialog closes, still in edit mode with editor visible
-    await expect(page.locator('.p-dialog')).not.toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Unsaved Changes' })).not.toBeVisible()
     await expect(page.locator('[data-testid="editor-container"]')).toBeVisible()
   })
 
@@ -57,13 +57,13 @@ test.describe('Unsaved changes dialog', () => {
     await input.fill('changed content')
 
     await page.click('[data-testid="back-to-browse"]')
-    await page.locator('.p-dialog').waitFor({ timeout: 5000 })
+    await page.getByRole('dialog', { name: 'Unsaved Changes' }).waitFor({ timeout: 5000 })
 
     // Click Discard
-    await page.locator('.p-dialog button', { hasText: "Don't Save" }).click()
+    await page.getByRole('dialog', { name: 'Unsaved Changes' }).getByRole('button', { name: "Don't Save" }).click()
 
     // Dialog closes, back to browse mode (SiteTree visible)
-    await expect(page.locator('.p-dialog')).not.toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Unsaved Changes' })).not.toBeVisible()
     const siteTree = new SiteTreePom(page)
     await expect(siteTree.pageRow('home')).toBeVisible()
   })
@@ -145,7 +145,7 @@ test.describe('Escape key behavior', () => {
     await page.locator('[data-testid="editor-container"] input').first().fill('escape test')
 
     await page.click('[data-testid="back-to-browse"]')
-    const dialog = page.locator('.p-dialog')
+    const dialog = page.getByRole('dialog', { name: 'Unsaved Changes' })
     await dialog.waitFor({ timeout: 5000 })
 
     // Press Escape to close dialog

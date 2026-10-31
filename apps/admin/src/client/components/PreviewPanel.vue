@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Eye, Globe, Maximize2, Minimize2, Monitor, Smartphone, Tablet } from '@lucide/vue'
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import morphdomSource from 'morphdom/dist/morphdom-umd.min.js?raw'
 import { useEventListener, watchDebounced } from '@vueuse/core'
@@ -106,9 +107,9 @@ const previewTitle = computed(() => {
 
 // Device presets
 const devicePresets = [
-  { label: 'Desktop', width: '100%', icon: 'pi pi-desktop' },
-  { label: 'Tablet', width: '768px', icon: 'pi pi-tablet' },
-  { label: 'Mobile', width: '375px', icon: 'pi pi-mobile' },
+  { label: 'Desktop', width: '100%', icon: Monitor },
+  { label: 'Tablet', width: '768px', icon: Tablet },
+  { label: 'Mobile', width: '375px', icon: Smartphone },
 ]
 const activePreset = ref(0)
 const previewWidth = computed(() => devicePresets[activePreset.value].width)
@@ -621,7 +622,7 @@ watchDebounced(
 <template>
   <div class="preview-panel" :class="{ fullscreen: uiMode.mode === 'fullscreen' }" data-testid="preview-panel">
     <div v-if="!previewPath" class="preview-empty" data-testid="preview-empty">
-      <i class="pi pi-eye" style="font-size: 2rem; color: #ddd; margin-bottom: 0.5rem;" />
+      <Eye class="empty-icon" style="color: #ddd; margin-bottom: 0.5rem;" aria-hidden="true" />
       <p>Select a page or fragment to preview</p>
     </div>
     <template v-else>
@@ -630,12 +631,14 @@ watchDebounced(
           <button v-for="(preset, i) in devicePresets" :key="preset.label"
             :class="['device-btn', { active: activePreset === i }]"
             :title="preset.label"
+            :aria-label="preset.label"
+            :aria-pressed="activePreset === i"
             @click="activePreset = i">
-            <i :class="preset.icon" />
+            <component :is="preset.icon" class="btn-icon" aria-hidden="true" />
           </button>
           <template v-if="uiMode.mode === 'fullscreen' && selection.previewRoute">
             <span class="preview-separator" />
-            <span class="preview-route"><i class="pi pi-globe" />{{ selection.previewRoute }}</span>
+            <span class="preview-route"><Globe class="route-icon" aria-hidden="true" />{{ selection.previewRoute }}</span>
           </template>
         </div>
         <div class="preview-actions">
@@ -643,6 +646,7 @@ watchDebounced(
           <select v-if="selection.type === 'fragment' && selection.staticPages.length > 1 && uiMode.mode !== 'fullscreen'"
             class="host-page-select"
             data-testid="host-page-select"
+            aria-label="Host page"
             :value="selection.fragmentHostPage?.name ?? ''"
             @change="selection.setFragmentHostPage(($event.target as HTMLSelectElement).value)">
             <option v-for="page in selection.staticPages" :key="page.name" :value="page.name">
@@ -652,15 +656,17 @@ watchDebounced(
           <button v-if="uiMode.mode === 'edit'"
             :class="['device-btn', { active: highlightEnabled }]"
             :title="highlightEnabled ? 'Hide highlights' : 'Show highlights'"
+            :aria-label="highlightEnabled ? 'Hide highlights' : 'Show highlights'"
             data-testid="highlight-toggle"
             @click="highlightEnabled = !highlightEnabled">
-            <i class="pi pi-eye" />
+            <Eye class="btn-icon" aria-hidden="true" />
           </button>
           <button class="device-btn"
             :title="uiMode.mode === 'fullscreen' ? 'Exit fullscreen' : 'Fullscreen'"
+            :aria-label="uiMode.mode === 'fullscreen' ? 'Exit fullscreen' : 'Fullscreen'"
             data-testid="fullscreen-toggle"
             @click="uiMode.toggleFullscreen()">
-            <i :class="uiMode.mode === 'fullscreen' ? 'pi pi-window-minimize' : 'pi pi-window-maximize'" />
+            <component :is="uiMode.mode === 'fullscreen' ? Minimize2 : Maximize2" class="btn-icon" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -688,10 +694,13 @@ watchDebounced(
 .device-btn { background: none; border: 1px solid transparent; border-radius: 4px; padding: 0.25rem 0.5rem; color: #9ca3af; cursor: pointer; font-size: 0.875rem; }
 .device-btn:hover { color: #374151; border-color: #d1d5db; }
 .device-btn.active { color: #a78bfa; border-color: #a78bfa; }
+.device-btn { display: inline-flex; align-items: center; }
+.btn-icon { inline-size: 0.875rem; block-size: 0.875rem; }
+.empty-icon { inline-size: 2rem; block-size: 2rem; }
 .host-page-select { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 4px; padding: 0.2rem 0.4rem; font-size: 0.75rem; cursor: pointer; }
 .preview-separator { width: 1px; height: 14px; background: #d1d5db; margin-left: 8px; margin-right: 8px; }
 .preview-route { display: inline-flex; align-items: center; gap: 6px; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 9999px; padding: 2px 10px; height: 24px; font-size: 12px; color: #6b7280; font-family: ui-monospace, monospace; }
-.preview-route .pi { font-size: 10px; color: #9ca3af; }
+.route-icon { inline-size: 10px; block-size: 10px; color: #9ca3af; }
 .preview-frame-wrapper { flex: 1; display: flex; justify-content: center; overflow: auto; background: #e5e7eb; }
 .preview-iframe { flex: none; height: 100%; border: 0; background: #fff; transition: width 0.2s; }
 
@@ -707,6 +716,6 @@ watchDebounced(
 .dark .host-page-select { background: #1e1e2e; color: #e0e0e0; border-color: #3f3f46; }
 .dark .preview-separator { background: #3f3f46; }
 .dark .preview-route { background: #18181b; border-color: #27272a; color: #a1a1aa; }
-.dark .preview-route .pi { color: #52525b; }
+.dark .preview-route .route-icon { color: #52525b; }
 .dark .preview-frame-wrapper { background: #1a1a2e; }
 </style>

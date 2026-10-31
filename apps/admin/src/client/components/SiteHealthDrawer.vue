@@ -10,9 +10,10 @@
  * state. The drawer shows only when opened from the toolbar; the
  * toolbar icon shows a count badge only when issues > 0.
  */
-import { computed } from 'vue'
-import Dialog from 'primevue/dialog'
-import Button from 'primevue/button'
+import { CircleAlert, CircleCheck, Info, TriangleAlert } from '@lucide/vue'
+import { type Component, computed } from 'vue'
+import Dialog from './ui/Dialog.vue'
+import Button from './ui/Button.vue'
 import { useRouter } from 'vue-router'
 import { useValidationScannerStore } from '../stores/validationScanner.js'
 import type { ValidationIssue } from '../api/client.js'
@@ -53,11 +54,13 @@ function close() {
   emit('update:visible', false)
 }
 
-function severityIcon(severity: 'error' | 'warn' | 'info'): string {
-  if (severity === 'error') return 'pi pi-exclamation-circle'
-  if (severity === 'warn') return 'pi pi-exclamation-triangle'
-  return 'pi pi-info-circle'
+function severityIcon(severity: 'error' | 'warn' | 'info'): Component {
+  if (severity === 'error') return CircleAlert
+  if (severity === 'warn') return TriangleAlert
+  return Info
 }
+
+const SEVERITY_LABEL: Record<'error' | 'warn' | 'info', string> = { error: 'Error', warn: 'Warning', info: 'Info' }
 
 /**
  * Map an item path (e.g., `pages/home/page.json` or
@@ -101,12 +104,12 @@ function navigateToItem(itemPath: string) {
     data-testid="site-health-drawer"
   >
     <div v-if="store.fetchError" class="health-error">
-      <i class="pi pi-exclamation-triangle"></i>
+      <TriangleAlert class="health-icon" aria-hidden="true" />
       Couldn't fetch issues: {{ store.fetchError }}
       <Button text size="small" label="Retry" @click="store.refresh()" />
     </div>
     <div v-else-if="groups.length === 0" class="health-empty">
-      <i class="pi pi-check-circle health-clean-icon"></i>
+      <CircleCheck class="health-clean-icon" aria-hidden="true" />
       No issues found.
     </div>
     <div v-else class="health-list">
@@ -121,7 +124,7 @@ function navigateToItem(itemPath: string) {
           @click="navigateToItem(group.itemPath)"
           :aria-label="`Open ${group.itemPath} (${group.issues.length} issue${group.issues.length === 1 ? '' : 's'})`"
         >
-          <i :class="severityIcon(group.worstSeverity)" :data-severity="group.worstSeverity"></i>
+          <component :is="severityIcon(group.worstSeverity)" class="health-icon" :data-severity="group.worstSeverity" aria-hidden="true" />
           <span class="health-item-path">{{ group.itemPath }}</span>
           <span class="health-item-count">{{ group.issues.length }}</span>
         </button>
@@ -131,7 +134,13 @@ function navigateToItem(itemPath: string) {
             :key="i"
             :class="`health-issue health-issue-${issue.severity}`"
           >
-            <i :class="severityIcon(issue.severity)" :data-severity="issue.severity"></i>
+            <component
+              :is="severityIcon(issue.severity)"
+              class="health-icon"
+              :data-severity="issue.severity"
+              role="img"
+              aria-hidden="false"
+              :aria-label="SEVERITY_LABEL[issue.severity]" />
             <span class="health-issue-message">{{ issue.message }}</span>
             <code v-if="issue.contentPath" class="health-issue-path">{{ issue.contentPath }}</code>
           </li>
@@ -147,7 +156,7 @@ function navigateToItem(itemPath: string) {
   align-items: center;
   gap: 0.5rem;
   padding: 1rem;
-  color: var(--p-red-600);
+  color: var(--color-danger);
 }
 
 .health-empty {
@@ -156,12 +165,19 @@ function navigateToItem(itemPath: string) {
   align-items: center;
   gap: 0.5rem;
   padding: 2rem;
-  color: var(--p-text-muted-color);
+  color: var(--color-muted);
+}
+
+.health-icon {
+  inline-size: 1rem;
+  block-size: 1rem;
+  flex: none;
 }
 
 .health-clean-icon {
-  font-size: 2rem;
-  color: var(--p-green-500);
+  inline-size: 2rem;
+  block-size: 2rem;
+  color: var(--color-success);
 }
 
 .health-list {
@@ -171,8 +187,8 @@ function navigateToItem(itemPath: string) {
 }
 
 .health-item {
-  border: 1px solid var(--p-content-border-color);
-  border-radius: var(--p-border-radius-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
@@ -182,7 +198,7 @@ function navigateToItem(itemPath: string) {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  background: var(--p-content-hover-background);
+  background: var(--color-hover-bg);
   border: none;
   cursor: pointer;
   text-align: left;
@@ -192,17 +208,17 @@ function navigateToItem(itemPath: string) {
 }
 
 .health-item-header:hover {
-  background: var(--p-content-background);
+  background: var(--color-bg);
 }
 
 .health-item-path {
   flex: 1;
-  font-family: ui-monospace, monospace;
-  color: var(--p-text-color);
+  font-family: var(--font-mono);
+  color: var(--color-fg);
 }
 
 .health-item-count {
-  color: var(--p-text-muted-color);
+  color: var(--color-muted);
   font-size: 0.75rem;
 }
 
@@ -217,7 +233,7 @@ function navigateToItem(itemPath: string) {
   align-items: flex-start;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  border-top: 1px solid var(--p-content-border-color);
+  border-top: 1px solid var(--color-border);
   font-size: 0.875rem;
 }
 
@@ -226,17 +242,17 @@ function navigateToItem(itemPath: string) {
 }
 
 .health-issue-path {
-  color: var(--p-text-muted-color);
+  color: var(--color-muted);
   font-size: 0.75rem;
 }
 
-i[data-severity='error'] {
-  color: var(--p-red-500);
+.health-icon[data-severity='error'] {
+  color: var(--color-danger);
 }
-i[data-severity='warn'] {
-  color: var(--p-amber-500);
+.health-icon[data-severity='warn'] {
+  color: var(--color-warn);
 }
-i[data-severity='info'] {
-  color: var(--p-blue-500);
+.health-icon[data-severity='info'] {
+  color: var(--color-info);
 }
 </style>

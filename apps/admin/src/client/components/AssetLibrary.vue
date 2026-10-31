@@ -8,7 +8,7 @@
  * picker modal can reuse it without duplication.
  */
 import { computed, watch } from 'vue'
-import Dialog from 'primevue/dialog'
+import Dialog from './ui/Dialog.vue'
 import { useAssetsLibraryStore } from '../stores/assetsLibrary.js'
 import { useAssetsListStore } from '../stores/assetsList.js'
 import { useAssetsSelectionStore } from '../stores/assetsSelection.js'

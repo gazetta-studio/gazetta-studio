@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { test, expect } from './fixtures'
 import { ComponentTreePom } from './pages/ComponentTree'
+import { expectSaveSettled } from './helpers'
 
 /**
  * Page metadata is per locale file. Before the fix, editing the French
@@ -25,7 +26,7 @@ test("editing the French page's metadata writes page.fr.json, not page.json", as
     await title.fill('Titre modifié (FR)')
     const save = page.locator('[data-testid="save-btn"]')
     await save.click()
-    await expect(save).toBeDisabled({ timeout: 10000 })
+    await expectSaveSettled(save, { timeout: 10000 })
 
     expect(metadata(frFile).title).toBe('Titre modifié (FR)')
     expect(metadata(enFile)).toEqual(enMetadata)
@@ -59,7 +60,7 @@ test('after a French save the editor stays French', async ({ page, testSite }) =
     await meta.fill('Titre FR modifié')
     const save = page.locator('[data-testid="save-btn"]')
     await save.click()
-    await expect(save).toBeDisabled({ timeout: 10000 })
+    await expectSaveSettled(save, { timeout: 10000 })
     await expect(meta).toHaveValue('Titre FR modifié')
 
     await new ComponentTreePom(page).open('hero')
@@ -68,7 +69,7 @@ test('after a French save the editor stays French', async ({ page, testSite }) =
     await expect(hero).toHaveValue(String(frHero))
     await hero.fill(`${frHero} — modifié`)
     await save.click()
-    await expect(save).toBeDisabled({ timeout: 10000 })
+    await expectSaveSettled(save, { timeout: 10000 })
 
     expect(heroTitle(frFile)).toBe(`${frHero} — modifié`)
     expect(heroTitle(enFile)).toBe(enHero)

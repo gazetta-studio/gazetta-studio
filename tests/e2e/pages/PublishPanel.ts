@@ -72,9 +72,9 @@ export class PublishPanelPom {
     await this.destinationGroup(env).click()
   }
 
-  /** Whether a destination's row-level PrimeVue checkbox is checked. */
+  /** Whether a destination's row-level checkbox is checked. */
   isDestinationChecked(name: string): Locator {
-    return this.page.locator(`[data-testid="publish-dest-${name}"] .p-checkbox-checked`)
+    return this.page.locator(`[data-testid="publish-dest-${name}"] [role="checkbox"][aria-checked="true"]`)
   }
 
   // ---- Items -----------------------------------------------------------

@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { test, expect } from './fixtures'
-import { openEditor } from './helpers'
+import { openEditor, expectSaveSettled } from './helpers'
 import { ComponentTreePom } from './pages/ComponentTree'
 
 /**
@@ -73,7 +73,7 @@ test.describe('Rich-text field', () => {
 
     const saveBtn = page.locator('[data-testid="save-btn"]')
     await saveBtn.click()
-    await expect(saveBtn).toBeDisabled({ timeout: 10000 })
+    await expectSaveSettled(saveBtn, { timeout: 10000 })
 
     const saved = JSON.parse(readFileSync(pageJsonPath(testSite.projectDir), 'utf8'))
     const demo = saved.components.find((c: { name?: string }) => c.name === 'showcase-demo')

@@ -9,6 +9,7 @@
  * Variant thumbnails arrive with the variant-generation work in a later
  * step; the grid reads the same URL either way.
  */
+import { File } from '@lucide/vue'
 import { computed } from 'vue'
 import { matchesAccept, type AcceptFilter } from 'gazetta/schema'
 import { useAssetsListStore } from '../stores/assetsList.js'
@@ -113,7 +114,7 @@ function needsAltBadge(card: { mime: string; kind: string; alt: string | null })
         @click="onCardClick(card.name)">
         <div class="asset-card-thumb">
           <img v-if="card.thumbUrl" :src="card.thumbUrl" :alt="card.alt ?? ''" />
-          <i v-else class="pi pi-file" />
+          <File v-else class="asset-card-file-icon" aria-hidden="true" />
           <!--
             "Alt missing" badge — visible only on images whose alt is
             null. Decorative ('') and string alt both pass; null is the
@@ -164,18 +165,18 @@ function needsAltBadge(card: { mime: string; kind: string; alt: string | null })
 .asset-grid-state {
   padding: 2rem;
   text-align: center;
-  color: var(--p-text-muted-color);
+  color: var(--color-muted);
 }
 
 .asset-grid-error {
-  color: var(--p-red-500);
+  color: var(--color-danger);
 }
 
 .asset-card {
   border: 2px solid transparent;
   border-radius: 8px;
   padding: 0;
-  background: var(--p-content-background);
+  background: var(--color-bg);
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -187,17 +188,17 @@ function needsAltBadge(card: { mime: string; kind: string; alt: string | null })
 }
 
 .asset-card:hover {
-  border-color: var(--p-primary-color);
+  border-color: var(--color-primary);
 }
 
 .asset-card.selected {
-  border-color: var(--p-primary-color);
-  box-shadow: 0 0 0 2px var(--p-primary-color);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary);
 }
 
 .asset-card-thumb {
   aspect-ratio: 1 / 1;
-  background: var(--p-content-hover-background);
+  background: var(--color-hover-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -214,8 +215,8 @@ function needsAltBadge(card: { mime: string; kind: string; alt: string | null })
   letter-spacing: 0.05em;
   padding: 0.0625rem 0.375rem;
   border-radius: 999px;
-  background: var(--p-amber-500, #f59e0b);
-  color: #fff;
+  background: var(--color-warn);
+  color: var(--color-on-warn);
   pointer-events: none;
 }
 
@@ -225,9 +226,10 @@ function needsAltBadge(card: { mime: string; kind: string; alt: string | null })
   object-fit: cover;
 }
 
-.asset-card-thumb i {
-  font-size: 2rem;
-  color: var(--p-text-muted-color);
+.asset-card-file-icon {
+  inline-size: 2rem;
+  block-size: 2rem;
+  color: var(--color-muted);
 }
 
 .asset-card-name {
@@ -256,23 +258,19 @@ function needsAltBadge(card: { mime: string; kind: string; alt: string | null })
 }
 
 .coverage-default {
-  background: var(--p-primary-color);
-  color: var(--p-primary-contrast-color);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
 }
 
 .coverage-override {
-  background: var(--p-blue-100);
-  color: var(--p-blue-900);
+  background: var(--color-info-bg);
+  color: var(--color-info-fg);
 }
 
 .coverage-fallback {
-  background: var(--p-content-hover-background);
-  color: var(--p-text-muted-color);
-  border: 1px dashed var(--p-content-border-color);
+  background: var(--color-hover-bg);
+  color: var(--color-muted);
+  border: 1px dashed var(--color-border);
 }
 
-:global(.dark) .coverage-override {
-  background: var(--p-blue-950);
-  color: var(--p-blue-300);
-}
 </style>

@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { openEditor } from './helpers'
+import { openEditor, expectSaveSettled } from './helpers'
 import { ComponentTreePom } from './pages/ComponentTree'
 
 test.describe('Keyboard shortcuts', () => {
@@ -21,7 +21,7 @@ test.describe('Keyboard shortcuts', () => {
 
     // Saved state confirmed via toast + save-btn back to disabled.
     await expect(page.locator('[data-testid="global-toast"]')).toBeVisible({ timeout: 5000 })
-    await expect(page.locator('[data-testid="save-btn"]')).toBeDisabled({ timeout: 5000 })
+    await expectSaveSettled(page.locator('[data-testid="save-btn"]'), { timeout: 5000 })
   })
 
   test('Meta+S (Cmd+S on Mac) saves a dirty form', async ({ page }) => {
@@ -41,7 +41,7 @@ test.describe('Keyboard shortcuts', () => {
     await page.keyboard.press('Meta+s')
 
     await expect(page.locator('[data-testid="global-toast"]')).toBeVisible({ timeout: 5000 })
-    await expect(page.locator('[data-testid="save-btn"]')).toBeDisabled({ timeout: 5000 })
+    await expectSaveSettled(page.locator('[data-testid="save-btn"]'), { timeout: 5000 })
   })
 
   test('Control+S on a clean form is a no-op (does not trigger toast)', async ({ page }) => {
@@ -52,7 +52,7 @@ test.describe('Keyboard shortcuts', () => {
     await page.locator('input[name="root_title"]').first().waitFor({ timeout: 10000 })
 
     // Form is clean at this point — save button should be disabled.
-    await expect(page.locator('[data-testid="save-btn"]')).toBeDisabled()
+    await expectSaveSettled(page.locator('[data-testid="save-btn"]'))
 
     await page.keyboard.press('Control+s')
 

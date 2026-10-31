@@ -26,7 +26,7 @@
  * persists via the asset metadata PATCH endpoint.
  */
 import { computed, ref } from 'vue'
-import Button from 'primevue/button'
+import Button from './ui/Button.vue'
 
 const props = defineProps<{
   /** Current focal point or null when no preference is set. */
@@ -208,7 +208,7 @@ const isExplicit = computed(() => props.modelValue !== null)
   border-radius: 8px;
   overflow: hidden;
   cursor: crosshair;
-  background: var(--p-content-hover-background);
+  background: var(--color-hover-bg);
   user-select: none;
   touch-action: none;
 }
@@ -236,12 +236,12 @@ const isExplicit = computed(() => props.modelValue !== null)
 }
 
 .focal-marker {
-  background: var(--p-primary-color);
+  background: var(--color-primary);
   border: 2px solid #fff;
 }
 
 .focal-hover-marker {
-  background: var(--p-primary-color);
+  background: var(--color-primary);
   border: 2px solid #fff;
   opacity: 0.5;
 }
@@ -255,11 +255,11 @@ const isExplicit = computed(() => props.modelValue !== null)
 
 .focal-xy {
   font-variant-numeric: tabular-nums;
-  color: var(--p-text-color);
+  color: var(--color-fg);
 }
 
 .focal-default-hint {
-  color: var(--p-text-muted-color);
+  color: var(--color-muted);
   font-style: italic;
 }
 
@@ -280,7 +280,7 @@ const isExplicit = computed(() => props.modelValue !== null)
   width: 100%;
   border-radius: 4px;
   overflow: hidden;
-  background: var(--p-content-hover-background);
+  background: var(--color-hover-bg);
 }
 
 .focal-preview-frame img {
@@ -293,7 +293,7 @@ const isExplicit = computed(() => props.modelValue !== null)
 .focal-preview-label {
   font-size: 0.625rem;
   font-weight: 600;
-  color: var(--p-text-muted-color);
+  color: var(--color-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }

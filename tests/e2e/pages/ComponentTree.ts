@@ -93,7 +93,7 @@ export class ComponentTreePom {
     await nameInput.fill(name)
     // PrimeVue Listbox — options don't carry testids; text match is the
     // only stable handle short of patching PrimeVue.
-    await this.page.locator('.p-listbox-option', { hasText: template }).click()
+    await this.page.getByRole('option', { name: template, exact: true }).click()
     await this.page.click('[data-testid="add-component-submit"]')
   }
 

@@ -15,7 +15,7 @@
  *     reads the file
  */
 import { test, expect } from '../fixtures'
-import { openEditor } from '../helpers'
+import { openEditor, expectSaveSettled } from '../helpers'
 import { PublishPanelPom } from '../pages/PublishPanel'
 import { ComponentTreePom } from '../pages/ComponentTree'
 import { resetScenarioState } from './_isolation'
@@ -44,7 +44,7 @@ test.describe('Scenario — edit → save → publish → sync', () => {
     // Toast fires on save; save button returns to disabled once the
     // round-trip completes.
     await expect(page.locator('[data-testid="global-toast"]')).toBeVisible({ timeout: 5000 })
-    await expect(saveBtn).toBeDisabled({ timeout: 5000 })
+    await expectSaveSettled(saveBtn, { timeout: 5000 })
 
     // --- Publish ---
     const panel = new PublishPanelPom(page)

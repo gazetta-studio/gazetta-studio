@@ -11,7 +11,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import PrimeVue from 'primevue/config'
 import ValidationBanner from '../src/client/components/ValidationBanner.vue'
 import { useValidationIssuesStore } from '../src/client/stores/validationIssues.js'
 import type { ValidationIssue } from '../src/client/api/client.js'
@@ -31,9 +30,7 @@ const WARN_ISSUE: ValidationIssue = {
 }
 
 function mountBanner() {
-  return mount(ValidationBanner, {
-    global: { plugins: [PrimeVue] },
-  })
+  return mount(ValidationBanner, {})
 }
 
 describe('ValidationBanner', () => {

@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { openEditor, storedDraftTitles } from './helpers'
+import { openEditor, storedDraftTitles, expectSaveSettled } from './helpers'
 import { SiteTreePom } from './pages/SiteTree'
 import { ComponentTreePom } from './pages/ComponentTree'
 import { join } from 'node:path'
@@ -157,7 +157,7 @@ test.describe('Target switch with unsaved edits', () => {
     await new ComponentTreePom(page).open('hero')
     await titleField.waitFor({ timeout: 15000 })
     await expect(titleField).toHaveValue(original)
-    await expect(page.locator('[data-testid="save-btn"]')).toBeDisabled()
+    await expectSaveSettled(page.locator('[data-testid="save-btn"]'))
   })
 })
 
@@ -184,9 +184,13 @@ test.describe('Target in URL', () => {
 
     // Click the target indicator to open the menu
     await page.click('[data-testid="active-target-indicator"]')
-    await page.waitForSelector('.p-menu', { timeout: 5000 })
+    await page.waitForSelector('[data-testid="active-target-menu"]', { timeout: 5000 })
     // Click staging in the menu — use role to find the menu item
-    const stagingItem = page.locator('.p-menu').locator('[role="menuitem"]').filter({ hasText: 'staging' }).first()
+    const stagingItem = page
+      .locator('[data-testid="active-target-menu"]')
+      .locator('[role="menuitem"]')
+      .filter({ hasText: 'staging' })
+      .first()
     await stagingItem.click()
 
     // Wait for target switch and URL update

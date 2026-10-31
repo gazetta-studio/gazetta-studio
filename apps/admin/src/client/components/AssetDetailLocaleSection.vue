@@ -21,7 +21,7 @@
  * just reads the result.
  */
 import { computed } from 'vue'
-import Button from 'primevue/button'
+import Button from './ui/Button.vue'
 import { formatBytes } from 'gazetta/format'
 import type { AssetSummary } from 'gazetta/schema'
 import { useAssetsUploadStore } from '../stores/assetsUpload.js'
@@ -158,7 +158,7 @@ if (uploads) {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  border-top: 1px solid var(--p-content-border-color);
+  border-top: 1px solid var(--color-border);
   padding-top: 0.75rem;
   margin-top: 0.5rem;
 }
@@ -167,7 +167,7 @@ if (uploads) {
   font-size: 0.875rem;
   font-weight: 600;
   margin: 0;
-  color: var(--p-text-muted-color);
+  color: var(--color-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -179,7 +179,7 @@ if (uploads) {
   gap: 0.5rem;
   padding: 0.375rem 0.5rem;
   border-radius: 4px;
-  background: var(--p-content-hover-background);
+  background: var(--color-hover-bg);
   font-size: 0.875rem;
 }
 
@@ -199,22 +199,18 @@ if (uploads) {
 }
 
 .default-chip {
-  background: var(--p-primary-color);
-  color: var(--p-primary-contrast-color);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
 }
 
 .override-chip {
-  background: var(--p-blue-100);
-  color: var(--p-blue-900);
+  background: var(--color-info-bg);
+  color: var(--color-info-fg);
 }
 
-:global(.dark) .override-chip {
-  background: var(--p-blue-950);
-  color: var(--p-blue-300);
-}
 
 .locale-row-code {
-  color: var(--p-text-muted-color);
+  color: var(--color-muted);
   font-size: 0.75rem;
 }
 
@@ -222,7 +218,7 @@ if (uploads) {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: var(--p-text-muted-color);
+  color: var(--color-muted);
   font-size: 0.75rem;
 }
 

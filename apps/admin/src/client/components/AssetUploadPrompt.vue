@@ -18,8 +18,8 @@
  * because both intents are first-class.
  */
 import { computed } from 'vue'
-import Dialog from 'primevue/dialog'
-import Button from 'primevue/button'
+import Dialog from './ui/Dialog.vue'
+import Button from './ui/Button.vue'
 import { formatBytes } from 'gazetta/format'
 import { useAssetsUploadPromptStore } from '../stores/assetsUploadPrompt.js'
 
@@ -92,7 +92,7 @@ const defaultLabel = computed(() => prompt.current?.defaultLocaleLabel ?? 'defau
 }
 
 .prompt-meta {
-  color: var(--p-text-muted-color);
+  color: var(--color-muted);
   font-size: 0.875rem;
   margin-bottom: 1rem;
 }
@@ -107,10 +107,10 @@ const defaultLabel = computed(() => prompt.current?.defaultLocaleLabel ?? 'defau
   display: block;
   width: 100%;
   text-align: start;
-  border: 1px solid var(--p-content-border-color);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 0.75rem 1rem;
-  background: var(--p-content-background);
+  background: var(--color-bg);
   cursor: pointer;
   transition: border-color 120ms, background-color 120ms;
   font: inherit;
@@ -118,12 +118,12 @@ const defaultLabel = computed(() => prompt.current?.defaultLocaleLabel ?? 'defau
 }
 
 .prompt-option:hover {
-  border-color: var(--p-primary-color);
-  background: var(--p-content-hover-background);
+  border-color: var(--color-primary);
+  background: var(--color-hover-bg);
 }
 
 .prompt-option.recommended {
-  border-color: var(--p-primary-color);
+  border-color: var(--color-primary);
 }
 
 .prompt-option-title {
@@ -138,12 +138,12 @@ const defaultLabel = computed(() => prompt.current?.defaultLocaleLabel ?? 'defau
   font-weight: 400;
   font-size: 0.75rem;
   text-transform: uppercase;
-  color: var(--p-primary-color);
+  color: var(--color-primary);
   letter-spacing: 0.05em;
 }
 
 .prompt-option-body {
   font-size: 0.875rem;
-  color: var(--p-text-muted-color);
+  color: var(--color-muted);
 }
 </style>

@@ -1,114 +1,98 @@
 /*
- * Admin design tokens — layered over PrimeVue Aura.
+ * Admin design tokens: the only place the admin's colours, radii and focus
+ * styles are defined. Components and screens reference these, never literal
+ * values (design-admin-ui.md; .claude/rules/css-theming.md).
  *
- * Two groups:
+ * Light values sit on :root; .dark (on <html>) overrides the ones that change.
+ * Site authors override any of them in admin/theme.css, which loads after
+ * this file (docs/customize-editor.md).
  *
- * 1. Aliases of PrimeVue semantic tokens — auto-flip on .dark via Aura.
- *    No need to redeclare under .dark.
- *
- * 2. Status + env tokens — explicit :root and .dark since the underlying
- *    PrimeVue palette primitives (--p-red-50, etc.) don't flip.
- *
- * See .claude/rules/css-theming.md for the full design.
- *
- * Reserved prefixes:
- *   --p-*       PrimeVue (override existing, don't add new here)
- *   --color-*   This file (override existing, don't add new tokens in component CSS)
- *
- * Users authoring custom editors/fields should pick their own prefix
- * (e.g. --myapp-*) and define tokens in admin/theme.css.
+ * Reserved prefixes: --color-*, --radius-*, --focus-ring-*, --shadow-*,
+ * --font-* (override existing, don't add new ones in component CSS). Custom
+ * editors and fields pick their own prefix (e.g. --myapp-*) in admin/theme.css.
  */
 
-/* === Aliases — auto-flip via PrimeVue Aura === */
+/* === Surfaces, text and borders === */
 :root {
-  --color-bg: var(--p-content-background);
-  --color-fg: var(--p-text-color);
-  --color-muted: var(--p-text-muted-color);
-  --color-border: var(--p-content-border-color);
-  --color-hover-bg: var(--p-content-hover-background);
-  --color-input-bg: var(--p-form-field-background);
-  --color-input-border: var(--p-form-field-border-color);
-  --color-primary: var(--p-primary-color);
+  --color-bg: #ffffff;
+  --color-fg: #334155;
+  --color-muted: #64748b;
+  --color-border: #e2e8f0;
+  --color-hover-bg: #f1f5f9;
+  --color-input-bg: #ffffff;
+  --color-input-border: #cbd5e1;
+  --color-primary: #047857;
+  --color-on-primary: #ffffff;
+  /* Selection accent in the component tree */
+  --color-accent: #a78bfa;
+  /* Code background (rjsf editor preview, JSON inspector), slightly tinted from the body */
+  --color-bg-code: #f1f5f9;
+  /* Chip / pill background: tags, env badges, etc. */
+  --color-bg-chip: #f1f5f9;
 }
-
-/* === Status + env tokens — light defaults === */
-:root {
-  --color-danger-bg: var(--p-red-50);
-  --color-danger-fg: var(--p-red-700);
-
-  --color-success-bg: var(--p-green-50);
-  --color-success-fg: var(--p-green-700);
-
-  --color-warning-bg: var(--p-amber-50);
-  --color-warning-fg: var(--p-amber-900);
-
-  --color-info-bg: var(--p-blue-50);
-  --color-info-fg: var(--p-blue-900);
-
-  --color-env-prod-bg: var(--p-red-100);
-  --color-env-prod-fg: var(--p-red-800);
-
-  --color-env-staging-bg: var(--p-amber-100);
-  --color-env-staging-fg: var(--p-amber-800);
-
-  /* Change marks (added/modified/deleted in publish dialog and changes drawer) */
-  --color-change-added: var(--p-green-700);
-  --color-change-modified: var(--p-amber-700);
-  --color-change-deleted: var(--p-gray-500);
-
-  /* Code background (rjsf editor preview, JSON inspector) — slightly tinted from the body */
-  --color-bg-code: var(--p-surface-100);
-  /* Chip / pill background — used for tags, env badges, etc. */
-  --color-bg-chip: var(--p-content-hover-background);
-}
-
-/* === Status + env tokens — dark overrides === */
 .dark {
-  --color-danger-bg: var(--p-red-950);
-  --color-danger-fg: var(--p-red-300);
+  --color-bg: #18181b;
+  --color-fg: #ffffff;
+  --color-muted: #a1a1aa;
+  --color-border: #3f3f46;
+  --color-hover-bg: #27272a;
+  --color-input-bg: #09090b;
+  --color-input-border: #52525b;
+  --color-primary: #34d399;
+  --color-on-primary: #022c22;
+  --color-bg-code: #18181b;
+  --color-bg-chip: #27272a;
+}
 
-  --color-success-bg: var(--p-green-950);
-  --color-success-fg: var(--p-green-400);
+/* === Status and environment: tinted backgrounds with readable text === */
+:root {
+  --color-danger-bg: #fef2f2;
+  --color-danger-fg: #b91c1c;
+  --color-success-bg: #f0fdf4;
+  --color-success-fg: #15803d;
+  --color-warning-bg: #fffbeb;
+  --color-warning-fg: #78350f;
+  --color-info-bg: #eff6ff;
+  --color-info-fg: #1e3a8a;
 
-  --color-warning-bg: var(--p-amber-950);
-  --color-warning-fg: var(--p-amber-300);
+  --color-env-prod-bg: #fee2e2;
+  --color-env-prod-fg: #991b1b;
+  --color-env-staging-bg: #fef3c7;
+  --color-env-staging-fg: #92400e;
 
-  --color-info-bg: var(--p-blue-950);
-  --color-info-fg: var(--p-blue-300);
+  /* Change marks (added/modified/deleted in the publish panel) */
+  --color-change-added: #15803d;
+  --color-change-modified: #b45309;
+  --color-change-deleted: #6b7280;
+}
+.dark {
+  --color-danger-bg: #450a0a;
+  --color-danger-fg: #fca5a5;
+  --color-success-bg: #052e16;
+  --color-success-fg: #4ade80;
+  --color-warning-bg: #451a03;
+  --color-warning-fg: #fcd34d;
+  --color-info-bg: #172554;
+  --color-info-fg: #93c5fd;
 
-  --color-env-prod-bg: var(--p-red-950);
-  --color-env-prod-fg: var(--p-red-300);
+  --color-env-prod-bg: #450a0a;
+  --color-env-prod-fg: #fca5a5;
+  --color-env-staging-bg: #451a03;
+  --color-env-staging-fg: #fcd34d;
 
-  --color-env-staging-bg: var(--p-amber-950);
-  --color-env-staging-fg: var(--p-amber-300);
-
-  --color-change-added: var(--p-green-400);
-  --color-change-modified: var(--p-amber-400);
-  --color-change-deleted: var(--p-gray-400);
-
-  --color-bg-code: var(--p-surface-900);
+  --color-change-added: #4ade80;
+  --color-change-modified: #fbbf24;
+  --color-change-deleted: #9ca3af;
 }
 
 /*
- * === Gazetta component tokens (design-admin-ui.md, cut 1) ===
+ * === Severity colours for components (Button, badges, status icons) ===
  *
- * Used by the components in components/ui/. Literal values, not PrimeVue
- * palette references, so they survive PrimeVue's removal in cut 2. Each
- * `--color-<severity>` is both a fill (with `--color-on-<severity>` text)
- * and a text colour on `--color-bg`; both pairs pass WCAG AA in light and
- * dark (the Storybook axe gate checks them).
+ * Each `--color-<severity>` is both a fill (with `--color-on-<severity>` text)
+ * and a text colour on `--color-bg`; both pairs pass WCAG AA in light and dark
+ * (the Storybook axe gate checks them).
  */
 :root {
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-full: 999px;
-  --focus-ring-width: 2px;
-  --focus-ring-offset: 2px;
-  --color-focus-ring: #2563eb;
-  --color-overlay: rgb(15 23 42 / 0.45);
-  --shadow-overlay: 0 10px 30px rgb(15 23 42 / 0.18), 0 2px 6px rgb(15 23 42 / 0.12);
-
-  --color-on-primary: #ffffff;
   --color-danger: #b91c1c;
   --color-on-danger: #ffffff;
   --color-success: #15803d;
@@ -118,13 +102,7 @@
   --color-info: #1d4ed8;
   --color-on-info: #ffffff;
 }
-
 .dark {
-  --color-focus-ring: #60a5fa;
-  --color-overlay: rgb(0 0 0 / 0.6);
-  --shadow-overlay: 0 10px 30px rgb(0 0 0 / 0.5), 0 2px 6px rgb(0 0 0 / 0.4);
-
-  --color-on-primary: #022c22;
   --color-danger: #f87171;
   --color-on-danger: #1f0303;
   --color-success: #4ade80;
@@ -133,4 +111,23 @@
   --color-on-warn: #1f1300;
   --color-info: #60a5fa;
   --color-on-info: #031230;
+}
+
+/* === Shape, focus, overlays and type === */
+:root {
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-full: 999px;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --color-focus-ring: #2563eb;
+  --color-overlay: rgb(15 23 42 / 0.45);
+  --shadow-overlay: 0 10px 30px rgb(15 23 42 / 0.18), 0 2px 6px rgb(15 23 42 / 0.12);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.dark {
+  --color-focus-ring: #60a5fa;
+  --color-overlay: rgb(0 0 0 / 0.6);
+  --shadow-overlay: 0 10px 30px rgb(0 0 0 / 0.5), 0 2px 6px rgb(0 0 0 / 0.4);
 }

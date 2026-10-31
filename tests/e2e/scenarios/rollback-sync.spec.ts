@@ -15,7 +15,7 @@
  *     but here we verify the cross-surface side effects land)
  */
 import { test, expect } from '../fixtures'
-import { openEditor } from '../helpers'
+import { openEditor, expectSaveSettled } from '../helpers'
 import { ComponentTreePom } from '../pages/ComponentTree'
 import { resetScenarioState } from './_isolation'
 
@@ -34,7 +34,7 @@ test.describe('Scenario — rollback refreshes site tree + sync indicators', () 
     await titleField.fill(`${original} — pre-rollback edit`)
     await page.locator('[data-testid="save-btn"]').click()
     await expect(page.locator('[data-testid="global-toast"]')).toBeVisible({ timeout: 5000 })
-    await expect(page.locator('[data-testid="save-btn"]')).toBeDisabled({ timeout: 5000 })
+    await expectSaveSettled(page.locator('[data-testid="save-btn"]'), { timeout: 5000 })
 
     // Confirm the edit actually landed in the form before rollback.
     await expect(titleField).toHaveValue(`${original} — pre-rollback edit`)

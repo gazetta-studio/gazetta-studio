@@ -15,8 +15,8 @@
  * no in-flight picker leaks.
  */
 import { computed, watch, onBeforeUnmount } from 'vue'
-import Dialog from 'primevue/dialog'
-import Button from 'primevue/button'
+import Dialog from './ui/Dialog.vue'
+import Button from './ui/Button.vue'
 import { matchesAccept, type AcceptFilter } from 'gazetta/schema'
 import { useAssetsPickerStore } from '../stores/assetsPicker.js'
 import { useAssetsListStore } from '../stores/assetsList.js'

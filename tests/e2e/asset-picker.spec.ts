@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { test, expect } from './fixtures'
-import { openEditor } from './helpers'
+import { openEditor, expectSaveSettled } from './helpers'
 import { ComponentTreePom } from './pages/ComponentTree'
 
 /**
@@ -41,7 +41,7 @@ test.describe('Asset picker in the editor (#1345)', () => {
     const saveBtn = page.locator('[data-testid="save-btn"]')
     await expect(saveBtn).toBeEnabled()
     await saveBtn.click()
-    await expect(saveBtn).toBeDisabled({ timeout: 10000 })
+    await expectSaveSettled(saveBtn, { timeout: 10000 })
 
     const pageJson = join(testSite.projectDir, 'sites/main/targets/local/pages/asset-demo/page.json')
     const saved = JSON.parse(readFileSync(pageJson, 'utf8'))

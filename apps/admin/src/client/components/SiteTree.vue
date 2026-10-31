@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { type Component, computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import Button from 'primevue/button'
+import { File as FileIcon, Plus, Share2, Trash2 } from '@lucide/vue'
+import Button from './ui/Button.vue'
 import { useSiteStore } from '../stores/site.js'
 import { useSelectionStore } from '../stores/selection.js'
 import { useEditingStore } from '../stores/editing.js'
@@ -19,7 +20,7 @@ interface SiteNode {
   label: string
   type: 'page' | 'fragment'
   name: string
-  icon: string
+  icon: Component
   locales?: string[]
   /**
    * Archived per design-soft-delete.md Q7 J1. When true the row
@@ -114,7 +115,7 @@ const contentPages = computed<SiteNode[]>(() =>
       label: p.name,
       type: 'page' as const,
       name: p.name,
-      icon: 'pi pi-file',
+      icon: FileIcon,
       locales: p.locales,
       archived: p.archived,
       aliasOf: p.aliasOf,
@@ -132,7 +133,7 @@ const systemPages = computed<SiteNode[]>(() =>
   [...site.pages]
     .filter(p => systemPageNames.value.has(p.name))
     .sort((a, b) => a.route.localeCompare(b.route))
-    .map(p => ({ key: `page:${p.name}`, label: p.name, type: 'page' as const, name: p.name, icon: 'pi pi-file' })),
+    .map(p => ({ key: `page:${p.name}`, label: p.name, type: 'page' as const, name: p.name, icon: FileIcon })),
 )
 
 const fragments = computed<SiteNode[]>(() =>
@@ -143,7 +144,7 @@ const fragments = computed<SiteNode[]>(() =>
       label: f.name,
       type: 'fragment' as const,
       name: f.name,
-      icon: 'pi pi-share-alt',
+      icon: Share2,
       locales: f.locales,
       archived: f.archived,
       aliasOf: f.aliasOf,
@@ -190,7 +191,7 @@ async function handleDelete(node: SiteNode, e: Event) {
       :class="['node-item', { selected: selectedKey === node.key, archived: node.archived }]"
       :data-testid="`site-${node.type}-${node.name}`"
       @click="onSelect(node)">
-      <i :class="node.icon" class="node-icon" />
+      <component :is="node.icon" class="node-icon" aria-hidden="true" />
       <span class="node-label">
         {{ node.label }}
         <span v-if="node.archived && node.aliasOf" class="node-alias-suffix">
@@ -215,7 +216,7 @@ async function handleDelete(node: SiteNode, e: Event) {
         :class="['node-issue-dot', `node-issue-${issueSeverity(node)}`]"
         :title="issueTitle(node)"
         :data-testid="`issue-${node.type}-${node.name}`" />
-      <Button icon="pi pi-trash" text rounded size="small" severity="danger"
+      <Button :icon="Trash2" text rounded size="small" severity="danger"
         class="node-delete" :data-testid="`delete-${node.type}-${node.name}`"
         :aria-label="`Delete ${node.type} ${node.name}`"
         @click="handleDelete(node, $event)" />
@@ -228,11 +229,11 @@ async function handleDelete(node: SiteNode, e: Event) {
         :class="['node-item', { selected: selectedKey === node.key }]"
         :data-testid="`site-${node.type}-${node.name}`"
         @click="onSelect(node)">
-        <i :class="node.icon" class="node-icon" />
+        <component :is="node.icon" class="node-icon" aria-hidden="true" />
         <span class="node-label">{{ node.label }}</span>
         <span v-if="isDirty(node)" class="node-dirty-dot" :title="dirtyTitle()"
           :data-testid="`dirty-${node.type}-${node.name}`" />
-        <Button icon="pi pi-trash" text rounded size="small" severity="danger"
+        <Button :icon="Trash2" text rounded size="small" severity="danger"
           class="node-delete" :data-testid="`delete-${node.type}-${node.name}`"
           :aria-label="`Delete ${node.type} ${node.name}`"
           @click="handleDelete(node, $event)" />
@@ -245,7 +246,7 @@ async function handleDelete(node: SiteNode, e: Event) {
       :class="['node-item', { selected: selectedKey === node.key, archived: node.archived }]"
       :data-testid="`site-${node.type}-${node.name}`"
       @click="onSelect(node)">
-      <i :class="node.icon" class="node-icon" />
+      <component :is="node.icon" class="node-icon" aria-hidden="true" />
       <span class="node-label">
         {{ node.label }}
         <span v-if="node.archived && node.aliasOf" class="node-alias-suffix">
@@ -262,18 +263,18 @@ async function handleDelete(node: SiteNode, e: Event) {
         :class="['node-issue-dot', `node-issue-${issueSeverity(node)}`]"
         :title="issueTitle(node)"
         :data-testid="`issue-${node.type}-${node.name}`" />
-      <Button icon="pi pi-trash" text rounded size="small" severity="danger"
+      <Button :icon="Trash2" text rounded size="small" severity="danger"
         class="node-delete" :data-testid="`delete-${node.type}-${node.name}`"
         :aria-label="`Delete ${node.type} ${node.name}`"
         @click="handleDelete(node, $event)" />
     </div>
 
     <div class="new-btns">
-      <Button icon="pi pi-plus" label="New page" text size="small"
+      <Button :icon="Plus" label="New page" text size="small" class="new-btn"
         data-testid="new-page" @click="showCreatePage = true" />
-      <Button icon="pi pi-plus" label="New fragment" text size="small"
+      <Button :icon="Plus" label="New fragment" text size="small" class="new-btn"
         data-testid="new-fragment" @click="showCreateFragment = true" />
-      <Button icon="pi pi-plus" label="New redirect" text size="small"
+      <Button :icon="Plus" label="New redirect" text size="small" class="new-btn"
         data-testid="sitetree-new-redirect-button" @click="showCreateRedirect = true" />
     </div>
     <CreatePageDialog v-if="showCreatePage" :visible="showCreatePage"
@@ -299,21 +300,21 @@ async function handleDelete(node: SiteNode, e: Event) {
 .node-item { display: flex; align-items: center; gap: 4px; height: 22px; padding: 0 6px; margin: 0 2px; cursor: pointer; border-radius: 3px; }
 .node-item:hover { background: var(--color-hover-bg); }
 .node-item.selected { background: rgba(167, 139, 250, 0.15); box-shadow: inset 2px 0 0 #a78bfa; }
-.node-icon { width: 16px; text-align: center; font-size: 10px; color: var(--color-muted); flex-shrink: 0; opacity: 0.85; }
+.node-icon { width: 16px; height: 10px; text-align: center; font-size: 10px; color: var(--color-muted); flex-shrink: 0; opacity: 0.85; }
 .node-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--color-muted); }
 .node-item.selected .node-label,
 .node-item:hover .node-label { color: var(--color-fg); }
 .node-dirty-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-warning-fg); flex-shrink: 0; margin-right: 2px; }
 .node-issue-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-right: 2px; }
-.node-issue-error { background: var(--p-red-500); }
-.node-issue-warn { background: var(--p-amber-500); }
-.node-issue-info { background: var(--p-blue-500); }
+.node-issue-error { background: var(--color-danger); }
+.node-issue-warn { background: var(--color-warn); }
+.node-issue-info { background: var(--color-info); }
 .node-delete { opacity: 0; transition: opacity 0.1s; flex-shrink: 0; }
 .node-item:hover .node-delete { opacity: 1; }
 .new-btns { display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; margin-top: 8px; padding: 0 6px; }
 /* Wrap whole buttons onto the next row instead of shrinking them, which
    broke labels mid-word and squashed the icons in a narrow sidebar. */
-.new-btns .p-button { flex-shrink: 0; white-space: nowrap; }
+.new-btn { flex-shrink: 0; white-space: nowrap; }
 .node-locales { display: flex; gap: 2px; margin-left: auto; flex-shrink: 0; }
 .locale-badge { font-size: 0.5rem; font-weight: 700; letter-spacing: 0.05em; color: var(--color-muted); border: 1px solid var(--color-border); border-radius: 2px; padding: 0 3px; line-height: 1.4; }
 

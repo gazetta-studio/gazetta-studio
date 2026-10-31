@@ -9,28 +9,11 @@
  *   - Drop alias dispatches setAlias on the store
  *   - Restore dispatches restoreBlocker on the store
  */
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import PrimeVue from 'primevue/config'
 import PurgeBlockedModal from '../src/client/components/PurgeBlockedModal.vue'
 import { useArchiveStore, type ArchiveTarget, type PurgeBlocker } from '../src/client/stores/archive.js'
-
-beforeAll(() => {
-  if (typeof window.matchMedia !== 'function') {
-    window.matchMedia = (query: string) =>
-      ({
-        matches: false,
-        media: query,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-        onchange: null,
-      }) as unknown as MediaQueryList
-  }
-})
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -45,7 +28,6 @@ function render() {
     attachTo: document.body,
     global: {
       plugins: [
-        PrimeVue,
         {
           install(app) {
             app.config.globalProperties.$router = { push: vi.fn() }

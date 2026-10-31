@@ -101,7 +101,7 @@ test.describe('Publish panel', () => {
     await expect(deletedRow).toHaveClass(/item-deleted/)
     // Deleted rows get a spacer instead of a checkbox
     await expect(deletedRow.locator('.deleted-spacer')).toHaveCount(1)
-    await expect(deletedRow.locator('.p-checkbox')).toHaveCount(0)
+    await expect(deletedRow.getByRole('checkbox')).toHaveCount(0)
     await expect(deletedRow.locator('.marker-deleted')).toHaveText('−')
   })
 
@@ -256,8 +256,6 @@ test.describe('Publish panel', () => {
     // (local when source, production) render flat.
     await expect(panel.destinationGroup('staging')).toBeVisible()
     // Neither member selected initially → clicking the header selects both.
-    // PrimeVue Checkbox exposes state via the .p-checkbox-checked class on
-    // the wrapper rather than the native `checked` attribute.
     await panel.toggleGroup('staging')
     await expect(panel.isDestinationChecked('staging')).toHaveCount(1)
     await expect(panel.isDestinationChecked('esi-test')).toHaveCount(1)

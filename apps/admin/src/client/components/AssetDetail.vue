@@ -8,7 +8,7 @@
  * an asset not in the list (stale after a refresh), shows an empty state.
  */
 import { computed, ref } from 'vue'
-import Button from 'primevue/button'
+import Button from './ui/Button.vue'
 import { formatBytes } from 'gazetta/format'
 import { suggestAlt, updateAssetMetadata, type SuggestAltResult } from '../api/assets.js'
 import { useActiveTargetStore } from '../stores/activeTarget.js'
@@ -222,7 +222,7 @@ function formatDate(iso: string): string {
 }
 
 .asset-detail-empty {
-  color: var(--p-text-muted-color);
+  color: var(--color-muted);
   text-align: center;
   padding: 2rem 1rem;
 }
@@ -235,7 +235,7 @@ function formatDate(iso: string): string {
 
 .asset-detail-preview {
   aspect-ratio: 1 / 1;
-  background: var(--p-content-hover-background);
+  background: var(--color-hover-bg);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -267,7 +267,7 @@ function formatDate(iso: string): string {
 }
 
 .asset-detail-fields dt {
-  color: var(--p-text-muted-color);
+  color: var(--color-muted);
   flex-shrink: 0;
 }
 
@@ -278,7 +278,7 @@ function formatDate(iso: string): string {
 }
 
 .asset-detail-muted {
-  color: var(--p-text-muted-color);
+  color: var(--color-muted);
 }
 
 .asset-detail-alt,
@@ -306,7 +306,7 @@ function formatDate(iso: string): string {
 .asset-detail-alt-refusal {
   margin: 0;
   font-size: 0.75rem;
-  color: var(--p-amber-600);
+  color: var(--color-warn);
   font-style: italic;
 }
 
@@ -314,7 +314,7 @@ function formatDate(iso: string): string {
   display: flex;
   justify-content: flex-end;
   margin-top: 0.5rem;
-  border-top: 1px solid var(--p-content-border-color);
+  border-top: 1px solid var(--color-border);
   padding-top: 0.75rem;
 }
 </style>

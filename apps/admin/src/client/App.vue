@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { CircleAlert, CircleCheck, Info, X } from '@lucide/vue'
 import { onMounted, watch } from 'vue'
 import { useSiteStore } from './stores/site.js'
 import { useThemeStore } from './stores/theme.js'
@@ -113,8 +114,8 @@ onMounted(() => {
     <Transition name="toast">
       <div v-if="toast.current" class="global-toast"
         :class="`toast-${toast.current.type}`" data-testid="global-toast">
-        <i :class="toast.current.type === 'error' ? 'pi pi-exclamation-circle'
-          : toast.current.type === 'info' ? 'pi pi-info-circle' : 'pi pi-check-circle'" />
+        <component :is="toast.current.type === 'error' ? CircleAlert
+          : toast.current.type === 'info' ? Info : CircleCheck" class="toast-icon" aria-hidden="true" />
         <a v-if="toast.current.link" :href="toast.current.link" target="_blank" rel="noopener" class="toast-link">{{ toast.current.message }}</a>
         <template v-else>{{ toast.current.message }}</template>
         <button v-if="toast.current.action" type="button" class="toast-action"
@@ -123,7 +124,7 @@ onMounted(() => {
         </button>
         <button v-if="toast.current.type === 'error'" type="button" class="toast-dismiss" data-testid="toast-dismiss"
           aria-label="Dismiss" @click="toast.dismiss()">
-          <i class="pi pi-times" />
+          <X class="toast-dismiss-icon" aria-hidden="true" />
         </button>
       </div>
     </Transition>
@@ -144,7 +145,8 @@ html, body, #app, .cms-app { height: 100%; }
 .toast-action:hover { opacity: 0.8; }
 .toast-dismiss { background: transparent; border: 0; color: inherit; cursor: pointer; padding: 2px 4px; margin-left: 4px; opacity: 0.7; display: flex; align-items: center; }
 .toast-dismiss:hover { opacity: 1; }
-.toast-dismiss .pi { font-size: 11px; }
+.toast-icon { inline-size: 1rem; block-size: 1rem; flex-shrink: 0; }
+.toast-dismiss-icon { inline-size: 11px; block-size: 11px; }
 .toast-enter-active { transition: transform 200ms ease-out, opacity 200ms ease-out; }
 .toast-leave-active { transition: transform 150ms ease-in, opacity 150ms ease-in; }
 .toast-enter-from { opacity: 0; transform: translateX(-50%) translateY(-100%); }

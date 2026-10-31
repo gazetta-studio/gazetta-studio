@@ -17,9 +17,11 @@
   authors don't need to read docs.
 -->
 <script setup lang="ts">
+import { Archive } from '@lucide/vue'
 import { ref, computed } from 'vue'
-import Button from 'primevue/button'
-import RadioButton from 'primevue/radiobutton'
+import Button from './ui/Button.vue'
+import RadioGroup from './ui/RadioGroup.vue'
+import RadioGroupItem from './ui/RadioGroupItem.vue'
 import type { ArchivedNameConflictDetails } from '../api/client.js'
 
 const props = defineProps<{
@@ -48,7 +50,7 @@ const archivedAtFormatted = computed(() => {
 <template>
   <div class="conflict-prompt" data-testid="archived-name-conflict-prompt">
     <div class="conflict-header">
-      <i class="pi pi-archive conflict-icon" />
+      <Archive class="conflict-icon" aria-hidden="true" />
       <div class="conflict-title">
         <strong>Name in use by an archive</strong>
         <p class="conflict-detail">
@@ -62,16 +64,16 @@ const archivedAtFormatted = computed(() => {
       </div>
     </div>
 
-    <div class="conflict-options">
+    <RadioGroup v-model="choice" class="conflict-options" aria-label="Resolve the name conflict">
       <label v-if="!archive.redirect" class="conflict-option" :data-testid="`conflict-option-restore`">
-        <RadioButton v-model="choice" inputId="conflict-restore" value="restore" />
+        <RadioGroupItem input-id="conflict-restore" value="restore" />
         <div class="conflict-option-content">
           <strong>Restore the archive</strong>
           <span>Bring the existing {{ archive.kind }} back to live state. Skip creation.</span>
         </div>
       </label>
       <label class="conflict-option" :data-testid="`conflict-option-replace`">
-        <RadioButton v-model="choice" inputId="conflict-replace" value="replace" />
+        <RadioGroupItem input-id="conflict-replace" value="replace" />
         <div class="conflict-option-content">
           <strong>Replace</strong>
           <span>
@@ -81,7 +83,7 @@ const archivedAtFormatted = computed(() => {
         </div>
       </label>
       <label class="conflict-option" :data-testid="`conflict-option-moveAside`">
-        <RadioButton v-model="choice" inputId="conflict-moveAside" value="moveAside" />
+        <RadioGroupItem input-id="conflict-moveAside" value="moveAside" />
         <div class="conflict-option-content">
           <strong>Move aside</strong>
           <span>
@@ -90,7 +92,7 @@ const archivedAtFormatted = computed(() => {
           </span>
         </div>
       </label>
-    </div>
+    </RadioGroup>
 
     <div class="conflict-actions">
       <Button label="Cancel" severity="secondary" text :disabled="busy" data-testid="conflict-cancel" @click="emit('cancel')" />
@@ -108,7 +110,7 @@ const archivedAtFormatted = computed(() => {
 .conflict-prompt { display: flex; flex-direction: column; gap: 1rem; }
 
 .conflict-header { display: flex; gap: 0.625rem; align-items: flex-start; }
-.conflict-icon { color: var(--color-warning-fg); font-size: 1.25rem; flex-shrink: 0; margin-top: 0.125rem; }
+.conflict-icon { color: var(--color-warning-fg); inline-size: 1.25rem; block-size: 1.25rem; flex-shrink: 0; margin-top: 0.125rem; }
 .conflict-title { flex: 1; min-width: 0; }
 .conflict-title strong { font-size: 0.9375rem; color: var(--color-fg); }
 .conflict-detail { margin: 0.25rem 0 0; font-size: 0.8125rem; color: var(--color-muted); line-height: 1.4; }

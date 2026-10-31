@@ -1,28 +1,11 @@
 /**
  * Vue component tests for AssetUploadPrompt.
  */
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import PrimeVue from 'primevue/config'
 import AssetUploadPrompt from '../src/client/components/AssetUploadPrompt.vue'
 import { useAssetsUploadPromptStore } from '../src/client/stores/assetsUploadPrompt.js'
-
-beforeAll(() => {
-  if (typeof window.matchMedia !== 'function') {
-    window.matchMedia = (query: string) =>
-      ({
-        matches: false,
-        media: query,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-        onchange: null,
-      }) as unknown as MediaQueryList
-  }
-})
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -32,7 +15,6 @@ beforeEach(() => {
 function render() {
   return mount(AssetUploadPrompt, {
     attachTo: document.body,
-    global: { plugins: [PrimeVue] },
   })
 }
 

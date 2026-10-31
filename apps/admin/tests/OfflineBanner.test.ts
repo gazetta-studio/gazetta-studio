@@ -13,7 +13,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import PrimeVue from 'primevue/config'
 import OfflineBanner from '../src/client/components/OfflineBanner.vue'
 import { configureConnectionState, useConnectionState } from '../src/client/stores/connectionState.js'
 import { useToastStore } from '../src/client/stores/toast.js'
@@ -21,9 +20,7 @@ import { useToastStore } from '../src/client/stores/toast.js'
 afterEach(() => vi.restoreAllMocks())
 
 function mountBanner() {
-  return mount(OfflineBanner, {
-    global: { plugins: [PrimeVue] },
-  })
+  return mount(OfflineBanner, {})
 }
 
 describe('OfflineBanner — visibility per state', () => {

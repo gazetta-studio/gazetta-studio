@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
+import { ChevronDown, ChevronRight, Code, File as FileIcon, Pencil, RefreshCw, SlidersHorizontal } from '@lucide/vue'
 import { useRouter, useRoute } from 'vue-router'
 import { onKeyStroke } from '@vueuse/core'
 import { useThemeStore } from '../stores/theme.js'
@@ -395,7 +396,7 @@ function generateMockContent(schema: Record<string, unknown>): Record<string, un
             :class="['sidebar-item', { active: selected?.type === 'editor' && selected.name === t.name }]"
             :data-testid="`playground-editor-${t.name}`"
             @click="selectEditor(t.name)">
-            <i class="pi pi-pencil item-icon" />
+            <Pencil class="item-icon" aria-hidden="true" />
             <span class="item-name">{{ t.name }}</span>
           </div>
         </div>
@@ -407,7 +408,7 @@ function generateMockContent(schema: Record<string, unknown>): Record<string, un
             :class="['sidebar-item', { active: selected?.type === 'field' && selected.name === f.name }]"
             :data-testid="`playground-field-${f.name}`"
             @click="selectField(f.name)">
-            <i class="pi pi-sliders-h item-icon" />
+            <SlidersHorizontal class="item-icon" aria-hidden="true" />
             <span class="item-name">{{ f.name }}</span>
           </div>
         </div>
@@ -415,7 +416,7 @@ function generateMockContent(schema: Record<string, unknown>): Record<string, un
         <!-- All Templates — collapsed by default -->
         <div class="sidebar-section">
           <div class="section-label section-label-toggle" @click="showAllTemplates = !showAllTemplates">
-            <i :class="showAllTemplates ? 'pi pi-chevron-down' : 'pi pi-chevron-right'" class="toggle-icon" />
+            <component :is="showAllTemplates ? ChevronDown : ChevronRight" class="toggle-icon" aria-hidden="true" />
             All Templates ({{ templates.length }})
           </div>
           <template v-if="showAllTemplates">
@@ -423,7 +424,7 @@ function generateMockContent(schema: Record<string, unknown>): Record<string, un
               :class="['sidebar-item', { active: selected?.type === 'editor' && selected.name === t.name }]"
               :data-testid="`playground-editor-${t.name}`"
               @click="selectEditor(t.name)">
-              <i class="pi pi-file item-icon" />
+              <FileIcon class="item-icon" aria-hidden="true" />
               <span class="item-name">{{ t.name }}</span>
             </div>
           </template>
@@ -440,7 +441,7 @@ function generateMockContent(schema: Record<string, unknown>): Record<string, un
     <!-- Main area -->
     <div class="playground-main">
       <div v-if="!selected && !schemaLoading" class="main-empty">
-        <i class="pi pi-code" style="font-size: 2rem; opacity: 0.3; margin-bottom: 0.5rem;" />
+        <Code class="empty-icon" style="opacity: 0.3; margin-bottom: 0.5rem;" aria-hidden="true" />
         <p>Select an editor or field to preview</p>
       </div>
       <div v-else-if="schemaLoading" class="main-empty">
@@ -455,10 +456,10 @@ function generateMockContent(schema: Record<string, unknown>): Record<string, un
             <span v-if="selected.type === 'editor' && selected.realContent" class="toolbar-hint">using real content</span>
           </span>
           <button v-if="activeTab === 'preview'" class="toolbar-btn" data-testid="playground-reset" @click="reset" title="Reset to initial state">
-            <i class="pi pi-refresh" /> Reset
+            <RefreshCw class="btn-icon" aria-hidden="true" /> Reset
           </button>
           <button v-if="activeTab === 'preview'" class="toolbar-btn" data-testid="playground-toggle-inspector" @click="showInspector = !showInspector">
-            <i class="pi pi-code" /> {{ showInspector ? 'Hide' : 'Show' }} Value
+            <Code class="btn-icon" aria-hidden="true" /> {{ showInspector ? 'Hide' : 'Show' }} Value
           </button>
         </div>
 
@@ -520,11 +521,13 @@ function generateMockContent(schema: Record<string, unknown>): Record<string, un
 .section-label { font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; padding: 0.375rem 1rem; font-weight: 600; }
 .section-label-toggle { cursor: pointer; display: flex; align-items: center; gap: 0.375rem; user-select: none; }
 .section-label-toggle:hover { color: #6b7280; }
-.toggle-icon { font-size: 0.5rem; }
+.toggle-icon { inline-size: 0.625rem; block-size: 0.625rem; }
 .sidebar-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.3125rem 1rem; cursor: pointer; font-size: 0.8125rem; color: #6b7280; }
 .sidebar-item:hover { background: rgba(128, 128, 128, 0.08); color: #374151; }
 .sidebar-item.active { background: rgba(102, 126, 234, 0.1); color: #667eea; }
-.item-icon { font-size: 0.6875rem; width: 14px; text-align: center; flex-shrink: 0; }
+.item-icon { inline-size: 0.6875rem; block-size: 0.6875rem; width: 14px; flex-shrink: 0; }
+.btn-icon { inline-size: 0.875em; block-size: 0.875em; vertical-align: -0.125em; }
+.empty-icon { inline-size: 2rem; block-size: 2rem; }
 .item-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sidebar-empty { padding: 1.5rem 1rem; color: #9ca3af; font-size: 0.8125rem; line-height: 1.6; }
 .sidebar-empty .hint { margin-top: 0.75rem; }

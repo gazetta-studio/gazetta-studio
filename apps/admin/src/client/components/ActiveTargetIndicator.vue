@@ -13,9 +13,10 @@
  *
  * Editable vs read-only shows as a sub-badge on the pill.
  */
-import { computed, ref } from 'vue'
+import { type Component, computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import Menu from 'primevue/menu'
+import { ChevronDown, Circle, History, Lock, Shield } from '@lucide/vue'
+import Menu, { type MenuItem } from './ui/Menu.vue'
 import { useActiveTargetStore } from '../stores/activeTarget.js'
 import { useEditingStore } from '../stores/editing.js'
 import { useUnsavedGuardStore } from '../stores/unsavedGuard.js'
@@ -56,16 +57,16 @@ const editableLabel = computed(() => (activeTarget.isActiveEditable ? 'editable'
 /**
  * Switcher menu items. Flat at ≤3 targets; grouped by environment at
  * 4+ (with single-member groups staying flat) — design-editor-ux.md
- * "Scaling to 4+ targets". PrimeVue Menu renders nested `items` as
+ * "Scaling to 4+ targets". ui/Menu renders nested `items` as
  * a section header with child entries, which is close to the design's
  * "sub-menus" rendering.
  */
-const menuItems = computed(() => {
+const menuItems = computed((): MenuItem[] => {
   const entries = groupedEntries(activeTarget.targets, activeTarget.targets.length)
   const targetItems = entries.map(entry => {
     if (entry.kind === 'single') return targetItem(entry.target)
     return {
-      // PrimeVue Menu renders a label + nested items as a section.
+      // ui/Menu renders a label + nested items as a labelled group.
       // Keep the environment name as the header so grouping reads at a glance.
       label: entry.group.environment,
       items: entry.group.members.map(targetItem),
@@ -79,14 +80,14 @@ const menuItems = computed(() => {
     { separator: true },
     {
       label: 'View history',
-      icon: 'pi pi-history',
+      icon: History,
       command: () => {
         showHistory.value = true
       },
     },
     {
       label: 'View audit log',
-      icon: 'pi pi-shield',
+      icon: Shield,
       command: () => {
         showAudit.value = true
       },
@@ -97,7 +98,7 @@ const menuItems = computed(() => {
 const showHistory = ref(false)
 const showAudit = ref(false)
 
-function targetItem(t: TargetInfo) {
+function targetItem(t: TargetInfo): MenuItem {
   return {
     label: t.name,
     icon: iconFor(t),
@@ -180,10 +181,10 @@ async function checkItemOnTarget(
   }
 }
 
-function iconFor(t: TargetInfo): string {
-  if (t.name === activeTarget.activeTargetName) return 'pi pi-check'
-  if (!t.editable) return 'pi pi-lock'
-  return 'pi pi-circle'
+// The active target is marked by the menu itself (bold, trailing check).
+function iconFor(t: TargetInfo): Component {
+  if (!t.editable) return Lock
+  return Circle
 }
 
 function onClick(event: Event) {
@@ -204,7 +205,7 @@ function onClick(event: Event) {
       <span class="dot" aria-hidden="true" />
       <span class="name">{{ activeTarget.activeTargetName }}</span>
       <span v-if="!activeTarget.isActiveEditable" class="readonly-badge">read-only</span>
-      <i v-if="interactive" class="pi pi-chevron-down chevron" aria-hidden="true" />
+      <ChevronDown v-if="interactive" class="chevron" aria-hidden="true" />
     </button>
     <Menu v-if="interactive" ref="menu" :model="menuItems" :popup="true"
       data-testid="active-target-menu" />
@@ -219,7 +220,7 @@ function onClick(event: Event) {
   align-items: center;
   gap: 0.375rem;
   padding: 0.25rem 0.625rem;
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
   font-size: 0.8125rem;
   font-weight: 500;
   background: var(--color-hover-bg);
@@ -235,7 +236,7 @@ function onClick(event: Event) {
   filter: brightness(0.96);
 }
 .active-target.interactive:focus-visible {
-  outline: 2px solid var(--p-primary-color);
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 .dot {
@@ -258,7 +259,8 @@ function onClick(event: Event) {
   margin-left: 0.125rem;
 }
 .chevron {
-  font-size: 0.625rem;
+  inline-size: 0.625rem;
+  block-size: 0.625rem;
   opacity: 0.6;
   margin-left: 0.125rem;
 }
@@ -275,13 +277,3 @@ function onClick(event: Event) {
 }
 </style>
 
-<style>
-/* Highlight the active target in the switcher menu. Non-scoped so PrimeVue's
-   generated class hash doesn't block the selector. */
-.p-menu .p-menuitem.active > .p-menuitem-content {
-  font-weight: 600;
-}
-.p-menu .p-menuitem.active .p-menuitem-icon {
-  color: var(--p-primary-color);
-}
-</style>
