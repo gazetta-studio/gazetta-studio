@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import { Plus } from '@lucide/vue'
 import { ref, onMounted } from 'vue'
-import Dialog from 'primevue/dialog'
-import Button from 'primevue/button'
-import InputText from 'primevue/inputtext'
-import Listbox from 'primevue/listbox'
+import Dialog from './ui/Dialog.vue'
+import Button from './ui/Button.vue'
+import TextInput from './ui/TextInput.vue'
+import Listbox from './ui/Listbox.vue'
 import { useTemplatesApi } from '../composables/api.js'
 
 const props = defineProps<{ visible: boolean }>()
@@ -39,13 +40,13 @@ async function handleCreate() {
   <Dialog :visible="props.visible" @update:visible="emit('close')" modal header="Add Component" :style="{ width: '24rem' }">
     <div class="add-content">
       <div class="add-field">
-        <label>Name</label>
-        <InputText v-model="componentName" placeholder="e.g. hero, sidebar, cta" class="add-input" data-testid="add-component-name" />
+        <label for="add-component-name">Name</label>
+        <TextInput id="add-component-name" v-model="componentName" placeholder="e.g. hero, sidebar, cta" class="add-input" data-testid="add-component-name" />
       </div>
 
       <div class="add-field">
-        <label>Template</label>
-        <Listbox v-model="selectedTemplate" :options="templates" optionLabel="name" optionValue="name"
+        <label id="add-component-template-label">Template</label>
+        <Listbox v-model="selectedTemplate" aria-labelledby="add-component-template-label" :options="templates" optionLabel="name" optionValue="name"
           class="add-list" :style="{ maxHeight: '200px' }" />
       </div>
 
@@ -54,7 +55,7 @@ async function handleCreate() {
 
     <template #footer>
       <Button label="Cancel" severity="secondary" text @click="emit('close')" data-testid="add-component-cancel" />
-      <Button label="Add" icon="pi pi-plus" :loading="creating"
+      <Button label="Add" :icon="Plus" :loading="creating"
         :disabled="!selectedTemplate || !componentName.trim()" @click="handleCreate" data-testid="add-component-submit" />
     </template>
   </Dialog>

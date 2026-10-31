@@ -22,30 +22,13 @@
  * direct `api` import (mirrors ArchiveModal). vi.spyOn on api.getTargets
  * stubs the load without touching component injection.
  */
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import PrimeVue from 'primevue/config'
 import CreateRedirectDialog from '../src/client/components/CreateRedirectDialog.vue'
 import { useSiteStore } from '../src/client/stores/site.js'
 import { REDIRECTS_API, type RedirectsApi } from '../src/client/composables/api.js'
 import { api, type CreateRedirectResponse, type TargetInfo } from '../src/client/api/client.js'
-
-beforeAll(() => {
-  if (typeof window.matchMedia !== 'function') {
-    window.matchMedia = (query: string) =>
-      ({
-        matches: false,
-        media: query,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-        onchange: null,
-      }) as unknown as MediaQueryList
-  }
-})
 
 function makeRedirectsApi(overrides: Partial<RedirectsApi> = {}): RedirectsApi {
   return {
@@ -82,7 +65,6 @@ function mountDialog(api: RedirectsApi) {
     props: { visible: true },
     attachTo: document.body,
     global: {
-      plugins: [PrimeVue],
       provide: { [REDIRECTS_API as symbol]: api },
     },
   })

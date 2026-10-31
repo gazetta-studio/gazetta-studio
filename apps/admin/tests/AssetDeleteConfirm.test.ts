@@ -1,7 +1,6 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import PrimeVue from 'primevue/config'
 import AssetDeleteConfirm from '../src/client/components/AssetDeleteConfirm.vue'
 import { useAssetsDeleteStore } from '../src/client/stores/assetsDelete.js'
 import { useAssetsListStore } from '../src/client/stores/assetsList.js'
@@ -19,26 +18,10 @@ vi.mock('../src/client/api/assets.js', async orig => {
 const { deleteAsset } = await import('../src/client/api/assets.js')
 const deleteAssetMock = deleteAsset as unknown as ReturnType<typeof vi.fn>
 
-beforeAll(() => {
-  if (typeof window.matchMedia !== 'function') {
-    window.matchMedia = (query: string) =>
-      ({
-        matches: false,
-        media: query,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-        onchange: null,
-      }) as unknown as MediaQueryList
-  }
-})
-
 beforeEach(() => {
   setActivePinia(createPinia())
   deleteAssetMock.mockReset()
-  // PrimeVue's Dialog teleports into document.body; previous tests leave
+  // The Dialog teleports into document.body; previous tests leave
   // its markup behind. Wipe so queries against document.body see only
   // *this* test's render.
   document.body.innerHTML = ''
@@ -47,9 +30,6 @@ beforeEach(() => {
 function render() {
   return mount(AssetDeleteConfirm, {
     attachTo: document.body,
-    global: {
-      plugins: [PrimeVue],
-    },
   })
 }
 
@@ -75,7 +55,7 @@ describe('AssetDeleteConfirm', () => {
     expect(document.querySelector('[data-testid="asset-delete-cancel"]')).not.toBeNull()
   })
 
-  // Button clicks route through PrimeVue's Button component whose event
+  // Button clicks route through the Button component whose event
   // wiring is an integration concern. The click-triggers-store-action
   // path is covered by the store test directly. Here we assert: once the
   // store reaches a given status, the component renders the corresponding

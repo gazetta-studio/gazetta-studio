@@ -13,33 +13,14 @@
  * deserves its own tests. The parent's interaction with it is via
  * v-model:selected, which we simulate by setting store state.
  */
-import { describe, it, expect, beforeEach, beforeAll, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import PrimeVue from 'primevue/config'
 import PublishPanel from '../src/client/components/PublishPanel.vue'
 import { PUBLISH_API, HISTORY_API, type PublishApi, type HistoryApi } from '../src/client/composables/api.js'
 import { useActiveTargetStore } from '../src/client/stores/activeTarget.js'
 import { useSyncStatusStore } from '../src/client/stores/syncStatus.js'
 import type { TargetInfo, PublishResult, PublishProgress } from '../src/client/api/client.js'
-
-// PrimeVue's Select uses window.matchMedia for orientation detection;
-// jsdom doesn't implement it. Stub once globally.
-beforeAll(() => {
-  if (typeof window.matchMedia !== 'function') {
-    window.matchMedia = (query: string) =>
-      ({
-        matches: false,
-        media: query,
-        onchange: null,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-      }) as MediaQueryList
-  }
-})
 
 function fakePublishApi(partial: Partial<PublishApi> = {}): PublishApi {
   const notImplemented = (name: string) => () => {
@@ -98,7 +79,6 @@ async function mountPanel(
     // (which only fires on change, not initial mount).
     props: { visible: false, initialDestination: opts.initialDestination },
     global: {
-      plugins: [PrimeVue],
       provide: {
         [PUBLISH_API as symbol]: opts.publishApi ?? fakePublishApi(),
         [HISTORY_API as symbol]: opts.historyApi ?? fakeHistoryApi(),
@@ -122,7 +102,7 @@ async function mountPanel(
 }
 
 /**
- * PrimeVue's Dialog uses Teleport to body. Queries through the wrapper
+ * ui/Dialog (Reka) teleports to body. Queries through the wrapper
  * don't reach the teleported content, so we query document directly.
  */
 function q(selector: string): Element | null {

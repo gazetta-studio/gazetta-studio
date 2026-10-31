@@ -97,10 +97,10 @@ function toggleDecorative(event: Event): void {
 .alt-input {
   font: inherit;
   padding: 0.375rem 0.5rem;
-  border: 1px solid var(--p-form-field-border-color);
+  border: 1px solid var(--color-input-border);
   border-radius: 4px;
-  background: var(--p-form-field-background);
-  color: var(--p-text-color);
+  background: var(--color-input-bg);
+  color: var(--color-fg);
 }
 
 .alt-input:disabled {
@@ -113,13 +113,13 @@ function toggleDecorative(event: Event): void {
   align-items: center;
   gap: 0.375rem;
   font-size: 0.875rem;
-  color: var(--p-text-muted-color);
+  color: var(--color-muted);
 }
 
 .alt-state {
   margin: 0;
   font-size: 0.75rem;
-  color: var(--p-text-muted-color);
+  color: var(--color-muted);
   font-style: italic;
 }
 </style>

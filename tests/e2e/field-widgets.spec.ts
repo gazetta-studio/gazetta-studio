@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Locator, Page } from '@playwright/test'
 import { test, expect } from './fixtures'
-import { openEditor } from './helpers'
+import { openEditor, expectSaveSettled } from './helpers'
 import { ComponentTreePom } from './pages/ComponentTree'
 
 /**
@@ -115,7 +115,7 @@ test.describe('Field widgets', () => {
 
       const saveBtn = page.getByTestId('save-btn')
       await saveBtn.click()
-      await expect(saveBtn).toBeDisabled({ timeout: 10000 })
+      await expectSaveSettled(saveBtn, { timeout: 10000 })
       await expect.poll(() => savedDemoContent(testSite.projectDir)[row.field]).toBe(row.expected)
       // Only this field changed.
       expect(savedDemoContent(testSite.projectDir)).toEqual({ ...before, [row.field]: row.expected })

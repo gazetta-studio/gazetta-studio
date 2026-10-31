@@ -11,34 +11,17 @@
  *
  * Plus filter wiring + error state.
  *
- * PrimeVue Dialog teleports to document.body; queries go through
+ * ui/Dialog (Reka) teleports to document.body; queries go through
  * document.querySelector. `attachTo: document.body` + a per-test
  * `document.body.innerHTML = ''` reset matches the AssetDeleteConfirm
  * sibling test pattern.
  */
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import PrimeVue from 'primevue/config'
 import AuditDrawer from '../src/client/components/AuditDrawer.vue'
 import { AUDIT_API, type AuditApi } from '../src/client/composables/api.js'
 import type { AuditEvent, AuditQueryFilter, AuditQueryResponse } from '../src/client/api/client.js'
-
-beforeAll(() => {
-  if (typeof window.matchMedia !== 'function') {
-    window.matchMedia = (query: string) =>
-      ({
-        matches: false,
-        media: query,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-        onchange: null,
-      }) as unknown as MediaQueryList
-  }
-})
 
 function makeEvent(partial: Partial<AuditEvent> = {}): AuditEvent {
   return {
@@ -67,7 +50,6 @@ function mountDrawer(api: AuditApi, visible = true) {
     props: { visible },
     attachTo: document.body,
     global: {
-      plugins: [PrimeVue],
       provide: { [AUDIT_API as symbol]: api },
     },
   })
@@ -84,7 +66,7 @@ function qa(selector: string): HTMLElement[] {
 describe('AuditDrawer', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
-    // PrimeVue's Dialog teleports into document.body; previous tests
+    // ui/Dialog teleports into document.body; previous tests
     // leave its markup behind. Wipe so document.querySelector sees
     // only *this* test's render.
     document.body.innerHTML = ''
@@ -179,7 +161,7 @@ describe('AuditDrawer', () => {
       // Initial load, no filters.
       expect(calls.at(-1)).toEqual({})
 
-      // Drive the filter refs directly — PrimeVue Select bindings
+      // Drive the filter refs directly — ui/Select bindings
       // are an integration concern, the contract we're pinning is
       // "filter ref change → queryAudit fires with matching shape".
       const vm = w.vm as unknown as { filterAction: 'save' | 'publish' | null; filterActor: string }

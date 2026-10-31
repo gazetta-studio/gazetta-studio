@@ -105,7 +105,7 @@ test.describe('Deep linking', () => {
     await aboutLink.click()
 
     // Unsaved-changes dialog appears.
-    const dialog = page.locator('.p-dialog')
+    const dialog = page.getByRole('dialog', { name: 'Unsaved Changes' })
     await expect(dialog).toBeVisible({ timeout: 5000 })
     await expect(dialog).toContainText('Unsaved Changes')
 

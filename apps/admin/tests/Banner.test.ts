@@ -5,47 +5,31 @@
  * override; default and `#actions` slots render; dismiss is opt-in and
  * emits rather than hiding.
  */
-import { beforeAll, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
-import PrimeVue from 'primevue/config'
+import { Archive, CircleCheck, CircleX, Info, TriangleAlert } from '@lucide/vue'
 import Banner from '../src/client/components/Banner.vue'
-
-beforeAll(() => {
-  // PrimeVue's Button uses matchMedia in jsdom contexts.
-  if (typeof window.matchMedia !== 'function') {
-    window.matchMedia = (query: string) =>
-      ({
-        matches: false,
-        media: query,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-        onchange: null,
-      }) as unknown as MediaQueryList
-  }
-})
 
 type Props = InstanceType<typeof Banner>['$props']
 
 function render(props: Props, slots: Record<string, string> = { default: 'Message' }) {
-  return mount(Banner, { props, slots, global: { plugins: [PrimeVue] } })
+  return mount(Banner, { props, slots })
 }
 
 describe('Banner — severity', () => {
   it.each([
-    ['danger', 'alert', 'pi-times-circle'],
-    ['warning', 'alert', 'pi-exclamation-triangle'],
-    ['info', 'status', 'pi-info-circle'],
-    ['success', 'status', 'pi-check-circle'],
-  ] as const)('%s → role=%s, icon %s, severity class', (severity, role, icon) => {
+    ['danger', 'alert', CircleX],
+    ['warning', 'alert', TriangleAlert],
+    ['info', 'status', Info],
+    ['success', 'status', CircleCheck],
+  ] as const)('%s → role=%s, its icon, severity class', (severity, role, icon) => {
     const wrapper = render({ severity })
     expect(wrapper.classes()).toContain(`banner-${severity}`)
     expect(wrapper.attributes('data-severity')).toBe(severity)
     expect(wrapper.attributes('role')).toBe(role)
-    const iconEl = wrapper.find('.banner-icon')
-    expect(iconEl.classes()).toContain(icon)
+    const iconEl = wrapper.findComponent(icon)
+    expect(iconEl.exists()).toBe(true)
+    expect(iconEl.classes()).toContain('banner-icon')
     expect(iconEl.attributes('aria-hidden')).toBe('true')
   })
 
@@ -55,9 +39,9 @@ describe('Banner — severity', () => {
   })
 
   it('icon prop replaces the severity default', () => {
-    const iconEl = render({ severity: 'warning', icon: 'pi pi-archive' }).find('.banner-icon')
-    expect(iconEl.classes()).toContain('pi-archive')
-    expect(iconEl.classes()).not.toContain('pi-exclamation-triangle')
+    const wrapper = render({ severity: 'warning', icon: Archive })
+    expect(wrapper.findComponent(Archive).classes()).toContain('banner-icon')
+    expect(wrapper.findComponent(TriangleAlert).exists()).toBe(false)
   })
 })
 
@@ -100,7 +84,6 @@ describe('Banner — attribute passthrough', () => {
     const wrapper = mount(Banner, {
       props: { severity: 'info' },
       attrs: { 'data-testid': 'review-banner' },
-      global: { plugins: [PrimeVue] },
     })
     expect(wrapper.attributes('data-testid')).toBe('review-banner')
   })

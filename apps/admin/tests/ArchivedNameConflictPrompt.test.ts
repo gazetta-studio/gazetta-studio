@@ -8,28 +8,11 @@
  *   - Cancel emits the cancel event
  *   - busy disables Cancel
  */
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import PrimeVue from 'primevue/config'
 import ArchivedNameConflictPrompt from '../src/client/components/ArchivedNameConflictPrompt.vue'
 import type { ArchivedNameConflictDetails } from '../src/client/api/client.js'
-
-beforeAll(() => {
-  if (typeof window.matchMedia !== 'function') {
-    window.matchMedia = (query: string) =>
-      ({
-        matches: false,
-        media: query,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-        onchange: null,
-      }) as unknown as MediaQueryList
-  }
-})
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -47,7 +30,6 @@ const archive: ArchivedNameConflictDetails = {
 function render(props: { archive: ArchivedNameConflictDetails; busy?: boolean }) {
   return mount(ArchivedNameConflictPrompt, {
     props,
-    global: { plugins: [PrimeVue] },
   })
 }
 
@@ -99,6 +81,14 @@ describe('ArchivedNameConflictPrompt', () => {
     await flushPromises()
     expect(wrapper.emitted('resolve')).toBeTruthy()
     expect(wrapper.emitted('resolve')![0]).toEqual(['restore'])
+  })
+
+  it('emits resolve with the option the author picked', async () => {
+    const wrapper = render({ archive })
+    await wrapper.find('[data-testid="conflict-option-moveAside"] [role="radio"]').trigger('click')
+    await flushPromises()
+    await wrapper.find('[data-testid="conflict-continue-moveAside"]').trigger('click')
+    expect(wrapper.emitted('resolve')![0]).toEqual(['moveAside'])
   })
 
   it('emits cancel on Cancel click', async () => {

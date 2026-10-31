@@ -1,31 +1,14 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import PrimeVue from 'primevue/config'
 import AssetPicker from '../src/client/components/AssetPicker.vue'
 import { useAssetsPickerStore } from '../src/client/stores/assetsPicker.js'
 import { useAssetsListStore } from '../src/client/stores/assetsList.js'
 import { useAssetsSelectionStore } from '../src/client/stores/assetsSelection.js'
 
-beforeAll(() => {
-  if (typeof window.matchMedia !== 'function') {
-    window.matchMedia = (query: string) =>
-      ({
-        matches: false,
-        media: query,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-        onchange: null,
-      }) as unknown as MediaQueryList
-  }
-})
-
 beforeEach(() => {
   setActivePinia(createPinia())
-  // PrimeVue's Dialog teleports to document.body. With attachTo:
+  // The Dialog teleports to document.body. With attachTo:
   // document.body, prior tests' DOM lingers — clear it between runs
   // so document.querySelector picks up only the current test's content.
   document.body.innerHTML = ''
@@ -35,7 +18,6 @@ function render() {
   return mount(AssetPicker, {
     attachTo: document.body,
     global: {
-      plugins: [PrimeVue],
       stubs: {
         AssetLibraryContent: true,
       },
@@ -89,8 +71,7 @@ describe('AssetPicker', () => {
     // to `currentAssetName` (null here), so we pick after that runs.
     selection.select('hero')
 
-    // The confirm button lives in a teleported footer slot of PrimeVue's
-    // Dialog; easier to assert the contract via the store action that the
+    // The confirm button lives in the Dialog's teleported footer; easier to assert the contract via the store action that the
     // button would trigger.
     picker.confirm(selection.selectedName!)
 
@@ -169,15 +150,10 @@ describe('AssetPicker', () => {
       selection.select('doc')
       await flushPromises()
 
-      // Confirm button is in PrimeVue's Dialog footer (teleported to body).
+      // Confirm button is in the Dialog footer (teleported to body).
       const confirmBtn = document.querySelector('[data-testid="asset-picker-confirm"]') as HTMLButtonElement | null
       expect(confirmBtn).not.toBeNull()
-      // PrimeVue marks `disabled` either via the attribute or aria-disabled.
-      const isDisabled =
-        confirmBtn!.hasAttribute('disabled') ||
-        confirmBtn!.getAttribute('aria-disabled') === 'true' ||
-        confirmBtn!.classList.contains('p-disabled')
-      expect(isDisabled).toBe(true)
+      expect(confirmBtn!.disabled).toBe(true)
     })
 
     it('enables confirm when selection matches accept', async () => {
@@ -196,11 +172,7 @@ describe('AssetPicker', () => {
 
       const confirmBtn = document.querySelector('[data-testid="asset-picker-confirm"]') as HTMLButtonElement | null
       expect(confirmBtn).not.toBeNull()
-      const isDisabled =
-        confirmBtn!.hasAttribute('disabled') ||
-        confirmBtn!.getAttribute('aria-disabled') === 'true' ||
-        confirmBtn!.classList.contains('p-disabled')
-      expect(isDisabled).toBe(false)
+      expect(confirmBtn!.disabled).toBe(false)
     })
   })
 })

@@ -8,7 +8,6 @@
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
-import PrimeVue from 'primevue/config'
 import { useStorageQuota } from '../src/client/composables/useStorageQuota.js'
 import StorageQuotaBanner from '../src/client/components/StorageQuotaBanner.vue'
 
@@ -160,18 +159,14 @@ describe('StorageQuotaBanner', () => {
 
   it('renders nothing when storage usage is below threshold', async () => {
     stubStorageEstimate(async () => ({ usage: 40, quota: 100 }))
-    const wrapper = mount(StorageQuotaBanner, {
-      global: { plugins: [PrimeVue] },
-    })
+    const wrapper = mount(StorageQuotaBanner, {})
     await settle()
     expect(wrapper.find('[data-testid="storage-quota-banner"]').exists()).toBe(false)
   })
 
   it('renders banner with plain-language copy when usage exceeds 80%', async () => {
     stubStorageEstimate(async () => ({ usage: 85, quota: 100 }))
-    const wrapper = mount(StorageQuotaBanner, {
-      global: { plugins: [PrimeVue] },
-    })
+    const wrapper = mount(StorageQuotaBanner, {})
     await settle()
 
     const banner = wrapper.find('[data-testid="storage-quota-banner"]')
@@ -188,9 +183,7 @@ describe('StorageQuotaBanner', () => {
 
   it('exposes a dismiss button when banner is shown', async () => {
     stubStorageEstimate(async () => ({ usage: 90, quota: 100 }))
-    const wrapper = mount(StorageQuotaBanner, {
-      global: { plugins: [PrimeVue] },
-    })
+    const wrapper = mount(StorageQuotaBanner, {})
     await settle()
 
     expect(wrapper.find('[data-testid="storage-quota-banner-dismiss"]').exists()).toBe(true)
@@ -198,9 +191,7 @@ describe('StorageQuotaBanner', () => {
 
   it('clicking the dismiss button hides the banner', async () => {
     stubStorageEstimate(async () => ({ usage: 90, quota: 100 }))
-    const wrapper = mount(StorageQuotaBanner, {
-      global: { plugins: [PrimeVue] },
-    })
+    const wrapper = mount(StorageQuotaBanner, {})
     await settle()
     expect(wrapper.find('[data-testid="storage-quota-banner"]').exists()).toBe(true)
 

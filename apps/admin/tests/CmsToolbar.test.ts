@@ -7,14 +7,12 @@
  * the target switcher already follow the same rule (they derive from
  * non-active targets); the toolbar button did not.
  *
- * Uses real Pinia + a real vue-router memory instance. PrimeVue is
- * registered globally so Toolbar/Button resolve. Panel and drawer children
+ * Uses real Pinia + a real vue-router memory instance. Panel and drawer children
  * are stubbed — their internals aren't the subject here.
  */
 import { describe, it, expect, beforeEach } from 'vitest'
 import { mount, type ComponentMountingOptions } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import PrimeVue from 'primevue/config'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import CmsToolbar from '../src/client/components/CmsToolbar.vue'
 import { useActiveTargetStore } from '../src/client/stores/activeTarget.js'
@@ -47,7 +45,7 @@ function mountWithGlobals(options?: ComponentMountingOptions<typeof CmsToolbar>)
   })
   return mount(CmsToolbar, {
     global: {
-      plugins: [PrimeVue, router],
+      plugins: [router],
       stubs: {
         PublishPanel: true,
         SiteHealthDrawer: true,

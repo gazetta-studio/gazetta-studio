@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import Splitter from 'primevue/splitter'
-import SplitterPanel from 'primevue/splitterpanel'
+import Splitter from './ui/Splitter.vue'
+import SplitterPanel from './ui/SplitterPanel.vue'
 import { onKeyStroke } from '@vueuse/core'
 import { useRouter } from 'vue-router'
 import SiteTree from './SiteTree.vue'

@@ -14,10 +14,11 @@
  * save-toast Undo (clear editing state, reload site + selection,
  * refresh sync status).
  */
-import { computed, ref, watch } from 'vue'
-import Dialog from 'primevue/dialog'
-import Button from 'primevue/button'
-import ProgressSpinner from 'primevue/progressspinner'
+import { CircleAlert, CloudUpload, RefreshCw, Save } from '@lucide/vue'
+import { type Component, computed, ref, watch } from 'vue'
+import Dialog from './ui/Dialog.vue'
+import Button from './ui/Button.vue'
+import Spinner from './ui/Spinner.vue'
 import type { RevisionSummary } from '../api/client.js'
 import { useHistoryApi } from '../composables/api.js'
 import { useActiveTargetStore } from '../stores/activeTarget.js'
@@ -113,10 +114,10 @@ function friendlyTime(iso: string): string {
   return `${d}d ago`
 }
 
-function operationIcon(op: RevisionSummary['operation']): string {
-  if (op === 'save') return 'pi pi-save'
-  if (op === 'publish') return 'pi pi-cloud-upload'
-  return 'pi pi-refresh' // rollback
+function operationIcon(op: RevisionSummary['operation']): Component {
+  if (op === 'save') return Save
+  if (op === 'publish') return CloudUpload
+  return RefreshCw // rollback
 }
 
 function operationLabel(op: RevisionSummary['operation']): string {
@@ -148,11 +149,11 @@ function isHead(rev: RevisionSummary): boolean {
     :style="{ width: '620px', maxWidth: '95vw' }"
     data-testid="history-panel">
     <div v-if="loading && revisions.length === 0" class="state-loading" data-testid="history-loading">
-      <ProgressSpinner style="width: 1.5rem; height: 1.5rem" strokeWidth="4" />
+      <Spinner strokeWidth="4" />
       <span>Loading revisions…</span>
     </div>
     <div v-else-if="error" class="state-error" data-testid="history-error">
-      <i class="pi pi-exclamation-circle" />
+      <CircleAlert class="state-icon" aria-hidden="true" />
       <span>{{ error }}</span>
     </div>
     <div v-else-if="revisions.length === 0" class="state-empty" data-testid="history-empty">
@@ -162,7 +163,7 @@ function isHead(rev: RevisionSummary): boolean {
       <li v-for="rev in revisions" :key="rev.id"
         class="revision"
         :data-testid="`history-row-${rev.id}`">
-        <i :class="operationIcon(rev.operation)" class="op-icon" aria-hidden="true" />
+        <component :is="operationIcon(rev.operation)" class="op-icon" aria-hidden="true" />
         <div class="meta">
           <div class="head-row">
             <span class="op-label">{{ operationLabel(rev.operation) }}</span>
@@ -201,7 +202,7 @@ function isHead(rev: RevisionSummary): boolean {
   font-size: 0.875rem;
   color: var(--color-muted);
   border: 1px dashed var(--color-border);
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
 }
 .state-error { color: var(--color-danger-fg); border-color: var(--color-danger-fg); }
 
@@ -221,12 +222,18 @@ function isHead(rev: RevisionSummary): boolean {
   align-items: start;
   gap: 0.75rem;
   padding: 0.625rem 0.75rem;
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
 }
+.state-icon {
+  inline-size: 1rem;
+  block-size: 1rem;
+  flex: none;
+}
 .op-icon {
-  font-size: 0.875rem;
-  padding-top: 0.125rem;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  margin-top: 0.125rem;
   color: var(--color-muted);
 }
 .meta {
@@ -253,7 +260,7 @@ function isHead(rev: RevisionSummary): boolean {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   padding: 0.125rem 0.375rem;
-  border-radius: var(--p-border-radius-xs);
+  border-radius: var(--radius-xs);
   background: var(--color-info-bg);
   color: var(--color-info-fg);
   font-weight: 600;
@@ -272,7 +279,7 @@ function isHead(rev: RevisionSummary): boolean {
 .items {
   font-size: 0.75rem;
   color: var(--color-muted);
-  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-family: var(--font-mono);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -20,7 +20,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
-import PrimeVue from 'primevue/config'
 import ComponentTree from '../src/client/components/ComponentTree.vue'
 import { FRAGMENTS_API, type FragmentsApi } from '../src/client/composables/api.js'
 import { useSelectionStore } from '../src/client/stores/selection.js'
@@ -65,7 +64,7 @@ const testRouter = createRouter({
 function mountTree(fragmentsApi: FragmentsApi) {
   return mount(ComponentTree, {
     global: {
-      plugins: [PrimeVue, testRouter],
+      plugins: [testRouter],
       provide: { [FRAGMENTS_API as symbol]: fragmentsApi },
       stubs: { AddComponentDialog: true },
     },
@@ -936,13 +935,13 @@ describe('ComponentTree — duplicate component (#45)', () => {
     expect(w.find('[data-testid="duplicate-banner"]').exists()).toBe(true)
   })
 
-  it('Duplicate button has an aria-label and pi-clone icon', async () => {
+  it('Duplicate button has an aria-label and the copy icon', async () => {
     selectStarterHome()
     const w = mountTree(fakeFragmentsApi())
     await flushMicrotasks()
     const btn = w.find('[data-testid="duplicate-hero"]')
     expect(btn.attributes('aria-label')).toBe('Duplicate hero')
-    expect(btn.html()).toContain('pi-clone')
+    expect(btn.find('svg.lucide-copy').exists()).toBe(true)
   })
 
   it('clicking Duplicate inserts a clone with -copy suffix at index+1', async () => {

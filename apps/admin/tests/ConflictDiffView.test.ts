@@ -11,13 +11,11 @@
  */
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
-import PrimeVue from 'primevue/config'
 import ConflictDiffView from '../src/client/components/ConflictDiffView.vue'
 
 function mountDiff(current: Record<string, unknown>, pending: Record<string, unknown>) {
   return mount(ConflictDiffView, {
     props: { current, pending },
-    global: { plugins: [PrimeVue] },
   })
 }
 

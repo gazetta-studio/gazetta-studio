@@ -11,9 +11,10 @@
  * Selection is lifted via v-model:selected so the parent panel knows
  * the item set to publish.
  */
+import { CircleAlert } from '@lucide/vue'
 import { computed, watch } from 'vue'
-import Checkbox from 'primevue/checkbox'
-import ProgressSpinner from 'primevue/progressspinner'
+import Checkbox from './ui/Checkbox.vue'
+import Spinner from './ui/Spinner.vue'
 import FragmentBlastRadius from './FragmentBlastRadius.vue'
 import { usePublishItems, type ItemRow, type ItemChangeKind } from '../composables/usePublishItems.js'
 
@@ -105,11 +106,11 @@ function rowStateLabel(kind: ItemChangeKind): string {
 
     <!-- Body -->
     <div v-if="loading && items.length === 0" class="state-loading" data-testid="publish-items-loading">
-      <ProgressSpinner style="width: 1.5rem; height: 1.5rem" strokeWidth="4" />
+      <Spinner strokeWidth="4" />
       <span>Comparing…</span>
     </div>
     <div v-else-if="error" class="state-error" data-testid="publish-items-error">
-      <i class="pi pi-exclamation-circle" />
+      <CircleAlert class="state-icon" aria-hidden="true" />
       <span>{{ error }}</span>
     </div>
     <div v-else-if="items.length === 0 && destinations.length > 0" class="state-empty"
@@ -130,6 +131,7 @@ function rowStateLabel(kind: ItemChangeKind): string {
           @update:modelValue="(v: boolean) => toggle(item.path, v)"
           :binary="true"
           :inputId="`pub-${item.path}`"
+          :aria-label="`Publish ${item.path}`"
         />
         <span v-else class="deleted-spacer" aria-hidden="true" />
         <span class="path">{{ item.path }}</span>
@@ -177,7 +179,7 @@ function rowStateLabel(kind: ItemChangeKind): string {
   border: 0;
   padding: 0;
   font: inherit;
-  color: var(--p-primary-color);
+  color: var(--color-primary);
   cursor: pointer;
 }
 .link-btn:hover { text-decoration: underline; }
@@ -191,7 +193,12 @@ function rowStateLabel(kind: ItemChangeKind): string {
   color: var(--color-muted);
   padding: 0.75rem;
   border: 1px dashed var(--color-border);
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
+}
+.state-icon {
+  inline-size: 1rem;
+  block-size: 1rem;
+  flex: none;
 }
 .state-error {
   color: var(--color-danger-fg);
@@ -214,7 +221,7 @@ function rowStateLabel(kind: ItemChangeKind): string {
   align-items: center;
   gap: 0.625rem;
   padding: 0.375rem 0.5rem;
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
   font-size: 0.875rem;
 }
 .item:hover { background: var(--color-hover-bg); }
@@ -236,7 +243,7 @@ function rowStateLabel(kind: ItemChangeKind): string {
 }
 
 .path {
-  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8125rem;
   min-width: 0;
   overflow: hidden;
@@ -261,7 +268,7 @@ function rowStateLabel(kind: ItemChangeKind): string {
   gap: 0.25rem;
   font-size: 0.6875rem;
   padding: 0.0625rem 0.375rem;
-  border-radius: var(--p-border-radius-xs);
+  border-radius: var(--radius-xs);
   border: 1px solid var(--color-border);
   color: var(--color-muted);
 }

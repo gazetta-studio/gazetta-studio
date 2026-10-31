@@ -36,7 +36,7 @@ defineProps<{
   list-style: none;
   max-height: 12rem;
   overflow-y: auto;
-  border: 1px solid var(--p-content-border-color);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
 }
 
@@ -46,7 +46,7 @@ defineProps<{
   align-items: baseline;
   padding: 0.4rem 0.6rem;
   font-size: 0.8125rem;
-  border-bottom: 1px solid var(--p-content-border-color);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .asset-delete-refs li:last-child {
@@ -54,8 +54,8 @@ defineProps<{
 }
 
 .asset-delete-ref-source {
-  font-family: var(--p-font-family-monospace, monospace);
-  color: var(--p-text-muted-color);
+  font-family: var(--font-mono);
+  color: var(--color-muted);
   text-transform: uppercase;
   font-size: 0.7rem;
 }
@@ -66,8 +66,8 @@ defineProps<{
 }
 
 .asset-delete-ref-component {
-  color: var(--p-text-muted-color);
-  font-family: var(--p-font-family-monospace, monospace);
+  color: var(--color-muted);
+  font-family: var(--font-mono);
   font-size: 0.75rem;
 }
 </style>

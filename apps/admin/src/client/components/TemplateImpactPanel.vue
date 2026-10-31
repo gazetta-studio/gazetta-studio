@@ -23,7 +23,8 @@
  *   - DIP: depends on `TemplatesApi.getTemplateImpact` + the scanner
  *     store's `byItem` lookup. No coupling to the SSE channel.
  */
-import { ref, computed, watch, onMounted } from 'vue'
+import { CircleAlert, CircleCheck, CircleX, Info, LoaderCircle, TriangleAlert } from '@lucide/vue'
+import { type Component, ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTemplatesApi } from '../composables/api.js'
 import { useValidationScannerStore } from '../stores/validationScanner.js'
@@ -95,11 +96,11 @@ const rows = computed<DisplayRow[]>(() => {
   return data.value.items.map(item => ({ item, worst: worstSeverity(item.issues) }))
 })
 
-function severityIconClass(worst: DisplayRow['worst']): string {
-  if (worst === 'error') return 'pi pi-times-circle severity-error'
-  if (worst === 'warn') return 'pi pi-exclamation-triangle severity-warn'
-  if (worst === 'info') return 'pi pi-info-circle severity-info'
-  return 'pi pi-check-circle severity-clean'
+function severityIcon(worst: DisplayRow['worst']): Component {
+  if (worst === 'error') return CircleX
+  if (worst === 'warn') return TriangleAlert
+  if (worst === 'info') return Info
+  return CircleCheck
 }
 
 function severityLabel(worst: DisplayRow['worst']): string {
@@ -121,15 +122,15 @@ function navigateToItem(item: TemplateImpactItem) {
 <template>
   <div class="template-impact" data-testid="template-impact-panel">
     <div v-if="loading" class="impact-empty" data-testid="template-impact-loading">
-      <i class="pi pi-spin pi-spinner" />
+      <LoaderCircle class="impact-icon spin" aria-hidden="true" />
       <span>Loading impact…</span>
     </div>
     <div v-else-if="errorMessage" class="impact-error" data-testid="template-impact-error">
-      <i class="pi pi-exclamation-circle" />
+      <CircleAlert class="impact-icon" aria-hidden="true" />
       <span>{{ errorMessage }}</span>
     </div>
     <div v-else-if="!data || data.items.length === 0" class="impact-empty" data-testid="template-impact-empty">
-      <i class="pi pi-info-circle" />
+      <Info class="impact-icon" aria-hidden="true" />
       <span>No items use this template.</span>
     </div>
     <template v-else>
@@ -149,7 +150,13 @@ function navigateToItem(item: TemplateImpactItem) {
           :key="row.item.itemPath"
           :class="['impact-row', `severity-${row.worst ?? 'clean'}`]"
           :data-testid="`template-impact-row-${row.item.kind}-${row.item.name}`">
-          <i :class="severityIconClass(row.worst)" :title="severityLabel(row.worst)" />
+          <component
+            :is="severityIcon(row.worst)"
+            :class="['impact-icon', `severity-${row.worst ?? 'clean'}`]"
+            role="img"
+            aria-hidden="false"
+            :aria-label="severityLabel(row.worst)"
+            :title="severityLabel(row.worst)" />
           <div class="row-body">
             <div class="row-head">
               <span class="row-kind">{{ row.item.kind === 'page' ? 'Page' : 'Fragment' }}</span>
@@ -203,11 +210,29 @@ function navigateToItem(item: TemplateImpactItem) {
 .impact-error {
   color: var(--color-danger-fg);
 }
+.impact-icon {
+  inline-size: 1rem;
+  block-size: 1rem;
+  flex: none;
+}
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation-duration: 2.4s;
+  }
+}
 .impact-summary code {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   background: var(--color-hover-bg);
   padding: 0.0625rem 0.25rem;
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
 }
 .summary-affected {
   color: var(--color-warning-fg);
@@ -230,7 +255,7 @@ function navigateToItem(item: TemplateImpactItem) {
   gap: 0.75rem;
   padding: 0.625rem 0.75rem;
   border: 1px solid var(--color-border);
-  border-radius: var(--p-border-radius-md);
+  border-radius: var(--radius-md);
   background: var(--color-bg);
 }
 .impact-row.severity-error {
@@ -295,7 +320,7 @@ function navigateToItem(item: TemplateImpactItem) {
   grid-template-columns: minmax(2.5rem, auto) auto 1fr;
   gap: 0.5rem;
   padding: 0.25rem 0.5rem;
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
   background: var(--color-hover-bg);
   font-size: 0.75rem;
 }
@@ -305,14 +330,14 @@ function navigateToItem(item: TemplateImpactItem) {
   font-size: 0.6875rem;
 }
 .issue-validator {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   color: var(--color-muted);
 }
 .row-edit {
   align-self: center;
   background: transparent;
   border: 1px solid var(--color-border);
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
   padding: 0.25rem 0.625rem;
   color: var(--color-fg);
   font-size: 0.75rem;
@@ -328,10 +353,10 @@ function navigateToItem(item: TemplateImpactItem) {
   font-style: italic;
 }
 .impact-footer code {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-style: normal;
   background: var(--color-hover-bg);
   padding: 0.0625rem 0.25rem;
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
 }
 </style>

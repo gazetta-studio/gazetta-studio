@@ -18,11 +18,12 @@
  * old dialogs.
  */
 
+import { CircleAlert, CircleCheck, CloudUpload, Shield, TriangleAlert } from '@lucide/vue'
 import { computed, ref, watch } from 'vue'
-import Dialog from 'primevue/dialog'
-import Button from 'primevue/button'
-import Checkbox from 'primevue/checkbox'
-import Select from 'primevue/select'
+import Dialog from './ui/Dialog.vue'
+import Button from './ui/Button.vue'
+import Checkbox from './ui/Checkbox.vue'
+import Select from './ui/Select.vue'
 import type { PublishResult, ValidationIssue } from '../api/client.js'
 import { PublishAuditFailedError } from '../api/client.js'
 import { usePublishApi, useHistoryApi } from '../composables/api.js'
@@ -477,7 +478,7 @@ function envClass(env: string | undefined): string {
     <div class="publish-panel">
       <!-- Source picker -->
       <div class="row">
-        <label class="row-label">From</label>
+        <label id="publish-source-label" class="row-label">From</label>
         <Select
           v-if="editableTargets.length > 1"
           :modelValue="sourceName"
@@ -486,6 +487,7 @@ function envClass(env: string | undefined): string {
           optionLabel="name"
           optionValue="name"
           placeholder="Select source"
+          aria-labelledby="publish-source-label"
           data-testid="publish-source-select"
           class="row-control"
         />
@@ -498,11 +500,11 @@ function envClass(env: string | undefined): string {
 
       <!-- Destinations -->
       <div class="row">
-        <label class="row-label">To</label>
+        <label id="publish-destinations-label" class="row-label">To</label>
         <div v-if="destinationOptions.length === 0" class="row-value muted">
           (no other targets configured)
         </div>
-        <div v-else class="destinations" data-testid="publish-destinations">
+        <div v-else class="destinations" role="group" aria-labelledby="publish-destinations-label" data-testid="publish-destinations">
           <template v-for="entry in destinationEntries" :key="entry.kind === 'single' ? entry.target.name : entry.group.environment">
             <!-- Flat single destination (≤3 targets, OR 1-member groups
                  at 4+). No header. -->
@@ -569,7 +571,7 @@ function envClass(env: string | undefined): string {
 
       <!-- Confirmation banner for production destinations -->
       <div v-if="confirming" class="publish-confirm-banner" data-testid="publish-confirm-banner">
-        <i class="pi pi-exclamation-triangle" />
+        <TriangleAlert class="panel-icon" aria-hidden="true" />
         <span>
           This will publish to
           <strong>{{ productionDestinations.map(t => t.name).join(', ') }}</strong>
@@ -580,7 +582,7 @@ function envClass(env: string | undefined): string {
       <!-- Pre-publish audit results (Validation Cut 4) -->
       <div v-if="auditState && auditHasIssues" class="publish-audit" data-testid="publish-audit">
         <div class="publish-audit-header">
-          <i class="pi pi-shield" />
+          <Shield class="panel-icon" aria-hidden="true" />
           <span>
             <strong>Pre-publish audit:</strong>
             {{ blockingIssueTotal === 0
@@ -624,7 +626,7 @@ function envClass(env: string | undefined): string {
 
       <!-- Invalid templates (fatal) -->
       <div v-if="invalidTemplates.length > 0" class="publish-error" data-testid="publish-invalid-templates">
-        <i class="pi pi-exclamation-triangle" />
+        <TriangleAlert class="panel-icon" aria-hidden="true" />
         <div class="publish-error-body">
           <p><strong>{{ invalidTemplates.length }} template{{ invalidTemplates.length === 1 ? '' : 's' }} can't be rendered.</strong></p>
           <ul class="publish-invalid-list">
@@ -638,7 +640,7 @@ function envClass(env: string | undefined): string {
 
       <!-- Generic fatal error -->
       <div v-else-if="publishError" class="publish-error" data-testid="publish-error">
-        <i class="pi pi-exclamation-circle" />
+        <CircleAlert class="panel-icon" aria-hidden="true" />
         <span>{{ publishError }}</span>
       </div>
 
@@ -662,7 +664,7 @@ function envClass(env: string | undefined): string {
         <div v-for="r in results" :key="r.target" class="publish-result"
           :class="{ success: r.success, error: !r.success }"
           :data-testid="`publish-result-${r.target}`">
-          <i :class="r.success ? 'pi pi-check-circle' : 'pi pi-exclamation-circle'" />
+          <component :is="r.success ? CircleCheck : CircleAlert" class="panel-icon" aria-hidden="true" />
           <span class="result-target">{{ r.target }}</span>
           <span v-if="r.success" class="result-detail">{{ r.copiedFiles }} files</span>
           <span v-else class="result-detail">{{ r.error }}</span>
@@ -694,7 +696,7 @@ function envClass(env: string | undefined): string {
           data-testid="publish-panel-cancel" />
         <Button v-if="!confirming"
           :label="publishLabel"
-          :icon="publishing || auditing ? undefined : 'pi pi-cloud-upload'"
+          :icon="publishing || auditing ? undefined : CloudUpload"
           severity="success"
           :loading="publishing || auditing"
           :disabled="!canPublish || publishing || auditing || (auditState ? blockingIssueTotal > 0 : false)"
@@ -704,7 +706,7 @@ function envClass(env: string | undefined): string {
         />
         <Button v-else
           :label="`Yes, publish to ${productionDestinations.map(t => t.name).join(', ')}`"
-          icon="pi pi-exclamation-triangle"
+          :icon="TriangleAlert"
           severity="danger"
           :loading="publishing"
           data-testid="publish-panel-confirm-prod"
@@ -716,6 +718,11 @@ function envClass(env: string | undefined): string {
 </template>
 
 <style scoped>
+.panel-icon {
+  inline-size: 1rem;
+  block-size: 1rem;
+  flex: none;
+}
 .publish-panel {
   display: flex;
   flex-direction: column;
@@ -763,7 +770,7 @@ function envClass(env: string | undefined): string {
   display: inline-flex;
   align-items: center;
   padding: 0.25rem 0.625rem;
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
   font-size: 0.8125rem;
   font-weight: 500;
   background: var(--color-hover-bg);
@@ -792,7 +799,7 @@ function envClass(env: string | undefined): string {
   align-items: center;
   gap: 0.625rem;
   padding: 0.5rem 0.75rem;
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
   cursor: pointer;
   font-size: 0.875rem;
@@ -810,7 +817,7 @@ function envClass(env: string | undefined): string {
   opacity: 0.65;
   padding: 0.125rem 0.375rem;
   border: 1px solid currentColor;
-  border-radius: var(--p-border-radius-xs);
+  border-radius: var(--radius-xs);
 }
 .dest-status {
   font-size: 0.75rem;
@@ -836,7 +843,7 @@ function envClass(env: string | undefined): string {
   align-items: center;
   gap: 0.5rem;
   padding: 0.375rem 0.625rem;
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
   font-size: 0.8125rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -875,7 +882,7 @@ function envClass(env: string | undefined): string {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  border-radius: var(--p-border-radius-md);
+  border-radius: var(--radius-md);
   background: var(--color-danger-bg);
   color: var(--color-danger-fg);
   font-size: 0.875rem;
@@ -884,7 +891,7 @@ function envClass(env: string | undefined): string {
   display: flex;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  border-radius: var(--p-border-radius-md);
+  border-radius: var(--radius-md);
   background: var(--color-danger-bg);
   color: var(--color-danger-fg);
   font-size: 0.875rem;
@@ -893,7 +900,7 @@ function envClass(env: string | undefined): string {
 .publish-error-body p { margin: 0; }
 .publish-invalid-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.25rem; }
 .publish-invalid-list li { display: flex; flex-direction: column; gap: 0.125rem; font-size: 0.8125rem; }
-.publish-invalid-name { font-family: ui-monospace, monospace; font-weight: 600; }
+.publish-invalid-name { font-family: var(--font-mono); font-weight: 600; }
 .publish-invalid-error { opacity: 0.85; font-size: 0.75rem; }
 
 .publish-audit {
@@ -901,7 +908,7 @@ function envClass(env: string | undefined): string {
   flex-direction: column;
   gap: 0.75rem;
   padding: 0.75rem;
-  border-radius: var(--p-border-radius-md);
+  border-radius: var(--radius-md);
   background: var(--color-warning-bg);
   color: var(--color-warning-fg);
   font-size: 0.875rem;
@@ -914,7 +921,7 @@ function envClass(env: string | undefined): string {
   font-size: 0.6875rem;
   text-transform: uppercase;
   padding: 0.0625rem 0.375rem;
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
   background: var(--color-danger-bg);
   color: var(--color-danger-fg);
 }
@@ -926,7 +933,7 @@ function envClass(env: string | undefined): string {
   align-items: center;
   gap: 0.5rem;
   padding: 0.375rem 0.5rem;
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
   background: var(--color-bg);
   font-size: 0.8125rem;
 }
@@ -940,9 +947,9 @@ function envClass(env: string | undefined): string {
   font-weight: 600;
   letter-spacing: 0.04em;
 }
-.audit-validator { font-family: ui-monospace, monospace; font-size: 0.75rem; color: var(--color-muted); }
+.audit-validator { font-family: var(--font-mono); font-size: 0.75rem; color: var(--color-muted); }
 .audit-message { color: var(--color-fg); }
-.audit-itempath { font-family: ui-monospace, monospace; font-size: 0.75rem; color: var(--color-muted); }
+.audit-itempath { font-family: var(--font-mono); font-size: 0.75rem; color: var(--color-muted); }
 .audit-ignore { display: flex; align-items: center; gap: 0.375rem; cursor: pointer; font-size: 0.75rem; }
 
 .publish-progress { display: flex; flex-direction: column; gap: 0.75rem; }
@@ -951,11 +958,11 @@ function envClass(env: string | undefined): string {
 .progress-target { font-weight: 600; }
 .progress-count { color: var(--color-muted); font-variant-numeric: tabular-nums; font-size: 0.75rem; }
 .progress-bar { height: 4px; background: var(--color-hover-bg); border-radius: 2px; overflow: hidden; }
-.progress-fill { height: 100%; background: var(--p-primary-color); transition: width 200ms ease; }
-.progress-label { font-size: 0.75rem; color: var(--color-muted); font-family: ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.progress-fill { height: 100%; background: var(--color-primary); transition: width 200ms ease; }
+.progress-label { font-size: 0.75rem; color: var(--color-muted); font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .publish-results { display: flex; flex-direction: column; gap: 0.5rem; }
-.publish-result { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; border-radius: var(--p-border-radius-md); }
+.publish-result { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; border-radius: var(--radius-md); }
 .publish-result.success { background: var(--color-success-bg); color: var(--color-success-fg); }
 .publish-result.error { background: var(--color-danger-bg); color: var(--color-danger-fg); }
 .result-target { font-weight: 600; }
@@ -965,7 +972,7 @@ function envClass(env: string | undefined): string {
   border: 1px solid currentColor;
   color: inherit;
   padding: 0.125rem 0.5rem;
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
   font: inherit;
   font-size: 0.75rem;
   cursor: pointer;

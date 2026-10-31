@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Page } from '@playwright/test'
 import { test, expect } from './fixtures'
-import { openEditor } from './helpers'
+import { openEditor, expectSaveSettled } from './helpers'
 import { ComponentTreePom } from './pages/ComponentTree'
 
 /**
@@ -36,7 +36,7 @@ test.describe('SEO edits are saved with the page', () => {
       await expect(tree.dirtyDot('home')).toBeVisible()
       const save = page.locator('[data-testid="save-btn"]')
       await save.click()
-      await expect(save).toBeDisabled({ timeout: 10000 })
+      await expectSaveSettled(save, { timeout: 10000 })
       await expect(tree.dirtyDot('home')).toBeHidden()
       expect(metadataOf(file)).toEqual({ ...JSON.parse(before).metadata, title: 'Saved with the page' })
       await expect(title).toHaveValue('Saved with the page')
@@ -56,7 +56,7 @@ test.describe('SEO edits are saved with the page', () => {
       })
       const { title } = await editSeoTitle(page, 'Saved with the shortcut')
       await title.press('ControlOrMeta+s')
-      await expect(page.locator('[data-testid="save-btn"]')).toBeDisabled({ timeout: 10000 })
+      await expectSaveSettled(page.locator('[data-testid="save-btn"]'), { timeout: 10000 })
       expect(metadataOf(file).title).toBe('Saved with the shortcut')
 
       const written = puts.length
@@ -86,7 +86,7 @@ test.describe('SEO edits are saved with the page', () => {
       await page.locator('[data-testid="meta-description"]').fill('')
       const save = page.locator('[data-testid="save-btn"]')
       await save.click()
-      await expect(save).toBeDisabled({ timeout: 10000 })
+      await expectSaveSettled(save, { timeout: 10000 })
       expect(metadataOf(file)).toStrictEqual({ ...kept, robots: 'nofollow', twitterCard: 'summary' })
     } finally {
       writeFileSync(file, before)
@@ -127,7 +127,7 @@ test.describe('SEO edits are pending edits', () => {
     await page.locator('[data-testid="locale-en"]').click()
     await expect.poll(() => new URL(page.url()).searchParams.get('locale')).toBeNull()
     await expect(title).toHaveValue(original)
-    await expect(page.locator('[data-testid="save-btn"]')).toBeDisabled()
+    await expectSaveSettled(page.locator('[data-testid="save-btn"]'))
   })
 
   test('the leave-page prompt is armed', async ({ page }) => {
@@ -161,6 +161,6 @@ test.describe('SEO edits are pending edits', () => {
     await tree.revert('home')
     await expect(title).toHaveValue(original)
     await expect(tree.dirtyDot('home')).toBeHidden()
-    await expect(page.locator('[data-testid="save-btn"]')).toBeDisabled()
+    await expectSaveSettled(page.locator('[data-testid="save-btn"]'))
   })
 })

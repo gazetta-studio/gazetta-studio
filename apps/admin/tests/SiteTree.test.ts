@@ -31,7 +31,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory, type Router } from 'vue-router'
-import PrimeVue from 'primevue/config'
 import SiteTree from '../src/client/components/SiteTree.vue'
 import { PAGES_API, FRAGMENTS_API, type PagesApi, type FragmentsApi } from '../src/client/composables/api.js'
 import { useSiteStore } from '../src/client/stores/site.js'
@@ -92,7 +91,7 @@ function seedSite({ pages = [], fragments = [], manifest = {} }: SeedOpts) {
 function mountTree(router: Router = makeRouter()) {
   return mount(SiteTree, {
     global: {
-      plugins: [PrimeVue, router],
+      plugins: [router],
       provide: {
         [PAGES_API as symbol]: fakePagesApi(),
         [FRAGMENTS_API as symbol]: fakeFragmentsApi(),

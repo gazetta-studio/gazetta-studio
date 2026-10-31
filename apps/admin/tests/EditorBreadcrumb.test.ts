@@ -10,32 +10,15 @@
  * existing UnsavedDialog test suite — this file pins the breadcrumb's
  * own contract.
  */
-import { beforeEach, describe, expect, it, beforeAll } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
-import PrimeVue from 'primevue/config'
 import EditorBreadcrumb from '../src/client/components/EditorBreadcrumb.vue'
 import { useSelectionStore } from '../src/client/stores/selection.js'
 import { useEditorContentStore } from '../src/client/stores/editorContent.js'
 import type { EditingTarget } from '../src/client/stores/editorContent.js'
 import type { PageDetail, FragmentDetail } from '../src/client/api/client.js'
-
-beforeAll(() => {
-  if (typeof window.matchMedia !== 'function') {
-    window.matchMedia = (q: string) =>
-      ({
-        matches: false,
-        media: q,
-        onchange: null,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-      }) as MediaQueryList
-  }
-})
 
 function makeRouter() {
   return createRouter({
@@ -99,7 +82,7 @@ async function mountAt(opts: {
   }
 
   const w = mount(EditorBreadcrumb, {
-    global: { plugins: [PrimeVue, router] },
+    global: { plugins: [router] },
   })
   await w.vm.$nextTick()
   return { wrapper: w, router }
@@ -278,7 +261,7 @@ describe('EditorBreadcrumb — empty / edge states', () => {
     const router = makeRouter()
     await router.push('/')
     const w = mount(EditorBreadcrumb, {
-      global: { plugins: [PrimeVue, router] },
+      global: { plugins: [router] },
     })
     await w.vm.$nextTick()
     expect(w.find('[data-testid="editor-breadcrumb"]').exists()).toBe(false)

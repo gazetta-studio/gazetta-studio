@@ -44,7 +44,7 @@ import AssetDetail from './AssetDetail.vue'
 }
 
 .asset-library-side {
-  border-inline-start: 1px solid var(--p-content-border-color);
+  border-inline-start: 1px solid var(--color-border);
   padding-inline-start: 1rem;
   min-height: 0;
   overflow-y: auto;

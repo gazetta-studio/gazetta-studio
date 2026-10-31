@@ -9,33 +9,15 @@
  * SEO fields stay visible, but pointer, focus and keyboard
  * interaction are blocked, and the banner above keeps the actions.
  */
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import PrimeVue from 'primevue/config'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import EditorPanel from '../src/client/components/EditorPanel.vue'
 import { useSiteStore } from '../src/client/stores/site.js'
 import { useSelectionStore } from '../src/client/stores/selection.js'
 import { useEditorContentStore } from '../src/client/stores/editorContent.js'
 import type { PageSummary, FragmentSummary } from '../src/client/api/client.js'
-
-beforeAll(() => {
-  // PrimeVue's Button uses matchMedia in jsdom contexts.
-  if (typeof window.matchMedia !== 'function') {
-    window.matchMedia = (query: string) =>
-      ({
-        matches: false,
-        media: query,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-        onchange: null,
-      }) as unknown as MediaQueryList
-  }
-})
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -101,7 +83,7 @@ function renderPanel() {
     history: createMemoryHistory(),
     routes: [{ path: '/:pathMatch(.*)*', component: { template: '<div />' } }],
   })
-  return mount(EditorPanel, { global: { plugins: [PrimeVue, router] } })
+  return mount(EditorPanel, { global: { plugins: [router] } })
 }
 
 describe('EditorPanel archived read-only', () => {

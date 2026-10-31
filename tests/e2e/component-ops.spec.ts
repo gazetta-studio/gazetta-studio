@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test'
 import { test, expect } from './fixtures'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { openEditor } from './helpers'
+import { openEditor, expectSaveSettled } from './helpers'
 import { ComponentTreePom } from './pages/ComponentTree'
 
 function topLevelNames(page: Page): Promise<string[]> {
@@ -35,7 +35,7 @@ async function saveAndWaitForReload(page: Page): Promise<void> {
   })
   await page.click('[data-testid="save-btn"]')
   await savedAndReloaded
-  await expect(page.locator('[data-testid="save-btn"]')).toBeDisabled({ timeout: 10000 })
+  await expectSaveSettled(page.locator('[data-testid="save-btn"]'), { timeout: 10000 })
 }
 
 test.describe('Component operations', () => {
@@ -154,7 +154,7 @@ test.describe('Component operations', () => {
 
     // Save flushes structural change to disk.
     await saveAndWaitForReload(page)
-    await expect(saveBtn).toBeDisabled({ timeout: 10000 })
+    await expectSaveSettled(saveBtn, { timeout: 10000 })
 
     const afterJson = JSON.parse(readFileSync(pageJsonPath, 'utf8'))
     const afterNames = (afterJson.components as Array<string | { name: string }>).map(c =>
@@ -174,7 +174,7 @@ test.describe('Component operations', () => {
     // Cleanup so subsequent tests in this file see the original order.
     await tree.moveDown('features')
     await saveAndWaitForReload(page)
-    await expect(saveBtn).toBeDisabled({ timeout: 10000 })
+    await expectSaveSettled(saveBtn, { timeout: 10000 })
 
     // Mark the test info — useful when this regression is mentioned in the
     // PR / changelog.
@@ -334,7 +334,7 @@ test.describe('Component operations', () => {
 
     const before = await topLevelNames(page)
     expect(before.indexOf('banner')).toBeGreaterThan(before.indexOf('hero'))
-    await expect(saveBtn).toBeDisabled()
+    await expectSaveSettled(saveBtn)
 
     const handle = page.locator('[data-testid="drag-handle-banner"]')
     const target = tree.row('hero')
@@ -377,7 +377,7 @@ test.describe('Component operations', () => {
     const before = await topLevelNames(page)
     const bannerBefore = before.indexOf('banner')
     expect(bannerBefore).toBeGreaterThan(0)
-    await expect(saveBtn).toBeDisabled()
+    await expectSaveSettled(saveBtn)
 
     const handle = page.locator('[data-testid="drag-handle-banner"]')
     await handle.focus()

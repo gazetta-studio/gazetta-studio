@@ -29,7 +29,8 @@
  *   - DIP: depends on `useStorageQuota`'s typed API; doesn't know
  *     how the estimate is sampled.
  */
-import Button from 'primevue/button'
+import { Database, X } from '@lucide/vue'
+import Button from './ui/Button.vue'
 import { useStorageQuota } from '../composables/useStorageQuota.js'
 
 const quota = useStorageQuota()
@@ -41,12 +42,12 @@ const quota = useStorageQuota()
     class="storage-quota-banner"
     role="status"
     data-testid="storage-quota-banner">
-    <i class="pi pi-database banner-icon" aria-hidden="true" />
+    <Database class="banner-icon" aria-hidden="true" />
     <span class="banner-text">
       Storage almost full — please connect to send your saved items.
     </span>
     <Button
-      icon="pi pi-times"
+      :icon="X"
       text
       rounded
       size="small"
@@ -70,7 +71,9 @@ const quota = useStorageQuota()
   border-bottom: 1px solid var(--color-warning-fg);
 }
 .banner-icon {
-  font-size: 0.875rem;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  flex-shrink: 0;
 }
 .banner-text {
   flex: 1;

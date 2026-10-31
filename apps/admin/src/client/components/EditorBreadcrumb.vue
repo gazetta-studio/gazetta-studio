@@ -155,7 +155,7 @@ function navigate(hash: string) {
   font: inherit;
   color: inherit;
   padding: 0.125rem 0.25rem;
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
   cursor: default;
 }
 .segment-link {
@@ -167,7 +167,7 @@ function navigate(hash: string) {
   color: var(--color-fg);
 }
 .segment-link:focus-visible {
-  outline: 2px solid var(--p-primary-color);
+  outline: 2px solid var(--color-primary);
   outline-offset: 1px;
 }
 .segment-current {

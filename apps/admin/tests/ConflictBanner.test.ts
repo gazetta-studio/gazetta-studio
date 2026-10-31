@@ -9,7 +9,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import PrimeVue from 'primevue/config'
 import ConflictBanner from '../src/client/components/ConflictBanner.vue'
 import { useSaveConflictsStore } from '../src/client/stores/saveConflicts.js'
 
@@ -24,7 +23,6 @@ const SAMPLE_CONFLICT = {
 function mountBanner(itemPath = ITEM_PATH) {
   return mount(ConflictBanner, {
     props: { itemPath },
-    global: { plugins: [PrimeVue] },
   })
 }
 

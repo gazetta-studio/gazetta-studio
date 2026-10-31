@@ -15,10 +15,11 @@
   "all good" rows that would be visual noise.
 -->
 <script setup lang="ts">
+import { Archive, TriangleAlert } from '@lucide/vue'
 import { computed, onMounted, ref, watch } from 'vue'
-import Dialog from 'primevue/dialog'
-import Button from 'primevue/button'
-import InputText from 'primevue/inputtext'
+import Dialog from './ui/Dialog.vue'
+import Button from './ui/Button.vue'
+import TextInput from './ui/TextInput.vue'
 import { useArchiveStore } from '../stores/archive.js'
 import { useSiteStore } from '../stores/site.js'
 import { api, type TargetInfo } from '../api/client.js'
@@ -108,7 +109,7 @@ function handleCancel() {
 
       <div class="archive-field">
         <label for="archive-alias-input">Redirect to (optional)</label>
-        <InputText
+        <TextInput
           id="archive-alias-input"
           v-model="aliasOf"
           :placeholder="`Leave empty for pure soft-delete`"
@@ -134,7 +135,7 @@ function handleCancel() {
       -->
       <div v-if="targetsWithGaps.length > 0" class="archive-gaps">
         <p class="archive-gaps-title">
-          <i class="pi pi-exclamation-triangle" /> Some targets can't emit redirects
+          <TriangleAlert class="gaps-icon" aria-hidden="true" /> Some targets can't emit redirects
         </p>
         <ul class="archive-gaps-list">
           <li v-for="t in targetsWithGaps" :key="t.name">
@@ -157,7 +158,7 @@ function handleCancel() {
       <Button label="Cancel" severity="secondary" text :disabled="busy" data-testid="archive-cancel" @click="handleCancel" />
       <Button
         label="Archive"
-        icon="pi pi-archive"
+        :icon="Archive"
         :loading="busy"
         severity="warn"
         data-testid="archive-confirm"
@@ -182,5 +183,6 @@ function handleCancel() {
 .gap-reason { font-style: italic; }
 .env-tag { font-size: 0.75rem; color: var(--color-muted); }
 .archive-gaps-note { margin: 0.5rem 0 0; font-size: 0.75rem; color: var(--color-muted); }
+.gaps-icon { inline-size: 1rem; block-size: 1rem; flex-shrink: 0; }
 .archive-error { color: var(--color-danger-fg); font-size: 0.875rem; margin: 0; }
 </style>

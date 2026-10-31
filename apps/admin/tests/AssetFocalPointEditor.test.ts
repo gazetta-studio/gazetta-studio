@@ -9,27 +9,10 @@
  * `getBoundingClientRect` so the component can compute a normalized
  * point from them.
  */
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import PrimeVue from 'primevue/config'
 import AssetFocalPointEditor from '../src/client/components/AssetFocalPointEditor.vue'
-
-beforeAll(() => {
-  if (typeof window.matchMedia !== 'function') {
-    window.matchMedia = (query: string) =>
-      ({
-        matches: false,
-        media: query,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-        onchange: null,
-      }) as unknown as MediaQueryList
-  }
-})
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -40,7 +23,6 @@ const IMG_URL = 'data:image/png;base64,test'
 function render(modelValue: { x: number; y: number } | null = null) {
   const wrapper = mount(AssetFocalPointEditor, {
     props: { modelValue, imageUrl: IMG_URL, alt: 'sample' },
-    global: { plugins: [PrimeVue] },
   })
 
   // Stub getBoundingClientRect on the image so pointer events translate
@@ -105,7 +87,6 @@ describe('AssetFocalPointEditor', () => {
   it('emits null when reset clicked', async () => {
     const wrapper = render({ x: 0.5, y: 0.5 })
     const reset = wrapper.find('[data-testid="focal-reset"]')
-    // PrimeVue Button renders a real <button>; trigger via the inner element.
     await reset.trigger('click')
     expect(wrapper.emitted('update:modelValue')![0]).toEqual([null])
   })
@@ -113,9 +94,7 @@ describe('AssetFocalPointEditor', () => {
   it('disables reset when modelValue is null (already default)', () => {
     const wrapper = render(null)
     const reset = wrapper.find('[data-testid="focal-reset"]')
-    // PrimeVue stamps the disabled attribute when :disabled is true.
-    const button = reset.element as HTMLButtonElement
-    expect(button.disabled || button.classList.contains('p-disabled')).toBe(true)
+    expect((reset.element as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('renders four aspect-ratio previews', () => {

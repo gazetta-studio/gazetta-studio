@@ -17,7 +17,6 @@ import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
-import PrimeVue from 'primevue/config'
 import TemplateChangedBanner from '../src/client/components/TemplateChangedBanner.vue'
 import { useTemplateImpactStore } from '../src/client/stores/templateImpact.js'
 
@@ -100,7 +99,7 @@ describe('TemplateChangedBanner', () => {
   it('renders nothing when the store has no event', () => {
     const router = makeRouter()
     const wrapper = mount(TemplateChangedBanner, {
-      global: { plugins: [PrimeVue, router] },
+      global: { plugins: [router] },
     })
     expect(wrapper.find('[data-testid="template-changed-banner"]').exists()).toBe(false)
   })
@@ -110,7 +109,7 @@ describe('TemplateChangedBanner', () => {
     store._applyEventForTest({ name: 'hero', affectedItemCount: 3 })
     const router = makeRouter()
     const wrapper = mount(TemplateChangedBanner, {
-      global: { plugins: [PrimeVue, router] },
+      global: { plugins: [router] },
     })
     await wrapper.vm.$nextTick()
     const banner = wrapper.find('[data-testid="template-changed-banner"]')
@@ -124,7 +123,7 @@ describe('TemplateChangedBanner', () => {
     store._applyEventForTest({ name: 'hero', affectedItemCount: 1 })
     const router = makeRouter()
     const wrapper = mount(TemplateChangedBanner, {
-      global: { plugins: [PrimeVue, router] },
+      global: { plugins: [router] },
     })
     await wrapper.vm.$nextTick()
     expect(wrapper.find('[data-testid="template-changed-banner"]').text()).toContain('1 item affected')
@@ -135,7 +134,7 @@ describe('TemplateChangedBanner', () => {
     store._applyEventForTest({ name: 'hero', affectedItemCount: 0 })
     const router = makeRouter()
     const wrapper = mount(TemplateChangedBanner, {
-      global: { plugins: [PrimeVue, router] },
+      global: { plugins: [router] },
     })
     await wrapper.vm.$nextTick()
     expect(wrapper.find('[data-testid="template-changed-banner"]').text()).toContain('no items affected')
@@ -146,7 +145,7 @@ describe('TemplateChangedBanner', () => {
     store._applyEventForTest({ name: 'hero' }) // no count
     const router = makeRouter()
     const wrapper = mount(TemplateChangedBanner, {
-      global: { plugins: [PrimeVue, router] },
+      global: { plugins: [router] },
     })
     await wrapper.vm.$nextTick()
     const text = wrapper.find('[data-testid="template-changed-banner"]').text()
@@ -161,7 +160,7 @@ describe('TemplateChangedBanner', () => {
     const router = makeRouter()
     await router.push('/')
     const wrapper = mount(TemplateChangedBanner, {
-      global: { plugins: [PrimeVue, router] },
+      global: { plugins: [router] },
     })
     await wrapper.vm.$nextTick()
     await wrapper.find('[data-testid="template-changed-banner-view"]').trigger('click')
@@ -180,7 +179,7 @@ describe('TemplateChangedBanner', () => {
     const router = makeRouter()
     await router.push('/')
     const wrapper = mount(TemplateChangedBanner, {
-      global: { plugins: [PrimeVue, router] },
+      global: { plugins: [router] },
     })
     await wrapper.vm.$nextTick()
     await wrapper.find('[data-testid="template-changed-banner-dismiss"]').trigger('click')

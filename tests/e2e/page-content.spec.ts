@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { openEditor } from './helpers'
+import { openEditor, expectSaveSettled } from './helpers'
 import { ComponentTreePom } from './pages/ComponentTree'
 
 /**
@@ -33,7 +33,7 @@ test.describe("Edits to a page's own content", () => {
     await tree.revert('home')
     await expect(intro).toHaveValue('')
     await expect(tree.dirtyDot('home')).toBeHidden()
-    await expect(page.locator('[data-testid="save-btn"]')).toBeDisabled()
+    await expectSaveSettled(page.locator('[data-testid="save-btn"]'))
   })
 
   test('opening another component and coming back keeps the edit', async ({ page }) => {

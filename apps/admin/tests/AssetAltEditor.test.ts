@@ -2,27 +2,10 @@
  * Vue tests for AssetAltEditor — the three-state alt input + decorative
  * checkbox component.
  */
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import PrimeVue from 'primevue/config'
 import AssetAltEditor from '../src/client/components/AssetAltEditor.vue'
-
-beforeAll(() => {
-  if (typeof window.matchMedia !== 'function') {
-    window.matchMedia = (query: string) =>
-      ({
-        matches: false,
-        media: query,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-        onchange: null,
-      }) as unknown as MediaQueryList
-  }
-})
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -31,7 +14,6 @@ beforeEach(() => {
 function render(modelValue: string | null) {
   return mount(AssetAltEditor, {
     props: { modelValue },
-    global: { plugins: [PrimeVue] },
   })
 }
 

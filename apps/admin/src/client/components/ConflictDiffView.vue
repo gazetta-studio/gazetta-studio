@@ -17,12 +17,13 @@
  * the diff view." Most pages have <5 changed top-level fields; the
  * shallow view scales fine.
  *
- * Modal-y inline panel inside the banner — not a full PrimeVue Dialog
+ * Modal-y inline panel inside the banner — not a full Dialog
  * because the banner is already a strong surface and embedding the
  * diff inside it keeps focus close to the actions.
  */
+import { X } from '@lucide/vue'
 import { computed } from 'vue'
-import Button from 'primevue/button'
+import Button from './ui/Button.vue'
 
 const props = defineProps<{
   current: Record<string, unknown>
@@ -122,7 +123,7 @@ const rows = computed<DiffRow[]>(() => {
     <div class="diff-header">
       <strong>What changed</strong>
       <Button
-        icon="pi pi-times"
+        :icon="X"
         text
         rounded
         size="small"
@@ -163,7 +164,7 @@ const rows = computed<DiffRow[]>(() => {
   background: var(--color-bg);
   color: var(--color-fg);
   border: 1px solid var(--color-border);
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
   padding: 0.75rem;
 }
 .diff-header {
@@ -198,7 +199,7 @@ const rows = computed<DiffRow[]>(() => {
   white-space: nowrap;
 }
 .diff-cell {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8125rem;
   word-break: break-word;
 }

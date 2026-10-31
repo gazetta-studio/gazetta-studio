@@ -20,8 +20,9 @@
  * Plain language: "Was edited by someone else" — not "STALE" or
  * "etag mismatch." Author-facing copy stays Krug-clean.
  */
+import { TriangleAlert } from '@lucide/vue'
 import { computed, ref } from 'vue'
-import Button from 'primevue/button'
+import Button from './ui/Button.vue'
 import { useSaveConflictsStore } from '../stores/saveConflicts.js'
 import ConflictDiffView from './ConflictDiffView.vue'
 
@@ -65,7 +66,7 @@ function discard(): void {
     role="alert"
     data-testid="conflict-banner">
     <div class="banner-header">
-      <i class="pi pi-exclamation-triangle banner-icon" aria-hidden="true" />
+      <TriangleAlert class="banner-icon" aria-hidden="true" />
       <span class="banner-title">Was edited by someone else</span>
     </div>
     <p class="banner-body">
@@ -102,7 +103,7 @@ function discard(): void {
   background: var(--color-warning-bg);
   color: var(--color-warning-fg);
   border: 1px solid var(--color-warning-fg);
-  border-radius: var(--p-border-radius-md);
+  border-radius: var(--radius-md);
   padding: 0.75rem;
   margin-bottom: 0.75rem;
 }
@@ -113,7 +114,9 @@ function discard(): void {
   font-weight: 600;
 }
 .banner-icon {
-  font-size: 1.1rem;
+  inline-size: 1.1rem;
+  block-size: 1.1rem;
+  flex-shrink: 0;
 }
 .banner-body {
   margin: 0.5rem 0 0.75rem;

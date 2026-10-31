@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { openEditor, storedDraftKeys } from './helpers'
+import { openEditor, storedDraftKeys, expectSaveSettled } from './helpers'
 import { ComponentTreePom } from './pages/ComponentTree'
 
 /**
@@ -24,7 +24,7 @@ test('a reorder draft survives a reload and comes back only on its own page', as
 
   // Reload onto another page: nothing to save, and leaving edit mode doesn't ask.
   await openEditor(page, 'about')
-  await expect(page.locator('[data-testid="save-btn"]')).toBeDisabled()
+  await expectSaveSettled(page.locator('[data-testid="save-btn"]'))
   await page.click('[data-testid="back-to-browse"]')
   await expect.poll(() => new URL(page.url()).pathname).toBe('/admin/pages/about')
 

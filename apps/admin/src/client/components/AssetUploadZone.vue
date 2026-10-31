@@ -10,6 +10,7 @@
  * pane. Rationale: the slice validates the pipeline; the design-doc's
  * "prompt for alt at upload" UX lands with the wide rollout.
  */
+import { Upload } from '@lucide/vue'
 import { ref, watch } from 'vue'
 import { suggestAlt, updateAssetMetadata, type SuggestAltResult } from '../api/assets.js'
 import { useAssetsUploadStore } from '../stores/assetsUpload.js'
@@ -322,7 +323,7 @@ function onAltInput(id: string): void {
     @drop="onDrop"
     @dragover="onDragOver"
     @dragleave="onDragLeave">
-    <i class="pi pi-upload" />
+    <Upload class="upload-zone-icon" aria-hidden="true" />
     <span>Drop files or click to upload</span>
     <input
       ref="fileInput"
@@ -402,7 +403,7 @@ function onAltInput(id: string): void {
 
 <style scoped>
 .upload-zone {
-  border: 2px dashed var(--p-content-border-color);
+  border: 2px dashed var(--color-border);
   border-radius: 8px;
   padding: 1.5rem;
   display: flex;
@@ -410,14 +411,20 @@ function onAltInput(id: string): void {
   justify-content: center;
   gap: 0.75rem;
   cursor: pointer;
-  color: var(--p-text-muted-color);
+  color: var(--color-muted);
   transition: border-color 120ms, background-color 120ms;
 }
 
 .upload-zone:hover,
 .upload-zone.dragging {
-  border-color: var(--p-primary-color);
-  background: var(--p-content-hover-background);
+  border-color: var(--color-primary);
+  background: var(--color-hover-bg);
+}
+
+.upload-zone-icon {
+  inline-size: 1rem;
+  block-size: 1rem;
+  flex-shrink: 0;
 }
 
 .upload-zone input[type='file'] {
@@ -437,7 +444,7 @@ function onAltInput(id: string): void {
   gap: 0.25rem;
   padding: 0.375rem 0.5rem;
   border-radius: 4px;
-  background: var(--p-content-hover-background);
+  background: var(--color-hover-bg);
 }
 
 .upload-entry-head {
@@ -448,11 +455,11 @@ function onAltInput(id: string): void {
 }
 
 .upload-status[data-status='error'] {
-  color: var(--p-red-500);
+  color: var(--color-danger);
 }
 
 .upload-status[data-status='success'] {
-  color: var(--p-green-500);
+  color: var(--color-success);
 }
 
 .upload-entry-alt {
@@ -471,10 +478,10 @@ function onAltInput(id: string): void {
   flex: 1;
   font: inherit;
   padding: 0.25rem 0.5rem;
-  border: 1px solid var(--p-form-field-border-color);
+  border: 1px solid var(--color-input-border);
   border-radius: 4px;
-  background: var(--p-form-field-background);
-  color: var(--p-text-color);
+  background: var(--color-input-bg);
+  color: var(--color-fg);
 }
 
 .upload-entry-alt input[type='text']:disabled {
@@ -487,21 +494,21 @@ function onAltInput(id: string): void {
   align-items: center;
   gap: 0.25rem;
   font-size: 0.75rem;
-  color: var(--p-text-muted-color);
+  color: var(--color-muted);
   white-space: nowrap;
 }
 
 .upload-entry-ai-state {
   margin: 0;
   font-size: 0.75rem;
-  color: var(--p-text-muted-color);
+  color: var(--color-muted);
   font-style: italic;
 }
 
 .upload-entry-ai-refusal {
   margin: 0;
   font-size: 0.75rem;
-  color: var(--p-amber-600);
+  color: var(--color-warn);
   font-style: italic;
 }
 </style>

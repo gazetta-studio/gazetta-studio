@@ -28,12 +28,13 @@
  * hiding events — operators need to know when their config blocks
  * the read.
  */
-import { computed, ref, watch } from 'vue'
-import Dialog from 'primevue/dialog'
-import Button from 'primevue/button'
-import Select from 'primevue/select'
-import InputText from 'primevue/inputtext'
-import ProgressSpinner from 'primevue/progressspinner'
+import { CircleAlert, CloudUpload, ExternalLink, FunnelX, History, Save, Settings, Trash2 } from '@lucide/vue'
+import { type Component, computed, ref, watch } from 'vue'
+import Dialog from './ui/Dialog.vue'
+import Button from './ui/Button.vue'
+import Select from './ui/Select.vue'
+import InputText from './ui/TextInput.vue'
+import Spinner from './ui/Spinner.vue'
 import type {
   AuditAction,
   AuditEvent,
@@ -161,12 +162,12 @@ function friendlyTime(iso: string): string {
   return `${d}d ago`
 }
 
-function actionIcon(action: AuditAction): string {
-  if (action === 'save') return 'pi pi-save'
-  if (action === 'publish') return 'pi pi-cloud-upload'
-  if (action === 'delete') return 'pi pi-trash'
-  if (action === 'restore') return 'pi pi-history'
-  return 'pi pi-cog' // configure-roles
+function actionIcon(action: AuditAction): Component {
+  if (action === 'save') return Save
+  if (action === 'publish') return CloudUpload
+  if (action === 'delete') return Trash2
+  if (action === 'restore') return History
+  return Settings // configure-roles
 }
 
 function outcomeBadgeClass(outcome: AuditOutcome): string {
@@ -188,24 +189,24 @@ function scopeLabel(event: AuditEvent): string {
     data-testid="audit-drawer">
     <div class="filters" data-testid="audit-filters">
       <Select v-model="filterAction" :options="ACTION_OPTIONS" optionLabel="label" optionValue="value"
-        placeholder="All actions" showClear size="small" data-testid="audit-filter-action" />
+        placeholder="All actions" showClear size="small" aria-label="Filter by action" data-testid="audit-filter-action" />
       <Select v-model="filterOutcome" :options="OUTCOME_OPTIONS" optionLabel="label" optionValue="value"
-        placeholder="All outcomes" showClear size="small" data-testid="audit-filter-outcome" />
+        placeholder="All outcomes" showClear size="small" aria-label="Filter by outcome" data-testid="audit-filter-outcome" />
       <Select v-model="filterScopeKind" :options="SCOPE_KIND_OPTIONS" optionLabel="label" optionValue="value"
-        placeholder="All scopes" showClear size="small" data-testid="audit-filter-scope" />
-      <InputText v-model="filterActor" placeholder="Actor (id or email)" size="small"
+        placeholder="All scopes" showClear size="small" aria-label="Filter by scope" data-testid="audit-filter-scope" />
+      <InputText v-model="filterActor" placeholder="Actor (id or email)" size="small" aria-label="Filter by actor"
         data-testid="audit-filter-actor" />
       <Button v-if="filterAction || filterOutcome || filterScopeKind || filterActor"
-        icon="pi pi-filter-slash" size="small" severity="secondary"
+        :icon="FunnelX" size="small" severity="secondary"
         @click="clearFilters" aria-label="Clear filters" data-testid="audit-clear-filters" />
     </div>
 
     <div v-if="loading && events.length === 0" class="state-loading" data-testid="audit-loading">
-      <ProgressSpinner style="width: 1.5rem; height: 1.5rem" strokeWidth="4" />
+      <Spinner strokeWidth="4" />
       <span>Loading events…</span>
     </div>
     <div v-else-if="error" class="state-error" data-testid="audit-error">
-      <i class="pi pi-exclamation-circle" />
+      <CircleAlert class="state-icon" aria-hidden="true" />
       <span>{{ error }}</span>
     </div>
 
@@ -233,7 +234,7 @@ function scopeLabel(event: AuditEvent): string {
           <a :href="sink.url!" target="_blank" rel="noopener noreferrer"
             :data-testid="`audit-sink-link-${sink.name}`">
             View in {{ sink.name }}
-            <i class="pi pi-external-link" aria-hidden="true" />
+            <ExternalLink class="link-icon" aria-hidden="true" />
           </a>
         </li>
       </ul>
@@ -247,7 +248,7 @@ function scopeLabel(event: AuditEvent): string {
       <li v-for="event in events" :key="`${event.timestamp}:${event.actor.id}:${event.action}:${event.scope.name ?? ''}`"
         class="event"
         :data-testid="`audit-event-${event.timestamp}`">
-        <i :class="actionIcon(event.action)" class="action-icon" aria-hidden="true" />
+        <component :is="actionIcon(event.action)" class="action-icon" aria-hidden="true" />
         <div class="meta">
           <div class="head-row">
             <span class="action-label">{{ event.action }}</span>
@@ -279,7 +280,7 @@ function scopeLabel(event: AuditEvent): string {
       <a v-for="sink in sinksWithLinks" :key="sink.name"
         :href="sink.url!" target="_blank" rel="noopener noreferrer"
         :data-testid="`audit-sink-link-${sink.name}`">
-        {{ sink.name }} <i class="pi pi-external-link" aria-hidden="true" />
+        {{ sink.name }} <ExternalLink class="link-icon" aria-hidden="true" />
       </a>
     </div>
 
@@ -312,7 +313,7 @@ function scopeLabel(event: AuditEvent): string {
   font-size: 0.875rem;
   color: var(--color-muted);
   border: 1px dashed var(--color-border);
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
 }
 .state-loading { flex-direction: row; align-items: center; }
 .state-error { color: var(--color-danger-fg); border-color: var(--color-danger-fg); }
@@ -352,12 +353,23 @@ function scopeLabel(event: AuditEvent): string {
   grid-template-columns: auto 1fr;
   gap: 0.75rem;
   padding: 0.625rem 0.75rem;
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
 }
+.state-icon {
+  inline-size: 1rem;
+  block-size: 1rem;
+  flex: none;
+}
+.link-icon {
+  inline-size: 0.875em;
+  block-size: 0.875em;
+  flex: none;
+}
 .action-icon {
-  font-size: 0.875rem;
-  padding-top: 0.125rem;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  margin-top: 0.125rem;
   color: var(--color-muted);
 }
 .meta {
@@ -383,7 +395,7 @@ function scopeLabel(event: AuditEvent): string {
 .outcome {
   font-size: 0.6875rem;
   padding: 0.125rem 0.375rem;
-  border-radius: var(--p-border-radius-xs);
+  border-radius: var(--radius-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -416,8 +428,8 @@ function scopeLabel(event: AuditEvent): string {
 .metadata-pair code {
   background: var(--color-hover-bg);
   padding: 0 0.25rem;
-  border-radius: var(--p-border-radius-xs);
-  font-family: ui-monospace, SFMono-Regular, monospace;
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono);
 }
 
 .footer-sinks {

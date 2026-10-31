@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { LoaderCircle, Pencil, Share2, TriangleAlert } from '@lucide/vue'
 import { useRoute, useRouter } from 'vue-router'
 import { onKeyStroke } from '@vueuse/core'
 import { useEditingStore } from '../stores/editing.js'
@@ -146,17 +147,17 @@ async function handleConflictDiscard() {
       :kind="selection.type"
       :name="selection.selection.name" />
     <div v-if="editing.loadError" class="editor-error" data-testid="editor-error">
-      <i class="pi pi-exclamation-triangle" />
+      <TriangleAlert class="state-icon" aria-hidden="true" />
       <p>{{ editing.loadError }}</p>
     </div>
     <div v-else-if="editing.fragmentLink" class="editor-fragment-link" data-testid="editor-fragment-link">
-      <i class="pi pi-share-alt" />
+      <Share2 class="state-icon" aria-hidden="true" />
       <p>This is part of a shared fragment.</p>
       <a class="fragment-go-link" data-testid="fragment-go-link" @click.stop.prevent="goToFragment">Edit @{{ editing.fragmentLink }}</a>
     </div>
     <template v-else-if="!editing.path">
       <div v-if="!nothingToEdit" class="editor-empty" data-testid="editor-empty">
-        <i class="pi pi-pencil" style="font-size: 2rem; opacity: 0.3; margin-bottom: 0.5rem;" />
+        <Pencil class="state-icon" style="opacity: 0.3; margin-bottom: 0.5rem;" aria-hidden="true" />
         <p>Select a component to edit</p>
       </div>
     </template>
@@ -172,7 +173,7 @@ async function handleConflictDiscard() {
       <!-- The custom editor mounts only once its code has loaded (#912), so
            say so instead of showing an empty pane. -->
       <p v-if="editorLoading" class="editor-loading" role="status" data-testid="editor-loading">
-        <i class="pi pi-spin pi-spinner" aria-hidden="true" />
+        <LoaderCircle class="loading-icon spin" aria-hidden="true" />
         <span>Loading editor…</span>
       </p>
       <div v-if="hasProperties" ref="containerRef" class="editor-container" data-testid="editor-container" :data-path="editing.path" :key="editing.path" />
@@ -199,14 +200,18 @@ async function handleConflictDiscard() {
 <style scoped>
 .editor-header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
 .editor-error { color: var(--color-danger-fg); font-size: 0.875rem; display: flex; flex-direction: column; align-items: center; padding-top: 3rem; gap: 0.5rem; text-align: center; }
-.editor-error .pi { font-size: 2rem; }
 .editor-error p { max-width: 300px; line-height: 1.5; }
 .editor-empty { color: var(--color-muted); font-size: 0.875rem; display: flex; flex-direction: column; align-items: center; padding-top: 3rem; }
 .editor-fragment-link { color: var(--color-muted); font-size: 0.875rem; display: flex; flex-direction: column; align-items: center; padding-top: 3rem; gap: 0.5rem; }
-.editor-fragment-link .pi { font-size: 2rem; opacity: 0.3; }
+.editor-fragment-link .state-icon { opacity: 0.3; }
 .fragment-go-link { color: var(--color-primary); cursor: pointer; font-weight: 500; }
 .fragment-go-link:hover { text-decoration: underline; }
 .editor-container { font-size: 0.875rem; }
 .editor-no-schema { color: var(--color-muted); font-size: 0.875rem; }
 .editor-loading { display: flex; align-items: center; gap: 0.5rem; color: var(--color-muted); font-size: 0.875rem; }
+.state-icon { inline-size: 2rem; block-size: 2rem; }
+.loading-icon { inline-size: 1rem; block-size: 1rem; }
+.spin { animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation-duration: 2.4s; } }
 </style>

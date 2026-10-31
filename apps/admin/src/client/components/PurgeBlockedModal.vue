@@ -19,10 +19,11 @@
   otherwise the modal updates with the remaining blockers.
 -->
 <script setup lang="ts">
+import { ArrowRight, Bookmark, File as FileIcon, Link, Share2, TriangleAlert } from '@lucide/vue'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import Dialog from 'primevue/dialog'
-import Button from 'primevue/button'
+import Dialog from './ui/Dialog.vue'
+import Button from './ui/Button.vue'
 import { useArchiveStore } from '../stores/archive.js'
 
 const archive = useArchiveStore()
@@ -79,13 +80,13 @@ async function onForcePurge() {
       <!-- Alias-pointers — archives whose aliasOf points at this item. -->
       <section v-if="aliases.length > 0" class="purge-blocked-section">
         <h4>
-          <i class="pi pi-link" />
+          <Link class="purge-blocked-icon" aria-hidden="true" />
           {{ aliases.length }} archive{{ aliases.length === 1 ? '' : 's' }} redirect{{ aliases.length === 1 ? 's' : '' }} here
         </h4>
         <ul class="purge-blocked-list">
           <li v-for="ref in aliases" :key="`alias-${ref.kind}-${ref.name}`" class="purge-blocked-row" :data-testid="`purge-blocked-alias-${ref.name}`">
             <span class="purge-blocked-name">
-              <i :class="ref.kind === 'page' ? 'pi pi-file' : 'pi pi-share-alt'" />
+              <component :is="ref.kind === 'page' ? FileIcon : Share2" class="purge-blocked-icon" aria-hidden="true" />
               {{ ref.kind }} <code>{{ ref.name }}</code>
             </span>
             <div class="purge-blocked-actions">
@@ -116,13 +117,13 @@ async function onForcePurge() {
       <!-- Live refs — live pages/fragments that reference this name. -->
       <section v-if="liveRefs.length > 0" class="purge-blocked-section">
         <h4>
-          <i class="pi pi-bookmark" />
+          <Bookmark class="purge-blocked-icon" aria-hidden="true" />
           {{ liveRefs.length }} live {{ liveRefs.length === 1 ? 'item references' : 'items reference' }} this
         </h4>
         <ul class="purge-blocked-list">
           <li v-for="ref in liveRefs" :key="`liveref-${ref.kind}-${ref.name}`" class="purge-blocked-row" :data-testid="`purge-blocked-liveref-${ref.name}`">
             <span class="purge-blocked-name">
-              <i :class="ref.kind === 'page' ? 'pi pi-file' : 'pi pi-share-alt'" />
+              <component :is="ref.kind === 'page' ? FileIcon : Share2" class="purge-blocked-icon" aria-hidden="true" />
               {{ ref.kind }} <code>{{ ref.name }}</code>
             </span>
             <div class="purge-blocked-actions">
@@ -131,7 +132,7 @@ async function onForcePurge() {
                 size="small"
                 severity="secondary"
                 text
-                icon="pi pi-arrow-right"
+                :icon="ArrowRight"
                 :data-testid="`purge-blocked-jump-${ref.name}`"
                 title="Navigate to this item to edit its references"
                 @click="onJumpToRef(ref)"
@@ -148,7 +149,7 @@ async function onForcePurge() {
       <Button label="Cancel" severity="secondary" text data-testid="purge-blocked-cancel" @click="onCancel" />
       <Button
         label="Force delete"
-        icon="pi pi-exclamation-triangle"
+        :icon="TriangleAlert"
         severity="danger"
         outlined
         data-testid="purge-blocked-force"
@@ -176,7 +177,7 @@ async function onForcePurge() {
   gap: 0.375rem;
   font-weight: 600;
 }
-.purge-blocked-section h4 i { color: var(--color-muted); }
+.purge-blocked-section h4 .purge-blocked-icon { color: var(--color-muted); }
 
 .purge-blocked-list { margin: 0; padding: 0; list-style: none; }
 .purge-blocked-row {
@@ -190,7 +191,8 @@ async function onForcePurge() {
 .purge-blocked-row:first-child { border-top: none; }
 
 .purge-blocked-name { display: flex; align-items: center; gap: 0.375rem; font-size: 0.8125rem; color: var(--color-fg); flex: 1; min-width: 0; }
-.purge-blocked-name i { color: var(--color-muted); flex-shrink: 0; }
+.purge-blocked-name .purge-blocked-icon { color: var(--color-muted); flex-shrink: 0; }
+.purge-blocked-icon { inline-size: 1rem; block-size: 1rem; }
 .purge-blocked-name code {
   font-family: var(--font-mono);
   background: var(--color-hover-bg);

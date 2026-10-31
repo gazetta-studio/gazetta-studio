@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
+import { type Component, computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { tearDown } from '@formkit/drag-and-drop'
 import { dragAndDrop } from '@formkit/drag-and-drop/vue'
-import Button from 'primevue/button'
+import { Box, Copy, File as FileIcon, Menu as MenuIcon, Plus, Share2, Trash2, TriangleAlert, Undo2 } from '@lucide/vue'
+import Button from './ui/Button.vue'
 import { useSelectionStore } from '../stores/selection.js'
 import { useEditingStore } from '../stores/editing.js'
 import { useToastStore } from '../stores/toast.js'
@@ -330,10 +331,10 @@ function flattenNested(node: ComponentNode): { node: ComponentNode; depth: numbe
   return out
 }
 
-function nodeIcon(node: ComponentNode, depth: number): string {
-  if (depth === -1) return selection.type === 'page' ? 'pi pi-file' : 'pi pi-share-alt'
-  if (node.data.isFragment) return 'pi pi-share-alt'
-  return 'pi pi-box'
+function nodeIcon(node: ComponentNode, depth: number): Component {
+  if (depth === -1) return selection.type === 'page' ? FileIcon : Share2
+  if (node.data.isFragment) return Share2
+  return Box
 }
 
 function nodeStyle(depth: number): Record<string, string> | undefined {
@@ -895,12 +896,12 @@ function nextDuplicateName(
       @click="onSelect(rootNode)"
       @mouseenter="onHover(rootNode)"
       @mouseleave="onHoverEnd()">
-      <i :class="nodeIcon(rootNode, -1)" class="node-icon" />
+      <component :is="nodeIcon(rootNode, -1)" class="node-icon" aria-hidden="true" />
       <span v-if="rootDirty" class="node-dirty-dot" />
       <span class="node-label">{{ rootNode.label }}</span>
       <Button v-if="rootDirty"
-        icon="pi pi-undo" text rounded size="small" class="node-revert"
-        title="Discard changes" @click.stop="revertComponent('_root')" />
+        :icon="Undo2" text rounded size="small" class="node-revert"
+        title="Discard changes" aria-label="Discard changes" @click.stop="revertComponent('_root')" />
     </div>
 
     <!-- Draggable list of top-level components. Each block contains the
@@ -936,23 +937,23 @@ function nextDuplicateName(
               :title="`Drag to reorder, or press Space + Arrow Up/Down + Space`"
               tabindex="0"
               @click.stop>
-              <i class="pi pi-bars" aria-hidden="true" />
+              <MenuIcon class="drag-handle-icon" aria-hidden="true" />
             </button>
-            <i v-if="topNode.data?.error" class="pi pi-exclamation-triangle node-icon node-error-icon"
-              :title="topNode.data.error" />
-            <i v-else :class="nodeIcon(topNode, 0)" class="node-icon" />
+            <span v-if="topNode.data?.error" class="node-icon node-error-icon" role="img"
+              :title="topNode.data.error" :aria-label="topNode.data.error"><TriangleAlert class="node-error-glyph" aria-hidden="true" /></span>
+            <component :is="nodeIcon(topNode, 0)" v-else class="node-icon" aria-hidden="true" />
             <span v-if="topNode.data?.path && (editing.hasPendingEdit(topNode.data.path) || (editing.dirty && editing.path === topNode.data.path))" class="node-dirty-dot" />
             <span class="node-label">{{ topNode.label }}</span>
             <Button v-if="topNode.data?.path && (editing.hasPendingEdit(topNode.data.path) || (editing.dirty && editing.path === topNode.data.path))"
-              icon="pi pi-undo" text rounded size="small" class="node-revert"
-              title="Discard changes" @click.stop="revertComponent(topNode.data.path!)" />
+              :icon="Undo2" text rounded size="small" class="node-revert"
+              title="Discard changes" aria-label="Discard changes" @click.stop="revertComponent(topNode.data.path!)" />
             <span class="node-actions">
-              <Button icon="pi pi-clone" text rounded size="small"
+              <Button :icon="Copy" text rounded size="small"
                 :data-testid="`duplicate-${topNode.label}`"
                 :aria-label="`Duplicate ${topNode.label}`"
                 :title="`Duplicate (Cmd/Ctrl+D)`"
                 @click.stop="duplicateComponent(topIndex)" />
-              <Button icon="pi pi-trash" text rounded size="small" severity="danger"
+              <Button :icon="Trash2" text rounded size="small" severity="danger"
                 :data-testid="`remove-${topNode.label}`"
                 :aria-label="`Remove ${topNode.label}`"
                 @click.stop="removeComponent(topIndex)" />
@@ -970,14 +971,14 @@ function nextDuplicateName(
             @click="onSelect(nestedNode)"
             @mouseenter="onHover(nestedNode)"
             @mouseleave="onHoverEnd()">
-            <i v-if="nestedNode.data?.error" class="pi pi-exclamation-triangle node-icon node-error-icon"
-              :title="nestedNode.data.error" />
-            <i v-else :class="nodeIcon(nestedNode, depth)" class="node-icon" />
+            <span v-if="nestedNode.data?.error" class="node-icon node-error-icon" role="img"
+              :title="nestedNode.data.error" :aria-label="nestedNode.data.error"><TriangleAlert class="node-error-glyph" aria-hidden="true" /></span>
+            <component :is="nodeIcon(nestedNode, depth)" v-else class="node-icon" aria-hidden="true" />
             <span v-if="nestedNode.data?.path && (editing.hasPendingEdit(nestedNode.data.path) || (editing.dirty && editing.path === nestedNode.data.path))" class="node-dirty-dot" />
             <span class="node-label">{{ nestedNode.label }}</span>
             <Button v-if="nestedNode.data?.path && (editing.hasPendingEdit(nestedNode.data.path) || (editing.dirty && editing.path === nestedNode.data.path))"
-              icon="pi pi-undo" text rounded size="small" class="node-revert"
-              title="Discard changes" @click.stop="revertComponent(nestedNode.data.path!)" />
+              :icon="Undo2" text rounded size="small" class="node-revert"
+              title="Discard changes" aria-label="Discard changes" @click.stop="revertComponent(nestedNode.data.path!)" />
           </div>
         </div>
       </template>
@@ -988,7 +989,7 @@ function nextDuplicateName(
     </div>
     <p v-else class="empty">No components</p>
 
-    <Button icon="pi pi-plus" label="Add component" text size="small" class="add-btn"
+    <Button :icon="Plus" label="Add component" text size="small" class="add-btn"
       data-testid="add-component" @click="showAddDialog = true" />
 
     <AddComponentDialog v-if="showAddDialog" :visible="showAddDialog"
@@ -1001,10 +1002,12 @@ function nextDuplicateName(
 .empty { color: var(--color-muted); }
 .node-item { display: flex; align-items: center; gap: 4px; height: 22px; padding: 0 6px; margin: 0 2px; cursor: pointer; border-radius: 3px; }
 .node-item:hover, .node-item.hovered { background: var(--color-hover-bg); }
-.node-item.selected { background: rgba(167, 139, 250, 0.15); box-shadow: inset 2px 0 0 var(--p-violet-400); }
+.node-item.selected { background: rgba(167, 139, 250, 0.15); box-shadow: inset 2px 0 0 var(--color-accent); }
 .node-root { font-weight: 600; padding: 0 6px; height: 26px; line-height: 26px; border-radius: 0; margin: 0 0 2px 0; border-bottom: 1px solid var(--color-border); }
-.node-root.selected { background: rgba(167, 139, 250, 0.1); box-shadow: none; border-bottom-color: var(--p-violet-400); }
-.node-icon { width: 16px; text-align: center; font-size: 10px; color: var(--color-muted); flex-shrink: 0; }
+.node-root.selected { background: rgba(167, 139, 250, 0.1); box-shadow: none; border-bottom-color: var(--color-accent); }
+.node-icon { width: 16px; height: 10px; text-align: center; font-size: 10px; color: var(--color-muted); flex-shrink: 0; }
+.node-error-icon { display: inline-flex; align-items: center; justify-content: center; }
+.node-error-glyph { inline-size: 10px; block-size: 10px; }
 .node-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--color-muted); }
 .node-item.selected .node-label,
 .node-item:hover .node-label,
@@ -1025,7 +1028,7 @@ function nextDuplicateName(
 .top-level-block { display: flex; flex-direction: column; }
 .top-level-block.keyboard-lifted > .top-level-row {
   background: var(--color-hover-bg);
-  outline: 1px dashed var(--p-violet-400);
+  outline: 1px dashed var(--color-accent);
   outline-offset: -1px;
 }
 /* Keyboard lift destination. Negative vertical margins keep the line from
@@ -1059,11 +1062,12 @@ function nextDuplicateName(
   background: var(--color-hover-bg);
 }
 .drag-handle:focus-visible {
-  outline: 2px solid var(--p-primary-color);
+  outline: 2px solid var(--color-primary);
   outline-offset: 1px;
 }
-.drag-handle .pi-bars {
-  font-size: 10px;
+.drag-handle-icon {
+  inline-size: 10px;
+  block-size: 10px;
 }
 .drag-handle:active {
   cursor: grabbing;

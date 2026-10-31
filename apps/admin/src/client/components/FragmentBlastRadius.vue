@@ -14,6 +14,7 @@
  *
  * Fetches source-side dependents (authoritative for the draft state).
  */
+import { Network } from '@lucide/vue'
 import { computed, ref, watch, onMounted } from 'vue'
 import { useFragmentsApi } from '../composables/api.js'
 
@@ -65,7 +66,7 @@ const summary = (pages: string[]) => (pages.length === 1 ? 'used on 1 page' : `u
     data-testid="fragment-blast-radius"
     :data-state="state.kind"
     :title="tooltip">
-    <i class="pi pi-sitemap" aria-hidden="true" />
+    <Network class="blast-icon" aria-hidden="true" />
     <template v-if="state.kind === 'loaded'">
       <template v-if="compact">
         <span class="count">{{ state.pages.length }}</span>
@@ -94,15 +95,17 @@ const summary = (pages: string[]) => (pages.length === 1 ? 'used on 1 page' : `u
   align-items: center;
   gap: 0.375rem;
   padding: 0.125rem 0.5rem;
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
   font-size: 0.75rem;
   color: var(--color-muted);
   background: var(--color-hover-bg);
   border: 1px solid var(--color-border);
   letter-spacing: -0.01em;
 }
-.blast-radius .pi {
-  font-size: 0.625rem;
+.blast-radius .blast-icon {
+  inline-size: 0.625rem;
+  block-size: 0.625rem;
+  flex: none;
   opacity: 0.7;
 }
 .blast-radius .unused {

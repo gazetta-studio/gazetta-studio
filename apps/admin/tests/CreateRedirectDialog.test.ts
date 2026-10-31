@@ -21,10 +21,9 @@
  *   - Esc key closes the dialog.
  *   - Cancel button emits close.
  */
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import PrimeVue from 'primevue/config'
 import CreateRedirectDialog from '../src/client/components/CreateRedirectDialog.vue'
 import { useSiteStore } from '../src/client/stores/site.js'
 import { REDIRECTS_API, type RedirectsApi } from '../src/client/composables/api.js'
@@ -33,22 +32,6 @@ import {
   type ArchivedNameConflictDetails,
   type CreateRedirectResponse,
 } from '../src/client/api/client.js'
-
-beforeAll(() => {
-  if (typeof window.matchMedia !== 'function') {
-    window.matchMedia = (query: string) =>
-      ({
-        matches: false,
-        media: query,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-        onchange: null,
-      }) as unknown as MediaQueryList
-  }
-})
 
 function makeRedirectsApi(overrides: Partial<RedirectsApi> = {}): RedirectsApi {
   return {
@@ -89,7 +72,6 @@ function mountDialog(api: RedirectsApi) {
     props: { visible: true },
     attachTo: document.body,
     global: {
-      plugins: [PrimeVue],
       provide: { [REDIRECTS_API as symbol]: api },
     },
   })
@@ -169,12 +151,13 @@ describe('CreateRedirectDialog', () => {
     const wrapper = mountDialog(api)
     await flushPromises()
 
-    // Switch to fragment kind. Each toggle renders RadioButton — find by data-testid value.
+    // Switch to fragment kind: each option wraps a role="radio" button.
     const fragmentRadio = document.querySelector(
-      '[data-testid="create-redirect-kind-fragment"] input[type="radio"]',
-    ) as HTMLInputElement
+      '[data-testid="create-redirect-kind-fragment"] [role="radio"]',
+    ) as HTMLButtonElement
     fragmentRadio.click()
     await wrapper.vm.$nextTick()
+    expect(fragmentRadio.getAttribute('aria-checked')).toBe('true')
 
     const fromInput = document.querySelector('[data-testid="create-redirect-from-input"]') as HTMLInputElement
     const toInput = document.querySelector('[data-testid="create-redirect-to-input"]') as HTMLInputElement

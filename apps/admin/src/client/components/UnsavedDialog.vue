@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import Dialog from 'primevue/dialog'
-import Button from 'primevue/button'
+import { Check } from '@lucide/vue'
+import Dialog from './ui/Dialog.vue'
+import Button from './ui/Button.vue'
 import { useUnsavedGuardStore } from '../stores/unsavedGuard.js'
 import { useSelectionStore } from '../stores/selection.js'
 
@@ -26,7 +27,7 @@ function onKeydown(e: KeyboardEvent) {
       <div class="unsaved-actions">
         <Button label="Don't Save" severity="danger" text @click="guard.respond('discard')" />
         <Button label="Cancel" severity="secondary" text @click="guard.respond('cancel')" />
-        <Button label="Save" icon="pi pi-check" autofocus @click="guard.respond('save')" />
+        <Button label="Save" :icon="Check" autofocus @click="guard.respond('save')" />
       </div>
     </template>
   </Dialog>

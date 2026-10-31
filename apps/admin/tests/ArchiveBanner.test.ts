@@ -9,31 +9,13 @@
  *   - Edit alias button dispatches askArchive (modal)
  *   - Delete permanently button dispatches askPurge
  */
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import PrimeVue from 'primevue/config'
 import ArchiveBanner from '../src/client/components/ArchiveBanner.vue'
 import { useSiteStore } from '../src/client/stores/site.js'
 import { useArchiveStore } from '../src/client/stores/archive.js'
 import type { PageSummary, FragmentSummary } from '../src/client/api/client.js'
-
-beforeAll(() => {
-  // PrimeVue's Button uses matchMedia in jsdom contexts.
-  if (typeof window.matchMedia !== 'function') {
-    window.matchMedia = (query: string) =>
-      ({
-        matches: false,
-        media: query,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-        onchange: null,
-      }) as unknown as MediaQueryList
-  }
-})
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -53,7 +35,6 @@ function seedSite(opts: { pages?: PageSummary[]; fragments?: FragmentSummary[] }
 function render(props: { kind: 'page' | 'fragment'; name: string }) {
   return mount(ArchiveBanner, {
     props,
-    global: { plugins: [PrimeVue] },
   })
 }
 

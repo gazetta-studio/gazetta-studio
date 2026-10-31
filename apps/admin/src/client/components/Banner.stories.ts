@@ -8,7 +8,8 @@
  * dark under `npm run test:storybook` with axe as a hard gate (ADR-0016).
  */
 import type { Meta, StoryObj } from '@storybook/vue3-vite'
-import Button from 'primevue/button'
+import { Archive, Check, X } from '@lucide/vue'
+import Button from './ui/Button.vue'
 import Banner from './Banner.vue'
 
 const meta: Meta<typeof Banner> = {
@@ -17,7 +18,7 @@ const meta: Meta<typeof Banner> = {
   argTypes: {
     severity: { control: 'select', options: ['danger', 'warning', 'info', 'success'] },
     role: { control: 'select', options: [undefined, 'alert', 'status'] },
-    icon: { control: 'text' },
+    icon: { control: false },
     dismissible: { control: 'boolean' },
     onDismiss: { action: 'dismiss' },
   },
@@ -35,17 +36,17 @@ function withMessage(message: string): Story['render'] {
   })
 }
 
-/** Render with the `#actions` slot filled by PrimeVue Buttons. */
+/** Render with the `#actions` slot filled by Buttons. */
 function withActions(message: string): Story['render'] {
   return args => ({
     components: { Banner, Button },
-    setup: () => ({ args, message }),
+    setup: () => ({ args, message, Check, X }),
     template: `
       <Banner v-bind="args">
         {{ message }}
         <template #actions>
-          <Button label="Approve" icon="pi pi-check" size="small" data-testid="story-approve" />
-          <Button label="Reject" icon="pi pi-times" size="small" text severity="danger" data-testid="story-reject" />
+          <Button label="Approve" :icon="Check" size="small" data-testid="story-approve" />
+          <Button label="Reject" :icon="X" size="small" text severity="danger" data-testid="story-reject" />
         </template>
       </Banner>`,
   })
@@ -91,7 +92,7 @@ export const WithActionsAndDismiss: Story = {
 
 /** `icon` overrides the per-severity default. */
 export const CustomIcon: Story = {
-  args: { severity: 'warning', icon: 'pi pi-archive' },
+  args: { severity: 'warning', icon: Archive },
   render: withMessage('Archived. Pure soft-delete — old URL returns 410 Gone.'),
 }
 

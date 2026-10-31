@@ -6,30 +6,13 @@
  * the editor on click. Migrate-as-AI-task is reserved per the
  * footer note; today the row's primary action is "Edit".
  */
-import { describe, expect, it, beforeEach, beforeAll, vi } from 'vitest'
+import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
-import PrimeVue from 'primevue/config'
 import TemplateImpactPanel from '../src/client/components/TemplateImpactPanel.vue'
 import { TEMPLATES_API, type TemplatesApi } from '../src/client/composables/api.js'
 import type { TemplateImpactResponse } from '../src/client/api/client.js'
-
-beforeAll(() => {
-  if (typeof window.matchMedia !== 'function') {
-    window.matchMedia = (q: string) =>
-      ({
-        matches: false,
-        media: q,
-        onchange: null,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-      }) as MediaQueryList
-  }
-})
 
 function fakeTemplatesApi(impact: TemplateImpactResponse): TemplatesApi {
   return {
@@ -57,7 +40,7 @@ async function mountPanel(impact: TemplateImpactResponse) {
   const wrapper = mount(TemplateImpactPanel, {
     props: { template: impact.template },
     global: {
-      plugins: [PrimeVue, router],
+      plugins: [router],
       provide: { [TEMPLATES_API as symbol]: fakeTemplatesApi(impact) },
     },
   })

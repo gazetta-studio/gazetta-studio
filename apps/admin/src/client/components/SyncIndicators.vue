@@ -13,6 +13,7 @@
  * Progressive disclosure: hidden entirely when there are no non-active
  * targets to report on.
  */
+import { ChevronDown, ChevronRight } from '@lucide/vue'
 import { computed, ref } from 'vue'
 import { useSyncStatusStore } from '../stores/syncStatus.js'
 import { useActiveTargetStore } from '../stores/activeTarget.js'
@@ -133,7 +134,7 @@ const hasAnything = computed(() => entries.value.length > 0)
           <span class="group-count">({{ entry.group.members.length }})</span>
           <span class="sep" aria-hidden="true">·</span>
           <span class="status">{{ groupStatusLabel(entry.group) }}</span>
-          <i class="pi" :class="expandedGroups.has(entry.group.environment) ? 'pi-chevron-down' : 'pi-chevron-right'" aria-hidden="true" />
+          <component :is="expandedGroups.has(entry.group.environment) ? ChevronDown : ChevronRight" class="chevron" aria-hidden="true" />
         </button>
         <!-- Expanded member chips. Rendered inline so they share the
              top-bar row; parent handles overflow. -->
@@ -170,7 +171,7 @@ const hasAnything = computed(() => entries.value.length > 0)
   align-items: center;
   gap: 0.375rem;
   padding: 0.125rem 0.5rem;
-  border-radius: var(--p-border-radius-sm);
+  border-radius: var(--radius-sm);
   font-size: 0.75rem;
   color: var(--color-muted);
   border: 1px solid var(--color-border);
@@ -183,8 +184,13 @@ const hasAnything = computed(() => entries.value.length > 0)
   background: var(--color-hover-bg);
 }
 .sync-chip:focus-visible {
-  outline: 2px solid var(--p-primary-color);
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+}
+.chevron {
+  inline-size: 1em;
+  block-size: 1em;
+  flex: none;
 }
 .dot {
   width: 0.375rem;

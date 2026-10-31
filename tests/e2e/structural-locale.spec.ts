@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { test, expect } from './fixtures'
-import { storedDraftKeys } from './helpers'
+import { storedDraftKeys, expectSaveSettled } from './helpers'
 import { ComponentTreePom } from './pages/ComponentTree'
 
 /**
@@ -60,14 +60,14 @@ test('a reorder on fr waits for the French page after a reload and is saved to p
     await tree.row('hero').waitFor({ timeout: 20000 })
     expect(await order()).toBe(enTree)
     const saveBtn = page.locator('[data-testid="save-btn"]')
-    await expect(saveBtn).toBeDisabled()
+    await expectSaveSettled(saveBtn)
 
     // Back on French: the reorder is pending again; Save writes it to the French file.
     await page.goto('/admin/pages/home/edit?locale=fr')
     await tree.row('hero').waitFor({ timeout: 20000 })
     await expect.poll(order).toBe(frReordered)
     await saveBtn.click()
-    await expect(saveBtn).toBeDisabled({ timeout: 10000 })
+    await expectSaveSettled(saveBtn, { timeout: 10000 })
     // English keeps its order and its English text. (Compare meaning, not bytes.)
     expect(names(enFile)).toEqual(enOrder)
     expect(heroTitle(enFile)).toBe(enHero)

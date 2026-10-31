@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ChevronDown } from '@lucide/vue'
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useLocaleStore } from '../stores/locale.js'
@@ -36,7 +37,7 @@ function switchLocale(loc: string) {
     <template v-else>
       <div class="locale-dropdown">
         <button class="locale-btn active locale-trigger" data-testid="locale-dropdown-trigger">
-          {{ activeLabel }} <i class="pi pi-chevron-down locale-chevron" />
+          {{ activeLabel }} <ChevronDown class="locale-chevron" aria-hidden="true" />
         </button>
         <div class="locale-menu">
           <button
@@ -66,7 +67,7 @@ function switchLocale(loc: string) {
 /* Dropdown */
 .locale-dropdown { position: relative; }
 .locale-trigger { display: flex; align-items: center; gap: 2px; }
-.locale-chevron { font-size: 0.5rem; }
+.locale-chevron { inline-size: 0.5rem; block-size: 0.5rem; }
 .locale-menu {
   display: none; position: absolute; top: 100%; left: 0; margin-top: 4px;
   background: var(--color-bg); border: 1px solid var(--color-border);

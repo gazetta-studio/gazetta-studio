@@ -12,8 +12,9 @@
  * presence — Cut 1 ships banner-presence as the visible signal, save button
  * disabling is wired in Cut 2 alongside the Site Health drawer).
  */
-import { computed } from 'vue'
-import Button from 'primevue/button'
+import { CircleX, Info, TriangleAlert, X } from '@lucide/vue'
+import { type Component, computed } from 'vue'
+import Button from './ui/Button.vue'
 import { useValidationIssuesStore } from '../stores/validationIssues.js'
 
 const validation = useValidationIssuesStore()
@@ -33,21 +34,21 @@ function dismiss() {
   validation.clear()
 }
 
-function severityIcon(severity: 'error' | 'warn' | 'info'): string {
-  if (severity === 'error') return 'pi pi-times-circle'
-  if (severity === 'warn') return 'pi pi-exclamation-triangle'
-  return 'pi pi-info-circle'
+function severityIcon(severity: 'error' | 'warn' | 'info'): Component {
+  if (severity === 'error') return CircleX
+  if (severity === 'warn') return TriangleAlert
+  return Info
 }
 </script>
 
 <template>
   <div v-if="validation.hasIssues" class="validation-banner" role="alert" data-testid="validation-banner">
     <div class="banner-header">
-      <i class="pi pi-times-circle banner-icon" aria-hidden="true" />
+      <CircleX class="banner-icon" aria-hidden="true" />
       <span class="banner-title">{{ headline }}</span>
       <span v-if="otherCount > 0" class="banner-aside">+{{ otherCount }} non-blocking</span>
       <Button
-        icon="pi pi-times"
+        :icon="X"
         text
         rounded
         size="small"
@@ -64,7 +65,7 @@ function severityIcon(severity: 'error' | 'warn' | 'info'): string {
         :key="`${issue.validator}-${idx}`"
         :class="['issue', `issue-${issue.severity}`]"
         :data-testid="`validation-issue-${issue.validator}`">
-        <i :class="[severityIcon(issue.severity), 'issue-icon']" aria-hidden="true" />
+        <component :is="severityIcon(issue.severity)" class="issue-icon" aria-hidden="true" />
         <div class="issue-body">
           <span class="issue-message">{{ issue.message }}</span>
           <span v-if="issue.contentPath" class="issue-path">at <code>{{ issue.contentPath }}</code></span>
@@ -80,7 +81,7 @@ function severityIcon(severity: 'error' | 'warn' | 'info'): string {
   background: var(--color-danger-bg);
   color: var(--color-danger-fg);
   border: 1px solid var(--color-danger-fg);
-  border-radius: var(--p-border-radius-md);
+  border-radius: var(--radius-md);
   padding: 0.5rem 0.75rem;
   margin-bottom: 0.75rem;
 }
@@ -91,7 +92,9 @@ function severityIcon(severity: 'error' | 'warn' | 'info'): string {
   font-weight: 600;
 }
 .banner-icon {
-  font-size: 1.1rem;
+  inline-size: 1.1rem;
+  block-size: 1.1rem;
+  flex-shrink: 0;
 }
 .banner-title {
   flex: 1;
@@ -119,6 +122,8 @@ function severityIcon(severity: 'error' | 'warn' | 'info'): string {
   font-size: 0.875rem;
 }
 .issue-icon {
+  inline-size: 1rem;
+  block-size: 1rem;
   margin-top: 0.125rem;
   flex-shrink: 0;
 }
@@ -135,13 +140,13 @@ function severityIcon(severity: 'error' | 'warn' | 'info'): string {
   font-size: 0.8125rem;
 }
 .issue-path code {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8125rem;
 }
 .issue-validator {
   /* De-emphasised by size + monospace, not opacity: opacity washed the
      banner's red to 2.96:1 on its tint (#863). */
   font-size: 0.75rem;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
 }
 </style>

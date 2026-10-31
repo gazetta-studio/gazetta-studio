@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
 
 /**
  * Navigate to admin in edit mode for a page — uses the direct URL to avoid
@@ -59,4 +59,14 @@ export function storedDraftKeys(page: Page, kind: 'edit' | 'structural' | 'metad
     })
     return rows.filter(r => r.id[3] === kind).map(r => r.id[4])
   }, kind)
+}
+
+/**
+ * Wait until the toolbar Save button has settled: disabled and not busy. The
+ * button is also disabled while a save runs (`aria-busy`), so being disabled
+ * alone doesn't mean the write has finished.
+ */
+export async function expectSaveSettled(save: Locator, options: { timeout?: number } = {}): Promise<void> {
+  await expect(save).toBeDisabled(options)
+  await expect(save).not.toHaveAttribute('aria-busy', 'true', options)
 }
