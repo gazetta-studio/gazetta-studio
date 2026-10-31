@@ -2,7 +2,7 @@
 
 Where Gazetta's AI work goes: forms, AI helpers in forms, agents operating the CMS, or a chat panel in the admin. Resolves [#1485](https://github.com/gazetta-studio/gazetta-studio/issues/1485). This is a strategy decision; each feature it orders gets its own design pass.
 
-**Status**: decided 2026-10-31, Q1–Q7.
+**Status**: decided 2026-10-31, Q1–Q8.
 
 **Companion docs:**
 - [`ROADMAP.md`](../../ROADMAP.md): where the items below sit
@@ -64,14 +64,16 @@ Decided: maintainer, 2026-10-31 (#1620)
 
 ### Q4 — A chat panel gets a design pass in Later, built on the MCP tools
 
-A design pass in Later ([#1617](https://github.com/gazetta-studio/gazetta-studio/issues/1617)), after the MCP server build: the panel is a UI over the same agent back end (identity, audit, tools, per-run undo) on the operator's own key. The MCP design pass (#49) designs its tools so the panel can reuse them.
+A design pass in Later ([#1617](https://github.com/gazetta-studio/gazetta-studio/issues/1617)), built on the MCP tools: the panel is a UI over the same agent back end (identity, audit, tools, per-run undo).
 
 Decided: maintainer, 2026-10-31 (#1620)
 
 | Rejected | Why |
 |---|---|
-| Deferred, with a trigger (operator demand, or an embeddable chat client after MCP ships) | The maintainer chose to plan it |
+| Deferred, with a trigger (operator demand, or an embeddable chat client after MCP ships) | Leaves the chat panel unplanned; the maintainer chose to plan a design pass |
 | A non-goal ("use your own agent through MCP") | Its back end is #49's; ruling it out isn't needed |
+
+The MCP design pass (#49) designs its tools so the panel can reuse them. Follows from Q4 (built on the MCP tools).
 
 ### Q5 — Page metadata suggestions are the helper after translation
 
@@ -87,13 +89,14 @@ Decided: maintainer, 2026-10-31 (#1620)
 
 ### Q6 — The actor scenarios gain a reviewer scenario
 
-`docs/actor-scenarios.md` gains an Operator scenario: review and publish a batch an agent made, per field, reverting one item ([#1619](https://github.com/gazetta-studio/gazetta-studio/issues/1619)). Agents act for one of the four actors, with that actor's capabilities; they aren't a fifth actor.
+`docs/actor-scenarios.md` gains an Operator scenario: review and publish a batch an agent made, per field, reverting one item ([#1619](https://github.com/gazetta-studio/gazetta-studio/issues/1619)). Agents act for one of the four actors, as their own principal with their own capabilities (by default they can't publish), per ROADMAP's MCP decision; they aren't a fifth actor.
 
-Decided: maintainer, 2026-10-31 (#1620)
+Decided: maintainer, 2026-10-31 (#1620); the capability wording corrected by the maintainer the same day, after the first answer rested on a misstated ROADMAP decision.
 
 | Rejected | Why |
 |---|---|
-| A fifth actor, Agent | An agent carries out a person's goals; its capabilities are its principal's |
+| A fifth actor, Agent | An agent carries out a person's goals |
+| Agents get the capabilities of the person they act for | An agent working for an Operator could publish, against ROADMAP's MCP decision that a person decides what reaches visitors |
 | No change | The review UI (Q2) would be designed against no scenario |
 
 ### Q7 — The tutorial stays admin-only and links the agent page from Next steps
@@ -107,18 +110,37 @@ Decided: maintainer, 2026-10-31 (#1620)
 | An "or ask your agent" aside in the steps | The tutorial teaches one path, and its CI spec runs its commands word for word |
 | No mention | Readers who'd rather use their agent won't find the page |
 
+### Q8 — The admin shows agents' changes as they happen; designed in the MCP design pass
+
+When MCP tools or an external AI change content, people in the admin see it live. The MCP design pass (#49) designs it, as a question with these states, quiet unless something changed:
+1. The preview updates in place as the agent saves.
+2. The site tree marks changed pages for a moment ("changed just now by Claude").
+3. An open page without unsaved edits refreshes in place, with "See changes" opening the field diff (Q2).
+4. An open page with unsaved edits shows that the agent changed it, with "See changes" and "Keep mine", before the author saves rather than at save.
+5. While an agent works, one line says so and links to the agent-run review (Q2).
+
+Today only part of this exists: in `gazetta dev`, the site-folder watcher pushes `/__reload` and the preview re-renders when a page file changes (read from code, 2026-10-31); the site tree and the open form don't refresh, and `gazetta admin` has no watcher. Real-time push is an observer layer on the save and audit events, never wired into the save handlers (`feature-design-process.md`, real-time event-source discipline), and the change feed comes from storage so it reaches every admin instance.
+
+Decided: maintainer, 2026-10-31 (#1620)
+
+| Rejected | Why |
+|---|---|
+| Its own design pass | Two passes designing the same agent save events and identity would have to agree after the fact |
+| Later, after the MCP server ships | The MCP tools and events would be designed without the live view, and an event feed is harder to add afterwards |
+
 ## What this changes in the plan
 
-Follows from Q1–Q7. Where each item sits in ROADMAP is the product owner's sequencing, not a decision of this round; it changes through ROADMAP like any placement:
+Follows from Q1–Q8. Three placements come from the answers: the agent-run review screen waits for run ids (Q2), the chat panel design pass is in Later (Q4), page metadata suggestions come after translation (Q5). The rest is the product owner's sequencing and changes through ROADMAP like any placement:
 
 | Item | Bucket |
 |---|---|
-| Docs page for coding agents (#1615) | Now, under Website and channels |
+| Docs page for coding agents (#1615) | Now, under AI direction: first steps |
 | Field-level diff (#1616) | Next |
 | Agent-run review screen | Later, after the MCP server build |
 | Chat panel design pass (#1617) | Later |
 | Page metadata suggestions (#1618) | Later, after translation |
-| Reviewer scenario (#1619) | Now, a docs change |
+| Reviewer scenario (#1619) | Now, under AI direction: first steps |
+| Live view of agents' changes | Now, as a question in the MCP design pass (#49) (Q8) |
 
 The Stage 1 tutorial, the media editor flow (#1357) and creation UX (#103) keep their places: they're forms people use whatever agents do.
 
