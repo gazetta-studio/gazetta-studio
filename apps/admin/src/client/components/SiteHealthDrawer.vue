@@ -10,13 +10,14 @@
  * state. The drawer shows only when opened from the toolbar; the
  * toolbar icon shows a count badge only when issues > 0.
  */
-import { CircleAlert, CircleCheck, Info, TriangleAlert } from '@lucide/vue'
-import { type Component, computed } from 'vue'
+import { CircleCheck, TriangleAlert } from '@lucide/vue'
+import { computed } from 'vue'
 import Dialog from './ui/Dialog.vue'
 import Button from './ui/Button.vue'
 import { useRouter } from 'vue-router'
 import { useValidationScannerStore } from '../stores/validationScanner.js'
 import type { ValidationIssue } from '../api/client.js'
+import { ISSUE_SEVERITY_ICON } from '../utils/issue-severity-icon.js'
 
 defineProps<{ visible: boolean }>()
 const emit = defineEmits<{ (e: 'update:visible', v: boolean): void }>()
@@ -52,12 +53,6 @@ const groups = computed<ItemGroup[]>(() => {
 
 function close() {
   emit('update:visible', false)
-}
-
-function severityIcon(severity: 'error' | 'warn' | 'info'): Component {
-  if (severity === 'error') return CircleAlert
-  if (severity === 'warn') return TriangleAlert
-  return Info
 }
 
 const SEVERITY_LABEL: Record<'error' | 'warn' | 'info', string> = { error: 'Error', warn: 'Warning', info: 'Info' }
@@ -124,7 +119,7 @@ function navigateToItem(itemPath: string) {
           @click="navigateToItem(group.itemPath)"
           :aria-label="`Open ${group.itemPath} (${group.issues.length} issue${group.issues.length === 1 ? '' : 's'})`"
         >
-          <component :is="severityIcon(group.worstSeverity)" class="health-icon" :data-severity="group.worstSeverity" aria-hidden="true" />
+          <component :is="ISSUE_SEVERITY_ICON[group.worstSeverity]" class="health-icon" :data-severity="group.worstSeverity" aria-hidden="true" />
           <span class="health-item-path">{{ group.itemPath }}</span>
           <span class="health-item-count">{{ group.issues.length }}</span>
         </button>
@@ -135,7 +130,7 @@ function navigateToItem(itemPath: string) {
             :class="`health-issue health-issue-${issue.severity}`"
           >
             <component
-              :is="severityIcon(issue.severity)"
+              :is="ISSUE_SEVERITY_ICON[issue.severity]"
               class="health-icon"
               :data-severity="issue.severity"
               role="img"
