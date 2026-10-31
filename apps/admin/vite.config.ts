@@ -54,15 +54,14 @@ export default defineConfig({
       // and install prompt flow is a v2 feature.
       manifest: false,
       injectManifest: {
-        // Bumped from default 2 MB so the admin bundle (PrimeVue + rjsf
-        // + Tiptap clocks in around ~3 MB minified) precaches without
+        // Bumped from default 2 MB so the admin bundle (rjsf + Tiptap
+        // clocks in around ~3 MB minified) precaches without
         // warnings. Each chunk ships independently; this is the per-file
         // cap, not total.
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-        // Default is js/css/html only. woff2 adds the bundled primeicons
-        // font so icons render on an offline cold load; browsers that read
-        // woff2 never fetch the other font formats.
-        globPatterns: ['**/*.{js,css,html,woff2}'],
+        // js/css/html: the app shell. Icons are inline SVG components, so
+        // there is no icon font to precache.
+        globPatterns: ['**/*.{js,css,html}'],
       },
       // Don't enable in dev — Vite HMR + SW caching fight each other.
       // SW only runs in production builds.
@@ -84,7 +83,12 @@ export default defineConfig({
             id.includes('node_modules/pinia/')
           )
             return 'vendor-vue'
-          if (id.includes('node_modules/primevue/') || id.includes('node_modules/@primevue/')) return 'vendor-primevue'
+          if (
+            id.includes('node_modules/reka-ui/') ||
+            id.includes('node_modules/@floating-ui/') ||
+            id.includes('node_modules/@lucide/')
+          )
+            return 'vendor-ui'
           if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) return 'vendor-react'
           if (id.includes('node_modules/@rjsf/') || id.includes('node_modules/ajv')) return 'vendor-rjsf'
           if (

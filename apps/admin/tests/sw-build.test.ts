@@ -49,7 +49,8 @@ describe('service worker build', () => {
     // are listed.
     expect(sw).toMatch(/index\.html/)
     expect(sw).toMatch(/vendor-vue/)
-    expect(sw).toMatch(/vendor-primevue/)
+    expect(sw).toMatch(/vendor-ui/)
+    expect(sw).not.toMatch(/vendor-prime|prime-?icons/)
     expect(sw).toMatch(/\.css/)
   })
 

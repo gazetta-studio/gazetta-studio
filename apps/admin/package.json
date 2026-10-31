@@ -16,7 +16,6 @@
     "@formkit/drag-and-drop": "0.6.1",
     "@hono/node-server": "^2.1.5",
     "@lucide/vue": "^1.59.0",
-    "@primeuix/themes": "^2.0.3",
     "@tanstack/query-async-storage-persister": "^5.105.0",
     "@tanstack/vue-query": "^5.105.0",
     "@vueuse/core": "^15.0.0",
@@ -25,8 +24,6 @@
     "idb": "^8.0.4",
     "morphdom": "^2.7.8",
     "pinia": "^3.0.4",
-    "primeicons": "^7.0.0",
-    "primevue": "^4.5.5",
     "reka-ui": "^2.11.0",
     "vue": "^3.5.44",
     "vue-router": "^5.4.0"
