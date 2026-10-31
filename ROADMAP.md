@@ -106,7 +106,6 @@ Research by discovery-prep-bot, then a design round with the maintainer where on
 
 - [#1483](https://github.com/gazetta-studio/gazetta-studio/issues/1483) Markdown in the admin: which Markdown support authors and template developers need
 - [#1484](https://github.com/gazetta-studio/gazetta-studio/issues/1484) content trust: whether editors can put markup or script on published pages
-- [#1540](https://github.com/gazetta-studio/gazetta-studio/issues/1540) executable specifications for AI-written code (Dave Farley's four layers)
 
 ## Next (planned, the quarter after Now)
 
@@ -257,6 +256,7 @@ Decided: maintainer, 2026-10-24 (#1243)
 | Concurrent editing with OT/CRDT (3-6 months investment) | Presence ships first + product positioning clear |
 | AI tag suggestion task | After translation ships |
 | AI image generation | Concrete operator request |
+| [#1540](https://github.com/gazetta-studio/gazetta-studio/issues/1540) executable specifications for AI-written code (Dave Farley's acceptance-testing layers); discovery research is on the issue | The maintainer picks it up again (parked 2026-10-31) |
 | Per-locale comments | Concrete demand |
 | Approval-blocking comments | Compliance archetype demand |
 | File attachments on comments | Operator asks |
