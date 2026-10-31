@@ -112,16 +112,20 @@ Decided: maintainer, 2026-10-31 (#1620)
 
 ### Q8 — The admin shows agents' changes as they happen; designed in the MCP design pass
 
-When MCP tools or an external AI change content, people in the admin see it live. The MCP design pass (#49) designs it, as a question with these states, quiet unless something changed:
+When MCP tools or an external AI change content, people in the admin see it live: in the preview, the site tree, the open page, and a line saying an agent is working. The MCP design pass (#49) designs how.
+
+Decided: maintainer, 2026-10-31 (#1620)
+
+A proposal for that pass to start from, not a decision of this round (posted on #49):
 1. The preview updates in place as the agent saves.
 2. The site tree marks changed pages for a moment ("changed just now by Claude").
 3. An open page without unsaved edits refreshes in place, with "See changes" opening the field diff (Q2).
 4. An open page with unsaved edits shows that the agent changed it, with "See changes" and "Keep mine", before the author saves rather than at save.
 5. While an agent works, one line says so and links to the agent-run review (Q2).
 
-Today only part of this exists: in `gazetta dev`, the site-folder watcher pushes `/__reload` and the preview re-renders when a page file changes (read from code, 2026-10-31); the site tree and the open form don't refresh, and `gazetta admin` has no watcher. Real-time push is an observer layer on the save and audit events, never wired into the save handlers (`feature-design-process.md`, real-time event-source discipline), and the change feed comes from storage so it reaches every admin instance.
+Discovery for it (competitors, transport, cost at the 5,000-page envelope) is posted on #49.
 
-Decided: maintainer, 2026-10-31 (#1620)
+Today only part of this exists: in `gazetta dev`, the site-folder watcher pushes `/__reload` and the preview re-renders when a page file changes (read from code, 2026-10-31); the site tree and the open form don't refresh, and `gazetta admin` has no watcher. Real-time push is an observer layer on the save and audit events, never wired into the save handlers (`feature-design-process.md`, real-time event-source discipline), and the change feed comes from storage so it reaches every admin instance (`feature-design-process.md`, multi-instance discipline).
 
 | Rejected | Why |
 |---|---|
@@ -130,7 +134,7 @@ Decided: maintainer, 2026-10-31 (#1620)
 
 ## What this changes in the plan
 
-Follows from Q1–Q8. Three placements come from the answers: the agent-run review screen waits for run ids (Q2), the chat panel design pass is in Later (Q4), page metadata suggestions come after translation (Q5). The rest is the product owner's sequencing and changes through ROADMAP like any placement:
+Follows from Q1–Q8. Four placements come from the answers: the agent-run review screen waits for run ids (Q2), the chat panel design pass is in Later (Q4), page metadata suggestions come after translation (Q5), and the live view is designed in the MCP design pass (Q8). The rest is the product owner's sequencing and changes through ROADMAP like any placement:
 
 | Item | Bucket |
 |---|---|
