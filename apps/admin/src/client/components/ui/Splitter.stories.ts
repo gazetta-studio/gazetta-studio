@@ -29,7 +29,7 @@ export const Horizontal: Story = {
       <div style="inline-size: 600px; block-size: 200px; border: 1px solid var(--color-border)">
         <Splitter class="story-splitter">
           <SplitterPanel :size="35" :minSize="25"><p style="padding: 1rem">Components</p></SplitterPanel>
-          <SplitterPanel :size="65" :minSize="35"><p style="padding: 1rem">Editor</p></SplitterPanel>
+          <SplitterPanel :size="65" :minSize="35"><p style="padding: 1rem; block-size: 400px">Editor</p></SplitterPanel>
         </Splitter>
       </div>`,
   }),
@@ -39,6 +39,10 @@ export const Horizontal: Story = {
     await expect(handle).toHaveAttribute('aria-valuemax', '65')
     await waitFor(() => expect(handle).toHaveAttribute('aria-valuenow', '35'))
     await expect(firstPanelShare(canvasElement)).toBeCloseTo(35, 0)
+    // Panels scroll content taller than themselves (Reka hides overflow inline).
+    const editor = canvasElement.querySelectorAll<HTMLElement>('.ui-splitter-panel')[1]
+    await expect(getComputedStyle(editor).overflowY).toBe('auto')
+    await expect(editor.scrollHeight).toBeGreaterThan(editor.clientHeight)
 
     handle.focus()
     await userEvent.keyboard('{ArrowLeft}')
