@@ -8,7 +8,7 @@ The decision: **the admin's components are Gazetta's own Vue components, built o
 
 - **Distribution.** Gazetta ships the admin, with its UI library compiled in, inside the `gazetta` npm package. PrimeUI's terms ask for an OEM licence when "third parties develop with the Software", and users' own organisations may not meet the free Community licence's thresholds. An MIT-only admin needs no reading of those terms.
 - **Ownership.** With headless primitives and our own CSS, no vendor's licence change or theme engine reaches the admin again, and the token contract site authors override is Gazetta's.
-- **Fit.** Reka's primitives cover the 11 component kinds the admin uses, including Splitter, Listbox and Toolbar, and handle RTL through `dir`.
+- **Fit.** Reka's primitives cover the 8 of the admin's 11 component kinds that need one, including Splitter, Listbox and Toolbar (Button, text input and spinner are native elements), and handle RTL through `dir`.
 - **#13 had drifted.** It chose PrimeVue for Tree, Splitter, Drawer and Toolbar. The admin's trees are its own, and it uses no Drawer.
 
 ## What was rejected
