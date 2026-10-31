@@ -14,3 +14,12 @@ defineProps<{ size?: number; minSize?: number }>()
     <slot />
   </SplitterPanel>
 </template>
+
+<style scoped>
+/* Reka sets `overflow: hidden` inline on each panel, which a caller's class
+   (EditorView's `.cms-panel { overflow: auto }`) can't override. The admin's
+   panels all scroll their content. */
+.ui-splitter-panel {
+  overflow: auto !important;
+}
+</style>
