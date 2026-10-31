@@ -2,7 +2,7 @@
 
 How AI agents (coding agents, scripts, chat apps) reach Gazetta's content: in what order the ways in ship, how they write, what stops them publishing, and how they learn about changes. This sets the direction for the design pass in [#49](https://github.com/gazetta-studio/gazetta-studio/issues/49), which now covers agent access as a whole, MCP included; each piece below gets its details there.
 
-**Status**: direction decided 2026-10-31, Q1–Q8. The #49 design pass designs the details.
+**Status**: direction decided 2026-10-31, Q1–Q10. The #49 design pass designs the details.
 
 **Companion docs:**
 - [`design-ai-direction.md`](design-ai-direction.md): agents lead Gazetta's AI work; they act as their own principal and can't publish by default; the live view of agents' changes (Q8)
@@ -192,9 +192,23 @@ Decided: maintainer, 2026-10-31 (#1623)
 |---|---|
 | Bot support for Go before any Go cut is filed | Delays the CLI behind bot and workflow changes |
 
+### Q9 — The Go CLI is for content creators; the `gazetta` CLI is for developers
+
+The thin Go CLI (Q2, Q8) serves people who don't develop templates (content creators) and their agents. The `gazetta` CLI serves developers.
+
+Decided: maintainer, 2026-10-31 (#1623)
+
+Open for the #49 pass: content creators won't have the `gazetta` npm package, so their agents need another way to get the content part of the skill (Q4), for example from the Go CLI.
+
+### Q10 — Both CLIs are built for people and for agents
+
+Both CLIs are designed to be used by people and by AI agents: readable output by default and JSON output on request, flags for everything a prompt would ask, and plain error messages. Follows from this: the `gazetta` CLI, which has no JSON output today, gets it.
+
+Decided: maintainer, 2026-10-31 (#1623)
+
 ## What this changes in the plan
 
-Follows from Q1–Q8.
+Follows from Q1–Q10.
 - ROADMAP's "MCP server design pass" becomes "Agent access design pass" (#49), and "MCP server build" becomes "Agent access build".
 - The skill (#1622) is the first step, in Now; the Deferred row for agent instructions goes.
-- The #49 pass designs: agent principals (after the identity discovery, #1624), the agent-client permission presets, audit source and run id, per-run undo, the schema check at save, page search, the thin CLI (name, discovery of a local admin, commands, JSON output, release and distribution), the public API contract, its versioning and v1 cut-off, the bulk save, the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
+- The #49 pass designs: agent principals (after the identity discovery, #1624), the agent-client permission presets, audit source and run id, per-run undo, the schema check at save, page search, the thin CLI for content creators (name, discovery of a local admin, commands, output for people and agents, how its users' agents get the skill, release and distribution), JSON output for the `gazetta` CLI, the public API contract, its versioning and v1 cut-off, the bulk save, the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
