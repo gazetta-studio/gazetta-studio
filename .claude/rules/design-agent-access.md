@@ -670,7 +670,7 @@ Decided: maintainer, 2026-11-01 (#1654)
 
 ### Q45 — Errors are RFC 9457 problem+json everywhere, now
 
-Every route answers errors as `application/problem+json` (RFC 9457), and the admin UI's error handling changes in the same pass. Follows from Q38 (`gz` shows the API's error codes): each error keeps a `code`, as an extension member listed in the error-code schema. Today errors come in three shapes: about 37 sites answer `{ code, message }`, about 62 answer `{ error }` with no code, and two codes in use are missing from the schema (read from code 2026-11-01).
+Every route answers errors as `application/problem+json` (RFC 9457), and the admin UI's error handling changes in the same pass. Follows from Q38 (`gz` shows the API's error codes): each error keeps a `code`, as an extension member listed in the error-code schema. Today errors come in three shapes: about 37 sites answer `{ code, message }`, about 62 answer `{ error }` with no code, and the schema lists 13 codes while the routes emit several dozen (read from code 2026-11-01; corrected the same day while building cut 1, #1670).
 
 Decided: maintainer, 2026-11-01 (#1654)
 
