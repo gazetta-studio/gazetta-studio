@@ -45,7 +45,7 @@ Read from code on 2026-11-01:
 
 CI parses every page and fragment that uses the changed template against its new schema. The PR fails only when existing content no longer fits, and the report names each page, field and language.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1666)
 
 | Rejected | Why |
 |---|---|
@@ -56,7 +56,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 CI checks content against the base branch's templates and the PR's templates, and fails only on problems the base didn't have. Content broken before the PR is listed under "already broken" but doesn't fail it, as save-delta reports only what an edit broke. It costs about twice the run time.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1666)
 
 | Rejected | Why |
 |---|---|
@@ -67,7 +67,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 No override. The developer updates the affected content in the same PR (the report lists it), and the check turns green.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1666)
 
 | Rejected | Why |
 |---|---|
@@ -78,7 +78,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 `gazetta validate` gains `--json` and a GitHub output mode: a table grouped by template (pages, fields, languages) in the job summary, and annotations on the changed template files. The docs give a workflow snippet to copy. Gazetta ships no Action of its own.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1666)
 
 | Rejected | Why |
 |---|---|
@@ -89,7 +89,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 The check reads the editing target in git and the content stored on targets.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1666)
 
 | Rejected | Why |
 |---|---|
@@ -99,7 +99,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 The report names each page, field, language and the Zod message ("cta: Required"). Fixing stays with #1169.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1666)
 
 | Rejected | Why |
 |---|---|
@@ -110,7 +110,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 `schema-conformance` reports errors at the `cli` stage, matching `pre-publish`, so `gazetta validate` exits non-zero when content doesn't fit its template. The PR check is then `gazetta validate --base origin/main`, which adds T2 on top. No production users, so the change costs a changelog line.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1666)
 
 | Rejected | Why |
 |---|---|
@@ -120,7 +120,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 `--render`, off by default, also renders the content that uses a changed template and fails when a template throws. Without it the check parses content against schemas and doesn't run templates.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1666)
 
 | Rejected | Why |
 |---|---|
@@ -131,7 +131,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 Content on a target that the new template rejects fails the PR like repo content. The report says how to fix it ("pages/promo on production doesn't fit the new hero: publish production → local, fix it here"): the developer publishes that content back to local, fixes it in the PR, and it goes out with the next publish.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1666)
 
 | Rejected | Why |
 |---|---|
@@ -142,7 +142,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 `gazetta validate --base origin/main --targets production,staging`. The operator lists the targets and provides their read credentials as CI secrets. A listed target that can't be read fails the check with its name and the error, so a missing secret isn't skipped silently.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1666)
 
 | Rejected | Why |
 |---|---|
@@ -153,7 +153,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 Public targets hold no manifests (`design-public-storage.md` Q4), so naming one in `--targets` fails the check, and the workflow lists only targets that hold content.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1666)
 
 | Rejected | Why |
 |---|---|
@@ -165,7 +165,7 @@ A target that moves to public storage then breaks CI until the workflow drops it
 
 See "Cut sequence".
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1666)
 
 | Rejected | Why |
 |---|---|
