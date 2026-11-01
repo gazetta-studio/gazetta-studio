@@ -549,6 +549,14 @@ What counts, and when `gz` joins: Decided: maintainer, 2026-11-01 (#1649)
 | Only what reaches visitors | Deleting pages or assets would be left to the agent |
 | List the planned `gz` commands now and skip them in the test | The list would name commands that don't exist yet |
 
+A token may archive a page or fragment, and rename one dropping the old name's redirect, without an elevation, as this list allows. Both need `delete:pages` or `delete:fragments` (`design-soft-delete.md`), which cut 7 withholds from tokens, so the token cap makes an exception for them. Purge and permanent deletes still need an elevation (Q12). Archiving is undone by restoring from the archive. How the exception is built (for these routes, or a separate archive capability) is left to the code.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| Archive needs an elevation, and this list changes to say so | Safer, but one more approval for a common edit |
+
 ### Q33 — A command refreshes the skill in an existing project
 
 A command, `gazetta agents update` (named 2026-11-01, #1653), rewrites the files Gazetta owns: `SKILL.md` and the marked `AGENTS.md` section (after Q34, only the section), never the person's other text. `gazetta dev` prints a one-line hint when the installed skill is older than the package.
