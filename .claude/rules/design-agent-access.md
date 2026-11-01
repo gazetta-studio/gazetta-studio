@@ -246,7 +246,7 @@ Open for the #49 pass (product owner's note): which URLs (the preview of a page 
 
 ### Q12 — An agent uses its person's identity; publishing needs an elevation
 
-An agent signs in as the person using it; there is no separate agent identity. Any token used outside the browser (the Go CLI, the API, MCP) can edit at most. Publishing or deleting through such a token needs a short elevation the person approves in the admin (for example `gz elevate`, showing a pin to confirm there). What a CLI publish does without an elevation is Q29. Each save records the way it came in (browser or CLI token) and a run id, so an agent's run can be reviewed and undone. Login codes are approved in the admin (Q19, Q21), except where Q15 says otherwise.
+An agent signs in as the person using it; there is no separate agent identity. Any token used outside the browser (the Go CLI, the API, MCP) can edit at most. Publishing or deleting through such a token needs a short elevation the person approves in the admin (for example `gz elevate`, showing a pin to confirm there). Archiving, and a rename that drops the old name's redirect, need none (Q32, #1705); purge and permanent deletes do. What a CLI publish does without an elevation is Q29. Each save records the way it came in (browser or CLI token) and a run id, so an agent's run can be reviewed and undone. Login codes are approved in the admin (Q19, Q21), except where Q15 says otherwise.
 
 Decided: maintainer, 2026-11-01 (#1630)
 
@@ -549,7 +549,7 @@ What counts, and when `gz` joins: Decided: maintainer, 2026-11-01 (#1649)
 | Only what reaches visitors | Deleting pages or assets would be left to the agent |
 | List the planned `gz` commands now and skip them in the test | The list would name commands that don't exist yet |
 
-A token may archive a page or fragment, and rename one dropping the old name's redirect, without an elevation, as this list allows. Both need `delete:pages` or `delete:fragments` (`design-soft-delete.md`), which cut 7 withholds from tokens, so the token cap makes an exception for them. Purge and permanent deletes still need an elevation (Q12). Archiving is undone by restoring from the archive. How the exception is built (for these routes, or a separate archive capability) is left to the code.
+A token may archive a page or fragment, and rename one dropping the old name's redirect, without an elevation, as this list allows. Both need `delete:pages` or `delete:fragments` (`design-soft-delete.md`), which cut 7 withholds from tokens, so the token cap makes an exception for them: a token keeps those two actions when its person holds `delete:pages` or `delete:fragments`, and gets no right its person lacks. Purge and permanent deletes still need an elevation (Q12). Archiving is undone by restoring from the archive. How the exception is built (for these routes, or a separate archive capability) is left to the code; a new capability also updates `design-soft-delete.md` and `design-auth-rbac.md`.
 
 Decided: maintainer, 2026-11-01 (#1705)
 
