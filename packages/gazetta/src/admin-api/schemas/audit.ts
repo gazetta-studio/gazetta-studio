@@ -38,6 +38,9 @@ export const AuditActionSchema = z.enum([
   'login-approve',
   'login-deny',
   'grant-revoke',
+  'elevation-approve',
+  'elevation-deny',
+  'elevation-end',
 ])
 export type AuditActionWire = z.infer<typeof AuditActionSchema>
 

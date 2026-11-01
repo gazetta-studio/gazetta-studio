@@ -23,7 +23,18 @@ export const StartLoginResponseSchema = z.object({
 export const LoginCodeParamSchema = z.object({ code: z.string() })
 
 /** What the approve page shows (Q21). */
+export const ElevationScopeSchema = z.enum(['non-production', 'production'])
+
+export const StartElevationRequestSchema = z.object({ scope: ElevationScopeSchema })
+
 export const LoginDetailsResponseSchema = z.object({
+  /** `login` (absent in older records) or `elevation`. */
+  kind: z.enum(['login', 'elevation']),
+  /** For an elevation: the targets it would cover. */
+  scope: ElevationScopeSchema.optional(),
+  /** For an approved elevation. */
+  elevationId: z.string().optional(),
+  endsAt: z.string().optional(),
   code: z.string(),
   machine: z.string(),
   ip: z.string().optional(),
@@ -32,7 +43,12 @@ export const LoginDetailsResponseSchema = z.object({
   state: z.enum(['pending', 'approved', 'denied']),
 })
 
-export const LoginDecisionResponseSchema = z.object({ state: z.enum(['approved', 'denied']) })
+export const LoginDecisionResponseSchema = z.object({
+  state: z.enum(['approved', 'denied']),
+  /** For an approved elevation: its id (to end it) and when it ends. */
+  elevationId: z.string().optional(),
+  endsAt: z.string().optional(),
+})
 
 export const RedeemLoginRequestSchema = z.object({ pollSecret: z.string().min(1) })
 
@@ -52,12 +68,19 @@ export const RedeemLoginResponseSchema = z.discriminatedUnion('status', [
     grantSecret: z.string(),
     ...TokenFields,
   }),
+  z.object({
+    status: z.literal('elevated'),
+    /** Ends it early with `DELETE /auth/elevations/:id`. */
+    elevationId: z.string(),
+    endsAt: z.string(),
+  }),
 ])
 
 export const RenewTokenRequestSchema = z.object({ grantSecret: z.string().min(1) })
 export const TokenResponseSchema = z.object(TokenFields)
 
 export const GrantParamSchema = z.object({ id: z.string() })
+export const ElevationParamSchema = z.object({ id: z.string() })
 
 export type StartLoginResponse = z.infer<typeof StartLoginResponseSchema>
 export type LoginDetailsResponse = z.infer<typeof LoginDetailsResponseSchema>

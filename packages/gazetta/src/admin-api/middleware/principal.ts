@@ -59,6 +59,7 @@ import {
 } from '../../auth/index.js'
 import { unmapIPv4 } from '../../auth/ip-match.js'
 import { principalFromToken } from '../../auth/token-principal.js'
+import type { ElevationStore } from '../../auth/elevation-store.js'
 import type { SigningKeys } from '../../auth/tokens/keys.js'
 import { TokenRejectedError, verifyToken } from '../../auth/tokens/token.js'
 
@@ -70,6 +71,8 @@ import { TokenRejectedError, verifyToken } from '../../auth/tokens/token.js'
 export type PrincipalEnv = {
   Variables: {
     principal: Principal
+    /** Set for requests that came with a Gazetta token: the setup that verified it. */
+    tokenAuth?: TokenAuth
   }
 }
 
@@ -164,6 +167,10 @@ export interface TokenAuth {
   keys: () => Promise<SigningKeys | null>
   /** Custom roles from `admin.auth.roles`, to expand a token's role. */
   customRoles?: Readonly<Record<string, ReadonlyArray<string>>>
+  /** Elevation records (Q17); absent where nothing withheld is reachable. */
+  elevations?: ElevationStore
+  /** The environment of the target a request acts on, for the elevation scope. */
+  environmentOf?: (c: Context) => string | undefined
 }
 
 /** The header a Gazetta token travels in (design-agent-access.md Q15). */
@@ -179,6 +186,7 @@ export function principalMiddleware(provider: AuthIdentityProvider = noneAuthPro
       try {
         if (!keys) throw new TokenRejectedError('CLI login is off on this admin')
         c.set('principal', principalFromToken(await verifyToken(keys, token), tokens?.customRoles))
+        c.set('tokenAuth', tokens)
       } catch (err) {
         if (!(err instanceof TokenRejectedError)) throw err
         c.header('WWW-Authenticate', 'Bearer realm="gazetta-admin"')

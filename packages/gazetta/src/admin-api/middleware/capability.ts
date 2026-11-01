@@ -41,7 +41,8 @@ import type { Context } from 'hono'
 import { problem } from '../problem.js'
 import { createMiddleware } from 'hono/factory'
 import { capabilityGrants } from '../../auth/index.js'
-import { deniedOnlyForToken } from '../../auth/token-cap.js'
+import { elevationScopeFor } from '../../auth/elevation-store.js'
+import { isWithheldFromTokens } from '../../auth/token-cap.js'
 import { isAnonymous } from './principal.js'
 import type { AuditAction, AuditScope } from '../../audit/index.js'
 import type { AuditEnv } from './audit.js'
@@ -109,14 +110,34 @@ export async function denyWithoutCapability(c: Context<AuditEnv>, capability: st
     c.header('WWW-Authenticate', 'Bearer realm="gazetta-admin"')
     return problem(c, 401, 'UNAUTHENTICATED', `This endpoint requires capability "${capability}"`)
   }
+  // A Gazetta token can't use publish, delete, restore or approve (Q12)
+  // unless an elevation the person approved covers this request's scope
+  // (Q17). Only these requests read the grant's elevation records.
+  if (principal.channel === 'token' && isWithheldFromTokens(capability)) {
+    if (!capabilityGrants(principal.browserCapabilities ?? [], capability)) {
+      await recordDenial('forbidden')
+      return problem(
+        c,
+        403,
+        'TOKEN_EDIT_ONLY',
+        `A Gazetta token can only edit, and role "${principal.role}" doesn't have "${capability}"`,
+        { missing: [capability], role: principal.role },
+      )
+    }
+    const tokenAuth = c.var.tokenAuth
+    const scope = elevationScopeFor(capability, tokenAuth?.environmentOf?.(c))
+    if (principal.grantId && (await tokenAuth?.elevations?.covers(principal.grantId, scope, capability))) {
+      return null
+    }
+    await recordDenial('forbidden')
+    return problem(c, 403, 'ELEVATION_REQUIRED', `"${capability}" needs an elevation for ${scope} targets`, {
+      missing: [capability],
+      scope,
+    })
+  }
   // Authenticated principal — capability check.
   if (!capabilityGrants(principal.capabilities, capability)) {
     await recordDenial('forbidden')
-    if (deniedOnlyForToken(principal, capability)) {
-      return problem(c, 403, 'TOKEN_EDIT_ONLY', `A Gazetta token can only edit; "${capability}" needs the browser`, {
-        missing: [capability],
-      })
-    }
     return problem(c, 403, 'FORBIDDEN', `Role "${principal.role}" does not have capability "${capability}"`, {
       missing: [capability],
       role: principal.role,

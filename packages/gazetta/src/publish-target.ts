@@ -143,6 +143,12 @@ export interface PublishToTargetResult {
  */
 async function publishApprovalGate(_input: PublishToTargetInput): Promise<void> {
   // Reserved: design-publish-undo.md Q4, design-target-removal.md Q13.
+  // Gazetta tokens (design-agent-access.md Q20, Q29): on a target that
+  // needs approval, a token's publish creates the request here whether or
+  // not it's elevated; an elevation gives publish rights, never the
+  // approval. An un-elevated token reaches this gate only on such a
+  // target, so the capability check must let it through to create the
+  // request (today it answers ELEVATION_REQUIRED before getting here).
 }
 
 export async function publishToTarget(input: PublishToTargetInput): Promise<PublishToTargetResult> {
