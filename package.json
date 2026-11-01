@@ -31,7 +31,8 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "test:storybook": "vitest run --config vitest.storybook.config.ts",
-    "docs:site": "tsx sites/gazetta.studio/scripts/docs-pages.ts"
+    "docs:site": "tsx sites/gazetta.studio/scripts/docs-pages.ts",
+    "test:tutorial": "playwright test -c tests/tutorial/playwright.config.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

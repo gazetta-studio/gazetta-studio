@@ -145,7 +145,7 @@ npm run build            # build all packages
 
 ## Documentation
 
-- **[Getting Started](https://github.com/gazetta-studio/gazetta-studio/blob/main/docs/getting-started.md)** — create a site, write templates, add pages and fragments
+- **[Getting Started](https://github.com/gazetta-studio/gazetta-studio/blob/main/docs/getting-started.md)** — a tutorial: create a site, edit it in the admin, publish it to a second target and undo the publish
 - **[CONTEXT.md](https://github.com/gazetta-studio/gazetta-studio/blob/main/CONTEXT.md)** — the project's vocabulary: pages, fragments, targets and the rest
 - **Design docs** — `.claude/rules/design-*.md`, one per feature, with the decisions behind it
 
