@@ -41,7 +41,7 @@
     "@storybook/addon-themes": "^10.6.5",
     "@storybook/addon-vitest": "^10.6.5",
     "@storybook/vue3-vite": "^10.6.5",
-    "@vitest/browser": "^4.1.12",
+    "@vitest/browser": "^5.0.5",
     "@vitest/browser-playwright": "^4.1.12",
     "@vitest/coverage-v8": "4.1.12",
     "knip": "6.43.0",
