@@ -200,20 +200,21 @@ Authenticated users see what they can't do (the `missing` capability + their `ro
 
 ## Per-route capability matrix
 
-Every `/api/*` route gates on a specific capability. The route → capability mapping:
+API routes live under `/api/v1` (under `/admin/api/v1` when the admin is mounted at `/admin`), and `GET /api/version` lists the API versions the admin supports. Every `/api/v1/*` route gates on a specific capability. The route → capability mapping:
 
 | Routes | Capability |
 |---|---|
-| `GET /api/site`, `/api/pages*`, `/api/fragments*`, `/api/templates*`, `/api/fields`, `/api/compare`, `/api/history`, `/api/targets`, `/api/dependents` | `read:pages` (or scoped `read:fragments` / `read:assets`) |
-| `POST/PUT /api/pages*`, `/api/fragments*` | `edit:pages` / `edit:fragments` |
-| `DELETE /api/pages/*`, `/api/fragments/*` | `delete:pages` / `delete:fragments` |
-| `GET /api/assets*` | `read:assets` |
-| `POST/PATCH /api/assets*` | `edit:assets` |
-| `DELETE /api/assets/:name` | `delete:assets` |
-| `POST /api/history/{undo,restore}` | `restore:history` |
-| `POST /api/publish*`, `/api/fetch` | `publish:non-production`; publishing to, or fetching into, a target whose `environment` is `production` also needs `publish:production` |
-| `GET /api/system/cache/*` | `configure:site` |
-| `GET /api/health` | (no gate; intentionally public) |
+| `GET /api/v1/site`, `/api/v1/pages*`, `/api/v1/fragments*`, `/api/v1/templates*`, `/api/v1/fields`, `/api/v1/compare`, `/api/v1/history`, `/api/v1/targets`, `/api/v1/dependents` | `read:pages` (or scoped `read:fragments` / `read:assets`) |
+| `POST/PUT /api/v1/pages*`, `/api/v1/fragments*` | `edit:pages` / `edit:fragments` |
+| `DELETE /api/v1/pages/*`, `/api/v1/fragments/*` | `delete:pages` / `delete:fragments` |
+| `GET /api/v1/assets*` | `read:assets` |
+| `POST/PATCH /api/v1/assets*` | `edit:assets` |
+| `DELETE /api/v1/assets/:name` | `delete:assets` |
+| `POST /api/v1/history/{undo,restore}` | `restore:history` |
+| `POST /api/v1/publish*`, `/api/v1/fetch` | `publish:non-production`; publishing to, or fetching into, a target whose `environment` is `production` also needs `publish:production` |
+| `GET /api/v1/system/cache/*` | `configure:site` |
+| `GET /api/v1/health` | (no gate; intentionally public) |
+| `GET /api/version` | (no gate; the exact Gazetta version is included only for a signed-in caller) |
 
 ## Composing with the bearer-token guard
 

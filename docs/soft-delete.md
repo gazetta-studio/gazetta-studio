@@ -2,7 +2,7 @@
 
 Pages and fragments transition to an **archived** state instead of being hard-deleted. Archived items optionally carry an **alias** (`aliasOf`) that resolves references at render time and emits a `301` redirect from the old URL. **Rename** composes archive + create-with-alias atomically. Archived items can be **restored** (back to live) or **purged** (permanent delete).
 
-Soft delete is **on by default**. Zero config: deleting from the admin UI archives instead of permanently removing; the existing `DELETE /api/pages/:name` route now archives unless called with `?permanent=true`.
+Soft delete is **on by default**. Zero config: deleting from the admin UI archives instead of permanently removing; the existing `DELETE /api/v1/pages/:name` route now archives unless called with `?permanent=true`.
 
 ## At-a-glance
 
@@ -53,7 +53,7 @@ From the admin UI: select the page → **Archive** in `PageMetadataEditor` (or t
 From the API:
 
 ```
-POST /api/pages/:name/archive
+POST /api/v1/pages/:name/archive
 Content-Type: application/json
 
 { "aliasOf": "welcome" }   // optional
@@ -76,7 +76,7 @@ Renaming `landing` → `welcome` is a composite operation:
 3. Flatten cascade — walk archives where `aliasOf === 'landing'` and rewrite to `aliasOf: welcome` (the **flatten invariant**: aliases never form chains)
 
 ```
-POST /api/pages/landing/rename
+POST /api/v1/pages/landing/rename
 Content-Type: application/json
 
 { "to": "welcome", "keepAlias": true }   // keepAlias defaults to true
@@ -93,14 +93,14 @@ The flatten cascade is what keeps long chains from accumulating. Rename A → B,
 Strips the archive fields and saves. Item reappears under its old name with content unchanged from archive time.
 
 ```
-POST /api/pages/:name/unarchive
+POST /api/v1/pages/:name/unarchive
 ```
 
 Restore **always returns to draft** — even if the item was approved when archived. Auto-restoring to `approved` would let stale content ship without re-validation.
 
 ### Purge
 
-Permanently delete an archived item. Purging an item that is not archived returns `409 NOT_ARCHIVED` and writes nothing, even with `?force=true`; archive it first (the explicit `DELETE /api/{kind}/:name?permanent=true` route remains the way to hard-delete a live item). Blocked when:
+Permanently delete an archived item. Purging an item that is not archived returns `409 NOT_ARCHIVED` and writes nothing, even with `?force=true`; archive it first (the explicit `DELETE /api/v1/{kind}/:name?permanent=true` route remains the way to hard-delete a live item). Blocked when:
 
 - Other archives have `aliasOf: <target>` (alias-pointers)
 - Live pages/fragments reference `<target>` directly
@@ -129,8 +129,8 @@ The admin's purge-blocked modal walks each blocker. Per row:
 After resolving, retry purge.
 
 ```
-DELETE /api/pages/:name/purge
-DELETE /api/pages/:name/purge?force=true   # admin only; bypasses block
+DELETE /api/v1/pages/:name/purge
+DELETE /api/v1/pages/:name/purge?force=true   # admin only; bypasses block
 ```
 
 Force-purge audit metadata records `bypassedAliases` and `bypassedRefs` so forensics finds what broke.
@@ -160,7 +160,7 @@ Creating new content under a name that has an archive (e.g., the user creates `p
 Programmatic clients pass `?onConflict=restore | replace | moveAside` on the create request:
 
 ```
-POST /api/pages?onConflict=restore
+POST /api/v1/pages?onConflict=restore
 { "name": "landing", "template": "page-default" }
 ```
 
@@ -190,7 +190,7 @@ Capability gates: `edit:pages` for page redirects, `edit:fragments` for fragment
 ### From the API
 
 ```
-POST /api/page-redirects
+POST /api/v1/page-redirects
 Content-Type: application/json
 
 { "from": "old-products", "to": "products/featured" }
@@ -201,7 +201,7 @@ Returns `201 { ok: true, from, to, kind: "page", route, targetRoute }` on succes
 Same shape for fragments:
 
 ```
-POST /api/fragment-redirects
+POST /api/v1/fragment-redirects
 Content-Type: application/json
 
 { "from": "old-header", "to": "header" }
@@ -330,12 +330,12 @@ Forensic queries reconstruct full history: filter by `scope.name = 'landing'` OR
 
 ### From hard-delete to soft-delete
 
-Existing `DELETE /api/pages/:name` calls now archive instead of hard-deleting. **Sites running automated cleanup** that calls `DELETE` will see soft-delete behavior; the items accumulate as archives instead of disappearing.
+Existing `DELETE /api/v1/pages/:name` calls now archive instead of hard-deleting. **Sites running automated cleanup** that calls `DELETE` will see soft-delete behavior; the items accumulate as archives instead of disappearing.
 
 Two paths to restore the old behavior:
 
 1. **Switch to `gazetta archive purge --filter=...`** for the explicit hard-delete intent (recommended)
-2. **Append `?permanent=true`** to the `DELETE` call: `DELETE /api/pages/:name?permanent=true`
+2. **Append `?permanent=true`** to the `DELETE` call: `DELETE /api/v1/pages/:name?permanent=true`
 
 The `?permanent=true` route still goes through the purge gate (refuses on refs); add `&force=true` to bypass for admin-managed cleanups.
 

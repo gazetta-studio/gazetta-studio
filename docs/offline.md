@@ -321,7 +321,7 @@ moments triggers the conflict.
 
 **Banner says "Offline" but I can browse other sites.**
 
-The admin probes `GET /api/health`. If that endpoint is reachable
+The admin probes `GET /api/v1/health`. If that endpoint is reachable
 but returning errors (5xx), the admin treats it as offline — the
 server is up but unhealthy. Check the admin process logs for the
 underlying cause.

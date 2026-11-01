@@ -13,10 +13,10 @@ on every request:
 
 | Surface | Cache key | Invalidated on |
 |---|---|---|
-| `GET /api/pages` summary | `pages:summary` | page save / delete / fragment edit / history restore |
-| `GET /api/fragments` summary | `fragments:summary` | fragment save / delete / history restore |
+| `GET /api/v1/pages` summary | `pages:summary` | page save / delete / fragment edit / history restore |
+| `GET /api/v1/fragments` summary | `fragments:summary` | fragment save / delete / history restore |
 
-Detail endpoints (`GET /api/pages/:name`, `GET /api/fragments/:name`)
+Detail endpoints (`GET /api/v1/pages/:name`, `GET /api/v1/fragments/:name`)
 read from disk per request — caching them adds invalidation surface
 without much speedup.
 
@@ -120,7 +120,7 @@ keys.
 ### On-demand snapshot
 
 ```
-GET /api/system/cache/stats
+GET /api/v1/system/cache/stats
 ```
 
 Returns the current cache stats for the resolved source. Honors
@@ -177,7 +177,7 @@ behavior in isolation.
 
 Pipe stdout to your log aggregator (Datadog, Loki, journalctl) and
 filter on `module:cache.stats`. Cadence isn't tunable; operators with
-stricter monitoring polls `/api/system/cache/stats` directly.
+stricter monitoring polls `/api/v1/system/cache/stats` directly.
 
 To suppress the periodic log entirely (e.g., in development), pass
 `disableCacheStatsLogger: true` to `createAdminApp()`. The stats
@@ -189,7 +189,7 @@ The admin server exposes a Server-Sent Events stream of cache
 invalidations:
 
 ```
-GET /api/system/cache/invalidations
+GET /api/v1/system/cache/invalidations
 ```
 
 The stream sends one `event: ready` frame on connection, then one
