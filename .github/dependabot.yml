@@ -36,3 +36,14 @@ updates:
       github-actions:
         patterns: ["*"]
     open-pull-requests-limit: 3
+
+  # gz (Go, gz/go.mod).
+  - package-ecosystem: gomod
+    directory: /gz
+    schedule:
+      interval: weekly
+    groups:
+      gomod:
+        patterns: ["*"]
+        update-types: ["patch", "minor"]
+    open-pull-requests-limit: 3

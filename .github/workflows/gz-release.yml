@@ -1,0 +1,81 @@
+name: Release gz
+
+# Releases gz for a gazetta release tag (design-agent-access.md Q39):
+# binaries and checksums on the tag's GitHub Release, the Homebrew cask, and
+# the @gazetta/cli npm packages. Run by hand once the tag exists; gz shares
+# the gazetta package's version.
+#
+# Secrets: NPM_TOKEN (publishes to the @gazetta scope) and
+# HOMEBREW_TAP_TOKEN (pushes to gazetta-studio/homebrew-tap).
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, for example v0.9.0
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gz-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # create the GitHub Release and upload binaries
+      id-token: write # npm provenance
+    env:
+      TAG: ${{ inputs.tag }}
+    steps:
+      - name: Check the tag
+        run: |
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "Not a release tag: $TAG"; exit 1 ;;
+          esac
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: gz/go.mod
+          # No cache in a release build (zizmor cache-poisoning).
+          cache: false
+      - name: The tag matches gz's version
+        run: |
+          [ "v$(cat gz/internal/version/VERSION)" = "$TAG" ] || {
+            echo "gz/internal/version/VERSION is $(cat gz/internal/version/VERSION), the tag is $TAG"
+            exit 1
+          }
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+          workdir: gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Build the npm packages
+        run: node gz/npm/build-packages.mjs gz/dist npm-out "${TAG#v}"
+      - name: Publish the npm packages
+        # Platform packages first, so @gazetta/cli never points at a missing one.
+        run: |
+          for dir in npm-out/cli-*; do
+            npm publish "$dir" --access public --provenance
+          done
+          npm publish npm-out/cli --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
