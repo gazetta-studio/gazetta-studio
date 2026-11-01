@@ -182,7 +182,7 @@ export default defineSite({
 
 **Dev reload restarts `gazetta dev`**: there is no plugin runtime, so nothing has an `init`/`dispose` lifecycle. Saving a config file restarts the `gazetta dev` server itself, so everything built from the config (storage and other providers, the `admin.hooks`/`admin.validators`/`admin.routes` contributions, auth, the validation scanner) is rebuilt and nothing stays stale. The admin reconnects through the existing reload channel; in-memory caches and the scanner's per-page results are rebuilt. This replaces the live swap of #1444, and matches `design-cache.md`'s "dev hot-reload of config triggers full process restart". As today (#1444), a config that fails to load keeps the last good one.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1634)
 
 | Rejected | Why |
 |---|---|
