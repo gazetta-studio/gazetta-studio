@@ -22,6 +22,7 @@
  * invalidation).
  */
 
+import { currentOrigin, originFields } from './request-origin.js'
 import type { ContentRoot } from './content-root.js'
 import type { HistoryProvider, Revision, RevisionManifest, RevisionOperation } from './history.js'
 
@@ -140,9 +141,12 @@ async function recordFromSnapshot(
   for (const [path, hash] of Object.entries(target.snapshot)) {
     items.set(path, await history.readBlob(hash))
   }
+  // Where the restore came from, as recordWrite does (Q47).
+  const origin = currentOrigin()
   return history.recordRevision({
     operation: meta.operation,
-    author: meta.author,
+    author: meta.author ?? origin?.author,
+    origin: originFields(origin),
     message: meta.message,
     restoredFrom: meta.restoredFrom,
     items,
