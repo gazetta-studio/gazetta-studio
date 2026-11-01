@@ -474,13 +474,20 @@ Research: [presets on #49](https://github.com/gazetta-studio/gazetta-studio/issu
 
 ### Q32 — The never-run list covers everything that changes a target
 
-The skill's "never run, ask the person" list: `gazetta publish`, `deploy`, `undo`, `rollback`, `archive purge` and `state remove`; `gz` publish, delete, elevate and approving requests; and the admin routes behind them (`/api/publish`, `/api/publish/stream`, `/api/fetch`, `/api/history/undo` and `/api/history/restore`, page and fragment purge). A test fails when a new command that changes a target isn't on the list, or when the list names one that doesn't exist.
+The skill's "never run, ask the person" list holds every command and admin route that publishes or deploys, deletes content, or rewrites a target's history, plus approving requests. Today that is `gazetta publish`, `deploy`, `undo`, `rollback`, `archive purge` and `state remove`, and the admin routes `/api/publish`, `/api/publish/stream`, `/api/fetch`, `/api/history/undo` and `/api/history/restore`, page and fragment purge, and deleting a page, fragment or asset. Saves, archive, restore from archive, rename and uploads stay off the list: they are the edits an agent is there to make, and undo covers them. A test fails when a command or route that matches this rule isn't on the list, or when the list names one that doesn't exist. `gz` commands (publish, delete, elevate, approving requests) join the list, and the test, when the Go CLI ships, checked against its own command list.
 
 Decided: maintainer, 2026-11-01 (#1649)
 
 | Rejected | Why |
 |---|---|
 | Publishing and deleting only | An agent could undo a publish or wipe a target's history without asking |
+
+What counts, and when `gz` joins: Decided: maintainer, 2026-11-01 (#1649)
+
+| Rejected | Why |
+|---|---|
+| Only what reaches visitors | Deleting pages or assets would be left to the agent |
+| List the planned `gz` commands now and skip them in the test | The list would name commands that don't exist yet |
 
 ### Q33 — A command refreshes the skill in an existing project
 
@@ -491,7 +498,7 @@ Decided: maintainer, 2026-11-01 (#1649)
 | Rejected | Why |
 |---|---|
 | A short `SKILL.md` that points the agent to the full skill in `node_modules/gazetta` | Agents that don't follow the pointer get only the stub |
-| Manual: delete `SKILL.md` and rerun `gazetta init .` | Easy to miss after an upgrade |
+| Manual: delete `SKILL.md` and rerun `gazetta init .` | Every project relies on people reading the release notes |
 
 ## What this changes in the plan
 
