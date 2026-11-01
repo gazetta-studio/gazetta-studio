@@ -2,7 +2,7 @@
 
 How AI agents (coding agents, scripts, chat apps) reach Gazetta's content: in what order the ways in ship, how they write, what stops them publishing, and how they learn about changes. This sets the direction for the design pass in [#49](https://github.com/gazetta-studio/gazetta-studio/issues/49), which now covers agent access as a whole, MCP included; each piece below gets its details there.
 
-**Status**: direction decided 2026-10-31, Q1–Q11; agent identity decided 2026-11-01, Q12–Q13. The #49 design pass designs the details.
+**Status**: direction decided 2026-10-31, Q1–Q11; agent identity decided 2026-11-01, Q12–Q17. The #49 design pass designs the details.
 
 **Companion docs:**
 - [`design-ai-direction.md`](design-ai-direction.md): agents lead Gazetta's AI work; they can't publish by default (they act as the person who signed them in, Q12); the live view of agents' changes (Q8)
@@ -248,11 +248,58 @@ Decided: maintainer, 2026-11-01 (#1630)
 | Both: exempting by default, sending both credentials as an option | Same reason |
 | No Gazetta tokens at all; the CLI sends the platform's credential | The maintainer chose a Gazetta token issued after the login layer identifies the user |
 
-Open, for research on [#1624](https://github.com/gazetta-studio/gazetta-studio/issues/1624) before the #49 pass designs them: how the CLI's requests pass the login layer on each platform (including ALB, which has no headless login); the token's shape and how fast revoking it takes effect; and how long an elevation lasts.
+### Q14 — "Agents can't publish" is guaranteed per platform
+
+Research on #1624 (2026-11-01) found that where the CLI's platform credential is the same as the browser's, Gazetta can't tell an agent's request from the person's browser, so an agent could skip Gazetta's edit-only token and publish with the person's full rights: confirmed for Tailscale Serve (the same identity headers on every tailnet request), probable for Cloudflare's `cloudflared access login` (unverified). Each platform is steered to a credential Gazetta can tell apart (Q15), and the docs state per platform where "agents can't publish" is enforced; on Tailscale and with `cloudflared access login`, only the agent-client presets stop it, as on a developer's machine (Q3).
+
+Decided: maintainer, 2026-11-01 (#1630)
+
+| Rejected | Why |
+|---|---|
+| A passkey (WebAuthn) touch for publishing and for approving an elevation | Gazetta would store people's passkeys, a built-in auth piece `design-auth-rbac.md` rules out, with setup for every user |
+| Accept the gap and say so | A weaker guarantee than Q3 promises on hosted admins |
+
+### Q15 — The CLI uses a per-platform credential; Gazetta's token travels in its own header
+
+- **Cloudflare Access:** a service token, with Gazetta's token naming the person.
+- **Azure Easy Auth:** an Entra device code with a `gz` app registration.
+- **AWS ALB:** its JWT rule checks Gazetta's own token; the person pastes a token from the admin into `gz`, since a pin can't work there.
+- **Tailscale:** the device's own identity.
+
+Gazetta's token always travels in its own `Gazetta-Token` header, never in `Authorization` (which Easy Auth, Cloudflare's single-header service-token mode and the `GAZETTA_TOKEN` guard read).
+
+Decided: maintainer, 2026-11-01 (#1630)
+
+| Rejected | Why |
+|---|---|
+| Only platforms where a pin works (Cloudflare, Azure, Tailscale); no CLI on ALB until asked | The maintainer chose all four |
+
+### Q16 — Short-lived signed tokens plus a grant record
+
+A signed token lasts about 15 minutes and is renewed from one stored grant per `gz auth login`, in a private `.gazetta/auth/` folder. API calls read no storage; deleting the grant ends access within 15 minutes; the signing key is an environment secret shared by all instances.
+
+Decided: maintainer, 2026-11-01 (#1630)
+
+| Rejected | Why |
+|---|---|
+| A stored record per token | Every API call reads storage (about 30–50 ms on cloud, estimated) |
+
+### Q17 — An elevation lasts a fixed 15 minutes; production needs its own
+
+A fixed 15-minute window (the operator can lower or raise the cap) that doesn't extend when used, so an agent loop can't keep it alive. It covers non-production targets; production needs its own elevation. It's checked on every publish or delete, so ending it early works at once on every instance.
+
+Decided: maintainer, 2026-11-01 (#1630)
+
+| Rejected | Why |
+|---|---|
+| 2 hours, extended by each use (GitHub sudo mode) | An agent publishing every few minutes keeps it open indefinitely |
+| One action | That's the publish request that already exists, with no elevation at all |
+
+Research: [r1624 follow-up on #1624](https://github.com/gazetta-studio/gazetta-studio/issues/1624) (platform sources, token comparisons, where state is stored).
 
 ## What this changes in the plan
 
-Follows from Q1–Q13.
+Follows from Q1–Q17.
 - ROADMAP's "MCP server design pass" becomes "Agent access design pass" (#49), and "MCP server build" becomes "Agent access build".
 - The skill (#1622) is the first step, in Now; the Deferred row for agent instructions goes.
-- The #49 pass designs: the agent token and elevation flow (Q12–Q13, after the research on #1624), the agent-client permission presets, audit source and run id, per-run undo, the schema check at save, page search, the thin CLI for content creators (name, discovery of a local admin, commands, output for people and agents, how its users' agents get the skill, release and distribution), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract, its versioning and v1 cut-off, the bulk save, the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
+- The #49 pass designs: the agent token and elevation flow (Q12–Q17), the agent-client permission presets, audit source and run id, per-run undo, the schema check at save, page search, the thin CLI for content creators (name, discovery of a local admin, commands, output for people and agents, how its users' agents get the skill, release and distribution), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract, its versioning and v1 cut-off, the bulk save, the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
