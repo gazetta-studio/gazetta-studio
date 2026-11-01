@@ -215,6 +215,37 @@ API routes live under `/api/v1` (under `/admin/api/v1` when the admin is mounted
 | `GET /api/v1/system/cache/*` | `configure:site` |
 | `GET /api/v1/health` | (no gate; intentionally public) |
 | `GET /api/version` | (no gate; the exact Gazetta version is included only for a signed-in caller) |
+| `/api/v1/auth/*` | (no capability; approving or denying a sign-in needs a signed-in browser, see [Signing in from the command line](#signing-in-from-the-command-line)) |
+
+## Signing in from the command line
+
+A command-line client, such as `gz` and the agents that run it, signs in as you with a Gazetta token. You approve each sign-in in your browser.
+
+1. The client starts a sign-in and shows you a code, like `ABCD-EFGH`, and a link to the admin.
+2. You open the link in your browser. The page shows the code, the machine name, the IP address and when the sign-in started. Approve it only if you started it yourself: anyone who gets you to approve their code can edit content as you.
+3. The client receives a token and keeps a grant to renew it. A token lasts 15 minutes and travels in the `Gazetta-Token` header. A code works once and expires after 10 minutes.
+
+A token has your role's capabilities except publishing, deleting (purge included), undo, rollback and history restore, and approving publish requests. Those answer `403` with the code `TOKEN_EDIT_ONLY`; do them in the admin. A token can still create a publish request. A token that is wrong or expired is refused with `401` (`TOKEN_INVALID`); the request is never treated as coming from your browser instead.
+
+To end a sign-in, revoke its grant: `DELETE /api/v1/auth/grants/:id`. The client can't get new tokens after that, and the token it holds stops working within 15 minutes.
+
+### Turning it on
+
+Command-line sign-in is on when the admin has a signing key. Generate one and give the same value to every instance of the admin as `GAZETTA_SIGNING_KEY`:
+
+```bash
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048
+```
+
+The value is the whole PEM. Where a host stores environment variables on one line, write the line breaks as `\n`. Without the key, the sign-in routes answer `503` (`CLI_LOGIN_UNAVAILABLE`) and the rest of the admin works as usual. `gazetta dev` generates a key of its own each time it starts.
+
+To change the key, move the old value to `GAZETTA_SIGNING_KEY_PREVIOUS` and set the new one. Tokens signed with the old key keep working until they expire; remove `GAZETTA_SIGNING_KEY_PREVIOUS` after 20 minutes. Grants are kept, so clients don't sign in again.
+
+Grants live in the editing target's storage, in `.gazetta/auth/`. They hold who signed in and from which machine, never a usable secret. `gazetta state remove` deletes them. If the editing target's storage is public, sign-in stays off.
+
+### Where "can only edit" is enforced
+
+The approve page refuses requests that carry a Gazetta token, so a token can't approve a sign-in or extend itself. That holds when the client reaches the admin with a credential of its own, such as a Cloudflare Access service token. On Tailscale the client's requests arrive with the same identity as your browser's, and probably also with `cloudflared access login` (not yet checked), so Gazetta can't tell them apart: there, only the agent's own judgement and your agent's settings stop it from publishing, as on your own machine.
 
 ## Composing with the bearer-token guard
 
@@ -223,7 +254,7 @@ The legacy `GAZETTA_TOKEN` environment variable adds an `Authorization: Bearer <
 - The token carries no identity. With any `trust` mode other than `none`, a request with only the bearer token has no principal and is refused (`401`), so the token can't give CI or scripts access to an admin behind upstream auth.
 - The admin's own browser requests don't send the token, so setting `GAZETTA_TOKEN` also locks out the admin UI. Use it only for a server reached through the API alone, with `trust: 'none'`.
 
-Tokens for the command line and agents on hosted admins are being designed ([#1624](https://github.com/gazetta-studio/gazetta-studio/issues/1624)).
+For the command line and agents on hosted admins, use [Gazetta tokens](#signing-in-from-the-command-line) instead.
 
 ```bash
 GAZETTA_TOKEN=$(openssl rand -base64 32) gazetta serve
