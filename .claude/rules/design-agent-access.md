@@ -405,9 +405,9 @@ Decided: maintainer, 2026-11-01 (#1630)
 |---|---|
 | A file only | Any process running as the user can read it |
 
-### Q25 — The signing key is an environment secret, required on hosted admins
+### Q25 — The signing key is an environment secret, needed for CLI login
 
-An environment variable (for example `GAZETTA_SIGNING_KEY`), with two keys allowed for rotation; it is the RS256 private key whose public keys the admin publishes for ALB (Q15). A hosted admin with CLI login enabled refuses to start without it; local `gazetta dev` generates one, since it runs as one instance.
+An environment variable (for example `GAZETTA_SIGNING_KEY`), with two keys allowed for rotation; it is the RS256 private key whose public keys the admin publishes for ALB (Q15). A hosted admin with CLI login enabled refuses to start without it (replaced below, #1689); local `gazetta dev` generates one, since it runs as one instance.
 
 Decided: maintainer, 2026-11-01 (#1630)
 
