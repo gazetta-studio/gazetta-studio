@@ -143,3 +143,19 @@ func TestOnePlatformAtATime(t *testing.T) {
 		t.Fatalf("got %d", code)
 	}
 }
+
+func TestStatusShowsALapsedEntraSignInAsExpired(t *testing.T) {
+	h, a := withAdmin(t)
+	f := fakeadmin.NewEntra()
+	t.Cleanup(f.Close)
+	h.env.EntraAuthority = f.URL
+	h.run("auth", "login", a.URL, "--name", "az",
+		"--entra-tenant", "contoso", "--entra-client-id", "gz-app", "--entra-scope", "api://admin/user_impersonation")
+	f.RefuseRefresh = true
+	if code := h.run("auth", "status", "--json"); code != output.OK {
+		t.Fatalf("status: %d %q", code, h.stdout.String())
+	}
+	if got := h.json(t)["profiles"].([]any)[0].(map[string]any)["login"]; got != "expired" {
+		t.Fatalf("a lapsed Microsoft sign-in shows %v", got)
+	}
+}
