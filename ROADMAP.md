@@ -151,7 +151,7 @@ Other foundations (TS config / AuthIdentity / Component IDs / AdminCache / Audit
 
 ### Template check
 
-[#1660](https://github.com/gazetta-studio/gazetta-studio/issues/1660): a PR that changes a template fails when existing content no longer fits it ([`design-template-check.md`](.claude/rules/design-template-check.md)). Its planner issue opens once the design merges; [#1664](https://github.com/gazetta-studio/gazetta-studio/issues/1664) and [#1665](https://github.com/gazetta-studio/gazetta-studio/issues/1665) come first.
+[#1660](https://github.com/gazetta-studio/gazetta-studio/issues/1660): a PR that changes a template fails when existing content no longer fits it ([`design-template-check.md`](.claude/rules/design-template-check.md)). Its planner issue opens once the design merges; [#1665](https://github.com/gazetta-studio/gazetta-studio/issues/1665) comes first.
 
 ### Static targets
 

@@ -151,7 +151,7 @@ The shipped publish audit differs from this in several ways; see "Current code a
 | `referenced-template-exists` | ✓ error | ✓ error | ✓ error | ✓ error |
 | `circular-fragment` | ✓ error | ✓ error | ✓ error | ✓ error |
 | `dynamic-route-conflict` | ✓ error | ✓ error | ✓ error | ✓ error |
-| `schema-conformance` | ✓ error (components the save touches; `design-agent-access.md` Q49) | ✓ warn | ✓ error | ✓ error (`design-template-check.md` T7) |
+| `schema-conformance` | ✓ error (components the save touches; `design-agent-access.md` Q49) | ✓ warn | ✓ error | ✓ error (`design-template-check.md` T7; `gazetta validate` runs it through the background scanner) |
 | `altRequired` | ✓ error (when introduced) | ✓ error | ✓ error | ✓ error |
 | `accessibility` (axe-core) | — | ✓ warn | ✓ warn (operator promotes) | ✓ warn |
 | `html-validity` (html-validate) | — | ✓ warn | ✓ warn | ✓ warn |

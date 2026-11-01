@@ -33,8 +33,8 @@ A check a pull request runs when it changes a template: CI parses the content th
 ## Discovery
 
 Read from code on 2026-11-01:
-- `schema-conformance` at the `cli` stage parses every page, fragment and nested component against its template's Zod schema and reports `warn`; `gazetta validate` defaults to `--severity=error`, so broken content prints "All good." and exits 0.
-- It walks `site.pages` and `site.fragments` only, so language versions aren't checked ([#1664](https://github.com/gazetta-studio/gazetta-studio/issues/1664)), and a template that exists but fails to load is skipped and reported nowhere ([#1665](https://github.com/gazetta-studio/gazetta-studio/issues/1665)).
+- `gazetta validate` runs `schema-conformance` through the background scanner, which parses every page, fragment, language version and nested component against its template's Zod schema and reports `warn` (`runValidate` in `cli/index.ts`; the validator's own `cli` branch is never run). `gazetta validate` defaults to `--severity=error`, so broken content prints "All good." and exits 0.
+- A template that exists but fails to load is skipped and reported nowhere ([#1665](https://github.com/gazetta-studio/gazetta-studio/issues/1665)).
 - At `pre-publish` it returns nothing, so no gate blocks schema problems today ([#1302](https://github.com/gazetta-studio/gazetta-studio/issues/1302)).
 - `template-impact.ts` already lists the items using a template with their issues (the DevPlayground Impact tab); the report can reuse it.
 - `gazetta validate` has no machine-readable output.
@@ -108,7 +108,7 @@ Decided: maintainer, 2026-11-01 (#1666)
 
 ### T7 — `gazetta validate` fails on schema problems
 
-`schema-conformance` reports errors at the `cli` stage, matching `pre-publish`, so `gazetta validate` exits non-zero when content doesn't fit its template. The PR check is then `gazetta validate --base origin/main`, which adds T2 on top. No production users, so the change costs a changelog line.
+`gazetta validate` exits non-zero when content doesn't fit its template, matching the pre-publish severity. It runs `schema-conformance` through the background scanner, where the problem stays a warning in Site health, so cut 1 makes `gazetta validate` count it as an error. The PR check is then `gazetta validate --base origin/main`, which adds T2 on top. No production users, so the change costs a changelog line.
 
 Decided: maintainer, 2026-11-01 (#1666)
 
@@ -191,7 +191,7 @@ Nothing shows when nothing breaks: the summary says the check passed and how man
 ## Foundational checks
 
 - **Scale:** a Zod parse per component, twice with `--base` (T2): seconds at 5,000 pages from the repo. `--targets` reads every manifest on each named target: about 5,000 reads, 30–60 s on cloud storage, acceptable in CI, which has no admin SLA. `--render` renders only content using a changed template (T8).
-- **Locale:** every language version is checked and reported per language (#1664 first).
+- **Locale:** every language version is checked and reported per language, as the background scanner does today.
 - **Themes:** none; schemas don't vary by theme.
 - **Auth + RBAC:** none; CI runs as the repository, with read credentials for named targets (T10).
 - **Audit, Review, Hooks, Cache, Offline, Collaboration:** none.
@@ -202,11 +202,11 @@ Nothing shows when nothing breaks: the summary says the check passed and how man
 
 ## Cut sequence
 
-[#1664](https://github.com/gazetta-studio/gazetta-studio/issues/1664) (language versions) and [#1665](https://github.com/gazetta-studio/gazetta-studio/issues/1665) (templates that fail to load) land before cut 1.
+[#1665](https://github.com/gazetta-studio/gazetta-studio/issues/1665) (templates that fail to load) lands before cut 1.
 
 | # | What | Depends on | Test tier | Risk |
 |---|---|---|---|---|
-| 1 | `schema-conformance` reports errors at `cli`, so `gazetta validate` fails on schema problems; changelog line (T7) | #1664, #1665 | integration | Low |
+| 1 | `gazetta validate` counts `schema-conformance` problems as errors, so it fails on them; changelog line (T7) | #1665 | integration | Low |
 | 2 | `--json` and the GitHub output mode: job summary and annotations, grouped by template (T4, T6) | 1 | integration | Medium |
 | 3 | `--base <ref>`: base templates loaded from a git worktree; fail only on new problems, list old ones (T2) | 2 | integration | Medium-high |
 | 4 | `--targets`: read named targets' manifests; fail on public or unreadable ones; the fix line for target content (T5, T9–T11) | 3 | integration | Medium |
