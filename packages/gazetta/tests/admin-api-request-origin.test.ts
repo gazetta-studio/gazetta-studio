@@ -152,7 +152,8 @@ describe('the origin of a write', () => {
       elevated: true,
     })
     expect(auditEvents(local).find(ev => ev.action === 'publish')).toMatchObject({ elevated: true, runId: 'pub' })
-  })
+    // A real publish renders; on a busy CI runner it takes more than the default 5 s.
+  }, 30_000)
 
   it('an archive (with an elevation: it needs delete:pages) and an asset upload through a token carry the run', async () => {
     const { app, local } = setup()
