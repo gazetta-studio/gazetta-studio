@@ -55,12 +55,12 @@ test.describe('Production admin offline', () => {
   })
 })
 
-test('the connection check never hits the bare /api/health path (#1388)', async ({ page, context }) => {
+test('the connection check never hits the bare /api/v1/health path (#1388)', async ({ page, context }) => {
   test.setTimeout(120_000)
   const healthRequests: string[] = []
   page.on('request', req => {
     const { pathname } = new URL(req.url())
-    if (pathname.endsWith('/api/health')) healthRequests.push(pathname)
+    if (pathname.endsWith('/api/v1/health')) healthRequests.push(pathname)
   })
 
   await page.goto('/admin')
@@ -79,9 +79,9 @@ test('the connection check never hits the bare /api/health path (#1388)', async 
   await expect(banner).toBeHidden({ timeout: 15_000 })
 
   // The admin app is mounted at /admin, so every health request must
-  // use the derived /admin/api/health path. A bare /api/health means
+  // use the derived /admin/api/v1/health path. A bare /api/v1/health means
   // the store still targets the site root. The positive count keeps
   // the negative assertion honest (checks really ran).
   expect(healthRequests.length).toBeGreaterThan(0)
-  expect(healthRequests.every(p => p === '/admin/api/health')).toBe(true)
+  expect(healthRequests.every(p => p === '/admin/api/v1/health')).toBe(true)
 })

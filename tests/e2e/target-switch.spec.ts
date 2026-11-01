@@ -12,7 +12,7 @@ test.describe('Target switch preserves preview', () => {
    * on scroll-preserved content swap.
    */
   async function seedStaging(baseURL: string) {
-    const res = await fetch(`${baseURL}/admin/api/publish`, {
+    const res = await fetch(`${baseURL}/admin/api/v1/publish`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -172,7 +172,7 @@ test.describe('Target in URL', () => {
 
   test('switching to non-default target adds ?target= to URL', async ({ page, testSite }) => {
     // Seed staging so the target has content
-    const res = await fetch(`${testSite.baseURL}/admin/api/publish`, {
+    const res = await fetch(`${testSite.baseURL}/admin/api/v1/publish`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: ['pages/home'], targets: ['staging'] }),
@@ -201,7 +201,7 @@ test.describe('Target in URL', () => {
 
   test('?target= in URL switches active target on page load', async ({ page, testSite }) => {
     // Seed staging
-    const res = await fetch(`${testSite.baseURL}/admin/api/publish`, {
+    const res = await fetch(`${testSite.baseURL}/admin/api/v1/publish`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: ['pages/home'], targets: ['staging'] }),

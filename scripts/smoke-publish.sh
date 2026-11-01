@@ -136,21 +136,21 @@ if ! echo "$body" | grep -qi "<html"; then
 fi
 echo "✓ GET /admin"
 
-body="$(curl -fsS "http://localhost:$PORT/admin/api/site" || true)"
+body="$(curl -fsS "http://localhost:$PORT/admin/api/v1/site" || true)"
 if ! echo "$body" | grep -q "\"name\""; then
-  echo "✗ GET /admin/api/site did not return site manifest"
+  echo "✗ GET /admin/api/v1/site did not return site manifest"
   echo "body: $body"
   exit 1
 fi
-echo "✓ GET /admin/api/site"
+echo "✓ GET /admin/api/v1/site"
 
-body="$(curl -fsS "http://localhost:$PORT/admin/api/pages" || true)"
+body="$(curl -fsS "http://localhost:$PORT/admin/api/v1/pages" || true)"
 if ! echo "$body" | grep -q "home"; then
-  echo "✗ GET /admin/api/pages did not list the home page"
+  echo "✗ GET /admin/api/v1/pages did not list the home page"
   echo "body: $body"
   exit 1
 fi
-echo "✓ GET /admin/api/pages"
+echo "✓ GET /admin/api/v1/pages"
 
 echo ""
 echo "✓ smoke passed — tarball produces a working package"

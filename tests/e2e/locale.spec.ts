@@ -2,7 +2,7 @@ import { expect } from '@playwright/test'
 import { test } from './fixtures.js'
 import { openEditor } from './helpers.js'
 
-// The /api/dependents endpoint returns 500 on fresh dev servers (sidecar
+// The /api/v1/dependents endpoint returns 500 on fresh dev servers (sidecar
 // backfill race). This is pre-existing and unrelated to locale — allow
 // console errors across all locale tests.
 test.beforeEach(async ({}, testInfo) => {

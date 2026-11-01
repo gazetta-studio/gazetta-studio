@@ -31,7 +31,7 @@ test.describe('Publish panel', () => {
     await expect(panel.destination('production')).toBeVisible()
   })
 
-  test('PublishPanelPom.open() awaits /api/targets hydration before resolving (regression: #268)', async ({
+  test('PublishPanelPom.open() awaits /api/v1/targets hydration before resolving (regression: #268)', async ({
     page,
     testSite: _,
   }) => {
@@ -40,13 +40,13 @@ test.describe('Publish panel', () => {
     // If open() returns before targets are hydrated, editableTargets is []
     // and the source chip renders '(no editable target)' instead of 'local'.
     //
-    // This test simulates the slow CI shard by delaying /api/targets so
+    // This test simulates the slow CI shard by delaying /api/v1/targets so
     // the race is deterministic. The assertion uses a one-shot
     // textContent() read (no auto-retry) so the race is captured at the
     // moment open() resolves — without the fix, the chip is still in its
     // pre-hydration state; with the fix, open() has awaited the response
     // and the chip already reads 'local'.
-    await page.route('**/admin/api/targets**', async route => {
+    await page.route('**/admin/api/v1/targets**', async route => {
       await new Promise(r => setTimeout(r, 6000))
       await route.continue()
     })
@@ -141,7 +141,7 @@ test.describe('Publish panel', () => {
     test.info().annotations.push({ type: 'allow-console-errors' })
     // Intercept the compare call and force a 500. The item-list composable
     // reports the error via its own state.
-    await page.route('**/admin/api/compare*', route =>
+    await page.route('**/admin/api/v1/compare*', route =>
       route.fulfill({
         status: 500,
         contentType: 'application/problem+json',
@@ -288,7 +288,7 @@ test.describe('Publish panel', () => {
 test.describe('Fragment blast radius', () => {
   test('tree row shows compact blast-radius badge with page count', async ({ page }) => {
     // On a fresh dev server, multiple tree badges mount in parallel and
-    // all hit /api/dependents before any sidecar has been written. The
+    // all hit /api/v1/dependents before any sidecar has been written. The
     // admin-api's sidecar writer memoizes the backfill, so concurrent
     // callers share one in-flight pass — without that, they'd race to
     // an empty index and the badge would render count=0. This test
