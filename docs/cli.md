@@ -63,7 +63,7 @@ The section and the skill carry the Gazetta version they came with; the section 
 
 ### `gazetta dev [site]`
 
-Runs the site at `http://localhost:3000/` and the admin at `/admin`, rendering pages from the editing target on each request. It watches templates, content and `site.config.ts`, and reloads the preview when they change; a `site.config.ts` change takes effect without a restart. At start it prints the pages, fragments and a Settings block (project, site, templates, editing target); set `GAZETTA_QUIET=1` to leave the Settings block out. Flags: `--port`, `--host`. Stop it with Ctrl+C.
+Runs the site at `http://localhost:3000/` and the admin at `/admin`, rendering pages from the editing target on each request. It watches templates, content and `site.config.ts`, and reloads the preview when they change; a `site.config.ts` change (content, locales, targets) takes effect without a restart. Two cases still need a restart: changes to `admin.hooks`, `admin.validators` or `admin.routes`, and a target's storage once the admin has published through it, because publish providers are created once and reused (#1446). At start it prints the pages, fragments and a Settings block (project, site, templates, editing target); set `GAZETTA_QUIET=1` to leave the Settings block out. Flags: `--port`, `--host`. Stop it with Ctrl+C.
 
 ### `gazetta publish [target] [site]`
 

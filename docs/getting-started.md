@@ -1,88 +1,80 @@
 # Getting Started with Gazetta
 
-## Prerequisites
+Gazetta is a CMS that keeps your whole site in targets: folders or buckets that each hold a full copy of it. In this tutorial you create a site, edit it in the admin, publish it to a second target, and undo that publish. Everything runs on your own computer; you don't need an account anywhere.
 
-- Gazetta is tested on Node.js 22.22.2 or later in the 22 line, and on Node.js 26. Node 24.15+ is also accepted, but not tested. Odd-numbered releases such as 23 and 25 aren't supported.
-- macOS or Linux. On Windows, Gazetta's own tests run only an end-to-end check; use [WSL](https://learn.microsoft.com/windows/wsl/) if you hit problems.
+You need Node.js 22.22.2 or later in the 22 line, 24.15 or later, or 26. Odd-numbered releases such as 23 and 25 aren't supported. Gazetta runs on macOS and Linux; on Windows, use [WSL](https://learn.microsoft.com/windows/wsl/) if you hit problems.
 
-## Create a site
+## 1. Create a site
 
 ```bash
 npx gazetta init my-site
 cd my-site
-npm install
 ```
 
-This scaffolds:
-- A home page with a hero and text block
-- A shared header fragment (nav bar)
-- Templates: page-layout, hero, nav, text-block
-- `local` and `staging` filesystem targets - publish to either works immediately
+`init` creates the project and installs its dependencies. You get a home page with a hero and a text block, a shared header, the templates they use, and two targets: `local`, where you edit, and `staging`, a folder on your disk that plays the part of a live site.
 
-## Start the dev server
+## 2. Start the dev server
 
 ```bash
 npx gazetta dev
 ```
 
-- **http://localhost:3000** — your site
-- **http://localhost:3000/admin** — CMS editor
+Open http://localhost:3000 to see the site and http://localhost:3000/admin to edit it. Leave the server running for the rest of the tutorial.
 
-The server watches for changes and reloads automatically. `site.config.ts` edits apply on save: content, locales and targets take effect without a restart, and the admin picks up edited targets too. Two cases still need a restart of `gazetta dev`: changes to `admin.hooks`, `admin.validators` or `admin.routes`, and a target's storage once the admin has published through it, because publish providers are created once and reused (#1446).
+## 3. Publish to staging
 
-## Templates
+In the admin, click **Publish**, choose **staging** as the destination, then click the **Publish** button at the bottom of the panel. The first publish copies the whole site, so every page and fragment is listed. When the result shows staging, click **Done**.
 
-A template is a TypeScript function that returns `{ html, css, js }`, with a Zod schema the CMS uses to build the editing form. See [`templates.md`](./templates.md) for the contract, fields, frameworks and composite templates.
+## 4. Look at staging as a visitor
 
-## Pages and fragments
-
-Pages define routes and fragments share components between pages. See [Pages and fragments](./pages-and-fragments.md) for manifests, dynamic routes and fragment references.
-
-## CMS editor
-
-1. Open **http://localhost:3000/admin**
-2. Click a page to preview it
-3. Click a component in the preview to open it for editing
-4. Edit content → preview updates live as you type
-5. Click **Save** → writes to disk
-6. Click **Publish** → pre-renders and uploads to target
-
-The preview toolbar's eye button only shows or hides hover highlights; editing happens on the page's edit route, not behind a toolbar toggle.
-
-The preview shows each page in a sandboxed frame with an origin of its own. Template scripts run there, but can't use cookies, `localStorage`, form submits, pop-ups or dialogs such as `alert()`; on the published site they can.
-
-## Publish and view your site
-
-In the admin, click **Publish** → pre-renders and uploads to the target. Publish to `local` while you work, then to `staging` to see the site exactly as a server serves it.
-
-`gazetta dev` keeps running on port 3000, so open a second terminal:
+Open a second terminal in `my-site` and run:
 
 ```bash
 npx gazetta serve staging --port 3001
 ```
 
-Open **http://localhost:3001** - your published home page, served from `sites/main/dist/staging/`. A filesystem target's `path` is relative to the folder that holds `site.config.ts`, so `./dist/staging` resolves under `sites/main/`, not at the project root.
+Open http://localhost:3001. This is what a visitor would see: the pages Publish rendered into `sites/main/dist/staging/`, served without the admin. Note the hero's title, "Welcome to my-site".
 
-## Put it online
+## 5. Edit the home page
 
-The staging target serves from your own disk. To put the site in front of a real audience, follow the [Cloudflare deployment guide](./cloudflare.md) or the [self-hosted deployment guide](./self-hosted.md) for VPS, Docker, and Fly.io.
+Back in the admin, open the home page and click its hero in the preview. The hero's form opens on the left. Change **Title** to something new and click **Save**.
 
-## Customize the editor
+The preview at http://localhost:3000 shows your new title. Reload http://localhost:3001: it still shows the old one. Saving changes `local`; staging changes only when you publish to it.
 
-To replace a template's form or add a custom field widget, see [Customize the editor](./customize-editor.md).
+## 6. Add an image
 
-## Publishing guide
+In the same hero form, click **Pick** under **Hero image**. Drop an image file on the upload area (or click it to choose one), click the image once it appears, and click **Select**. You can type alt text for it while it uploads. Click **Save**.
 
-For publishing from the admin or CLI, sync chips, unpublished-change dots, history and today's destination-undo limitation, see [Publishing](./publishing.md).
+The preview shows the image; http://localhost:3001 still doesn't.
 
-For missing-route handling and the starter 404 page, see [Custom 404 page](./pages-and-fragments.md#custom-404-page).
+## 7. Publish the change
 
-For `admin/theme.css`, token prefixes and light/dark overrides, see [Customize admin appearance](./customize-editor.md#customize-admin-appearance).
+Click **Publish**, choose **staging** and click **Publish** again. This time only what changed since the first publish is listed. Reload http://localhost:3001: the new title and the image are there.
 
-For the project layout and locale variants, see [Site structure](./pages-and-fragments.md#site-structure) and [Indexing localized pages](./pages-and-fragments.md#indexing-localized-pages).
+## 8. Undo the publish
+
+In the publish result, click **Undo** next to staging. Reload http://localhost:3001: the old title is back, and the image is gone.
+
+The admin still shows your edit. Undo changed staging, not `local`, so your work is safe and you can publish it again whenever you like.
+
+## What you did
+
+- A **target** holds a whole copy of your site. You edited `local` and published to `staging`.
+- **Publish** copies content from one target to another and renders it there. It works in any direction: you could also publish from staging back to `local`.
+- Each target keeps its own **history**, which is what Undo used. The History panel in the admin's target menu lists every save and publish, and can restore any of them.
 
 ## Next steps
 
-- Browse the [starter example](../examples/starter/) for more templates
-- Read the [architecture document](../.claude/rules/architecture.md) for architecture details
-- Check out the [contributing guide](../CONTRIBUTING.md) to get involved
+- Put the site online with the [Cloudflare deployment guide](./cloudflare.md) or the [self-hosted deployment guide](./self-hosted.md).
+- Write your own templates: [Templates](./templates.md).
+- Add pages, shared fragments and translations: [Pages and fragments](./pages-and-fragments.md).
+- Replace a form or add a field widget: [Customize the editor](./customize-editor.md).
+- Add more targets and storage: [Targets](./targets.md).
+- Learn the rest of publishing, history and the command line: [Publishing](./publishing.md) and [CLI reference](./cli.md).
+
+## If something goes wrong
+
+- **`init` stops with an unsupported Node version.** Install one of the versions listed at the top, for example with [nvm](https://github.com/nvm-sh/nvm), and run `init` again.
+- **`init` says npm install failed.** The project files are already in place. Fix what npm's error points at (often the network or a proxy), then run `npm install` inside `my-site`.
+- **A port is already in use.** Another program is using port 3000 or 3001. Stop it, or pick another port with `--port`, for example `npx gazetta dev --port 3002`, and use that port in the addresses above.
+- **Stopping the servers.** Press Ctrl+C in each terminal.

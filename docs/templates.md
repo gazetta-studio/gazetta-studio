@@ -43,6 +43,8 @@ The function returns a `RenderOutput` or a `Promise<RenderOutput>`.
 
 A template module exports only `default` and `schema` — the CMS generates the editing form from `schema`. To replace the form with a custom editor, add a separate file under `admin/editors/`; see [Custom editors](./customize-editor.md#custom-editors).
 
+The admin's preview shows each page in a sandboxed frame with an origin of its own. Template scripts run there, but can't use cookies, `localStorage`, form submits, pop-ups or dialogs such as `alert()`; on the published site they can.
+
 ## Template fields
 
 | Field | Type | Required | Description |
