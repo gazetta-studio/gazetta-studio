@@ -7,3 +7,8 @@ generate:
   models: true
 output-options:
   nullable-type: true
+  # float32 can't hold a Unix time or a large file size exactly.
+  type-mapping:
+    number:
+      default:
+        type: float64

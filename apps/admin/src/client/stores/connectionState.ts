@@ -6,7 +6,7 @@
  *
  *   online        — recent successful request; quiet, no heartbeat
  *   degraded      — `navigator.onLine` false OR a request failed; 5s
- *                   heartbeat to /api/v1/health; subtle "Connection
+ *                   heartbeat to /api/health; subtle "Connection
  *                   unstable" indicator
  *   offline       — N consecutive heartbeat failures; 30s heartbeat;
  *                   persistent "Offline" banner; Vue Query pauses
@@ -18,7 +18,7 @@
  *   - `navigator.onLine` change events → instant signal, but
  *     unreliable (browsers report online when network is broken /
  *     offline when it's fine). Used for instant UX feedback only.
- *   - GET /api/v1/health heartbeat → confirms / corrects. Probes when
+ *   - GET /api/health heartbeat → confirms / corrects. Probes when
  *     state is degraded or offline; quiet when online.
  *
  * # Vue Query coupling
@@ -46,7 +46,7 @@
 import { defineStore } from 'pinia'
 import { computed, onScopeDispose, ref } from 'vue'
 import { onlineManager } from '@tanstack/vue-query'
-import { API_BASE } from '../api/_request.js'
+import { UNVERSIONED_API_BASE } from '../api/_request.js'
 
 /** 5 connection states per `design-offline.md` Q2 lock. */
 export type ConnectionStatus = 'online' | 'degraded' | 'offline' | 'reconnecting'
@@ -60,12 +60,12 @@ const OFFLINE_HEARTBEAT_MS = 30_000
 
 /**
  * Health endpoint path. Derived from the admin API base so it tracks
- * the mount point: the route lives on the admin app (`/admin/api/v1/health`),
- * not the site root. A bare `/api/v1/health` 404s under `gazetta dev`
+ * the mount point: the route lives on the admin app (`/admin/api/health`),
+ * not the site root. A bare `/api/health` 404s under `gazetta dev`
  * (#1388) and only "worked" under `gazetta admin` by falling through
  * to the SPA fallback.
  */
-const HEALTH_PATH = `${API_BASE}/health`
+const HEALTH_PATH = `${UNVERSIONED_API_BASE}/health`
 
 /**
  * Heartbeat probe contract. Returns true on success, false on

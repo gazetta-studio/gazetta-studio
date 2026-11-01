@@ -6055,33 +6055,6 @@
         }
       }
     },
-    "/api/v1/health": {
-      "get": {
-        "summary": "Whether the admin API answers",
-        "responses": {
-          "200": {
-            "description": "The admin API is up",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "enum": [true]
-                    },
-                    "timestamp": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["ok", "timestamp"]
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/me": {
       "get": {
         "summary": "The signed-in principal",
@@ -7085,6 +7058,33 @@
                     }
                   },
                   "required": ["majors"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "summary": "Whether the admin API answers",
+        "responses": {
+          "200": {
+            "description": "The admin API is up",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [true]
+                    },
+                    "timestamp": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["ok", "timestamp"]
                 }
               }
             }

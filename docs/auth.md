@@ -213,7 +213,7 @@ API routes live under `/api/v1` (under `/admin/api/v1` when the admin is mounted
 | `POST /api/v1/history/{undo,restore}` | `restore:history` |
 | `POST /api/v1/publish*`, `/api/v1/fetch` | `publish:non-production`; publishing to, or fetching into, a target whose `environment` is `production` also needs `publish:production` |
 | `GET /api/v1/system/cache/*` | `configure:site` |
-| `GET /api/v1/health` | (no gate; intentionally public) |
+| `GET /api/health` | (no gate; intentionally public) |
 | `GET /api/version` | (no gate; the exact Gazetta version is included only for a signed-in caller) |
 | `/api/v1/auth/*` | (no capability; approving or denying a sign-in needs a signed-in browser, see [Signing in from the command line](#signing-in-from-the-command-line)) |
 

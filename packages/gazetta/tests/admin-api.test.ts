@@ -68,9 +68,9 @@ describe('GET /api/v1/site', () => {
   })
 })
 
-describe('GET /api/v1/health', () => {
+describe('GET /api/health', () => {
   it('returns ok + ISO timestamp without auth', async () => {
-    const { status, body } = await get('/api/v1/health')
+    const { status, body } = await get('/api/health')
     expect(status).toBe(200)
     expect(body.ok).toBe(true)
     // ISO 8601 with Z; smoke check that timestamp parses back as the
@@ -85,9 +85,9 @@ describe('GET /api/v1/health', () => {
     // Browser-side connection-detection cadence relies on each call
     // getting a fresh response so a CDN-cached old response can't
     // masquerade as a live heartbeat.
-    const a = (await get('/api/v1/health')).body.timestamp as string
+    const a = (await get('/api/health')).body.timestamp as string
     await new Promise(r => setTimeout(r, 5))
-    const b = (await get('/api/v1/health')).body.timestamp as string
+    const b = (await get('/api/health')).body.timestamp as string
     expect(b).not.toBe(a)
   })
 })

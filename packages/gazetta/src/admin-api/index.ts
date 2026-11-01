@@ -528,7 +528,6 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   api.route('/', systemRoutes(resolveSource))
   api.route('/', auditRoutes({ providers: auditProviders }))
   api.route('/', validationRoutes({ scanner: opts.validationScanner ?? null }))
-  api.route('/', healthRoutes())
   api.route('/', meRoutes())
   api.route(
     '/',
@@ -540,9 +539,11 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
     }),
   )
   app.route(API_PREFIX, api)
-  // Outside the versioned API: preview (Q5) and the version route (Q43).
+  // Outside the versioned API: preview (Q5), and the version and health
+  // routes, which a client calls before it knows which major to use (Q43).
   app.route('/', previewRoutes(resolveSource, templatesDir))
   app.route('/', versionRoutes())
+  app.route('/', healthRoutes())
 
   // Errors as problem+json (design-agent-access.md Q45). Registered after
   // every route: an unknown API path answers a problem, not the host's

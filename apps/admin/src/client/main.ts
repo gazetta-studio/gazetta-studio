@@ -60,7 +60,7 @@ async function bootstrap(): Promise<void> {
   app.use(createRouter())
 
   // Initialize the connection-state store so it auto-attaches
-  // `navigator.onLine` listeners and starts probing /api/v1/health
+  // `navigator.onLine` listeners and starts probing /api/health
   // when degraded. Must run after Pinia install + before mount so
   // the first render sees a populated state.
   const connection = useConnectionState()
