@@ -502,7 +502,7 @@ Decided: maintainer, 2026-11-01 (#1649)
 | A short `SKILL.md` that points the agent to the full skill in `node_modules/gazetta` | Agents that don't follow the pointer get only the stub |
 | Manual: delete `SKILL.md` and rerun `gazetta init .` | Every project relies on people reading the release notes |
 
-Amended by Q34 (2026-11-01, #1650): Gazetta no longer writes `SKILL.md`, so the command rewrites only the marked `AGENTS.md` section from the package. The section carries the package version and tells the agent to reinstall the skill from `node_modules/gazetta/agents/` when its installed copy is older; Gazetta never touches files in client folders. 
+Amended by Q34 (2026-11-01, #1650): Gazetta no longer writes `SKILL.md`, so the command rewrites only the marked `AGENTS.md` section from the package. The section carries the package version and tells the agent to reinstall the skill from `node_modules/gazetta/agents/` when its installed copy is older; Gazetta never touches files in client folders.
 
 Decided: maintainer, 2026-11-01 (#1650)
 
@@ -517,7 +517,7 @@ Decided: maintainer, 2026-11-01 (#1650)
 | Rejected | Why |
 |---|---|
 | Also read known client folders for an older Gazetta `SKILL.md` | The maintainer chose the section's version |
-| No hint | Release notes alone are easy to miss |
+| No hint | Only the release notes would say to run the refresh command |
 
 ### Q34 — The agent installs the skill from the package
 
@@ -538,7 +538,7 @@ The `CLAUDE.md` import line and the trade-off: Decided: maintainer, 2026-11-01 (
 
 | Rejected | Why |
 |---|---|
-| Docs only: Claude Code users add `@AGENTS.md` themselves | Most wouldn't know to |
+| Docs only: Claude Code users add `@AGENTS.md` themselves | Each Claude Code user would have to add it by hand |
 | Accept that Claude Code projects with a `CLAUDE.md` get no skill | The maintainer chose the import line |
 | Go back to copies in both folders | The maintainer kept Q34 and recorded the trade-off |
 
