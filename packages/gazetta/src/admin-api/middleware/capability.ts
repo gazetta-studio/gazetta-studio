@@ -38,6 +38,7 @@
  *     the principal middleware's internals.
  */
 import type { Context } from 'hono'
+import { problem } from '../problem.js'
 import { createMiddleware } from 'hono/factory'
 import { capabilityGrants, UNKNOWN_ACTOR_ID } from '../../auth/index.js'
 import type { AuditAction, AuditScope } from '../../audit/index.js'
@@ -103,24 +104,16 @@ export async function denyWithoutCapability(c: Context<AuditEnv>, capability: st
   // 401 (not 403); the request hasn't authenticated yet.
   if (principal.id === UNKNOWN_ACTOR_ID && principal.role === 'unknown') {
     await recordDenial('unauthenticated')
-    return c.json(
-      { code: 'UNAUTHENTICATED' as const, error: `This endpoint requires capability "${capability}"` },
-      401,
-      { 'WWW-Authenticate': 'Bearer realm="gazetta-admin"' },
-    )
+    c.header('WWW-Authenticate', 'Bearer realm="gazetta-admin"')
+    return problem(c, 401, 'UNAUTHENTICATED', `This endpoint requires capability "${capability}"`)
   }
   // Authenticated principal — capability check.
   if (!capabilityGrants(principal.capabilities, capability)) {
     await recordDenial('forbidden')
-    return c.json(
-      {
-        code: 'FORBIDDEN' as const,
-        missing: [capability],
-        role: principal.role,
-        error: `Role "${principal.role}" does not have capability "${capability}"`,
-      },
-      403,
-    )
+    return problem(c, 403, 'FORBIDDEN', `Role "${principal.role}" does not have capability "${capability}"`, {
+      missing: [capability],
+      role: principal.role,
+    })
   }
   return null
 }

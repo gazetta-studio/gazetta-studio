@@ -47,6 +47,8 @@
  * `memoryStorage()` + a fresh `createAdminApp`. No module-level state.
  */
 import { beforeEach, describe, expect, it } from 'vitest'
+import { z } from 'zod'
+import { ErrorResponseSchema } from '../src/admin-api/schemas/error.js'
 import { Hono } from 'hono'
 import { createAdminApp } from '../src/admin-api/index.js'
 import { createSourceContext } from '../src/admin-api/source-context.js'
@@ -84,10 +86,9 @@ function setup(seed: Record<string, string> = {}) {
   })
 }
 
-type InvalidBody = {
-  error: string
-  issues: Array<{ path: string; message: string }>
-}
+const InvalidBodySchema = ErrorResponseSchema.extend({
+  issues: z.array(z.object({ path: z.string(), message: z.string() })),
+})
 
 describe('handleArchive — invalid-body 400 branch (lines 232-238)', () => {
   // The mutants this kills:
@@ -110,8 +111,8 @@ describe('handleArchive — invalid-body 400 branch (lines 232-238)', () => {
       body: JSON.stringify({ aliasOf: 42 }), // number — schema requires string
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as InvalidBody
-    expect(body.error).toBe('Invalid request body')
+    const body = InvalidBodySchema.parse(await res.json())
+    expect(body.detail).toBe('Invalid request body')
     expect(Array.isArray(body.issues)).toBe(true)
     expect(body.issues).toHaveLength(1)
     // Pins `i.path.join('.')` — the single-element path `['aliasOf']`
@@ -131,8 +132,8 @@ describe('handleArchive — invalid-body 400 branch (lines 232-238)', () => {
       body: JSON.stringify({ aliasOf: '' }),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as InvalidBody
-    expect(body.error).toBe('Invalid request body')
+    const body = InvalidBodySchema.parse(await res.json())
+    expect(body.detail).toBe('Invalid request body')
     expect(body.issues).toHaveLength(1)
     expect(body.issues[0].path).toBe('aliasOf')
     expect(typeof body.issues[0].message).toBe('string')
@@ -151,8 +152,8 @@ describe('handleArchive — invalid-body 400 branch (lines 232-238)', () => {
       body: JSON.stringify({ aliasOf: 42 }),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as InvalidBody
-    expect(body.error).toBe('Invalid request body')
+    const body = InvalidBodySchema.parse(await res.json())
+    expect(body.detail).toBe('Invalid request body')
     expect(body.issues).toHaveLength(1)
     expect(body.issues[0].path).toBe('aliasOf')
     expect(typeof body.issues[0].message).toBe('string')

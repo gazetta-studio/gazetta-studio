@@ -24,6 +24,8 @@ import {
   AssetValidationError,
 } from '../src/assets/errors.js'
 import { AssetInUseResponseSchema } from '../src/admin-api/schemas/assets.js'
+import { problemBody } from '../src/admin-api/problem.js'
+import type { ErrorCode } from '../src/admin-api/schemas/error.js'
 
 describe('AssetError.toResponseBody()', () => {
   it('AssetInUseError body validates against AssetInUseResponseSchema', () => {
@@ -31,10 +33,14 @@ describe('AssetError.toResponseBody()', () => {
       { source: 'page', path: 'pages/home/page.json', componentPath: 'hero' },
       { source: 'fragment', path: 'fragments/promo/fragment.json', componentPath: 'image' },
     ])
-    const body = err.toResponseBody()
+    // The route answers the body as a problem (`problemFrom`): `message` becomes `detail`.
+    const { code, message, ...extras } = err.toResponseBody()
+    const body = problemBody(err.httpStatus, code as ErrorCode, message, extras)
     // If these drift, AssetInUseResponseSchema.parse throws.
     const parsed = AssetInUseResponseSchema.parse(body)
     expect(parsed.code).toBe('ASSET_IN_USE')
+    expect(parsed.status).toBe(409)
+    expect(parsed.detail).toBe(message)
     expect(parsed.assetName).toBe('hero')
     expect(parsed.refs).toHaveLength(2)
   })

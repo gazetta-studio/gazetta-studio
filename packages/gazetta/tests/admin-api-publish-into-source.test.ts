@@ -5,6 +5,7 @@
  * anything, and publishing to a real destination still works.
  */
 import { describe, expect, it } from 'vitest'
+import { ErrorResponseSchema } from '../src/admin-api/schemas/error.js'
 import type { Hono } from 'hono'
 import { createAdminApp } from '../src/admin-api/index.js'
 import { createSourceContext } from '../src/admin-api/source-context.js'
@@ -68,7 +69,7 @@ describe('publish route — refuses the editing source as a destination (#1526)'
     const res = await publish(app, ['local'])
 
     expect(res.status).toBe(400)
-    expect(((await res.json()) as { error: string }).error).toBe('Cannot publish to local: it is the editing source')
+    expect(ErrorResponseSchema.parse(await res.json()).detail).toBe('Cannot publish to local: it is the editing source')
     expect(contents(sourceStorage)).toEqual(before)
   })
 

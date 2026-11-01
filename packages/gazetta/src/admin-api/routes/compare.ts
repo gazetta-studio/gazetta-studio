@@ -6,6 +6,7 @@ import { compareTargets } from '../../compare.js'
 import type { TemplateInfo } from '../../templates-scan.js'
 import type { SourceContextResolver } from '../source-context.js'
 import { requireCapability } from '../middleware/capability.js'
+import { problem } from '../problem.js'
 
 export function compareRoutes(
   resolve: SourceContextResolver,
@@ -45,14 +46,14 @@ export function compareRoutes(
     // `source` = source of the compare (which editable target to read from);
     //           defaults to the resolver's default editable target
     const targetName = c.req.query('target')
-    if (!targetName) return c.json({ error: 'Missing "target" query parameter' }, 400)
+    if (!targetName) return problem(c, 400, 'BAD_REQUEST', 'Missing "target" query parameter')
 
     const source = await resolve(c.req.query('source'))
     const { projectSiteDir } = source
 
     const t = await getTargets(projectSiteDir)
     const targetStorage = t.get(targetName)
-    if (!targetStorage) return c.json({ error: `Unknown target: ${targetName}` }, 400)
+    if (!targetStorage) return problem(c, 400, 'BAD_REQUEST', `Unknown target: ${targetName}`)
 
     const tdir = templatesDir ?? join(projectSiteDir, 'templates')
     const projectRoot = projectSiteDir.replace(/[\\/]sites[\\/][^\\/]+$/, '')
@@ -72,7 +73,7 @@ export function compareRoutes(
       })
       return c.json(result)
     } catch (err) {
-      return c.json({ error: `Compare failed: ${(err as Error).message}` }, 500)
+      return problem(c, 500, 'INTERNAL', `Compare failed: ${(err as Error).message}`)
     }
   })
 

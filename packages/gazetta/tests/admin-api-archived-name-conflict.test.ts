@@ -13,6 +13,7 @@
  * fresh seeded site per beforeEach.
  */
 import { beforeEach, describe, expect, it } from 'vitest'
+import { ErrorResponseSchema } from '../src/admin-api/schemas/error.js'
 import { Hono } from 'hono'
 import { createAdminApp } from '../src/admin-api/index.js'
 import { createSourceContext } from '../src/admin-api/source-context.js'
@@ -89,9 +90,9 @@ describe('POST /api/pages — archived-name-conflict (no onConflict flag)', () =
   it('returns the existing 409 message for live conflicts (not archived)', async () => {
     const res = await postCreate('home')
     expect(res.status).toBe(409)
-    const body = (await res.json()) as { error?: string; code?: string }
-    expect(body.code).toBeUndefined()
-    expect(body.error).toContain('already exists')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.code).toBe('LIVE_CONFLICT')
+    expect(body.detail).toContain('already exists')
   })
 })
 
@@ -192,8 +193,8 @@ describe('Manual Redirect restore refusal (#1343)', () => {
     setup({ 'pages/old-landing/page.json': redirectManifest })
     const res = await postCreate('old-landing', 'restore')
     expect(res.status).toBe(409)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('This is a redirect: delete it or change where it points')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toBe('This is a redirect: delete it or change where it points')
     expect(await storage.readFile('pages/old-landing/page.json')).toBe(redirectManifest)
   })
 
@@ -205,8 +206,8 @@ describe('Manual Redirect restore refusal (#1343)', () => {
       body: JSON.stringify({ name: 'old-promo', template: 'card' }),
     })
     expect(res.status).toBe(409)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('This is a redirect: delete it or change where it points')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toBe('This is a redirect: delete it or change where it points')
     expect(await storage.readFile('fragments/old-promo/fragment.json')).toBe(redirectManifest)
   })
 

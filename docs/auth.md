@@ -189,12 +189,12 @@ Custom roles can't redefine built-in role names (`admin`, `editor`, `viewer`) â€
 
 ## Failure modes
 
-Gazetta returns structured responses on auth failures:
+Gazetta answers auth failures, like every admin-API error, as `application/problem+json` (RFC 9457): `type`, `title`, `status`, a human-readable `detail`, and a `code`, plus any extra members listed below.
 
-| Status | Body shape | When |
+| Status | Body | When |
 |---|---|---|
-| `401 UNAUTHENTICATED` | `{ code, error }` + `WWW-Authenticate: Bearer realm="gazetta-admin"` | No identity (forwarded-user with missing header, JWT missing/expired/invalid signature, connection not from an address in `trustedProxies`, Tailscale identity headers not from the same machine) |
-| `403 FORBIDDEN` | `{ code, missing: [cap], role, error }` | Authenticated principal lacks the capability the route requires |
+| `401 UNAUTHENTICATED` | problem with `code: "UNAUTHENTICATED"` + `WWW-Authenticate: Bearer realm="gazetta-admin"` | No identity (forwarded-user with missing header, JWT missing/expired/invalid signature, connection not from an address in `trustedProxies`, Tailscale identity headers not from the same machine) |
+| `403 FORBIDDEN` | problem with `code: "FORBIDDEN"`, `missing: [cap]` and `role` | Authenticated principal lacks the capability the route requires |
 
 Authenticated users see what they can't do (the `missing` capability + their `role`). Unauthenticated requests get the generic `WWW-Authenticate` hint pointing back at the upstream layer â€” Gazetta doesn't issue login challenges itself.
 

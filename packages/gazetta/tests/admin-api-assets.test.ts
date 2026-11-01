@@ -14,6 +14,19 @@ import { staticSourceResolver, createSourceContext } from '../src/admin-api/sour
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
 import { principalMiddleware } from '../src/admin-api/middleware/principal.js'
 import { tempDir } from './_helpers/temp.js'
+import { ErrorResponseSchema } from '../src/admin-api/schemas/error.js'
+
+/** A 400 answered as a problem body with exactly this `detail`. */
+async function expectBadRequest(res: Response, detail: string): Promise<void> {
+  expect(res.headers.get('content-type')).toBe('application/problem+json')
+  expect(ErrorResponseSchema.parse(await res.json())).toEqual({
+    type: 'about:blank',
+    title: 'Bad Request',
+    status: 400,
+    detail,
+    code: 'BAD_REQUEST',
+  })
+}
 
 const testDir = tempDir('http-assets-test-' + Date.now())
 
@@ -128,7 +141,7 @@ describe('POST /api/assets', () => {
       body: multipartForm({ name: 'hero' }),
     })
     expect(res.status).toBe(400)
-    expect(await res.json()).toEqual({ code: 'BAD_REQUEST', message: 'Missing or invalid "file" field' })
+    await expectBadRequest(res, 'Missing or invalid "file" field')
   })
 
   it.each([
@@ -143,7 +156,7 @@ describe('POST /api/assets', () => {
     if (name !== undefined) fields.name = name
     const res = await app.request('/api/assets', { method: 'POST', body: multipartForm(fields) })
     expect(res.status).toBe(400)
-    expect(await res.json()).toEqual({ code: 'BAD_REQUEST', message: 'Missing or invalid "name" field' })
+    await expectBadRequest(res, 'Missing or invalid "name" field')
   })
 
   it('400s with ASSET_MIME_MISMATCH for an unsupported format', async () => {
@@ -563,7 +576,7 @@ describe('POST /api/assets/:name/locale-bytes', () => {
       body: multipartForm({ name: 'hero' }),
     })
     expect(res.status).toBe(400)
-    expect(await res.json()).toEqual({ code: 'BAD_REQUEST', message: 'Missing or invalid "file" field' })
+    await expectBadRequest(res, 'Missing or invalid "file" field')
   })
 
   it('400s on invalid locale code', async () => {
@@ -696,7 +709,7 @@ describe('PATCH /api/assets/:name', () => {
       body: JSON.stringify({ alt: 42 }),
     })
     expect(res.status).toBe(400)
-    expect(await res.json()).toEqual({ code: 'BAD_REQUEST', message: 'alt must be string or null' })
+    await expectBadRequest(res, 'alt must be string or null')
   })
 
   it('400s on non-JSON body', async () => {
@@ -824,7 +837,7 @@ describe('PATCH /api/assets/:name', () => {
         body: JSON.stringify({ focalPoint }),
       })
       expect(res.status).toBe(400)
-      expect(await res.json()).toEqual({ code: 'BAD_REQUEST', message: 'focalPoint x and y must be in [0, 1]' })
+      await expectBadRequest(res, 'focalPoint x and y must be in [0, 1]')
     })
 
     // The range is inclusive: the edges of the image are valid focal points.
@@ -860,10 +873,7 @@ describe('PATCH /api/assets/:name', () => {
         body: JSON.stringify({ focalPoint }),
       })
       expect(res.status).toBe(400)
-      expect(await res.json()).toEqual({
-        code: 'BAD_REQUEST',
-        message: 'focalPoint must be { x: number, y: number } or null',
-      })
+      await expectBadRequest(res, 'focalPoint must be { x: number, y: number } or null')
     })
 
     it('combined alt + focalPoint patch in one request', async () => {

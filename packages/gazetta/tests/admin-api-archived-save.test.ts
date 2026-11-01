@@ -8,6 +8,7 @@
  * nothing else can fail first and mask that bug.
  */
 import { beforeEach, describe, expect, it } from 'vitest'
+import { ErrorResponseSchema } from '../src/admin-api/schemas/error.js'
 import { Hono } from 'hono'
 import { createAdminApp } from '../src/admin-api/index.js'
 import { createSourceContext } from '../src/admin-api/source-context.js'
@@ -62,9 +63,9 @@ describe('PUT on an archived item (#1340)', () => {
     })
 
     expect(res.status).toBe(409)
-    const body = (await res.json()) as { code: string; message: string }
+    const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('ARCHIVED')
-    expect(body.message).toBe('Archived. Restore to edit.')
+    expect(body.detail).toBe('Archived. Restore to edit.')
     expect(await storage.readFile('pages/home/page.json')).toBe(before)
   })
 
@@ -85,9 +86,9 @@ describe('PUT on an archived item (#1340)', () => {
     })
 
     expect(res.status).toBe(409)
-    const body = (await res.json()) as { code: string; message: string }
+    const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('ARCHIVED')
-    expect(body.message).toBe('Archived. Restore to edit.')
+    expect(body.detail).toBe('Archived. Restore to edit.')
     expect(await storage.readFile('fragments/header/fragment.json')).toBe(before)
   })
 })

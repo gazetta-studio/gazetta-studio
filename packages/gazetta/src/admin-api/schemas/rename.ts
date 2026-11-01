@@ -8,6 +8,7 @@
  *   - I1: 500 RENAME_PARTIAL with structured state for idempotent retry
  */
 import { z } from 'zod'
+import { ErrorResponseSchema } from './error.js'
 import { isSafeItemName, UNSAFE_ITEM_NAME_MESSAGE } from '../../item-name.js'
 
 /**
@@ -77,13 +78,13 @@ export type ArchivedNameConflict = z.infer<typeof ArchivedNameConflictSchema>
  * archive-old sees old already archived, flatten skips already-rewritten
  * archives) per Q9 I1 lock.
  */
-export const RenamePartialSchema = z.object({
+export const RenamePartialSchema = ErrorResponseSchema.extend({
   code: z.literal('RENAME_PARTIAL'),
   /** Steps that completed. Used by the client to surface progress. */
   completed: z.array(z.enum(['create-new', 'archive-old', 'flatten-cascade'])),
   /** Steps still to run. Idempotent retry will resume from these. */
   remaining: z.array(z.enum(['create-new', 'archive-old', 'flatten-cascade'])),
   /** Underlying error message for forensics. */
-  error: z.string(),
+  detail: z.string(),
 })
 export type RenamePartial = z.infer<typeof RenamePartialSchema>

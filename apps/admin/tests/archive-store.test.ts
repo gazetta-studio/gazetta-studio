@@ -101,7 +101,7 @@ describe('useArchiveStore — confirmArchive', () => {
     fetchMock.mockResolvedValueOnce({
       ok: false,
       status: 409,
-      json: async () => ({ code: 'ARCHIVE_HAS_LIVE_REFS', message: 'live refs exist' }),
+      json: async () => ({ code: 'ARCHIVE_HAS_LIVE_REFS', detail: 'live refs exist' }),
     })
     const store = useArchiveStore()
     store.askArchive(live)
@@ -132,7 +132,7 @@ describe('useArchiveStore — unarchive', () => {
     fetchMock.mockResolvedValueOnce({
       ok: false,
       status: 500,
-      json: async () => ({ message: 'storage failure' }),
+      json: async () => ({ code: 'INTERNAL', detail: 'storage failure' }),
     })
     const store = useArchiveStore()
     const ok = await store.unarchive(archived)
@@ -191,7 +191,7 @@ describe('useArchiveStore — confirmPurge', () => {
     fetchMock.mockResolvedValueOnce({
       ok: false,
       status: 409,
-      json: async () => ({ code: 'NOT_ARCHIVED', error: 'Page "landing" is not archived - archive it first' }),
+      json: async () => ({ code: 'NOT_ARCHIVED', detail: 'Page "landing" is not archived - archive it first' }),
     })
     const store = useArchiveStore()
     store.askPurge(live)

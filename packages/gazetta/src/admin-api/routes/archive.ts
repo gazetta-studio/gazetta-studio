@@ -78,6 +78,7 @@ import { join } from 'node:path'
 import type { SourceContextResolver } from '../source-context.js'
 import { loadSiteFromSource } from '../source-context.js'
 import { recordWrite } from '../../history-recorder.js'
+import { problem, problemFrom } from '../problem.js'
 import { requireCapability } from '../middleware/capability.js'
 import { requireEditableTarget } from '../middleware/editable-target.js'
 import { lookupManifest } from '../lookup-manifest.js'
@@ -96,7 +97,6 @@ import {
   ArchiveRequestSchema,
   type LiveRef,
   type PurgeBlocked,
-  type PurgeNotArchived,
   type PurgeResponse,
   type SetAliasResponse,
   SetAliasRequestSchema,
@@ -221,12 +221,12 @@ export async function handleArchive(
   scanner: import('../../validation/scanner.js').ValidationScanner | null = null,
 ) {
   const name = c.req.param('name')
-  if (!name) return c.json({ error: 'Missing name parameter' }, 400)
+  if (!name) return problem(c, 400, 'BAD_REQUEST', 'Missing name parameter')
   const source = await resolve(c.req.query('target'))
   const site = await loadSiteFromSource(source)
 
   const manifest = lookupManifest(site, handle.scopeKind, name)
-  if (!manifest) return c.json({ error: `${handle.label} "${name}" not found` }, 404)
+  if (!manifest) return problem(c, 404, 'NOT_FOUND', `${handle.label} "${name}" not found`)
 
   // Schema-validate body — same MCP discipline as other admin-API
   // routes. `aliasOf` is optional; absence = pure soft-delete.
@@ -240,13 +240,9 @@ export async function handleArchive(
   }
   const parsed = ArchiveRequestSchema.safeParse(body ?? {})
   if (!parsed.success) {
-    return c.json(
-      {
-        error: 'Invalid request body',
-        issues: parsed.error.issues.map(i => ({ path: i.path.join('.'), message: i.message })),
-      },
-      400,
-    )
+    return problem(c, 400, 'BAD_REQUEST', 'Invalid request body', {
+      issues: parsed.error.issues.map(i => ({ path: i.path.join('.'), message: i.message })),
+    })
   }
   const aliasOf = parsed.data.aliasOf
   const force = c.req.query('force') === 'true'
@@ -264,7 +260,7 @@ export async function handleArchive(
     const liveRefs = collectLiveRefs(handle, site, name)
     if (liveRefs.length > 0) {
       const blocked: ArchiveHasLiveRefs = { code: 'ARCHIVE_HAS_LIVE_REFS', liveRefs }
-      return c.json(blocked, 409)
+      return problemFrom(c, 409, blocked)
     }
   }
 
@@ -362,12 +358,12 @@ async function handleUnarchive(
   scanner: import('../../validation/scanner.js').ValidationScanner | null = null,
 ) {
   const name = c.req.param('name')
-  if (!name) return c.json({ error: 'Missing name parameter' }, 400)
+  if (!name) return problem(c, 400, 'BAD_REQUEST', 'Missing name parameter')
   const source = await resolve(c.req.query('target'))
   const site = await loadSiteFromSource(source)
 
   const manifest = lookupManifest(site, handle.scopeKind, name)
-  if (!manifest) return c.json({ error: `${handle.label} "${name}" not found` }, 404)
+  if (!manifest) return problem(c, 404, 'NOT_FOUND', `${handle.label} "${name}" not found`)
 
   // Already live? Idempotent — same rationale as archive's idempotent
   // branch.
@@ -380,7 +376,7 @@ async function handleUnarchive(
   // restoring would strip them and write `{}`, losing the redirect
   // (#1343). Refuse; delete the redirect or change where it points.
   if (isManualRedirectArchive(manifest)) {
-    return c.json({ error: REDIRECT_RESTORE_MESSAGE }, 409)
+    return problem(c, 409, 'REDIRECT_RESTORE', REDIRECT_RESTORE_MESSAGE)
   }
 
   // Strip the archive fields. Per Q6 lock D1: unarchive = flip the bit.
@@ -440,15 +436,15 @@ async function handleSetAlias(
   scanner: import('../../validation/scanner.js').ValidationScanner | null = null,
 ) {
   const name = c.req.param('name')
-  if (!name) return c.json({ error: 'Missing name parameter' }, 400)
+  if (!name) return problem(c, 400, 'BAD_REQUEST', 'Missing name parameter')
   const source = await resolve(c.req.query('target'))
   const site = await loadSiteFromSource(source)
 
   const manifest = lookupManifest(site, handle.scopeKind, name)
-  if (!manifest) return c.json({ error: `${handle.label} "${name}" not found` }, 404)
+  if (!manifest) return problem(c, 404, 'NOT_FOUND', `${handle.label} "${name}" not found`)
 
   if (manifest.archived !== true) {
-    return c.json({ error: `${handle.label} "${name}" is not archived; cannot set alias on a live item` }, 409)
+    return problem(c, 409, 'NOT_ARCHIVED', `${handle.label} "${name}" is not archived; cannot set alias on a live item`)
   }
 
   // Schema-validate body. `aliasOf: null` is the canonical "drop" form.
@@ -456,17 +452,13 @@ async function handleSetAlias(
   try {
     raw = await c.req.json()
   } catch {
-    return c.json({ error: 'Invalid JSON body' }, 400)
+    return problem(c, 400, 'BAD_REQUEST', 'Invalid JSON body')
   }
   const parsed = SetAliasRequestSchema.safeParse(raw)
   if (!parsed.success) {
-    return c.json(
-      {
-        error: 'Invalid request body',
-        issues: parsed.error.issues.map(i => ({ path: i.path.join('.'), message: i.message })),
-      },
-      400,
-    )
+    return problem(c, 400, 'BAD_REQUEST', 'Invalid request body', {
+      issues: parsed.error.issues.map(i => ({ path: i.path.join('.'), message: i.message })),
+    })
   }
   const { aliasOf } = parsed.data
 
@@ -522,13 +514,13 @@ export async function handlePurge(
   opts: { allowLive?: boolean } = {},
 ) {
   const name = c.req.param('name')
-  if (!name) return c.json({ error: 'Missing name parameter' }, 400)
+  if (!name) return problem(c, 400, 'BAD_REQUEST', 'Missing name parameter')
   const force = c.req.query('force') === 'true'
   const source = await resolve(c.req.query('target'))
   const site = await loadSiteFromSource(source)
 
   const manifest = lookupManifest(site, handle.scopeKind, name)
-  if (!manifest) return c.json({ error: `${handle.label} "${name}" not found` }, 404)
+  if (!manifest) return problem(c, 404, 'NOT_FOUND', `${handle.label} "${name}" not found`)
 
   // Per Q4 lock D1: refuse on aliases AND live refs (one 409 with
   // both arrays). `?force=true` bypasses both per Q5 lock E1; admin
@@ -539,7 +531,7 @@ export async function handlePurge(
 
   if (!force && (aliases.length > 0 || liveRefs.length > 0)) {
     const blocked: PurgeBlocked = { code: 'DELETE_BLOCKED', aliases, liveRefs }
-    return c.json(blocked, 409)
+    return problemFrom(c, 409, blocked)
   }
 
   // Purge is the permanent delete of an ARCHIVED item
@@ -550,11 +542,7 @@ export async function handlePurge(
   // on #1436); the explicit `?permanent=true` delete route
   // (allowLive) stays the way to hard-delete a live item.
   if (!opts.allowLive && manifest.archived !== true) {
-    const notArchived: PurgeNotArchived = {
-      code: 'NOT_ARCHIVED',
-      error: `${handle.label} "${name}" is not archived - archive it first`,
-    }
-    return c.json(notArchived, 409)
+    return problem(c, 409, 'NOT_ARCHIVED', `${handle.label} "${name}" is not archived - archive it first`)
   }
 
   // History first per pages.ts/fragments.ts pattern: the recorder's

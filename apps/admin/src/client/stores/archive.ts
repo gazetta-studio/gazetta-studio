@@ -312,15 +312,14 @@ async function deletePurge(kind: 'page' | 'fragment', name: string, force?: bool
         code?: string
         aliases?: PurgeBlocker[]
         liveRefs?: PurgeBlocker[]
-        error?: string
-        message?: string
+        detail?: string
       } | null
       if (body?.code === 'DELETE_BLOCKED') {
         throw new PurgeBlockedError(body.aliases ?? [], body.liveRefs ?? [])
       }
-      // Other 409 (e.g., NOT_ARCHIVED) → generic error with the body's
-      // reason if present. The archive routes answer with `error`.
-      const reason = body?.error ?? body?.message
+      // Other 409 (e.g., NOT_ARCHIVED) → generic error with the problem's
+      // detail if present.
+      const reason = body?.detail
       throw new Error(`Purge ${kind} "${name}" failed (409)${reason ? `: ${reason}` : ''}`)
     }
     throw await readError(res, `Purge ${kind} "${name}"`)
@@ -341,8 +340,8 @@ async function patchAlias(kind: 'page' | 'fragment', name: string, aliasOf: stri
 async function readError(res: Response, prefix: string): Promise<Error> {
   let detail = ''
   try {
-    const body = (await res.json()) as { error?: string; code?: string; message?: string }
-    detail = body.message ?? body.error ?? body.code ?? ''
+    const body = (await res.json()) as { detail?: string; code?: string }
+    detail = body.detail ?? body.code ?? ''
   } catch {
     detail = res.statusText
   }

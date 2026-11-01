@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { problem } from '../problem.js'
 import { loadSiteFromSource } from '../source-context.js'
 import type { SourceContextResolver } from '../source-context.js'
 import { CreateFragmentRequestSchema, type FragmentSummary } from '../schemas/fragments.js'
@@ -74,13 +75,9 @@ export function fragmentRoutes(
     const raw = await c.req.json()
     const parsed = CreateFragmentRequestSchema.safeParse(raw)
     if (!parsed.success) {
-      return c.json(
-        {
-          error: 'Invalid request body',
-          issues: parsed.error.issues.map(i => ({ path: i.path.join('.'), message: i.message })),
-        },
-        400,
-      )
+      return problem(c, 400, 'BAD_REQUEST', 'Invalid request body', {
+        issues: parsed.error.issues.map(i => ({ path: i.path.join('.'), message: i.message })),
+      })
     }
     const body = parsed.data
 
@@ -101,24 +98,24 @@ export function fragmentRoutes(
       )
     }
     if (result.code === 'LIVE_CONFLICT') {
-      return c.json({ error: `Fragment "${result.name}" already exists` }, 409)
+      return problem(c, 409, 'LIVE_CONFLICT', `Fragment "${result.name}" already exists`)
     }
     if (result.code === 'ARCHIVED_CONFLICT') {
-      return c.json({ code: 'ARCHIVED_NAME_CONFLICT' as const, archive: result.archive }, 409)
+      return problem(c, 409, 'ARCHIVED_NAME_CONFLICT', undefined, { archive: result.archive })
     }
     if (result.code === 'REDIRECT_RESTORE') {
       // Manual Redirect targeted by restore (#1343).
-      return c.json({ error: REDIRECT_RESTORE_MESSAGE }, 409)
+      return problem(c, 409, 'REDIRECT_RESTORE', REDIRECT_RESTORE_MESSAGE)
     }
     // INVALID_CONFLICT_MODE — exhaustive narrow.
-    return c.json({ error: `Invalid onConflict mode "${result.mode}"` }, 400)
+    return problem(c, 400, 'INVALID_CONFLICT_MODE', `Invalid onConflict mode "${result.mode}"`)
   })
 
   app.get('/api/fragments/:name', requireCapability('read:fragments'), async c => {
     const name = c.req.param('name')
     const rawLocale = c.req.query('locale')
     const locale = rawLocale && isValidLocale(rawLocale) ? rawLocale.toLowerCase() : undefined
-    if (rawLocale && !locale) return c.json({ error: `Invalid locale code: "${rawLocale}"` }, 400)
+    if (rawLocale && !locale) return problem(c, 400, 'BAD_REQUEST', `Invalid locale code: "${rawLocale}"`)
     const source = await resolve(c.req.query('target'))
     const site = await loadSiteFromSource(source)
 
@@ -127,9 +124,9 @@ export function fragmentRoutes(
       const localeEntry = site.fragmentLocales.get(name)
       const localeVariant = localeEntry?.locales.get(locale)
       if (localeVariant) fragment = localeVariant
-      else if (!fragment) return c.json({ error: `Fragment "${name}" locale "${locale}" not found` }, 404)
+      else if (!fragment) return problem(c, 404, 'NOT_FOUND', `Fragment "${name}" locale "${locale}" not found`)
     }
-    if (!fragment) return c.json({ error: `Fragment "${name}" not found` }, 404)
+    if (!fragment) return problem(c, 404, 'NOT_FOUND', `Fragment "${name}" not found`)
 
     const localeEntry = site.fragmentLocales.get(name)
     // Save-concurrency etag — see save-etag.ts. Same shape as pages
@@ -205,8 +202,8 @@ export function fragmentRoutes(
         requestId: c.req.header('x-request-id') ?? undefined,
       })
     } catch (err: unknown) {
-      if (err instanceof InvalidLocaleError) return c.json({ error: err.message }, 400)
-      if (err instanceof FragmentNotFoundError) return c.json({ error: err.message }, 404)
+      if (err instanceof InvalidLocaleError) return problem(c, 400, 'BAD_REQUEST', err.message)
+      if (err instanceof FragmentNotFoundError) return problem(c, 404, 'NOT_FOUND', err.message)
       throw err
     }
 
@@ -215,29 +212,25 @@ export function fragmentRoutes(
       return c.json({ ok: true, etag: result.etag })
     }
     if (result.code === 'STALE') {
-      return c.json({ code: 'STALE' as const, current: result.current, currentEtag: result.currentEtag }, 409, {
-        ETag: `"${result.currentEtag}"`,
-      })
+      c.header('ETag', `"${result.currentEtag}"`)
+      return problem(c, 409, 'STALE', undefined, { current: result.current, currentEtag: result.currentEtag })
     }
     if (result.code === 'EDIT_LOCKED') {
-      return c.json({ code: 'EDIT_LOCKED' as const, message: result.message }, 409)
+      return problem(c, 409, 'EDIT_LOCKED', result.message)
     }
     if (result.code === 'ARCHIVED') {
-      return c.json({ code: 'ARCHIVED' as const, message: result.message }, 409)
+      return problem(c, 409, 'ARCHIVED', result.message)
     }
     if (result.code === 'VALIDATION_FAILED') {
-      return c.json({ code: 'VALIDATION_FAILED' as const, issues: result.issues }, 409)
+      return problem(c, 409, 'VALIDATION_FAILED', undefined, { issues: result.issues })
     }
     if (result.code === 'AUDIT_FAILED') {
       // Strict audit mode refused the write before anything changed
       // (#1393); same projection as the page save route.
-      return c.json(
-        { code: 'AUDIT_FAILED' as const, message: 'Audit recording failed; save refused (strict mode)' },
-        500,
-      )
+      return problem(c, 500, 'AUDIT_FAILED', 'Audit recording failed; save refused (strict mode)')
     }
     // HOOK_CANCELLED — exhaustive narrow per Q1 lock.
-    return c.json({ code: 'HOOK_CANCELLED' as const, hook: result.hook, reason: result.reason }, 409)
+    return problem(c, 409, 'HOOK_CANCELLED', undefined, { hook: result.hook, reason: result.reason })
   })
 
   // DELETE = soft-delete (archive) by default per Cut 7 cutover.

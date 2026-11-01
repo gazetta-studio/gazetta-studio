@@ -23,6 +23,7 @@
  * `memoryStorage()` + a fresh `createAdminApp`. No module-level state.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ErrorResponseSchema } from '../src/admin-api/schemas/error.js'
 import { Hono } from 'hono'
 import { createAdminApp } from '../src/admin-api/index.js'
 import { createSourceContext, type SourceContext } from '../src/admin-api/source-context.js'
@@ -149,22 +150,22 @@ describe('Error message labels — pin PAGE_HANDLE.label / FRAGMENT_HANDLE.label
   it('POST /api/pages/missing/archive → 404 body uses "Page" label', async () => {
     const res = await app.request('/api/pages/missing/archive', { method: 'POST' })
     expect(res.status).toBe(404)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('Page "missing" not found')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toBe('Page "missing" not found')
   })
 
   it('POST /api/pages/missing/unarchive → 404 body uses "Page" label', async () => {
     const res = await app.request('/api/pages/missing/unarchive', { method: 'POST' })
     expect(res.status).toBe(404)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('Page "missing" not found')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toBe('Page "missing" not found')
   })
 
   it('DELETE /api/pages/missing/purge → 404 body uses "Page" label', async () => {
     const res = await app.request('/api/pages/missing/purge', { method: 'DELETE' })
     expect(res.status).toBe(404)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('Page "missing" not found')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toBe('Page "missing" not found')
   })
 
   it('PATCH /api/pages/missing/alias → 404 body uses "Page" label', async () => {
@@ -174,8 +175,8 @@ describe('Error message labels — pin PAGE_HANDLE.label / FRAGMENT_HANDLE.label
       body: JSON.stringify({ aliasOf: null }),
     })
     expect(res.status).toBe(404)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('Page "missing" not found')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toBe('Page "missing" not found')
   })
 
   it('PATCH /api/pages/home/alias on a live page → 409 body uses "Page" label', async () => {
@@ -185,29 +186,29 @@ describe('Error message labels — pin PAGE_HANDLE.label / FRAGMENT_HANDLE.label
       body: JSON.stringify({ aliasOf: 'landing' }),
     })
     expect(res.status).toBe(409)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('Page "home" is not archived; cannot set alias on a live item')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toBe('Page "home" is not archived; cannot set alias on a live item')
   })
 
   it('POST /api/fragments/missing/archive → 404 body uses "Fragment" label', async () => {
     const res = await app.request('/api/fragments/missing/archive', { method: 'POST' })
     expect(res.status).toBe(404)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('Fragment "missing" not found')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toBe('Fragment "missing" not found')
   })
 
   it('POST /api/fragments/missing/unarchive → 404 body uses "Fragment" label', async () => {
     const res = await app.request('/api/fragments/missing/unarchive', { method: 'POST' })
     expect(res.status).toBe(404)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('Fragment "missing" not found')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toBe('Fragment "missing" not found')
   })
 
   it('DELETE /api/fragments/missing/purge → 404 body uses "Fragment" label', async () => {
     const res = await app.request('/api/fragments/missing/purge', { method: 'DELETE' })
     expect(res.status).toBe(404)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('Fragment "missing" not found')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toBe('Fragment "missing" not found')
   })
 
   it('PATCH /api/fragments/missing/alias → 404 body uses "Fragment" label', async () => {
@@ -217,8 +218,8 @@ describe('Error message labels — pin PAGE_HANDLE.label / FRAGMENT_HANDLE.label
       body: JSON.stringify({ aliasOf: null }),
     })
     expect(res.status).toBe(404)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('Fragment "missing" not found')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toBe('Fragment "missing" not found')
   })
 
   it('PATCH /api/fragments/header/alias on a live fragment → 409 body uses "Fragment" label', async () => {
@@ -228,8 +229,8 @@ describe('Error message labels — pin PAGE_HANDLE.label / FRAGMENT_HANDLE.label
       body: JSON.stringify({ aliasOf: 'footer' }),
     })
     expect(res.status).toBe(409)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('Fragment "header" is not archived; cannot set alias on a live item')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toBe('Fragment "header" is not archived; cannot set alias on a live item')
   })
 })
 

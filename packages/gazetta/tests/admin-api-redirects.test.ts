@@ -17,6 +17,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { Hono } from 'hono'
 import { createAdminApp } from '../src/admin-api/index.js'
+import { ErrorResponseSchema } from '../src/admin-api/schemas/error.js'
 import { createSourceContext } from '../src/admin-api/source-context.js'
 import { createHistoryProvider } from '../src/history-provider.js'
 import { createHistoryAuditProvider, type AuditEvent } from '../src/audit/index.js'
@@ -185,7 +186,7 @@ describe('POST /api/fragment-redirects — collision handling (symmetric with pa
       body: JSON.stringify({ from: 'header', to: 'footer' }),
     })
     expect(res.status).toBe(409)
-    const body = (await res.json()) as Record<string, unknown>
+    const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('LIVE_NAME_CONFLICT')
     // Pin the exact string with lowercase `fragment`. Kills the
     // MethodExpression mutant on line 167 (`binding.label.toLowerCase()`
@@ -193,8 +194,8 @@ describe('POST /api/fragment-redirects — collision handling (symmetric with pa
     // specifically — the page-side test above pins the `page` casing,
     // this test pins the `fragment` casing, so a mutant that broke
     // either binding's casing would surface.
-    expect(body.error).toContain('The fragment "header" already exists as live content')
-    expect(body.error).toContain('first archive or rename "header"')
+    expect(body.detail).toContain('The fragment "header" already exists as live content')
+    expect(body.detail).toContain('first archive or rename "header"')
   })
 
   it('rejects with 409 ALIAS_TARGET_NOT_FOUND when to does not resolve to a fragment', async () => {
@@ -204,13 +205,13 @@ describe('POST /api/fragment-redirects — collision handling (symmetric with pa
       body: JSON.stringify({ from: 'old-header', to: 'nonexistent-fragment' }),
     })
     expect(res.status).toBe(409)
-    const body = (await res.json()) as Record<string, unknown>
+    const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('ALIAS_TARGET_NOT_FOUND')
     // Pin BOTH lowercase `fragment` occurrences. Kills the TWIN
     // MethodExpression mutants on line 192 for the fragment binding,
     // completing the symmetric coverage against the page-side test.
-    expect(body.error).toContain('The fragment "nonexistent-fragment" does not exist as live content')
-    expect(body.error).toContain('The alias target must be a live fragment.')
+    expect(body.detail).toContain('The fragment "nonexistent-fragment" does not exist as live content')
+    expect(body.detail).toContain('The alias target must be a live fragment.')
   })
 })
 
@@ -242,10 +243,10 @@ describe('POST /api/page-redirects — edge-case rejections (absorbs old Cut 5)'
       body: JSON.stringify({ from: 'home', to: 'about' }),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
+    const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('INVALID')
-    expect(typeof body.error).toBe('string')
-    expect((body.error as string).toLowerCase()).toContain('home')
+    expect(typeof body.detail).toBe('string')
+    expect((body.detail as string).toLowerCase()).toContain('home')
   })
 
   it('rejects from="blog/[slug]" with 400 INVALID — wildcards not supported', async () => {
@@ -255,9 +256,9 @@ describe('POST /api/page-redirects — edge-case rejections (absorbs old Cut 5)'
       body: JSON.stringify({ from: 'blog/[slug]', to: 'about' }),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
+    const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('INVALID')
-    expect((body.error as string).toLowerCase()).toMatch(/wildcard|param|slug/)
+    expect((body.detail as string).toLowerCase()).toMatch(/wildcard|param|slug/)
   })
 
   it('rejects from="blog/:slug" with 400 INVALID — normalizes to wildcard then rejects', async () => {
@@ -286,14 +287,14 @@ describe('POST /api/page-redirects — collision handling', () => {
       body: JSON.stringify({ from: 'about', to: 'products/featured' }),
     })
     expect(res.status).toBe(409)
-    const body = (await res.json()) as Record<string, unknown>
+    const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('LIVE_NAME_CONFLICT')
     // Pin the exact user-facing string. Kills MethodExpression mutant on
     // line 167 (`binding.label.toLowerCase()` → `binding.label.toUpperCase()`)
     // — with the mutant, the message becomes `The Page "about"...` (with
     // uppercase `Page`), breaking user-facing display.
-    expect(body.error).toContain('The page "about" already exists as live content')
-    expect(body.error).toContain('first archive or rename "about"')
+    expect(body.detail).toContain('The page "about" already exists as live content')
+    expect(body.detail).toContain('first archive or rename "about"')
   })
 
   it('rejects with 409 ALIAS_TARGET_NOT_FOUND when to does not resolve', async () => {
@@ -303,15 +304,15 @@ describe('POST /api/page-redirects — collision handling', () => {
       body: JSON.stringify({ from: 'old-products', to: 'does-not-exist' }),
     })
     expect(res.status).toBe(409)
-    const body = (await res.json()) as Record<string, unknown>
+    const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('ALIAS_TARGET_NOT_FOUND')
     // Pin BOTH lowercase `page` occurrences. Kills the TWIN MethodExpression
     // mutants on line 192 (`binding.label.toLowerCase()` — appears twice on
     // the same line, once in each message half). Both mutants survived on
     // the last mutation run because the prior assertion only checked that
     // the `to` name appeared in the error, not the casing of `page`.
-    expect(body.error).toContain('The page "does-not-exist" does not exist as live content')
-    expect(body.error).toContain('The alias target must be a live page.')
+    expect(body.detail).toContain('The page "does-not-exist" does not exist as live content')
+    expect(body.detail).toContain('The alias target must be a live page.')
   })
 
   it('rejects with 409 ALIAS_TARGET_NOT_FOUND when to points at an ARCHIVED page', async () => {
@@ -385,8 +386,8 @@ describe('POST /api/page-redirects — collision handling', () => {
       body: JSON.stringify({ from: 'old-products', to: 'products/featured' }),
     })
     expect(res.status).toBe(409)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('This is a redirect: delete it or change where it points')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toBe('This is a redirect: delete it or change where it points')
     expect(await storage.readFile('pages/old-products/page.json')).toBe(before)
   })
 
@@ -626,11 +627,11 @@ describe('POST /api/page-redirects — request validation (kills NoCoverage muta
       body: 'not-json{',
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
+    const body = ErrorResponseSchema.parse(await res.json())
     // Kills StringLiteral mutants on lines 111: code and error must be
     // the exact strings the production code emits.
     expect(body.code).toBe('INVALID')
-    expect(body.error).toBe('Invalid JSON body')
+    expect(body.detail).toBe('Invalid JSON body')
   })
 
   it('returns 400 INVALID with "Invalid request body" + issues[] when both fields are missing', async () => {
@@ -640,10 +641,10 @@ describe('POST /api/page-redirects — request validation (kills NoCoverage muta
       body: JSON.stringify({}),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
+    const body = ErrorResponseSchema.parse(await res.json())
     // Kills StringLiteral mutants on lines 117-118 + ObjectLiteral on 116-120.
     expect(body.code).toBe('INVALID')
-    expect(body.error).toBe('Invalid request body')
+    expect(body.detail).toBe('Invalid request body')
     // Kills the ArrowFunction mutant on line 119
     // (`issues.map(i => ({ path: i.path.join('.'), message: i.message }))`
     // → `() => undefined`). The projection MUST yield typed entries with
@@ -666,9 +667,9 @@ describe('POST /api/page-redirects — request validation (kills NoCoverage muta
       body: JSON.stringify({ to: 'products/featured' }),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
+    const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('INVALID')
-    expect(body.error).toBe('Invalid request body')
+    expect(body.detail).toBe('Invalid request body')
     const issues = body.issues as Array<{ path: string; message: string }>
     expect(issues).toHaveLength(1)
     expect(issues[0].path).toBe('from')
@@ -683,9 +684,9 @@ describe('POST /api/page-redirects — request validation (kills NoCoverage muta
       body: JSON.stringify({ from: 'old-products' }),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
+    const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('INVALID')
-    expect(body.error).toBe('Invalid request body')
+    expect(body.detail).toBe('Invalid request body')
     const issues = body.issues as Array<{ path: string; message: string }>
     expect(issues).toHaveLength(1)
     expect(issues[0].path).toBe('to')
@@ -700,9 +701,9 @@ describe('POST /api/page-redirects — request validation (kills NoCoverage muta
       body: JSON.stringify({ from: '', to: 'products/featured' }),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
+    const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('INVALID')
-    expect(body.error).toBe('Invalid request body')
+    expect(body.detail).toBe('Invalid request body')
     const issues = body.issues as Array<{ path: string; message: string }>
     expect(issues).toHaveLength(1)
     expect(issues[0].path).toBe('from')
@@ -717,9 +718,9 @@ describe('POST /api/page-redirects — request validation (kills NoCoverage muta
       body: JSON.stringify({ from: 42, to: 'products/featured' }),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
+    const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('INVALID')
-    expect(body.error).toBe('Invalid request body')
+    expect(body.detail).toBe('Invalid request body')
     const issues = body.issues as Array<{ path: string; message: string }>
     expect(issues).toHaveLength(1)
     expect(issues[0].path).toBe('from')
@@ -738,9 +739,9 @@ describe('POST /api/fragment-redirects — request validation (kills NoCoverage 
       body: 'not-json{',
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
+    const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('INVALID')
-    expect(body.error).toBe('Invalid JSON body')
+    expect(body.detail).toBe('Invalid JSON body')
   })
 
   it('returns 400 INVALID with "Invalid request body" + issues[] when both fields are missing', async () => {
@@ -750,9 +751,9 @@ describe('POST /api/fragment-redirects — request validation (kills NoCoverage 
       body: JSON.stringify({}),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
+    const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('INVALID')
-    expect(body.error).toBe('Invalid request body')
+    expect(body.detail).toBe('Invalid request body')
     const issues = body.issues as Array<{ path: string; message: string }>
     expect(issues).toHaveLength(2)
     const paths = issues.map(i => i.path).sort()
@@ -1007,12 +1008,12 @@ describe('POST /api/page-redirects — mutation-coverage backfill (issue #773)',
       body: JSON.stringify({ from: 'blog/:slug', to: 'about' }),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
+    const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('INVALID')
     // The exact normalized form of `blog/:slug` MUST appear in the
     // error message. Kills mutant 1 (`blog/[sl]ug`) + mutant 2
     // (`blog/[s]lug`) — neither contains the substring `[slug]`.
-    expect(body.error).toContain('"blog/[slug]"')
+    expect(body.detail).toContain('"blog/[slug]"')
   })
 
   it('multi-char param + underscore normalization — belt-and-suspenders for line-229 regex', async () => {
@@ -1032,9 +1033,9 @@ describe('POST /api/page-redirects — mutation-coverage backfill (issue #773)',
       body: JSON.stringify({ from: 'blog/:post_id', to: 'about' }),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as Record<string, unknown>
+    const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('INVALID')
-    expect(body.error).toContain('"blog/[post_id]"')
+    expect(body.detail).toContain('"blog/[post_id]"')
   })
 
   it('restore path response body pins the ternary — kills line-350/351 page-branch mutants', async () => {

@@ -14,6 +14,7 @@
  * discovery tool, route handlers are the test subject.
  */
 import { describe, expect, it } from 'vitest'
+import { ErrorResponseSchema } from '../src/admin-api/schemas/error.js'
 import type { Hono } from 'hono'
 import { createAdminApp } from '../src/admin-api/index.js'
 import { createSourceContext } from '../src/admin-api/source-context.js'
@@ -77,8 +78,8 @@ describe('POST /api/fetch — input validation (covers publish.ts:886-890)', () 
     })
 
     expect(res.status).toBe(400)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('Missing "source" target name')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toBe('Missing "source" target name')
   })
 
   it('returns 400 when the requested source target is not registered', async () => {
@@ -97,8 +98,8 @@ describe('POST /api/fetch — input validation (covers publish.ts:886-890)', () 
     })
 
     expect(res.status).toBe(400)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('Unknown target: does-not-exist')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toBe('Unknown target: does-not-exist')
   })
 })
 
@@ -140,8 +141,8 @@ describe('POST /api/fetch — discovery walk (covers publish.ts:900-927)', () =>
     })
 
     expect(res.status).toBe(404)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('No content found on target')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toBe('No content found on target')
   })
 
   it('discovers pages on the remote target when no items are supplied', async () => {

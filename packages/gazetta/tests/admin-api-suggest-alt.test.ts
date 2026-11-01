@@ -21,17 +21,19 @@ import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
 
 /**
  * Assert that an error response round-trips through the shared
- * error-response schema AND carries a non-empty `message`. Per
+ * error-response schema AND carries a non-empty `detail`. Per
  * `docs/audits/test-quality-with-ai.md` cycle 1: status-only
  * assertions left `code: ''` and `message: ''` mutations alive.
  * The schema parse pins `code` to the closed enum; the explicit
- * `message.length` assertion pins the human-readable side.
+ * `detail.length` assertion pins the human-readable side.
  */
 async function expectErrorResponse(res: Response, expectedCode: string): Promise<void> {
+  expect(res.headers.get('content-type')).toBe('application/problem+json')
   const body = ErrorResponseSchema.parse(await res.json())
   expect(body.code).toBe(expectedCode)
-  expect(body.message).toBeDefined()
-  expect(body.message!.length).toBeGreaterThan(0)
+  expect(body.status).toBe(res.status)
+  expect(body.detail).toBeDefined()
+  expect(body.detail!.length).toBeGreaterThan(0)
 }
 
 const ENV_KEYS = ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'OLLAMA_BASE_URL'] as const

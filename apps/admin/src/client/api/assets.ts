@@ -228,9 +228,9 @@ async function parseKindMismatchResponse(
 async function parseAssetError(res: Response, fallbackPrefix: string): Promise<AssetApiError> {
   const body = (await res.json().catch(() => ({}))) as {
     code?: string
-    message?: string
+    detail?: string
   }
-  return new AssetApiError(body.message ?? `${fallbackPrefix}: ${res.status}`, res.status, body.code)
+  return new AssetApiError(body.detail ?? `${fallbackPrefix}: ${res.status}`, res.status, body.code)
 }
 
 /**

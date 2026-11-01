@@ -9,18 +9,18 @@
  * and don't use it.
  */
 import { createMiddleware } from 'hono/factory'
+import { problem } from '../problem.js'
 import type { SourceContextResolver } from '../source-context.js'
 
 export function requireEditableTarget(resolve: SourceContextResolver) {
   return createMiddleware(async (c, next) => {
     const source = await resolve(c.req.query('target'))
     if (source.editable === false) {
-      return c.json(
-        {
-          code: 'TARGET_NOT_EDITABLE' as const,
-          error: `Target "${source.targetName}" isn't editable. Save to an editable target and publish from there.`,
-        },
+      return problem(
+        c,
         403,
+        'TARGET_NOT_EDITABLE',
+        `Target "${source.targetName}" isn't editable. Save to an editable target and publish from there.`,
       )
     }
     await next()

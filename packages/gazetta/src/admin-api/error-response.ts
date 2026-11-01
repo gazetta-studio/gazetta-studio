@@ -13,13 +13,14 @@
  */
 import type { Context } from 'hono'
 import { AssetError } from '../assets/errors.js'
+import { problemFrom } from './problem.js'
 
 /**
- * Serialize an `AssetError` into a Hono JSON response. Returns `null`
+ * Serialize an `AssetError` into a problem+json response. Returns `null`
  * when the error is not an `AssetError` — the caller should rethrow so
  * the framework's default handler can produce a 500.
  */
 export function respondWithAssetError(c: Context, err: unknown): Response | null {
   if (!(err instanceof AssetError)) return null
-  return c.json(err.toResponseBody(), err.httpStatus)
+  return problemFrom(c, err.httpStatus, err.toResponseBody())
 }

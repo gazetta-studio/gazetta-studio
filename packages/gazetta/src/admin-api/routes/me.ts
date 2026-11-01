@@ -13,6 +13,7 @@ import { Hono } from 'hono'
 import { UNKNOWN_ACTOR_ID } from '../../auth/index.js'
 import type { PrincipalEnv } from '../middleware/principal.js'
 import type { MeResponse } from '../schemas/me.js'
+import { problem } from '../problem.js'
 
 export function meRoutes() {
   const app = new Hono<PrincipalEnv>()
@@ -21,9 +22,8 @@ export function meRoutes() {
     const { id, role, trustMode } = c.var.principal
     // Same anonymous test as the capability middleware.
     if (id === UNKNOWN_ACTOR_ID && role === 'unknown') {
-      return c.json({ code: 'UNAUTHENTICATED' as const, error: 'Not signed in' }, 401, {
-        'WWW-Authenticate': 'Bearer realm="gazetta-admin"',
-      })
+      c.header('WWW-Authenticate', 'Bearer realm="gazetta-admin"')
+      return problem(c, 401, 'UNAUTHENTICATED', 'Not signed in')
     }
     const body: MeResponse = { id, role, trustMode }
     return c.json(body)

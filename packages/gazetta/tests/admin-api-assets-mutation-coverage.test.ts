@@ -68,6 +68,15 @@ import { principalMiddleware } from '../src/admin-api/middleware/principal.js'
 import type { AuthIdentityProvider, Principal } from '../src/auth/index.js'
 import type { StorageProvider } from '../src/types.js'
 import { tempDir } from './_helpers/temp.js'
+import { ErrorResponseSchema, type ErrorResponse } from '../src/admin-api/schemas/error.js'
+
+/** Parse an error body as a problem; its `detail` must be a string. */
+async function problemOf(res: Response): Promise<ErrorResponse & { detail: string }> {
+  const body = ErrorResponseSchema.parse(await res.json())
+  expect(body.status).toBe(res.status)
+  expect(typeof body.detail).toBe('string')
+  return body as ErrorResponse & { detail: string }
+}
 
 const testDir = tempDir('http-assets-mutation-coverage-' + Date.now())
 
@@ -130,7 +139,7 @@ async function uploadFrenchOverride(app: Hono) {
 
 describe('selectorFromQuery — POST /api/assets/:name/locale-bytes', () => {
   describe('invalid-selector 400 body shape', () => {
-    it('invalid locale 400 has code=BAD_REQUEST, message naming the bad locale, and application/json content-type', async () => {
+    it('invalid locale 400 has code=BAD_REQUEST, detail naming the bad locale, and application/problem+json content-type', async () => {
       const { app } = buildApp()
       await uploadHero(app)
 
@@ -142,23 +151,21 @@ describe('selectorFromQuery — POST /api/assets/:name/locale-bytes', () => {
       })
 
       expect(res.status).toBe(400)
-      // Header pins line-63 `headers: { 'content-type': 'application/json' }`.
-      // The raw `Response` from selectorFromQuery sets `content-type`
-      // explicitly; ObjectLiteral → {} would drop the header (Hono lets
-      // a custom-Response pass through unchanged).
-      expect(res.headers.get('content-type')).toMatch(/application\/json/)
-      const body = (await res.json()) as { code: string; message: string }
+      // Pins the problem content type (RFC 9457): a guard answering
+      // plain JSON, or dropping the header, fails here.
+      expect(res.headers.get('content-type')).toBe('application/problem+json')
+      const body = await problemOf(res)
       // Pins line-61 body literal.
       expect(body.code).toBe('BAD_REQUEST')
-      expect(typeof body.message).toBe('string')
-      expect(body.message.length).toBeGreaterThan(0)
-      expect(body.message).toContain('Invalid locale')
+      expect(typeof body.detail).toBe('string')
+      expect(body.detail.length).toBeGreaterThan(0)
+      expect(body.detail).toContain('Invalid locale')
       // The locale value gets interpolated into the message (template literal).
       // StringLiteral → `` would drop the prefix; this anchors the substring.
-      expect(body.message).toContain('NOT-A-LOCALE-FORMAT')
+      expect(body.detail).toContain('NOT-A-LOCALE-FORMAT')
     })
 
-    it('invalid theme 400 has code=BAD_REQUEST, message naming the bad theme, and application/json content-type', async () => {
+    it('invalid theme 400 has code=BAD_REQUEST, detail naming the bad theme, and application/problem+json content-type', async () => {
       const { app } = buildApp()
       await uploadHero(app)
 
@@ -170,12 +177,12 @@ describe('selectorFromQuery — POST /api/assets/:name/locale-bytes', () => {
       })
 
       expect(res.status).toBe(400)
-      expect(res.headers.get('content-type')).toMatch(/application\/json/)
-      const body = (await res.json()) as { code: string; message: string }
+      expect(res.headers.get('content-type')).toBe('application/problem+json')
+      const body = await problemOf(res)
       expect(body.code).toBe('BAD_REQUEST')
-      expect(body.message.length).toBeGreaterThan(0)
-      expect(body.message).toContain('Invalid theme')
-      expect(body.message).toContain('NOT-A-VALID-THEME')
+      expect(body.detail.length).toBeGreaterThan(0)
+      expect(body.detail).toContain('Invalid theme')
+      expect(body.detail).toContain('NOT-A-VALID-THEME')
     })
 
     it('invalid locale takes precedence over a present (valid) theme', async () => {
@@ -193,9 +200,9 @@ describe('selectorFromQuery — POST /api/assets/:name/locale-bytes', () => {
       })
 
       expect(res.status).toBe(400)
-      const body = (await res.json()) as { code: string; message: string }
+      const body = await problemOf(res)
       expect(body.code).toBe('BAD_REQUEST')
-      expect(body.message).toContain('Invalid locale')
+      expect(body.detail).toContain('Invalid locale')
     })
   })
 
@@ -221,9 +228,9 @@ describe('selectorFromQuery — POST /api/assets/:name/locale-bytes', () => {
       })
 
       expect(res.status).toBe(400)
-      const body = (await res.json()) as { code: string; message: string }
+      const body = await problemOf(res)
       expect(body.code).toBe('BAD_REQUEST')
-      expect(body.message).toBe('Selector required (locale and/or theme)')
+      expect(body.detail).toBe('Selector required (locale and/or theme)')
     })
   })
 
@@ -297,7 +304,7 @@ describe('selectorFromQuery — POST /api/assets/:name/locale-bytes', () => {
 
 describe('selectorFromQuery — DELETE /api/assets/:name/locale-bytes', () => {
   describe('invalid-selector 400 body shape', () => {
-    it('invalid locale 400 has code=BAD_REQUEST, message naming the bad locale, and application/json content-type', async () => {
+    it('invalid locale 400 has code=BAD_REQUEST, detail naming the bad locale, and application/problem+json content-type', async () => {
       const { app } = buildApp()
       await uploadHero(app)
 
@@ -306,14 +313,14 @@ describe('selectorFromQuery — DELETE /api/assets/:name/locale-bytes', () => {
       })
 
       expect(res.status).toBe(400)
-      expect(res.headers.get('content-type')).toMatch(/application\/json/)
-      const body = (await res.json()) as { code: string; message: string }
+      expect(res.headers.get('content-type')).toBe('application/problem+json')
+      const body = await problemOf(res)
       expect(body.code).toBe('BAD_REQUEST')
-      expect(body.message).toContain('Invalid locale')
-      expect(body.message).toContain('NOT-A-LOCALE-FORMAT')
+      expect(body.detail).toContain('Invalid locale')
+      expect(body.detail).toContain('NOT-A-LOCALE-FORMAT')
     })
 
-    it('invalid theme 400 has code=BAD_REQUEST, message naming the bad theme, and application/json content-type', async () => {
+    it('invalid theme 400 has code=BAD_REQUEST, detail naming the bad theme, and application/problem+json content-type', async () => {
       const { app } = buildApp()
       await uploadHero(app)
 
@@ -322,11 +329,11 @@ describe('selectorFromQuery — DELETE /api/assets/:name/locale-bytes', () => {
       })
 
       expect(res.status).toBe(400)
-      expect(res.headers.get('content-type')).toMatch(/application\/json/)
-      const body = (await res.json()) as { code: string; message: string }
+      expect(res.headers.get('content-type')).toBe('application/problem+json')
+      const body = await problemOf(res)
       expect(body.code).toBe('BAD_REQUEST')
-      expect(body.message).toContain('Invalid theme')
-      expect(body.message).toContain('NOT-A-VALID-THEME')
+      expect(body.detail).toContain('Invalid theme')
+      expect(body.detail).toContain('NOT-A-VALID-THEME')
     })
   })
 
@@ -338,9 +345,9 @@ describe('selectorFromQuery — DELETE /api/assets/:name/locale-bytes', () => {
       const res = await app.request('/api/assets/hero/locale-bytes', { method: 'DELETE' })
 
       expect(res.status).toBe(400)
-      const body = (await res.json()) as { code: string; message: string }
+      const body = await problemOf(res)
       expect(body.code).toBe('BAD_REQUEST')
-      expect(body.message).toBe('Selector required (locale and/or theme)')
+      expect(body.detail).toBe('Selector required (locale and/or theme)')
     })
   })
 
@@ -535,11 +542,11 @@ describe('GET /api/assets — listAssets error path (catch block)', () => {
     const { app } = buildAppWithThrowingStorage()
     const res = await app.request('/api/assets')
     expect(res.status).toBe(500)
-    expect(res.headers.get('content-type')).toMatch(/application\/json/)
-    const body = (await res.json()) as { code: string; message: string }
+    expect(res.headers.get('content-type')).toBe('application/problem+json')
+    const body = await problemOf(res)
     expect(body.code).toBe('ASSET_STORAGE_FAILURE')
-    expect(body.message).toContain('Storage read failed')
-    expect(body.message).toContain('assets')
+    expect(body.detail).toContain('Storage read failed')
+    expect(body.detail).toContain('assets')
   })
 })
 
@@ -729,7 +736,7 @@ describe('capability gates on write routes — StringLiteral pinning', () => {
 })
 
 describe('PATCH /api/assets/:name — invalid-JSON catch (lines 151-153)', () => {
-  it('400 with code=BAD_REQUEST and message="Invalid JSON body" when body is malformed JSON', async () => {
+  it('400 with code=BAD_REQUEST and detail="Invalid JSON body" when body is malformed JSON', async () => {
     // Under BlockStatement mutation `→ {}` on the catch, the handler
     // falls through with `body` still undefined and hits the
     // subsequent `if (!body || typeof body !== 'object' ...)` check.
@@ -747,10 +754,10 @@ describe('PATCH /api/assets/:name — invalid-JSON catch (lines 151-153)', () =>
       body: 'not valid json{{{',
     })
     expect(res.status).toBe(400)
-    expect(res.headers.get('content-type')).toMatch(/application\/json/)
-    const body = (await res.json()) as { code: string; message: string }
+    expect(res.headers.get('content-type')).toBe('application/problem+json')
+    const body = await problemOf(res)
     expect(body.code).toBe('BAD_REQUEST')
-    expect(body.message).toBe('Invalid JSON body')
+    expect(body.detail).toBe('Invalid JSON body')
   })
 })
 
@@ -821,10 +828,10 @@ describe('PATCH /api/assets/:name — body-shape validator (line 154)', () => {
       body: raw,
     })
     expect(res.status).toBe(400)
-    expect(res.headers.get('content-type')).toMatch(/application\/json/)
-    const body = (await res.json()) as { code: string; message: string }
+    expect(res.headers.get('content-type')).toBe('application/problem+json')
+    const body = await problemOf(res)
     expect(body.code).toBe('BAD_REQUEST')
-    expect(body.message).toBe('Body must be an object')
+    expect(body.detail).toBe('Body must be an object')
   })
 })
 

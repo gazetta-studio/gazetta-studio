@@ -97,21 +97,48 @@ export class ArchivedNameConflictError extends Error {
   }
 }
 
+/**
+ * An admin-API error answered as problem+json (RFC 9457,
+ * `design-agent-access.md` Q45): `detail` is the message, `code` the
+ * stable error code.
+ */
+export class ApiError extends Error {
+  readonly code: string | undefined
+  readonly status: number
+  constructor(message: string, status: number, code?: string) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.code = code
+  }
+}
+
+/** Read a problem body; a body that isn't JSON falls back to the status text. */
+async function readProblem(res: Response): Promise<Record<string, unknown>> {
+  const body = await res.json().catch(() => null)
+  return body && typeof body === 'object' ? (body as Record<string, unknown>) : { detail: res.statusText }
+}
+
+function apiError(res: Response, body: Record<string, unknown>, fallback: string): ApiError {
+  const detail = typeof body.detail === 'string' && body.detail ? body.detail : `${fallback}: ${res.status}`
+  return new ApiError(detail, res.status, typeof body.code === 'string' ? body.code : undefined)
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(apiUrl(path), {
     ...options,
     headers: authHeaders({ 'Content-Type': 'application/json', ...(options?.headers as Record<string, string>) }),
   })
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText }))
-    if (res.status === 409 && body && typeof body === 'object') {
-      if (body.code === 'VALIDATION_FAILED') throw new ValidationFailedError(body.issues ?? [])
-      if (body.code === 'STALE') throw new StaleSaveError(body.current ?? {}, body.currentEtag ?? '')
-      if (body.code === 'ARCHIVED_NAME_CONFLICT') throw new ArchivedNameConflictError(body.archive)
+    const body = await readProblem(res)
+    if (res.status === 409) {
+      if (body.code === 'VALIDATION_FAILED') throw new ValidationFailedError((body.issues as ValidationIssue[]) ?? [])
+      if (body.code === 'STALE')
+        throw new StaleSaveError((body.current as Record<string, unknown>) ?? {}, (body.currentEtag as string) ?? '')
+      if (body.code === 'ARCHIVED_NAME_CONFLICT')
+        throw new ArchivedNameConflictError(body.archive as ArchivedNameConflictError['archive'])
     }
-    // Save-route 409s explain themselves in `message` (ARCHIVED,
-    // EDIT_LOCKED); keep the explicit `error` field first.
-    throw new Error(body.error ?? body.message ?? `Request failed: ${res.status}`)
+    throw apiError(res, body, 'Request failed')
   }
   return res.json()
 }
@@ -129,12 +156,13 @@ async function requestWithEtag<T>(path: string, options?: RequestInit): Promise<
     headers: authHeaders({ 'Content-Type': 'application/json', ...(options?.headers as Record<string, string>) }),
   })
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText }))
-    if (res.status === 409 && body && typeof body === 'object') {
-      if (body.code === 'VALIDATION_FAILED') throw new ValidationFailedError(body.issues ?? [])
-      if (body.code === 'STALE') throw new StaleSaveError(body.current ?? {}, body.currentEtag ?? '')
+    const body = await readProblem(res)
+    if (res.status === 409) {
+      if (body.code === 'VALIDATION_FAILED') throw new ValidationFailedError((body.issues as ValidationIssue[]) ?? [])
+      if (body.code === 'STALE')
+        throw new StaleSaveError((body.current as Record<string, unknown>) ?? {}, (body.currentEtag as string) ?? '')
     }
-    throw new Error(body.error ?? `Request failed: ${res.status}`)
+    throw apiError(res, body, 'Request failed')
   }
   const data = (await res.json()) as T
   // RFC-7232 wraps the etag value in quotes; strip them for the typed
@@ -167,18 +195,11 @@ async function publishStream(
     signal: options?.signal,
   })
   if (!res.ok || !res.body) {
-    const body = await res.json().catch(() => ({ error: res.statusText }))
-    if (
-      res.status === 409 &&
-      body &&
-      typeof body === 'object' &&
-      (body as { code?: string }).code === 'PUBLISH_AUDIT_FAILED'
-    ) {
-      throw new PublishAuditFailedError(
-        (body as { blocked?: Array<{ target: string; issues: ValidationIssue[] }> }).blocked ?? [],
-      )
+    const body = await readProblem(res)
+    if (res.status === 409 && body.code === 'PUBLISH_AUDIT_FAILED') {
+      throw new PublishAuditFailedError((body.blocked as Array<{ target: string; issues: ValidationIssue[] }>) ?? [])
     }
-    throw new Error(body.error ?? `Stream failed: ${res.status}`)
+    throw apiError(res, body, 'Stream failed')
   }
 
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader()
