@@ -21,6 +21,7 @@
  * and we construct the revision.
  */
 
+import { currentOrigin, originFields } from './request-origin.js'
 import { join } from 'node:path'
 import type { StorageProvider } from './types.js'
 import type { BlobContent, HistoryProvider, RevisionInput, RevisionOperation } from './history.js'
@@ -136,9 +137,13 @@ export async function recordWrite(opts: RecordWriteOptions) {
     if (it.content === null) nextItems.delete(it.path)
     else nextItems.set(it.path, it.content)
   }
+  // Where the write came from, and the person when the caller names
+  // nobody (Q47): taken from the request, never from the route.
+  const origin = currentOrigin()
   const input: RevisionInput = {
     operation: opts.operation,
-    author: opts.author,
+    author: opts.author ?? origin?.author,
+    origin: originFields(origin),
     source: opts.source,
     message: opts.message,
     restoredFrom: opts.restoredFrom,

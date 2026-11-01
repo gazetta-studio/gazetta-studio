@@ -65,7 +65,7 @@ func TestWithTokenSendsTheHeader(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := client.DeleteApiV1AuthGrantsIdWithResponse(context.Background(), "g-1")
+	res, err := client.DeleteApiV1AuthGrantsIdWithResponse(context.Background(), "g-1", nil)
 	if err != nil || res.StatusCode() != http.StatusNoContent || a.TokensSeen[0] != "tok-1" {
 		t.Fatalf("status %v, err %v, tokens %v", res, err, a.TokensSeen)
 	}

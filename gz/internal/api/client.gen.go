@@ -264,6 +264,27 @@ func (e ProblemType) Valid() bool {
 	}
 }
 
+// Defines values for RevisionSummaryChannel.
+const (
+	Browser RevisionSummaryChannel = "browser"
+	Mcp     RevisionSummaryChannel = "mcp"
+	Token   RevisionSummaryChannel = "token"
+)
+
+// Valid indicates whether the value is a known member of the RevisionSummaryChannel enum.
+func (e RevisionSummaryChannel) Valid() bool {
+	switch e {
+	case Browser:
+		return true
+	case Mcp:
+		return true
+	case Token:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RevisionSummaryOperation.
 const (
 	RevisionSummaryOperationPublish  RevisionSummaryOperation = "publish"
@@ -1077,17 +1098,27 @@ type ProblemType string
 // RevisionSummary defines model for RevisionSummary.
 type RevisionSummary struct {
 	Author       *string                  `json:"author,omitempty"`
+	Channel      *RevisionSummaryChannel  `json:"channel,omitempty"`
+	Elevated     *bool                    `json:"elevated,omitempty"`
 	Id           string                   `json:"id"`
 	Items        []string                 `json:"items"`
 	Message      *string                  `json:"message,omitempty"`
 	Operation    RevisionSummaryOperation `json:"operation"`
 	RestoredFrom *string                  `json:"restoredFrom,omitempty"`
+	RunId        *string                  `json:"runId,omitempty"`
 	Source       *string                  `json:"source,omitempty"`
 	Timestamp    string                   `json:"timestamp"`
+	TokenId      *string                  `json:"tokenId,omitempty"`
 }
+
+// RevisionSummaryChannel defines model for RevisionSummary.Channel.
+type RevisionSummaryChannel string
 
 // RevisionSummaryOperation defines model for RevisionSummary.Operation.
 type RevisionSummaryOperation string
+
+// GazettaRun defines model for GazettaRun.
+type GazettaRun = string
 
 // GetApiHealth200JSONResponseBodyOk defines parameters for GetApiHealth.
 type GetApiHealth200JSONResponseBodyOk bool
@@ -1095,6 +1126,9 @@ type GetApiHealth200JSONResponseBodyOk bool
 // GetApiV1AssetsParams defines parameters for GetApiV1Assets.
 type GetApiV1AssetsParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1AssetsMultipartBody defines parameters for PostApiV1Assets.
@@ -1107,6 +1141,9 @@ type PostApiV1AssetsMultipartBody struct {
 // PostApiV1AssetsParams defines parameters for PostApiV1Assets.
 type PostApiV1AssetsParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1Assets201JSONResponseBodyManifestKind defines parameters for PostApiV1Assets.
@@ -1121,11 +1158,17 @@ type PostApiV1Assets201JSONResponseBodyManifestVersion float64
 // DeleteApiV1AssetsNameParams defines parameters for DeleteApiV1AssetsName.
 type DeleteApiV1AssetsNameParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // GetApiV1AssetsNameParams defines parameters for GetApiV1AssetsName.
 type GetApiV1AssetsNameParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PatchApiV1AssetsNameJSONBody defines parameters for PatchApiV1AssetsName.
@@ -1140,6 +1183,9 @@ type PatchApiV1AssetsNameJSONBody struct {
 // PatchApiV1AssetsNameParams defines parameters for PatchApiV1AssetsName.
 type PatchApiV1AssetsNameParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // DeleteApiV1AssetsNameLocaleBytesParams defines parameters for DeleteApiV1AssetsNameLocaleBytes.
@@ -1147,6 +1193,9 @@ type DeleteApiV1AssetsNameLocaleBytesParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Locale *string `form:"locale,omitempty" json:"locale,omitempty"`
 	Theme  *string `form:"theme,omitempty" json:"theme,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1AssetsNameLocaleBytesMultipartBody defines parameters for PostApiV1AssetsNameLocaleBytes.
@@ -1159,6 +1208,9 @@ type PostApiV1AssetsNameLocaleBytesParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Locale *string `form:"locale,omitempty" json:"locale,omitempty"`
 	Theme  *string `form:"theme,omitempty" json:"theme,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1AssetsNameLocaleBytes201JSONResponseBodyManifestVersion defines parameters for PostApiV1AssetsNameLocaleBytes.
@@ -1167,17 +1219,26 @@ type PostApiV1AssetsNameLocaleBytes201JSONResponseBodyManifestVersion float64
 // PostApiV1AssetsNameRenameToNewNameParams defines parameters for PostApiV1AssetsNameRenameToNewName.
 type PostApiV1AssetsNameRenameToNewNameParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1AssetsNameReplaceWithNewNameParams defines parameters for PostApiV1AssetsNameReplaceWithNewName.
 type PostApiV1AssetsNameReplaceWithNewNameParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1AssetsNameSuggestAltParams defines parameters for PostApiV1AssetsNameSuggestAlt.
 type PostApiV1AssetsNameSuggestAltParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Locale *string `form:"locale,omitempty" json:"locale,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // GetApiV1AuditParams defines parameters for GetApiV1Audit.
@@ -1190,6 +1251,9 @@ type GetApiV1AuditParams struct {
 	Since     *string `form:"since,omitempty" json:"since,omitempty"`
 	Until     *string `form:"until,omitempty" json:"until,omitempty"`
 	Limit     *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // GetApiV1Audit200JSONResponseBodyEventsAction defines parameters for GetApiV1Audit.
@@ -1201,17 +1265,53 @@ type GetApiV1Audit200JSONResponseBodyEventsOutcome string
 // GetApiV1Audit200JSONResponseBodyEventsScopeKind defines parameters for GetApiV1Audit.
 type GetApiV1Audit200JSONResponseBodyEventsScopeKind string
 
+// GetApiV1AuthCliSetupParams defines parameters for GetApiV1AuthCliSetup.
+type GetApiV1AuthCliSetupParams struct {
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
 // PostApiV1AuthElevationsJSONBody defines parameters for PostApiV1AuthElevations.
 type PostApiV1AuthElevationsJSONBody struct {
 	Scope PostApiV1AuthElevationsJSONBodyScope `json:"scope"`
 }
 
+// PostApiV1AuthElevationsParams defines parameters for PostApiV1AuthElevations.
+type PostApiV1AuthElevationsParams struct {
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
 // PostApiV1AuthElevationsJSONBodyScope defines parameters for PostApiV1AuthElevations.
 type PostApiV1AuthElevationsJSONBodyScope string
+
+// DeleteApiV1AuthElevationsIdParams defines parameters for DeleteApiV1AuthElevationsId.
+type DeleteApiV1AuthElevationsIdParams struct {
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
 
 // PostApiV1AuthGrantsJSONBody defines parameters for PostApiV1AuthGrants.
 type PostApiV1AuthGrantsJSONBody struct {
 	Machine string `json:"machine"`
+}
+
+// PostApiV1AuthGrantsParams defines parameters for PostApiV1AuthGrants.
+type PostApiV1AuthGrantsParams struct {
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
+// DeleteApiV1AuthGrantsIdParams defines parameters for DeleteApiV1AuthGrantsId.
+type DeleteApiV1AuthGrantsIdParams struct {
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
+// GetApiV1AuthKeysParams defines parameters for GetApiV1AuthKeys.
+type GetApiV1AuthKeysParams struct {
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // GetApiV1AuthKeys200JSONResponseBody_Keys_Item defines parameters for GetApiV1AuthKeys.
@@ -1226,6 +1326,18 @@ type PostApiV1AuthLoginsJSONBody struct {
 	Machine string `json:"machine"`
 }
 
+// PostApiV1AuthLoginsParams defines parameters for PostApiV1AuthLogins.
+type PostApiV1AuthLoginsParams struct {
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
+// GetApiV1AuthLoginsCodeParams defines parameters for GetApiV1AuthLoginsCode.
+type GetApiV1AuthLoginsCodeParams struct {
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
 // GetApiV1AuthLoginsCode200JSONResponseBodyKind defines parameters for GetApiV1AuthLoginsCode.
 type GetApiV1AuthLoginsCode200JSONResponseBodyKind string
 
@@ -1235,8 +1347,20 @@ type GetApiV1AuthLoginsCode200JSONResponseBodyScope string
 // GetApiV1AuthLoginsCode200JSONResponseBodyState defines parameters for GetApiV1AuthLoginsCode.
 type GetApiV1AuthLoginsCode200JSONResponseBodyState string
 
+// PostApiV1AuthLoginsCodeApproveParams defines parameters for PostApiV1AuthLoginsCodeApprove.
+type PostApiV1AuthLoginsCodeApproveParams struct {
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
 // PostApiV1AuthLoginsCodeApprove200JSONResponseBodyState defines parameters for PostApiV1AuthLoginsCodeApprove.
 type PostApiV1AuthLoginsCodeApprove200JSONResponseBodyState string
+
+// PostApiV1AuthLoginsCodeDenyParams defines parameters for PostApiV1AuthLoginsCodeDeny.
+type PostApiV1AuthLoginsCodeDenyParams struct {
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
 
 // PostApiV1AuthLoginsCodeDeny200JSONResponseBodyState defines parameters for PostApiV1AuthLoginsCodeDeny.
 type PostApiV1AuthLoginsCodeDeny200JSONResponseBodyState string
@@ -1244,6 +1368,12 @@ type PostApiV1AuthLoginsCodeDeny200JSONResponseBodyState string
 // PostApiV1AuthLoginsCodeRedeemJSONBody defines parameters for PostApiV1AuthLoginsCodeRedeem.
 type PostApiV1AuthLoginsCodeRedeemJSONBody struct {
 	PollSecret string `json:"pollSecret"`
+}
+
+// PostApiV1AuthLoginsCodeRedeemParams defines parameters for PostApiV1AuthLoginsCodeRedeem.
+type PostApiV1AuthLoginsCodeRedeemParams struct {
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1AuthLoginsCodeRedeem200JSONResponseBody0 defines parameters for PostApiV1AuthLoginsCodeRedeem.
@@ -1286,10 +1416,19 @@ type PostApiV1AuthTokensJSONBody struct {
 	GrantSecret string `json:"grantSecret"`
 }
 
+// PostApiV1AuthTokensParams defines parameters for PostApiV1AuthTokens.
+type PostApiV1AuthTokensParams struct {
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
 // GetApiV1CompareParams defines parameters for GetApiV1Compare.
 type GetApiV1CompareParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Source *string `form:"source,omitempty" json:"source,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // GetApiV1DependentsParams defines parameters for GetApiV1Dependents.
@@ -1297,6 +1436,9 @@ type GetApiV1DependentsParams struct {
 	Item   *string `form:"item,omitempty" json:"item,omitempty"`
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Source *string `form:"source,omitempty" json:"source,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1FetchJSONBody defines parameters for PostApiV1Fetch.
@@ -1306,9 +1448,18 @@ type PostApiV1FetchJSONBody struct {
 	Source      *string   `json:"source,omitempty"`
 }
 
+// PostApiV1FetchParams defines parameters for PostApiV1Fetch.
+type PostApiV1FetchParams struct {
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
 // GetApiV1FieldsParams defines parameters for GetApiV1Fields.
 type GetApiV1FieldsParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1FragmentRedirectsJSONBody defines parameters for PostApiV1FragmentRedirects.
@@ -1321,6 +1472,9 @@ type PostApiV1FragmentRedirectsJSONBody struct {
 type PostApiV1FragmentRedirectsParams struct {
 	Target     *string `form:"target,omitempty" json:"target,omitempty"`
 	OnConflict *string `form:"onConflict,omitempty" json:"onConflict,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1FragmentRedirects201JSONResponseBodyKind defines parameters for PostApiV1FragmentRedirects.
@@ -1332,6 +1486,9 @@ type PostApiV1FragmentRedirects201JSONResponseBodyOk bool
 // GetApiV1FragmentsParams defines parameters for GetApiV1Fragments.
 type GetApiV1FragmentsParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1FragmentsJSONBody defines parameters for PostApiV1Fragments.
@@ -1344,6 +1501,9 @@ type PostApiV1FragmentsJSONBody struct {
 type PostApiV1FragmentsParams struct {
 	Target     *string `form:"target,omitempty" json:"target,omitempty"`
 	OnConflict *string `form:"onConflict,omitempty" json:"onConflict,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // DeleteApiV1FragmentsNameJSONBody defines parameters for DeleteApiV1FragmentsName.
@@ -1356,6 +1516,9 @@ type DeleteApiV1FragmentsNameParams struct {
 	Target    *string `form:"target,omitempty" json:"target,omitempty"`
 	Force     *string `form:"force,omitempty" json:"force,omitempty"`
 	Permanent *string `form:"permanent,omitempty" json:"permanent,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // DeleteApiV1FragmentsName200JSONResponseBody0 defines parameters for DeleteApiV1FragmentsName.
@@ -1388,6 +1551,9 @@ type GetApiV1FragmentsNameParams struct {
 	Target     *string `form:"target,omitempty" json:"target,omitempty"`
 	Locale     *string `form:"locale,omitempty" json:"locale,omitempty"`
 	XRequestId *string `json:"x-request-id,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // GetApiV1FragmentsName200JSONResponseBody defines parameters for GetApiV1FragmentsName.
@@ -1420,6 +1586,9 @@ type PutApiV1FragmentsNameParams struct {
 	Locale     *string `form:"locale,omitempty" json:"locale,omitempty"`
 	XRequestId *string `json:"x-request-id,omitempty"`
 	IfMatch    *string `json:"if-match,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PutApiV1FragmentsName200JSONResponseBodyOk defines parameters for PutApiV1FragmentsName.
@@ -1433,6 +1602,9 @@ type PatchApiV1FragmentsNameAliasJSONBody struct {
 // PatchApiV1FragmentsNameAliasParams defines parameters for PatchApiV1FragmentsNameAlias.
 type PatchApiV1FragmentsNameAliasParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PatchApiV1FragmentsNameAlias200JSONResponseBodyOk defines parameters for PatchApiV1FragmentsNameAlias.
@@ -1447,6 +1619,9 @@ type PostApiV1FragmentsNameArchiveJSONBody struct {
 type PostApiV1FragmentsNameArchiveParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Force  *string `form:"force,omitempty" json:"force,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1FragmentsNameArchive200JSONResponseBodyOk defines parameters for PostApiV1FragmentsNameArchive.
@@ -1456,6 +1631,9 @@ type PostApiV1FragmentsNameArchive200JSONResponseBodyOk bool
 type DeleteApiV1FragmentsNamePurgeParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Force  *string `form:"force,omitempty" json:"force,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // DeleteApiV1FragmentsNamePurge200JSONResponseBodyOk defines parameters for DeleteApiV1FragmentsNamePurge.
@@ -1471,6 +1649,9 @@ type PostApiV1FragmentsNameRenameJSONBody struct {
 type PostApiV1FragmentsNameRenameParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Force  *string `form:"force,omitempty" json:"force,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1FragmentsNameRename200JSONResponseBodyOk defines parameters for PostApiV1FragmentsNameRename.
@@ -1479,6 +1660,9 @@ type PostApiV1FragmentsNameRename200JSONResponseBodyOk bool
 // PostApiV1FragmentsNameUnarchiveParams defines parameters for PostApiV1FragmentsNameUnarchive.
 type PostApiV1FragmentsNameUnarchiveParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1FragmentsNameUnarchive200JSONResponseBodyOk defines parameters for PostApiV1FragmentsNameUnarchive.
@@ -1489,6 +1673,9 @@ type GetApiV1HistoryParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Source *string `form:"source,omitempty" json:"source,omitempty"`
 	Limit  *string `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1HistoryRestoreParams defines parameters for PostApiV1HistoryRestore.
@@ -1496,12 +1683,24 @@ type PostApiV1HistoryRestoreParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Source *string `form:"source,omitempty" json:"source,omitempty"`
 	Id     *string `form:"id,omitempty" json:"id,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1HistoryUndoParams defines parameters for PostApiV1HistoryUndo.
 type PostApiV1HistoryUndoParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Source *string `form:"source,omitempty" json:"source,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
+// GetApiV1MeParams defines parameters for GetApiV1Me.
+type GetApiV1MeParams struct {
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1PageRedirectsJSONBody defines parameters for PostApiV1PageRedirects.
@@ -1514,6 +1713,9 @@ type PostApiV1PageRedirectsJSONBody struct {
 type PostApiV1PageRedirectsParams struct {
 	Target     *string `form:"target,omitempty" json:"target,omitempty"`
 	OnConflict *string `form:"onConflict,omitempty" json:"onConflict,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1PageRedirects201JSONResponseBodyKind defines parameters for PostApiV1PageRedirects.
@@ -1525,6 +1727,9 @@ type PostApiV1PageRedirects201JSONResponseBodyOk bool
 // GetApiV1PagesParams defines parameters for GetApiV1Pages.
 type GetApiV1PagesParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1PagesJSONBody defines parameters for PostApiV1Pages.
@@ -1538,6 +1743,9 @@ type PostApiV1PagesJSONBody struct {
 type PostApiV1PagesParams struct {
 	Target     *string `form:"target,omitempty" json:"target,omitempty"`
 	OnConflict *string `form:"onConflict,omitempty" json:"onConflict,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // DeleteApiV1PagesNameJSONBody defines parameters for DeleteApiV1PagesName.
@@ -1550,6 +1758,9 @@ type DeleteApiV1PagesNameParams struct {
 	Target    *string `form:"target,omitempty" json:"target,omitempty"`
 	Force     *string `form:"force,omitempty" json:"force,omitempty"`
 	Permanent *string `form:"permanent,omitempty" json:"permanent,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // DeleteApiV1PagesName200JSONResponseBody0 defines parameters for DeleteApiV1PagesName.
@@ -1582,6 +1793,9 @@ type GetApiV1PagesNameParams struct {
 	Target     *string `form:"target,omitempty" json:"target,omitempty"`
 	Locale     *string `form:"locale,omitempty" json:"locale,omitempty"`
 	XRequestId *string `json:"x-request-id,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // GetApiV1PagesName200JSONResponseBody defines parameters for GetApiV1PagesName.
@@ -1618,6 +1832,9 @@ type PutApiV1PagesNameParams struct {
 	Locale     *string `form:"locale,omitempty" json:"locale,omitempty"`
 	XRequestId *string `json:"x-request-id,omitempty"`
 	IfMatch    *string `json:"if-match,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PutApiV1PagesNameJSONBody_Metadata defines parameters for PutApiV1PagesName.
@@ -1641,6 +1858,9 @@ type PatchApiV1PagesNameAliasJSONBody struct {
 // PatchApiV1PagesNameAliasParams defines parameters for PatchApiV1PagesNameAlias.
 type PatchApiV1PagesNameAliasParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PatchApiV1PagesNameAlias200JSONResponseBodyOk defines parameters for PatchApiV1PagesNameAlias.
@@ -1655,6 +1875,9 @@ type PostApiV1PagesNameArchiveJSONBody struct {
 type PostApiV1PagesNameArchiveParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Force  *string `form:"force,omitempty" json:"force,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1PagesNameArchive200JSONResponseBodyOk defines parameters for PostApiV1PagesNameArchive.
@@ -1664,6 +1887,9 @@ type PostApiV1PagesNameArchive200JSONResponseBodyOk bool
 type DeleteApiV1PagesNamePurgeParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Force  *string `form:"force,omitempty" json:"force,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // DeleteApiV1PagesNamePurge200JSONResponseBodyOk defines parameters for DeleteApiV1PagesNamePurge.
@@ -1679,6 +1905,9 @@ type PostApiV1PagesNameRenameJSONBody struct {
 type PostApiV1PagesNameRenameParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Force  *string `form:"force,omitempty" json:"force,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1PagesNameRename200JSONResponseBodyOk defines parameters for PostApiV1PagesNameRename.
@@ -1687,6 +1916,9 @@ type PostApiV1PagesNameRename200JSONResponseBodyOk bool
 // PostApiV1PagesNameUnarchiveParams defines parameters for PostApiV1PagesNameUnarchive.
 type PostApiV1PagesNameUnarchiveParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1PagesNameUnarchive200JSONResponseBodyOk defines parameters for PostApiV1PagesNameUnarchive.
@@ -1702,6 +1934,9 @@ type PostApiV1PublishJSONBody struct {
 // PostApiV1PublishParams defines parameters for PostApiV1Publish.
 type PostApiV1PublishParams struct {
 	XRequestId *string `json:"x-request-id,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1PublishAuditJSONBody defines parameters for PostApiV1PublishAudit.
@@ -1716,6 +1951,9 @@ type PostApiV1PublishAuditJSONBody struct {
 // PostApiV1PublishAuditParams defines parameters for PostApiV1PublishAudit.
 type PostApiV1PublishAuditParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // PostApiV1PublishAuditJSONBodyItemsKind defines parameters for PostApiV1PublishAudit.
@@ -1731,11 +1969,17 @@ type PostApiV1PublishStreamJSONBody struct {
 // PostApiV1PublishStreamParams defines parameters for PostApiV1PublishStream.
 type PostApiV1PublishStreamParams struct {
 	XRequestId *string `json:"x-request-id,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // GetApiV1SiteParams defines parameters for GetApiV1Site.
 type GetApiV1SiteParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // GetApiV1Site200JSONResponseBody defines parameters for GetApiV1Site.
@@ -1756,11 +2000,23 @@ type GetApiV1Site200JSONResponseBody struct {
 // GetApiV1SystemCacheInvalidationsParams defines parameters for GetApiV1SystemCacheInvalidations.
 type GetApiV1SystemCacheInvalidationsParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // GetApiV1SystemCacheStatsParams defines parameters for GetApiV1SystemCacheStats.
 type GetApiV1SystemCacheStatsParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
+// GetApiV1TargetsParams defines parameters for GetApiV1Targets.
+type GetApiV1TargetsParams struct {
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // GetApiV1Targets200JSONResponseBodyEnvironment defines parameters for GetApiV1Targets.
@@ -1772,11 +2028,17 @@ type GetApiV1Targets200JSONResponseBodyType string
 // GetApiV1TemplatesParams defines parameters for GetApiV1Templates.
 type GetApiV1TemplatesParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // GetApiV1TemplatesNameImpactParams defines parameters for GetApiV1TemplatesNameImpact.
 type GetApiV1TemplatesNameImpactParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // GetApiV1TemplatesNameImpact200JSONResponseBodyItemsKind defines parameters for GetApiV1TemplatesNameImpact.
@@ -1785,6 +2047,9 @@ type GetApiV1TemplatesNameImpact200JSONResponseBodyItemsKind string
 // GetApiV1TemplatesNameSchemaParams defines parameters for GetApiV1TemplatesNameSchema.
 type GetApiV1TemplatesNameSchemaParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // GetApiV1TemplatesNameSchema200JSONResponseBody defines parameters for GetApiV1TemplatesNameSchema.
@@ -1793,6 +2058,12 @@ type GetApiV1TemplatesNameSchema200JSONResponseBody struct {
 	FieldsBaseUrl        string                 `json:"fieldsBaseUrl"`
 	HasEditor            bool                   `json:"hasEditor"`
 	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
+// GetApiV1ValidationIssuesParams defines parameters for GetApiV1ValidationIssues.
+type GetApiV1ValidationIssuesParams struct {
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // GetPreviewParams defines parameters for GetPreview.
@@ -3655,109 +3926,109 @@ type ClientInterface interface {
 	// GetApiV1AuthCliSetup How to sign in a command line here (in the browser)
 	//
 	// Corresponds with GET /api/v1/auth/cli-setup (the `GetApiV1AuthCliSetup` operationId).
-	GetApiV1AuthCliSetup(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetApiV1AuthCliSetup(ctx context.Context, params *GetApiV1AuthCliSetupParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiV1AuthElevationsWithBody Ask to publish, delete or restore for a short time (with a token)
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/v1/auth/elevations (the `PostApiV1AuthElevations` operationId).
-	PostApiV1AuthElevationsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PostApiV1AuthElevationsWithBody(ctx context.Context, params *PostApiV1AuthElevationsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiV1AuthElevations Ask to publish, delete or restore for a short time (with a token)
 	//
 	// Takes a body of the `application/json` content type.
 	//
 	// Corresponds with POST /api/v1/auth/elevations (the `PostApiV1AuthElevations` operationId).
-	PostApiV1AuthElevations(ctx context.Context, body PostApiV1AuthElevationsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PostApiV1AuthElevations(ctx context.Context, params *PostApiV1AuthElevationsParams, body PostApiV1AuthElevationsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteApiV1AuthElevationsId End an elevation now
 	//
 	// Corresponds with DELETE /api/v1/auth/elevations/{id} (the `DeleteApiV1AuthElevationsId` operationId).
-	DeleteApiV1AuthElevationsId(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	DeleteApiV1AuthElevationsId(ctx context.Context, id string, params *DeleteApiV1AuthElevationsIdParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiV1AuthGrantsWithBody Sign in a command line by pasting a grant (in the browser, behind ALB)
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/v1/auth/grants (the `PostApiV1AuthGrants` operationId).
-	PostApiV1AuthGrantsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PostApiV1AuthGrantsWithBody(ctx context.Context, params *PostApiV1AuthGrantsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiV1AuthGrants Sign in a command line by pasting a grant (in the browser, behind ALB)
 	//
 	// Takes a body of the `application/json` content type.
 	//
 	// Corresponds with POST /api/v1/auth/grants (the `PostApiV1AuthGrants` operationId).
-	PostApiV1AuthGrants(ctx context.Context, body PostApiV1AuthGrantsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PostApiV1AuthGrants(ctx context.Context, params *PostApiV1AuthGrantsParams, body PostApiV1AuthGrantsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteApiV1AuthGrantsId Revoke one of your own grants
 	//
 	// Corresponds with DELETE /api/v1/auth/grants/{id} (the `DeleteApiV1AuthGrantsId` operationId).
-	DeleteApiV1AuthGrantsId(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	DeleteApiV1AuthGrantsId(ctx context.Context, id string, params *DeleteApiV1AuthGrantsIdParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetApiV1AuthKeys The admin's public signing keys, as a JWKS
 	//
 	// Readable without signing in. Lists the current key and, during rotation, the previous one. ALB's JWT check reads it (design-agent-access.md Q15).
 	//
 	// Corresponds with GET /api/v1/auth/keys (the `GetApiV1AuthKeys` operationId).
-	GetApiV1AuthKeys(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetApiV1AuthKeys(ctx context.Context, params *GetApiV1AuthKeysParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiV1AuthLoginsWithBody Start a CLI login
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/v1/auth/logins (the `PostApiV1AuthLogins` operationId).
-	PostApiV1AuthLoginsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PostApiV1AuthLoginsWithBody(ctx context.Context, params *PostApiV1AuthLoginsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiV1AuthLogins Start a CLI login
 	//
 	// Takes a body of the `application/json` content type.
 	//
 	// Corresponds with POST /api/v1/auth/logins (the `PostApiV1AuthLogins` operationId).
-	PostApiV1AuthLogins(ctx context.Context, body PostApiV1AuthLoginsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PostApiV1AuthLogins(ctx context.Context, params *PostApiV1AuthLoginsParams, body PostApiV1AuthLoginsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetApiV1AuthLoginsCode A pending login, for the approve page
 	//
 	// Corresponds with GET /api/v1/auth/logins/{code} (the `GetApiV1AuthLoginsCode` operationId).
-	GetApiV1AuthLoginsCode(ctx context.Context, code string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetApiV1AuthLoginsCode(ctx context.Context, code string, params *GetApiV1AuthLoginsCodeParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiV1AuthLoginsCodeApprove Approve a CLI login
 	//
 	// Corresponds with POST /api/v1/auth/logins/{code}/approve (the `PostApiV1AuthLoginsCodeApprove` operationId).
-	PostApiV1AuthLoginsCodeApprove(ctx context.Context, code string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PostApiV1AuthLoginsCodeApprove(ctx context.Context, code string, params *PostApiV1AuthLoginsCodeApproveParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiV1AuthLoginsCodeDeny Deny a CLI login
 	//
 	// Corresponds with POST /api/v1/auth/logins/{code}/deny (the `PostApiV1AuthLoginsCodeDeny` operationId).
-	PostApiV1AuthLoginsCodeDeny(ctx context.Context, code string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PostApiV1AuthLoginsCodeDeny(ctx context.Context, code string, params *PostApiV1AuthLoginsCodeDenyParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiV1AuthLoginsCodeRedeemWithBody Collect an approved login: a grant and a token, once
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/v1/auth/logins/{code}/redeem (the `PostApiV1AuthLoginsCodeRedeem` operationId).
-	PostApiV1AuthLoginsCodeRedeemWithBody(ctx context.Context, code string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PostApiV1AuthLoginsCodeRedeemWithBody(ctx context.Context, code string, params *PostApiV1AuthLoginsCodeRedeemParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiV1AuthLoginsCodeRedeem Collect an approved login: a grant and a token, once
 	//
 	// Takes a body of the `application/json` content type.
 	//
 	// Corresponds with POST /api/v1/auth/logins/{code}/redeem (the `PostApiV1AuthLoginsCodeRedeem` operationId).
-	PostApiV1AuthLoginsCodeRedeem(ctx context.Context, code string, body PostApiV1AuthLoginsCodeRedeemJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PostApiV1AuthLoginsCodeRedeem(ctx context.Context, code string, params *PostApiV1AuthLoginsCodeRedeemParams, body PostApiV1AuthLoginsCodeRedeemJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiV1AuthTokensWithBody A fresh token from a grant
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/v1/auth/tokens (the `PostApiV1AuthTokens` operationId).
-	PostApiV1AuthTokensWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PostApiV1AuthTokensWithBody(ctx context.Context, params *PostApiV1AuthTokensParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiV1AuthTokens A fresh token from a grant
 	//
 	// Takes a body of the `application/json` content type.
 	//
 	// Corresponds with POST /api/v1/auth/tokens (the `PostApiV1AuthTokens` operationId).
-	PostApiV1AuthTokens(ctx context.Context, body PostApiV1AuthTokensJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PostApiV1AuthTokens(ctx context.Context, params *PostApiV1AuthTokensParams, body PostApiV1AuthTokensJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetApiV1Compare What differs between the source and a target
 	//
@@ -3774,14 +4045,14 @@ type ClientInterface interface {
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/v1/fetch (the `PostApiV1Fetch` operationId).
-	PostApiV1FetchWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PostApiV1FetchWithBody(ctx context.Context, params *PostApiV1FetchParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiV1Fetch Copy content from a target into an editable target
 	//
 	// Takes a body of the `application/json` content type.
 	//
 	// Corresponds with POST /api/v1/fetch (the `PostApiV1Fetch` operationId).
-	PostApiV1Fetch(ctx context.Context, body PostApiV1FetchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PostApiV1Fetch(ctx context.Context, params *PostApiV1FetchParams, body PostApiV1FetchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetApiV1Fields The project's custom fields
 	//
@@ -3924,7 +4195,7 @@ type ClientInterface interface {
 	// GetApiV1Me The signed-in principal
 	//
 	// Corresponds with GET /api/v1/me (the `GetApiV1Me` operationId).
-	GetApiV1Me(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetApiV1Me(ctx context.Context, params *GetApiV1MeParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiV1PageRedirectsWithBody Create a page redirect
 	//
@@ -4104,7 +4375,7 @@ type ClientInterface interface {
 	// GetApiV1Targets The configured targets and what each can do
 	//
 	// Corresponds with GET /api/v1/targets (the `GetApiV1Targets` operationId).
-	GetApiV1Targets(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetApiV1Targets(ctx context.Context, params *GetApiV1TargetsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetApiV1Templates The project's templates
 	//
@@ -4124,7 +4395,7 @@ type ClientInterface interface {
 	// GetApiV1ValidationIssues The background scanner's current issues
 	//
 	// Corresponds with GET /api/v1/validation/issues (the `GetApiV1ValidationIssues` operationId).
-	GetApiV1ValidationIssues(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetApiV1ValidationIssues(ctx context.Context, params *GetApiV1ValidationIssuesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetApiVersion The API majors this admin serves
 	//
@@ -4389,8 +4660,8 @@ func (c *Client) GetApiV1Audit(ctx context.Context, params *GetApiV1AuditParams,
 // GetApiV1AuthCliSetup How to sign in a command line here (in the browser)
 //
 // Corresponds with GET /api/v1/auth/cli-setup (the `GetApiV1AuthCliSetup` operationId).
-func (c *Client) GetApiV1AuthCliSetup(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiV1AuthCliSetupRequest(c.Server)
+func (c *Client) GetApiV1AuthCliSetup(ctx context.Context, params *GetApiV1AuthCliSetupParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetApiV1AuthCliSetupRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -4406,8 +4677,8 @@ func (c *Client) GetApiV1AuthCliSetup(ctx context.Context, reqEditors ...Request
 // Takes any type of body and a specified content type.
 //
 // Corresponds with POST /api/v1/auth/elevations (the `PostApiV1AuthElevations` operationId).
-func (c *Client) PostApiV1AuthElevationsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiV1AuthElevationsRequestWithBody(c.Server, contentType, body)
+func (c *Client) PostApiV1AuthElevationsWithBody(ctx context.Context, params *PostApiV1AuthElevationsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1AuthElevationsRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4423,8 +4694,8 @@ func (c *Client) PostApiV1AuthElevationsWithBody(ctx context.Context, contentTyp
 // Takes a body of the `application/json` content type.
 //
 // Corresponds with POST /api/v1/auth/elevations (the `PostApiV1AuthElevations` operationId).
-func (c *Client) PostApiV1AuthElevations(ctx context.Context, body PostApiV1AuthElevationsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiV1AuthElevationsRequest(c.Server, body)
+func (c *Client) PostApiV1AuthElevations(ctx context.Context, params *PostApiV1AuthElevationsParams, body PostApiV1AuthElevationsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1AuthElevationsRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4438,8 +4709,8 @@ func (c *Client) PostApiV1AuthElevations(ctx context.Context, body PostApiV1Auth
 // DeleteApiV1AuthElevationsId End an elevation now
 //
 // Corresponds with DELETE /api/v1/auth/elevations/{id} (the `DeleteApiV1AuthElevationsId` operationId).
-func (c *Client) DeleteApiV1AuthElevationsId(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteApiV1AuthElevationsIdRequest(c.Server, id)
+func (c *Client) DeleteApiV1AuthElevationsId(ctx context.Context, id string, params *DeleteApiV1AuthElevationsIdParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteApiV1AuthElevationsIdRequest(c.Server, id, params)
 	if err != nil {
 		return nil, err
 	}
@@ -4455,8 +4726,8 @@ func (c *Client) DeleteApiV1AuthElevationsId(ctx context.Context, id string, req
 // Takes any type of body and a specified content type.
 //
 // Corresponds with POST /api/v1/auth/grants (the `PostApiV1AuthGrants` operationId).
-func (c *Client) PostApiV1AuthGrantsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiV1AuthGrantsRequestWithBody(c.Server, contentType, body)
+func (c *Client) PostApiV1AuthGrantsWithBody(ctx context.Context, params *PostApiV1AuthGrantsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1AuthGrantsRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4472,8 +4743,8 @@ func (c *Client) PostApiV1AuthGrantsWithBody(ctx context.Context, contentType st
 // Takes a body of the `application/json` content type.
 //
 // Corresponds with POST /api/v1/auth/grants (the `PostApiV1AuthGrants` operationId).
-func (c *Client) PostApiV1AuthGrants(ctx context.Context, body PostApiV1AuthGrantsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiV1AuthGrantsRequest(c.Server, body)
+func (c *Client) PostApiV1AuthGrants(ctx context.Context, params *PostApiV1AuthGrantsParams, body PostApiV1AuthGrantsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1AuthGrantsRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4487,8 +4758,8 @@ func (c *Client) PostApiV1AuthGrants(ctx context.Context, body PostApiV1AuthGran
 // DeleteApiV1AuthGrantsId Revoke one of your own grants
 //
 // Corresponds with DELETE /api/v1/auth/grants/{id} (the `DeleteApiV1AuthGrantsId` operationId).
-func (c *Client) DeleteApiV1AuthGrantsId(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteApiV1AuthGrantsIdRequest(c.Server, id)
+func (c *Client) DeleteApiV1AuthGrantsId(ctx context.Context, id string, params *DeleteApiV1AuthGrantsIdParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteApiV1AuthGrantsIdRequest(c.Server, id, params)
 	if err != nil {
 		return nil, err
 	}
@@ -4504,8 +4775,8 @@ func (c *Client) DeleteApiV1AuthGrantsId(ctx context.Context, id string, reqEdit
 // Readable without signing in. Lists the current key and, during rotation, the previous one. ALB's JWT check reads it (design-agent-access.md Q15).
 //
 // Corresponds with GET /api/v1/auth/keys (the `GetApiV1AuthKeys` operationId).
-func (c *Client) GetApiV1AuthKeys(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiV1AuthKeysRequest(c.Server)
+func (c *Client) GetApiV1AuthKeys(ctx context.Context, params *GetApiV1AuthKeysParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetApiV1AuthKeysRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -4521,8 +4792,8 @@ func (c *Client) GetApiV1AuthKeys(ctx context.Context, reqEditors ...RequestEdit
 // Takes any type of body and a specified content type.
 //
 // Corresponds with POST /api/v1/auth/logins (the `PostApiV1AuthLogins` operationId).
-func (c *Client) PostApiV1AuthLoginsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiV1AuthLoginsRequestWithBody(c.Server, contentType, body)
+func (c *Client) PostApiV1AuthLoginsWithBody(ctx context.Context, params *PostApiV1AuthLoginsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1AuthLoginsRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4538,8 +4809,8 @@ func (c *Client) PostApiV1AuthLoginsWithBody(ctx context.Context, contentType st
 // Takes a body of the `application/json` content type.
 //
 // Corresponds with POST /api/v1/auth/logins (the `PostApiV1AuthLogins` operationId).
-func (c *Client) PostApiV1AuthLogins(ctx context.Context, body PostApiV1AuthLoginsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiV1AuthLoginsRequest(c.Server, body)
+func (c *Client) PostApiV1AuthLogins(ctx context.Context, params *PostApiV1AuthLoginsParams, body PostApiV1AuthLoginsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1AuthLoginsRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4553,8 +4824,8 @@ func (c *Client) PostApiV1AuthLogins(ctx context.Context, body PostApiV1AuthLogi
 // GetApiV1AuthLoginsCode A pending login, for the approve page
 //
 // Corresponds with GET /api/v1/auth/logins/{code} (the `GetApiV1AuthLoginsCode` operationId).
-func (c *Client) GetApiV1AuthLoginsCode(ctx context.Context, code string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiV1AuthLoginsCodeRequest(c.Server, code)
+func (c *Client) GetApiV1AuthLoginsCode(ctx context.Context, code string, params *GetApiV1AuthLoginsCodeParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetApiV1AuthLoginsCodeRequest(c.Server, code, params)
 	if err != nil {
 		return nil, err
 	}
@@ -4568,8 +4839,8 @@ func (c *Client) GetApiV1AuthLoginsCode(ctx context.Context, code string, reqEdi
 // PostApiV1AuthLoginsCodeApprove Approve a CLI login
 //
 // Corresponds with POST /api/v1/auth/logins/{code}/approve (the `PostApiV1AuthLoginsCodeApprove` operationId).
-func (c *Client) PostApiV1AuthLoginsCodeApprove(ctx context.Context, code string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiV1AuthLoginsCodeApproveRequest(c.Server, code)
+func (c *Client) PostApiV1AuthLoginsCodeApprove(ctx context.Context, code string, params *PostApiV1AuthLoginsCodeApproveParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1AuthLoginsCodeApproveRequest(c.Server, code, params)
 	if err != nil {
 		return nil, err
 	}
@@ -4583,8 +4854,8 @@ func (c *Client) PostApiV1AuthLoginsCodeApprove(ctx context.Context, code string
 // PostApiV1AuthLoginsCodeDeny Deny a CLI login
 //
 // Corresponds with POST /api/v1/auth/logins/{code}/deny (the `PostApiV1AuthLoginsCodeDeny` operationId).
-func (c *Client) PostApiV1AuthLoginsCodeDeny(ctx context.Context, code string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiV1AuthLoginsCodeDenyRequest(c.Server, code)
+func (c *Client) PostApiV1AuthLoginsCodeDeny(ctx context.Context, code string, params *PostApiV1AuthLoginsCodeDenyParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1AuthLoginsCodeDenyRequest(c.Server, code, params)
 	if err != nil {
 		return nil, err
 	}
@@ -4600,8 +4871,8 @@ func (c *Client) PostApiV1AuthLoginsCodeDeny(ctx context.Context, code string, r
 // Takes any type of body and a specified content type.
 //
 // Corresponds with POST /api/v1/auth/logins/{code}/redeem (the `PostApiV1AuthLoginsCodeRedeem` operationId).
-func (c *Client) PostApiV1AuthLoginsCodeRedeemWithBody(ctx context.Context, code string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiV1AuthLoginsCodeRedeemRequestWithBody(c.Server, code, contentType, body)
+func (c *Client) PostApiV1AuthLoginsCodeRedeemWithBody(ctx context.Context, code string, params *PostApiV1AuthLoginsCodeRedeemParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1AuthLoginsCodeRedeemRequestWithBody(c.Server, code, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4617,8 +4888,8 @@ func (c *Client) PostApiV1AuthLoginsCodeRedeemWithBody(ctx context.Context, code
 // Takes a body of the `application/json` content type.
 //
 // Corresponds with POST /api/v1/auth/logins/{code}/redeem (the `PostApiV1AuthLoginsCodeRedeem` operationId).
-func (c *Client) PostApiV1AuthLoginsCodeRedeem(ctx context.Context, code string, body PostApiV1AuthLoginsCodeRedeemJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiV1AuthLoginsCodeRedeemRequest(c.Server, code, body)
+func (c *Client) PostApiV1AuthLoginsCodeRedeem(ctx context.Context, code string, params *PostApiV1AuthLoginsCodeRedeemParams, body PostApiV1AuthLoginsCodeRedeemJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1AuthLoginsCodeRedeemRequest(c.Server, code, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4634,8 +4905,8 @@ func (c *Client) PostApiV1AuthLoginsCodeRedeem(ctx context.Context, code string,
 // Takes any type of body and a specified content type.
 //
 // Corresponds with POST /api/v1/auth/tokens (the `PostApiV1AuthTokens` operationId).
-func (c *Client) PostApiV1AuthTokensWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiV1AuthTokensRequestWithBody(c.Server, contentType, body)
+func (c *Client) PostApiV1AuthTokensWithBody(ctx context.Context, params *PostApiV1AuthTokensParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1AuthTokensRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4651,8 +4922,8 @@ func (c *Client) PostApiV1AuthTokensWithBody(ctx context.Context, contentType st
 // Takes a body of the `application/json` content type.
 //
 // Corresponds with POST /api/v1/auth/tokens (the `PostApiV1AuthTokens` operationId).
-func (c *Client) PostApiV1AuthTokens(ctx context.Context, body PostApiV1AuthTokensJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiV1AuthTokensRequest(c.Server, body)
+func (c *Client) PostApiV1AuthTokens(ctx context.Context, params *PostApiV1AuthTokensParams, body PostApiV1AuthTokensJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1AuthTokensRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4698,8 +4969,8 @@ func (c *Client) GetApiV1Dependents(ctx context.Context, params *GetApiV1Depende
 // Takes any type of body and a specified content type.
 //
 // Corresponds with POST /api/v1/fetch (the `PostApiV1Fetch` operationId).
-func (c *Client) PostApiV1FetchWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiV1FetchRequestWithBody(c.Server, contentType, body)
+func (c *Client) PostApiV1FetchWithBody(ctx context.Context, params *PostApiV1FetchParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1FetchRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4715,8 +4986,8 @@ func (c *Client) PostApiV1FetchWithBody(ctx context.Context, contentType string,
 // Takes a body of the `application/json` content type.
 //
 // Corresponds with POST /api/v1/fetch (the `PostApiV1Fetch` operationId).
-func (c *Client) PostApiV1Fetch(ctx context.Context, body PostApiV1FetchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiV1FetchRequest(c.Server, body)
+func (c *Client) PostApiV1Fetch(ctx context.Context, params *PostApiV1FetchParams, body PostApiV1FetchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1FetchRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5088,8 +5359,8 @@ func (c *Client) PostApiV1HistoryUndo(ctx context.Context, params *PostApiV1Hist
 // GetApiV1Me The signed-in principal
 //
 // Corresponds with GET /api/v1/me (the `GetApiV1Me` operationId).
-func (c *Client) GetApiV1Me(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiV1MeRequest(c.Server)
+func (c *Client) GetApiV1Me(ctx context.Context, params *GetApiV1MeParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetApiV1MeRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -5548,8 +5819,8 @@ func (c *Client) GetApiV1SystemCacheStats(ctx context.Context, params *GetApiV1S
 // GetApiV1Targets The configured targets and what each can do
 //
 // Corresponds with GET /api/v1/targets (the `GetApiV1Targets` operationId).
-func (c *Client) GetApiV1Targets(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiV1TargetsRequest(c.Server)
+func (c *Client) GetApiV1Targets(ctx context.Context, params *GetApiV1TargetsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetApiV1TargetsRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -5608,8 +5879,8 @@ func (c *Client) GetApiV1TemplatesNameSchema(ctx context.Context, name string, p
 // GetApiV1ValidationIssues The background scanner's current issues
 //
 // Corresponds with GET /api/v1/validation/issues (the `GetApiV1ValidationIssues` operationId).
-func (c *Client) GetApiV1ValidationIssues(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiV1ValidationIssuesRequest(c.Server)
+func (c *Client) GetApiV1ValidationIssues(ctx context.Context, params *GetApiV1ValidationIssuesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetApiV1ValidationIssuesRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -5818,6 +6089,21 @@ func NewGetApiV1AssetsRequest(server string, params *GetApiV1AssetsParams) (*htt
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
@@ -5873,6 +6159,21 @@ func NewPostApiV1AssetsRequestWithBody(server string, params *PostApiV1AssetsPar
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
 
 	return req, nil
 }
@@ -5935,6 +6236,21 @@ func NewDeleteApiV1AssetsNameRequest(server string, name string, params *DeleteA
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
@@ -5994,6 +6310,21 @@ func NewGetApiV1AssetsNameRequest(server string, name string, params *GetApiV1As
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -6069,6 +6400,21 @@ func NewPatchApiV1AssetsNameRequestWithBody(server string, name string, params *
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
 
 	return req, nil
 }
@@ -6153,6 +6499,21 @@ func NewDeleteApiV1AssetsNameLocaleBytesRequest(server string, name string, para
 	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -6242,6 +6603,21 @@ func NewPostApiV1AssetsNameLocaleBytesRequestWithBody(server string, name string
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
@@ -6310,6 +6686,21 @@ func NewPostApiV1AssetsNameRenameToNewNameRequest(server string, name string, ne
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
@@ -6376,6 +6767,21 @@ func NewPostApiV1AssetsNameReplaceWithNewNameRequest(server string, name string,
 	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -6449,6 +6855,21 @@ func NewPostApiV1AssetsNameSuggestAltRequest(server string, name string, params 
 	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -6589,11 +7010,26 @@ func NewGetApiV1AuditRequest(server string, params *GetApiV1AuditParams) (*http.
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewGetApiV1AuthCliSetupRequest constructs an http.Request for the GetApiV1AuthCliSetup method
-func NewGetApiV1AuthCliSetupRequest(server string) (*http.Request, error) {
+func NewGetApiV1AuthCliSetupRequest(server string, params *GetApiV1AuthCliSetupParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -6616,22 +7052,37 @@ func NewGetApiV1AuthCliSetupRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewPostApiV1AuthElevationsRequest calls the generic PostApiV1AuthElevations builder with application/json body
-func NewPostApiV1AuthElevationsRequest(server string, body PostApiV1AuthElevationsJSONRequestBody) (*http.Request, error) {
+func NewPostApiV1AuthElevationsRequest(server string, params *PostApiV1AuthElevationsParams, body PostApiV1AuthElevationsJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewPostApiV1AuthElevationsRequestWithBody(server, "application/json", bodyReader)
+	return NewPostApiV1AuthElevationsRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewPostApiV1AuthElevationsRequestWithBody constructs an http.Request for the PostApiV1AuthElevations method, with any body, and a specified content type
-func NewPostApiV1AuthElevationsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewPostApiV1AuthElevationsRequestWithBody(server string, params *PostApiV1AuthElevationsParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -6656,11 +7107,26 @@ func NewPostApiV1AuthElevationsRequestWithBody(server string, contentType string
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewDeleteApiV1AuthElevationsIdRequest constructs an http.Request for the DeleteApiV1AuthElevationsId method
-func NewDeleteApiV1AuthElevationsIdRequest(server string, id string) (*http.Request, error) {
+func NewDeleteApiV1AuthElevationsIdRequest(server string, id string, params *DeleteApiV1AuthElevationsIdParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -6690,22 +7156,37 @@ func NewDeleteApiV1AuthElevationsIdRequest(server string, id string) (*http.Requ
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewPostApiV1AuthGrantsRequest calls the generic PostApiV1AuthGrants builder with application/json body
-func NewPostApiV1AuthGrantsRequest(server string, body PostApiV1AuthGrantsJSONRequestBody) (*http.Request, error) {
+func NewPostApiV1AuthGrantsRequest(server string, params *PostApiV1AuthGrantsParams, body PostApiV1AuthGrantsJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewPostApiV1AuthGrantsRequestWithBody(server, "application/json", bodyReader)
+	return NewPostApiV1AuthGrantsRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewPostApiV1AuthGrantsRequestWithBody constructs an http.Request for the PostApiV1AuthGrants method, with any body, and a specified content type
-func NewPostApiV1AuthGrantsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewPostApiV1AuthGrantsRequestWithBody(server string, params *PostApiV1AuthGrantsParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -6730,11 +7211,26 @@ func NewPostApiV1AuthGrantsRequestWithBody(server string, contentType string, bo
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewDeleteApiV1AuthGrantsIdRequest constructs an http.Request for the DeleteApiV1AuthGrantsId method
-func NewDeleteApiV1AuthGrantsIdRequest(server string, id string) (*http.Request, error) {
+func NewDeleteApiV1AuthGrantsIdRequest(server string, id string, params *DeleteApiV1AuthGrantsIdParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -6764,11 +7260,26 @@ func NewDeleteApiV1AuthGrantsIdRequest(server string, id string) (*http.Request,
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewGetApiV1AuthKeysRequest constructs an http.Request for the GetApiV1AuthKeys method
-func NewGetApiV1AuthKeysRequest(server string) (*http.Request, error) {
+func NewGetApiV1AuthKeysRequest(server string, params *GetApiV1AuthKeysParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -6791,22 +7302,37 @@ func NewGetApiV1AuthKeysRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewPostApiV1AuthLoginsRequest calls the generic PostApiV1AuthLogins builder with application/json body
-func NewPostApiV1AuthLoginsRequest(server string, body PostApiV1AuthLoginsJSONRequestBody) (*http.Request, error) {
+func NewPostApiV1AuthLoginsRequest(server string, params *PostApiV1AuthLoginsParams, body PostApiV1AuthLoginsJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewPostApiV1AuthLoginsRequestWithBody(server, "application/json", bodyReader)
+	return NewPostApiV1AuthLoginsRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewPostApiV1AuthLoginsRequestWithBody constructs an http.Request for the PostApiV1AuthLogins method, with any body, and a specified content type
-func NewPostApiV1AuthLoginsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewPostApiV1AuthLoginsRequestWithBody(server string, params *PostApiV1AuthLoginsParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -6831,11 +7357,26 @@ func NewPostApiV1AuthLoginsRequestWithBody(server string, contentType string, bo
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewGetApiV1AuthLoginsCodeRequest constructs an http.Request for the GetApiV1AuthLoginsCode method
-func NewGetApiV1AuthLoginsCodeRequest(server string, code string) (*http.Request, error) {
+func NewGetApiV1AuthLoginsCodeRequest(server string, code string, params *GetApiV1AuthLoginsCodeParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -6865,11 +7406,26 @@ func NewGetApiV1AuthLoginsCodeRequest(server string, code string) (*http.Request
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewPostApiV1AuthLoginsCodeApproveRequest constructs an http.Request for the PostApiV1AuthLoginsCodeApprove method
-func NewPostApiV1AuthLoginsCodeApproveRequest(server string, code string) (*http.Request, error) {
+func NewPostApiV1AuthLoginsCodeApproveRequest(server string, code string, params *PostApiV1AuthLoginsCodeApproveParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -6899,11 +7455,26 @@ func NewPostApiV1AuthLoginsCodeApproveRequest(server string, code string) (*http
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewPostApiV1AuthLoginsCodeDenyRequest constructs an http.Request for the PostApiV1AuthLoginsCodeDeny method
-func NewPostApiV1AuthLoginsCodeDenyRequest(server string, code string) (*http.Request, error) {
+func NewPostApiV1AuthLoginsCodeDenyRequest(server string, code string, params *PostApiV1AuthLoginsCodeDenyParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -6933,22 +7504,37 @@ func NewPostApiV1AuthLoginsCodeDenyRequest(server string, code string) (*http.Re
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewPostApiV1AuthLoginsCodeRedeemRequest calls the generic PostApiV1AuthLoginsCodeRedeem builder with application/json body
-func NewPostApiV1AuthLoginsCodeRedeemRequest(server string, code string, body PostApiV1AuthLoginsCodeRedeemJSONRequestBody) (*http.Request, error) {
+func NewPostApiV1AuthLoginsCodeRedeemRequest(server string, code string, params *PostApiV1AuthLoginsCodeRedeemParams, body PostApiV1AuthLoginsCodeRedeemJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewPostApiV1AuthLoginsCodeRedeemRequestWithBody(server, code, "application/json", bodyReader)
+	return NewPostApiV1AuthLoginsCodeRedeemRequestWithBody(server, code, params, "application/json", bodyReader)
 }
 
 // NewPostApiV1AuthLoginsCodeRedeemRequestWithBody constructs an http.Request for the PostApiV1AuthLoginsCodeRedeem method, with any body, and a specified content type
-func NewPostApiV1AuthLoginsCodeRedeemRequestWithBody(server string, code string, contentType string, body io.Reader) (*http.Request, error) {
+func NewPostApiV1AuthLoginsCodeRedeemRequestWithBody(server string, code string, params *PostApiV1AuthLoginsCodeRedeemParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -6980,22 +7566,37 @@ func NewPostApiV1AuthLoginsCodeRedeemRequestWithBody(server string, code string,
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewPostApiV1AuthTokensRequest calls the generic PostApiV1AuthTokens builder with application/json body
-func NewPostApiV1AuthTokensRequest(server string, body PostApiV1AuthTokensJSONRequestBody) (*http.Request, error) {
+func NewPostApiV1AuthTokensRequest(server string, params *PostApiV1AuthTokensParams, body PostApiV1AuthTokensJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewPostApiV1AuthTokensRequestWithBody(server, "application/json", bodyReader)
+	return NewPostApiV1AuthTokensRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewPostApiV1AuthTokensRequestWithBody constructs an http.Request for the PostApiV1AuthTokens method, with any body, and a specified content type
-func NewPostApiV1AuthTokensRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewPostApiV1AuthTokensRequestWithBody(server string, params *PostApiV1AuthTokensParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -7019,6 +7620,21 @@ func NewPostApiV1AuthTokensRequestWithBody(server string, contentType string, bo
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
 
 	return req, nil
 }
@@ -7084,6 +7700,21 @@ func NewGetApiV1CompareRequest(server string, params *GetApiV1CompareParams) (*h
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -7164,22 +7795,37 @@ func NewGetApiV1DependentsRequest(server string, params *GetApiV1DependentsParam
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewPostApiV1FetchRequest calls the generic PostApiV1Fetch builder with application/json body
-func NewPostApiV1FetchRequest(server string, body PostApiV1FetchJSONRequestBody) (*http.Request, error) {
+func NewPostApiV1FetchRequest(server string, params *PostApiV1FetchParams, body PostApiV1FetchJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewPostApiV1FetchRequestWithBody(server, "application/json", bodyReader)
+	return NewPostApiV1FetchRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewPostApiV1FetchRequestWithBody constructs an http.Request for the PostApiV1Fetch method, with any body, and a specified content type
-func NewPostApiV1FetchRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewPostApiV1FetchRequestWithBody(server string, params *PostApiV1FetchParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -7203,6 +7849,21 @@ func NewPostApiV1FetchRequestWithBody(server string, contentType string, body io
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
 
 	return req, nil
 }
@@ -7256,6 +7917,21 @@ func NewGetApiV1FieldsRequest(server string, params *GetApiV1FieldsParams) (*htt
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -7337,6 +8013,21 @@ func NewPostApiV1FragmentRedirectsRequestWithBody(server string, params *PostApi
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
@@ -7389,6 +8080,21 @@ func NewGetApiV1FragmentsRequest(server string, params *GetApiV1FragmentsParams)
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -7469,6 +8175,21 @@ func NewPostApiV1FragmentsRequestWithBody(server string, params *PostApiV1Fragme
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
 
 	return req, nil
 }
@@ -7568,6 +8289,21 @@ func NewDeleteApiV1FragmentsNameRequestWithBody(server string, name string, para
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
@@ -7652,6 +8388,17 @@ func NewGetApiV1FragmentsNameRequest(server string, name string, params *GetApiV
 			}
 
 			req.Header.Set("x-request-id", headerParam0)
+		}
+
+		if params.GazettaRun != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam1)
 		}
 
 	}
@@ -7766,6 +8513,17 @@ func NewPutApiV1FragmentsNameRequestWithBody(server string, name string, params 
 			req.Header.Set("if-match", headerParam1)
 		}
 
+		if params.GazettaRun != nil {
+			var headerParam2 string
+
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam2)
+		}
+
 	}
 
 	return req, nil
@@ -7841,6 +8599,21 @@ func NewPatchApiV1FragmentsNameAliasRequestWithBody(server string, name string, 
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
 
 	return req, nil
 }
@@ -7928,6 +8701,21 @@ func NewPostApiV1FragmentsNameArchiveRequestWithBody(server string, name string,
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
@@ -7999,6 +8787,21 @@ func NewDeleteApiV1FragmentsNamePurgeRequest(server string, name string, params 
 	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -8087,6 +8890,21 @@ func NewPostApiV1FragmentsNameRenameRequestWithBody(server string, name string, 
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
@@ -8146,6 +8964,21 @@ func NewPostApiV1FragmentsNameUnarchiveRequest(server string, name string, param
 	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -8226,6 +9059,21 @@ func NewGetApiV1HistoryRequest(server string, params *GetApiV1HistoryParams) (*h
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
@@ -8304,6 +9152,21 @@ func NewPostApiV1HistoryRestoreRequest(server string, params *PostApiV1HistoryRe
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
@@ -8370,11 +9233,26 @@ func NewPostApiV1HistoryUndoRequest(server string, params *PostApiV1HistoryUndoP
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewGetApiV1MeRequest constructs an http.Request for the GetApiV1Me method
-func NewGetApiV1MeRequest(server string) (*http.Request, error) {
+func NewGetApiV1MeRequest(server string, params *GetApiV1MeParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -8395,6 +9273,21 @@ func NewGetApiV1MeRequest(server string) (*http.Request, error) {
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -8476,6 +9369,21 @@ func NewPostApiV1PageRedirectsRequestWithBody(server string, params *PostApiV1Pa
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
@@ -8528,6 +9436,21 @@ func NewGetApiV1PagesRequest(server string, params *GetApiV1PagesParams) (*http.
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -8608,6 +9531,21 @@ func NewPostApiV1PagesRequestWithBody(server string, params *PostApiV1PagesParam
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
 
 	return req, nil
 }
@@ -8707,6 +9645,21 @@ func NewDeleteApiV1PagesNameRequestWithBody(server string, name string, params *
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
@@ -8791,6 +9744,17 @@ func NewGetApiV1PagesNameRequest(server string, name string, params *GetApiV1Pag
 			}
 
 			req.Header.Set("x-request-id", headerParam0)
+		}
+
+		if params.GazettaRun != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam1)
 		}
 
 	}
@@ -8905,6 +9869,17 @@ func NewPutApiV1PagesNameRequestWithBody(server string, name string, params *Put
 			req.Header.Set("if-match", headerParam1)
 		}
 
+		if params.GazettaRun != nil {
+			var headerParam2 string
+
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam2)
+		}
+
 	}
 
 	return req, nil
@@ -8980,6 +9955,21 @@ func NewPatchApiV1PagesNameAliasRequestWithBody(server string, name string, para
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
 
 	return req, nil
 }
@@ -9067,6 +10057,21 @@ func NewPostApiV1PagesNameArchiveRequestWithBody(server string, name string, par
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
@@ -9138,6 +10143,21 @@ func NewDeleteApiV1PagesNamePurgeRequest(server string, name string, params *Del
 	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -9226,6 +10246,21 @@ func NewPostApiV1PagesNameRenameRequestWithBody(server string, name string, para
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
@@ -9287,6 +10322,21 @@ func NewPostApiV1PagesNameUnarchiveRequest(server string, name string, params *P
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
@@ -9338,6 +10388,17 @@ func NewPostApiV1PublishRequestWithBody(server string, params *PostApiV1PublishP
 			}
 
 			req.Header.Set("x-request-id", headerParam0)
+		}
+
+		if params.GazettaRun != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam1)
 		}
 
 	}
@@ -9409,6 +10470,21 @@ func NewPostApiV1PublishAuditRequestWithBody(server string, params *PostApiV1Pub
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
@@ -9460,6 +10536,17 @@ func NewPostApiV1PublishStreamRequestWithBody(server string, params *PostApiV1Pu
 			}
 
 			req.Header.Set("x-request-id", headerParam0)
+		}
+
+		if params.GazettaRun != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam1)
 		}
 
 	}
@@ -9518,6 +10605,21 @@ func NewGetApiV1SiteRequest(server string, params *GetApiV1SiteParams) (*http.Re
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
@@ -9570,6 +10672,21 @@ func NewGetApiV1SystemCacheInvalidationsRequest(server string, params *GetApiV1S
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -9626,11 +10743,26 @@ func NewGetApiV1SystemCacheStatsRequest(server string, params *GetApiV1SystemCac
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewGetApiV1TargetsRequest constructs an http.Request for the GetApiV1Targets method
-func NewGetApiV1TargetsRequest(server string) (*http.Request, error) {
+func NewGetApiV1TargetsRequest(server string, params *GetApiV1TargetsParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -9651,6 +10783,21 @@ func NewGetApiV1TargetsRequest(server string) (*http.Request, error) {
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -9705,6 +10852,21 @@ func NewGetApiV1TemplatesRequest(server string, params *GetApiV1TemplatesParams)
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -9768,6 +10930,21 @@ func NewGetApiV1TemplatesNameImpactRequest(server string, name string, params *G
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
@@ -9829,11 +11006,26 @@ func NewGetApiV1TemplatesNameSchemaRequest(server string, name string, params *G
 		return nil, err
 	}
 
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
 	return req, nil
 }
 
 // NewGetApiV1ValidationIssuesRequest constructs an http.Request for the GetApiV1ValidationIssues method
-func NewGetApiV1ValidationIssuesRequest(server string) (*http.Request, error) {
+func NewGetApiV1ValidationIssuesRequest(server string, params *GetApiV1ValidationIssuesParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -9854,6 +11046,21 @@ func NewGetApiV1ValidationIssuesRequest(server string) (*http.Request, error) {
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
 	}
 
 	return req, nil
@@ -10161,49 +11368,49 @@ type ClientWithResponsesInterface interface {
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with GET /api/v1/auth/cli-setup (the `GetApiV1AuthCliSetup` operationId).
-	GetApiV1AuthCliSetupWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiV1AuthCliSetupResponse, error)
+	GetApiV1AuthCliSetupWithResponse(ctx context.Context, params *GetApiV1AuthCliSetupParams, reqEditors ...RequestEditorFn) (*GetApiV1AuthCliSetupResponse, error)
 
 	// PostApiV1AuthElevationsWithBodyWithResponse Ask to publish, delete or restore for a short time (with a token)
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/v1/auth/elevations (the `PostApiV1AuthElevations` operationId).
-	PostApiV1AuthElevationsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AuthElevationsResponse, error)
+	PostApiV1AuthElevationsWithBodyWithResponse(ctx context.Context, params *PostApiV1AuthElevationsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AuthElevationsResponse, error)
 
 	// PostApiV1AuthElevationsWithResponse Ask to publish, delete or restore for a short time (with a token)
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/v1/auth/elevations (the `PostApiV1AuthElevations` operationId).
-	PostApiV1AuthElevationsWithResponse(ctx context.Context, body PostApiV1AuthElevationsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1AuthElevationsResponse, error)
+	PostApiV1AuthElevationsWithResponse(ctx context.Context, params *PostApiV1AuthElevationsParams, body PostApiV1AuthElevationsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1AuthElevationsResponse, error)
 
 	// DeleteApiV1AuthElevationsIdWithResponse End an elevation now
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with DELETE /api/v1/auth/elevations/{id} (the `DeleteApiV1AuthElevationsId` operationId).
-	DeleteApiV1AuthElevationsIdWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteApiV1AuthElevationsIdResponse, error)
+	DeleteApiV1AuthElevationsIdWithResponse(ctx context.Context, id string, params *DeleteApiV1AuthElevationsIdParams, reqEditors ...RequestEditorFn) (*DeleteApiV1AuthElevationsIdResponse, error)
 
 	// PostApiV1AuthGrantsWithBodyWithResponse Sign in a command line by pasting a grant (in the browser, behind ALB)
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/v1/auth/grants (the `PostApiV1AuthGrants` operationId).
-	PostApiV1AuthGrantsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AuthGrantsResponse, error)
+	PostApiV1AuthGrantsWithBodyWithResponse(ctx context.Context, params *PostApiV1AuthGrantsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AuthGrantsResponse, error)
 
 	// PostApiV1AuthGrantsWithResponse Sign in a command line by pasting a grant (in the browser, behind ALB)
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/v1/auth/grants (the `PostApiV1AuthGrants` operationId).
-	PostApiV1AuthGrantsWithResponse(ctx context.Context, body PostApiV1AuthGrantsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1AuthGrantsResponse, error)
+	PostApiV1AuthGrantsWithResponse(ctx context.Context, params *PostApiV1AuthGrantsParams, body PostApiV1AuthGrantsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1AuthGrantsResponse, error)
 
 	// DeleteApiV1AuthGrantsIdWithResponse Revoke one of your own grants
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with DELETE /api/v1/auth/grants/{id} (the `DeleteApiV1AuthGrantsId` operationId).
-	DeleteApiV1AuthGrantsIdWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteApiV1AuthGrantsIdResponse, error)
+	DeleteApiV1AuthGrantsIdWithResponse(ctx context.Context, id string, params *DeleteApiV1AuthGrantsIdParams, reqEditors ...RequestEditorFn) (*DeleteApiV1AuthGrantsIdResponse, error)
 
 	// GetApiV1AuthKeysWithResponse The admin's public signing keys, as a JWKS
 	//
@@ -10212,70 +11419,70 @@ type ClientWithResponsesInterface interface {
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with GET /api/v1/auth/keys (the `GetApiV1AuthKeys` operationId).
-	GetApiV1AuthKeysWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiV1AuthKeysResponse, error)
+	GetApiV1AuthKeysWithResponse(ctx context.Context, params *GetApiV1AuthKeysParams, reqEditors ...RequestEditorFn) (*GetApiV1AuthKeysResponse, error)
 
 	// PostApiV1AuthLoginsWithBodyWithResponse Start a CLI login
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/v1/auth/logins (the `PostApiV1AuthLogins` operationId).
-	PostApiV1AuthLoginsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsResponse, error)
+	PostApiV1AuthLoginsWithBodyWithResponse(ctx context.Context, params *PostApiV1AuthLoginsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsResponse, error)
 
 	// PostApiV1AuthLoginsWithResponse Start a CLI login
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/v1/auth/logins (the `PostApiV1AuthLogins` operationId).
-	PostApiV1AuthLoginsWithResponse(ctx context.Context, body PostApiV1AuthLoginsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsResponse, error)
+	PostApiV1AuthLoginsWithResponse(ctx context.Context, params *PostApiV1AuthLoginsParams, body PostApiV1AuthLoginsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsResponse, error)
 
 	// GetApiV1AuthLoginsCodeWithResponse A pending login, for the approve page
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with GET /api/v1/auth/logins/{code} (the `GetApiV1AuthLoginsCode` operationId).
-	GetApiV1AuthLoginsCodeWithResponse(ctx context.Context, code string, reqEditors ...RequestEditorFn) (*GetApiV1AuthLoginsCodeResponse, error)
+	GetApiV1AuthLoginsCodeWithResponse(ctx context.Context, code string, params *GetApiV1AuthLoginsCodeParams, reqEditors ...RequestEditorFn) (*GetApiV1AuthLoginsCodeResponse, error)
 
 	// PostApiV1AuthLoginsCodeApproveWithResponse Approve a CLI login
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/v1/auth/logins/{code}/approve (the `PostApiV1AuthLoginsCodeApprove` operationId).
-	PostApiV1AuthLoginsCodeApproveWithResponse(ctx context.Context, code string, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsCodeApproveResponse, error)
+	PostApiV1AuthLoginsCodeApproveWithResponse(ctx context.Context, code string, params *PostApiV1AuthLoginsCodeApproveParams, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsCodeApproveResponse, error)
 
 	// PostApiV1AuthLoginsCodeDenyWithResponse Deny a CLI login
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/v1/auth/logins/{code}/deny (the `PostApiV1AuthLoginsCodeDeny` operationId).
-	PostApiV1AuthLoginsCodeDenyWithResponse(ctx context.Context, code string, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsCodeDenyResponse, error)
+	PostApiV1AuthLoginsCodeDenyWithResponse(ctx context.Context, code string, params *PostApiV1AuthLoginsCodeDenyParams, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsCodeDenyResponse, error)
 
 	// PostApiV1AuthLoginsCodeRedeemWithBodyWithResponse Collect an approved login: a grant and a token, once
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/v1/auth/logins/{code}/redeem (the `PostApiV1AuthLoginsCodeRedeem` operationId).
-	PostApiV1AuthLoginsCodeRedeemWithBodyWithResponse(ctx context.Context, code string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsCodeRedeemResponse, error)
+	PostApiV1AuthLoginsCodeRedeemWithBodyWithResponse(ctx context.Context, code string, params *PostApiV1AuthLoginsCodeRedeemParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsCodeRedeemResponse, error)
 
 	// PostApiV1AuthLoginsCodeRedeemWithResponse Collect an approved login: a grant and a token, once
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/v1/auth/logins/{code}/redeem (the `PostApiV1AuthLoginsCodeRedeem` operationId).
-	PostApiV1AuthLoginsCodeRedeemWithResponse(ctx context.Context, code string, body PostApiV1AuthLoginsCodeRedeemJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsCodeRedeemResponse, error)
+	PostApiV1AuthLoginsCodeRedeemWithResponse(ctx context.Context, code string, params *PostApiV1AuthLoginsCodeRedeemParams, body PostApiV1AuthLoginsCodeRedeemJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsCodeRedeemResponse, error)
 
 	// PostApiV1AuthTokensWithBodyWithResponse A fresh token from a grant
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/v1/auth/tokens (the `PostApiV1AuthTokens` operationId).
-	PostApiV1AuthTokensWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AuthTokensResponse, error)
+	PostApiV1AuthTokensWithBodyWithResponse(ctx context.Context, params *PostApiV1AuthTokensParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AuthTokensResponse, error)
 
 	// PostApiV1AuthTokensWithResponse A fresh token from a grant
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/v1/auth/tokens (the `PostApiV1AuthTokens` operationId).
-	PostApiV1AuthTokensWithResponse(ctx context.Context, body PostApiV1AuthTokensJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1AuthTokensResponse, error)
+	PostApiV1AuthTokensWithResponse(ctx context.Context, params *PostApiV1AuthTokensParams, body PostApiV1AuthTokensJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1AuthTokensResponse, error)
 
 	// GetApiV1CompareWithResponse What differs between the source and a target
 	//
@@ -10296,14 +11503,14 @@ type ClientWithResponsesInterface interface {
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/v1/fetch (the `PostApiV1Fetch` operationId).
-	PostApiV1FetchWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1FetchResponse, error)
+	PostApiV1FetchWithBodyWithResponse(ctx context.Context, params *PostApiV1FetchParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1FetchResponse, error)
 
 	// PostApiV1FetchWithResponse Copy content from a target into an editable target
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/v1/fetch (the `PostApiV1Fetch` operationId).
-	PostApiV1FetchWithResponse(ctx context.Context, body PostApiV1FetchJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1FetchResponse, error)
+	PostApiV1FetchWithResponse(ctx context.Context, params *PostApiV1FetchParams, body PostApiV1FetchJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1FetchResponse, error)
 
 	// GetApiV1FieldsWithResponse The project's custom fields
 	//
@@ -10464,7 +11671,7 @@ type ClientWithResponsesInterface interface {
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with GET /api/v1/me (the `GetApiV1Me` operationId).
-	GetApiV1MeWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiV1MeResponse, error)
+	GetApiV1MeWithResponse(ctx context.Context, params *GetApiV1MeParams, reqEditors ...RequestEditorFn) (*GetApiV1MeResponse, error)
 
 	// PostApiV1PageRedirectsWithBodyWithResponse Create a page redirect
 	//
@@ -10660,7 +11867,7 @@ type ClientWithResponsesInterface interface {
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with GET /api/v1/targets (the `GetApiV1Targets` operationId).
-	GetApiV1TargetsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiV1TargetsResponse, error)
+	GetApiV1TargetsWithResponse(ctx context.Context, params *GetApiV1TargetsParams, reqEditors ...RequestEditorFn) (*GetApiV1TargetsResponse, error)
 
 	// GetApiV1TemplatesWithResponse The project's templates
 	//
@@ -10688,7 +11895,7 @@ type ClientWithResponsesInterface interface {
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with GET /api/v1/validation/issues (the `GetApiV1ValidationIssues` operationId).
-	GetApiV1ValidationIssuesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiV1ValidationIssuesResponse, error)
+	GetApiV1ValidationIssuesWithResponse(ctx context.Context, params *GetApiV1ValidationIssuesParams, reqEditors ...RequestEditorFn) (*GetApiV1ValidationIssuesResponse, error)
 
 	// GetApiVersionWithResponse The API majors this admin serves
 	//
@@ -16269,8 +17476,8 @@ func (c *ClientWithResponses) GetApiV1AuditWithResponse(ctx context.Context, par
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with GET /api/v1/auth/cli-setup (the `GetApiV1AuthCliSetup` operationId).
-func (c *ClientWithResponses) GetApiV1AuthCliSetupWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiV1AuthCliSetupResponse, error) {
-	rsp, err := c.GetApiV1AuthCliSetup(ctx, reqEditors...)
+func (c *ClientWithResponses) GetApiV1AuthCliSetupWithResponse(ctx context.Context, params *GetApiV1AuthCliSetupParams, reqEditors ...RequestEditorFn) (*GetApiV1AuthCliSetupResponse, error) {
+	rsp, err := c.GetApiV1AuthCliSetup(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -16282,8 +17489,8 @@ func (c *ClientWithResponses) GetApiV1AuthCliSetupWithResponse(ctx context.Conte
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/v1/auth/elevations (the `PostApiV1AuthElevations` operationId).
-func (c *ClientWithResponses) PostApiV1AuthElevationsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AuthElevationsResponse, error) {
-	rsp, err := c.PostApiV1AuthElevationsWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) PostApiV1AuthElevationsWithBodyWithResponse(ctx context.Context, params *PostApiV1AuthElevationsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AuthElevationsResponse, error) {
+	rsp, err := c.PostApiV1AuthElevationsWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -16295,8 +17502,8 @@ func (c *ClientWithResponses) PostApiV1AuthElevationsWithBodyWithResponse(ctx co
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/v1/auth/elevations (the `PostApiV1AuthElevations` operationId).
-func (c *ClientWithResponses) PostApiV1AuthElevationsWithResponse(ctx context.Context, body PostApiV1AuthElevationsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1AuthElevationsResponse, error) {
-	rsp, err := c.PostApiV1AuthElevations(ctx, body, reqEditors...)
+func (c *ClientWithResponses) PostApiV1AuthElevationsWithResponse(ctx context.Context, params *PostApiV1AuthElevationsParams, body PostApiV1AuthElevationsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1AuthElevationsResponse, error) {
+	rsp, err := c.PostApiV1AuthElevations(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -16308,8 +17515,8 @@ func (c *ClientWithResponses) PostApiV1AuthElevationsWithResponse(ctx context.Co
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with DELETE /api/v1/auth/elevations/{id} (the `DeleteApiV1AuthElevationsId` operationId).
-func (c *ClientWithResponses) DeleteApiV1AuthElevationsIdWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteApiV1AuthElevationsIdResponse, error) {
-	rsp, err := c.DeleteApiV1AuthElevationsId(ctx, id, reqEditors...)
+func (c *ClientWithResponses) DeleteApiV1AuthElevationsIdWithResponse(ctx context.Context, id string, params *DeleteApiV1AuthElevationsIdParams, reqEditors ...RequestEditorFn) (*DeleteApiV1AuthElevationsIdResponse, error) {
+	rsp, err := c.DeleteApiV1AuthElevationsId(ctx, id, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -16321,8 +17528,8 @@ func (c *ClientWithResponses) DeleteApiV1AuthElevationsIdWithResponse(ctx contex
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/v1/auth/grants (the `PostApiV1AuthGrants` operationId).
-func (c *ClientWithResponses) PostApiV1AuthGrantsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AuthGrantsResponse, error) {
-	rsp, err := c.PostApiV1AuthGrantsWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) PostApiV1AuthGrantsWithBodyWithResponse(ctx context.Context, params *PostApiV1AuthGrantsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AuthGrantsResponse, error) {
+	rsp, err := c.PostApiV1AuthGrantsWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -16334,8 +17541,8 @@ func (c *ClientWithResponses) PostApiV1AuthGrantsWithBodyWithResponse(ctx contex
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/v1/auth/grants (the `PostApiV1AuthGrants` operationId).
-func (c *ClientWithResponses) PostApiV1AuthGrantsWithResponse(ctx context.Context, body PostApiV1AuthGrantsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1AuthGrantsResponse, error) {
-	rsp, err := c.PostApiV1AuthGrants(ctx, body, reqEditors...)
+func (c *ClientWithResponses) PostApiV1AuthGrantsWithResponse(ctx context.Context, params *PostApiV1AuthGrantsParams, body PostApiV1AuthGrantsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1AuthGrantsResponse, error) {
+	rsp, err := c.PostApiV1AuthGrants(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -16347,8 +17554,8 @@ func (c *ClientWithResponses) PostApiV1AuthGrantsWithResponse(ctx context.Contex
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with DELETE /api/v1/auth/grants/{id} (the `DeleteApiV1AuthGrantsId` operationId).
-func (c *ClientWithResponses) DeleteApiV1AuthGrantsIdWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteApiV1AuthGrantsIdResponse, error) {
-	rsp, err := c.DeleteApiV1AuthGrantsId(ctx, id, reqEditors...)
+func (c *ClientWithResponses) DeleteApiV1AuthGrantsIdWithResponse(ctx context.Context, id string, params *DeleteApiV1AuthGrantsIdParams, reqEditors ...RequestEditorFn) (*DeleteApiV1AuthGrantsIdResponse, error) {
+	rsp, err := c.DeleteApiV1AuthGrantsId(ctx, id, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -16362,8 +17569,8 @@ func (c *ClientWithResponses) DeleteApiV1AuthGrantsIdWithResponse(ctx context.Co
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with GET /api/v1/auth/keys (the `GetApiV1AuthKeys` operationId).
-func (c *ClientWithResponses) GetApiV1AuthKeysWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiV1AuthKeysResponse, error) {
-	rsp, err := c.GetApiV1AuthKeys(ctx, reqEditors...)
+func (c *ClientWithResponses) GetApiV1AuthKeysWithResponse(ctx context.Context, params *GetApiV1AuthKeysParams, reqEditors ...RequestEditorFn) (*GetApiV1AuthKeysResponse, error) {
+	rsp, err := c.GetApiV1AuthKeys(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -16375,8 +17582,8 @@ func (c *ClientWithResponses) GetApiV1AuthKeysWithResponse(ctx context.Context, 
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/v1/auth/logins (the `PostApiV1AuthLogins` operationId).
-func (c *ClientWithResponses) PostApiV1AuthLoginsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsResponse, error) {
-	rsp, err := c.PostApiV1AuthLoginsWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) PostApiV1AuthLoginsWithBodyWithResponse(ctx context.Context, params *PostApiV1AuthLoginsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsResponse, error) {
+	rsp, err := c.PostApiV1AuthLoginsWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -16388,8 +17595,8 @@ func (c *ClientWithResponses) PostApiV1AuthLoginsWithBodyWithResponse(ctx contex
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/v1/auth/logins (the `PostApiV1AuthLogins` operationId).
-func (c *ClientWithResponses) PostApiV1AuthLoginsWithResponse(ctx context.Context, body PostApiV1AuthLoginsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsResponse, error) {
-	rsp, err := c.PostApiV1AuthLogins(ctx, body, reqEditors...)
+func (c *ClientWithResponses) PostApiV1AuthLoginsWithResponse(ctx context.Context, params *PostApiV1AuthLoginsParams, body PostApiV1AuthLoginsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsResponse, error) {
+	rsp, err := c.PostApiV1AuthLogins(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -16401,8 +17608,8 @@ func (c *ClientWithResponses) PostApiV1AuthLoginsWithResponse(ctx context.Contex
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with GET /api/v1/auth/logins/{code} (the `GetApiV1AuthLoginsCode` operationId).
-func (c *ClientWithResponses) GetApiV1AuthLoginsCodeWithResponse(ctx context.Context, code string, reqEditors ...RequestEditorFn) (*GetApiV1AuthLoginsCodeResponse, error) {
-	rsp, err := c.GetApiV1AuthLoginsCode(ctx, code, reqEditors...)
+func (c *ClientWithResponses) GetApiV1AuthLoginsCodeWithResponse(ctx context.Context, code string, params *GetApiV1AuthLoginsCodeParams, reqEditors ...RequestEditorFn) (*GetApiV1AuthLoginsCodeResponse, error) {
+	rsp, err := c.GetApiV1AuthLoginsCode(ctx, code, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -16414,8 +17621,8 @@ func (c *ClientWithResponses) GetApiV1AuthLoginsCodeWithResponse(ctx context.Con
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/v1/auth/logins/{code}/approve (the `PostApiV1AuthLoginsCodeApprove` operationId).
-func (c *ClientWithResponses) PostApiV1AuthLoginsCodeApproveWithResponse(ctx context.Context, code string, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsCodeApproveResponse, error) {
-	rsp, err := c.PostApiV1AuthLoginsCodeApprove(ctx, code, reqEditors...)
+func (c *ClientWithResponses) PostApiV1AuthLoginsCodeApproveWithResponse(ctx context.Context, code string, params *PostApiV1AuthLoginsCodeApproveParams, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsCodeApproveResponse, error) {
+	rsp, err := c.PostApiV1AuthLoginsCodeApprove(ctx, code, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -16427,8 +17634,8 @@ func (c *ClientWithResponses) PostApiV1AuthLoginsCodeApproveWithResponse(ctx con
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/v1/auth/logins/{code}/deny (the `PostApiV1AuthLoginsCodeDeny` operationId).
-func (c *ClientWithResponses) PostApiV1AuthLoginsCodeDenyWithResponse(ctx context.Context, code string, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsCodeDenyResponse, error) {
-	rsp, err := c.PostApiV1AuthLoginsCodeDeny(ctx, code, reqEditors...)
+func (c *ClientWithResponses) PostApiV1AuthLoginsCodeDenyWithResponse(ctx context.Context, code string, params *PostApiV1AuthLoginsCodeDenyParams, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsCodeDenyResponse, error) {
+	rsp, err := c.PostApiV1AuthLoginsCodeDeny(ctx, code, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -16440,8 +17647,8 @@ func (c *ClientWithResponses) PostApiV1AuthLoginsCodeDenyWithResponse(ctx contex
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/v1/auth/logins/{code}/redeem (the `PostApiV1AuthLoginsCodeRedeem` operationId).
-func (c *ClientWithResponses) PostApiV1AuthLoginsCodeRedeemWithBodyWithResponse(ctx context.Context, code string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsCodeRedeemResponse, error) {
-	rsp, err := c.PostApiV1AuthLoginsCodeRedeemWithBody(ctx, code, contentType, body, reqEditors...)
+func (c *ClientWithResponses) PostApiV1AuthLoginsCodeRedeemWithBodyWithResponse(ctx context.Context, code string, params *PostApiV1AuthLoginsCodeRedeemParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsCodeRedeemResponse, error) {
+	rsp, err := c.PostApiV1AuthLoginsCodeRedeemWithBody(ctx, code, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -16453,8 +17660,8 @@ func (c *ClientWithResponses) PostApiV1AuthLoginsCodeRedeemWithBodyWithResponse(
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/v1/auth/logins/{code}/redeem (the `PostApiV1AuthLoginsCodeRedeem` operationId).
-func (c *ClientWithResponses) PostApiV1AuthLoginsCodeRedeemWithResponse(ctx context.Context, code string, body PostApiV1AuthLoginsCodeRedeemJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsCodeRedeemResponse, error) {
-	rsp, err := c.PostApiV1AuthLoginsCodeRedeem(ctx, code, body, reqEditors...)
+func (c *ClientWithResponses) PostApiV1AuthLoginsCodeRedeemWithResponse(ctx context.Context, code string, params *PostApiV1AuthLoginsCodeRedeemParams, body PostApiV1AuthLoginsCodeRedeemJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1AuthLoginsCodeRedeemResponse, error) {
+	rsp, err := c.PostApiV1AuthLoginsCodeRedeem(ctx, code, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -16466,8 +17673,8 @@ func (c *ClientWithResponses) PostApiV1AuthLoginsCodeRedeemWithResponse(ctx cont
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/v1/auth/tokens (the `PostApiV1AuthTokens` operationId).
-func (c *ClientWithResponses) PostApiV1AuthTokensWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AuthTokensResponse, error) {
-	rsp, err := c.PostApiV1AuthTokensWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) PostApiV1AuthTokensWithBodyWithResponse(ctx context.Context, params *PostApiV1AuthTokensParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AuthTokensResponse, error) {
+	rsp, err := c.PostApiV1AuthTokensWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -16479,8 +17686,8 @@ func (c *ClientWithResponses) PostApiV1AuthTokensWithBodyWithResponse(ctx contex
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/v1/auth/tokens (the `PostApiV1AuthTokens` operationId).
-func (c *ClientWithResponses) PostApiV1AuthTokensWithResponse(ctx context.Context, body PostApiV1AuthTokensJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1AuthTokensResponse, error) {
-	rsp, err := c.PostApiV1AuthTokens(ctx, body, reqEditors...)
+func (c *ClientWithResponses) PostApiV1AuthTokensWithResponse(ctx context.Context, params *PostApiV1AuthTokensParams, body PostApiV1AuthTokensJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1AuthTokensResponse, error) {
+	rsp, err := c.PostApiV1AuthTokens(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -16518,8 +17725,8 @@ func (c *ClientWithResponses) GetApiV1DependentsWithResponse(ctx context.Context
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/v1/fetch (the `PostApiV1Fetch` operationId).
-func (c *ClientWithResponses) PostApiV1FetchWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1FetchResponse, error) {
-	rsp, err := c.PostApiV1FetchWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) PostApiV1FetchWithBodyWithResponse(ctx context.Context, params *PostApiV1FetchParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1FetchResponse, error) {
+	rsp, err := c.PostApiV1FetchWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -16531,8 +17738,8 @@ func (c *ClientWithResponses) PostApiV1FetchWithBodyWithResponse(ctx context.Con
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /api/v1/fetch (the `PostApiV1Fetch` operationId).
-func (c *ClientWithResponses) PostApiV1FetchWithResponse(ctx context.Context, body PostApiV1FetchJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1FetchResponse, error) {
-	rsp, err := c.PostApiV1Fetch(ctx, body, reqEditors...)
+func (c *ClientWithResponses) PostApiV1FetchWithResponse(ctx context.Context, params *PostApiV1FetchParams, body PostApiV1FetchJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1FetchResponse, error) {
+	rsp, err := c.PostApiV1Fetch(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -16830,8 +18037,8 @@ func (c *ClientWithResponses) PostApiV1HistoryUndoWithResponse(ctx context.Conte
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with GET /api/v1/me (the `GetApiV1Me` operationId).
-func (c *ClientWithResponses) GetApiV1MeWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiV1MeResponse, error) {
-	rsp, err := c.GetApiV1Me(ctx, reqEditors...)
+func (c *ClientWithResponses) GetApiV1MeWithResponse(ctx context.Context, params *GetApiV1MeParams, reqEditors ...RequestEditorFn) (*GetApiV1MeResponse, error) {
+	rsp, err := c.GetApiV1Me(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -17194,8 +18401,8 @@ func (c *ClientWithResponses) GetApiV1SystemCacheStatsWithResponse(ctx context.C
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with GET /api/v1/targets (the `GetApiV1Targets` operationId).
-func (c *ClientWithResponses) GetApiV1TargetsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiV1TargetsResponse, error) {
-	rsp, err := c.GetApiV1Targets(ctx, reqEditors...)
+func (c *ClientWithResponses) GetApiV1TargetsWithResponse(ctx context.Context, params *GetApiV1TargetsParams, reqEditors ...RequestEditorFn) (*GetApiV1TargetsResponse, error) {
+	rsp, err := c.GetApiV1Targets(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -17246,8 +18453,8 @@ func (c *ClientWithResponses) GetApiV1TemplatesNameSchemaWithResponse(ctx contex
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with GET /api/v1/validation/issues (the `GetApiV1ValidationIssues` operationId).
-func (c *ClientWithResponses) GetApiV1ValidationIssuesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiV1ValidationIssuesResponse, error) {
-	rsp, err := c.GetApiV1ValidationIssues(ctx, reqEditors...)
+func (c *ClientWithResponses) GetApiV1ValidationIssuesWithResponse(ctx context.Context, params *GetApiV1ValidationIssuesParams, reqEditors ...RequestEditorFn) (*GetApiV1ValidationIssuesResponse, error) {
+	rsp, err := c.GetApiV1ValidationIssues(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

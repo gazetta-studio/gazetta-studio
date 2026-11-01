@@ -17,7 +17,9 @@
         "properties": {
           "type": {
             "type": "string",
-            "enum": ["about:blank"]
+            "enum": [
+              "about:blank"
+            ]
           },
           "title": {
             "type": "string"
@@ -101,7 +103,12 @@
             }
           }
         },
-        "required": ["type", "title", "status", "code"],
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code"
+        ],
         "additionalProperties": {}
       },
       "Issue": {
@@ -112,7 +119,11 @@
           },
           "severity": {
             "type": "string",
-            "enum": ["error", "warn", "info"]
+            "enum": [
+              "error",
+              "warn",
+              "info"
+            ]
           },
           "message": {
             "type": "string"
@@ -127,7 +138,12 @@
             "type": "boolean"
           }
         },
-        "required": ["validator", "severity", "message", "itemPath"]
+        "required": [
+          "validator",
+          "severity",
+          "message",
+          "itemPath"
+        ]
       },
       "RevisionSummary": {
         "type": "object",
@@ -140,7 +156,11 @@
           },
           "operation": {
             "type": "string",
-            "enum": ["save", "publish", "rollback"]
+            "enum": [
+              "save",
+              "publish",
+              "rollback"
+            ]
           },
           "author": {
             "type": "string"
@@ -159,9 +179,31 @@
           },
           "restoredFrom": {
             "type": "string"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "browser",
+              "token",
+              "mcp"
+            ]
+          },
+          "runId": {
+            "type": "string"
+          },
+          "tokenId": {
+            "type": "string"
+          },
+          "elevated": {
+            "type": "boolean"
           }
         },
-        "required": ["id", "timestamp", "operation", "items"]
+        "required": [
+          "id",
+          "timestamp",
+          "operation",
+          "items"
+        ]
       },
       "AssetSummary": {
         "type": "object",
@@ -171,7 +213,11 @@
           },
           "kind": {
             "type": "string",
-            "enum": ["embedded", "downloadable", "font"]
+            "enum": [
+              "embedded",
+              "downloadable",
+              "font"
+            ]
           },
           "mime": {
             "type": "string"
@@ -183,13 +229,22 @@
             "type": "string"
           },
           "width": {
-            "type": ["number", "null"]
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "height": {
-            "type": ["number", "null"]
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "alt": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "focalPoint": {
             "type": "object",
@@ -205,13 +260,19 @@
                 "maximum": 1
               }
             },
-            "required": ["x", "y"]
+            "required": [
+              "x",
+              "y"
+            ]
           },
           "animated": {
             "type": "boolean"
           },
           "poster": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "uploadedAt": {
             "type": "string"
@@ -244,7 +305,18 @@
         ]
       }
     },
-    "parameters": {}
+    "parameters": {
+      "GazettaRun": {
+        "name": "Gazetta-Run",
+        "in": "header",
+        "required": false,
+        "description": "The agent run this request belongs to: 1 to 64 letters, digits, \".\", \"_\" or \"-\". Recorded on the revision and audit event it writes; anything else answers 400.",
+        "schema": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]{1,64}$"
+        }
+      }
+    }
   },
   "paths": {
     "/api/v1/site": {
@@ -258,6 +330,9 @@
             "required": false,
             "name": "target",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -299,7 +374,9 @@
                           "type": "boolean"
                         }
                       },
-                      "required": ["supported"]
+                      "required": [
+                        "supported"
+                      ]
                     },
                     "systemPages": {
                       "type": "array",
@@ -308,7 +385,9 @@
                       }
                     }
                   },
-                  "required": ["name"],
+                  "required": [
+                    "name"
+                  ],
                   "additionalProperties": {}
                 }
               }
@@ -364,6 +443,9 @@
             "required": false,
             "name": "force",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "requestBody": {
@@ -392,7 +474,9 @@
                   "properties": {
                     "ok": {
                       "type": "boolean",
-                      "enum": [true]
+                      "enum": [
+                        true
+                      ]
                     },
                     "name": {
                       "type": "string"
@@ -404,7 +488,11 @@
                       "type": "string"
                     }
                   },
-                  "required": ["ok", "name", "archivedAt"]
+                  "required": [
+                    "ok",
+                    "name",
+                    "archivedAt"
+                  ]
                 }
               }
             }
@@ -491,6 +579,9 @@
             "required": false,
             "name": "target",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -503,13 +594,18 @@
                   "properties": {
                     "ok": {
                       "type": "boolean",
-                      "enum": [true]
+                      "enum": [
+                        true
+                      ]
                     },
                     "name": {
                       "type": "string"
                     }
                   },
-                  "required": ["ok", "name"]
+                  "required": [
+                    "ok",
+                    "name"
+                  ]
                 }
               }
             }
@@ -584,6 +680,9 @@
             "required": false,
             "name": "force",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -596,13 +695,18 @@
                   "properties": {
                     "ok": {
                       "type": "boolean",
-                      "enum": [true]
+                      "enum": [
+                        true
+                      ]
                     },
                     "name": {
                       "type": "string"
                     }
                   },
-                  "required": ["ok", "name"]
+                  "required": [
+                    "ok",
+                    "name"
+                  ]
                 }
               }
             }
@@ -669,6 +773,9 @@
             "required": false,
             "name": "target",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "requestBody": {
@@ -679,11 +786,16 @@
                 "type": "object",
                 "properties": {
                   "aliasOf": {
-                    "type": ["string", "null"],
+                    "type": [
+                      "string",
+                      "null"
+                    ],
                     "minLength": 1
                   }
                 },
-                "required": ["aliasOf"]
+                "required": [
+                  "aliasOf"
+                ]
               }
             }
           }
@@ -698,7 +810,9 @@
                   "properties": {
                     "ok": {
                       "type": "boolean",
-                      "enum": [true]
+                      "enum": [
+                        true
+                      ]
                     },
                     "name": {
                       "type": "string"
@@ -707,7 +821,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["ok", "name"]
+                  "required": [
+                    "ok",
+                    "name"
+                  ]
                 }
               }
             }
@@ -802,6 +919,9 @@
             "required": false,
             "name": "force",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "requestBody": {
@@ -830,7 +950,9 @@
                   "properties": {
                     "ok": {
                       "type": "boolean",
-                      "enum": [true]
+                      "enum": [
+                        true
+                      ]
                     },
                     "name": {
                       "type": "string"
@@ -842,7 +964,11 @@
                       "type": "string"
                     }
                   },
-                  "required": ["ok", "name", "archivedAt"]
+                  "required": [
+                    "ok",
+                    "name",
+                    "archivedAt"
+                  ]
                 }
               }
             }
@@ -929,6 +1055,9 @@
             "required": false,
             "name": "target",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -941,13 +1070,18 @@
                   "properties": {
                     "ok": {
                       "type": "boolean",
-                      "enum": [true]
+                      "enum": [
+                        true
+                      ]
                     },
                     "name": {
                       "type": "string"
                     }
                   },
-                  "required": ["ok", "name"]
+                  "required": [
+                    "ok",
+                    "name"
+                  ]
                 }
               }
             }
@@ -1022,6 +1156,9 @@
             "required": false,
             "name": "force",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -1034,13 +1171,18 @@
                   "properties": {
                     "ok": {
                       "type": "boolean",
-                      "enum": [true]
+                      "enum": [
+                        true
+                      ]
                     },
                     "name": {
                       "type": "string"
                     }
                   },
-                  "required": ["ok", "name"]
+                  "required": [
+                    "ok",
+                    "name"
+                  ]
                 }
               }
             }
@@ -1107,6 +1249,9 @@
             "required": false,
             "name": "target",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "requestBody": {
@@ -1117,11 +1262,16 @@
                 "type": "object",
                 "properties": {
                   "aliasOf": {
-                    "type": ["string", "null"],
+                    "type": [
+                      "string",
+                      "null"
+                    ],
                     "minLength": 1
                   }
                 },
-                "required": ["aliasOf"]
+                "required": [
+                  "aliasOf"
+                ]
               }
             }
           }
@@ -1136,7 +1286,9 @@
                   "properties": {
                     "ok": {
                       "type": "boolean",
-                      "enum": [true]
+                      "enum": [
+                        true
+                      ]
                     },
                     "name": {
                       "type": "string"
@@ -1145,7 +1297,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["ok", "name"]
+                  "required": [
+                    "ok",
+                    "name"
+                  ]
                 }
               }
             }
@@ -1240,6 +1395,9 @@
             "required": false,
             "name": "force",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "requestBody": {
@@ -1257,7 +1415,9 @@
                     "default": true
                   }
                 },
-                "required": ["to"]
+                "required": [
+                  "to"
+                ]
               }
             }
           }
@@ -1272,7 +1432,9 @@
                   "properties": {
                     "ok": {
                       "type": "boolean",
-                      "enum": [true]
+                      "enum": [
+                        true
+                      ]
                     },
                     "name": {
                       "type": "string"
@@ -1293,7 +1455,13 @@
                       }
                     }
                   },
-                  "required": ["ok", "name", "fromName", "flattenedAliases", "localeVariants"]
+                  "required": [
+                    "ok",
+                    "name",
+                    "fromName",
+                    "flattenedAliases",
+                    "localeVariants"
+                  ]
                 }
               }
             }
@@ -1398,6 +1566,9 @@
             "required": false,
             "name": "force",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "requestBody": {
@@ -1415,7 +1586,9 @@
                     "default": true
                   }
                 },
-                "required": ["to"]
+                "required": [
+                  "to"
+                ]
               }
             }
           }
@@ -1430,7 +1603,9 @@
                   "properties": {
                     "ok": {
                       "type": "boolean",
-                      "enum": [true]
+                      "enum": [
+                        true
+                      ]
                     },
                     "name": {
                       "type": "string"
@@ -1451,7 +1626,13 @@
                       }
                     }
                   },
-                  "required": ["ok", "name", "fromName", "flattenedAliases", "localeVariants"]
+                  "required": [
+                    "ok",
+                    "name",
+                    "fromName",
+                    "flattenedAliases",
+                    "localeVariants"
+                  ]
                 }
               }
             }
@@ -1548,6 +1729,9 @@
             "required": false,
             "name": "onConflict",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "requestBody": {
@@ -1566,7 +1750,10 @@
                     "minLength": 1
                   }
                 },
-                "required": ["from", "to"]
+                "required": [
+                  "from",
+                  "to"
+                ]
               }
             }
           }
@@ -1581,7 +1768,9 @@
                   "properties": {
                     "ok": {
                       "type": "boolean",
-                      "enum": [true]
+                      "enum": [
+                        true
+                      ]
                     },
                     "from": {
                       "type": "string"
@@ -1591,7 +1780,10 @@
                     },
                     "kind": {
                       "type": "string",
-                      "enum": ["page", "fragment"]
+                      "enum": [
+                        "page",
+                        "fragment"
+                      ]
                     },
                     "route": {
                       "type": "string"
@@ -1600,7 +1792,14 @@
                       "type": "string"
                     }
                   },
-                  "required": ["ok", "from", "to", "kind", "route", "targetRoute"]
+                  "required": [
+                    "ok",
+                    "from",
+                    "to",
+                    "kind",
+                    "route",
+                    "targetRoute"
+                  ]
                 }
               }
             }
@@ -1677,6 +1876,9 @@
             "required": false,
             "name": "onConflict",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "requestBody": {
@@ -1695,7 +1897,10 @@
                     "minLength": 1
                   }
                 },
-                "required": ["from", "to"]
+                "required": [
+                  "from",
+                  "to"
+                ]
               }
             }
           }
@@ -1710,7 +1915,9 @@
                   "properties": {
                     "ok": {
                       "type": "boolean",
-                      "enum": [true]
+                      "enum": [
+                        true
+                      ]
                     },
                     "from": {
                       "type": "string"
@@ -1720,7 +1927,10 @@
                     },
                     "kind": {
                       "type": "string",
-                      "enum": ["page", "fragment"]
+                      "enum": [
+                        "page",
+                        "fragment"
+                      ]
                     },
                     "route": {
                       "type": "string"
@@ -1729,7 +1939,14 @@
                       "type": "string"
                     }
                   },
-                  "required": ["ok", "from", "to", "kind", "route", "targetRoute"]
+                  "required": [
+                    "ok",
+                    "from",
+                    "to",
+                    "kind",
+                    "route",
+                    "targetRoute"
+                  ]
                 }
               }
             }
@@ -1798,6 +2015,9 @@
             "required": false,
             "name": "target",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -1832,7 +2052,10 @@
                         "type": "string"
                       }
                     },
-                    "required": ["name", "route"]
+                    "required": [
+                      "name",
+                      "route"
+                    ]
                   }
                 }
               }
@@ -1878,6 +2101,9 @@
             "required": false,
             "name": "onConflict",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "requestBody": {
@@ -1899,7 +2125,10 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": ["name", "template"]
+                "required": [
+                  "name",
+                  "template"
+                ]
               }
             }
           }
@@ -1922,7 +2151,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["ok", "name"]
+                  "required": [
+                    "ok",
+                    "name"
+                  ]
                 }
               }
             }
@@ -2015,6 +2247,9 @@
             "required": false,
             "name": "x-request-id",
             "in": "header"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -2071,7 +2306,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["name", "route"],
+                  "required": [
+                    "name",
+                    "route"
+                  ],
                   "additionalProperties": {}
                 }
               }
@@ -2161,6 +2399,9 @@
             "required": false,
             "name": "if-match",
             "in": "header"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "requestBody": {
@@ -2222,13 +2463,18 @@
                   "properties": {
                     "ok": {
                       "type": "boolean",
-                      "enum": [true]
+                      "enum": [
+                        true
+                      ]
                     },
                     "etag": {
                       "type": "string"
                     }
                   },
-                  "required": ["ok", "etag"]
+                  "required": [
+                    "ok",
+                    "etag"
+                  ]
                 }
               }
             }
@@ -2339,6 +2585,9 @@
             "required": false,
             "name": "permanent",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "requestBody": {
@@ -2369,7 +2618,9 @@
                       "properties": {
                         "ok": {
                           "type": "boolean",
-                          "enum": [true]
+                          "enum": [
+                            true
+                          ]
                         },
                         "name": {
                           "type": "string"
@@ -2381,20 +2632,29 @@
                           "type": "string"
                         }
                       },
-                      "required": ["ok", "name", "archivedAt"]
+                      "required": [
+                        "ok",
+                        "name",
+                        "archivedAt"
+                      ]
                     },
                     {
                       "type": "object",
                       "properties": {
                         "ok": {
                           "type": "boolean",
-                          "enum": [true]
+                          "enum": [
+                            true
+                          ]
                         },
                         "name": {
                           "type": "string"
                         }
                       },
-                      "required": ["ok", "name"]
+                      "required": [
+                        "ok",
+                        "name"
+                      ]
                     }
                   ]
                 }
@@ -2475,6 +2735,9 @@
             "required": false,
             "name": "target",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -2506,7 +2769,9 @@
                         "type": "string"
                       }
                     },
-                    "required": ["name"]
+                    "required": [
+                      "name"
+                    ]
                   }
                 }
               }
@@ -2552,6 +2817,9 @@
             "required": false,
             "name": "onConflict",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "requestBody": {
@@ -2569,7 +2837,10 @@
                     "minLength": 1
                   }
                 },
-                "required": ["name", "template"]
+                "required": [
+                  "name",
+                  "template"
+                ]
               }
             }
           }
@@ -2592,7 +2863,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["ok", "name"]
+                  "required": [
+                    "ok",
+                    "name"
+                  ]
                 }
               }
             }
@@ -2685,6 +2959,9 @@
             "required": false,
             "name": "x-request-id",
             "in": "header"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -2734,7 +3011,9 @@
                       "type": "string"
                     }
                   },
-                  "required": ["name"],
+                  "required": [
+                    "name"
+                  ],
                   "additionalProperties": {}
                 }
               }
@@ -2824,6 +3103,9 @@
             "required": false,
             "name": "if-match",
             "in": "header"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "requestBody": {
@@ -2860,13 +3142,18 @@
                   "properties": {
                     "ok": {
                       "type": "boolean",
-                      "enum": [true]
+                      "enum": [
+                        true
+                      ]
                     },
                     "etag": {
                       "type": "string"
                     }
                   },
-                  "required": ["ok", "etag"]
+                  "required": [
+                    "ok",
+                    "etag"
+                  ]
                 }
               }
             }
@@ -2977,6 +3264,9 @@
             "required": false,
             "name": "permanent",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "requestBody": {
@@ -3007,7 +3297,9 @@
                       "properties": {
                         "ok": {
                           "type": "boolean",
-                          "enum": [true]
+                          "enum": [
+                            true
+                          ]
                         },
                         "name": {
                           "type": "string"
@@ -3019,20 +3311,29 @@
                           "type": "string"
                         }
                       },
-                      "required": ["ok", "name", "archivedAt"]
+                      "required": [
+                        "ok",
+                        "name",
+                        "archivedAt"
+                      ]
                     },
                     {
                       "type": "object",
                       "properties": {
                         "ok": {
                           "type": "boolean",
-                          "enum": [true]
+                          "enum": [
+                            true
+                          ]
                         },
                         "name": {
                           "type": "string"
                         }
                       },
-                      "required": ["ok", "name"]
+                      "required": [
+                        "ok",
+                        "name"
+                      ]
                     }
                   ]
                 }
@@ -3113,6 +3414,9 @@
             "required": false,
             "name": "target",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -3129,7 +3433,9 @@
                         "type": "string"
                       }
                     },
-                    "required": ["name"]
+                    "required": [
+                      "name"
+                    ]
                   }
                 }
               }
@@ -3177,6 +3483,9 @@
             "required": false,
             "name": "target",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -3197,7 +3506,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["hasEditor", "fieldsBaseUrl"],
+                  "required": [
+                    "hasEditor",
+                    "fieldsBaseUrl"
+                  ],
                   "additionalProperties": {}
                 }
               }
@@ -3255,6 +3567,9 @@
             "required": false,
             "name": "target",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -3275,7 +3590,10 @@
                         "properties": {
                           "kind": {
                             "type": "string",
-                            "enum": ["page", "fragment"]
+                            "enum": [
+                              "page",
+                              "fragment"
+                            ]
                           },
                           "name": {
                             "type": "string"
@@ -3290,7 +3608,12 @@
                             }
                           }
                         },
-                        "required": ["kind", "name", "itemPath", "issues"]
+                        "required": [
+                          "kind",
+                          "name",
+                          "itemPath",
+                          "issues"
+                        ]
                       }
                     },
                     "affectedItemCount": {
@@ -3298,7 +3621,11 @@
                       "minimum": 0
                     }
                   },
-                  "required": ["template", "items", "affectedItemCount"]
+                  "required": [
+                    "template",
+                    "items",
+                    "affectedItemCount"
+                  ]
                 }
               }
             }
@@ -3354,11 +3681,18 @@
                       },
                       "environment": {
                         "type": "string",
-                        "enum": ["local", "staging", "production"]
+                        "enum": [
+                          "local",
+                          "staging",
+                          "production"
+                        ]
                       },
                       "type": {
                         "type": "string",
-                        "enum": ["static", "dynamic"]
+                        "enum": [
+                          "static",
+                          "dynamic"
+                        ]
                       },
                       "editable": {
                         "type": "boolean"
@@ -3373,7 +3707,10 @@
                             "type": "boolean"
                           }
                         },
-                        "required": ["available", "auto"]
+                        "required": [
+                          "available",
+                          "auto"
+                        ]
                       },
                       "capabilities": {
                         "type": "object",
@@ -3396,14 +3733,27 @@
                                   "type": "string"
                                 }
                               },
-                              "required": ["capability", "reason"]
+                              "required": [
+                                "capability",
+                                "reason"
+                              ]
                             }
                           }
                         },
-                        "required": ["has", "gaps"]
+                        "required": [
+                          "has",
+                          "gaps"
+                        ]
                       }
                     },
-                    "required": ["name", "environment", "type", "editable", "altText", "capabilities"]
+                    "required": [
+                      "name",
+                      "environment",
+                      "type",
+                      "editable",
+                      "altText",
+                      "capabilities"
+                    ]
                   }
                 }
               }
@@ -3419,7 +3769,12 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ]
       }
     },
     "/api/v1/dependents": {
@@ -3449,6 +3804,9 @@
             "required": false,
             "name": "source",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -3472,7 +3830,10 @@
                       }
                     }
                   },
-                  "required": ["pages", "fragments"]
+                  "required": [
+                    "pages",
+                    "fragments"
+                  ]
                 }
               }
             }
@@ -3521,6 +3882,9 @@
             "required": false,
             "name": "x-request-id",
             "in": "header"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "requestBody": {
@@ -3578,11 +3942,17 @@
                             "type": "number"
                           }
                         },
-                        "required": ["target", "success", "copiedFiles"]
+                        "required": [
+                          "target",
+                          "success",
+                          "copiedFiles"
+                        ]
                       }
                     }
                   },
-                  "required": ["results"]
+                  "required": [
+                    "results"
+                  ]
                 }
               }
             }
@@ -3612,11 +3982,17 @@
                             "type": "number"
                           }
                         },
-                        "required": ["target", "success", "copiedFiles"]
+                        "required": [
+                          "target",
+                          "success",
+                          "copiedFiles"
+                        ]
                       }
                     }
                   },
-                  "required": ["results"]
+                  "required": [
+                    "results"
+                  ]
                 }
               }
             }
@@ -3685,6 +4061,9 @@
             "required": false,
             "name": "x-request-id",
             "in": "header"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "requestBody": {
@@ -3828,7 +4207,11 @@
                       }
                     }
                   },
-                  "required": ["success", "copiedFiles", "items"]
+                  "required": [
+                    "success",
+                    "copiedFiles",
+                    "items"
+                  ]
                 }
               }
             }
@@ -3883,7 +4266,12 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ]
       }
     },
     "/api/v1/publish/audit": {
@@ -3897,6 +4285,9 @@
             "required": false,
             "name": "target",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "requestBody": {
@@ -3916,17 +4307,26 @@
                       "properties": {
                         "kind": {
                           "type": "string",
-                          "enum": ["page", "fragment"]
+                          "enum": [
+                            "page",
+                            "fragment"
+                          ]
                         },
                         "name": {
                           "type": "string"
                         }
                       },
-                      "required": ["kind", "name"]
+                      "required": [
+                        "kind",
+                        "name"
+                      ]
                     }
                   }
                 },
-                "required": ["target", "items"]
+                "required": [
+                  "target",
+                  "items"
+                ]
               }
             }
           }
@@ -3969,14 +4369,23 @@
                                 "type": "string"
                               }
                             },
-                            "required": ["capability", "reason"]
+                            "required": [
+                              "capability",
+                              "reason"
+                            ]
                           }
                         }
                       },
-                      "required": ["has", "gaps"]
+                      "required": [
+                        "has",
+                        "gaps"
+                      ]
                     }
                   },
-                  "required": ["issues", "strict"]
+                  "required": [
+                    "issues",
+                    "strict"
+                  ]
                 }
               }
             }
@@ -4033,6 +4442,9 @@
             "required": false,
             "name": "source",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -4085,11 +4497,21 @@
                             }
                           }
                         },
-                        "required": ["name", "errors"]
+                        "required": [
+                          "name",
+                          "errors"
+                        ]
                       }
                     }
                   },
-                  "required": ["added", "modified", "deleted", "unchanged", "firstPublish", "invalidTemplates"]
+                  "required": [
+                    "added",
+                    "modified",
+                    "deleted",
+                    "unchanged",
+                    "firstPublish",
+                    "invalidTemplates"
+                  ]
                 }
               }
             }
@@ -4148,6 +4570,9 @@
             "required": false,
             "name": "target",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -4167,7 +4592,10 @@
                         "type": "string"
                       }
                     },
-                    "required": ["name", "path"]
+                    "required": [
+                      "name",
+                      "path"
+                    ]
                   }
                 }
               }
@@ -4223,6 +4651,9 @@
             "required": false,
             "name": "limit",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -4240,7 +4671,9 @@
                       }
                     }
                   },
-                  "required": ["revisions"]
+                  "required": [
+                    "revisions"
+                  ]
                 }
               }
             }
@@ -4297,6 +4730,9 @@
             "required": false,
             "name": "source",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -4314,7 +4750,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["revision", "restoredFrom"]
+                  "required": [
+                    "revision",
+                    "restoredFrom"
+                  ]
                 }
               }
             }
@@ -4379,6 +4818,9 @@
             "required": false,
             "name": "id",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -4396,7 +4838,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["revision", "restoredFrom"]
+                  "required": [
+                    "revision",
+                    "restoredFrom"
+                  ]
                 }
               }
             }
@@ -4455,6 +4900,9 @@
             "required": false,
             "name": "target",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -4513,6 +4961,9 @@
             "required": false,
             "name": "target",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "requestBody": {
@@ -4550,18 +5001,26 @@
                       "properties": {
                         "version": {
                           "type": "number",
-                          "enum": [1]
+                          "enum": [
+                            1
+                          ]
                         },
                         "name": {
                           "type": "string"
                         },
                         "kind": {
                           "type": "string",
-                          "enum": ["embedded", "downloadable", "font"]
+                          "enum": [
+                            "embedded",
+                            "downloadable",
+                            "font"
+                          ]
                         },
                         "source": {
                           "type": "string",
-                          "enum": ["internal"]
+                          "enum": [
+                            "internal"
+                          ]
                         },
                         "mime": {
                           "type": "string"
@@ -4573,10 +5032,16 @@
                           "type": "string"
                         },
                         "width": {
-                          "type": ["number", "null"]
+                          "type": [
+                            "number",
+                            "null"
+                          ]
                         },
                         "height": {
-                          "type": ["number", "null"]
+                          "type": [
+                            "number",
+                            "null"
+                          ]
                         },
                         "variants": {
                           "type": "array",
@@ -4593,11 +5058,18 @@
                                 "type": "number"
                               }
                             },
-                            "required": ["width", "path", "size"]
+                            "required": [
+                              "width",
+                              "path",
+                              "size"
+                            ]
                           }
                         },
                         "alt": {
-                          "type": ["string", "null"]
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         },
                         "focalPoint": {
                           "type": "object",
@@ -4613,7 +5085,10 @@
                               "maximum": 1
                             }
                           },
-                          "required": ["x", "y"]
+                          "required": [
+                            "x",
+                            "y"
+                          ]
                         },
                         "animated": {
                           "type": "boolean"
@@ -4622,10 +5097,16 @@
                           "type": "number"
                         },
                         "duration": {
-                          "type": ["number", "null"]
+                          "type": [
+                            "number",
+                            "null"
+                          ]
                         },
                         "poster": {
-                          "type": ["string", "null"]
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         },
                         "uploadedAt": {
                           "type": "string"
@@ -4654,7 +5135,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["manifest", "bytesPath"]
+                  "required": [
+                    "manifest",
+                    "bytesPath"
+                  ]
                 }
               }
             }
@@ -4741,6 +5225,9 @@
             "required": false,
             "name": "target",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -4824,6 +5311,9 @@
             "required": false,
             "name": "target",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "requestBody": {
@@ -4834,10 +5324,16 @@
                 "type": "object",
                 "properties": {
                   "alt": {
-                    "type": ["string", "null"]
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   },
                   "focalPoint": {
-                    "type": ["object", "null"],
+                    "type": [
+                      "object",
+                      "null"
+                    ],
                     "properties": {
                       "x": {
                         "type": "number"
@@ -4846,7 +5342,10 @@
                         "type": "number"
                       }
                     },
-                    "required": ["x", "y"]
+                    "required": [
+                      "x",
+                      "y"
+                    ]
                   }
                 }
               }
@@ -4865,7 +5364,9 @@
                       "$ref": "#/components/schemas/AssetSummary"
                     }
                   },
-                  "required": ["manifest"]
+                  "required": [
+                    "manifest"
+                  ]
                 }
               }
             }
@@ -4950,6 +5451,9 @@
             "required": false,
             "name": "target",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -5046,6 +5550,9 @@
             "required": false,
             "name": "target",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -5142,6 +5649,9 @@
             "required": false,
             "name": "target",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -5238,6 +5748,9 @@
             "required": false,
             "name": "locale",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -5255,10 +5768,17 @@
                       "type": "boolean"
                     },
                     "refusalReason": {
-                      "type": ["string", "null"]
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
-                  "required": ["text", "refused", "refusalReason"]
+                  "required": [
+                    "text",
+                    "refused",
+                    "refusalReason"
+                  ]
                 }
               }
             }
@@ -5371,6 +5891,9 @@
             "required": false,
             "name": "theme",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "requestBody": {
@@ -5402,7 +5925,9 @@
                       "properties": {
                         "version": {
                           "type": "number",
-                          "enum": [1]
+                          "enum": [
+                            1
+                          ]
                         },
                         "name": {
                           "type": "string"
@@ -5417,10 +5942,16 @@
                           "type": "string"
                         },
                         "width": {
-                          "type": ["number", "null"]
+                          "type": [
+                            "number",
+                            "null"
+                          ]
                         },
                         "height": {
-                          "type": ["number", "null"]
+                          "type": [
+                            "number",
+                            "null"
+                          ]
                         },
                         "variants": {
                           "type": "array",
@@ -5437,11 +5968,18 @@
                                 "type": "number"
                               }
                             },
-                            "required": ["width", "path", "size"]
+                            "required": [
+                              "width",
+                              "path",
+                              "size"
+                            ]
                           }
                         },
                         "alt": {
-                          "type": ["string", "null"]
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         },
                         "focalPoint": {
                           "type": "object",
@@ -5457,7 +5995,10 @@
                               "maximum": 1
                             }
                           },
-                          "required": ["x", "y"]
+                          "required": [
+                            "x",
+                            "y"
+                          ]
                         },
                         "title": {
                           "type": "string"
@@ -5466,13 +6007,25 @@
                           "type": "string"
                         }
                       },
-                      "required": ["version", "name", "hash", "size", "mime", "width", "height", "variants"]
+                      "required": [
+                        "version",
+                        "name",
+                        "hash",
+                        "size",
+                        "mime",
+                        "width",
+                        "height",
+                        "variants"
+                      ]
                     },
                     "bytesPath": {
                       "type": "string"
                     }
                   },
-                  "required": ["manifest", "bytesPath"]
+                  "required": [
+                    "manifest",
+                    "bytesPath"
+                  ]
                 }
               }
             }
@@ -5583,6 +6136,9 @@
             "required": false,
             "name": "theme",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -5653,6 +6209,9 @@
             "required": false,
             "name": "target",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -5706,14 +6265,22 @@
                           "type": "string"
                         }
                       },
-                      "required": ["prefix", "at", "source"]
+                      "required": [
+                        "prefix",
+                        "at",
+                        "source"
+                      ]
                     },
                     "subscribeReconnects": {
                       "type": "integer",
                       "minimum": 0
                     }
                   },
-                  "required": ["hits", "misses", "size"]
+                  "required": [
+                    "hits",
+                    "misses",
+                    "size"
+                  ]
                 }
               }
             }
@@ -5752,6 +6319,9 @@
             "required": false,
             "name": "target",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -5855,6 +6425,9 @@
             "required": false,
             "name": "limit",
             "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -5889,7 +6462,11 @@
                                 "type": "string"
                               }
                             },
-                            "required": ["id", "role", "trustMode"]
+                            "required": [
+                              "id",
+                              "role",
+                              "trustMode"
+                            ]
                           },
                           "action": {
                             "type": "string",
@@ -5929,13 +6506,20 @@
                             "properties": {
                               "kind": {
                                 "type": "string",
-                                "enum": ["page", "fragment", "asset", "site"]
+                                "enum": [
+                                  "page",
+                                  "fragment",
+                                  "asset",
+                                  "site"
+                                ]
                               },
                               "name": {
                                 "type": "string"
                               }
                             },
-                            "required": ["kind"]
+                            "required": [
+                              "kind"
+                            ]
                           },
                           "sourceIp": {
                             "type": "string"
@@ -5948,7 +6532,13 @@
                             "additionalProperties": {}
                           }
                         },
-                        "required": ["timestamp", "actor", "action", "outcome", "scope"]
+                        "required": [
+                          "timestamp",
+                          "actor",
+                          "action",
+                          "outcome",
+                          "scope"
+                        ]
                       }
                     },
                     "externalSinks": {
@@ -5960,14 +6550,23 @@
                             "type": "string"
                           },
                           "url": {
-                            "type": ["string", "null"]
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           }
                         },
-                        "required": ["name", "url"]
+                        "required": [
+                          "name",
+                          "url"
+                        ]
                       }
                     }
                   },
-                  "required": ["events", "externalSinks"]
+                  "required": [
+                    "events",
+                    "externalSinks"
+                  ]
                 }
               }
             }
@@ -6027,7 +6626,10 @@
                       "minimum": 0
                     }
                   },
-                  "required": ["issues", "total"]
+                  "required": [
+                    "issues",
+                    "total"
+                  ]
                 }
               }
             }
@@ -6052,7 +6654,12 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ]
       }
     },
     "/api/v1/me": {
@@ -6076,7 +6683,11 @@
                       "type": "string"
                     }
                   },
-                  "required": ["id", "role", "trustMode"]
+                  "required": [
+                    "id",
+                    "role",
+                    "trustMode"
+                  ]
                 }
               }
             }
@@ -6091,7 +6702,12 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ]
       }
     },
     "/api/v1/auth/logins": {
@@ -6110,7 +6726,9 @@
                     "maxLength": 200
                   }
                 },
-                "required": ["machine"]
+                "required": [
+                  "machine"
+                ]
               }
             }
           }
@@ -6136,7 +6754,12 @@
                       "type": "string"
                     }
                   },
-                  "required": ["code", "approveUrl", "pollSecret", "expiresAt"]
+                  "required": [
+                    "code",
+                    "approveUrl",
+                    "pollSecret",
+                    "expiresAt"
+                  ]
                 }
               }
             }
@@ -6161,7 +6784,12 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ]
       }
     },
     "/api/v1/auth/logins/{code}": {
@@ -6175,6 +6803,9 @@
             "required": true,
             "name": "code",
             "in": "path"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -6187,11 +6818,17 @@
                   "properties": {
                     "kind": {
                       "type": "string",
-                      "enum": ["login", "elevation"]
+                      "enum": [
+                        "login",
+                        "elevation"
+                      ]
                     },
                     "scope": {
                       "type": "string",
-                      "enum": ["non-production", "production"]
+                      "enum": [
+                        "non-production",
+                        "production"
+                      ]
                     },
                     "elevationId": {
                       "type": "string"
@@ -6216,10 +6853,21 @@
                     },
                     "state": {
                       "type": "string",
-                      "enum": ["pending", "approved", "denied"]
+                      "enum": [
+                        "pending",
+                        "approved",
+                        "denied"
+                      ]
                     }
                   },
-                  "required": ["kind", "code", "machine", "startedAt", "expiresAt", "state"]
+                  "required": [
+                    "kind",
+                    "code",
+                    "machine",
+                    "startedAt",
+                    "expiresAt",
+                    "state"
+                  ]
                 }
               }
             }
@@ -6278,6 +6926,9 @@
             "required": true,
             "name": "code",
             "in": "path"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -6290,7 +6941,10 @@
                   "properties": {
                     "state": {
                       "type": "string",
-                      "enum": ["approved", "denied"]
+                      "enum": [
+                        "approved",
+                        "denied"
+                      ]
                     },
                     "elevationId": {
                       "type": "string"
@@ -6299,7 +6953,9 @@
                       "type": "string"
                     }
                   },
-                  "required": ["state"]
+                  "required": [
+                    "state"
+                  ]
                 }
               }
             }
@@ -6378,6 +7034,9 @@
             "required": true,
             "name": "code",
             "in": "path"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -6390,7 +7049,10 @@
                   "properties": {
                     "state": {
                       "type": "string",
-                      "enum": ["approved", "denied"]
+                      "enum": [
+                        "approved",
+                        "denied"
+                      ]
                     },
                     "elevationId": {
                       "type": "string"
@@ -6399,7 +7061,9 @@
                       "type": "string"
                     }
                   },
-                  "required": ["state"]
+                  "required": [
+                    "state"
+                  ]
                 }
               }
             }
@@ -6478,6 +7142,9 @@
             "required": true,
             "name": "code",
             "in": "path"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "requestBody": {
@@ -6492,7 +7159,9 @@
                     "minLength": 1
                   }
                 },
-                "required": ["pollSecret"]
+                "required": [
+                  "pollSecret"
+                ]
               }
             }
           }
@@ -6509,17 +7178,23 @@
                       "properties": {
                         "status": {
                           "type": "string",
-                          "enum": ["pending"]
+                          "enum": [
+                            "pending"
+                          ]
                         }
                       },
-                      "required": ["status"]
+                      "required": [
+                        "status"
+                      ]
                     },
                     {
                       "type": "object",
                       "properties": {
                         "status": {
                           "type": "string",
-                          "enum": ["approved"]
+                          "enum": [
+                            "approved"
+                          ]
                         },
                         "grantId": {
                           "type": "string"
@@ -6534,14 +7209,22 @@
                           "type": "number"
                         }
                       },
-                      "required": ["status", "grantId", "grantSecret", "token", "expiresAt"]
+                      "required": [
+                        "status",
+                        "grantId",
+                        "grantSecret",
+                        "token",
+                        "expiresAt"
+                      ]
                     },
                     {
                       "type": "object",
                       "properties": {
                         "status": {
                           "type": "string",
-                          "enum": ["elevated"]
+                          "enum": [
+                            "elevated"
+                          ]
                         },
                         "elevationId": {
                           "type": "string"
@@ -6550,7 +7233,11 @@
                           "type": "string"
                         }
                       },
-                      "required": ["status", "elevationId", "endsAt"]
+                      "required": [
+                        "status",
+                        "elevationId",
+                        "endsAt"
+                      ]
                     }
                   ]
                 }
@@ -6635,7 +7322,9 @@
                     "minLength": 1
                   }
                 },
-                "required": ["grantSecret"]
+                "required": [
+                  "grantSecret"
+                ]
               }
             }
           }
@@ -6655,7 +7344,10 @@
                       "type": "number"
                     }
                   },
-                  "required": ["token", "expiresAt"]
+                  "required": [
+                    "token",
+                    "expiresAt"
+                  ]
                 }
               }
             }
@@ -6690,7 +7382,12 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ]
       }
     },
     "/api/v1/auth/keys": {
@@ -6717,12 +7414,17 @@
                             "type": "string"
                           }
                         },
-                        "required": ["kid", "kty"],
+                        "required": [
+                          "kid",
+                          "kty"
+                        ],
                         "additionalProperties": {}
                       }
                     }
                   },
-                  "required": ["keys"]
+                  "required": [
+                    "keys"
+                  ]
                 }
               }
             }
@@ -6737,7 +7439,12 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ]
       }
     },
     "/api/v1/auth/cli-setup": {
@@ -6767,10 +7474,16 @@
                           "type": "string"
                         }
                       },
-                      "required": ["clientId", "clientSecret"]
+                      "required": [
+                        "clientId",
+                        "clientSecret"
+                      ]
                     }
                   },
-                  "required": ["trustMode", "paste"]
+                  "required": [
+                    "trustMode",
+                    "paste"
+                  ]
                 }
               }
             }
@@ -6805,7 +7518,12 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ]
       }
     },
     "/api/v1/auth/grants": {
@@ -6824,7 +7542,9 @@
                     "maxLength": 200
                   }
                 },
-                "required": ["machine"]
+                "required": [
+                  "machine"
+                ]
               }
             }
           }
@@ -6844,7 +7564,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["grantId", "grantSecret"]
+                  "required": [
+                    "grantId",
+                    "grantSecret"
+                  ]
                 }
               }
             }
@@ -6889,7 +7612,12 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ]
       }
     },
     "/api/v1/auth/grants/{id}": {
@@ -6903,6 +7631,9 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -6954,10 +7685,15 @@
                 "properties": {
                   "scope": {
                     "type": "string",
-                    "enum": ["non-production", "production"]
+                    "enum": [
+                      "non-production",
+                      "production"
+                    ]
                   }
                 },
-                "required": ["scope"]
+                "required": [
+                  "scope"
+                ]
               }
             }
           }
@@ -6983,7 +7719,12 @@
                       "type": "string"
                     }
                   },
-                  "required": ["code", "approveUrl", "pollSecret", "expiresAt"]
+                  "required": [
+                    "code",
+                    "approveUrl",
+                    "pollSecret",
+                    "expiresAt"
+                  ]
                 }
               }
             }
@@ -7018,7 +7759,12 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ]
       }
     },
     "/api/v1/auth/elevations/{id}": {
@@ -7032,6 +7778,9 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
           }
         ],
         "responses": {
@@ -7176,7 +7925,10 @@
                                     "type": "string"
                                   }
                                 },
-                                "required": ["name", "template"],
+                                "required": [
+                                  "name",
+                                  "template"
+                                ],
                                 "additionalProperties": {}
                               }
                             ]
@@ -7256,7 +8008,9 @@
                       "type": "string"
                     }
                   },
-                  "required": ["majors"]
+                  "required": [
+                    "majors"
+                  ]
                 }
               }
             }
@@ -7277,13 +8031,18 @@
                   "properties": {
                     "ok": {
                       "type": "boolean",
-                      "enum": [true]
+                      "enum": [
+                        true
+                      ]
                     },
                     "timestamp": {
                       "type": "string"
                     }
                   },
-                  "required": ["ok", "timestamp"]
+                  "required": [
+                    "ok",
+                    "timestamp"
+                  ]
                 }
               }
             }

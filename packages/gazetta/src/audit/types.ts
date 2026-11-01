@@ -169,6 +169,14 @@ export interface AuditEvent {
    * Cut 4 supports raw / truncated modes; default is none.
    */
   userAgent?: string
+  /** How the request came in (Q47): `browser`, `token`, or `mcp`. */
+  channel?: 'browser' | 'token' | 'mcp'
+  /** The agent run the request belongs to (Q22). */
+  runId?: string
+  /** For a token request: the token that made it. */
+  tokenId?: string
+  /** For a token request: whether an elevation covered it. */
+  elevated?: boolean
   /**
    * Provider-specific extras. Examples: publish source target +
    * destination, restore revision id, `missingCapabilities` for

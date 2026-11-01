@@ -93,7 +93,7 @@ func (f *Flow) run(ctx context.Context) (Result, error) {
 	if err := f.CheckVersion(ctx); err != nil {
 		return Result{}, err
 	}
-	start, err := f.Client.PostApiV1AuthLoginsWithResponse(ctx, api.PostApiV1AuthLoginsJSONRequestBody{Machine: f.Machine})
+	start, err := f.Client.PostApiV1AuthLoginsWithResponse(ctx, nil, api.PostApiV1AuthLoginsJSONRequestBody{Machine: f.Machine})
 	if err != nil {
 		return Result{}, output.Errorf(output.Failure, "can't reach %s: %v", f.AdminURL, err)
 	}
@@ -116,7 +116,7 @@ func (f *Flow) run(ctx context.Context) (Result, error) {
 		if err := f.Sleep(ctx, f.PollPeriod); err != nil {
 			return Result{}, cancelled(err)
 		}
-		r, err := f.Client.PostApiV1AuthLoginsCodeRedeemWithResponse(ctx, s.Code, api.PostApiV1AuthLoginsCodeRedeemJSONRequestBody{PollSecret: s.PollSecret})
+		r, err := f.Client.PostApiV1AuthLoginsCodeRedeemWithResponse(ctx, s.Code, nil, api.PostApiV1AuthLoginsCodeRedeemJSONRequestBody{PollSecret: s.PollSecret})
 		if err != nil {
 			return Result{}, output.Errorf(output.Failure, "can't reach %s: %v", f.AdminURL, err)
 		}

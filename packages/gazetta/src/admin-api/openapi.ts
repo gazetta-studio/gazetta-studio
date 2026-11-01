@@ -113,6 +113,47 @@ export function openApiPath(honoPath: string): string {
   return honoPath.replace(/:([A-Za-z_][A-Za-z0-9_]*)(\{[^}]*\})?/g, '{$1}')
 }
 
+/**
+ * The `Gazetta-Run` header (design-agent-access.md Q22, Q47), declared
+ * once and referenced from every versioned operation: OpenAPI has no
+ * global headers.
+ */
+export function withRunHeader<D extends { paths?: Record<string, unknown>; components?: object }>(doc: D): D {
+  const ref = { $ref: '#/components/parameters/GazettaRun' }
+  const methods = ['get', 'put', 'post', 'patch', 'delete']
+  const paths: Record<string, unknown> = {}
+  for (const [path, item] of Object.entries(doc.paths ?? {})) {
+    if (!path.startsWith(API_PREFIX)) {
+      paths[path] = item
+      continue
+    }
+    const ops = { ...(item as Record<string, { parameters?: unknown[] }>) }
+    for (const m of methods) {
+      if (ops[m]) ops[m] = { ...ops[m], parameters: [...(ops[m].parameters ?? []), ref] }
+    }
+    paths[path] = ops
+  }
+  const components = (doc.components ?? {}) as { parameters?: Record<string, unknown> }
+  return {
+    ...doc,
+    paths,
+    components: {
+      ...components,
+      parameters: {
+        ...components.parameters,
+        GazettaRun: {
+          name: 'Gazetta-Run',
+          in: 'header',
+          required: false,
+          description:
+            'The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.',
+          schema: { type: 'string', pattern: '^[A-Za-z0-9._-]{1,64}$' },
+        },
+      },
+    },
+  }
+}
+
 /** The document with every path in OpenAPI syntax. */
 export function withOpenApiPaths<D extends { paths?: Record<string, unknown> }>(doc: D): D {
   if (!doc.paths) return doc

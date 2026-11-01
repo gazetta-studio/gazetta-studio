@@ -37,6 +37,7 @@
  *   - DIP: depends on `capabilityGrants` pure function, not on
  *     the principal middleware's internals.
  */
+import { markElevated } from '../../request-origin.js'
 import type { Context } from 'hono'
 import { problem } from '../problem.js'
 import { createMiddleware } from 'hono/factory'
@@ -128,6 +129,7 @@ export async function denyWithoutCapability(c: Context<AuditEnv>, capability: st
     const tokenAuth = c.var.tokenAuth
     const scope = elevationScopeFor(capability, tokenAuth?.environmentOf?.(c))
     if (principal.grantId && (await tokenAuth?.elevations?.covers(principal.grantId, scope, capability))) {
+      markElevated()
       return null
     }
     await recordDenial('forbidden')
