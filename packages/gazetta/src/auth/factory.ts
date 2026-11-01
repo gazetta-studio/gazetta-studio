@@ -162,3 +162,16 @@ export function resolveAuthProviderFromManifest(rawAuthBlock: unknown): AuthIden
   }
   return buildAuthProvider(parsed.data)
 }
+
+/**
+ * The custom roles in a raw `admin.auth` block, flattened to name →
+ * capabilities, for expanding a Gazetta token's role
+ * (design-agent-access.md Q12). Undefined when none are declared or the
+ * block is absent; a malformed block has already failed
+ * `resolveAuthProviderFromManifest` at boot.
+ */
+export function customRolesFromManifest(rawAuthBlock: unknown): Record<string, ReadonlyArray<string>> | undefined {
+  if (rawAuthBlock === undefined) return undefined
+  const parsed = AuthConfigSchema.safeParse(rawAuthBlock)
+  return parsed.success ? flattenRoles(parsed.data.roles) : undefined
+}
