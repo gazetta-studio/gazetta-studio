@@ -2,7 +2,7 @@
 
 How AI agents (coding agents, scripts, chat apps) reach Gazetta's content: in what order the ways in ship, how they write, what stops them publishing, and how they learn about changes. This sets the direction for the design pass in [#49](https://github.com/gazetta-studio/gazetta-studio/issues/49), which now covers agent access as a whole, MCP included; each piece below gets its details there.
 
-**Status**: direction decided 2026-10-31, Q1–Q11; agent identity decided 2026-11-01, Q12–Q17. The #49 design pass designs the details.
+**Status**: direction decided 2026-10-31, Q1–Q11; agent identity decided 2026-11-01, Q12–Q28. The #49 design pass designs the details.
 
 **Companion docs:**
 - [`design-ai-direction.md`](design-ai-direction.md): agents lead Gazetta's AI work; they can't publish by default (they act as the person who signed them in, Q12); the live view of agents' changes (Q8)
@@ -295,11 +295,125 @@ Decided: maintainer, 2026-11-01 (#1630)
 | 2 hours, extended by each use (GitHub sudo mode) | An agent publishing every few minutes keeps it open indefinitely |
 | One action | That's the publish request that already exists, with no elevation at all |
 
+### Q18 — Tokens approve or reject publish requests only while elevated
+
+A CLI, API or MCP token can approve or reject a publish request (when its person holds `publish:approve`) only while elevated. Follows from this and `design-review-workflow.md` lock 10: on a target that allows self-approval (`allowSelfPublishApproval`, default `true`), an elevated agent can approve a request it opened; `allowSelfPublishApproval: false` stops it.
+
+Decided: maintainer, 2026-11-01 (#1630)
+
+| Rejected | Why |
+|---|---|
+| Never; approving only from the browser | The maintainer chose to allow it while elevated |
+| Like any capability, whenever the person has it | The approval gate would stop nothing an agent does |
+
+### Q19 — Login and elevation codes are approved only from a browser login
+
+The approve page accepts only a person's browser identity from the login layer, never a service token or a Gazetta token. It can't be enforced on Tailscale or with `cloudflared access login` (Q14).
+
+Decided: maintainer, 2026-11-01 (#1630)
+
+| Rejected | Why |
+|---|---|
+| Any identity of the person | An agent holding the CLI's credentials could approve its own elevation |
+
+### Q20 — Elevation gives publish rights only; it doesn't skip the approval gate
+
+On a target that needs approval, an elevated publish still creates a request, as a person's browser publish does.
+
+Decided: maintainer, 2026-11-01 (#1630)
+
+| Rejected | Why |
+|---|---|
+| Elevation counts as the approval | One approval at the start of 15 minutes would cover anything the agent publishes, unseen |
+
+### Q21 — The approve page shows where the code came from
+
+It shows the machine name, IP address and time the login started, and warns "only approve a code you started yourself"; each code works once and expires in 10 minutes. This defends against someone starting a login and sending the person the link.
+
+Decided: maintainer, 2026-11-01 (#1630)
+
+| Rejected | Why |
+|---|---|
+| Also type the code shown in the terminal | One more step on each login |
+| No special defence | Open to the attack |
+
+### Q22 — The agent sets the run id; otherwise each command is a run
+
+`gz` accepts a run id (a flag, or a `GZ_RUN` environment variable the agent sets once per task); without one, each `gz` command is its own run. The skill tells agents to set it.
+
+Decided: maintainer, 2026-11-01 (#1630)
+
+| Rejected | Why |
+|---|---|
+| One run per login session | Runs grow for days and mix unrelated tasks |
+| One run per CLI command | An agent's task spans many runs, so reviewing or undoing a task means picking each one |
+
+### Q23 — Cloudflare service tokens: shared or per person, the operator chooses
+
+Gazetta accepts any service token the Access policy allows and never identifies anyone by it; Gazetta's token names the person. With a shared token configured, the admin shows it to signed-in people to copy into `gz`.
+
+Decided: maintainer, 2026-11-01 (#1630)
+
+| Rejected | Why |
+|---|---|
+| Both, but Gazetta never displays a service token | The maintainer chose to let the admin show a shared one |
+
+### Q24 — `gz` keeps its grant in the OS keychain
+
+macOS Keychain, Windows Credential Manager or Linux Secret Service; a file readable only by the user where none exists (CI, containers).
+
+Decided: maintainer, 2026-11-01 (#1630)
+
+| Rejected | Why |
+|---|---|
+| A file only | Any process running as the user can read it |
+
+### Q25 — The signing key is an environment secret, required on hosted admins
+
+An environment variable (for example `GAZETTA_SIGNING_KEY`), with two keys allowed for rotation. A hosted admin with CLI login enabled refuses to start without it; local `gazetta dev` generates one, since it runs as one instance.
+
+Decided: maintainer, 2026-11-01 (#1630)
+
+| Rejected | Why |
+|---|---|
+| Generated and stored in the target's private `.gazetta/auth/` folder | Whoever can read target storage could forge tokens |
+
+### Q26 — Every auth action is audited
+
+Login approved, elevation approved and ended, grant revoked, and refused approvals are new audit actions, recorded on the source like other events.
+
+Decided: maintainer, 2026-11-01 (#1630)
+
+| Rejected | Why |
+|---|---|
+| Elevations only | Logins and revocations would leave no forensic record |
+
+### Q27 — 60 seconds of clock leeway
+
+Tokens and elevations are accepted up to 60 seconds past expiry and from 60 seconds before issue.
+
+Decided: maintainer, 2026-11-01 (#1630)
+
+| Rejected | Why |
+|---|---|
+| None | An instance whose clock is a few seconds off would reject fresh tokens or end elevations early |
+
+### Q28 — How a remote MCP server signs in is decided in the #49 MCP design
+
+Chat apps (Claude.ai, ChatGPT) sign in to remote MCP servers with OAuth, which none of Q15's CLI credentials fits. MCP comes third (Q1); the CLI and API don't wait for it.
+
+Decided: maintainer, 2026-11-01 (#1630)
+
+| Rejected | Why |
+|---|---|
+| Gazetta acts as the OAuth server now | The `/mcp` endpoint would have to be let through the login layer, against Q13 |
+| A local MCP server only | Chat apps without a local MCP (Claude.ai on the web, ChatGPT) couldn't use it |
+
 Research: [follow-up on #1624](https://github.com/gazetta-studio/gazetta-studio/issues/1624#issuecomment-6556747492) (platform sources, token comparisons, where state is stored).
 
 ## What this changes in the plan
 
-Follows from Q1–Q17.
+Follows from Q1–Q28.
 - ROADMAP's "MCP server design pass" becomes "Agent access design pass" (#49), and "MCP server build" becomes "Agent access build".
 - The skill (#1622) is the first step, in Now; the Deferred row for agent instructions goes.
-- The #49 pass designs: the agent token and elevation flow (Q12–Q17), the agent-client permission presets, audit source and run id, per-run undo, the schema check at save, page search, the thin CLI for content creators (name, discovery of a local admin, commands, output for people and agents, how its users' agents get the skill, release and distribution), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract, its versioning and v1 cut-off, the bulk save, the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
+- The #49 pass designs: the agent token and elevation flow (Q12–Q28), the remote MCP server's sign-in (Q28), the agent-client permission presets, audit source and run id, per-run undo, the schema check at save, page search, the thin CLI for content creators (name, discovery of a local admin, commands, output for people and agents, how its users' agents get the skill, release and distribution), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract, its versioning and v1 cut-off, the bulk save, the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
