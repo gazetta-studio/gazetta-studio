@@ -1,6 +1,6 @@
 /**
- * `gazetta state remove <target> [site]` — delete history, audit and
- * review from a target's storage (design-public-storage.md Q6). It's
+ * `gazetta state remove <target> [site]` — delete history, audit, review
+ * and CLI logins from a target's storage (design-public-storage.md Q6). It's
  * how a target that kept state moves to public storage, and how a leak
  * is cleaned up. Works on any target; the confirmation, which names
  * exactly what goes, is the guard. `CI` set without `--yes` refuses.
@@ -39,7 +39,7 @@ export async function runStateRemove(ctx: StateCommandContext, opts: StateRemove
   const folders = await findSensitiveState(storage)
   const list = formatFolderList(folders)
   if (folders.length === 0) {
-    log(`\n  Nothing to remove: \`${ctx.targetName}\` holds no history, audit or review.\n`)
+    log(`\n  Nothing to remove: \`${ctx.targetName}\` holds no history, audit, review or CLI logins.\n`)
     return
   }
 

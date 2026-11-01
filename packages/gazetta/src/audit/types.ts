@@ -56,6 +56,12 @@
  * the submitter's manual withdraw. `metadata.comment` carries the
  * rejection reason on `review-reject` (mandatory per the locked
  * single-reject-with-comment invariant).
+ *
+ * CLI login (per design-agent-access.md Q26) extends with
+ * `login-approve` / `login-deny` / `grant-revoke`. An approval refused
+ * because the request wasn't a person's browser is `login-approve` with
+ * outcome `forbidden` (or `unauthenticated`), as capability denials are
+ * recorded. Elevation actions come with cut 8.
  */
 export type AuditAction =
   | 'save'
@@ -74,6 +80,9 @@ export type AuditAction =
   | 'review-withdraw'
   | 'ai-suggest-alt'
   | 'create-redirect'
+  | 'login-approve'
+  | 'login-deny'
+  | 'grant-revoke'
 
 /**
  * Closed enum of outcomes. Locked: every recording site supplies

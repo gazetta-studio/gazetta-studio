@@ -13,7 +13,7 @@ import { scanTemplates } from '../templates-scan.js'
 import { memoizeAsync } from '../concurrency.js'
 import { createTargetRegistryView } from '../targets.js'
 import { createHistoryProvider } from '../history-provider.js'
-import { isHistoryEnabled, getHistoryRetention } from '../types.js'
+import { isHistoryEnabled, isPublicStorage, getHistoryRetention } from '../types.js'
 import {
   createSourceContext,
   staticSourceResolver,
@@ -24,7 +24,10 @@ import {
 import { authMiddleware } from './middleware/auth.js'
 import { principalMiddleware } from './middleware/principal.js'
 import { auditMiddleware } from './middleware/audit.js'
-import { resolveAuthProviderFromManifest } from '../auth/index.js'
+import { customRolesFromManifest, resolveAuthProviderFromManifest } from '../auth/index.js'
+import { createCliLoginStore } from '../auth/cli-login-store.js'
+import { resolveCliLoginKeys, type SigningKeys } from '../auth/tokens/keys.js'
+import { authRoutes } from './routes/auth.js'
 import {
   AuditConfigSchema,
   AuditConfigurationError,
@@ -367,7 +370,22 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   // throw a clear AuthConfigurationError if the operator's block is
   // malformed.
   const authProvider = resolveAuthProviderFromManifest(source.manifest?.admin?.auth)
-  app.use('/api/*', principalMiddleware(authProvider))
+  // CLI login (design-agent-access.md Q12, Q25): on when there's a signing
+  // key. Grants live in the source's private `.gazetta/auth/`; a source
+  // on public storage would expose them, so login stays off there.
+  const sourceTarget =
+    (source.targetName ? source.manifest?.targets?.[source.targetName] : undefined) ??
+    Object.values(source.manifest?.targets ?? {}).find(t => t.storage === source.storage)
+  let cliLoginKeys: Promise<SigningKeys | null> | undefined
+  const keys = () =>
+    (cliLoginKeys ??=
+      sourceTarget && isPublicStorage(sourceTarget)
+        ? Promise.resolve(null)
+        : resolveCliLoginKeys(authProvider.trustMode))
+  app.use(
+    '/api/*',
+    principalMiddleware(authProvider, { keys, customRoles: customRolesFromManifest(source.manifest?.admin?.auth) }),
+  )
   // The preview routes are mounted at `/preview/*` (outside `/api/*`)
   // but render full page/fragment content — they need the same
   // identity extraction so their capability gate has a Principal to
@@ -495,6 +513,7 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   api.route('/', validationRoutes({ scanner: opts.validationScanner ?? null }))
   api.route('/', healthRoutes())
   api.route('/', meRoutes())
+  api.route('/', authRoutes({ store: createCliLoginStore(source.storage), keys }))
   app.route(API_PREFIX, api)
   // Outside the versioned API: preview (Q5) and the version route (Q43).
   app.route('/', previewRoutes(resolveSource, templatesDir))
