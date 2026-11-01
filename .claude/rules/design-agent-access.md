@@ -319,6 +319,15 @@ Decided: maintainer, 2026-11-01 (#1630)
 |---|---|
 | A stored record per token | Every API call reads storage (about 30–50 ms on cloud, estimated) |
 
+A grant keeps the role the person had when they approved the login: the server can't re-read their groups through a service token, while role changes in config apply at once. A grant lasts 30 days; then `gz` asks the person to approve a new code. A person whose role is removed can still edit through the CLI until the grant ends, unless an admin revokes it; elevations check the current role (cut 8, #1692).
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| A grant lasts until revoked, as cut 7 built it | A removed role keeps editing access through the CLI until someone revokes the login |
+| 7 days | Shorter exposure, more approvals for people who use the CLI daily |
+
 ### Q17 — An elevation lasts a fixed 15 minutes; production needs its own
 
 A fixed 15-minute window (the operator can lower or raise the cap) that doesn't extend when used, so an agent loop can't keep it alive. It covers non-production targets; production needs its own elevation. It's checked on every publish or delete, so ending it early works at once on every instance.
@@ -441,6 +450,14 @@ Decided: maintainer, 2026-11-01 (#1630)
 | Rejected | Why |
 |---|---|
 | Elevations only | Logins and revocations would leave no forensic record |
+
+A refused approval is recorded as the approval's own action with a refusal outcome (`login-approve` with `forbidden` or `unauthenticated`), not as a separate action.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| A separate approval-refused action | One more action to filter on, and the cut 7 code changes |
 
 ### Q27 — 60 seconds of clock leeway
 
