@@ -135,4 +135,101 @@ describe('CliLoginView', () => {
       "Couldn't load this sign-in: Approve this sign-in from a browser.",
     )
   })
+
+  it('marks a login page as a login', async () => {
+    fetchMock.mockResolvedValueOnce(json(pending))
+    const w = await render()
+    expect(w.find(byId('cli-login')).attributes('data-kind')).toBe('login')
+    expect(w.find('h1').text()).toBe('Approve a sign-in from the command line')
+  })
+})
+
+describe('CliLoginView for an elevation', () => {
+  const elevation = { ...pending, kind: 'elevation', scope: 'production' }
+  const future = '2999-01-01T12:00:00Z'
+  const until = new Date(future).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+
+  it('shows the production heading and the elevation warning', async () => {
+    fetchMock.mockResolvedValueOnce(json(elevation))
+    const w = await render()
+    expect(w.find(byId('cli-login')).attributes('data-kind')).toBe('elevation')
+    expect(w.find('h1').text()).toBe('Allow alice-macbook to publish to production for a short time')
+    expect(w.find(byId('cli-login-machine')).text()).toBe('alice-macbook')
+    expect(w.find(byId('cli-login-warning')).text()).toBe(
+      'Only approve a code you started yourself. Approving lets that machine publish as you until it ends.',
+    )
+  })
+
+  it('shows the non-production heading', async () => {
+    fetchMock.mockResolvedValueOnce(json({ ...elevation, scope: 'non-production' }))
+    const w = await render()
+    expect(w.find('h1').text()).toBe(
+      'Allow alice-macbook to publish, delete and restore on non-production targets for a short time',
+    )
+  })
+
+  it('shows until when it runs after Approve, with End now', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(elevation))
+      .mockResolvedValueOnce(json({ state: 'approved', elevationId: 'elv_1', endsAt: future }))
+    const w = await render()
+    await w.find(byId('cli-login-approve')).trigger('click')
+    await flushPromises()
+    expect(w.find(byId('cli-login-elevation-active')).text()).toBe(
+      `Approved. alice-macbook can publish until ${until}.`,
+    )
+    expect(w.find(byId('cli-login-end-elevation')).exists()).toBe(true)
+  })
+
+  it('End now deletes the elevation and shows it ended', async () => {
+    let answer!: (r: Response) => void
+    fetchMock
+      .mockResolvedValueOnce(json({ ...elevation, state: 'approved', elevationId: 'elv_1', endsAt: future }))
+      .mockReturnValueOnce(new Promise<Response>(r => (answer = r)))
+    const w = await render()
+    await w.find(byId('cli-login-end-elevation')).trigger('click')
+    expect(calledUrl(1)).toContain('/auth/elevations/elv_1')
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: 'DELETE' })
+    expect(w.find(byId('cli-login-end-elevation')).attributes('disabled')).toBeDefined()
+    answer(new Response(null, { status: 204 }))
+    await flushPromises()
+    expect(w.find(byId('cli-login-elevation-ended')).text()).toBe('Ended. alice-macbook can only edit again.')
+  })
+
+  it('counts an elevation already gone (404) as ended', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json({ ...elevation, state: 'approved', elevationId: 'elv_1', endsAt: future }))
+      .mockResolvedValueOnce(problem(404, 'NOT_FOUND', 'No such elevation'))
+    const w = await render()
+    await w.find(byId('cli-login-end-elevation')).trigger('click')
+    await flushPromises()
+    expect(w.find(byId('cli-login-elevation-ended')).exists()).toBe(true)
+  })
+
+  it('shows ended when the elevation has already ended on load', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json({ ...elevation, state: 'approved', elevationId: 'elv_1', endsAt: '2000-01-01T00:00:00Z' }),
+    )
+    const w = await render()
+    expect(w.find(byId('cli-login-elevation-ended')).exists()).toBe(true)
+    expect(w.find(byId('cli-login-end-elevation')).exists()).toBe(false)
+  })
+
+  it("shows the refusal's detail when approving answers 403", async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(elevation))
+      .mockResolvedValueOnce(problem(403, 'FORBIDDEN', 'Your role can’t publish to production.'))
+    const w = await render()
+    await w.find(byId('cli-login-approve')).trigger('click')
+    await flushPromises()
+    expect(w.find(byId('cli-login-error')).text()).toContain('Your role can’t publish to production.')
+  })
+
+  it('names publishing when an elevation is denied', async () => {
+    fetchMock.mockResolvedValueOnce(json(elevation)).mockResolvedValueOnce(json({ state: 'denied' }))
+    const w = await render()
+    await w.find(byId('cli-login-deny')).trigger('click')
+    await flushPromises()
+    expect(w.find(byId('cli-login-denied')).text()).toBe("Denied. The command line won't be able to publish as you.")
+  })
 })

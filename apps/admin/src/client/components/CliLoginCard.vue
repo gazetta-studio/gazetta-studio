@@ -1,29 +1,61 @@
 <script setup lang="ts">
 /**
- * The CLI sign-in card: the login's details and Approve / Deny while it is
- * pending, otherwise one message. Presentational; CliLoginView loads and
- * decides.
+ * The CLI sign-in card: the login's or elevation's details and Approve / Deny
+ * while it is pending, otherwise one message; an approved elevation adds End
+ * now. Presentational; CliLoginView loads and decides.
  */
 import { TriangleAlert } from '@lucide/vue'
 import { computed } from 'vue'
 import Button from './ui/Button.vue'
 import type { CliLoginState } from './cliLoginState.js'
 
-const props = defineProps<{ state: CliLoginState; busy?: boolean }>()
-defineEmits<{ approve: []; deny: [] }>()
+const props = defineProps<{ state: CliLoginState; codeKind?: 'login' | 'elevation'; busy?: boolean }>()
+defineEmits<{ approve: []; deny: []; end: [] }>()
 
 const started = computed(() =>
   props.state.kind === 'pending' ? new Date(props.state.login.startedAt).toLocaleString() : '',
 )
+
+/** Whether the code is a login or an elevation, for `data-kind`. */
+const dataKind = computed(() => {
+  if (props.codeKind) return props.codeKind
+  const s = props.state
+  if (s.kind === 'pending') return s.login.kind ?? 'login'
+  if (s.kind === 'elevation-active' || s.kind === 'elevation-ended') return 'elevation'
+  if (s.kind === 'denied' && s.elevation) return 'elevation'
+  if (s.kind === 'denied' || s.kind === 'approved') return 'login'
+  return undefined
+})
+
+const heading = computed(() => {
+  const s = props.state
+  if (s.kind !== 'pending') return ''
+  if (s.login.kind !== 'elevation') return 'Approve a sign-in from the command line'
+  return s.login.scope === 'production'
+    ? `Allow ${s.login.machine} to publish to production for a short time`
+    : `Allow ${s.login.machine} to publish, delete and restore on non-production targets for a short time`
+})
+
+const warning = computed(() =>
+  props.state.kind === 'pending' && props.state.login.kind === 'elevation'
+    ? 'Only approve a code you started yourself. Approving lets that machine publish as you until it ends.'
+    : 'Only approve a code you started yourself. Approving lets that machine edit content as you.',
+)
+
+const endsAt = computed(() =>
+  props.state.kind === 'elevation-active'
+    ? new Date(props.state.endsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : '',
+)
 </script>
 
 <template>
-  <main class="cli-login" data-testid="cli-login">
+  <main class="cli-login" data-testid="cli-login" :data-kind="dataKind">
     <div class="cli-login-card">
       <p v-if="state.kind === 'loading'" class="cli-login-message" data-testid="cli-login-loading">Loading…</p>
 
       <template v-else-if="state.kind === 'pending'">
-        <h1 class="cli-login-heading">Approve a sign-in from the command line</h1>
+        <h1 class="cli-login-heading">{{ heading }}</h1>
         <dl class="cli-login-details">
           <div class="cli-login-row">
             <dt>Code</dt>
@@ -44,7 +76,7 @@ const started = computed(() =>
         </dl>
         <p class="cli-login-warning" data-testid="cli-login-warning">
           <TriangleAlert class="cli-login-warning-icon" aria-hidden="true" />
-          <span>Only approve a code you started yourself. Approving lets that machine edit content as you.</span>
+          <span>{{ warning }}</span>
         </p>
         <div class="cli-login-actions">
           <Button label="Deny" severity="secondary" outlined :disabled="busy" data-testid="cli-login-deny"
@@ -56,8 +88,21 @@ const started = computed(() =>
       <p v-else-if="state.kind === 'approved'" class="cli-login-message" role="status" data-testid="cli-login-approved">
         Approved. You can go back to your terminal.
       </p>
+      <template v-else-if="state.kind === 'elevation-active'">
+        <p class="cli-login-message cli-login-active" role="status" data-testid="cli-login-elevation-active">
+          Approved. {{ state.machine }} can publish until {{ endsAt }}.
+        </p>
+        <div class="cli-login-actions">
+          <Button label="End now" severity="secondary" outlined :disabled="busy"
+            data-testid="cli-login-end-elevation" @click="$emit('end')" />
+        </div>
+      </template>
+      <p v-else-if="state.kind === 'elevation-ended'" class="cli-login-message" role="status"
+        data-testid="cli-login-elevation-ended">
+        Ended. {{ state.machine }} can only edit again.
+      </p>
       <p v-else-if="state.kind === 'denied'" class="cli-login-message" role="status" data-testid="cli-login-denied">
-        Denied. The command line won't be signed in.
+        {{ state.elevation ? "Denied. The command line won't be able to publish as you." : "Denied. The command line won't be signed in." }}
       </p>
       <p v-else-if="state.kind === 'expired'" class="cli-login-message" role="status" data-testid="cli-login-expired">
         This code has expired. Start the sign-in again from your terminal.
@@ -140,6 +185,9 @@ const started = computed(() =>
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+.cli-login-active {
+  margin-block-end: 1rem;
 }
 .cli-login-error {
   color: var(--color-danger-fg);
