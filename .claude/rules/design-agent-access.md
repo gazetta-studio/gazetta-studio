@@ -792,7 +792,7 @@ The build of Q12–Q51. The MCP server, the live view of agents' changes and pag
 
 cut-planner files them one at a time. The Go cuts (12–14) go to the REVIEW PRS session, since the bots can't check Go yet (Q8), and the release workflow part of cut 12 is a maintainer PR (bots can't push workflow files). Cuts 1, 2, 5 and 15 can start at once.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1658)
 
 | Rejected | Why |
 |---|---|
