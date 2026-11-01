@@ -1,6 +1,6 @@
 # Audit log
 
-Gazetta records every save, publish, delete, and history-restore as a structured audit event. The events live with each target's content under `.gazetta/audit/`, queryable through the admin's audit drawer (top-bar active-target menu → "View audit log") and through `GET /api/audit`.
+Gazetta records every save, publish, delete, and history-restore as a structured audit event. The events live with each target's content under `.gazetta/audit/`, queryable through the admin's audit drawer (top-bar active-target menu → "View audit log") and through `GET /api/v1/audit`.
 
 Audit is **on by default**. Zero config: every Gazetta admin process records to a per-instance JSONL file; the admin drawer reads from it. Operators add config when they want pseudonymization, source-IP recording, retention windows, or external sinks (when those ship).
 
@@ -64,7 +64,7 @@ target-root/
         └── events-pod-def-456.jsonl
 ```
 
-One JSONL file **per admin instance** (Cloud Run revision id, Kubernetes pod name, or `os.hostname()` fallback). Multiple admin instances writing concurrently never collide because each owns its own file. The `GET /api/audit` route aggregates across files.
+One JSONL file **per admin instance** (Cloud Run revision id, Kubernetes pod name, or `os.hostname()` fallback). Multiple admin instances writing concurrently never collide because each owns its own file. The `GET /api/v1/audit` route aggregates across files.
 
 The `.gazetta/audit/` directory is gitignored — audit events are runtime state, not source.
 
@@ -335,12 +335,12 @@ When the configured providers include both queryable (`history`) and external si
 | External sink only, with link     | "Audit lives in cloudwatch — [link]" (no inline list)         |
 | External sink only, no link       | "Configure history as a peer provider for in-admin browsing"  |
 
-### `GET /api/audit`
+### `GET /api/v1/audit`
 
 Programmatic access. Same filter shape as the drawer:
 
 ```text
-GET /api/audit?action=save&outcome=success&scopeKind=page&scopeName=home&actor=alice&since=2026-05-01T00:00:00Z&until=2026-05-31T23:59:59Z&limit=100
+GET /api/v1/audit?action=save&outcome=success&scopeKind=page&scopeName=home&actor=alice&since=2026-05-01T00:00:00Z&until=2026-05-31T23:59:59Z&limit=100
 ```
 
 Response:
@@ -367,7 +367,7 @@ Default limit 100, max 1000. Newest events first.
 
 ## Capability gating
 
-`GET /api/audit` requires the `read:audit-log` capability. **Built-in role assignments**:
+`GET /api/v1/audit` requires the `read:audit-log` capability. **Built-in role assignments**:
 
 | Role     | Has `read:audit-log`?     |
 | -------- | -------------------------- |
