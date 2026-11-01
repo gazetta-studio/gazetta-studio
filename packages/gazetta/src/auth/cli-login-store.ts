@@ -12,7 +12,7 @@
  *
  * Secrets are compared by SHA-256 hash in constant time.
  */
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
+import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto'
 import { stateFolderPath } from '../state-folders.js'
 import { StorageConditionalFailedError } from '../storage-errors.js'
 import type { StorageProvider } from '../types.js'
@@ -68,8 +68,8 @@ export type DecideResult =
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTVWXYZ23456789'
 
 function newCode(): string {
-  const bytes = randomBytes(8)
-  const chars = [...bytes].map(b => CODE_ALPHABET[b % CODE_ALPHABET.length])
+  // randomInt draws uniformly; `byte % 30` would favour the first letters.
+  const chars = Array.from({ length: 8 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)])
   return `${chars.slice(0, 4).join('')}-${chars.slice(4).join('')}`
 }
 
