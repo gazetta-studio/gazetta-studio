@@ -155,16 +155,13 @@ describe('the origin of a write', () => {
     // A real publish renders; on a busy CI runner it takes more than the default 5 s.
   }, 30_000)
 
-  it('an archive (with an elevation: it needs delete:pages) and an asset upload through a token carry the run', async () => {
+  it('an archive and an asset upload through a token carry the run', async () => {
     const { app, local } = setup()
     const token = await signIn(app)
     const headers = { 'Gazetta-Token': token, 'Gazetta-Run': 'r2' }
-    const e = (await (
-      await app.request('/api/v1/auth/elevations', post({ scope: 'non-production' }, { 'Gazetta-Token': token }))
-    ).json()) as { code: string }
-    await app.request(`/api/v1/auth/logins/${e.code}/approve`, { method: 'POST', headers: alice })
+    // A token archives without an elevation (design-agent-access.md Q32).
     expect((await app.request('/api/v1/pages/home/archive', post({}, headers))).status).toBe(200)
-    expect(await newestRevision(local)).toMatchObject({ channel: 'token', runId: 'r2', elevated: true })
+    expect(await newestRevision(local)).toMatchObject({ channel: 'token', runId: 'r2', elevated: false })
     expect(auditEvents(local).find(ev => ev.action === 'archive')).toMatchObject({ channel: 'token', runId: 'r2' })
 
     const bytes = await sharp({ create: { width: 8, height: 8, channels: 3, background: { r: 1, g: 2, b: 3 } } })
