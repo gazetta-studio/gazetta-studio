@@ -497,24 +497,34 @@ export default template
 
     'templates/hero/index.ts': `import { z } from 'zod'
 import type { TemplateFunction } from 'gazetta'
+import { embeddedAsset, type Content } from 'gazetta/schema'
 
 export const schema = z.object({
   title: z.string().describe('Page title'),
   subtitle: z.string().optional().describe('Subtitle text'),
+  image: embeddedAsset({ accept: ['image'] }).optional().describe('Hero image'),
 })
 
-type Content = z.infer<typeof schema>
+type Resolved = Content<z.infer<typeof schema>>
 
-const template: TemplateFunction<Content> = ({ content }) => ({
-  html: \`<section class="hero">
+const template: TemplateFunction<Resolved> = ({ content }) => {
+  const image = content?.image
+  const img = image
+    ? \`
+  <img src="\${image.url}"\${image.srcset ? \` srcset="\${image.srcset}"\` : ''} alt="\${image.alt}"\${image.width ? \` width="\${image.width}"\` : ''}\${image.height ? \` height="\${image.height}"\` : ''}>\`
+    : ''
+  return {
+    html: \`<section class="hero">\${img}
   <h1>\${content?.title ?? ''}</h1>
   <p>\${content?.subtitle ?? ''}</p>
 </section>\`,
-  css: \`.hero { text-align: center; padding: 4rem 0; }
+    css: \`.hero { text-align: center; padding: 4rem 0; }
+.hero img { display: block; max-width: 100%; height: auto; margin: 0 auto 1.5rem; border-radius: 8px; }
 .hero h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
 .hero p { color: #666; font-size: 1.25rem; }\`,
-  js: '',
-})
+    js: '',
+  }
+}
 
 export default template
 `,
