@@ -443,7 +443,7 @@ Decided: maintainer, 2026-11-01 (#1689)
 
 ### Q26 — Every auth action is audited
 
-Login approved, elevation approved and ended, grant revoked, and refused approvals are new audit actions, recorded on the source like other events.
+Login approved, elevation approved and ended, and grant revoked are new audit actions, recorded on the source like other events; refused approvals are recorded as outcomes of those actions (below, #1693).
 
 Decided: maintainer, 2026-11-01 (#1630)
 
