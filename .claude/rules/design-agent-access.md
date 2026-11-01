@@ -2,7 +2,7 @@
 
 How AI agents (coding agents, scripts, chat apps) reach Gazetta's content: in what order the ways in ship, how they write, what stops them publishing, and how they learn about changes. This sets the direction for the design pass in [#49](https://github.com/gazetta-studio/gazetta-studio/issues/49), which now covers agent access as a whole, MCP included; each piece below gets its details there.
 
-**Status**: direction decided 2026-10-31, Q1–Q11; agent identity decided 2026-11-01, Q12–Q30; presets Q31; the skill's never-run list, updates and install Q32–Q34; the Go CLI Q35–Q41; the public API Q42–Q46. The #49 design pass designs the details.
+**Status**: direction decided 2026-10-31, Q1–Q11; agent identity decided 2026-11-01, Q12–Q30; presets Q31; the skill's never-run list, updates and install Q32–Q34; the Go CLI Q35–Q41; the public API Q42–Q46; runs, undo and the save check Q47–Q51. The #49 design pass designs the details.
 
 **Companion docs:**
 - [`design-ai-direction.md`](design-ai-direction.md): agents lead Gazetta's AI work; they can't publish by default (they act as the person who signed them in, Q12); the live view of agents' changes (Q8)
@@ -691,9 +691,64 @@ Decided: maintainer, 2026-11-01 (#1654)
 
 Research: [public API on #49](https://github.com/gazetta-studio/gazetta-studio/issues/49#issuecomment-6558530260) (versioning elsewhere, routes without schema parsing, the three error shapes, OpenAPI libraries, the bulk save).
 
+### Q47 — Audit events and history revisions record the channel and the run
+
+Audit events and history revisions both gain `channel` (`browser`, `token` or `mcp`) and `runId`, filled from the request, never by route handlers. The actor stays the person, plus `tokenId` and whether the token was elevated. History saves also record the author, which they don't today (`manifest-save.ts` calls `recordWrite` without one, read from code 2026-11-01). The field is called `channel` because `source` already means a publish's source target. Run review and undo then work even with audit turned off.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| Only audit events gain the fields | Run review and undo would need audit turned on |
+
+### Q48 — An agent run is undone item by item
+
+Each item the run touched goes back to its pre-run version only if nobody changed it since; changed items are skipped and listed, and can be forced after viewing the diff. Each revert is a normal save, so validation, hooks and audit run. A per-run sidecar index (one zero-byte file per item and per revision, no aggregate file) makes finding a run's items one directory listing at the 5,000-page envelope. Today's undo restores the whole tree, which would also revert or delete other people's later saves.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| Undo the run's revisions as a block, refused if anyone saved after it | Often refused on a busy site |
+| Three-way merge per item | The most code, and merge conflicts to show |
+
+### Q49 — Save rejects the schema problems it introduces, for a whole touched component
+
+For every caller, a save is refused (with field paths) when it introduces schema errors; a component the save touches must fully pass its template's schema. Content made invalid by a later template change still saves when an unrelated component is edited, and stays a background warning and a pre-publish error (the save-delta model, `design-validation.md`). Today nothing checks content against the template's schema at save.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| Check only the fields the save changed | A touched component with an old invalid field would still save |
+| Check token callers only | Two paths to maintain |
+
+### Q50 — Reverting a run needs edit rights
+
+Reverting a run is a set of normal saves, so it needs `edit:pages` or `edit:fragments` for the items it touches, like editing them by hand.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| Require `restore:history` | The maintainer chose edit rights |
+
+### Q51 — History retention counts a run as one entry
+
+All revisions of one run count as a single entry toward a target's retention limit (50 by default) and are evicted together, with their blobs, so a run stays undoable as a whole until it ages out. A run has no end marker, so a very long run keeps more than 50 revisions.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| Keep runs from the last 7 days on top of the limit | Storage grows with heavy agent use |
+| No special rule | A long run may not be fully undoable |
+
+Research: [runs on #49](https://github.com/gazetta-studio/gazetta-studio/issues/49#issuecomment-6558676804) (today's audit and history records, undo, schema checks, the run review routes).
+
 ## What this changes in the plan
 
-Follows from Q1–Q46.
+Follows from Q1–Q51.
 - ROADMAP's "MCP server design pass" becomes "Agent access design pass" (#49), and "MCP server build" becomes "Agent access build".
 - The skill (#1622) is the first step, in Now; the Deferred row for agent instructions goes.
-- The #49 pass designs: the agent token and elevation flow (Q12–Q30), the remote MCP server's sign-in (Q28), audit source and run id, per-run undo, the schema check at save, page search, the thin CLI's later commands (Q37), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract (routes, the full error-code list, moving routes to OpenAPI with schema parsing), the v1 cut-off (Q5), the bulk save's item cap and how history retention keeps a run's revisions together (Q46), the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
+- The #49 pass designs: the agent token and elevation flow (Q12–Q30), the remote MCP server's sign-in (Q28), the run review routes (`design-ai-direction.md` Q2), page search, the thin CLI's later commands (Q37), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract (routes, the full error-code list, moving routes to OpenAPI with schema parsing), the v1 cut-off (Q5), the bulk save's item cap and the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
