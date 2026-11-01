@@ -2,7 +2,7 @@
 
 Forward-looking priorities for Gazetta. What's committed, what's planned, what's parked, what's not happening.
 
-**Updated**: 2026-10-31
+**Updated**: 2026-11-01
 
 ## How to read this
 
@@ -35,7 +35,7 @@ October's designs fix wrong results on live sites: deleted pages stay live, undo
 
 ### Review workflow — finish
 
-The back end's first cuts, the UI primitives, the story runner and screenshots in bot PRs shipped (see the appendix). Queued for feature-bot: [#521](https://github.com/gazetta-studio/gazetta-studio/issues/521) (API routes), then [#525](https://github.com/gazetta-studio/gazetta-studio/issues/525) (review banner and dialog) and [#531](https://github.com/gazetta-studio/gazetta-studio/issues/531) (pending-review queue). [#526](https://github.com/gazetta-studio/gazetta-studio/issues/526) and [#527](https://github.com/gazetta-studio/gazetta-studio/issues/527) (publish requests) wait for publish undo cut 1 (`design-review-workflow.md`, lock 1), and [#528](https://github.com/gazetta-studio/gazetta-studio/issues/528)–[#530](https://github.com/gazetta-studio/gazetta-studio/issues/530) and [#532](https://github.com/gazetta-studio/gazetta-studio/issues/532) wait for them. [#533](https://github.com/gazetta-studio/gazetta-studio/issues/533) (docs) is labelled `ready-for-human`. Design: [`design-review-workflow.md`](.claude/rules/design-review-workflow.md); request [#199](https://github.com/gazetta-studio/gazetta-studio/issues/199), tracking issue [#514](https://github.com/gazetta-studio/gazetta-studio/issues/514).
+The back end's first cuts, the UI primitives, the story runner and screenshots in bot PRs shipped (see the appendix). Queued for feature-bot: [#521](https://github.com/gazetta-studio/gazetta-studio/issues/521) (API routes). The other cuts (review banner and dialog, pending-review queue, publish requests, approval UX, hooks, docs) moved to planner [#1433](https://github.com/gazetta-studio/gazetta-studio/issues/1433), which re-files them one at a time; publish requests wait for publish undo cut 1 (`design-review-workflow.md`, lock 1). Design: [`design-review-workflow.md`](.claude/rules/design-review-workflow.md).
 
 ### Agent access design pass
 
@@ -43,7 +43,7 @@ The back end's first cuts, the UI primitives, the story runner and screenshots i
 
 - An Agent Skill that `gazetta init` adds, teaching coding agents to edit content and write templates, with permission presets that deny publishing ([#1622](https://github.com/gazetta-studio/gazetta-studio/issues/1622))
 
-The design starts from one decision: agents save through the same path as the admin, as the person who signed them in, and the audit log records the way each save came in (browser or CLI token) and a run id. By default they can't publish: an agent's token edits only, and publishing needs an elevation the person approves in the admin ([`design-agent-access.md`](.claude/rules/design-agent-access.md) Q12–Q30), so a person decides what reaches visitors, and undo covers mistakes. Bulk edits ([#1170](https://github.com/gazetta-studio/gazetta-studio/issues/1170)) are one of its use cases. Still to design: how agents appear in the audit log, and how an agent's run is undone without undoing other people's saves (undo and rollback restore whole revisions). Agents lead Gazetta's AI work ([`design-ai-direction.md`](.claude/rules/design-ai-direction.md), #1485), the MCP tools are designed so a later chat panel in the admin can reuse them, and the pass also designs how the admin shows agents' changes as they happen.
+The design starts from one decision: agents save through the same path as the admin, as the person who signed them in, and the audit log records the way each save came in (browser or CLI token) and a run id. By default they can't publish: an agent's token edits only, and publishing needs an elevation the person approves in the admin ([`design-agent-access.md`](.claude/rules/design-agent-access.md) Q12–Q30), so a person decides what reaches visitors, and undo covers mistakes. Bulk edits ([#1170](https://github.com/gazetta-studio/gazetta-studio/issues/1170)) are one of its use cases. Still to design: how agents appear in the audit log, and how an agent's run is undone without undoing other people's saves (undo and rollback restore whole revisions). Agents lead Gazetta's AI work ([`design-ai-direction.md`](.claude/rules/design-ai-direction.md)), the MCP tools are designed so a later chat panel in the admin can reuse them, and the pass also designs how the admin shows agents' changes as they happen.
 
 ### AI direction: first steps
 
@@ -62,10 +62,8 @@ The plan in [`docs/audits/website-and-channels.md`](docs/audits/website-and-chan
 
 Stage 0:
 
-- GitHub README's first screen: one sentence, a status line, Contribute and Try it ([#1189](https://github.com/gazetta-studio/gazetta-studio/issues/1189))
 - gazetta.studio home page: a status line, "Built and published with Gazetta", the blog link removed ([#1269](https://github.com/gazetta-studio/gazetta-studio/issues/1269))
 - A Contribute page: agents welcome, what `ready-for-agent` means, which paths the maintainer reviews personally, PR response time, the good first issues, design docs, credits; Contribute becomes the home page's main button ([#1270](https://github.com/gazetta-studio/gazetta-studio/issues/1270))
-- Docs on the site generated from the repo's `docs/` as committed pages, kept true by a check ([#1272](https://github.com/gazetta-studio/gazetta-studio/issues/1272))
 - The admin refuses saves to the generated docs pages ([#1289](https://github.com/gazetta-studio/gazetta-studio/issues/1289))
 - Removed or renamed docs become archived pages that redirect or answer 410 ([#1290](https://github.com/gazetta-studio/gazetta-studio/issues/1290))
 - An experiment on gazetta.studio only: its docs pages in Markdown when an agent asks for Markdown, an `llms.txt`, links to both, and a link to AGENTS.md, with requests to them logged by user agent ([#1273](https://github.com/gazetta-studio/gazetta-studio/issues/1273)). Gazetta doing this for every site stays Deferred
@@ -76,7 +74,7 @@ Decided: maintainer, 2026-10-24 (#1266)
 
 ### Media works end to end
 
-The asset library is broken at several layers: published images return 404 on deployed servers ([#1330](https://github.com/gazetta-studio/gazetta-studio/issues/1330); static `gazetta serve` corrupts them, [#1249](https://github.com/gazetta-studio/gazetta-studio/issues/1249)), the asset picker never renders ([#1345](https://github.com/gazetta-studio/gazetta-studio/issues/1345)), a target's `transforms` setting is never read ([#1332](https://github.com/gazetta-studio/gazetta-studio/issues/1332)), asset edits and locale images never reach targets ([#1334](https://github.com/gazetta-studio/gazetta-studio/issues/1334), [#1350](https://github.com/gazetta-studio/gazetta-studio/issues/1350)), and the resolver drops an asset's own focal point ([#1346](https://github.com/gazetta-studio/gazetta-studio/issues/1346)). These are fix-bot one-shots. The rest of the editor flow (per-reference overrides, same-name uploads, per-locale alt, documents and fonts) waits on a UX design round ([#1357](https://github.com/gazetta-studio/gazetta-studio/issues/1357)). The Stage 1 tutorial adds an image, so #1330, #1249 and #1345 are Stage 1 gate items (`design-tutorial.md` Q14).
+The asset library is broken at several layers: a target's `transforms` setting is never read ([#1332](https://github.com/gazetta-studio/gazetta-studio/issues/1332)), asset edits never reach targets ([#1334](https://github.com/gazetta-studio/gazetta-studio/issues/1334)), and the resolver drops an asset's own focal point ([#1346](https://github.com/gazetta-studio/gazetta-studio/issues/1346)). These are fix-bot one-shots. The rest of the editor flow (per-reference overrides, same-name uploads, per-locale alt, documents and fonts) waits on a UX design round ([#1357](https://github.com/gazetta-studio/gazetta-studio/issues/1357)). The Stage 1 tutorial adds an image, so #1330, #1249 and #1345 were Stage 1 gate items (`design-tutorial.md` Q14); they are fixed, as is #1350 (see the appendix).
 
 Decided: maintainer, 2026-10-24 (#1358)
 
@@ -101,16 +99,10 @@ User-visible bugs, with fix-bot or outside contributors ([#1162](https://github.
 - [#1159](https://github.com/gazetta-studio/gazetta-studio/issues/1159) the publish panel sends target-only rows
 - [#1162](https://github.com/gazetta-studio/gazetta-studio/issues/1162) component tree: a fast second keyboard move acts on the old order
 - [#1165](https://github.com/gazetta-studio/gazetta-studio/issues/1165) capability checks don't know `gazetta serve` serves a static target
-- [#1180](https://github.com/gazetta-studio/gazetta-studio/issues/1180) `gazetta publish` and `gazetta history` wait 10 seconds after they finish
-- [#1181](https://github.com/gazetta-studio/gazetta-studio/issues/1181) the `.gitignore` from `gazetta init` doesn't cover what publish writes
-- [#1182](https://github.com/gazetta-studio/gazetta-studio/issues/1182) the capability-gap warning on a new site links to a page that answers 404
-- [#1183](https://github.com/gazetta-studio/gazetta-studio/issues/1183) a new site fails its own broken-links check
-- [#1184](https://github.com/gazetta-studio/gazetta-studio/issues/1184) `gazetta dev` on a busy port prints a Node stack trace
 - [#1193](https://github.com/gazetta-studio/gazetta-studio/issues/1193) the offline docs say offline saves are sent later, and "Send now" only checks the connection
 - [#1465](https://github.com/gazetta-studio/gazetta-studio/issues/1465) pages and fragments with a dot in the name can be created but not saved
 - [#1471](https://github.com/gazetta-studio/gazetta-studio/issues/1471) History treats a stray file in `revisions/` as the newest revision
 - [#1499](https://github.com/gazetta-studio/gazetta-studio/issues/1499) `gazetta dev` logs `.json` changes outside the content root
-- [#1538](https://github.com/gazetta-studio/gazetta-studio/issues/1538) publishing a page also copies its nested pages' manifests
 - [#1614](https://github.com/gazetta-studio/gazetta-studio/issues/1614) the preview toolbar's active device button has low contrast in light mode
 - [#1625](https://github.com/gazetta-studio/gazetta-studio/issues/1625) "Delete permanently" on an archived item opens no confirmation
 - [#1262](https://github.com/gazetta-studio/gazetta-studio/issues/1262) requests refused before a route is matched (401) aren't recorded in the audit log. Decided: maintainer, 2026-10-24 (#1259).
@@ -121,8 +113,6 @@ Decided: maintainer, 2026-10-23 (#1179)
 
 Research by discovery-prep-bot, then a design round with the maintainer where one is needed:
 
-- [#1483](https://github.com/gazetta-studio/gazetta-studio/issues/1483) Markdown in the admin: which Markdown support authors and template developers need
-- [#1484](https://github.com/gazetta-studio/gazetta-studio/issues/1484) content trust: whether editors can put markup or script on published pages
 - [#1624](https://github.com/gazetta-studio/gazetta-studio/issues/1624) agent identity: decided in [`design-agent-access.md`](.claude/rules/design-agent-access.md) Q12–Q30 (#1630); feeds the agent access design pass
 
 ## Next (planned, the quarter after Now)
@@ -136,17 +126,11 @@ Reduce time-to-first-deploy for new operators. Moved from Now on 2026-10-23.
 - [#79](https://github.com/gazetta-studio/gazetta-studio/issues/79) Docker example for `gazetta serve`
 - Function-based adapters on the v1 contract: [#204](https://github.com/gazetta-studio/gazetta-studio/issues/204) Cloudflare Pages + Functions, [#206](https://github.com/gazetta-studio/gazetta-studio/issues/206) Vercel Edge
 - [#1177](https://github.com/gazetta-studio/gazetta-studio/issues/1177) a new site's first publish: decided 2026-10-24 on the issue
-- [#1284](https://github.com/gazetta-studio/gazetta-studio/issues/1284) `gazetta init` adds a `staging` target, and getting-started publishes to it
-- [#1285](https://github.com/gazetta-studio/gazetta-studio/issues/1285) the admin shows no Publish button on a site with one target
-- [#1286](https://github.com/gazetta-studio/gazetta-studio/issues/1286) `gazetta publish` on a one-target site stops with a message
 - [#1178](https://github.com/gazetta-studio/gazetta-studio/issues/1178) docs, npm and gazetta.studio describe different versions: decided 2026-10-24 on the issue; the next release follows the website plan's Stage 1 gate
-- [#1280](https://github.com/gazetta-studio/gazetta-studio/issues/1280) the npm package shows the repo's README.md, copied in at publish
-- [#1281](https://github.com/gazetta-studio/gazetta-studio/issues/1281) `gazetta init` depends on `^` its own version instead of `*`
 - Found on the 2026-10-23 onboarding walk, each waiting for a decision or a test on a real host:
   - [#1185](https://github.com/gazetta-studio/gazetta-studio/issues/1185) a site with an R2 target can't run `gazetta dev` without the R2 keys
   - [#1186](https://github.com/gazetta-studio/gazetta-studio/issues/1186) docs and code disagree on a cloud target's default environment
   - [#1187](https://github.com/gazetta-studio/gazetta-studio/issues/1187) the generated `wrangler.toml` uses a subdomain as `zone_name` (needs a test on a real account)
-  - [#1188](https://github.com/gazetta-studio/gazetta-studio/issues/1188) docs and `init` put pages in different folders, and new pages need a `gazetta dev` restart
 - [#1171](https://github.com/gazetta-studio/gazetta-studio/issues/1171) starter themes
 - [#209](https://github.com/gazetta-studio/gazetta-studio/issues/209) Netlify static, after [#1152](https://github.com/gazetta-studio/gazetta-studio/issues/1152)'s cuts 1–2 and [#1149](https://github.com/gazetta-studio/gazetta-studio/issues/1149). #1152's cut 2 waits for target removal cut 1, whose planner issue opens after publish undo cut 2, target indices cut 2 and review workflow cuts 12–13
 
@@ -234,7 +218,6 @@ Operator-facing features for mature production deployments:
 
 ### Compare polish (~1 week)
 
-- [#109](https://github.com/gazetta-studio/gazetta-studio/issues/109) compare targets — polish and edge cases
 - [#111](https://github.com/gazetta-studio/gazetta-studio/issues/111) standalone compare view
 
 ### Content features
@@ -446,6 +429,13 @@ Closes [#40](https://github.com/gazetta-studio/gazetta-studio/issues/40).
 
 ## Other shipped
 
+- ✓ [#1485](https://github.com/gazetta-studio/gazetta-studio/issues/1485) AI direction decided: agents lead AI work ([`design-ai-direction.md`](.claude/rules/design-ai-direction.md); closed 2026-10-31)
+- ✓ [#1483](https://github.com/gazetta-studio/gazetta-studio/issues/1483) Markdown in the admin and [#1484](https://github.com/gazetta-studio/gazetta-studio/issues/1484) content trust decided ([`design-content-trust.md`](.claude/rules/design-content-trust.md); closed 2026-10-30)
+- ✓ [#1189](https://github.com/gazetta-studio/gazetta-studio/issues/1189) the GitHub README's first screen: one sentence, a status line, Contribute and Try it (closed 2026-10-30)
+- ✓ [#1272](https://github.com/gazetta-studio/gazetta-studio/issues/1272) gazetta.studio's docs generated from the repo's `docs/`, kept true by a check (closed 2026-10-26)
+- ✓ Media fixes: published images answer on the worker and ESI `gazetta serve` ([#1330](https://github.com/gazetta-studio/gazetta-studio/issues/1330)); static `gazetta serve` sends the right content type and keeps binary files intact ([#1249](https://github.com/gazetta-studio/gazetta-studio/issues/1249)); asset fields show the asset picker ([#1345](https://github.com/gazetta-studio/gazetta-studio/issues/1345)); publish copies an asset's locale overrides ([#1350](https://github.com/gazetta-studio/gazetta-studio/issues/1350)) (closed 2026-10-25 and 2026-10-26)
+- ✓ Onboarding: `gazetta init` adds a `staging` target and getting-started publishes to it ([#1284](https://github.com/gazetta-studio/gazetta-studio/issues/1284)); no Publish button on a one-target site ([#1285](https://github.com/gazetta-studio/gazetta-studio/issues/1285)); `gazetta publish` on a one-target site stops with a message ([#1286](https://github.com/gazetta-studio/gazetta-studio/issues/1286)); the npm package shows the repo's README ([#1280](https://github.com/gazetta-studio/gazetta-studio/issues/1280)); `gazetta init` depends on `^` its own version ([#1281](https://github.com/gazetta-studio/gazetta-studio/issues/1281)); docs and `init` agree on the pages folder, and new pages need no restart ([#1188](https://github.com/gazetta-studio/gazetta-studio/issues/1188)) (closed 2026-10-25 and 2026-10-26)
+- ✓ Bug fixes: `gazetta publish` and `gazetta history` exit when done ([#1180](https://github.com/gazetta-studio/gazetta-studio/issues/1180)); the `init` `.gitignore` covers what publish writes ([#1181](https://github.com/gazetta-studio/gazetta-studio/issues/1181)); the capability-gap warning links to a page that exists ([#1182](https://github.com/gazetta-studio/gazetta-studio/issues/1182)); a new site passes its own broken-links check ([#1183](https://github.com/gazetta-studio/gazetta-studio/issues/1183)); `gazetta dev` on a busy port prints a plain message ([#1184](https://github.com/gazetta-studio/gazetta-studio/issues/1184)); publishing a page no longer copies its nested pages' manifests ([#1538](https://github.com/gazetta-studio/gazetta-studio/issues/1538)) (closed 2026-10-25 to 2026-10-30)
 - ✓ [#1542](https://github.com/gazetta-studio/gazetta-studio/issues/1542) the admin moved off PrimeUI to Reka UI with our own styles and Lucide icons ([`design-admin-ui.md`](.claude/rules/design-admin-ui.md); #1596, #1608, #1611; closed 2026-10-31)
 - ✓ [#1348](https://github.com/gazetta-studio/gazetta-studio/issues/1348) `Content<T>` types optional, nullable and array asset fields (closed 2026-10-29)
 - ✓ [#1490](https://github.com/gazetta-studio/gazetta-studio/issues/1490) `gazetta init`'s templates are typed (closed 2026-10-26)
