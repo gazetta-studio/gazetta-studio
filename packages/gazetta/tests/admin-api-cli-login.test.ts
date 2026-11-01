@@ -197,7 +197,7 @@ describe('the approve page accepts only a browser', () => {
   })
 })
 
-describe('a token edits but cannot publish, delete, purge or restore', () => {
+describe('a token edits but cannot publish, delete, purge or restore without an elevation', () => {
   const capped: Array<[string, string, RequestInit]> = [
     ['publish', '/api/v1/publish', post({ items: ['pages/home'], targets: ['staging'] })],
     ['delete', '/api/v1/pages/home', { method: 'DELETE' }],
@@ -206,15 +206,21 @@ describe('a token edits but cannot publish, delete, purge or restore', () => {
     ['rollback/restore', '/api/v1/history/restore?target=local', post({ revisionId: 'rev-1' })],
   ]
 
-  it.each(capped)('%s: 403 TOKEN_EDIT_ONLY with a token; the browser is not refused for it', async (_n, path, init) => {
-    const app = appOn(memoryStorage())
-    const token = await tokenOn(app)
-    const withToken = await app.request(path, { ...init, headers: { ...(init.headers ?? {}), 'Gazetta-Token': token } })
-    expect(withToken.status).toBe(403)
-    expect(await problemCode(withToken)).toBe('TOKEN_EDIT_ONLY')
-    const inBrowser = await app.request(path, init)
-    if (inBrowser.status === 403) expect(await problemCode(inBrowser)).not.toBe('TOKEN_EDIT_ONLY')
-  })
+  it.each(capped)(
+    '%s: 403 ELEVATION_REQUIRED with a token; the browser is not refused for it',
+    async (_n, path, init) => {
+      const app = appOn(memoryStorage())
+      const token = await tokenOn(app)
+      const withToken = await app.request(path, {
+        ...init,
+        headers: { ...(init.headers ?? {}), 'Gazetta-Token': token },
+      })
+      expect(withToken.status).toBe(403)
+      expect(await problemCode(withToken)).toBe('ELEVATION_REQUIRED')
+      const inBrowser = await app.request(path, init)
+      if (inBrowser.status === 403) expect(await problemCode(inBrowser)).not.toBe('ELEVATION_REQUIRED')
+    },
+  )
 
   it('saves a page with a token', async () => {
     const app = appOn(memoryStorage())

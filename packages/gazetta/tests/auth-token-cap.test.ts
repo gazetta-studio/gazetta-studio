@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { capabilityGrants, expandRole } from '../src/auth/capabilities.js'
-import { capTokenCapabilities, deniedOnlyForToken, isWithheldFromTokens } from '../src/auth/token-cap.js'
+import { capTokenCapabilities, isWithheldFromTokens, withheldCapabilitiesOf } from '../src/auth/token-cap.js'
 
 describe('isWithheldFromTokens', () => {
   it.each([
@@ -45,17 +45,16 @@ describe('capTokenCapabilities', () => {
   })
 })
 
-describe('deniedOnlyForToken', () => {
-  const admin = { channel: 'token', browserCapabilities: expandRole('admin')! }
-  it('is true for a withheld capability the person has', () => {
-    expect(deniedOnlyForToken(admin, 'publish:approve')).toBe(true)
-    expect(deniedOnlyForToken(admin, 'delete:*')).toBe(true)
+describe('withheldCapabilitiesOf', () => {
+  it('lists the concrete withheld capabilities a role grants', () => {
+    const admin = withheldCapabilitiesOf(expandRole('admin')!)
+    expect(admin).toEqual(
+      expect.arrayContaining(['publish:production', 'publish:approve', 'delete:pages', 'restore:history']),
+    )
+    expect(admin).not.toContain('publish:request')
+    expect(admin.some(c => c.endsWith('*'))).toBe(false)
   })
-  it('is false in the browser, for a capability the person lacks, and for edits', () => {
-    expect(deniedOnlyForToken({ ...admin, channel: 'browser' }, 'publish:approve')).toBe(false)
-    expect(
-      deniedOnlyForToken({ channel: 'token', browserCapabilities: expandRole('viewer')! }, 'publish:production'),
-    ).toBe(false)
-    expect(deniedOnlyForToken(admin, 'edit:pages')).toBe(false)
+  it('is empty for a role with none of them', () => {
+    expect(withheldCapabilitiesOf(expandRole('viewer')!)).toEqual([])
   })
 })
