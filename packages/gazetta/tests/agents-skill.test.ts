@@ -95,6 +95,14 @@ const ROUTES: Record<string, 'never' | 'allowed'> = {
   'POST /api/v1/assets/:name/locale-bytes': 'allowed',
   'DELETE /api/v1/assets/:name/locale-bytes': 'allowed',
   'POST /api/v1/assets/:name/suggest-alt': 'allowed',
+  // Approving a CLI login is the person's own step in the browser (Q19);
+  // starting, redeeming and renewing are what `gz` does.
+  'POST /api/v1/auth/logins': 'allowed',
+  'POST /api/v1/auth/logins/:code/approve': 'never',
+  'POST /api/v1/auth/logins/:code/deny': 'never',
+  'POST /api/v1/auth/logins/:code/redeem': 'allowed',
+  'POST /api/v1/auth/tokens': 'allowed',
+  'DELETE /api/v1/auth/grants/:id': 'allowed',
   'POST /preview/*': 'allowed',
 }
 
