@@ -308,7 +308,13 @@ test.describe('tutorial', () => {
       await page.goto(`${SITE}/admin/pages/home/edit`)
       await new ComponentTreePom(page).open('hero')
       const title = page.locator('input[name="root_title"]').first()
-      await title.fill(NEW_TITLE)
+      // The form fills in the page's content after it mounts and can replace
+      // text typed before that; type once it shows the loaded title.
+      await expect(title).toHaveValue(ORIGINAL_TITLE)
+      await expect(async () => {
+        await title.fill(NEW_TITLE)
+        await expect(save).toBeEnabled({ timeout: 2_000 })
+      }).toPass({ timeout: 30_000 })
       await save.click()
       await expectSaveSettled(save, { timeout: 15_000 })
       await expect.poll(() => html(`${SITE}/`)).toContain(NEW_TITLE)
@@ -332,6 +338,7 @@ test.describe('tutorial', () => {
       }).toPass({ timeout: 30_000 })
       await select.click()
       await expect(picker).not.toBeVisible()
+      await expect(save).toBeEnabled()
       await save.click()
       await expectSaveSettled(save, { timeout: 15_000 })
       await expect.poll(() => html(`${SITE}/`)).toMatch(/<section class="hero">\s*<img /)
