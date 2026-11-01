@@ -123,3 +123,54 @@ export const PageManifestSchema = z
     path: ['template'],
   })
 export type PageManifestParsed = z.infer<typeof PageManifestSchema>
+
+/**
+ * Response for POST /api/pages: `resolution` is set when the create
+ * resolved an archived-name conflict (`?onConflict=`).
+ */
+export const CreatedPageResponseSchema = CreatePageResponseSchema.extend({
+  resolution: z.string().optional(),
+})
+export type CreatedPageResponse = z.infer<typeof CreatedPageResponseSchema>
+
+/**
+ * Response for GET /api/pages/:name. Loose: `afterLoad` hooks may add or
+ * change fields (design-hooks.md).
+ */
+export const PageDetailSchema = z.looseObject({
+  name: z.string(),
+  route: z.string(),
+  template: z.string().optional(),
+  content: z.record(z.string(), z.unknown()).optional(),
+  components: z.array(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  dir: z.string().optional(),
+  locale: z.string().optional(),
+  locales: z.array(z.string()).optional(),
+  archived: z.boolean().optional(),
+  archivedAt: z.string().optional(),
+  archivedBy: z.string().optional(),
+  aliasOf: z.string().optional(),
+})
+export type PageDetail = z.infer<typeof PageDetailSchema>
+
+/**
+ * Body for PUT /api/pages/:name: the fields to change; absent fields keep
+ * the stored value. Loose, and metadata keeps keys the form doesn't show
+ * (design-editor-ux.md, "Page metadata is a pending lane").
+ */
+export const SavePageRequestSchema = z.looseObject({
+  template: z.string().optional(),
+  content: z.record(z.string(), z.unknown()).optional(),
+  components: z.array(z.unknown()).optional(),
+  metadata: z.looseObject(PageMetadataSchema.unwrap().shape).optional(),
+  cache: z.record(z.string(), z.unknown()).optional(),
+})
+export type SavePageRequest = z.infer<typeof SavePageRequestSchema>
+
+/** Response for PUT /api/pages/:name and /api/fragments/:name; `etag` is also the ETag header. */
+export const SaveResponseSchema = z.object({
+  ok: z.literal(true),
+  etag: z.string(),
+})
+export type SaveResponse = z.infer<typeof SaveResponseSchema>

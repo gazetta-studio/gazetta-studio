@@ -1,10 +1,32 @@
-import { Hono } from 'hono'
+import { createRoute, z } from '@hono/zod-openapi'
 import { problem } from '../problem.js'
 import { loadSiteFromSource } from '../source-context.js'
 import type { SourceContextResolver } from '../source-context.js'
-import { CreatePageRequestSchema, type PageSummary } from '../schemas/pages.js'
+import {
+  CreatePageRequestSchema,
+  CreatedPageResponseSchema,
+  type PageDetail,
+  PageDetailSchema,
+  type PageSummary,
+  PageSummarySchema,
+  SavePageRequestSchema,
+  SaveResponseSchema,
+} from '../schemas/pages.js'
+import { ArchiveRequestSchema, ArchiveResponseSchema, PurgeResponseSchema } from '../schemas/archive.js'
+import {
+  DeleteQuerySchema,
+  ItemLocaleQuerySchema,
+  ItemNameParamSchema,
+  OnConflictQuerySchema,
+  RequestIdHeaderSchema,
+  SaveHeadersSchema,
+  TargetQuerySchema,
+} from '../schemas/item-route.js'
+import { apiApp, json, problems } from '../openapi.js'
+import { bodyFailure, jsonBody } from '../route-input.js'
+import type { PageManifest } from '../../types.js'
 import { isValidLocale } from '../../locale.js'
-import { handleArchive, handlePurge, PAGE_HANDLE } from './archive.js'
+import { ARCHIVE_PROBLEMS, handleArchive, handlePurge, PAGE_HANDLE, PURGE_PROBLEMS } from './archive.js'
 import type { ValidatorRegistry } from '../../validation/registry.js'
 import { computeSaveEtag } from '../../save-etag.js'
 import { requireCapability } from '../middleware/capability.js'
@@ -40,11 +62,22 @@ export function pageRoutes(
   opts: PageRoutesOptions = {},
 ) {
   const editableTarget = requireEditableTarget(resolve)
-  const app = new Hono<AuditEnv>()
+  const app = apiApp<AuditEnv>()
   const hooks = opts.hooks
 
-  app.get('/api/pages', requireCapability('read:pages'), async c => {
-    const source = await resolve(c.req.query('target'))
+  const listPages = createRoute({
+    method: 'get',
+    path: '/api/pages',
+    summary: 'List pages',
+    middleware: [requireCapability('read:pages')] as const,
+    request: { query: TargetQuerySchema },
+    responses: {
+      200: json(z.array(PageSummarySchema), 'Every page on the target; empty when the target has none'),
+      ...problems({ 401: ['UNAUTHENTICATED'], 403: ['FORBIDDEN'] }),
+    },
+  })
+  app.openapi(listPages, async c => {
+    const source = await resolve(c.req.valid('query').target)
     // Empty target (e.g. a publish-target that's never received any
     // content) is valid per the stateless-CMS model — return an empty
     // list rather than erroring. Callers checking item availability
@@ -70,7 +103,7 @@ export function pageRoutes(
       const targetKey = source.targetName ?? '__source__'
       const cacheKey = `pages:summary:target:${targetKey}`
       const cached = await source.cache.get<PageSummary[]>(cacheKey)
-      if (cached) return c.json(cached)
+      if (cached) return c.json(cached, 200)
       const site = await loadSiteFromSource(source)
       const pages: PageSummary[] = [...site.pages.entries()].map(([name, page]) => {
         const localeEntry = site.pageLocales.get(name)
@@ -85,10 +118,10 @@ export function pageRoutes(
         }
       })
       await source.cache.set(cacheKey, pages)
-      return c.json(pages)
+      return c.json(pages, 200)
     } catch (err) {
       const msg = (err as Error).message
-      if (msg.includes('loadSite:')) return c.json([])
+      if (msg.includes('loadSite:')) return c.json([], 200)
       throw err
     }
   })
@@ -98,58 +131,86 @@ export function pageRoutes(
   // resolution / fresh create) lives there. This handler is now a
   // protocol translator: parse + Zod-validate → call `createPage` →
   // project `CreatePageResult` to HTTP. Same response shape as before.
-  app.post('/api/pages', requireCapability('edit:pages'), editableTarget, async c => {
-    const source = await resolve(c.req.query('target'))
-    // Schema-validate the body so drift between client and server
-    // can't silently accept malformed requests. The Zod schema is the
-    // single source of truth, shared with the client via
-    // `gazetta/admin-api/schemas` (see testing-plan.md Priority 3.2).
-    const raw = await c.req.json()
-    const parsed = CreatePageRequestSchema.safeParse(raw)
-    if (!parsed.success) {
-      return problem(c, 400, 'BAD_REQUEST', 'Invalid request body', {
-        issues: parsed.error.issues.map(i => ({ path: i.path.join('.'), message: i.message })),
-      })
-    }
-    const body = parsed.data
-
-    const result = await createPage({
-      name: body.name,
-      template: body.template,
-      content: body.content,
-      onConflict: c.req.query('onConflict'),
-      source,
-      principal: c.var.principal,
-      audit: c.var.audit,
-    })
-
-    if (result.ok) {
-      return c.json(
-        result.resolution
-          ? { ok: true, name: result.name, resolution: result.resolution }
-          : { ok: true, name: result.name },
-      )
-    }
-    if (result.code === 'LIVE_CONFLICT') {
-      return problem(c, 409, 'LIVE_CONFLICT', `Page "${result.name}" already exists`)
-    }
-    if (result.code === 'ARCHIVED_CONFLICT') {
-      return problem(c, 409, 'ARCHIVED_NAME_CONFLICT', undefined, { archive: result.archive })
-    }
-    if (result.code === 'REDIRECT_RESTORE') {
-      // Manual Redirect targeted by restore (#1343).
-      return problem(c, 409, 'REDIRECT_RESTORE', REDIRECT_RESTORE_MESSAGE)
-    }
-    // INVALID_CONFLICT_MODE — exhaustive narrow.
-    return problem(c, 400, 'INVALID_CONFLICT_MODE', `Invalid onConflict mode "${result.mode}"`)
+  const createPageRoute = createRoute({
+    method: 'post',
+    path: '/api/pages',
+    summary: 'Create a page',
+    middleware: [requireCapability('edit:pages'), editableTarget] as const,
+    request: {
+      query: OnConflictQuerySchema,
+      body: { required: true, content: { 'application/json': { schema: CreatePageRequestSchema } } },
+    },
+    responses: {
+      200: json(CreatedPageResponseSchema, 'Created, or an archived page resolved by `onConflict`'),
+      ...problems({
+        400: ['BAD_REQUEST', 'INVALID_CONFLICT_MODE'],
+        401: ['UNAUTHENTICATED'],
+        403: ['FORBIDDEN', 'TARGET_NOT_EDITABLE'],
+        409: ['LIVE_CONFLICT', 'ARCHIVED_NAME_CONFLICT', 'REDIRECT_RESTORE'],
+        415: ['BAD_REQUEST'],
+      }),
+    },
   })
+  app.openapi(
+    createPageRoute,
+    async c => {
+      const { target, onConflict } = c.req.valid('query')
+      const source = await resolve(target)
+      // The body was validated against `CreatePageRequestSchema`, shared
+      // with the client via `gazetta/admin-api/schemas`.
+      const body = c.req.valid('json')
 
-  app.get('/api/pages/:name{.+}', requireCapability('read:pages'), async c => {
-    const name = c.req.param('name')
-    const rawLocale = c.req.query('locale')
+      const result = await createPage({
+        name: body.name,
+        template: body.template,
+        content: body.content,
+        onConflict,
+        source,
+        principal: c.var.principal,
+        audit: c.var.audit,
+      })
+
+      if (result.ok) {
+        return c.json(
+          result.resolution
+            ? { ok: true, name: result.name, resolution: result.resolution }
+            : { ok: true, name: result.name },
+          200,
+        )
+      }
+      if (result.code === 'LIVE_CONFLICT') {
+        return problem(c, 409, 'LIVE_CONFLICT', `Page "${result.name}" already exists`)
+      }
+      if (result.code === 'ARCHIVED_CONFLICT') {
+        return problem(c, 409, 'ARCHIVED_NAME_CONFLICT', undefined, { archive: result.archive })
+      }
+      if (result.code === 'REDIRECT_RESTORE') {
+        // Manual Redirect targeted by restore (#1343).
+        return problem(c, 409, 'REDIRECT_RESTORE', REDIRECT_RESTORE_MESSAGE)
+      }
+      // INVALID_CONFLICT_MODE — exhaustive narrow.
+      return problem(c, 400, 'INVALID_CONFLICT_MODE', `Invalid onConflict mode "${result.mode}"`)
+    },
+    bodyFailure('BAD_REQUEST', 'Invalid request body'),
+  )
+
+  const getPage = createRoute({
+    method: 'get',
+    path: '/api/pages/:name{.+}',
+    summary: 'Read a page',
+    middleware: [requireCapability('read:pages')] as const,
+    request: { params: ItemNameParamSchema, query: ItemLocaleQuerySchema, headers: RequestIdHeaderSchema },
+    responses: {
+      200: json(PageDetailSchema, 'The page, or its locale variant; ETag is its save version'),
+      ...problems({ 400: ['BAD_REQUEST'], 401: ['UNAUTHENTICATED'], 403: ['FORBIDDEN'], 404: ['NOT_FOUND'] }),
+    },
+  })
+  app.openapi(getPage, async c => {
+    const { name } = c.req.valid('param')
+    const { target, locale: rawLocale } = c.req.valid('query')
     const locale = rawLocale && isValidLocale(rawLocale) ? rawLocale.toLowerCase() : undefined
     if (rawLocale && !locale) return problem(c, 400, 'BAD_REQUEST', `Invalid locale code: "${rawLocale}"`)
-    const source = await resolve(c.req.query('target'))
+    const source = await resolve(target)
     const site = await loadSiteFromSource(source)
 
     // If a locale is requested, return the locale variant
@@ -204,31 +265,55 @@ export function pageRoutes(
         principal: c.var.principal,
         storage: source.storage,
         target: source.targetName,
-        requestId: c.req.header('x-request-id') ?? crypto.randomUUID(),
+        requestId: c.req.valid('header')['x-request-id'] ?? crypto.randomUUID(),
         site: { name: source.manifest?.name },
         auditEmit: makeAuditFiringEmitter(c.var.audit),
       })
       body = await dispatchAfterLoad(hooks, { kind: 'page', name, locale: locale ?? undefined }, body, ctx)
     }
-    return c.json(body)
+    return c.json(body as PageDetail, 200)
   })
 
   // PUT delegates to `pages/save.ts` — the Page-Save spine lives in the
   // `manifest-save.ts` orchestrator (per Cut 2). This handler is now a
   // protocol translator: parse Hono request → call `savePage` →
   // project `SaveResult` to HTTP. Same response shape as before.
-  app.put('/api/pages/:name{.+}', requireCapability('edit:pages'), editableTarget, async c => {
-    const name = c.req.param('name')
-    const rawLocale = c.req.query('locale')
+  const savePageRoute = createRoute({
+    method: 'put',
+    path: '/api/pages/:name{.+}',
+    summary: 'Save a page',
+    middleware: [requireCapability('edit:pages'), editableTarget] as const,
+    request: {
+      params: ItemNameParamSchema,
+      query: ItemLocaleQuerySchema,
+      headers: SaveHeadersSchema,
+      body: { required: true, content: { 'application/json': { schema: SavePageRequestSchema } } },
+    },
+    responses: {
+      200: json(SaveResponseSchema, 'Saved; ETag is the new save version'),
+      ...problems({
+        400: ['BAD_REQUEST'],
+        401: ['UNAUTHENTICATED'],
+        403: ['FORBIDDEN', 'TARGET_NOT_EDITABLE'],
+        404: ['NOT_FOUND'],
+        409: ['STALE', 'EDIT_LOCKED', 'ARCHIVED', 'VALIDATION_FAILED', 'HOOK_CANCELLED'],
+        415: ['BAD_REQUEST'],
+        500: ['AUDIT_FAILED'],
+      }),
+    },
+  })
+  app.openapi(savePageRoute, async c => {
+    const { name } = c.req.valid('param')
+    const { target, locale: rawLocale } = c.req.valid('query')
+    const headers = c.req.valid('header')
 
-    const source = await resolve(c.req.query('target'))
+    const source = await resolve(target)
     const site = await loadSiteFromSource(source, { templatesDir })
 
     // RFC-7232 If-Match is quoted; normalize before passing through.
-    const ifMatchRaw = c.req.header('If-Match')
-    const ifMatch = ifMatchRaw?.replace(/^"(.*)"$/, '$1')
+    const ifMatch = headers['if-match']?.replace(/^"(.*)"$/, '$1')
 
-    const body = await c.req.json()
+    const body = c.req.valid('json') as Partial<PageManifest> & Record<string, unknown>
 
     let result
     try {
@@ -245,7 +330,7 @@ export function pageRoutes(
         hooks,
         hookAuditEmit: makeAuditFiringEmitter(c.var.audit),
         scanner: opts.scanner ?? undefined,
-        requestId: c.req.header('x-request-id') ?? undefined,
+        requestId: headers['x-request-id'] ?? undefined,
       })
     } catch (err) {
       if (err instanceof InvalidLocaleError) return problem(c, 400, 'BAD_REQUEST', err.message)
@@ -255,7 +340,7 @@ export function pageRoutes(
 
     if (result.ok) {
       c.header('ETag', `"${result.etag}"`)
-      return c.json({ ok: true, etag: result.etag })
+      return c.json({ ok: true as const, etag: result.etag }, 200)
     }
     if (result.code === 'STALE') {
       c.header('ETag', `"${result.currentEtag}"`)
@@ -288,11 +373,43 @@ export function pageRoutes(
   // /archive and /purge routes — DELETE without `?permanent=true` audits
   // as `action: 'archive'`, DELETE with `?permanent=true` audits as
   // `action: 'purge'`.
-  app.delete('/api/pages/:name{.+}', requireCapability('delete:pages'), editableTarget, async c => {
-    const permanent = c.req.query('permanent') === 'true'
-    if (permanent) return handlePurge(c, resolve, PAGE_HANDLE, null, { allowLive: true })
-    return handleArchive(c, resolve, PAGE_HANDLE)
+  const deletePage = createRoute({
+    method: 'delete',
+    path: '/api/pages/:name{.+}',
+    summary: 'Archive a page, or delete it with `permanent=true`',
+    middleware: [requireCapability('delete:pages'), editableTarget, jsonBody({ optional: true })] as const,
+    request: {
+      params: ItemNameParamSchema,
+      query: DeleteQuerySchema,
+      body: { required: false, content: { 'application/json': { schema: ArchiveRequestSchema } } },
+    },
+    responses: {
+      200: json(z.union([ArchiveResponseSchema, PurgeResponseSchema]), 'Archived, or deleted'),
+      ...problems({
+        400: ARCHIVE_PROBLEMS[400],
+        401: ARCHIVE_PROBLEMS[401],
+        403: ARCHIVE_PROBLEMS[403],
+        404: ARCHIVE_PROBLEMS[404],
+        409: [...ARCHIVE_PROBLEMS[409], ...PURGE_PROBLEMS[409]],
+        415: ARCHIVE_PROBLEMS[415],
+      }),
+    },
   })
+  app.openapi(
+    deletePage,
+    async c => {
+      const { name } = c.req.valid('param')
+      const { target, force, permanent } = c.req.valid('query')
+      if (permanent === 'true') {
+        return handlePurge(c, resolve, PAGE_HANDLE, { name, target, force: force === 'true' }, null, {
+          allowLive: true,
+        })
+      }
+      const { aliasOf } = c.req.valid('json')
+      return handleArchive(c, resolve, PAGE_HANDLE, { name, target, force: force === 'true', aliasOf })
+    },
+    bodyFailure('BAD_REQUEST', 'Invalid request body'),
+  )
 
   return app
 }

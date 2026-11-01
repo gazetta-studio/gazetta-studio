@@ -69,3 +69,33 @@ export const FragmentManifestSchema = z
     path: ['template'],
   })
 export type FragmentManifestParsed = z.infer<typeof FragmentManifestSchema>
+
+/** Response for POST /api/fragments; see `CreatedPageResponseSchema`. */
+export const CreatedFragmentResponseSchema = CreateFragmentResponseSchema.extend({
+  resolution: z.string().optional(),
+})
+export type CreatedFragmentResponse = z.infer<typeof CreatedFragmentResponseSchema>
+
+/** Response for GET /api/fragments/:name; loose for `afterLoad` hooks. */
+export const FragmentDetailSchema = z.looseObject({
+  name: z.string(),
+  template: z.string().optional(),
+  content: z.record(z.string(), z.unknown()).optional(),
+  components: z.array(z.unknown()).optional(),
+  dir: z.string().optional(),
+  locale: z.string().optional(),
+  locales: z.array(z.string()).optional(),
+  archived: z.boolean().optional(),
+  archivedAt: z.string().optional(),
+  archivedBy: z.string().optional(),
+  aliasOf: z.string().optional(),
+})
+export type FragmentDetail = z.infer<typeof FragmentDetailSchema>
+
+/** Body for PUT /api/fragments/:name: the fields to change. Loose. */
+export const SaveFragmentRequestSchema = z.looseObject({
+  template: z.string().optional(),
+  content: z.record(z.string(), z.unknown()).optional(),
+  components: z.array(z.unknown()).optional(),
+})
+export type SaveFragmentRequest = z.infer<typeof SaveFragmentRequestSchema>

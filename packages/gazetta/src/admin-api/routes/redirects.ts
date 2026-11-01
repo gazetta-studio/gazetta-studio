@@ -33,7 +33,7 @@
  *     boundary. Routes are single-purpose; the helper is single-purpose;
  *     no god functions.
  */
-import { Hono } from 'hono'
+import { createRoute } from '@hono/zod-openapi'
 import type { Context } from 'hono'
 import { join } from 'node:path'
 
@@ -44,6 +44,9 @@ import { requireCapability } from '../middleware/capability.js'
 import { requireEditableTarget } from '../middleware/editable-target.js'
 import { lookupManifest } from '../lookup-manifest.js'
 import { problem } from '../problem.js'
+import { apiApp, json, problems } from '../openapi.js'
+import { bodyFailure, jsonBody } from '../route-input.js'
+import { OnConflictQuerySchema } from '../schemas/item-route.js'
 import type { AuditEnv } from '../middleware/audit.js'
 import { rebuildArchiveAliases } from '../../archive-aliases.js'
 import { isManualRedirectArchive, REDIRECT_RESTORE_MESSAGE } from '../../archive-helpers.js'
@@ -51,7 +54,11 @@ import { rebuildAssetRefs } from '../../assets/asset-deps.js'
 import { rebuildFragmentDeps } from '../../fragment-deps.js'
 import type { ItemRef } from '../../dep-sidecars.js'
 import { deriveRoute } from '../../site-loader.js'
-import { CreateRedirectRequestSchema, type CreateRedirectResponse } from '../schemas/redirects.js'
+import {
+  CreateRedirectRequestSchema,
+  type CreateRedirectResponse,
+  CreateRedirectResponseSchema,
+} from '../schemas/redirects.js'
 import type { ComponentManifest, FragmentManifest, PageManifest } from '../../types.js'
 import { isSafeItemName, UNSAFE_ITEM_NAME_MESSAGE } from '../../item-name.js'
 
@@ -83,16 +90,55 @@ const FRAGMENT_BINDING: KindBinding = {
 
 export function redirectRoutes(resolve: SourceContextResolver) {
   const editableTarget = requireEditableTarget(resolve)
-  const app = new Hono<AuditEnv>()
+  const app = apiApp<AuditEnv>()
 
-  app.post('/api/page-redirects', requireCapability(PAGE_BINDING.capability), editableTarget, c =>
-    handleCreateRedirect(c, resolve, PAGE_BINDING),
-  )
-  app.post('/api/fragment-redirects', requireCapability(FRAGMENT_BINDING.capability), editableTarget, c =>
-    handleCreateRedirect(c, resolve, FRAGMENT_BINDING),
-  )
+  const mount = <P extends '/api/page-redirects' | '/api/fragment-redirects'>(path: P, binding: KindBinding) => {
+    const create = createRoute({
+      method: 'post',
+      path,
+      summary: `Create a ${binding.kind} redirect`,
+      middleware: [
+        requireCapability(binding.capability),
+        editableTarget,
+        jsonBody({ malformed: { code: 'INVALID', detail: 'Invalid JSON body' } }),
+      ] as const,
+      request: {
+        query: OnConflictQuerySchema,
+        body: { required: true, content: { 'application/json': { schema: CreateRedirectRequestSchema } } },
+      },
+      responses: {
+        201: json(CreateRedirectResponseSchema, 'Created, or an archived name resolved by `onConflict`'),
+        ...problems({
+          400: ['INVALID'],
+          401: ['UNAUTHENTICATED'],
+          403: ['FORBIDDEN', 'TARGET_NOT_EDITABLE'],
+          409: ['LIVE_NAME_CONFLICT', 'ALIAS_TARGET_NOT_FOUND', 'ARCHIVED_NAME_CONFLICT', 'REDIRECT_RESTORE'],
+          415: ['BAD_REQUEST'],
+        }),
+      },
+    })
+    app.openapi(
+      create,
+      c => {
+        const { target, onConflict } = c.req.valid('query')
+        const { from, to } = c.req.valid('json')
+        return handleCreateRedirect(c, resolve, binding, { from, to, target, onConflict })
+      },
+      bodyFailure('INVALID', 'Invalid request body'),
+    )
+  }
+
+  mount('/api/page-redirects', PAGE_BINDING)
+  mount('/api/fragment-redirects', FRAGMENT_BINDING)
 
   return app
+}
+
+interface CreateRedirectInput {
+  from: string
+  to: string
+  target?: string
+  onConflict?: string
 }
 
 /**
@@ -103,25 +149,14 @@ export function redirectRoutes(resolve: SourceContextResolver) {
  * kind beyond which Map on `Site` is consulted (per `loadSiteFromSource`).
  */
 async function handleCreateRedirect(
-  c: Context<AuditEnv>,
+  c: Context<AuditEnv, any, any>,
   resolve: SourceContextResolver,
   binding: KindBinding,
-): Promise<Response> {
-  // Schema-validate the body. Catches missing fields + wrong types BEFORE
-  // any storage access.
-  let raw: unknown
-  try {
-    raw = await c.req.json()
-  } catch {
-    return problem(c, 400, 'INVALID', 'Invalid JSON body')
-  }
-  const parsed = CreateRedirectRequestSchema.safeParse(raw)
-  if (!parsed.success) {
-    return problem(c, 400, 'INVALID', 'Invalid request body', {
-      issues: parsed.error.issues.map(i => ({ path: i.path.join('.'), message: i.message })),
-    })
-  }
-  const { from: fromRaw, to } = parsed.data
+  input: CreateRedirectInput,
+) {
+  // The body was validated against `CreateRedirectRequestSchema`
+  // (missing fields, wrong types) before any storage access.
+  const { from: fromRaw, to } = input
 
   // Normalize `from` per Q4 lock: strip leading slash, `:param` → `[param]`.
   // Keep `to` verbatim — alias targets are name-shaped already (clients
@@ -152,7 +187,7 @@ async function handleCreateRedirect(
     return problem(c, 400, 'INVALID', UNSAFE_ITEM_NAME_MESSAGE)
   }
 
-  const source = await resolve(c.req.query('target'))
+  const source = await resolve(input.target)
   const site = await loadSiteFromSource(source)
 
   // Live-name collision (Q4 lock C2) — hard refuse. No destructive
@@ -175,7 +210,7 @@ async function handleCreateRedirect(
   //   - 'restore' → unarchive existing; skip create
   //   - 'replace' → purge existing, create new redirect
   //   - 'moveAside' → rename old archive with date suffix, create new
-  const onConflict = c.req.query('onConflict')
+  const onConflict = input.onConflict
   if (existing && existing.archived === true) {
     return handleArchivedConflict(c, source, binding, from, to, existing, onConflict)
   }
@@ -309,14 +344,14 @@ async function writeRedirectManifest(
  * reconstruction shows what happened.
  */
 async function handleArchivedConflict(
-  c: Context<AuditEnv>,
+  c: Context<AuditEnv, any, any>,
   source: SourceContext,
   binding: KindBinding,
   from: string,
   to: string,
   existing: PageManifest | FragmentManifest,
   onConflict: string | undefined,
-): Promise<Response> {
+) {
   if (!onConflict) {
     return problem(c, 409, 'ARCHIVED_NAME_CONFLICT', undefined, {
       archive: {
