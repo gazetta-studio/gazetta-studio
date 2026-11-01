@@ -4,7 +4,7 @@
  * sharing storage; grants keep only a hash of their secret.
  */
 import { describe, expect, it } from 'vitest'
-import { createCliLoginStore, LOGIN_TTL_MS, normalizeLoginCode } from '../src/auth/cli-login-store.js'
+import { createCliLoginStore, GRANT_TTL_MS, LOGIN_TTL_MS, normalizeLoginCode } from '../src/auth/cli-login-store.js'
 import { memoryStorage } from './_helpers/memory-storage.js'
 
 const alice = { id: 'alice', email: 'alice@example.com', role: 'editor', trustMode: 'forwarded-user' }
@@ -39,7 +39,7 @@ describe('CLI login store', () => {
     // The grant file keeps a hash, not the secret.
     const stored = [...storage.dump().values()].map(v => Buffer.from(v).toString()).join('\n')
     expect(stored).not.toContain(first.grantSecret.split('.')[1])
-    expect((await store.grantFor(first.grantSecret))?.grantId).toBe(first.grant.grantId)
+    expect(await store.grantFor(first.grantSecret)).toEqual({ status: 'ok', grant: first.grant })
   })
 
   it('redeems a code once across two instances racing on one storage', async () => {
@@ -84,7 +84,7 @@ describe('CLI login store', () => {
     if (r.status !== 'approved') throw new Error('expected a grant')
     expect(await store.revoke(r.grant.grantId, 'bob')).toBe('not-found')
     expect(await store.revoke(r.grant.grantId, 'alice')).toBe('revoked')
-    expect(await store.grantFor(r.grantSecret)).toBeNull()
+    expect(await store.grantFor(r.grantSecret)).toEqual({ status: 'invalid' })
   })
 
   it('refuses a grant secret with the right id but the wrong secret', async () => {
@@ -93,7 +93,31 @@ describe('CLI login store', () => {
     await store.approve(code, alice)
     const r = await store.redeem(code, pollSecret)
     if (r.status !== 'approved') throw new Error('expected a grant')
-    expect(await store.grantFor(`${r.grant.grantId}.guess`)).toBeNull()
-    expect(await store.grantFor('../../pages/home.x')).toBeNull()
+    expect(await store.grantFor(`${r.grant.grantId}.guess`)).toEqual({ status: 'invalid' })
+    expect(await store.grantFor('../../pages/home.x')).toEqual({ status: 'invalid' })
+  })
+
+  it('expires a grant 30 days after approval, and removes it', async () => {
+    const c = clock()
+    const storage = memoryStorage()
+    const store = createCliLoginStore(storage, c.now)
+    const { code, pollSecret } = await store.start({ machine: 'laptop' })
+    await store.approve(code, alice)
+    const r = await store.redeem(code, pollSecret)
+    if (r.status !== 'approved') throw new Error('expected a grant')
+    c.advance(GRANT_TTL_MS - 1)
+    expect((await store.grantFor(r.grantSecret)).status).toBe('ok')
+    c.advance(1)
+    expect(await store.grantFor(r.grantSecret)).toEqual({ status: 'expired' })
+    expect(await store.grantById(r.grant.grantId)).toBeNull()
+  })
+
+  it('decides a code once across two instances', async () => {
+    const storage = memoryStorage()
+    const a = createCliLoginStore(storage)
+    const b = createCliLoginStore(storage)
+    const { code } = await a.start({ machine: 'laptop' })
+    const results = await Promise.all([a.approve(code, alice), b.deny(code)])
+    expect(results.map(r => r.status).sort()).toEqual(['decided', 'ok'])
   })
 })
