@@ -743,7 +743,7 @@ Decided: maintainer, 2026-11-01 (#1656)
 
 ### Q51 — History retention counts a run as one entry
 
-All revisions of one run count as a single entry toward a target's retention limit (50 by default) and are evicted together, with their blobs, so a run stays undoable as a whole until it ages out. A run has no end marker, so a very long run keeps more than 50 revisions.
+All revisions of one run count as a single entry toward a target's retention limit (50 by default) and are evicted together, so a run stays undoable as a whole until it ages out. Their blobs are then no longer referenced by them and are removed by `gazetta gc` once no other revision uses them, like any evicted revision's (blobs are shared across revisions, `design-publishing.md`). A run has no end marker, so a very long run keeps more than 50 revisions.
 
 Decided: maintainer, 2026-11-01 (#1656)
 
@@ -752,6 +752,12 @@ Decided: maintainer, 2026-11-01 (#1656)
 | Keep runs from the last 7 days on top of the limit | Storage grows with heavy agent use |
 | No special rule | A long run may not be fully undoable |
 
+The blob wording: the first version said a run's revisions are evicted "with their blobs", which would delete blobs other revisions share. Decided: maintainer, 2026-11-01 (#1656)
+
+| Rejected | Why |
+|---|---|
+| Delete a run's blobs at eviction, only those no other revision references | Needs a reference check at eviction, which history doesn't do today |
+
 Research: [runs on #49](https://github.com/gazetta-studio/gazetta-studio/issues/49#issuecomment-6558676804) (today's audit and history records, undo, schema checks, the run review routes).
 
 ## What this changes in the plan
@@ -759,4 +765,4 @@ Research: [runs on #49](https://github.com/gazetta-studio/gazetta-studio/issues/
 Follows from Q1–Q51.
 - ROADMAP's "MCP server design pass" becomes "Agent access design pass" (#49), and "MCP server build" becomes "Agent access build".
 - The skill (#1622) is the first step, in Now; the Deferred row for agent instructions goes.
-- The #49 pass designs: the agent token and elevation flow (Q12–Q30), the remote MCP server's sign-in (Q28), the run review routes (`design-ai-direction.md` Q2), page search, the thin CLI's later commands (Q37), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract (routes, the full error-code list, moving routes to OpenAPI with schema parsing), the v1 cut-off (Q5), the bulk save's item cap and the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
+- The #49 pass designs: the agent token and elevation flow (Q12–Q30), the remote MCP server's sign-in (Q28), the run review routes (`design-ai-direction.md` Q2), page search, the thin CLI's later commands (Q37), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract (routes, the full error-code list, moving routes to OpenAPI with schema parsing), the v1 cut-off (Q5), the bulk save's item cap, how retention groups a run's revisions (Q51), where the per-run sidecar index lives (a state folder registry entry, not safe on public targets, `design-public-storage.md` Q7), the `AuditEvent` and revision fields in `design-audit.md` and `history.ts` (Q47), the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).

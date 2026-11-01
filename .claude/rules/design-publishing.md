@@ -180,7 +180,7 @@ Per-target configurable via the `history` block in `site.config.ts`, default **k
 revisions**. When the limit is hit, the oldest revision is evicted (its manifest deleted
 from `revisions/`, removed from `index.json`). Orphaned blobs in `objects/` are
 garbage-collected lazily — a future `gazetta gc` command walks all manifests and prunes
-unreferenced blobs.
+unreferenced blobs. An agent run's revisions count as one entry and are evicted together ([`design-agent-access.md`](design-agent-access.md) Q51).
 
 ```ts
 export default defineSite({
