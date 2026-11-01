@@ -181,6 +181,27 @@ describe('the origin of a write', () => {
     expect(await newestRevision(local)).toMatchObject({ channel: 'token', runId: 'r3', author: 'alice' })
   })
 
+  it('an undo records its origin and author too', async () => {
+    const { app, local } = setup()
+    const save = await app.request('/api/v1/pages/home', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...alice },
+      body: JSON.stringify({ content: { title: 'Edited' } }),
+    })
+    expect(save.status).toBe(200)
+    const undo = await app.request('/api/v1/history/undo?target=local', {
+      method: 'POST',
+      headers: { ...alice, 'Gazetta-Run': 'undo-run' },
+    })
+    expect(undo.status).toBe(200)
+    expect(await newestRevision(local)).toMatchObject({
+      operation: 'rollback',
+      author: 'alice',
+      channel: 'browser',
+      runId: 'undo-run',
+    })
+  })
+
   it.each(['', 'has space', 'x'.repeat(65), 'semi;colon'])(
     'refuses Gazetta-Run %j with 400 and writes nothing',
     async run => {
