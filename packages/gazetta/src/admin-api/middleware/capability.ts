@@ -55,6 +55,7 @@ import type { AuditEnv } from './audit.js'
 function actionForCapability(capability: string): AuditAction | null {
   if (capability.startsWith('edit:')) return 'save'
   if (capability.startsWith('delete:')) return 'delete'
+  if (capability.startsWith('archive:')) return 'archive'
   if (capability.startsWith('publish:')) return 'publish'
   if (capability === 'restore:history') return 'restore'
   return null
