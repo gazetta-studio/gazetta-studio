@@ -196,7 +196,7 @@ Decided: maintainer, 2026-10-31 (#1623)
 |---|---|
 | Bot support for Go before any Go cut is filed | Delays the CLI behind bot and workflow changes |
 
-The client is generated from the OpenAPI 3.1 document directly. Decided: maintainer, 2026-11-01 (#<PR>)
+The client is generated from the OpenAPI 3.1 document directly. Decided: maintainer, 2026-11-01 (#1686)
 
 | Rejected | Why |
 |---|---|
@@ -205,7 +205,7 @@ The client is generated from the OpenAPI 3.1 document directly. Decided: maintai
 
 The generator is oapi-codegen (v2.8.2, Apache-2.0) with `nullable-type: true`, so a field such as `alt` keeps all three states (a value, null, absent) and `gz` can clear it. On cut 4's document (47 paths) it generated every operation with no errors and builds without cgo; its own docs call its 3.1 support initial.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1686)
 
 | Rejected | Why |
 |---|---|
@@ -214,7 +214,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 The cut that generates `gz`'s client (cut 13) first registers shared schemas as named components, the problem+json error body first: today every schema is inline, so the generated client has 907 types, 239 of them copies of the error body.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1686)
 
 | Rejected | Why |
 |---|---|
