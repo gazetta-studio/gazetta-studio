@@ -769,7 +769,7 @@ Follows from Q1–Q51.
 
 ## Cut sequence
 
-The build of Q12–Q51. The MCP server, the live view of agents' changes and page search are designed later; they come after the CLI anyway (Q1).
+The build of Q12–Q51. The MCP server (with its sign-in, Q28), the live view of agents' changes and page search are designed later; they come after the CLI anyway (Q1). Q30 (the `design-auth-rbac.md` amendment) needs no cut, and Q31, Q34 and the `gazetta` part of Q32 shipped in #1651.
 
 | # | What | Depends on | Test tier | Risk |
 |---|---|---|---|---|
@@ -782,13 +782,13 @@ The build of Q12–Q51. The MCP server, the live view of agents' changes and pag
 | 7 | Gazetta tokens: pin login and approve page, grant records, signing key, `Gazetta-Token` header, edit-only enforcement, auth audit events (Q12, Q13, Q16, Q19, Q21, Q25–Q27) | 4 | api-first | High |
 | 8 | Elevation: approve, 15 minutes, production separate, inline elevation on publish, approvals only while elevated (Q17, Q18, Q20, Q29) | 7 | api-first | High |
 | 9 | Login-layer support: Cloudflare service tokens, Entra device code, ALB RS256 with public keys (Q15, Q23) | 7 | integration | Medium-high |
-| 10 | Bulk save `POST /api/v1/saves`, all or nothing (Q46) | 4, 6 | api-first | Medium |
-| 11 | Revert a run item by item, with skip-and-report (Q48, Q50) | 6 | api-first | Medium |
-| 12 | `gz` skeleton: Go module, goreleaser, profiles, `gz auth login`, version check (Q35, Q36, Q39, Q43) | 7 | integration | Medium |
+| 10 | Bulk save `POST /api/v1/saves`, all or nothing (Q46) | 2, 4, 6 | api-first | Medium |
+| 11 | Revert a run item by item, with skip-and-report (Q48, Q50) | 4, 6 | api-first | Medium |
+| 12 | `gz` skeleton: Go module, goreleaser, profiles, `gz auth login`, version check, grant in the OS keychain (Q35, Q36, Q39, Q43, Q24) | 7 | integration | Medium |
 | 13 | `gz` content commands, output and exit codes, run id (Q37, Q38, Q22) | 10, 12 | integration | Medium |
 | 14 | `gz` publish, elevate, assets and skill; `gz` entries on the never-run list (Q37, Q40, Q41, Q32) | 8, 13 | integration | Medium |
 | 15 | `gazetta agents update` and the `gazetta dev` warning (Q33) | — | integration | Low |
-| 16 | Docs: content creators with `gz`, operators per platform, the API reference | 14 | docs | Low |
+| 16 | Docs: content creators with `gz`, operators per platform including where "agents can't publish" is enforced (Q14), the API reference | 14 | docs | Low |
 
 cut-planner files them one at a time. The Go cuts (12–14) go to the REVIEW PRS session, since the bots can't check Go yet (Q8), and the release workflow part of cut 12 is a maintainer PR (bots can't push workflow files). Cuts 1, 2, 5 and 15 can start at once.
 
@@ -797,3 +797,9 @@ Decided: maintainer, 2026-11-01 (#1658)
 | Rejected | Why |
 |---|---|
 | All server cuts (1–11) before any `gz` work | Slower to a usable CLI |
+
+Cut 10 depends on cut 2 and cut 11 on cut 4, so the bulk save never ships without the schema check and the revert route is built under `/api/v1`. Decided: maintainer, 2026-11-01 (#1658)
+
+| Rejected | Why |
+|---|---|
+| Keep the dependencies as first locked | A bulk save could land without the schema check, and the revert route would move into v1 later |
