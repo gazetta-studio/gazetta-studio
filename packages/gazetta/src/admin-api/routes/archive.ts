@@ -170,13 +170,14 @@ export function archiveRoutes(resolve: SourceContextResolver, opts: ArchiveRoute
   const mount = <K extends 'pages' | 'fragments'>(kind: K, handle: ItemHandle) => {
     const label = handle.label.toLowerCase()
     const del = requireCapability(`delete:${kind}`)
+    const archiveCap = requireCapability(`archive:${kind}`)
     const edit = requireCapability(`edit:${kind}`)
 
     const archive = createRoute({
       method: 'post',
       path: `/${kind}/:name/archive`,
       summary: `Archive a ${label}`,
-      middleware: [del, editableTarget, jsonBody({ optional: true })] as const,
+      middleware: [archiveCap, editableTarget, jsonBody({ optional: true })] as const,
       request: {
         params: ItemNameParamSchema,
         query: ForceQuerySchema,

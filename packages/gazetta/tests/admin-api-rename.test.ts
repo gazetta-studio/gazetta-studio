@@ -250,7 +250,7 @@ describe('rename without keeping an alias', () => {
     'X-Forwarded-Groups': 'editors',
   }
 
-  it('needs delete:pages, so an editor gets 403 and nothing changes', async () => {
+  it('needs archive:pages (held with delete:pages), so an editor gets 403 and nothing changes', async () => {
     setup({}, editorAuth)
     const res = await app.request('/api/v1/pages/landing/rename', {
       method: 'POST',
@@ -258,7 +258,7 @@ describe('rename without keeping an alias', () => {
       body: JSON.stringify({ to: 'welcome', keepAlias: false }),
     })
     expect(res.status).toBe(403)
-    expect(((await res.json()) as { missing?: string[] }).missing).toEqual(['delete:pages'])
+    expect(((await res.json()) as { missing?: string[] }).missing).toEqual(['archive:pages'])
     expect((await readJson('pages/landing/page.json')).archived).toBeUndefined()
     expect(await storage.exists('pages/welcome/page.json')).toBe(false)
   })

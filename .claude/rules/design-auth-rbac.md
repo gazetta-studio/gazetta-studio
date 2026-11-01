@@ -125,10 +125,13 @@ export default defineSite({
 | Read | `read:pages`, `read:fragments`, `read:assets`, `read:audit-log` |
 | Edit | `edit:pages`, `edit:fragments`, `edit:assets`, `edit:locale-variants` |
 | Delete | `delete:pages`, `delete:fragments`, `delete:assets` |
+| Archive | `archive:pages`, `archive:fragments`: held by anyone who holds the matching `delete:*` |
 | Publish | `publish:*`, `publish:non-production`, `publish:production` |
 | Configure | `configure:site`, `configure:targets` |
 | History | `restore:history` |
 | Wildcards | `read:*`, `edit:*`, `*` |
+
+Archiving a page or fragment, and renaming one while dropping the old name's redirect, need `archive:*`, not `delete:*`, so a Gazetta token can do both without an elevation; purge and delete still need `delete:*`. A role holding `delete:pages` holds `archive:pages` too, so browser rights don't change. Follows from [`design-agent-access.md`](design-agent-access.md) Q32 (#1705).
 
 **Built-in role aliases** (predefined as capability sets):
 

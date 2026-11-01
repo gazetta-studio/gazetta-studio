@@ -180,10 +180,11 @@ async function handleRename(
   const site = await loadSiteFromSource(source)
 
   // Dropping the old name's alias takes it off the site, like archiving
-  // without one: it needs the delete capability, and refuses while other
+  // without one: it needs the archive capability (held with delete:*;
+  // a token needs no elevation for it, Q32), and refuses while other
   // items still use it unless `?force=true`, as the archive route does.
   if (!keepAlias) {
-    const denied = await denyWithoutCapability(c, handle.scopeKind === 'page' ? 'delete:pages' : 'delete:fragments')
+    const denied = await denyWithoutCapability(c, handle.scopeKind === 'page' ? 'archive:pages' : 'archive:fragments')
     // A 401 or 403 problem (`denyWithoutCapability`).
     if (denied) return denied as ProblemResponse<401 | 403>
   }

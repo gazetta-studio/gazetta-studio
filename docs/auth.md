@@ -155,6 +155,7 @@ Editor explicitly does NOT have `publish:production` or `delete:*` or `configure
 | Read | `read:pages`, `read:fragments`, `read:assets`, `read:audit-log` |
 | Edit | `edit:pages`, `edit:fragments`, `edit:assets`, `edit:locale-variants` |
 | Delete | `delete:pages`, `delete:fragments`, `delete:assets` |
+| Archive | `archive:pages`, `archive:fragments` (held by anyone with the matching `delete:*`) |
 | Publish | `publish:non-production`, `publish:production` |
 | Configure | `configure:site`, `configure:targets` |
 | History | `restore:history` |
@@ -206,7 +207,8 @@ API routes live under `/api/v1` (under `/admin/api/v1` when the admin is mounted
 |---|---|
 | `GET /api/v1/site`, `/api/v1/pages*`, `/api/v1/fragments*`, `/api/v1/templates*`, `/api/v1/fields`, `/api/v1/compare`, `/api/v1/history`, `/api/v1/targets`, `/api/v1/dependents` | `read:pages` (or scoped `read:fragments` / `read:assets`) |
 | `POST/PUT /api/v1/pages*`, `/api/v1/fragments*` | `edit:pages` / `edit:fragments` |
-| `DELETE /api/v1/pages/*`, `/api/v1/fragments/*` | `delete:pages` / `delete:fragments` |
+| `POST /api/v1/pages/:name/archive`, `/api/v1/fragments/:name/archive`; a rename with `keepAlias: false` | `archive:pages` / `archive:fragments` |
+| `DELETE /api/v1/pages/*`, `/api/v1/fragments/*` (delete and purge) | `delete:pages` / `delete:fragments` |
 | `GET /api/v1/assets*` | `read:assets` |
 | `POST/PATCH /api/v1/assets*` | `edit:assets` |
 | `DELETE /api/v1/assets/:name` | `delete:assets` |
@@ -225,7 +227,7 @@ A command-line client, such as `gz` and the agents that run it, signs in as you 
 2. You open the link in your browser. The page shows the code, the machine name, the IP address and when the sign-in started. Approve it only if you started it yourself: anyone who gets you to approve their code can edit content as you.
 3. The client receives a token and keeps a grant to renew it. A token lasts 15 minutes and travels in the `Gazetta-Token` header. A code works once and expires after 10 minutes.
 
-A token has your role's capabilities except publishing, deleting (purge included), undo, rollback and history restore, and approving publish requests. Without an elevation (below), those answer `403` with the code `ELEVATION_REQUIRED` and the `scope` to ask for; if your role can't do them in the admin either, the code is `TOKEN_EDIT_ONLY`. A token that is wrong or expired is refused with `401` (`TOKEN_INVALID`); the request is never treated as coming from your browser instead.
+A token has your role's capabilities except publishing, deleting (purge included), undo, rollback and history restore, and approving publish requests. It can archive, and rename while dropping the old name's redirect, if your role can delete: an archived item can be restored. Without an elevation (below), those answer `403` with the code `ELEVATION_REQUIRED` and the `scope` to ask for; if your role can't do them in the admin either, the code is `TOKEN_EDIT_ONLY`. A token that is wrong or expired is refused with `401` (`TOKEN_INVALID`); the request is never treated as coming from your browser instead.
 
 A grant renews tokens for 30 days from the sign-in's approval. After that, renewing answers `401` (`GRANT_EXPIRED`), and the client signs in again. A grant keeps the role you had when you approved it: if your role changes, sign in again.
 
