@@ -217,7 +217,12 @@ Every `/api/*` route gates on a specific capability. The route → capability ma
 
 ## Composing with the bearer-token guard
 
-The legacy `GAZETTA_TOKEN` environment variable adds an `Authorization: Bearer <token>` check that runs before the principal middleware. It's orthogonal to upstream auth — useful for solo deployments or CI access tokens. Both can coexist (CI uses the bearer-token; humans go through Cloudflare Access).
+The legacy `GAZETTA_TOKEN` environment variable adds an `Authorization: Bearer <token>` check to every `/api` request, before the principal middleware. Two limits:
+
+- The token carries no identity. With any `trust` mode other than `none`, a request with only the bearer token has no principal and is refused (`401`), so the token can't give CI or scripts access to an admin behind upstream auth.
+- The admin's own browser requests don't send the token, so setting `GAZETTA_TOKEN` also locks out the admin UI. Use it only for a server reached through the API alone, with `trust: 'none'`.
+
+Tokens for the command line and agents on hosted admins are being designed ([#1624](https://github.com/gazetta-studio/gazetta-studio/issues/1624)).
 
 ```bash
 GAZETTA_TOKEN=$(openssl rand -base64 32) gazetta serve
