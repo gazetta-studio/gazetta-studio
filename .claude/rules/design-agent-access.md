@@ -22,7 +22,7 @@ From the agent-integration discovery on #49 (sources and provenance there):
 
 ### Q1 — Skills first, then a CLI, then MCP
 
-1. An Agent Skill and `AGENTS.md` lines that `gazetta init` adds, teaching agents the content model, editing files on the local target, and `gazetta validate` ([#1622](https://github.com/gazetta-studio/gazetta-studio/issues/1622); Q4 adds template authoring).
+1. An Agent Skill and `AGENTS.md` lines that `gazetta init` adds (since Q34, the `AGENTS.md` section, from which the agent installs the skill), teaching agents the content model, editing files on the local target, and `gazetta validate` ([#1622](https://github.com/gazetta-studio/gazetta-studio/issues/1622); Q4 adds template authoring).
 2. CLI content commands with JSON output (Q2).
 3. An MCP server for chat apps, as a thin layer over the same functions; its relation to the thin CLI is designed in #49.
 
@@ -464,7 +464,7 @@ Decided: maintainer, 2026-11-01 (#1648)
 | Also Cursor | Same; its command matching isn't confirmed either |
 | Pre-approve safe commands with `allowed-tools` | Experimental and per client |
 
-When `gazetta init .` finds existing agent files, it never overwrites them: it appends a marked Gazetta section to `AGENTS.md` only if missing (it writes no `SKILL.md`, Q34). Existing projects get updated skills through Q33's command.
+When `gazetta init .` finds existing agent files, it never overwrites them: it appends a marked Gazetta section to `AGENTS.md` only if missing (it writes no `SKILL.md`, Q34). Existing projects get an updated `AGENTS.md` section through Q33's command, and the agent reinstalls the skill.
 
 Decided: maintainer, 2026-11-01 (#1648)
 
@@ -495,14 +495,6 @@ What counts, and when `gz` joins: Decided: maintainer, 2026-11-01 (#1649)
 
 A command (named in the #49 pass, for example `gazetta agents update`) rewrites the files Gazetta owns: `SKILL.md` and the marked `AGENTS.md` section, never the person's other text. `gazetta dev` prints a one-line hint when the installed skill is older than the package.
 
-Amended by Q34 (2026-11-01, #1650): Gazetta no longer writes `SKILL.md`, so the command rewrites only the marked `AGENTS.md` section from the package. The section carries the package version and tells the agent to reinstall the skill from `node_modules/gazetta/agents/` when its installed copy is older; Gazetta never touches files in client folders. Follows from this: `gazetta dev`'s hint compares the `AGENTS.md` section's version with the package, since Gazetta can't see the agent's copy.
-
-Decided: maintainer, 2026-11-01 (#1650)
-
-| Rejected | Why |
-|---|---|
-| Also rewrite any Gazetta `SKILL.md` found in known client folders | Gazetta would write into client folders after all |
-
 Decided: maintainer, 2026-11-01 (#1649)
 
 | Rejected | Why |
@@ -510,9 +502,26 @@ Decided: maintainer, 2026-11-01 (#1649)
 | A short `SKILL.md` that points the agent to the full skill in `node_modules/gazetta` | Agents that don't follow the pointer get only the stub |
 | Manual: delete `SKILL.md` and rerun `gazetta init .` | Every project relies on people reading the release notes |
 
+Amended by Q34 (2026-11-01, #1650): Gazetta no longer writes `SKILL.md`, so the command rewrites only the marked `AGENTS.md` section from the package. The section carries the package version and tells the agent to reinstall the skill from `node_modules/gazetta/agents/` when its installed copy is older; Gazetta never touches files in client folders. 
+
+Decided: maintainer, 2026-11-01 (#1650)
+
+| Rejected | Why |
+|---|---|
+| Also rewrite any Gazetta `SKILL.md` found in known client folders | Gazetta would write into client folders after all |
+
+`gazetta dev`'s hint compares the `AGENTS.md` section's version with the package: it says to run the refresh command; reinstalling the skill is the agent's job, per the section.
+
+Decided: maintainer, 2026-11-01 (#1650)
+
+| Rejected | Why |
+|---|---|
+| Also read known client folders for an older Gazetta `SKILL.md` | The maintainer chose the section's version |
+| No hint | Release notes alone are easy to miss |
+
 ### Q34 — The agent installs the skill from the package
 
-No single folder reaches every coding agent (Claude Code reads `.claude/skills/`, Codex `.agents/skills/`, Copilot and Cursor either; checked against their docs 2026-11-01). So `gazetta init` writes only the marked `AGENTS.md` section, which tells the agent to install the Gazetta skill from `node_modules/gazetta/agents/` into its own skills folder. Each agent puts it where its client reads it, the version always matches the installed package, and it works offline. Until Q33's refresh command ships, existing projects copy the `AGENTS.md` section from the package; the docs say how.
+No single folder reaches every coding agent (Claude Code reads `.claude/skills/`, Codex `.agents/skills/`, Copilot and Cursor either; checked against their docs 2026-11-01). So `gazetta init` writes only the marked `AGENTS.md` section, which tells the agent to install the Gazetta skill from `node_modules/gazetta/agents/` into its own skills folder. Each agent puts it where its client reads it, the version always matches the installed package, and it works offline. Until Q33's refresh command ships, existing projects copy the `AGENTS.md` section from the package; the docs say how. Claude Code reads `AGENTS.md` only when the project has no `CLAUDE.md`, so when a `CLAUDE.md` exists, `gazetta init` appends one marked import line, `@AGENTS.md`, unless it's already there, changing nothing else. The trade-off: an agent that doesn't follow the section's instruction works without the skill (the reason Q33 rejected a pointer `SKILL.md`), so the `AGENTS.md` section itself carries the never-run list (Q32) and that part reaches every agent that reads it.
 
 Decided: maintainer, 2026-11-01 (#1650)
 
@@ -524,6 +533,14 @@ Decided: maintainer, 2026-11-01 (#1650)
 | The agent fetches the skill from GitHub | Needs network |
 | Let `gazetta init .` add the agent files to an existing project | Reverses its refusal and overlaps Q33's command |
 | Build Q33's command now | Widens #1622 |
+
+The `CLAUDE.md` import line and the trade-off: Decided: maintainer, 2026-11-01 (#1650)
+
+| Rejected | Why |
+|---|---|
+| Docs only: Claude Code users add `@AGENTS.md` themselves | Most wouldn't know to |
+| Accept that Claude Code projects with a `CLAUDE.md` get no skill | The maintainer chose the import line |
+| Go back to copies in both folders | The maintainer kept Q34 and recorded the trade-off |
 
 ## What this changes in the plan
 
