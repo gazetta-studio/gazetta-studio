@@ -50,6 +50,9 @@ export const KNOWN_CAPABILITIES: ReadonlySet<string> = new Set([
   'delete:pages',
   'delete:fragments',
   'delete:assets',
+  // Archive: held by anyone who holds the matching delete:* (capabilityGrants)
+  'archive:pages',
+  'archive:fragments',
   // Publish
   'publish:non-production',
   'publish:production',
@@ -113,6 +116,12 @@ const WILDCARD_EXEMPT_CAPABILITIES: ReadonlySet<string> = new Set(['read:audit-l
  */
 export function capabilityGrants(granted: ReadonlyArray<string>, required: string): boolean {
   if (required.length === 0) return false
+  // Archiving keeps the item restorable, so whoever may delete an item may
+  // archive it. Its own name lets Gazetta tokens archive without the
+  // elevation `delete:*` needs (design-agent-access.md Q32).
+  if (required.startsWith('archive:') && capabilityGrants(granted, `delete:${required.slice('archive:'.length)}`)) {
+    return true
+  }
   const isExempt = WILDCARD_EXEMPT_CAPABILITIES.has(required)
   for (const cap of granted) {
     // Root wildcard always grants — admin retains the escape hatch

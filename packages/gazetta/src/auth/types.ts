@@ -159,6 +159,7 @@ export const RESERVED_CAPABILITY_PREFIXES = [
   'read',
   'edit',
   'delete',
+  'archive',
   'publish',
   'configure',
   'review',
@@ -186,6 +187,9 @@ export type BuiltInCapability =
   | 'delete:pages'
   | 'delete:fragments'
   | 'delete:assets'
+  // Archive (design-agent-access.md Q32): granted with the matching delete:*.
+  | 'archive:pages'
+  | 'archive:fragments'
   // Publish — narrowed by environment per design-auth-rbac.md;
   // request/approve gate the per-target publish-approval workflow
   // (design-review-workflow.md "Capability additions").
