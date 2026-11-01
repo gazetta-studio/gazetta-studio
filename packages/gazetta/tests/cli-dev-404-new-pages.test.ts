@@ -111,13 +111,10 @@ describe('gazetta dev 404 page and pages created at runtime (#1318)', () => {
 
     // A JSON file outside the content root is not logged as a manifest
     // change (its cache invalidation still runs; covered by the
-    // target-switch e2e).
-    // Let watcher events from the writes above settle first: they arrive
-    // asynchronously, so a baseline taken immediately can still see them.
-    await new Promise(r => setTimeout(r, 1500))
-    const outputBefore = output.length
+    // target-switch e2e). The check names the file: a late event from the
+    // page writes above can still log in this window on a slow runner.
     await writeFile(resolve(projectDir, 'sites/main/scratch.json'), '{}')
     await new Promise(r => setTimeout(r, 1500))
-    expect(output.slice(outputBefore)).not.toContain('Manifest changed')
+    expect(output).not.toMatch(/Manifest changed: .*scratch\.json/)
   }, 120_000)
 })
