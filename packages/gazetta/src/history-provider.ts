@@ -330,7 +330,9 @@ export function createHistoryProvider(opts: CreateHistoryProviderOptions): Histo
    * revision, or all the revisions of one agent run, which count as one
    * and go together (design-agent-access.md Q51), so a run stays
    * undoable as a whole until it ages out. Entries are ordered by their
-   * newest revision, so a run still being written isn't evicted.
+   * newest revision, so a run still being written isn't evicted: a run
+   * ages out from its last write, which Q51's "undoable as a whole until
+   * it ages out" implies.
    *
    * Deletes manifests and the run's index folder; blobs become eligible
    * for GC if no remaining revision references them. GC is lazy — blob
