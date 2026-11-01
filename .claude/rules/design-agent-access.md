@@ -551,7 +551,7 @@ What counts, and when `gz` joins: Decided: maintainer, 2026-11-01 (#1649)
 
 A token may archive a page or fragment, and rename one dropping the old name's redirect, without an elevation, as this list allows. Both need `delete:pages` or `delete:fragments` (`design-soft-delete.md`), which cut 7 withholds from tokens, so the token cap makes an exception for them. Purge and permanent deletes still need an elevation (Q12). Archiving is undone by restoring from the archive. How the exception is built (for these routes, or a separate archive capability) is left to the code.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1705)
 
 | Rejected | Why |
 |---|---|
