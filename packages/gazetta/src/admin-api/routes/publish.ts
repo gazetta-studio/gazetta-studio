@@ -1,4 +1,4 @@
-import { Hono } from 'hono'
+import { createRoute, z } from '@hono/zod-openapi'
 import { streamSSE } from 'hono/streaming'
 import { getType, getEnvironment, isEditable } from '../../types.js'
 import type { StorageProvider, TargetConfig } from '../../types.js'
@@ -32,6 +32,118 @@ import { runPublishAudit } from '../../validation/publish-audit.js'
 import type { Issue } from '../../validation/types.js'
 import { isSafeItemName } from '../../item-name.js'
 import { PublishAuditRequestSchema } from '../schemas/validation.js'
+import { apiApp, json, problems } from '../openapi.js'
+import { TargetInfoSchema } from '../schemas/targets.js'
+import { DependentsResponseSchema } from '../schemas/dependents.js'
+import { FetchResponseSchema } from '../schemas/fetch.js'
+import {
+  DependentsQuerySchema,
+  FetchRequestSchema,
+  PublishAuditQuerySchema,
+  PublishAuditResultSchema,
+  PublishHeadersSchema,
+  PublishRequestSchema,
+  PublishResponseSchema,
+} from '../schemas/publish.js'
+
+const listTargets = createRoute({
+  method: 'get',
+  path: '/api/targets',
+  summary: 'The configured targets and what each can do',
+  middleware: [requireCapability('read:pages')] as const,
+  responses: {
+    200: json(z.array(TargetInfoSchema), 'The targets'),
+    ...problems({ 403: ['FORBIDDEN'] }),
+  },
+})
+
+const getDependents = createRoute({
+  method: 'get',
+  path: '/api/dependents',
+  summary: 'The pages and fragments that use a fragment',
+  middleware: [requireCapability('read:pages')] as const,
+  request: { query: DependentsQuerySchema },
+  responses: {
+    200: json(DependentsResponseSchema, 'Pages and fragments using the fragment'),
+    ...problems({ 400: ['BAD_REQUEST'], 403: ['FORBIDDEN'], 500: ['INTERNAL'] }),
+  },
+})
+
+/** Errors the two publish routes answer before publishing. */
+const publishProblems = problems({
+  400: ['BAD_REQUEST', 'TEMPLATE_INVALID'],
+  403: ['FORBIDDEN'],
+  409: ['HOOK_CANCELLED', 'PUBLISH_AUDIT_FAILED'],
+  415: ['BAD_REQUEST'],
+  500: ['AUDIT_FAILED', 'INTERNAL'],
+})
+
+const publishRequest = {
+  headers: PublishHeadersSchema,
+  body: { required: true, content: { 'application/json': { schema: PublishRequestSchema } } },
+}
+
+const postPublish = createRoute({
+  method: 'post',
+  path: '/api/publish',
+  summary: 'Publish items to targets',
+  middleware: [requireCapability('publish:non-production')] as const,
+  request: publishRequest,
+  responses: {
+    200: json(PublishResponseSchema, 'Every target succeeded'),
+    207: json(PublishResponseSchema, 'At least one target failed; see each result'),
+    ...publishProblems,
+  },
+})
+
+const postPublishStream = createRoute({
+  method: 'post',
+  path: '/api/publish/stream',
+  summary: 'Publish items to targets, streaming progress',
+  middleware: [requireCapability('publish:non-production')] as const,
+  request: publishRequest,
+  responses: {
+    200: {
+      description:
+        'Server-Sent Events: each event is named after its `kind` and its data is a JSON `PublishProgress` (start, target-start, progress, target-result, done, or fatal)',
+      content: { 'text/event-stream': { schema: z.string() } },
+    },
+    ...publishProblems,
+  },
+})
+
+const postFetch = createRoute({
+  method: 'post',
+  path: '/api/fetch',
+  summary: 'Copy content from a target into an editable target',
+  middleware: [requireCapability('publish:non-production')] as const,
+  request: { body: { required: true, content: { 'application/json': { schema: FetchRequestSchema } } } },
+  responses: {
+    200: json(FetchResponseSchema, 'The items copied'),
+    ...problems({
+      400: ['BAD_REQUEST'],
+      403: ['FORBIDDEN'],
+      404: ['NOT_FOUND'],
+      415: ['BAD_REQUEST'],
+      500: ['INTERNAL'],
+    }),
+  },
+})
+
+const postPublishAudit = createRoute({
+  method: 'post',
+  path: '/api/publish/audit',
+  summary: 'Run the pre-publish audit for items about to be published',
+  middleware: [requireCapability('publish:non-production')] as const,
+  request: {
+    query: PublishAuditQuerySchema,
+    body: { required: true, content: { 'application/json': { schema: PublishAuditRequestSchema } } },
+  },
+  responses: {
+    200: json(PublishAuditResultSchema, 'The issues found'),
+    ...problems({ 400: ['BAD_REQUEST'], 403: ['FORBIDDEN'], 415: ['BAD_REQUEST'] }),
+  },
+})
 
 /**
  * Progress events streamed by runPublish. Consumed both by the SSE route
@@ -76,7 +188,7 @@ export function publishRoutes(
 ) {
   const scan = scanTemplatesInjected ?? scanTemplates
   const hooks = opts.hooks
-  const app = new Hono<AuditEnv>()
+  const app = apiApp<AuditEnv>()
 
   /**
    * Route-boundary validation for user-supplied item paths (#1196).
@@ -257,7 +369,7 @@ export function publishRoutes(
     return p
   }
 
-  app.get('/api/targets', requireCapability('read:pages'), async c => {
+  app.openapi(listTargets, async c => {
     const t = await getTargets()
     // Resolve once — the site manifest is the same across all
     // targets in this loop. resolve(undefined) returns the source
@@ -298,6 +410,7 @@ export function publishRoutes(
           },
         }
       }),
+      200,
     )
   })
 
@@ -313,14 +426,15 @@ export function publishRoutes(
    * `ensureFragmentDepsIndex`. Listings only, no content reads —
    * scales to 10k+ items.
    */
-  app.get('/api/dependents', requireCapability('read:pages'), async c => {
-    const item = c.req.query('item')
+  app.openapi(getDependents, async c => {
+    const query = c.req.valid('query')
+    const item = query.item
     if (!item || !item.startsWith('fragments/')) {
       return problem(c, 400, 'BAD_REQUEST', 'Missing or invalid "item" query (must be fragments/<name>)')
     }
     const fragmentName = item.slice('fragments/'.length)
-    const targetName = c.req.query('target')
-    const sourceName = c.req.query('source')
+    const targetName = query.target
+    const sourceName = query.source
     try {
       const source = await resolve(sourceName)
       const isTargetTheSource = !targetName || targetName === source.targetName
@@ -329,11 +443,11 @@ export function publishRoutes(
         const targetStorage = t.get(targetName!)
         if (!targetStorage) return problem(c, 400, 'BAD_REQUEST', `Unknown target: ${targetName}`)
         const result = await findDependentsFromSidecars(createContentRoot(targetStorage), { fragment: fragmentName })
-        return c.json(result)
+        return c.json(result, 200)
       }
       await ensureFragmentDepsIndex(source)
       const result = await findDependentsFromSidecars(source.contentRoot, { fragment: fragmentName })
-      return c.json(result)
+      return c.json(result, 200)
     } catch (err) {
       return problem(c, 500, 'INTERNAL', (err as Error).message)
     }
@@ -639,8 +753,8 @@ export function publishRoutes(
     }
   }
 
-  app.post('/api/publish', requireCapability('publish:non-production'), async c => {
-    const body = (await c.req.json()) as { items: string[]; targets: string[]; source?: string }
+  app.openapi(postPublish, async c => {
+    const body = c.req.valid('json')
 
     const productionForbidden = productionGateFailure(c.var.principal, body.targets)
     if (productionForbidden) {
@@ -678,7 +792,7 @@ export function publishRoutes(
       ? buildHookContext({
           principal: c.var.principal,
           storage: (await resolve(body.source)).storage,
-          requestId: c.req.header('x-request-id') ?? crypto.randomUUID(),
+          requestId: c.req.valid('header')['x-request-id'] ?? crypto.randomUUID(),
           site: { name: undefined },
           auditEmit: makeAuditFiringEmitter(c.var.audit),
         })
@@ -810,8 +924,8 @@ export function publishRoutes(
     return c.json({ results }, allSuccess ? 200 : 207)
   })
 
-  app.post('/api/publish/stream', requireCapability('publish:non-production'), async c => {
-    const body = (await c.req.json()) as { items: string[]; targets: string[]; source?: string }
+  app.openapi(postPublishStream, async c => {
+    const body = c.req.valid('json')
 
     const streamProductionForbidden = productionGateFailure(c.var.principal, body.targets)
     if (streamProductionForbidden) {
@@ -847,7 +961,7 @@ export function publishRoutes(
       ? buildHookContext({
           principal: c.var.principal,
           storage: (await resolve(body.source)).storage,
-          requestId: c.req.header('x-request-id') ?? crypto.randomUUID(),
+          requestId: c.req.valid('header')['x-request-id'] ?? crypto.randomUUID(),
           site: { name: undefined },
           auditEmit: makeAuditFiringEmitter(c.var.audit),
         })
@@ -993,11 +1107,11 @@ export function publishRoutes(
     })
   })
 
-  app.post('/api/fetch', requireCapability('publish:non-production'), async c => {
+  app.openapi(postFetch, async c => {
     // `source` (body) — target to fetch FROM (a published target)
     // `destination` (body) — optional editable target to write INTO; defaults
     // to the resolver's default editable target (the author's current source)
-    const body = (await c.req.json()) as { source: string; items?: string[]; destination?: string }
+    const body = c.req.valid('json')
     if (!body.source) return problem(c, 400, 'BAD_REQUEST', 'Missing "source" target name')
 
     const t = await getTargets()
@@ -1074,7 +1188,7 @@ export function publishRoutes(
         includeNestedItems: true,
       })
       console.log(`    ${copiedFiles} files copied to working copy`)
-      return c.json({ success: true, copiedFiles, items })
+      return c.json({ success: true, copiedFiles, items }, 200)
     } catch (err) {
       const error = (err as Error).message
       console.error(`    FAILED — ${error}`)
@@ -1098,56 +1212,59 @@ export function publishRoutes(
    * display; server-side publish re-runs the same audit and refuses on
    * errors, so a determined client can't bypass.
    */
-  app.post('/api/publish/audit', requireCapability('publish:non-production'), async c => {
-    const parsed = PublishAuditRequestSchema.safeParse(await c.req.json().catch(() => null))
-    if (!parsed.success) {
-      return problem(c, 400, 'BAD_REQUEST', 'expected { target: string, items: SavedItem[] }')
-    }
-    const { target: targetName, items } = parsed.data
+  app.openapi(
+    postPublishAudit,
+    async c => {
+      const { target: targetName, items } = c.req.valid('json')
 
-    const source = await resolve(c.req.query('target'))
-    const site = await loadSiteFromSource(source, {
-      templatesDir: templatesDir ?? `${source.projectSiteDir}/templates`,
-    })
-    const targetCfg = source.manifest?.targets?.[targetName]
-    const strict = !!targetCfg?.publishAudit?.strict
+      const source = await resolve(c.req.valid('query').target)
+      const site = await loadSiteFromSource(source, {
+        templatesDir: templatesDir ?? `${source.projectSiteDir}/templates`,
+      })
+      const targetCfg = source.manifest?.targets?.[targetName]
+      const strict = !!targetCfg?.publishAudit?.strict
 
-    if (!opts.validators) {
-      // No validator registry wired; return empty issues.
-      return c.json({ issues: [], strict })
-    }
-
-    const issues = await runPublishAudit({
-      items,
-      site,
-      contentRoot: source.contentRoot,
-      storage: source.storage,
-      registry: opts.validators,
-      cache: source.cache,
-      strict,
-      targetLocales: targetCfg?.locales,
-      templatesDir: site.templatesDir,
-    })
-
-    // Capability-gap UX surface #4 (pre-publish gate) per
-    // `feature-design-process.md`'s capability-gap-UX discipline.
-    // When the publish set includes any archived items, surface the
-    // destination target's capability info so the publish dialog can
-    // warn operators (e.g., "this target won't emit 301 redirects").
-    const includesArchived = items.some(i => {
-      const m = i.kind === 'page' ? site.pages.get(i.name) : site.fragments.get(i.name)
-      return m?.archived === true
-    })
-    let capabilities: { has: string[]; gaps: Array<{ capability: string; reason: string }> } | undefined
-    if (includesArchived && targetCfg) {
-      const inspection = inspectTarget(targetCfg)
-      capabilities = {
-        has: [...inspection.has],
-        gaps: inspection.gaps.map(g => ({ capability: g.capability, reason: g.reason })),
+      if (!opts.validators) {
+        // No validator registry wired; return empty issues.
+        return c.json({ issues: [], strict }, 200)
       }
-    }
-    return c.json({ issues, strict, ...(capabilities ? { capabilities } : {}) })
-  })
+
+      const issues = await runPublishAudit({
+        items,
+        site,
+        contentRoot: source.contentRoot,
+        storage: source.storage,
+        registry: opts.validators,
+        cache: source.cache,
+        strict,
+        targetLocales: targetCfg?.locales,
+        templatesDir: site.templatesDir,
+      })
+
+      // Capability-gap UX surface #4 (pre-publish gate) per
+      // `feature-design-process.md`'s capability-gap-UX discipline.
+      // When the publish set includes any archived items, surface the
+      // destination target's capability info so the publish dialog can
+      // warn operators (e.g., "this target won't emit 301 redirects").
+      const includesArchived = items.some(i => {
+        const m = i.kind === 'page' ? site.pages.get(i.name) : site.fragments.get(i.name)
+        return m?.archived === true
+      })
+      let capabilities: { has: string[]; gaps: Array<{ capability: string; reason: string }> } | undefined
+      if (includesArchived && targetCfg) {
+        const inspection = inspectTarget(targetCfg)
+        capabilities = {
+          has: [...inspection.has],
+          gaps: inspection.gaps.map(g => ({ capability: g.capability, reason: g.reason })),
+        }
+      }
+      return c.json({ issues, strict, ...(capabilities ? { capabilities } : {}) }, 200)
+    },
+    // The audit's own message for a body that isn't { target, items }.
+    (result, c) => {
+      if (!result.success) return problem(c, 400, 'BAD_REQUEST', 'expected { target: string, items: SavedItem[] }')
+    },
+  )
 
   return app
 }

@@ -40,3 +40,25 @@ export const RestoreRevisionResponseSchema = z.object({
   restoredFrom: z.string(),
 })
 export type RestoreRevisionResponse = z.infer<typeof RestoreRevisionResponseSchema>
+
+/**
+ * Query of POST /api/history/undo. `target` is checked by the handler,
+ * which answers its own message.
+ */
+export const HistoryUndoQuerySchema = z.object({
+  /** The target whose history to use. */
+  target: z.string().optional(),
+  source: z.string().optional(),
+})
+
+/** Query of GET /api/history. */
+export const HistoryListQuerySchema = HistoryUndoQuerySchema.extend({
+  /** How many revisions, newest first (default 50). */
+  limit: z.string().optional(),
+})
+
+/** Query of POST /api/history/restore. `id` is checked by the handler. */
+export const HistoryRestoreQuerySchema = HistoryUndoQuerySchema.extend({
+  /** The revision to restore. */
+  id: z.string().optional(),
+})
