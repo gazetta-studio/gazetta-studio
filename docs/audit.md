@@ -38,6 +38,9 @@ Recorded actions:
 | `login-approve`   | A command-line sign-in is approved, or an approval is refused (outcome `forbidden` or `unauthenticated`) |
 | `login-deny`      | A command-line sign-in is denied                               |
 | `grant-revoke`    | A command-line sign-in is revoked                              |
+| `elevation-approve` | An elevation is approved, or an approval is refused (outcome `forbidden` or `unauthenticated`) |
+| `elevation-deny`  | An elevation is denied                                         |
+| `elevation-end`   | An elevation is ended early, by the client or in the browser (one that runs out records nothing) |
 
 Recorded outcomes:
 
