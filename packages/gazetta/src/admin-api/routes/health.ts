@@ -46,27 +46,36 @@
  * deeper liveness check (DB, storage, cache) would be a separate
  * `/api/system/*` endpoint, NOT this one.
  */
-import { Hono } from 'hono'
+import { createRoute, z } from '@hono/zod-openapi'
+import { apiApp, json } from '../openapi.js'
 
-interface HealthResponse {
-  ok: true
+const HealthResponseSchema = z.object({
+  ok: z.literal(true),
   /** ISO 8601 timestamp the server generated this response. */
-  timestamp: string
-}
+  timestamp: z.string(),
+})
+type HealthResponse = z.infer<typeof HealthResponseSchema>
+
+const getHealth = createRoute({
+  method: 'get',
+  path: '/api/health',
+  summary: 'Whether the admin API answers',
+  responses: { 200: json(HealthResponseSchema, 'The admin API is up') },
+})
 
 /**
  * Build the health-check route. Takes no parameters — health is
  * process-level, not per-source.
  */
 export function healthRoutes() {
-  const app = new Hono()
+  const app = apiApp()
 
-  app.get('/api/health', c => {
+  app.openapi(getHealth, c => {
     const body: HealthResponse = {
       ok: true,
       timestamp: new Date().toISOString(),
     }
-    return c.json(body)
+    return c.json(body, 200)
   })
 
   return app

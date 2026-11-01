@@ -1,4 +1,6 @@
-import { Hono } from 'hono'
+import type { Hono } from 'hono'
+import { OpenAPIHono } from '@hono/zod-openapi'
+import { openApiDocument } from './openapi.js'
 import { HTTPException } from 'hono/http-exception'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { problem } from './problem.js'
@@ -227,7 +229,7 @@ function resolveInstanceId(): string {
  * used; both may be present (pre-initialized entries override configs).
  */
 export function createAdminApp(opts: AdminAppOptions): AdminApp {
-  const app = new Hono()
+  const app = new OpenAPIHono()
 
   app.use(logger())
   // Bearer-token guard (legacy GAZETTA_TOKEN) — orthogonal to
@@ -495,6 +497,8 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   // every route: an unknown API path answers a problem, not the host's
   // plain-text 404 (a mounted sub-app's notFound handler is never used), and
   // an unhandled throw answers a problem, not Hono's plain-text 500.
+  // The OpenAPI document of every route registered above (Q5, Q44).
+  app.doc31('/api/openapi.json', c => openApiDocument(new URL(c.req.url).pathname))
   app.all('/api/*', c => problem(c, 404, 'NOT_FOUND', `No API route for ${c.req.method} ${c.req.path}`))
   app.onError((err, c) => {
     if (err instanceof HTTPException && err.status < 500) {
@@ -553,7 +557,7 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   // Exposed for the CLI's template file watcher: clears the memoized scan
   // so the next publish/compare picks up template edits. Not part of the
   // Hono Request interface — the CLI casts the return.
-  const appWithInvalidate = app as AdminApp
+  const appWithInvalidate = app as unknown as AdminApp
   appWithInvalidate.invalidateTemplatesCache = () => cachedScan.invalidate()
   appWithInvalidate.invalidateContentCache = async () => {
     await resolveSource.forEachBuilt(async ctx => {
