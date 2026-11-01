@@ -2,7 +2,7 @@
  * Background scanner issues store (Validation Cut 2).
  *
  * Holds the current accumulated issues across the site, populated from
- * `GET /api/validation/issues`. Subscribes to the SSE channel
+ * `GET /api/v1/validation/issues`. Subscribes to the SSE channel
  * `/__validation` to receive `validation-issues-updated` events emitted
  * by the scanner; on each event, the store re-fetches the issues list.
  *
@@ -76,7 +76,7 @@ export const useValidationScannerStore = defineStore('validationScanner', () => 
   /** Refresh from the server. Called on boot, on SSE event, on explicit retry. */
   async function refresh(): Promise<void> {
     try {
-      // `apiUrl()` already prefixes API_BASE (which contains `/api`); the path
+      // `apiUrl()` already prefixes API_BASE (which ends in `/api/v1`); the path
       // arg is relative to that base. Convention from sibling api modules.
       const res = await fetch(apiUrl('/validation/issues'), {
         headers: authHeaders(),

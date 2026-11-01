@@ -16,9 +16,9 @@ describe('default heartbeat health path (#1388)', () => {
     vi.resetModules()
   })
 
-  it('the default connection check requests /admin/api/health', async () => {
+  it('the default connection check requests /admin/api/v1/health', async () => {
     // The admin bundle is built with --base /admin/, so API_BASE is
-    // /admin/api; a bare /api/health 404s under `gazetta dev`.
+    // /admin/api/v1; a bare /api/v1/health 404s under `gazetta dev`.
     vi.stubEnv('BASE_URL', '/admin/')
     vi.resetModules()
     const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }))
@@ -33,7 +33,7 @@ describe('default heartbeat health path (#1388)', () => {
     const store = useStore()
     await store.tick()
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(fetchMock.mock.calls[0][0]).toBe('/admin/api/health')
+    expect(fetchMock.mock.calls[0][0]).toBe('/admin/api/v1/health')
   })
 })
 

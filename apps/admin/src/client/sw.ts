@@ -25,7 +25,7 @@
  *   - Push notifications (deferred until `NotificationProvider`
  *     extension surface ships per `design-collaboration.md`)
  *   - Runtime API caching (admin-API responses cache through
- *     `IndexedDBCache` per Cut 2; SW doesn't intercept /api/*)
+ *     `IndexedDBCache` per Cut 2; SW doesn't intercept /api/v1/*)
  *   - PWA install prompt (manifest.webmanifest disabled in
  *     vite.config.ts; v1 is offline-aware, not installable)
  *

@@ -58,7 +58,7 @@ import type {
   FetchResponse,
 } from 'gazetta/admin-api/schemas'
 
-describe('POST /api/pages contract', () => {
+describe('POST /api/v1/pages contract', () => {
   describe('CreatePageRequest', () => {
     it('accepts the minimal shape the client uses', () => {
       const body: CreatePageRequest = { name: 'home', template: 'page-default' }
@@ -103,7 +103,7 @@ describe('POST /api/pages contract', () => {
     })
   })
 
-  describe('PageSummary (GET /api/pages list shape)', () => {
+  describe('PageSummary (GET /api/v1/pages list shape)', () => {
     it('accepts a well-formed entry', () => {
       const entry: PageSummary = { name: 'home', route: '/', template: 'page-default' }
       expect(PageSummarySchema.safeParse(entry).success).toBe(true)
@@ -113,7 +113,7 @@ describe('POST /api/pages contract', () => {
       // Per design-redirect-ui.md Q2 sub-decision A1: archived pages
       // may omit `template`. Summary rows reflect this — the field
       // is optional at the listing level so archived items round-trip
-      // through `/api/pages` without a sentinel.
+      // through `/api/v1/pages` without a sentinel.
       const archived = { name: 'old-page', route: '/old-page', archived: true, aliasOf: 'new-page' }
       expect(PageSummarySchema.safeParse(archived).success).toBe(true)
     })
@@ -151,7 +151,7 @@ describe('POST /api/pages contract', () => {
   })
 })
 
-describe('POST /api/fragments contract', () => {
+describe('POST /api/v1/fragments contract', () => {
   describe('CreateFragmentRequest', () => {
     it('accepts the minimal shape the client uses', () => {
       const body: CreateFragmentRequest = { name: 'header', template: 'header-layout' }
@@ -187,7 +187,7 @@ describe('POST /api/fragments contract', () => {
     })
   })
 
-  describe('FragmentSummary (GET /api/fragments list shape)', () => {
+  describe('FragmentSummary (GET /api/v1/fragments list shape)', () => {
     it('accepts a well-formed entry', () => {
       const entry: FragmentSummary = { name: 'header', template: 'header-layout' }
       expect(FragmentSummarySchema.safeParse(entry).success).toBe(true)
@@ -196,7 +196,7 @@ describe('POST /api/fragments contract', () => {
     it('accepts an archived entry without a template', () => {
       // Same shape as PageSummary's archived case (per
       // design-redirect-ui.md Q2 sub-decision A1). Fragment redirects
-      // are listed without a template in the GET /api/fragments
+      // are listed without a template in the GET /api/v1/fragments
       // response.
       const archived = { name: 'old-header', archived: true, aliasOf: 'header' }
       expect(FragmentSummarySchema.safeParse(archived).success).toBe(true)
@@ -211,7 +211,7 @@ describe('POST /api/fragments contract', () => {
   })
 })
 
-describe('GET /api/templates contract', () => {
+describe('GET /api/v1/templates contract', () => {
   it('accepts a well-formed summary', () => {
     const entry: TemplateSummary = { name: 'hero' }
     expect(TemplateSummarySchema.safeParse(entry).success).toBe(true)
@@ -222,7 +222,7 @@ describe('GET /api/templates contract', () => {
   })
 })
 
-describe('GET /api/fields contract', () => {
+describe('GET /api/v1/fields contract', () => {
   it('accepts a well-formed summary', () => {
     const entry: FieldSummary = { name: 'brand-color', path: '/abs/path/admin/fields/brand-color.tsx' }
     expect(FieldSummarySchema.safeParse(entry).success).toBe(true)
@@ -234,7 +234,7 @@ describe('GET /api/fields contract', () => {
   })
 })
 
-describe('GET /api/targets contract', () => {
+describe('GET /api/v1/targets contract', () => {
   describe('TargetInfo', () => {
     it('accepts a well-formed entry', () => {
       const entry: TargetInfo = {
@@ -315,7 +315,7 @@ describe('GET /api/targets contract', () => {
   })
 })
 
-describe('GET /api/site contract', () => {
+describe('GET /api/v1/site contract', () => {
   it('accepts the minimal manifest the server emits', () => {
     const manifest: SiteManifest = { name: 'My Site' }
     expect(SiteManifestSchema.safeParse(manifest).success).toBe(true)
@@ -333,7 +333,7 @@ describe('GET /api/site contract', () => {
   })
 
   it('accepts the empty-target fallback shape (includes targets:{})', () => {
-    // The /api/site handler returns { name: '(empty)', targets: {} }
+    // The /api/v1/site handler returns { name: '(empty)', targets: {} }
     // when the target has no site.config.ts yet. The schema is loose so
     // the extra field passes through.
     const r = SiteManifestSchema.safeParse({ name: '(empty)', targets: {} })
@@ -345,7 +345,7 @@ describe('GET /api/site contract', () => {
   })
 })
 
-describe('GET /api/dependents contract', () => {
+describe('GET /api/v1/dependents contract', () => {
   it('accepts a well-formed response', () => {
     const resp: DependentsResponse = { pages: ['home', 'about'], fragments: ['nav'] }
     expect(DependentsResponseSchema.safeParse(resp).success).toBe(true)
@@ -367,7 +367,7 @@ describe('GET /api/dependents contract', () => {
   })
 })
 
-describe('GET /api/compare contract', () => {
+describe('GET /api/v1/compare contract', () => {
   it('accepts a well-formed first-publish result', () => {
     const r: CompareResult = {
       added: ['pages/home', 'pages/about'],
@@ -418,7 +418,7 @@ describe('GET /api/compare contract', () => {
   })
 })
 
-describe('POST /api/publish + /api/publish/stream contract', () => {
+describe('POST /api/v1/publish + /api/v1/publish/stream contract', () => {
   describe('PublishResult', () => {
     it('accepts a successful per-target result', () => {
       const r: PublishResult = { target: 'staging', success: true, copiedFiles: 12 }
@@ -476,7 +476,7 @@ describe('POST /api/publish + /api/publish/stream contract', () => {
   })
 })
 
-describe('GET /api/history + POST /api/history/{undo,restore} contract', () => {
+describe('GET /api/v1/history + POST /api/v1/history/{undo,restore} contract', () => {
   describe('RevisionSummary', () => {
     it('accepts a minimal save revision', () => {
       const rev: RevisionSummary = {
@@ -571,7 +571,7 @@ describe('GET /api/history + POST /api/history/{undo,restore} contract', () => {
   })
 })
 
-describe('POST /api/fetch contract', () => {
+describe('POST /api/v1/fetch contract', () => {
   it('accepts a well-formed response', () => {
     const r: FetchResponse = { success: true, copiedFiles: 3, items: ['pages/home', 'fragments/header'] }
     expect(FetchResponseSchema.safeParse(r).success).toBe(true)

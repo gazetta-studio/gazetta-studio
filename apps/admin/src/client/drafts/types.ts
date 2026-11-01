@@ -39,7 +39,7 @@ export interface DraftStore {
   setLastIdentity(identity: DraftIdentity): Promise<void>
 }
 
-/** `owner` string for a principal as reported by `GET /api/me`. */
+/** `owner` string for a principal as reported by `GET /api/v1/me`. */
 export function ownerOf(me: { id: string; role: string; trustMode: string }): string {
   return `${me.trustMode}:${me.id}:${me.role}`
 }

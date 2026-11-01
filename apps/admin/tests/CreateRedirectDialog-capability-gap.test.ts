@@ -18,7 +18,7 @@
  *     proceed knowing the gap; the four-point pattern handles
  *     downstream surfaces (validator scanner, publish gate).
  *
- * Mocking note: the dialog loads /api/targets at mount-time via the
+ * Mocking note: the dialog loads /api/v1/targets at mount-time via the
  * direct `api` import (mirrors ArchiveModal). vi.spyOn on api.getTargets
  * stubs the load without touching component injection.
  */

@@ -148,13 +148,13 @@ export function useHistoryApi(): HistoryApi {
 // ---- Redirects ------------------------------------------------------------
 
 export interface RedirectsApi {
-  /** POST /api/page-redirects. `opts.onConflict` resolves the
+  /** POST /api/v1/page-redirects. `opts.onConflict` resolves the
    *  ARCHIVED_NAME_CONFLICT prompt's chosen action. */
   createPageRedirect(
     data: CreateRedirectRequest,
     opts?: { onConflict?: 'restore' | 'replace' | 'moveAside' },
   ): Promise<CreateRedirectResponse>
-  /** POST /api/fragment-redirects. Same shape; capability is `edit:fragments`. */
+  /** POST /api/v1/fragment-redirects. Same shape; capability is `edit:fragments`. */
   createFragmentRedirect(
     data: CreateRedirectRequest,
     opts?: { onConflict?: 'restore' | 'replace' | 'moveAside' },
