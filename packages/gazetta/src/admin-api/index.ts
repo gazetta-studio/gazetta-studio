@@ -13,7 +13,7 @@ import { scanTemplates } from '../templates-scan.js'
 import { memoizeAsync } from '../concurrency.js'
 import { createTargetRegistryView } from '../targets.js'
 import { createHistoryProvider } from '../history-provider.js'
-import { isHistoryEnabled, isPublicStorage, getHistoryRetention } from '../types.js'
+import { isHistoryEnabled, getHistoryRetention } from '../types.js'
 import {
   createSourceContext,
   staticSourceResolver,
@@ -24,9 +24,10 @@ import {
 import { authMiddleware } from './middleware/auth.js'
 import { principalMiddleware } from './middleware/principal.js'
 import { auditMiddleware } from './middleware/audit.js'
-import { customRolesFromManifest, resolveAuthProviderFromManifest } from '../auth/index.js'
+import { resolveAuthProviderFromManifest } from '../auth/index.js'
+import { createTokenAuth } from './token-auth.js'
+import type { TokenAuth } from './middleware/principal.js'
 import { createCliLoginStore } from '../auth/cli-login-store.js'
-import { resolveCliLoginKeys, type SigningKeys } from '../auth/tokens/keys.js'
 import { authRoutes } from './routes/auth.js'
 import {
   AuditConfigSchema,
@@ -117,6 +118,11 @@ export interface AdminAppOptions {
    * When provided, `storage` is optional (the context carries its own).
    */
   source?: SourceContext
+  /**
+   * The token setup to share with principal middleware mounted outside
+   * this app (the dev server's `/__validation`); built here when absent.
+   */
+  tokenAuth?: TokenAuth
   siteDir: string
   /** Fallback source storage when `source` is not provided. */
   storage?: StorageProvider
@@ -370,22 +376,18 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   // throw a clear AuthConfigurationError if the operator's block is
   // malformed.
   const authProvider = resolveAuthProviderFromManifest(source.manifest?.admin?.auth)
-  // CLI login (design-agent-access.md Q12, Q25): on when there's a signing
-  // key. Grants live in the source's private `.gazetta/auth/`; a source
-  // on public storage would expose them, so login stays off there.
-  const sourceTarget =
-    (source.targetName ? source.manifest?.targets?.[source.targetName] : undefined) ??
-    Object.values(source.manifest?.targets ?? {}).find(t => t.storage === source.storage)
-  let cliLoginKeys: Promise<SigningKeys | null> | undefined
-  const keys = () =>
-    (cliLoginKeys ??=
-      sourceTarget && isPublicStorage(sourceTarget)
-        ? Promise.resolve(null)
-        : resolveCliLoginKeys(authProvider.trustMode))
-  app.use(
-    '/api/*',
-    principalMiddleware(authProvider, { keys, customRoles: customRolesFromManifest(source.manifest?.admin?.auth) }),
-  )
+  // CLI login (design-agent-access.md Q12, Q25): one token setup for
+  // every principal middleware on this server.
+  const tokenAuth =
+    opts.tokenAuth ??
+    createTokenAuth({
+      trustMode: authProvider.trustMode,
+      manifest: source.manifest,
+      sourceTarget: source.targetName ? source.manifest?.targets?.[source.targetName] : undefined,
+      sourceStorage: source.storage,
+    })
+  const { keys } = tokenAuth
+  app.use('/api/*', principalMiddleware(authProvider, tokenAuth))
   // The preview routes are mounted at `/preview/*` (outside `/api/*`)
   // but render full page/fragment content — they need the same
   // identity extraction so their capability gate has a Principal to
@@ -393,7 +395,7 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   // here: the admin's preview iframe fetch doesn't carry the token,
   // and upstream-identity (the configured trust mode) is what gates
   // content reads.
-  app.use('/preview/*', principalMiddleware(authProvider))
+  app.use('/preview/*', principalMiddleware(authProvider, tokenAuth))
 
   // Audit middleware — per design-audit.md "Recording timing".
   // Resolves admin.audit config; constructs the configured providers;

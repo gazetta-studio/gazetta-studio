@@ -7,7 +7,12 @@
 import { exportPKCS8 } from 'jose'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { generateSigningKeys } from '../src/auth/tokens/keys.js'
+import { Hono } from 'hono'
+import { noneAuthProvider } from '../src/auth/index.js'
 import { createAdminApp } from '../src/admin-api/index.js'
+import type { TokenAuth } from '../src/admin-api/middleware/principal.js'
+import { mountValidationSse } from '../src/admin-api/routes/validation.js'
+import { createTokenAuth } from '../src/admin-api/token-auth.js'
 import { PROBLEM_CONTENT_TYPE } from '../src/admin-api/problem.js'
 import { createSourceContext } from '../src/admin-api/source-context.js'
 import type { SiteManifest, StorageProvider, TargetConfig } from '../src/types.js'
@@ -50,6 +55,7 @@ function appOn(
     ]),
     targetConfigs,
     disableCacheStatsLogger: true,
+    ...(opts.tokenAuth ? { tokenAuth: opts.tokenAuth } : {}),
   })
 }
 
@@ -219,6 +225,27 @@ describe('a token edits but cannot publish, delete, purge or restore', () => {
       body: JSON.stringify({ content: { title: 'Edited by a token' } }),
     })
     expect(res.status).toBe(200)
+  })
+})
+
+describe('a token outside /api/v1', () => {
+  it('reads a preview', async () => {
+    const app = appOn(memoryStorage())
+    const token = await tokenOn(app)
+    const res = await app.request('/preview/', { headers: { 'Gazetta-Token': token } })
+    expect(res.status).not.toBe(401)
+  })
+
+  it('opens the dev server’s /__validation stream when the setup is shared', async () => {
+    const storage = memoryStorage()
+    const tokenAuth = createTokenAuth({ trustMode: 'none', sourceStorage: storage })
+    const app = appOn(storage, { tokenAuth })
+    const token = await tokenOn(app)
+    const outer = new Hono()
+    mountValidationSse(outer, null, noneAuthProvider, tokenAuth)
+    const res = await outer.request('/__validation', { headers: { 'Gazetta-Token': token } })
+    expect(res.status).toBe(200)
+    await res.body?.cancel()
   })
 })
 

@@ -2373,9 +2373,18 @@ async function setupCmsApi(
   const { mountValidationSse } = await import('../admin-api/routes/validation.js')
   const { resolveAuthProviderFromManifest } = await import('../auth/index.js')
   const sseAuthProvider = resolveAuthProviderFromManifest(manifest?.admin?.auth)
-  mountValidationSse(app, validationScanner, sseAuthProvider)
+  // One token setup for the SSE route and the admin app, so a token from
+  // one works on the other (the dev key is generated per setup).
+  const { createTokenAuth } = await import('../admin-api/token-auth.js')
+  const tokenAuth = createTokenAuth({
+    trustMode: sseAuthProvider.trustMode,
+    manifest: manifest ?? undefined,
+    sourceStorage: source.storage,
+  })
+  mountValidationSse(app, validationScanner, sseAuthProvider, tokenAuth)
   const cmsApp = createAdminApp({
     source,
+    tokenAuth,
     siteDir,
     templatesDir,
     adminDir,
@@ -2429,10 +2438,19 @@ async function setupProductionMode(
   const { mountValidationSse } = await import('../admin-api/routes/validation.js')
   const { resolveAuthProviderFromManifest } = await import('../auth/index.js')
   const sseAuthProvider = resolveAuthProviderFromManifest(manifest?.admin?.auth)
-  mountValidationSse(app, validationScanner, sseAuthProvider)
+  // One token setup for the SSE route and the admin app, so a token from
+  // one works on the other (the dev key is generated per setup).
+  const { createTokenAuth } = await import('../admin-api/token-auth.js')
+  const tokenAuth = createTokenAuth({
+    trustMode: sseAuthProvider.trustMode,
+    manifest: manifest ?? undefined,
+    sourceStorage: source.storage,
+  })
+  mountValidationSse(app, validationScanner, sseAuthProvider, tokenAuth)
   // Mount CMS API inline at /admin (production mode — bundled editors/fields)
   const cmsApp = createAdminApp({
     source,
+    tokenAuth,
     siteDir,
     templatesDir,
     adminDir,
