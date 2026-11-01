@@ -22,6 +22,13 @@ export const RevisionSummarySchema = z
     items: z.array(z.string()),
     message: z.string().optional(),
     restoredFrom: z.string().optional(),
+    /** How the write came in (Q47). Absent on revisions written outside the admin. */
+    channel: z.enum(['browser', 'token', 'mcp']).optional(),
+    /** The agent run it belongs to (Q22). */
+    runId: z.string().optional(),
+    /** For a token write: the token, and whether an elevation covered it. */
+    tokenId: z.string().optional(),
+    elevated: z.boolean().optional(),
   })
   .meta({ id: 'RevisionSummary' })
 export type RevisionSummary = z.infer<typeof RevisionSummarySchema>

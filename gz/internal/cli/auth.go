@@ -413,7 +413,7 @@ func (ctx *context) revoke(p profile.Profile) (bool, string) {
 	if err != nil {
 		return false, stays
 	}
-	res, err := client.DeleteApiV1AuthGrantsIdWithResponse(ctx.env.Ctx, session.GrantID(session.ParseCredentials(secret).Grant))
+	res, err := client.DeleteApiV1AuthGrantsIdWithResponse(ctx.env.Ctx, session.GrantID(session.ParseCredentials(secret).Grant), nil)
 	if err != nil {
 		var e *output.Error
 		// The grant no longer renews: it's expired or revoked already.

@@ -85,7 +85,7 @@ func (s *GrantSource) Token(ctx context.Context) (string, error) {
 	if s.token != "" && s.now().Add(renewBefore).Before(s.expires) {
 		return s.token, nil
 	}
-	res, err := s.client.PostApiV1AuthTokensWithResponse(ctx, api.PostApiV1AuthTokensJSONRequestBody{GrantSecret: s.grantSecret})
+	res, err := s.client.PostApiV1AuthTokensWithResponse(ctx, nil, api.PostApiV1AuthTokensJSONRequestBody{GrantSecret: s.grantSecret})
 	if err != nil {
 		// A request decorator's own error (a lapsed Entra sign-in) says
 		// what to do; only a transport failure means the admin is out of reach.

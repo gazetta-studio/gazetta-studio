@@ -301,6 +301,7 @@ export function createHistoryProvider(opts: CreateHistoryProviderOptions): Histo
       items: [...(input.changed ?? input.items.keys())].sort(),
       message: input.message,
       restoredFrom: input.restoredFrom,
+      ...input.origin,
       snapshot,
     }
     const json = JSON.stringify(manifest, null, 2) + '\n'

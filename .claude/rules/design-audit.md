@@ -59,6 +59,8 @@ export interface AuditProvider {
 
 **Event shape:**
 
+`channel`, `runId`, `tokenId` and `elevated` are filled in one place from the request, never by route handlers; history revisions carry the same fields, and history saves record the author. Follows from [`design-agent-access.md`](design-agent-access.md) Q47.
+
 ```ts
 export interface AuditEvent {
   /** ISO 8601 with Z suffix; matches existing history-recorder convention. */
@@ -97,6 +99,15 @@ export interface AuditEvent {
   sourceIp?: string
   /** Optional, instance-configurable. Default off. */
   userAgent?: string
+  /** How the request came in: the person's browser, a Gazetta token (the
+   *  CLI, scripts, agents) or, later, MCP. Absent outside a request. */
+  channel?: 'browser' | 'token' | 'mcp'
+  /** The agent run the request belongs to, from the `Gazetta-Run` header. */
+  runId?: string
+  /** For a token request: the token that made it, and whether an elevation
+   *  covered it. The actor stays the person. */
+  tokenId?: string
+  elevated?: boolean
   /** Provider-specific extras (publish source target, restore revision id,
    *  missingCapabilities for forbidden outcomes, etc.) */
   metadata?: Record<string, unknown>

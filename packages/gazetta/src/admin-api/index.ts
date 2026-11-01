@@ -1,6 +1,13 @@
 import type { Hono } from 'hono'
 import { OpenAPIHono } from '@hono/zod-openapi'
-import { API_PREFIX, OPENAPI_PATH, openApiDocument, registerDevRoutes, withOpenApiPaths } from './openapi.js'
+import {
+  API_PREFIX,
+  OPENAPI_PATH,
+  openApiDocument,
+  registerDevRoutes,
+  withOpenApiPaths,
+  withRunHeader,
+} from './openapi.js'
 import { HTTPException } from 'hono/http-exception'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { problem } from './problem.js'
@@ -22,6 +29,7 @@ import {
   type SourceContextResolver,
 } from './source-context.js'
 import { authMiddleware } from './middleware/auth.js'
+import { originMiddleware } from './middleware/origin.js'
 import { principalMiddleware } from './middleware/principal.js'
 import { auditMiddleware } from './middleware/audit.js'
 import {
@@ -420,6 +428,8 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   }
   const { keys } = tokenAuth
   app.use('/api/*', principalMiddleware(authProvider, tokenAuth))
+  // Where each write came from (Q47): read by revisions and audit events.
+  app.use('/api/*', originMiddleware())
   // The preview routes are mounted at `/preview/*` (outside `/api/*`)
   // but render full page/fragment content — they need the same
   // identity extraction so their capability gate has a Principal to
@@ -575,7 +585,7 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   // The OpenAPI document of every route registered above (Q5, Q44).
   registerDevRoutes(app)
   app.get(OPENAPI_PATH, c =>
-    c.json(withOpenApiPaths(app.getOpenAPI31Document(openApiDocument(new URL(c.req.url).pathname)))),
+    c.json(withRunHeader(withOpenApiPaths(app.getOpenAPI31Document(openApiDocument(new URL(c.req.url).pathname))))),
   )
   app.all('/api/*', c => problem(c, 404, 'NOT_FOUND', `No API route for ${c.req.method} ${c.req.path}`))
   app.onError((err, c) => {

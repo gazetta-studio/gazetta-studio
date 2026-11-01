@@ -24,6 +24,7 @@
  *   - DIP: handlers depend on the `AuditContext` interface, not on
  *     `recordToAll` or specific providers.
  */
+import { originFields } from '../request-origin.js'
 import type { AuditAction, AuditEvent, AuditOutcome, AuditProvider, AuditScope } from './index.js'
 import type { ActorPseudonymMode } from './pseudonymize.js'
 import type { SourceIpExtractionContext, SourceIpMode } from './source-ip.js'
@@ -141,6 +142,7 @@ export function createAuditContext(opts: AuditContextOptions): AuditContext {
         scope: input.scope,
         ...(sourceIp !== undefined ? { sourceIp } : {}),
         ...(userAgent !== undefined ? { userAgent } : {}),
+        ...originFields(),
         ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
       }
 

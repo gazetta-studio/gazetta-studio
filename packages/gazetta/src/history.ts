@@ -22,6 +22,8 @@
  * lands in a later phase.
  */
 
+import type { OriginFields } from './request-origin.js'
+
 /** Operation that produced a revision. */
 export type RevisionOperation = 'save' | 'publish' | 'rollback'
 
@@ -43,6 +45,14 @@ export interface Revision {
   message?: string
   /** For rollback/restore: the revision id this one restored from. */
   restoredFrom?: string
+  /** How the write came in (Q47): `browser`, `token`, or `mcp`. Absent on revisions written outside the admin. */
+  channel?: 'browser' | 'token' | 'mcp'
+  /** The agent run the write belongs to (Q22). */
+  runId?: string
+  /** For a token write: the token that made it. */
+  tokenId?: string
+  /** For a token write: whether an elevation covered it. */
+  elevated?: boolean
 }
 
 /** Full revision manifest as stored in `revisions/<id>.json`. */
@@ -84,6 +94,8 @@ export interface RevisionInput {
   message?: string
   /** For rollback/restore: the revision id this one restored from. */
   restoredFrom?: string
+  /** Where the write came from (Q47); see `request-origin.ts`. */
+  origin?: OriginFields
   /**
    * Full content tree snapshot at this revision: `itemPath → content`.
    * Content is `string | Uint8Array` — text and binary first-class

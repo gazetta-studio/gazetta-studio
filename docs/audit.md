@@ -20,11 +20,23 @@ Each event captures **what happened** + **who did it** + **what they touched**:
   "action": "save",
   "outcome": "success",
   "scope": { "kind": "page", "name": "home" },
+  "channel": "token",
+  "runId": "fix-headings-1",
+  "tokenId": "8c4f…",
+  "elevated": false,
   "metadata": {
     /* optional, action-specific extras */
   }
 }
 ```
+
+Every event made through the admin says how the request came in:
+
+- **`channel`**: `browser`, or `token` for a command-line client such as `gz` signed in as the person (see [Signing in from the command line](auth.md#signing-in-from-the-command-line)). The actor is always the person.
+- **`runId`**: the agent run the request belongs to, from the request's `Gazetta-Run` header (1 to 64 letters, digits, `.`, `_` or `-`; anything else is refused with `400`). Absent when the header isn't sent.
+- **`tokenId`** and **`elevated`**: for a token request, the token that made it and whether an elevation covered it.
+
+History revisions record the same fields, and the person who made the change as their author.
 
 Recorded actions:
 
