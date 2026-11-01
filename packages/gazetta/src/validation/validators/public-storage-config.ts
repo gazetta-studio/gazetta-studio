@@ -7,7 +7,7 @@
  *   - public storage with `history: { enabled: true }` set explicitly
  *   - public storage with `editable: true` set explicitly (an editing
  *     target must keep its own history)
- *   - public storage that still holds history, audit, review or CLI logins, which
+ *   - public storage that still holds history, audit, review or CLI sign-ins, which
  *     `gazetta state remove` clears. Only public targets' storage is read.
  *
  * A target that resolves public only because `publicStorage` is unset
@@ -109,7 +109,7 @@ export const publicStorageConfig: Validator = {
           issue(
             name,
             'error',
-            `Couldn't check \`${name}\`'s storage for history, audit, review or CLI logins: ${held.error}`,
+            `Couldn't check \`${name}\`'s storage for history, audit, review or CLI sign-ins: ${held.error}`,
           ),
         )
       } else if (held.folders.length > 0) {

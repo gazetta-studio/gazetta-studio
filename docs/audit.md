@@ -123,7 +123,7 @@ What follows from the setting:
 
 - A public target defaults to `editable: false`. Setting `editable: true` on it is a validation error: an editing target keeps history, so its storage must be private.
 - `history: { enabled: true }` on a public target is a validation error.
-- A public target whose storage still holds history, audit, review or CLI logins (`.gazetta/auth/`) is a validation error: "`production` is public but still holds history; run `gazetta state remove production`." See [Removing Gazetta's state from a target](#removing-gazettas-state-from-a-target).
+- A public target whose storage still holds history, audit, review or CLI sign-ins (`.gazetta/auth/`) is a validation error: "`production` is public but still holds history; run `gazetta state remove production`." See [Removing Gazetta's state from a target](#removing-gazettas-state-from-a-target).
 - A target assumed public (no `publicStorage` set) gets one info line in `gazetta validate` and when the admin starts: "storage assumed public, so history and audit aren't kept. Set `publicStorage: false` if visitors can't reach it."
 
 `gazetta init`, the starter and gazetta.studio set `publicStorage` on every target. Upcoming releases stop writing history and audit to public targets ([design](../.claude/rules/design-public-storage.md)).
@@ -166,7 +166,7 @@ Pick one, in this order of preference:
 
 ### Removing Gazetta's state from a target
 
-`gazetta state remove <target>` deletes history, audit, review and CLI logins (`.gazetta/auth/`) from a target's storage. Use it when you move a target that kept its state to public storage, and to clean up after `.gazetta/` was public:
+`gazetta state remove <target>` deletes history, audit, review and CLI sign-ins (`.gazetta/auth/`) from a target's storage. Use it when you move a target that kept its state to public storage, and to clean up after `.gazetta/` was public:
 
 ```bash
 npx gazetta state remove production
