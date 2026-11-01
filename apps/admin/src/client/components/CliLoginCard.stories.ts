@@ -19,7 +19,7 @@ const meta: Meta<typeof CliLoginCard> = {
   title: 'Auth / CliLoginCard',
   component: CliLoginCard,
   parameters: { layout: 'fullscreen' },
-  argTypes: { onApprove: { action: 'approve' }, onDeny: { action: 'deny' } },
+  argTypes: { onApprove: { action: 'approve' }, onDeny: { action: 'deny' }, onEnd: { action: 'end' } },
 }
 
 export default meta
@@ -49,3 +49,36 @@ export const NotFound: Story = { args: { state: { kind: 'not-found' } } }
 export const LoadError: Story = {
   args: { state: { kind: 'error', detail: 'Approve this sign-in from a browser.' } },
 }
+
+const elevation = {
+  ...login,
+  code: 'WXYZ-1234',
+  kind: 'elevation' as const,
+  scope: 'non-production' as const,
+}
+
+/** `gz elevate`: publishing, deleting and restoring on non-production targets. */
+export const ElevationPending: Story = { args: { state: { kind: 'pending', login: elevation } } }
+
+/** `gz elevate --production`: production needs its own elevation. */
+export const ElevationPendingProduction: Story = {
+  args: { state: { kind: 'pending', login: { ...elevation, scope: 'production' } } },
+}
+
+/** Approved and running: End now ends it before its 15 minutes run out. */
+export const ElevationActive: Story = {
+  args: {
+    state: {
+      kind: 'elevation-active',
+      machine: 'alice-macbook',
+      elevationId: 'elv_1',
+      endsAt: '2026-11-01T09:45:00Z',
+    },
+  },
+}
+
+export const ElevationEnded: Story = {
+  args: { state: { kind: 'elevation-ended', machine: 'alice-macbook' } },
+}
+
+export const ElevationDenied: Story = { args: { state: { kind: 'denied', elevation: true } } }
