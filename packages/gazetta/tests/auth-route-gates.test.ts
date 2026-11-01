@@ -102,8 +102,8 @@ describe('Cut 9 — admin-api route gates (none mode = admin role with *)', () =
     expect(res.status).toBe(200)
   })
 
-  it('GET /api/v1/health → 200 (no gate; intentionally public)', async () => {
-    const res = await app.request('/api/v1/health')
+  it('GET /api/health → 200 (no gate; intentionally public)', async () => {
+    const res = await app.request('/api/health')
     expect(res.status).toBe(200)
   })
 

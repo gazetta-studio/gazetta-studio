@@ -155,3 +155,18 @@ func isURL(v string) bool {
 func notFound(name string) error {
 	return output.Errorf(output.NotFound, "no profile %q", name).WithHint("See your profiles with: gz auth list")
 }
+
+// Put adds a profile, or updates the one with the same name. The first
+// profile becomes the default (Q36).
+func (c *Config) Put(p Profile) {
+	for i := range c.Profiles {
+		if c.Profiles[i].Name == p.Name {
+			c.Profiles[i] = p
+			return
+		}
+	}
+	c.Profiles = append(c.Profiles, p)
+	if c.Default == "" {
+		c.Default = p.Name
+	}
+}
