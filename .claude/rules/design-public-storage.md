@@ -151,13 +151,13 @@ Hooks and plugins read the resolved value through `isPublicStorage(target)`. A p
 
 **Resolution order:** `publicStorage` resolves first; a public target then defaults to `editable: false`. So a cloud target with neither `environment` nor `editable` set is public and not editable, which is valid. Only an explicit `editable: true` together with public storage is an error. `gazetta init`, the starter and gazetta.studio write the value explicitly. A target left on the default gets one info line in `gazetta validate` and at admin boot: "`production`: storage assumed public, so history and audit aren't kept. Set `publicStorage: false` if visitors can't reach it."
 
-**Validation errors:** `publicStorage` resolved true together with `history: { enabled: true }`, with an explicit `editable: true` (an editing target must keep its own history: "`production` is editable, so its storage must be private (`publicStorage: false`)"), with a schedule against it, or while sensitive state (history, audit, review) still exists in its storage: "`production` is public but still holds history; run `gazetta state remove production`."
+**Validation errors:** `publicStorage` resolved true together with `history: { enabled: true }`, with an explicit `editable: true` (an editing target must keep its own history: "`production` is editable, so its storage must be private (`publicStorage: false`)"), with a schedule against it, or while sensitive state (history, audit, review, CLI sign-ins) still exists in its storage: "`production` is public but still holds history; run `gazetta state remove production`."
 
-**`gazetta state remove <target>`** deletes the sensitive folders (history, audit, review) from a target's storage, after a confirmation that names what goes. It's how an operator moves a target that kept state to public storage, and how a leak (below) is cleaned up.
+**`gazetta state remove <target>`** deletes the sensitive folders (history, audit, review, CLI sign-ins) from a target's storage, after a confirmation that names what goes. It's how an operator moves a target that kept state to public storage, and how a leak (below) is cleaned up.
 
 **The capabilities view** is the one place to look, because this is a one-time setup decision: "About this target" in the admin's target menu (anyone who can see the target), and `gazetta targets` (also in `gazetta validate`). The History panel on a public target shows a short line linking to it; the boot info and audit notes point to it too.
 
-**The lock.** When the probe (below) finds a **sensitive** file served (history, audit, review, or any folder the registry doesn't mark safe), publishing to that target stops. It's one rule for private and public targets. The lock lifts only when a probe passes. There is no override, in the admin or the CLI. The way out is to fix the host, or to declare `publicStorage: true` **and** run `gazetta state remove`; declaring public alone doesn't lift it while sensitive files are still there (validation errors too). Other targets and saves are unaffected. Every publish path checks the lock **before its first write**: the admin route records history before calling `publishRun` today, so the check can't live only in `publishRun`. A publish already running when a lock lands finishes; the next is blocked (accepted limitation). No new audit event: each run already records a `live-check` event.
+**The lock.** When the probe (below) finds a **sensitive** file served (history, audit, review, CLI sign-ins, or any folder the registry doesn't mark safe), publishing to that target stops. It's one rule for private and public targets. The lock lifts only when a probe passes. There is no override, in the admin or the CLI. The way out is to fix the host, or to declare `publicStorage: true` **and** run `gazetta state remove`; declaring public alone doesn't lift it while sensitive files are still there (validation errors too). Other targets and saves are unaffected. Every publish path checks the lock **before its first write**: the admin route records history before calling `publishRun` today, so the check can't live only in `publishRun`. A publish already running when a lock lands finishes; the next is blocked (accepted limitation). No new audit event: each run already records a `live-check` event.
 
 **The probe** runs whenever a target has a `siteUrl`, **whatever `liveCheck` says**, at most once an hour per target (Re-check always runs it). For each sensitive folder present in storage, it picks one existing file, requests it from `siteUrl` and from every URL in `liveCheck.storageUrls` (optional extra public endpoints, such as an R2 `r2.dev` URL), and compares the body with the stored bytes. Any match is a leak; a `200` fallback page doesn't match and doesn't lock. Safe folders and per-item sidecars are never probed. No sensitive file in storage: `not-checked`. Gazetta can't discover an `r2.dev` URL itself, so the docs tell operators to list it or turn it off.
 
@@ -177,6 +177,14 @@ The result is written into the run's report **as soon as it's known**, not when 
 | Default private for any filesystem target | A publish-only folder may be served by nginx. |
 | Lock every target | Punishes all targets for one host's setup. |
 | A banner on every public target; a confirmation on every publish | Noise for a deliberate, valid setup (rule 23). |
+
+`.gazetta/auth/` (CLI sign-ins: who signed in, from which machine, and a hash of each grant secret; `design-agent-access.md` Q16) counts as sensitive state with history, audit and review: a public target holding it fails validation, `gazetta state remove` deletes it, and the live-check probe covers it.
+
+Decided: maintainer, 2026-11-01 (#1689)
+
+| Rejected | Why |
+|---|---|
+| Only "not written on public targets" | `gazetta state remove` would ignore it, and a public target that somehow holds it wouldn't be flagged or probed |
 
 ### Q7 — Enforcement: config gates plus a folder registry
 
