@@ -149,6 +149,10 @@ Other foundations (TS config / AuthIdentity / Component IDs / AdminCache / Audit
 | Per-field translation ([#192](https://github.com/gazetta-studio/gazetta-studio/issues/192)) and AI translation ([#1167](https://github.com/gazetta-studio/gazetta-studio/issues/1167)): one discovery and design pass, since both have to settle which fields get translated and how a translation is reviewed and marked | i18n design + Component IDs (both shipped) | — |
 | Comments-first collaboration v1 | AuthIdentity + Audit + Component IDs (shipped) + NotificationProvider (pending) | 3w |
 
+### Template check
+
+[#1660](https://github.com/gazetta-studio/gazetta-studio/issues/1660): a PR that changes a template fails when existing content no longer fits it ([`design-template-check.md`](.claude/rules/design-template-check.md)). Its planner issue opens once the design merges; [#1664](https://github.com/gazetta-studio/gazetta-studio/issues/1664) and [#1665](https://github.com/gazetta-studio/gazetta-studio/issues/1665) come first.
+
 ### Static targets
 
 What remains wrong or undecided on static targets:
