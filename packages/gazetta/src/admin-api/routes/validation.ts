@@ -29,7 +29,7 @@ import { streamSSE } from 'hono/streaming'
 import type { ScanEvent, ValidationScanner } from '../../validation/scanner.js'
 import type { AuthIdentityProvider } from '../../auth/index.js'
 import { requireCapability } from '../middleware/capability.js'
-import { principalMiddleware } from '../middleware/principal.js'
+import { principalMiddleware, type TokenAuth } from '../middleware/principal.js'
 import { apiApp, json, problems } from '../openapi.js'
 import { ValidationIssuesResponseSchema } from '../schemas/validation.js'
 
@@ -94,8 +94,9 @@ export function mountValidationSse(
   app: Hono,
   scanner: ValidationScanner | null,
   authProvider: AuthIdentityProvider,
+  tokenAuth?: TokenAuth,
 ): void {
-  app.get('/__validation', principalMiddleware(authProvider), requireCapability('read:pages'), async c => {
+  app.get('/__validation', principalMiddleware(authProvider, tokenAuth), requireCapability('read:pages'), async c => {
     return streamSSE(c, async stream => {
       const queue: ScanEvent[] = []
       let resolveWaiter: (() => void) | null = null
