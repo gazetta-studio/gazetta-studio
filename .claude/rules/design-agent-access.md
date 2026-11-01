@@ -2,7 +2,7 @@
 
 How AI agents (coding agents, scripts, chat apps) reach Gazetta's content: in what order the ways in ship, how they write, what stops them publishing, and how they learn about changes. This sets the direction for the design pass in [#49](https://github.com/gazetta-studio/gazetta-studio/issues/49), which now covers agent access as a whole, MCP included; each piece below gets its details there.
 
-**Status**: direction decided 2026-10-31, Q1–Q11; agent identity decided 2026-11-01, Q12–Q30; presets Q31; the skill's never-run list and updates Q32–Q33. The #49 design pass designs the details.
+**Status**: direction decided 2026-10-31, Q1–Q11; agent identity decided 2026-11-01, Q12–Q30; presets Q31; the skill's never-run list, updates and install Q32–Q34. The #49 design pass designs the details.
 
 **Companion docs:**
 - [`design-ai-direction.md`](design-ai-direction.md): agents lead Gazetta's AI work; they can't publish by default (they act as the person who signed them in, Q12); the live view of agents' changes (Q8)
@@ -97,6 +97,8 @@ Decided: maintainer, 2026-10-31 (#1623)
 |---|---|
 | A separate skills repo and plugin | A second release to keep in step with the CLI |
 | `AGENTS.md` lines only, until the MCP server ships | Delays the cheapest, most-adopted piece behind the most uncertain one |
+
+Amended by Q34 (2026-11-01, #<PR>): `gazetta init` writes only the `AGENTS.md` section, and the agent installs the skill from the package.
 
 The skill covers both jobs a coding agent does in a Gazetta project: editing content, and writing templates and schemas (the template contract, Zod schemas, `Content<T>`, custom editors), each part with its drift check.
 
@@ -462,7 +464,7 @@ Decided: maintainer, 2026-11-01 (#1648)
 | Also Cursor | Same; its command matching isn't confirmed either |
 | Pre-approve safe commands with `allowed-tools` | Experimental and per client |
 
-When `gazetta init .` finds existing agent files, it never overwrites them: it skips `SKILL.md` if present and appends a marked Gazetta section to `AGENTS.md` only if missing. Existing projects get updated skills through Q33's command.
+When `gazetta init .` finds existing agent files, it never overwrites them: it appends a marked Gazetta section to `AGENTS.md` only if missing (it writes no `SKILL.md`, Q34). Existing projects get updated skills through Q33's command.
 
 Decided: maintainer, 2026-11-01 (#1648)
 
@@ -474,7 +476,7 @@ Research: [presets on #49](https://github.com/gazetta-studio/gazetta-studio/issu
 
 ### Q32 — The never-run list covers everything that changes a target
 
-The skill's "never run, ask the person" list holds every command and admin route that publishes or deploys, deletes content, or rewrites a target's history, plus approving requests. Today that is `gazetta publish`, `deploy`, `undo`, `rollback`, `archive purge` and `state remove`, and the admin routes `/api/publish`, `/api/publish/stream`, `/api/fetch`, `/api/history/undo` and `/api/history/restore`, page and fragment purge, and deleting a page, fragment or asset. Saves, archive, restore from archive, rename and uploads stay off the list: they are the edits an agent is there to make, and undo covers them. A test fails when a command or route that matches this rule isn't on the list, or when the list names one that doesn't exist. `gz` commands (publish, delete, elevate, approving requests) join the list, and the test, when the Go CLI ships, checked against its own command list.
+The skill's "never run, ask the person" list holds every command and admin route that publishes or deploys, deletes content, or rewrites a target's history, plus approving requests. Today that is `gazetta publish`, `deploy`, `undo`, `rollback`, `archive purge` and `state remove`, and the admin routes `/api/publish`, `/api/publish/stream`, `/api/fetch`, `/api/history/undo` and `/api/history/restore`, page and fragment purge, and deleting a page, fragment or asset. Replacing an asset with another (`POST /api/assets/:name/replace-with/:newName`) is on the list, since it ends by deleting the original; removing one language's version of an asset (`DELETE /api/assets/:name/locale-bytes`) is off it, like removing a translation, and undo covers it. Saves, archive, restore from archive, rename and uploads stay off the list: they are the edits an agent is there to make, and undo covers them. A test fails when a command or route that matches this rule isn't on the list, or when the list names one that doesn't exist. `gz` commands (publish, delete, elevate, approving requests) join the list, and the test, when the Go CLI ships, checked against its own command list.
 
 Decided: maintainer, 2026-11-01 (#1649)
 
@@ -500,9 +502,24 @@ Decided: maintainer, 2026-11-01 (#1649)
 | A short `SKILL.md` that points the agent to the full skill in `node_modules/gazetta` | Agents that don't follow the pointer get only the stub |
 | Manual: delete `SKILL.md` and rerun `gazetta init .` | Every project relies on people reading the release notes |
 
+### Q34 — The agent installs the skill from the package
+
+No single folder reaches every coding agent (Claude Code reads `.claude/skills/`, Codex `.agents/skills/`, Copilot and Cursor either; checked against their docs 2026-11-01). So `gazetta init` writes only the marked `AGENTS.md` section, which tells the agent to install the Gazetta skill from `node_modules/gazetta/agents/` into its own skills folder. Each agent puts it where its client reads it, the version always matches the installed package, and it works offline. Until Q33's refresh command ships, existing projects copy the `AGENTS.md` section from the package; the docs say how.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| The same `SKILL.md` in both `.claude/skills/` and `.agents/skills/` | The maintainer chose to let the agent install it |
+| Only `.agents/skills/` | Claude Code misses the skill |
+| Only `.claude/skills/` | Codex misses it |
+| The agent fetches the skill from GitHub | Needs network |
+| Let `gazetta init .` add the agent files to an existing project | Reverses its refusal and overlaps Q33's command |
+| Build Q33's command now | Widens #1622 |
+
 ## What this changes in the plan
 
-Follows from Q1–Q33.
+Follows from Q1–Q34.
 - ROADMAP's "MCP server design pass" becomes "Agent access design pass" (#49), and "MCP server build" becomes "Agent access build".
 - The skill (#1622) is the first step, in Now; the Deferred row for agent instructions goes.
 - The #49 pass designs: the agent token and elevation flow (Q12–Q30), the remote MCP server's sign-in (Q28), the skill refresh command's name (Q33), audit source and run id, per-run undo, the schema check at save, page search, the thin CLI for content creators (name, discovery of a local admin, commands, output for people and agents, how its users' agents get the skill, release and distribution), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract, its versioning and v1 cut-off, the bulk save, the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
