@@ -72,13 +72,17 @@
  *     route module; archive primitives consume the typed `ItemKind`
  *     parameter rather than branching on URL shape inside helpers.
  */
-import { Hono } from 'hono'
+import { createRoute } from '@hono/zod-openapi'
 import type { Context } from 'hono'
 import { join } from 'node:path'
 import type { SourceContextResolver } from '../source-context.js'
 import { loadSiteFromSource } from '../source-context.js'
 import { recordWrite } from '../../history-recorder.js'
 import { problem, problemFrom } from '../problem.js'
+import { apiApp, json, problems } from '../openapi.js'
+import { bodyFailure, jsonBody } from '../route-input.js'
+import type { ErrorCode } from '../schemas/error.js'
+import { ForceQuerySchema, ItemNameParamSchema, TargetQuerySchema } from '../schemas/item-route.js'
 import { requireCapability } from '../middleware/capability.js'
 import { requireEditableTarget } from '../middleware/editable-target.js'
 import { lookupManifest } from '../lookup-manifest.js'
@@ -95,12 +99,16 @@ import {
   type ArchiveHasLiveRefs,
   type ArchiveResponse,
   ArchiveRequestSchema,
+  ArchiveResponseSchema,
   type LiveRef,
   type PurgeBlocked,
   type PurgeResponse,
+  PurgeResponseSchema,
   type SetAliasResponse,
   SetAliasRequestSchema,
+  SetAliasResponseSchema,
   type UnarchiveResponse,
+  UnarchiveResponseSchema,
 } from '../schemas/archive.js'
 import type { ComponentManifest, FragmentManifest, PageManifest } from '../../types.js'
 import {
@@ -156,42 +164,143 @@ export interface ArchiveRoutesOptions {
 
 export function archiveRoutes(resolve: SourceContextResolver, opts: ArchiveRoutesOptions = {}) {
   const editableTarget = requireEditableTarget(resolve)
-  const app = new Hono<AuditEnv>()
+  const app = apiApp<AuditEnv>()
   const scanner = opts.scanner ?? null
 
-  // ─── Pages ────────────────────────────────────────────────────────
-  app.post('/api/pages/:name/archive', requireCapability('delete:pages'), editableTarget, c =>
-    handleArchive(c, resolve, PAGE_HANDLE, scanner),
-  )
-  app.post('/api/pages/:name/unarchive', requireCapability('edit:pages'), editableTarget, c =>
-    handleUnarchive(c, resolve, PAGE_HANDLE, scanner),
-  )
-  app.delete('/api/pages/:name/purge', requireCapability('delete:pages'), editableTarget, c =>
-    handlePurge(c, resolve, PAGE_HANDLE, scanner),
-  )
-  // Cut 12 — edit an archive's aliasOf (set / drop) from the
-  // purge-blocked resolution modal. Capability `edit:` since this is
-  // a content-state edit, not destruction (symmetric with unarchive).
-  app.patch('/api/pages/:name/alias', requireCapability('edit:pages'), editableTarget, c =>
-    handleSetAlias(c, resolve, PAGE_HANDLE, scanner),
-  )
+  const mount = <K extends 'pages' | 'fragments'>(kind: K, handle: ItemHandle) => {
+    const label = handle.label.toLowerCase()
+    const del = requireCapability(`delete:${kind}`)
+    const edit = requireCapability(`edit:${kind}`)
 
-  // ─── Fragments ────────────────────────────────────────────────────
-  app.post('/api/fragments/:name/archive', requireCapability('delete:fragments'), editableTarget, c =>
-    handleArchive(c, resolve, FRAGMENT_HANDLE, scanner),
-  )
-  app.post('/api/fragments/:name/unarchive', requireCapability('edit:fragments'), editableTarget, c =>
-    handleUnarchive(c, resolve, FRAGMENT_HANDLE, scanner),
-  )
-  app.delete('/api/fragments/:name/purge', requireCapability('delete:fragments'), editableTarget, c =>
-    handlePurge(c, resolve, FRAGMENT_HANDLE, scanner),
-  )
-  app.patch('/api/fragments/:name/alias', requireCapability('edit:fragments'), editableTarget, c =>
-    handleSetAlias(c, resolve, FRAGMENT_HANDLE, scanner),
-  )
+    const archive = createRoute({
+      method: 'post',
+      path: `/api/${kind}/:name/archive`,
+      summary: `Archive a ${label}`,
+      middleware: [del, editableTarget, jsonBody({ optional: true })] as const,
+      request: {
+        params: ItemNameParamSchema,
+        query: ForceQuerySchema,
+        body: { required: false, content: { 'application/json': { schema: ArchiveRequestSchema } } },
+      },
+      responses: {
+        200: json(ArchiveResponseSchema, 'Archived, or already archived'),
+        ...problems(ARCHIVE_PROBLEMS),
+      },
+    })
+    app.openapi(
+      archive,
+      c => {
+        const { name } = c.req.valid('param')
+        const { target, force } = c.req.valid('query')
+        const { aliasOf } = c.req.valid('json')
+        return handleArchive(c, resolve, handle, { name, target, force: force === 'true', aliasOf }, scanner)
+      },
+      bodyFailure('BAD_REQUEST', 'Invalid request body'),
+    )
+
+    const unarchive = createRoute({
+      method: 'post',
+      path: `/api/${kind}/:name/unarchive`,
+      summary: `Restore an archived ${label}`,
+      middleware: [edit, editableTarget] as const,
+      request: { params: ItemNameParamSchema, query: TargetQuerySchema },
+      responses: {
+        200: json(UnarchiveResponseSchema, 'Restored, or not archived'),
+        ...problems({
+          401: ['UNAUTHENTICATED'],
+          403: ['FORBIDDEN', 'TARGET_NOT_EDITABLE'],
+          404: ['NOT_FOUND'],
+          409: ['REDIRECT_RESTORE'],
+        }),
+      },
+    })
+    app.openapi(unarchive, c => {
+      const { name } = c.req.valid('param')
+      const { target } = c.req.valid('query')
+      return handleUnarchive(c, resolve, handle, { name, target }, scanner)
+    })
+
+    const purge = createRoute({
+      method: 'delete',
+      path: `/api/${kind}/:name/purge`,
+      summary: `Permanently delete an archived ${label}`,
+      middleware: [del, editableTarget] as const,
+      request: { params: ItemNameParamSchema, query: ForceQuerySchema },
+      responses: {
+        200: json(PurgeResponseSchema, 'Deleted'),
+        ...problems(PURGE_PROBLEMS),
+      },
+    })
+    app.openapi(purge, c => {
+      const { name } = c.req.valid('param')
+      const { target, force } = c.req.valid('query')
+      return handlePurge(c, resolve, handle, { name, target, force: force === 'true' }, scanner)
+    })
+
+    // Cut 12 — edit an archive's aliasOf (set / drop) from the
+    // purge-blocked resolution modal. Capability `edit:` since this is
+    // a content-state edit, not destruction (symmetric with unarchive).
+    const setAlias = createRoute({
+      method: 'patch',
+      path: `/api/${kind}/:name/alias`,
+      summary: `Set or drop an archived ${label}'s alias`,
+      middleware: [
+        edit,
+        editableTarget,
+        jsonBody({ malformed: { code: 'BAD_REQUEST', detail: 'Invalid JSON body' } }),
+      ] as const,
+      request: {
+        params: ItemNameParamSchema,
+        query: TargetQuerySchema,
+        body: { required: true, content: { 'application/json': { schema: SetAliasRequestSchema } } },
+      },
+      responses: {
+        200: json(SetAliasResponseSchema, 'The alias as now stored'),
+        ...problems({
+          400: ['BAD_REQUEST'],
+          401: ['UNAUTHENTICATED'],
+          403: ['FORBIDDEN', 'TARGET_NOT_EDITABLE'],
+          404: ['NOT_FOUND'],
+          409: ['NOT_ARCHIVED'],
+          415: ['BAD_REQUEST'],
+        }),
+      },
+    })
+    app.openapi(
+      setAlias,
+      c => {
+        const { name } = c.req.valid('param')
+        const { target } = c.req.valid('query')
+        const { aliasOf } = c.req.valid('json')
+        return handleSetAlias(c, resolve, handle, { name, target, aliasOf }, scanner)
+      },
+      bodyFailure('BAD_REQUEST', 'Invalid request body'),
+    )
+  }
+
+  mount('pages', PAGE_HANDLE)
+  mount('fragments', FRAGMENT_HANDLE)
 
   return app
 }
+
+/** Errors an archive can answer (also `DELETE /api/{kind}/:name`). */
+export const ARCHIVE_PROBLEMS = {
+  400: ['BAD_REQUEST'],
+  401: ['UNAUTHENTICATED'],
+  403: ['FORBIDDEN', 'TARGET_NOT_EDITABLE'],
+  404: ['NOT_FOUND'],
+  409: ['ARCHIVE_HAS_LIVE_REFS'],
+  415: ['BAD_REQUEST'],
+} as const satisfies Record<number, readonly ErrorCode[]>
+
+/** Errors a purge can answer (also `DELETE /api/{kind}/:name?permanent=true`). */
+export const PURGE_PROBLEMS = {
+  401: ['UNAUTHENTICATED'],
+  403: ['FORBIDDEN', 'TARGET_NOT_EDITABLE'],
+  404: ['NOT_FOUND'],
+  409: ['DELETE_BLOCKED', 'NOT_ARCHIVED'],
+} as const satisfies Record<number, readonly ErrorCode[]>
 
 /**
  * Fire-and-forget: notify the scanner that a manifest write happened
@@ -214,38 +323,39 @@ function notifyScanner(
 
 // ─── Archive ───────────────────────────────────────────────────────────
 
+/** Parsed input of the archive lifecycle handlers. */
+export interface ItemInput {
+  name: string
+  target?: string
+}
+export interface ArchiveInput extends ItemInput {
+  force: boolean
+  aliasOf?: string
+}
+export interface PurgeInput extends ItemInput {
+  force: boolean
+}
+interface SetAliasInput extends ItemInput {
+  aliasOf: string | null
+}
+
 export async function handleArchive(
-  c: Context<AuditEnv>,
+  c: Context<AuditEnv, any, any>,
   resolve: SourceContextResolver,
   handle: ItemHandle,
+  input: ArchiveInput,
   scanner: import('../../validation/scanner.js').ValidationScanner | null = null,
 ) {
-  const name = c.req.param('name')
-  if (!name) return problem(c, 400, 'BAD_REQUEST', 'Missing name parameter')
-  const source = await resolve(c.req.query('target'))
+  const { name, target } = input
+  const source = await resolve(target)
   const site = await loadSiteFromSource(source)
 
   const manifest = lookupManifest(site, handle.scopeKind, name)
   if (!manifest) return problem(c, 404, 'NOT_FOUND', `${handle.label} "${name}" not found`)
 
-  // Schema-validate body — same MCP discipline as other admin-API
-  // routes. `aliasOf` is optional; absence = pure soft-delete.
-  let body: unknown = {}
-  try {
-    body = await c.req.json()
-  } catch {
-    // Empty body is fine (archive without aliasOf). Hono returns null
-    // for empty body, JSON.parse throws on empty string — catch and
-    // fall through.
-  }
-  const parsed = ArchiveRequestSchema.safeParse(body ?? {})
-  if (!parsed.success) {
-    return problem(c, 400, 'BAD_REQUEST', 'Invalid request body', {
-      issues: parsed.error.issues.map(i => ({ path: i.path.join('.'), message: i.message })),
-    })
-  }
-  const aliasOf = parsed.data.aliasOf
-  const force = c.req.query('force') === 'true'
+  // The body was schema-validated before the handler (`aliasOf` is
+  // optional; absence = pure soft-delete).
+  const { aliasOf, force } = input
 
   // P8 (save-handler check per design-soft-delete.md Q11): refuse
   // archive without aliasOf when live refs exist. Pure soft-delete
@@ -273,7 +383,7 @@ export async function handleArchive(
       archivedAt: manifest.archivedAt ?? new Date().toISOString(),
       ...(manifest.aliasOf ? { aliasOf: manifest.aliasOf } : {}),
     }
-    return c.json(response)
+    return c.json(response, 200)
   }
 
   // Build the post-archive manifest. Per Q1 lock A1: archive fields
@@ -346,20 +456,20 @@ export async function handleArchive(
   notifyScanner(scanner, handle, name)
 
   const response: ArchiveResponse = { ok: true, name, archivedAt, ...(aliasOf ? { aliasOf } : {}) }
-  return c.json(response)
+  return c.json(response, 200)
 }
 
 // ─── Unarchive ─────────────────────────────────────────────────────────
 
 async function handleUnarchive(
-  c: Context<AuditEnv>,
+  c: Context<AuditEnv, any, any>,
   resolve: SourceContextResolver,
   handle: ItemHandle,
+  input: ItemInput,
   scanner: import('../../validation/scanner.js').ValidationScanner | null = null,
 ) {
-  const name = c.req.param('name')
-  if (!name) return problem(c, 400, 'BAD_REQUEST', 'Missing name parameter')
-  const source = await resolve(c.req.query('target'))
+  const { name, target } = input
+  const source = await resolve(target)
   const site = await loadSiteFromSource(source)
 
   const manifest = lookupManifest(site, handle.scopeKind, name)
@@ -369,7 +479,7 @@ async function handleUnarchive(
   // branch.
   if (manifest.archived !== true) {
     const response: UnarchiveResponse = { ok: true, name }
-    return c.json(response)
+    return c.json(response, 200)
   }
 
   // A Manual Redirect's manifest carries only archive fields + aliasOf —
@@ -412,7 +522,7 @@ async function handleUnarchive(
   notifyScanner(scanner, handle, name)
 
   const response: UnarchiveResponse = { ok: true, name }
-  return c.json(response)
+  return c.json(response, 200)
 }
 
 // ─── Set alias (Cut 12) ────────────────────────────────────────────────
@@ -430,14 +540,14 @@ async function handleUnarchive(
  * forensics can distinguish alias-edits from initial archives.
  */
 async function handleSetAlias(
-  c: Context<AuditEnv>,
+  c: Context<AuditEnv, any, any>,
   resolve: SourceContextResolver,
   handle: ItemHandle,
+  input: SetAliasInput,
   scanner: import('../../validation/scanner.js').ValidationScanner | null = null,
 ) {
-  const name = c.req.param('name')
-  if (!name) return problem(c, 400, 'BAD_REQUEST', 'Missing name parameter')
-  const source = await resolve(c.req.query('target'))
+  const { name, target } = input
+  const source = await resolve(target)
   const site = await loadSiteFromSource(source)
 
   const manifest = lookupManifest(site, handle.scopeKind, name)
@@ -447,25 +557,13 @@ async function handleSetAlias(
     return problem(c, 409, 'NOT_ARCHIVED', `${handle.label} "${name}" is not archived; cannot set alias on a live item`)
   }
 
-  // Schema-validate body. `aliasOf: null` is the canonical "drop" form.
-  let raw: unknown
-  try {
-    raw = await c.req.json()
-  } catch {
-    return problem(c, 400, 'BAD_REQUEST', 'Invalid JSON body')
-  }
-  const parsed = SetAliasRequestSchema.safeParse(raw)
-  if (!parsed.success) {
-    return problem(c, 400, 'BAD_REQUEST', 'Invalid request body', {
-      issues: parsed.error.issues.map(i => ({ path: i.path.join('.'), message: i.message })),
-    })
-  }
-  const { aliasOf } = parsed.data
+  // `aliasOf: null` is the canonical "drop" form (body validated by schema).
+  const { aliasOf } = input
 
   // Idempotent — return the current state when the alias didn't change.
   if (manifest.aliasOf === (aliasOf ?? undefined)) {
     const response: SetAliasResponse = { ok: true, name, ...(aliasOf ? { aliasOf } : {}) }
-    return c.json(response)
+    return c.json(response, 200)
   }
 
   // Build the updated manifest. Drop aliasOf when null; set when string.
@@ -498,25 +596,24 @@ async function handleSetAlias(
   notifyScanner(scanner, handle, name)
 
   const response: SetAliasResponse = { ok: true, name, ...(aliasOf ? { aliasOf } : {}) }
-  return c.json(response)
+  return c.json(response, 200)
 }
 
 // ─── Purge ─────────────────────────────────────────────────────────────
 
 export async function handlePurge(
-  c: Context<AuditEnv>,
+  c: Context<AuditEnv, any, any>,
   resolve: SourceContextResolver,
   handle: ItemHandle,
+  input: PurgeInput,
   scanner: import('../../validation/scanner.js').ValidationScanner | null = null,
   // The explicit `?permanent=true` delete routes pass allowLive: they
   // are the documented hard-delete intent for live items (#1341 only
   // closes the /purge routes).
   opts: { allowLive?: boolean } = {},
 ) {
-  const name = c.req.param('name')
-  if (!name) return problem(c, 400, 'BAD_REQUEST', 'Missing name parameter')
-  const force = c.req.query('force') === 'true'
-  const source = await resolve(c.req.query('target'))
+  const { name, target, force } = input
+  const source = await resolve(target)
   const site = await loadSiteFromSource(source)
 
   const manifest = lookupManifest(site, handle.scopeKind, name)
@@ -611,7 +708,7 @@ export async function handlePurge(
   notifyScanner(scanner, handle, name)
 
   const response: PurgeResponse = { ok: true, name }
-  return c.json(response)
+  return c.json(response, 200)
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────

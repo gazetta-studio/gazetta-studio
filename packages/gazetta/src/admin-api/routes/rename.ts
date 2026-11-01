@@ -55,7 +55,7 @@
  *   - DIP: depends on `rebuildArchiveAliases` + `findArchivesAliasingInSite`
  *     primitives, not their per-edge sidecar implementation details.
  */
-import { Hono } from 'hono'
+import { createRoute } from '@hono/zod-openapi'
 import type { Context } from 'hono'
 import { join } from 'node:path'
 import type { SourceContextResolver } from '../source-context.js'
@@ -67,7 +67,10 @@ import { recordWrite } from '../../history-recorder.js'
 import { denyWithoutCapability, requireCapability } from '../middleware/capability.js'
 import { requireEditableTarget } from '../middleware/editable-target.js'
 import { lookupManifest } from '../lookup-manifest.js'
-import { problem, problemFrom } from '../problem.js'
+import { problem, problemFrom, type ProblemResponse } from '../problem.js'
+import { apiApp, json, problems } from '../openapi.js'
+import { bodyFailure, jsonBody } from '../route-input.js'
+import { ForceQuerySchema, ItemNameParamSchema } from '../schemas/item-route.js'
 import type { AuditEnv } from '../middleware/audit.js'
 import type { ItemRef } from '../../dep-sidecars.js'
 import { rebuildArchiveAliases } from '../../archive-aliases.js'
@@ -75,6 +78,7 @@ import { rebuildAssetRefs } from '../../assets/asset-deps.js'
 import { rebuildFragmentDeps } from '../../fragment-deps.js'
 import {
   RenameRequestSchema,
+  RenameResponseSchema,
   type ArchivedNameConflict,
   type NameCollision,
   type RenameResponse,
@@ -106,47 +110,82 @@ const FRAGMENT_HANDLE: ItemHandle = {
 
 export function renameRoutes(resolve: SourceContextResolver) {
   const editableTarget = requireEditableTarget(resolve)
-  const app = new Hono<AuditEnv>()
+  const app = apiApp<AuditEnv>()
 
-  app.post('/api/pages/:name/rename', requireCapability('edit:pages'), editableTarget, c =>
-    handleRename(c, resolve, PAGE_HANDLE),
-  )
-  app.post('/api/fragments/:name/rename', requireCapability('edit:fragments'), editableTarget, c =>
-    handleRename(c, resolve, FRAGMENT_HANDLE),
-  )
+  const mount = <K extends 'pages' | 'fragments'>(kind: K, handle: ItemHandle) => {
+    const rename = createRoute({
+      method: 'post',
+      path: `/api/${kind}/:name/rename`,
+      summary: `Rename a ${handle.label.toLowerCase()}`,
+      middleware: [
+        requireCapability(`edit:${kind}`),
+        editableTarget,
+        jsonBody({ malformed: { code: 'BAD_REQUEST', detail: 'Invalid JSON body' } }),
+      ] as const,
+      request: {
+        params: ItemNameParamSchema,
+        query: ForceQuerySchema,
+        body: { required: true, content: { 'application/json': { schema: RenameRequestSchema } } },
+      },
+      responses: {
+        200: json(RenameResponseSchema, 'Renamed (or the name is unchanged)'),
+        ...problems({
+          400: ['BAD_REQUEST'],
+          401: ['UNAUTHENTICATED'],
+          403: ['FORBIDDEN', 'TARGET_NOT_EDITABLE'],
+          404: ['NOT_FOUND'],
+          409: ['ARCHIVED_NAME_CONFLICT', 'NAME_COLLISION', 'ARCHIVE_HAS_LIVE_REFS'],
+          415: ['BAD_REQUEST'],
+          500: ['RENAME_PARTIAL'],
+        }),
+      },
+    })
+    app.openapi(
+      rename,
+      c => {
+        const { name } = c.req.valid('param')
+        const { target, force } = c.req.valid('query')
+        const { to, keepAlias } = c.req.valid('json')
+        return handleRename(c, resolve, handle, { fromName: name, target, force: force === 'true', to, keepAlias })
+      },
+      bodyFailure('BAD_REQUEST', 'Invalid request body'),
+    )
+  }
+
+  mount('pages', PAGE_HANDLE)
+  mount('fragments', FRAGMENT_HANDLE)
 
   return app
 }
 
-async function handleRename(c: Context<AuditEnv>, resolve: SourceContextResolver, handle: ItemHandle) {
-  const fromName = c.req.param('name')
-  if (!fromName) return problem(c, 400, 'BAD_REQUEST', 'Missing name parameter')
+interface RenameInput {
+  fromName: string
+  target?: string
+  force: boolean
+  to: string
+  keepAlias: boolean
+}
 
-  const source = await resolve(c.req.query('target'))
+async function handleRename(
+  c: Context<AuditEnv, any, any>,
+  resolve: SourceContextResolver,
+  handle: ItemHandle,
+  input: RenameInput,
+) {
+  // The body was validated against `RenameRequestSchema`: `to` is
+  // required; `keepAlias` defaults true.
+  const { fromName, to: toName, keepAlias, force } = input
+
+  const source = await resolve(input.target)
   const site = await loadSiteFromSource(source)
-
-  // Schema-validate body. `to` is required; `keepAlias` defaults true.
-  let raw: unknown
-  try {
-    raw = await c.req.json()
-  } catch {
-    return problem(c, 400, 'BAD_REQUEST', 'Invalid JSON body')
-  }
-  const parsed = RenameRequestSchema.safeParse(raw)
-  if (!parsed.success) {
-    return problem(c, 400, 'BAD_REQUEST', 'Invalid request body', {
-      issues: parsed.error.issues.map(i => ({ path: i.path.join('.'), message: i.message })),
-    })
-  }
-  const { to: toName, keepAlias } = parsed.data
 
   // Dropping the old name's alias takes it off the site, like archiving
   // without one: it needs the delete capability, and refuses while other
   // items still use it unless `?force=true`, as the archive route does.
-  const force = c.req.query('force') === 'true'
   if (!keepAlias) {
     const denied = await denyWithoutCapability(c, handle.scopeKind === 'page' ? 'delete:pages' : 'delete:fragments')
-    if (denied) return denied
+    // A 401 or 403 problem (`denyWithoutCapability`).
+    if (denied) return denied as ProblemResponse<401 | 403>
   }
 
   // No-op rename — return 200 quietly so callers can retry without
@@ -159,7 +198,7 @@ async function handleRename(c: Context<AuditEnv>, resolve: SourceContextResolver
       flattenedAliases: [],
       localeVariants: [],
     }
-    return c.json(response)
+    return c.json(response, 200)
   }
 
   // Look up the source manifest.
@@ -254,7 +293,7 @@ async function handleRename(c: Context<AuditEnv>, resolve: SourceContextResolver
       flattenedAliases: flattened,
       localeVariants,
     }
-    return c.json(response)
+    return c.json(response, 200)
   } catch (err) {
     // Q9 I1: surface partial state. Each step is internally
     // idempotent — retrying the rename re-runs uncompleted steps.
