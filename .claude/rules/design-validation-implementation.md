@@ -83,7 +83,7 @@ Per [team-preferences.md rule 17](team-preferences.md): "Build and validate, don
 - New admin API: `GET /api/validation/issues` returns current `Issue[]` across the site
 - SSE event: `validation-issues-updated` — pushes new issue counts when the scanner finishes a pass
 - Three new validators (background-only):
-  - `schema-conformance` (full Zod parse against existing content; surfaces `warn` for content that bypassed the form)
+  - `schema-conformance` (full Zod parse against existing content; surfaces `warn` for content that bypassed the form). Since `design-agent-access.md` Q49 it also runs at save-delta, as an error for the components a save touches.
   - `orphaned-locale-file`
   - `unused-fragment`
 - Pinia store (`apps/admin/src/client/stores/validation.ts`) holds current issues

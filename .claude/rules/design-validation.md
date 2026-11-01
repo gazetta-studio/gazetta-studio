@@ -132,7 +132,7 @@ export interface Issue {
 
 ### What stages look like in practice
 
-- **save-delta**: PUT /api/pages/:name diffs incoming vs. existing manifest. Validators run only against the introduced refs (new `_asset`, new `@fragment`, new component template). 409 with `Issue[]` body if any error-severity issues; 200 otherwise. Fast.
+- **save-delta**: PUT /api/pages/:name diffs incoming vs. existing manifest. Validators run only against the introduced refs (new `_asset`, new `@fragment`, new component template), plus a schema check of each component the save touches (`design-agent-access.md` Q49). 409 with `Issue[]` body if any error-severity issues; 200 otherwise. Fast.
 
 - **background**: Admin server runs a long-lived scanner. Initial scan on admin boot. Incremental rescan when file watcher detects manifest/template/asset changes. Per-page validation run cached by content hash; only re-runs when something material changed. Issues stored in a Pinia store, surfaced in the UI.
 
@@ -168,7 +168,7 @@ Decided: maintainer, 2026-10-24 (#1295)
 |---|---|
 | Make it opt-in in code, as these docs said before | Sites that don't opt in would get no broken-link warnings, and #1294's fix brings the cost to about 3 ms a page |
 
-**Why save-delta has so few entries:** the save handler should be fast and narrow. Reference-existence checks run; everything else is the background scanner's job.
+**Why save-delta has so few entries:** the save handler should be fast and narrow. Reference-existence checks run, and the schema check of the components a save touches (`design-agent-access.md` Q49); everything else is the background scanner's job.
 
 **Why some validators have `—` at save-delta:** they need full-site context (orphaned-locale-file) or rendered output (a11y, html-validity) — neither of which is available cheaply at save.
 
@@ -353,7 +353,7 @@ Validation is itself foundational dimension #9 of 13. This section answers how e
 
 - **Multi-instance check** (discipline) — save-delta runs on the instance receiving the save request; no cross-instance coordination. Background scanner (Cut 2) per-page cache is per-admin-instance (each instance scans + caches independently); the multi-instance pattern is "every instance reads source-of-truth from storage on demand, caches results in-process, no cross-instance cache sharing." Per-page content-hash cache key ensures different instances arrive at the same cached result without coordination. Suppression state (when shipped) lives in storage, not in-memory.
 
-- **Scale check** — save-delta is O(diff) per save; only checks refs introduced by THIS save, not the full site. Background scanner (Cut 2) caches per-page validation results by content hash; only re-validates when something material changed. Cut 4's broken-links check runs for every page in the background scan and on every Publish from the admin. It fetches no URLs: it matches internal links against the loaded site's routes ([#1294](https://github.com/gazetta-studio/gazetta-studio/issues/1294) tracks a per-link cost that grows with site size). Decided: maintainer, 2026-10-24 (#1295). The framework scales because phase-separation matches detection cost to author commitment level. Gates: Cut 2 must reuse the existing sidecar dependency tracking (`findDependentsFromSidecars`) so a fragment edit only invalidates pages that use that fragment.
+- **Scale check** — save-delta is O(diff) per save; only checks refs introduced by THIS save and the schema of the components it touches, not the full site. Background scanner (Cut 2) caches per-page validation results by content hash; only re-validates when something material changed. Cut 4's broken-links check runs for every page in the background scan and on every Publish from the admin. It fetches no URLs: it matches internal links against the loaded site's routes ([#1294](https://github.com/gazetta-studio/gazetta-studio/issues/1294) tracks a per-link cost that grows with site size). Decided: maintainer, 2026-10-24 (#1295). The framework scales because phase-separation matches detection cost to author commitment level. Gates: Cut 2 must reuse the existing sidecar dependency tracking (`findDependentsFromSidecars`) so a fragment edit only invalidates pages that use that fragment.
 
 - **Theme check** — validation runs against rendered output for quality validators (Cut 3 axe-core, html-validate). Render-for-analysis composes with the active theme: when themes ship per [`design-themes.md`](design-themes.md), render-for-analysis renders per-(content, locale, theme) tuple, and validators see theme-specific output. Cache key includes theme. v1 (single-theme world): no impact.
 
