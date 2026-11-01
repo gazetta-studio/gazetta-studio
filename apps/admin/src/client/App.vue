@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { CircleAlert, CircleCheck, Info, X } from '@lucide/vue'
-import { onMounted, watch } from 'vue'
+import { computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useSiteStore } from './stores/site.js'
 import { useThemeStore } from './stores/theme.js'
 import { useToastStore } from './stores/toast.js'
@@ -27,6 +28,10 @@ const activeTarget = useActiveTargetStore()
 const syncStatus = useSyncStatusStore()
 const validationScanner = useValidationScannerStore()
 const templateImpact = useTemplateImpactStore()
+
+// Standalone routes (the CLI sign-in page) render without the editor shell.
+const route = useRoute()
+const standalone = computed(() => route.meta.standalone === true)
 
 // Apply workspace-wide chrome when the active target is an editable
 // production target. Kept out of App.vue's inline setup so the rule has
@@ -92,7 +97,8 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="cms-app">
+  <router-view v-if="standalone" />
+  <div v-else class="cms-app">
     <Toolbar />
     <OfflineBanner />
     <StorageQuotaBanner />

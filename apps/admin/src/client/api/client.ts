@@ -114,12 +114,12 @@ export class ApiError extends Error {
 }
 
 /** Read a problem body; a body that isn't JSON falls back to the status text. */
-async function readProblem(res: Response): Promise<Record<string, unknown>> {
+export async function readProblem(res: Response): Promise<Record<string, unknown>> {
   const body = await res.json().catch(() => null)
   return body && typeof body === 'object' ? (body as Record<string, unknown>) : { detail: res.statusText }
 }
 
-function apiError(res: Response, body: Record<string, unknown>, fallback: string): ApiError {
+export function apiError(res: Response, body: Record<string, unknown>, fallback: string): ApiError {
   const detail = typeof body.detail === 'string' && body.detail ? body.detail : `${fallback}: ${res.status}`
   return new ApiError(detail, res.status, typeof body.code === 'string' ? body.code : undefined)
 }

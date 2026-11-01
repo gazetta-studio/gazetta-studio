@@ -1,6 +1,7 @@
 import { createRouter as createVueRouter, createWebHistory } from 'vue-router'
 import EditorView from './components/EditorView.vue'
 import DevPlayground from './components/DevPlayground.vue'
+import CliLoginView from './components/CliLoginView.vue'
 import { useSiteStore } from './stores/site.js'
 import { useSelectionStore } from './stores/selection.js'
 import { useEditingStore } from './stores/editing.js'
@@ -22,6 +23,8 @@ export function createRouter() {
       { path: '/dev', component: DevPlayground, name: 'dev' },
       { path: '/dev/editor/:editor', component: DevPlayground, name: 'dev-editor' },
       { path: '/dev/field/:field', component: DevPlayground, name: 'dev-field' },
+      // A standalone page, outside the editor (App.vue renders it alone).
+      { path: '/cli-login/:code', component: CliLoginView, name: 'cli-login', meta: { standalone: true } },
       { path: '/:pathMatch(.*)*', redirect: '/' },
     ],
   })
@@ -65,6 +68,8 @@ export function createRouter() {
   router.replace = ((to: any) => _replace(withPersistentQuery(to))) as typeof router.replace
 
   router.beforeEach(async (to, from) => {
+    // Standalone pages need no site, target or locale.
+    if (to.meta.standalone) return
     const site = useSiteStore()
     await site.ensureLoaded()
 
