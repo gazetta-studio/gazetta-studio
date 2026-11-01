@@ -659,7 +659,7 @@ Decided: maintainer, 2026-11-01 (#1654)
 
 ### Q44 — The OpenAPI document comes from `@hono/zod-openapi`
 
-`@hono/zod-openapi` (1.6.3 on 2026-11-01, MIT, maintained by the Hono team, supports Zod 4): each route's schema and handler sit together, so the document can't drift, and routes move over one at a time. Its docs show OpenAPI 3.0; 3.1 support is unconfirmed.
+`@hono/zod-openapi` (1.6.3 as of 2026-11-01, MIT, maintained by the Hono team, supports Zod 4): each route's schema and handler sit together, so the document can't drift, and routes move over one at a time. Its docs show OpenAPI 3.0; 3.1 support is unconfirmed.
 
 Decided: maintainer, 2026-11-01 (#1654)
 
@@ -670,7 +670,7 @@ Decided: maintainer, 2026-11-01 (#1654)
 
 ### Q45 — Errors are RFC 9457 problem+json everywhere, now
 
-Every route answers errors as `application/problem+json` (RFC 9457), with `code` as an extension member listed in the error-code schema, so `gz` can map codes to its exit codes (Q38). The admin UI's error handling changes in the same pass. Today errors come in three shapes: about 37 sites answer `{ code, message }`, about 62 answer `{ error }` with no code, and two codes in use are missing from the schema (read from code 2026-11-01).
+Every route answers errors as `application/problem+json` (RFC 9457), and the admin UI's error handling changes in the same pass. Follows from Q38 (`gz` shows the API's error codes): each error keeps a `code`, as an extension member listed in the error-code schema. Today errors come in three shapes: about 37 sites answer `{ code, message }`, about 62 answer `{ error }` with no code, and two codes in use are missing from the schema (read from code 2026-11-01).
 
 Decided: maintainer, 2026-11-01 (#1654)
 
@@ -696,4 +696,4 @@ Research: [public API on #49](https://github.com/gazetta-studio/gazetta-studio/i
 Follows from Q1–Q46.
 - ROADMAP's "MCP server design pass" becomes "Agent access design pass" (#49), and "MCP server build" becomes "Agent access build".
 - The skill (#1622) is the first step, in Now; the Deferred row for agent instructions goes.
-- The #49 pass designs: the agent token and elevation flow (Q12–Q30), the remote MCP server's sign-in (Q28), audit source and run id, per-run undo, the schema check at save, page search, the thin CLI's later commands (Q37), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the v1 cut-off (Q5) and the bulk save's item cap (Q46), the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
+- The #49 pass designs: the agent token and elevation flow (Q12–Q30), the remote MCP server's sign-in (Q28), audit source and run id, per-run undo, the schema check at save, page search, the thin CLI's later commands (Q37), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract (routes, the full error-code list, moving routes to OpenAPI with schema parsing), the v1 cut-off (Q5), the bulk save's item cap and how history retention keeps a run's revisions together (Q46), the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
