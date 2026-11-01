@@ -2,7 +2,7 @@
 
 How AI agents (coding agents, scripts, chat apps) reach Gazetta's content: in what order the ways in ship, how they write, what stops them publishing, and how they learn about changes. This sets the direction for the design pass in [#49](https://github.com/gazetta-studio/gazetta-studio/issues/49), which now covers agent access as a whole, MCP included; each piece below gets its details there.
 
-**Status**: direction decided 2026-10-31, Q1–Q11; agent identity decided 2026-11-01, Q12–Q30; presets Q31. The #49 design pass designs the details.
+**Status**: direction decided 2026-10-31, Q1–Q11; agent identity decided 2026-11-01, Q12–Q30; presets Q31; the skill's never-run list and updates Q32–Q33. The #49 design pass designs the details.
 
 **Companion docs:**
 - [`design-ai-direction.md`](design-ai-direction.md): agents lead Gazetta's AI work; they can't publish by default (they act as the person who signed them in, Q12); the live view of agents' changes (Q8)
@@ -452,7 +452,7 @@ Research: [follow-up on #1624](https://github.com/gazetta-studio/gazetta-studio/
 
 ### Q31 — No permission presets; the skill says what an agent must never run
 
-`gazetta init` writes no agent-client permission presets (no deny rules in `.claude/settings.json`, `.codex/rules` or other client files). The skill and the `AGENTS.md` section list the commands and admin routes an agent must never use, such as publishing and archive purge (Q3), and tell it to ask the person instead; the full list is designed with the skill (#1622). The skill declares no tool permissions: the Agent Skills standard can't deny anything (`allowed-tools` only pre-approves, and is experimental). So locally, and on Tailscale and with `cloudflared access login` (Q14), only the agent's own judgement and the person's own client settings stop an agent from publishing; the docs say so. This reverses the presets in Q3.
+`gazetta init` writes no agent-client permission presets (no deny rules in `.claude/settings.json`, `.codex/rules` or other client files). The skill and the `AGENTS.md` section list the commands and admin routes an agent must never use, such as publishing and archive purge (Q3), and tell it to ask the person instead; the full list is Q32. The skill declares no tool permissions: the Agent Skills standard can't deny anything (`allowed-tools` only pre-approves, and is experimental). So locally, and on Tailscale and with `cloudflared access login` (Q14), only the agent's own judgement and the person's own client settings stop an agent from publishing; the docs say so. This reverses the presets in Q3.
 
 Decided: maintainer, 2026-11-01 (#1648)
 
@@ -462,7 +462,7 @@ Decided: maintainer, 2026-11-01 (#1648)
 | Also Cursor | Same; its command matching isn't confirmed either |
 | Pre-approve safe commands with `allowed-tools` | Experimental and per client |
 
-When `gazetta init .` finds existing agent files, it never overwrites them: it skips `SKILL.md` if present and appends a marked Gazetta section to `AGENTS.md` only if missing. How existing projects get updated skills is left to the #49 pass.
+When `gazetta init .` finds existing agent files, it never overwrites them: it skips `SKILL.md` if present and appends a marked Gazetta section to `AGENTS.md` only if missing. Existing projects get updated skills through Q33's command.
 
 Decided: maintainer, 2026-11-01 (#1648)
 
@@ -472,9 +472,30 @@ Decided: maintainer, 2026-11-01 (#1648)
 
 Research: [presets on #49](https://github.com/gazetta-studio/gazetta-studio/issues/49#issuecomment-6557871960) (what each client can deny, the commands and routes to list, what others ship).
 
+### Q32 — The never-run list covers everything that changes a target
+
+The skill's "never run, ask the person" list: `gazetta publish`, `deploy`, `undo`, `rollback`, `archive purge` and `state remove`; `gz` publish, delete, elevate and approving requests; and the admin routes behind them (`/api/publish`, `/api/publish/stream`, `/api/fetch`, `/api/history/undo` and `/api/history/restore`, page and fragment purge). A test fails when a new command that changes a target isn't on the list, or when the list names one that doesn't exist.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| Publishing and deleting only | An agent could undo a publish or wipe a target's history without asking |
+
+### Q33 — A command refreshes the skill in an existing project
+
+A command (named in the #49 pass, for example `gazetta agents update`) rewrites the files Gazetta owns: `SKILL.md` and the marked `AGENTS.md` section, never the person's other text. `gazetta dev` prints a one-line hint when the installed skill is older than the package.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| A short `SKILL.md` that points the agent to the full skill in `node_modules/gazetta` | Agents that don't follow the pointer get only the stub |
+| Manual: delete `SKILL.md` and rerun `gazetta init .` | Easy to miss after an upgrade |
+
 ## What this changes in the plan
 
-Follows from Q1–Q31.
+Follows from Q1–Q33.
 - ROADMAP's "MCP server design pass" becomes "Agent access design pass" (#49), and "MCP server build" becomes "Agent access build".
 - The skill (#1622) is the first step, in Now; the Deferred row for agent instructions goes.
-- The #49 pass designs: the agent token and elevation flow (Q12–Q30), the remote MCP server's sign-in (Q28), how existing projects get updated skills, audit source and run id, per-run undo, the schema check at save, page search, the thin CLI for content creators (name, discovery of a local admin, commands, output for people and agents, how its users' agents get the skill, release and distribution), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract, its versioning and v1 cut-off, the bulk save, the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
+- The #49 pass designs: the agent token and elevation flow (Q12–Q30), the remote MCP server's sign-in (Q28), the skill refresh command's name (Q33), audit source and run id, per-run undo, the schema check at save, page search, the thin CLI for content creators (name, discovery of a local admin, commands, output for people and agents, how its users' agents get the skill, release and distribution), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract, its versioning and v1 cut-off, the bulk save, the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
