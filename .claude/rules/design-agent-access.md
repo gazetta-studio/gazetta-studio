@@ -544,7 +544,7 @@ The `CLAUDE.md` import line and the trade-off: Decided: maintainer, 2026-11-01 (
 
 ### Q35 — The Go CLI is `gz`, published as `@gazetta/cli`
 
-The binary is `gz`. It's published on npm as `@gazetta/cli` (the `@gazetta` scope is claimed now) and on Homebrew as `gazetta/tap/gz`, and a `gazetta-cli` copy of the binary ships for people who have Gazebo's robotics CLI, which is also called `gz` (in Debian and Ubuntu). The docs mention the clash.
+The binary is `gz`. It's published on npm as `@gazetta/cli` (the `@gazetta` npm scope is to be claimed now; it isn't yet) and on Homebrew as `gazetta/tap/gz`, and a `gazetta-cli` copy of the binary ships for people who have Gazebo's robotics CLI, which is also called `gz` (in Debian and Ubuntu). The docs mention the clash.
 
 Decided: maintainer, 2026-11-01 (#1652)
 
@@ -604,7 +604,7 @@ Decided: maintainer, 2026-11-01 (#1652)
 
 | Rejected | Why |
 |---|---|
-| Served by the admin (`GET /api/agent-skill`), so it could include the site's own templates | Needs the admin reachable, and a new route in the public API |
+| Served by the admin (`GET /api/agent-skill`), so it could include the site's own templates and fields | Needs the admin reachable, and a new route in the public API |
 
 Research: [Go CLI on #49](https://github.com/gazetta-studio/gazetta-studio/issues/49#issuecomment-6558349884) (the name clash, how other CLIs find servers, commands, output and distribution).
 
@@ -613,4 +613,4 @@ Research: [Go CLI on #49](https://github.com/gazetta-studio/gazetta-studio/issue
 Follows from Q1–Q40.
 - ROADMAP's "MCP server design pass" becomes "Agent access design pass" (#49), and "MCP server build" becomes "Agent access build".
 - The skill (#1622) is the first step, in Now; the Deferred row for agent instructions goes.
-- The #49 pass designs: the agent token and elevation flow (Q12–Q30), the remote MCP server's sign-in (Q28), the skill refresh command's name (Q33), audit source and run id, per-run undo, the schema check at save, page search, the thin CLI's later commands (Q37), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract, its versioning and v1 cut-off, the bulk save, the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
+- The #49 pass designs: the agent token and elevation flow (Q12–Q30), the remote MCP server's sign-in (Q28), the skill refresh command's name (Q33), audit source and run id, per-run undo, the schema check at save, page search, the thin CLI's later commands (Q37), how `gz` users' agents learn to install and refresh the skill (Q40), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract, its versioning and v1 cut-off, the bulk save, the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
