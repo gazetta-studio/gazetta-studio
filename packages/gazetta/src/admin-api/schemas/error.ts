@@ -78,7 +78,9 @@ export const ErrorCodeSchema = z.enum([
   'CONFLICT',
   'DELETE_BLOCKED',
   'EDIT_LOCKED',
+  'ELEVATION_REQUIRED',
   'FORBIDDEN',
+  'GRANT_EXPIRED',
   'GRANT_INVALID',
   'HOOK_CANCELLED',
   'INTERNAL',
@@ -102,6 +104,7 @@ export const ErrorCodeSchema = z.enum([
   'TEMPLATE_INVALID',
   'TOKEN_EDIT_ONLY',
   'TOKEN_INVALID',
+  'TOKEN_REQUIRED',
   'UNAUTHENTICATED',
   'VALIDATION_FAILED',
 ])

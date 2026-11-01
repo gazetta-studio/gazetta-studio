@@ -13,7 +13,7 @@ import { scanTemplates } from '../templates-scan.js'
 import { memoizeAsync } from '../concurrency.js'
 import { createTargetRegistryView } from '../targets.js'
 import { createHistoryProvider } from '../history-provider.js'
-import { isHistoryEnabled, getHistoryRetention } from '../types.js'
+import { getEnvironment, isHistoryEnabled, getHistoryRetention } from '../types.js'
 import {
   createSourceContext,
   staticSourceResolver,
@@ -24,7 +24,8 @@ import {
 import { authMiddleware } from './middleware/auth.js'
 import { principalMiddleware } from './middleware/principal.js'
 import { auditMiddleware } from './middleware/audit.js'
-import { resolveAuthProviderFromManifest } from '../auth/index.js'
+import { elevationMinutesFromManifest, resolveAuthProviderFromManifest } from '../auth/index.js'
+import { createElevationStore } from '../auth/elevation-store.js'
 import { createTokenAuth } from './token-auth.js'
 import type { TokenAuth } from './middleware/principal.js'
 import { createCliLoginStore } from '../auth/cli-login-store.js'
@@ -378,14 +379,28 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   const authProvider = resolveAuthProviderFromManifest(source.manifest?.admin?.auth)
   // CLI login (design-agent-access.md Q12, Q25): one token setup for
   // every principal middleware on this server.
-  const tokenAuth =
-    opts.tokenAuth ??
-    createTokenAuth({
-      trustMode: authProvider.trustMode,
-      manifest: source.manifest,
-      sourceTarget: source.targetName ? source.manifest?.targets?.[source.targetName] : undefined,
-      sourceStorage: source.storage,
-    })
+  const sourceTarget =
+    (source.targetName ? source.manifest?.targets?.[source.targetName] : undefined) ??
+    Object.values(source.manifest?.targets ?? {}).find(t => t.storage === source.storage)
+  const elevations = createElevationStore(source.storage)
+  const tokenAuth: TokenAuth = {
+    ...(opts.tokenAuth ??
+      createTokenAuth({
+        trustMode: authProvider.trustMode,
+        manifest: source.manifest,
+        sourceTarget,
+        sourceStorage: source.storage,
+      })),
+    elevations,
+    // The target a request acts on: `?target=`, else the editing source.
+    // An elevation's scope follows its environment (Q17).
+    environmentOf: c => {
+      const name = c.req.query('target')
+      const target =
+        (name ? (opts.targetConfigs?.[name] ?? source.manifest?.targets?.[name]) : undefined) ?? sourceTarget
+      return target ? getEnvironment(target) : undefined
+    },
+  }
   const { keys } = tokenAuth
   app.use('/api/*', principalMiddleware(authProvider, tokenAuth))
   // The preview routes are mounted at `/preview/*` (outside `/api/*`)
@@ -515,7 +530,15 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   api.route('/', validationRoutes({ scanner: opts.validationScanner ?? null }))
   api.route('/', healthRoutes())
   api.route('/', meRoutes())
-  api.route('/', authRoutes({ store: createCliLoginStore(source.storage), keys }))
+  api.route(
+    '/',
+    authRoutes({
+      store: createCliLoginStore(source.storage),
+      keys,
+      elevations,
+      elevationMinutes: elevationMinutesFromManifest(source.manifest?.admin?.auth),
+    }),
+  )
   app.route(API_PREFIX, api)
   // Outside the versioned API: preview (Q5) and the version route (Q43).
   app.route('/', previewRoutes(resolveSource, templatesDir))

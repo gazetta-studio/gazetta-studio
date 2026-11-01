@@ -13,9 +13,10 @@ import { resolveAltConfig } from '../../alt/config.js'
 import { inspectTarget } from '../../runtime/runtime-capabilities.js'
 import { scanTemplates, type TemplateInfo } from '../../templates-scan.js'
 import { createContentRoot } from '../../content-root.js'
-import { requireCapability } from '../middleware/capability.js'
-import { problem, problemFrom } from '../problem.js'
+import { denyWithoutCapability, requireCapability } from '../middleware/capability.js'
+import { problem, problemFrom, type ProblemResponse } from '../problem.js'
 import { capabilityGrants, type Principal } from '../../auth/index.js'
+import type { Context } from 'hono'
 import type { AuditEnv } from '../middleware/audit.js'
 import {
   buildHookContext,
@@ -734,40 +735,24 @@ export function publishRoutes(
   // anything is written: one refused target refuses the whole
   // request, so a mixed staging + production publish never writes
   // the staging half (#1191).
-  function productionGateFailure(
-    principal: Principal,
-    targetNames: ReadonlyArray<string | undefined>,
-  ): { code: 'FORBIDDEN'; missing: string[]; role: string; message: string } | null {
+  async function productionGate(c: Context<AuditEnv>, targetNames: ReadonlyArray<string | undefined>) {
     const writesProduction = targetNames.some(name => {
       if (name === undefined) return false
       const config = getTargetConfig(name)
       return config !== undefined && getEnvironment(config) === 'production'
     })
+    // The shared check records the #1192 audit event, and lets a token
+    // publish to production only with a production elevation (Q17).
     if (!writesProduction) return null
-    if (capabilityGrants(principal.capabilities, 'publish:production')) return null
-    return {
-      code: 'FORBIDDEN' as const,
-      missing: ['publish:production'],
-      role: principal.role,
-      message: `Role "${principal.role}" does not have capability "publish:production"`,
-    }
+    // Anonymous callers never get here: requireCapability answered them.
+    return (await denyWithoutCapability(c, 'publish:production')) as ProblemResponse<403> | null
   }
 
   app.openapi(postPublish, async c => {
     const body = c.req.valid('json')
 
-    const productionForbidden = productionGateFailure(c.var.principal, body.targets)
-    if (productionForbidden) {
-      // #1192: record the denied production attempt with the same
-      // event shape requireCapability uses for its 403s.
-      await c.var.audit?.record({
-        action: 'publish',
-        outcome: 'forbidden',
-        scope: { kind: 'site' },
-        metadata: { missingCapabilities: ['publish:production'] },
-      })
-      return problemFrom(c, 403, productionForbidden)
-    }
+    const productionForbidden = await productionGate(c, body.targets)
+    if (productionForbidden) return productionForbidden
 
     // #1196: reject malformed or unknown items before anything reads
     // or writes a path built from them.
@@ -927,18 +912,8 @@ export function publishRoutes(
   app.openapi(postPublishStream, async c => {
     const body = c.req.valid('json')
 
-    const streamProductionForbidden = productionGateFailure(c.var.principal, body.targets)
-    if (streamProductionForbidden) {
-      // #1192: record the denied production attempt with the same
-      // event shape requireCapability uses for its 403s.
-      await c.var.audit?.record({
-        action: 'publish',
-        outcome: 'forbidden',
-        scope: { kind: 'site' },
-        metadata: { missingCapabilities: ['publish:production'] },
-      })
-      return problemFrom(c, 403, streamProductionForbidden)
-    }
+    const streamProductionForbidden = await productionGate(c, body.targets)
+    if (streamProductionForbidden) return streamProductionForbidden
 
     // #1196: reject malformed or unknown items before anything reads
     // or writes a path built from them (synchronous 400, before the
@@ -1130,20 +1105,8 @@ export function publishRoutes(
     // resolves to the registry's default editable target, which can be
     // an editable production target; resolve() only reads, so nothing
     // is written before this check.
-    const fetchProductionForbidden = productionGateFailure(c.var.principal, [
-      destination.targetName ?? body.destination,
-    ])
-    if (fetchProductionForbidden) {
-      // #1192: record the denied production attempt with the same
-      // event shape requireCapability uses for its 403s.
-      await c.var.audit?.record({
-        action: 'publish',
-        outcome: 'forbidden',
-        scope: { kind: 'site' },
-        metadata: { missingCapabilities: ['publish:production'] },
-      })
-      return problemFrom(c, 403, fetchProductionForbidden)
-    }
+    const fetchProductionForbidden = await productionGate(c, [destination.targetName ?? body.destination])
+    if (fetchProductionForbidden) return fetchProductionForbidden
 
     let items: string[]
     if (body.items?.length) {
