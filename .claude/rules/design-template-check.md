@@ -216,7 +216,7 @@ Nothing shows when nothing breaks: the summary says only that the check passed (
 |---|---|---|---|---|
 | 1 | `gazetta validate` counts `schema-conformance` problems as errors, so it fails on them; changelog line (T7) | #1665 | integration | Low |
 | 2 | `--json` and the GitHub output mode: job summary and annotations, grouped by template (T4, T6) | 1, #1667 | integration | Medium |
-| 3 | `--base <ref>`: base templates loaded from a git worktree; fail only on new problems, list old ones (T2) | 2 | integration | Medium-high |
+| 3 | `--base <ref>`: base templates loaded from a git worktree, with the template cache (keyed by template name today, `template-loader.ts`) kept apart for base and head; fail only on new problems, list old ones, including the config and project-structure checks `gazetta validate` runs outside the validators (T2) | 2 | integration | Medium-high |
 | 4 | `--targets`: read named targets' manifests; fail on public or unreadable ones; the fix line for target content (T5, T9–T11) | 3 | integration | Medium |
 | 5 | `--render`: render content using a changed template, fail on a throw (T8) | 3 | integration | Medium |
 | 6 | Docs: the workflow snippet, in `docs/cli.md` and `docs/templates.md` | 4, 5 | docs | Low |
