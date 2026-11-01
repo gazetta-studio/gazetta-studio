@@ -30,7 +30,10 @@ const admin = { 'X-Forwarded-User': 'alice', 'X-Forwarded-Groups': 'admins' }
 const editor = { 'X-Forwarded-User': 'bob' }
 
 function appOn() {
-  const storage = memoryStorage()
+  return appWithStorage(memoryStorage())
+}
+
+function appWithStorage(storage: ReturnType<typeof memoryStorage>) {
   const page = (title: string) => JSON.stringify({ template: 'page-default', content: { title } })
   storage.seed({
     'pages/home/page.json': page('Home'),
@@ -126,6 +129,27 @@ describe('a token whose person may not delete', () => {
     const rename = await app.request('/api/v1/pages/old/rename', post({ to: 'new', keepAlias: false }, token))
     expect(rename.status).toBe(403)
     expect(await problemCode(rename)).not.toBe('ELEVATION_REQUIRED')
+  })
+})
+
+describe('a refused archive', () => {
+  it('is audited as an archive refused for lack of archive:pages', async () => {
+    const storage = memoryStorage()
+    const app = appWithStorage(storage)
+    expect((await app.request('/api/v1/pages/home/archive', post({}, editor))).status).toBe(403)
+    const events = [...storage.dump()]
+      .filter(([k]) => k.startsWith('.gazetta/audit/'))
+      .flatMap(([, v]) => Buffer.from(v).toString().split('\n').filter(Boolean))
+      .map(
+        line => JSON.parse(line) as { action: string; outcome: string; metadata?: { missingCapabilities?: string[] } },
+      )
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        action: 'archive',
+        outcome: 'forbidden',
+        metadata: expect.objectContaining({ missingCapabilities: ['archive:pages'] }),
+      }),
+    )
   })
 })
 
