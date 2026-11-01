@@ -712,6 +712,14 @@ Decided: maintainer, 2026-11-01 (#1656)
 | Undo the run's revisions as a block, refused if anyone saved after it | Often refused on a busy site |
 | Three-way merge per item | The most code, and merge conflicts to show |
 
+An item whose pre-run version fails the save (Q49's schema check after a template change, or a `beforeSave` hook) is skipped and listed with the reason, like a changed item; the others revert. The result lists reverted items, items skipped because they changed, and items skipped because the save failed.
+
+Decided: maintainer, 2026-11-01 (#1656)
+
+| Rejected | Why |
+|---|---|
+| All or nothing: check every item first and revert nothing if any would fail | One broken item would block undoing the rest |
+
 ### Q49 — Save rejects the schema problems it introduces, for a whole touched component
 
 For every caller, a save is refused (with field paths) when it introduces schema errors; a component the save touches must fully pass its template's schema. Content made invalid by a later template change still saves when an unrelated component is edited, and stays a background warning and a pre-publish error (the save-delta model, `design-validation.md`). Today nothing checks content against the template's schema at save.
