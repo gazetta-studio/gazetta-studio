@@ -2,7 +2,7 @@
 
 How AI agents (coding agents, scripts, chat apps) reach Gazetta's content: in what order the ways in ship, how they write, what stops them publishing, and how they learn about changes. This sets the direction for the design pass in [#49](https://github.com/gazetta-studio/gazetta-studio/issues/49), which now covers agent access as a whole, MCP included; each piece below gets its details there.
 
-**Status**: direction decided 2026-10-31, Q1–Q11; agent identity decided 2026-11-01, Q12–Q30; presets Q31; the skill's never-run list, updates and install Q32–Q34. The #49 design pass designs the details.
+**Status**: direction decided 2026-10-31, Q1–Q11; agent identity decided 2026-11-01, Q12–Q30; presets Q31; the skill's never-run list, updates and install Q32–Q34; the Go CLI Q35–Q40. The #49 design pass designs the details.
 
 **Companion docs:**
 - [`design-ai-direction.md`](design-ai-direction.md): agents lead Gazetta's AI work; they can't publish by default (they act as the person who signed them in, Q12); the live view of agents' changes (Q8)
@@ -180,7 +180,7 @@ Decided: maintainer, 2026-10-31 (#1623)
 | Rust | Slower builds, and cross-compiling needs more setup per target; its gains matter less for a thin HTTP client |
 | TypeScript compiled to one binary (Bun or Deno compile, Node SEA) | Binaries of 50–100 MB with a JS runtime inside each |
 
-The skill (npm) and the commands it names (the Go binary) are two releases kept in step: Q4's reason for rejecting a separate skills repo partly applies to the chosen design too. The npm package's drift test needs the binary, and the #49 pass picks how users install it (per-platform npm packages, like esbuild and Biome, or an installer).
+The skill (npm) and the commands it names (the Go binary) are two releases kept in step: Q4's reason for rejecting a separate skills repo partly applies to the chosen design too. The npm package's drift test needs the binary, and the #49 pass picks how users install it (per-platform npm packages, like esbuild and Biome, or an installer). Resolved by Q39.
 
 Decided: maintainer, 2026-10-31 (#1623)
 
@@ -202,7 +202,7 @@ The thin Go CLI (Q2, Q8) serves people who don't develop templates (content crea
 
 Decided: maintainer, 2026-10-31 (#1623)
 
-Open for the #49 pass (product owner's note): content creators won't have the `gazetta` npm package, so their agents need another way to get the content part of the skill (Q4), for example from the Go CLI.
+Open for the #49 pass (product owner's note): content creators won't have the `gazetta` npm package, so their agents need another way to get the content part of the skill (Q4), for example from the Go CLI. Resolved by Q40: the skill is embedded in `gz`.
 
 ### Q10 — Both CLIs are built for people and for agents
 
@@ -542,9 +542,75 @@ The `CLAUDE.md` import line and the trade-off: Decided: maintainer, 2026-11-01 (
 | Accept that Claude Code projects with a `CLAUDE.md` get no skill | The maintainer chose the import line |
 | Go back to copies in both folders | The maintainer kept Q34 and recorded the trade-off |
 
+### Q35 — The Go CLI is `gz`, published as `@gazetta/cli`
+
+The binary is `gz`. It's published on npm as `@gazetta/cli` (the `@gazetta` scope is claimed now) and on Homebrew as `gazetta/tap/gz`, and a `gazetta-cli` copy of the binary ships for people who have Gazebo's robotics CLI, which is also called `gz` (in Debian and Ubuntu). The docs mention the clash.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| `gzt` | Free everywhere checked, but less obvious than `gz` |
+| `gazetta-cli` as the only name | Long to type for a tool people and agents run constantly |
+
+### Q36 — `gz` finds an admin through login profiles
+
+`gz auth login <url> [--name]` saves a profile per admin URL, as `gh` does for hosts; the first login becomes the default, and `--admin` or `GZ_ADMIN` picks another. With nothing set up, `gz` checks `localhost:3000` and only suggests `gz auth login http://localhost:3000`; it never connects silently.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| Profiles plus a discovery file that `gazetta dev` writes with its port | A new file that can go stale; content creators mostly use hosted admins |
+| Always an explicit URL (`--admin` or `GZ_ADMIN` on every command) | Tedious for people |
+
+### Q37 — The first version edits, checks and publishes
+
+`gz` v1: `pages` and `fragments` `list`, `get`, `set` (`path=value`, `@file` or JSON), `edit` (stdin, or `$EDITOR` for people) and `create`; `templates schema`; `validate`; `preview` (prints the URL, Q11); `status` (unpublished changes); `publish`; `assets` `list`, `upload` and `alt`; `auth` and `elevate`; `skill` (Q40). Later: archive, rename, history, undo and rollback, redirects, bulk apply.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| Read and edit only; publishing stays in the admin | Agents couldn't publish even with an elevation |
+| Everything the admin does | A much larger first release |
+
+### Q38 — Readable output, `--json` on request, fixed exit codes
+
+Readable output by default; `--json` on request, with the admin API's error codes. Exit codes: 0 ok, 1 failure, 2 usage, 3 login or elevation needed, 4 conflict (edited by someone else), 5 not found. `gz` never prompts when it isn't run in a terminal, and every prompt has a flag.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| JSON by default, `--human` for people | People would get raw JSON |
+
+### Q39 — Released from one tag to GitHub, Homebrew, an install script and npm
+
+One tag runs goreleaser: binaries on GitHub Releases, the Homebrew tap, an install script (curl and PowerShell) that's enough for content creators without Node, and per-platform npm packages like esbuild's, for developers and the skill's drift test (Q8). `gz` uses the same version number as the `gazetta` package. winget and Scoop come later.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| npm only | Content creators would need Node |
+| GitHub Releases and the install script only | No `brew install` |
+
+### Q40 — The skill is embedded in `gz`
+
+Content creators have no `node_modules`, so the skill ships inside the binary: `gz skill` prints it and `gz skill install <dir>` writes it where the agent's client reads skills. It works offline and always matches the `gz` version; the agent installs it, as in Q34.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| Served by the admin (`GET /api/agent-skill`), so it could include the site's own templates | Needs the admin reachable, and a new route in the public API |
+
+Research: [Go CLI on #49](https://github.com/gazetta-studio/gazetta-studio/issues/49#issuecomment-6558349884) (the name clash, how other CLIs find servers, commands, output and distribution).
+
 ## What this changes in the plan
 
-Follows from Q1–Q34.
+Follows from Q1–Q40.
 - ROADMAP's "MCP server design pass" becomes "Agent access design pass" (#49), and "MCP server build" becomes "Agent access build".
 - The skill (#1622) is the first step, in Now; the Deferred row for agent instructions goes.
-- The #49 pass designs: the agent token and elevation flow (Q12–Q30), the remote MCP server's sign-in (Q28), the skill refresh command's name (Q33), audit source and run id, per-run undo, the schema check at save, page search, the thin CLI for content creators (name, discovery of a local admin, commands, output for people and agents, how its users' agents get the skill, release and distribution), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract, its versioning and v1 cut-off, the bulk save, the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
+- The #49 pass designs: the agent token and elevation flow (Q12–Q30), the remote MCP server's sign-in (Q28), the skill refresh command's name (Q33), audit source and run id, per-run undo, the schema check at save, page search, the thin CLI's later commands (Q37), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract, its versioning and v1 cut-off, the bulk save, the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
