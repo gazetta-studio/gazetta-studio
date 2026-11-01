@@ -90,7 +90,10 @@ describe('gazetta validate (CLI) — site-config validators', () => {
     rmSync(copyDir, { recursive: true, force: true })
   })
 
-  it('reports public-storage errors and the assumed-public info line, and exits 1', { timeout: 30_000 }, () => {
+  // validate tries to read the Azure target's storage for leftover state, and
+  // with no Azurite listening the client retries for ~17s locally, past 30s on
+  // CI runners. Lower this again once validate stops doing that (#1577).
+  it('reports public-storage errors and the assumed-public info line, and exits 1', { timeout: 90_000 }, () => {
     cpSync(starterDir, copyDir, { recursive: true, filter: src => !src.includes('node_modules') })
     const configPath = join(copyDir, 'sites/main/site.config.ts')
     // Added after `local`, which must stay the first editable target (the source).
