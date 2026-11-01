@@ -105,10 +105,13 @@ Permanently delete an archived item. Purging an item that is not archived return
 - Other archives have `aliasOf: <target>` (alias-pointers)
 - Live pages/fragments reference `<target>` directly
 
-Returns `409 DELETE_BLOCKED` with structured body listing both blockers:
+Returns `409 DELETE_BLOCKED` as `application/problem+json`, like every admin-API error, with both blockers listed:
 
 ```jsonc
 {
+  "type": "about:blank",
+  "title": "Conflict",
+  "status": 409,
   "code": "DELETE_BLOCKED",
   "aliases": ["old-name-1", "old-name-2"],
   "liveRefs": [
