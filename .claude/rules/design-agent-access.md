@@ -2,10 +2,10 @@
 
 How AI agents (coding agents, scripts, chat apps) reach Gazetta's content: in what order the ways in ship, how they write, what stops them publishing, and how they learn about changes. This sets the direction for the design pass in [#49](https://github.com/gazetta-studio/gazetta-studio/issues/49), which now covers agent access as a whole, MCP included; each piece below gets its details there.
 
-**Status**: direction decided 2026-10-31, Q1–Q11. The #49 design pass designs the details.
+**Status**: direction decided 2026-10-31, Q1–Q11; agent identity decided 2026-11-01, Q12–Q13. The #49 design pass designs the details.
 
 **Companion docs:**
-- [`design-ai-direction.md`](design-ai-direction.md): agents lead Gazetta's AI work; they act as their own principal and can't publish by default; the live view of agents' changes (Q8)
+- [`design-ai-direction.md`](design-ai-direction.md): agents lead Gazetta's AI work; they can't publish by default (they act as the person who signed them in, Q12); the live view of agents' changes (Q8)
 - [`ROADMAP.md`](../../ROADMAP.md): the agent access design pass (Now) and build (Next)
 - Research on #49: the agent-integration discovery (2026-10-31), the MCP refresh (2026-10-24), the live-view discovery (2026-10-31)
 
@@ -36,7 +36,7 @@ Decided: maintainer, 2026-10-31 (#1623)
 
 ### Q2 — A separate thin CLI that only calls the admin API
 
-The thin CLI is a separate, small client that calls a Gazetta admin's API, local (`gazetta dev`) or remote, so the admin is always the writer: saves go through its save path, and the agent's own identity is enforced on an admin that authenticates callers (not `trust: 'none'`, the local default; see Q3).
+The thin CLI is a separate, small client that calls a Gazetta admin's API, local (`gazetta dev`) or remote, so the admin is always the writer: saves go through its save path, and the caller's identity is enforced on an admin that authenticates callers (not `trust: 'none'`, the local default; see Q3).
 
 Decided: maintainer, 2026-10-31 (#1623)
 
@@ -55,7 +55,7 @@ Decided: maintainer, 2026-10-31 (#1623)
 |---|---|
 | Leave the wording as written | A multi-instance claim the cache design contradicts |
 
-The thin CLI has a publish command too, through the API: on a target that needs approval it creates a publish request, where `gazetta publish` refuses. Two commands named publish with different behaviour depart from team rule 7 (one word per concept); the maintainer chose to keep both and record the difference. With it, an agent with publish rights on a hosted admin can publish or request a publish through the same client.
+The thin CLI has a publish command too, through the API: on a target that needs approval it creates a publish request, where `gazetta publish` refuses. Two commands named publish with different behaviour depart from team rule 7 (one word per concept); the maintainer chose to keep both and record the difference. With it, an agent with publish rights on a hosted admin can publish or request a publish through the same client. Follows from Q12: an agent's token publishes only while its person has elevated; otherwise the command creates a publish request the person confirms in the admin.
 
 Decided: maintainer, 2026-10-31 (#1623)
 
@@ -72,7 +72,7 @@ Decided: maintainer, 2026-10-31 (#1623)
 | Name the fork now; the #49 pass decides | The maintainer asked for a separate discovery first |
 | Upstream identity only, decided now | The maintainer asked for a separate discovery first |
 
-The #49 pass then designs agent principals from that discovery's outcome (product owner's sequencing).
+The discovery's outcome is Q12–Q13.
 
 ### Q3 — "Can't publish" is enforced on hosted admins; locally, presets and a plain statement
 
@@ -216,9 +216,43 @@ Decided: maintainer, 2026-10-31 (#1623)
 
 Open for the #49 pass (product owner's note): which URLs (the preview of a page just edited, the page on a target after publish) and, on a hosted admin, how an agent opens preview URLs that sit behind authentication with its own identity (#1624). The maintainer's ideas for that discovery, not decisions (posted on #1624): "to authenticate, user can do that from ui, or we can think of other ways if needed"; "maybe a pincode"; "or gz auth login" (`gz` as a candidate name for the Go CLI).
 
+### Q12 — An agent uses its person's identity; publishing needs an elevation
+
+An agent signs in as the person using it; there is no separate agent identity. Any token used outside the browser (the Go CLI, the API, MCP) can edit at most. Publishing or deleting through such a token needs a short elevation the person approves in the admin (for example `gz elevate`, showing a pin to confirm there). Without an elevation, a CLI publish becomes a publish request the person confirms in the admin. Each save records the way it came in (browser or CLI token) and a run id, so an agent's run can be reviewed and undone. Logging in uses the same pin flow (`gz auth login`).
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| The agent uses the person's credentials unchanged | The agent could publish and delete, reopening Q3 and `design-ai-direction.md` Q6, and the audit log couldn't tell its saves from the person's |
+| Two identities per person (`alice` and `alice-agent` in the login layer) | A second account per person on every platform; Cloudflare service tokens are refused today |
+| The agent as its own principal (`agent:<name>` with an owner) | More to build: an owner link and a new role, for the same "can't publish" guarantee |
+
+This replaces the "own principal" part of `design-ai-direction.md` Q6 and of ROADMAP's starting decision for this pass; "can't publish by default" stays.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| Keep agents as their own principal and add elevation for them | More to build; the audit would name the agent directly, but the maintainer chose one identity |
+
+### Q13 — The login layer authenticates; Gazetta identifies the user and issues its own token
+
+On a hosted admin, the platform's login layer (Cloudflare Access, Easy Auth, ALB, Tailscale) authenticates the person; Gazetta identifies the user from it and issues a Gazetta token. Asked how the CLI's requests get past the login layer, the maintainer answered "we use only login layer".
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| Exempt `/api` and the pin pages from the login layer, Gazetta checks the token itself | The maintainer chose to use only the login layer |
+| Both: exempting by default, sending both credentials as an option | Same reason |
+| No Gazetta tokens at all; the CLI sends the platform's credential | The maintainer chose a Gazetta token issued after the login layer identifies the user |
+
+Open, for research on [#1624](https://github.com/gazetta-studio/gazetta-studio/issues/1624) before the #49 pass designs them: how the CLI's requests pass the login layer on each platform (including ALB, which has no headless login); the token's shape and how fast revoking it takes effect; and how long an elevation lasts.
+
 ## What this changes in the plan
 
-Follows from Q1–Q11.
+Follows from Q1–Q13.
 - ROADMAP's "MCP server design pass" becomes "Agent access design pass" (#49), and "MCP server build" becomes "Agent access build".
 - The skill (#1622) is the first step, in Now; the Deferred row for agent instructions goes.
-- The #49 pass designs: agent principals (after the identity discovery, #1624), the agent-client permission presets, audit source and run id, per-run undo, the schema check at save, page search, the thin CLI for content creators (name, discovery of a local admin, commands, output for people and agents, how its users' agents get the skill, release and distribution), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract, its versioning and v1 cut-off, the bulk save, the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
+- The #49 pass designs: the agent token and elevation flow (Q12–Q13, after the research on #1624), the agent-client permission presets, audit source and run id, per-run undo, the schema check at save, page search, the thin CLI for content creators (name, discovery of a local admin, commands, output for people and agents, how its users' agents get the skill, release and distribution), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract, its versioning and v1 cut-off, the bulk save, the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).

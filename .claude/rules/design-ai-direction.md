@@ -6,7 +6,7 @@ Where Gazetta's AI work goes: forms, AI helpers in forms, agents operating the C
 
 **Companion docs:**
 - [`ROADMAP.md`](../../ROADMAP.md): where the items below sit
-- [#49](https://github.com/gazetta-studio/gazetta-studio/issues/49): the MCP server design pass, renamed the agent access design pass on 2026-10-31 ([`design-agent-access.md`](design-agent-access.md)); "the MCP design pass" below means this pass. Its starting decision ROADMAP already locks (agents save through the admin's path as their own principal, audited, can't publish by default)
+- [#49](https://github.com/gazetta-studio/gazetta-studio/issues/49): the MCP server design pass, renamed the agent access design pass on 2026-10-31 ([`design-agent-access.md`](design-agent-access.md)); "the MCP design pass" below means this pass. Its starting decision ROADMAP already locks (agents save through the admin's path, audited, can't publish by default; they act as the person who signed them in, `design-agent-access.md` Q12)
 - [`design-ai.md`](design-ai.md): the `ai/` layer and providers that helpers in forms reuse
 - [`design-tutorial.md`](design-tutorial.md): the Stage 1 tutorial (Q7)
 - Research: the discovery comment on #1485 (2026-10-30): vendors, adoption surveys, fit with Gazetta's model, cost per layer
@@ -89,9 +89,9 @@ Decided: maintainer, 2026-10-31 (#1620)
 
 ### Q6 — The actor scenarios gain a reviewer scenario
 
-`docs/actor-scenarios.md` gains an Operator scenario: review and publish a batch an agent made, per field, reverting one item ([#1619](https://github.com/gazetta-studio/gazetta-studio/issues/1619)). Agents act for one of the four actors, as their own principal with their own capabilities (by default they can't publish), per ROADMAP's MCP decision; they aren't a fifth actor.
+`docs/actor-scenarios.md` gains an Operator scenario: review and publish a batch an agent made, per field, reverting one item ([#1619](https://github.com/gazetta-studio/gazetta-studio/issues/1619)). Agents act for one of the four actors, as the person who signed them in, with an edit-only token: they can't publish unless that person elevates (`design-agent-access.md` Q12); they aren't a fifth actor.
 
-Decided: maintainer, 2026-10-31 (#1620); the capability wording corrected by the maintainer the same day, after the first answer rested on a misstated ROADMAP decision.
+Decided: maintainer, 2026-10-31 (#1620); the capability wording corrected by the maintainer the same day, after the first answer rested on a misstated ROADMAP decision. Identity changed by the maintainer on 2026-11-01 (#<PR>): agents act as their person, not as their own principal.
 
 | Rejected | Why |
 |---|---|
