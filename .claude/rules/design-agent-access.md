@@ -2,7 +2,7 @@
 
 How AI agents (coding agents, scripts, chat apps) reach Gazetta's content: in what order the ways in ship, how they write, what stops them publishing, and how they learn about changes. This sets the direction for the design pass in [#49](https://github.com/gazetta-studio/gazetta-studio/issues/49), which now covers agent access as a whole, MCP included; each piece below gets its details there.
 
-**Status**: direction decided 2026-10-31, Q1–Q11; agent identity decided 2026-11-01, Q12–Q30; presets Q31; the skill's never-run list, updates and install Q32–Q34; the Go CLI Q35–Q41. The #49 design pass designs the details.
+**Status**: direction decided 2026-10-31, Q1–Q11; agent identity decided 2026-11-01, Q12–Q30; presets Q31; the skill's never-run list, updates and install Q32–Q34; the Go CLI Q35–Q41; the public API Q42–Q46. The #49 design pass designs the details.
 
 **Companion docs:**
 - [`design-ai-direction.md`](design-ai-direction.md): agents lead Gazetta's AI work; they can't publish by default (they act as the person who signed them in, Q12); the live view of agents' changes (Q8)
@@ -636,9 +636,64 @@ Decided: maintainer, 2026-11-01 (#1653)
 | `gazetta init --agents` | `init` would then behave two ways |
 | `gazetta skill update` | It updates `AGENTS.md`, not the skill itself |
 
+### Q42 — The public API is versioned by URL: `/api/v1`
+
+Integer majors in the path; within a major, only additive changes. The admin UI always uses the newest major. The prefix is for `gz`, scripts and MCP; dev-only routes and `/preview` stay outside it (Q5). `gz` sharing the `gazetta` version number (Q39) doesn't stop a `gz` 0.11 meeting an admin on 0.9, so the API major decides compatibility.
+
+Decided: maintainer, 2026-11-01 (#1654)
+
+| Rejected | Why |
+|---|---|
+| A date header, Stripe and GitHub style (`Gazetta-Version: 2026-11-01`) | The server keeps every past version working, machinery a self-hosted product can't easily carry |
+| No API version; the `gazetta` package version decides | Any breaking change breaks older `gz` |
+
+### Q43 — Compatibility follows GitHub's rules, with a 6-month deprecation window
+
+Breaking changes are those on GitHub's list (removed fields, new required inputs, changed types); new error codes and enum values aren't breaking, and `gz` must accept unknown ones. A deprecation lasts at least two minor releases or 6 months, whichever is longer, with `Deprecation` and `Sunset` headers. `GET /api/version` lists the supported majors, and the exact `gazetta` version only to a signed-in caller (Directus exposing its version without sign-in was CVE-2025-53887); `gz` checks it at login.
+
+Decided: maintainer, 2026-11-01 (#1654)
+
+| Rejected | Why |
+|---|---|
+| The same rules with a window of two minor releases only | Less time for operators who upgrade rarely |
+
+### Q44 — The OpenAPI document comes from `@hono/zod-openapi`
+
+`@hono/zod-openapi` (1.6.3 on 2026-11-01, MIT, maintained by the Hono team, supports Zod 4): each route's schema and handler sit together, so the document can't drift, and routes move over one at a time. Its docs show OpenAPI 3.0; 3.1 support is unconfirmed.
+
+Decided: maintainer, 2026-11-01 (#1654)
+
+| Rejected | Why |
+|---|---|
+| `hono-openapi` (1.5.0, MIT) | The smallest change to today's routes, but a smaller project |
+| Zod's `z.toJSONSchema` plus a hand-written table of paths | The table can drift from the routes |
+
+### Q45 — Errors are RFC 9457 problem+json everywhere, now
+
+Every route answers errors as `application/problem+json` (RFC 9457), with `code` as an extension member listed in the error-code schema, so `gz` can map codes to its exit codes (Q38). The admin UI's error handling changes in the same pass. Today errors come in three shapes: about 37 sites answer `{ code, message }`, about 62 answer `{ error }` with no code, and two codes in use are missing from the schema (read from code 2026-11-01).
+
+Decided: maintainer, 2026-11-01 (#1654)
+
+| Rejected | Why |
+|---|---|
+| `{ code, message }` now, problem+json at v1 | The maintainer chose the standard format now |
+| `{ code, message }` only | No standard format |
+
+### Q46 — The bulk save is all or nothing
+
+`POST /api/v1/saves` takes a run id (Q22) and items, each with its `If-Match`, which is required. Every `If-Match` and the save-time validation are checked across the whole batch before anything is written; then one history revision records the run id, the way it came in and who sent it. Requests have an item cap (around 200, less on cloud storage, to be measured), and history retention keeps a run's revisions together.
+
+Decided: maintainer, 2026-11-01 (#1654)
+
+| Rejected | Why |
+|---|---|
+| Write what passes and report the rest per item | A half-applied run is harder to review and undo |
+
+Research: [public API on #49](https://github.com/gazetta-studio/gazetta-studio/issues/49#issuecomment-6558530260) (versioning elsewhere, routes without schema parsing, the three error shapes, OpenAPI libraries, the bulk save).
+
 ## What this changes in the plan
 
-Follows from Q1–Q41.
+Follows from Q1–Q46.
 - ROADMAP's "MCP server design pass" becomes "Agent access design pass" (#49), and "MCP server build" becomes "Agent access build".
 - The skill (#1622) is the first step, in Now; the Deferred row for agent instructions goes.
-- The #49 pass designs: the agent token and elevation flow (Q12–Q30), the remote MCP server's sign-in (Q28), audit source and run id, per-run undo, the schema check at save, page search, the thin CLI's later commands (Q37), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract, its versioning and v1 cut-off, the bulk save, the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
+- The #49 pass designs: the agent token and elevation flow (Q12–Q30), the remote MCP server's sign-in (Q28), audit source and run id, per-run undo, the schema check at save, page search, the thin CLI's later commands (Q37), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the v1 cut-off (Q5) and the bulk save's item cap (Q46), the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
