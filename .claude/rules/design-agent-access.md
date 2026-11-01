@@ -544,7 +544,7 @@ The `CLAUDE.md` import line and the trade-off: Decided: maintainer, 2026-11-01 (
 
 ### Q35 — The Go CLI is `gz`, published as `@gazetta/cli`
 
-The binary is `gz`. It's published on npm as `@gazetta/cli` (the `@gazetta` npm scope was claimed on 2026-11-01) and on Homebrew as `gazetta/tap/gz`, and a `gazetta-cli` copy of the binary ships for people who have Gazebo's robotics CLI, which is also called `gz` (in Debian and Ubuntu). The docs mention the clash.
+The binary is `gz`. It's published on npm as `@gazetta/cli` (the `@gazetta` npm scope was claimed on 2026-11-01) and on Homebrew as `gazetta-studio/tap/gz` (corrected below), and a `gazetta-cli` copy of the binary ships for people who have Gazebo's robotics CLI, which is also called `gz` (in Debian and Ubuntu). The docs mention the clash.
 
 Decided: maintainer, 2026-11-01 (#1652)
 
@@ -552,6 +552,14 @@ Decided: maintainer, 2026-11-01 (#1652)
 |---|---|
 | `gzt` | Free everywhere checked, but less obvious than `gz` |
 | `gazetta-cli` as the only name | Long to type for a tool people and agents run constantly |
+
+The Homebrew tap is `gazetta-studio/tap/gz`, in the repository `gazetta-studio/homebrew-tap`. Homebrew turns `gazetta/tap/gz` into `github.com/gazetta/homebrew-tap`, which would need a GitHub account called `gazetta`; ours is `gazetta-studio`.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| Get the `gazetta` account so the command stays `gazetta/tap/gz` | The maintainer chose to stick to `gazetta-studio` |
 
 ### Q36 — `gz` finds an admin through login profiles
 
