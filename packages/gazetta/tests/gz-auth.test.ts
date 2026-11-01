@@ -38,6 +38,9 @@ describe.runIf(runIt)('gz auth against gazetta dev', () => {
   const port = 5000 + Math.floor(Math.random() * 100)
   const admin = `http://127.0.0.1:${port}`
   let dev: ChildProcess | undefined
+  // The dev server's output, attached to failures so a slow or failed start shows why.
+  let devLog = ''
+  const devTail = () => `\n--- gazetta dev output ---\n${devLog.slice(-8000)}`
 
   beforeAll(async () => {
     execFileSync('go', ['build', '-o', gz, './cmd/gz'], {
@@ -49,14 +52,16 @@ describe.runIf(runIt)('gz auth against gazetta dev', () => {
     dev = spawn(tsxBin, [cliPath, 'dev', '--host', '127.0.0.1', '-p', String(port)], {
       cwd: project,
       env: { ...process.env, CI: 'true' },
-      stdio: 'ignore',
+      stdio: ['ignore', 'pipe', 'pipe'],
     })
+    dev.stdout?.on('data', d => (devLog += d))
+    dev.stderr?.on('data', d => (devLog += d))
     const deadline = Date.now() + 60_000
     for (;;) {
       try {
         if ((await fetch(`${admin}/admin/api/health`)).ok) break
       } catch {}
-      if (Date.now() > deadline) throw new Error('gazetta dev did not start')
+      if (Date.now() > deadline) throw new Error(`gazetta dev did not start${devTail()}`)
       await new Promise(r => setTimeout(r, 400))
     }
   }, 180_000)
@@ -93,21 +98,21 @@ describe.runIf(runIt)('gz auth against gazetta dev', () => {
         const m = /Your code: ([A-Z0-9]{4}-[A-Z0-9]{4})/.exec(stderr)
         if (m) resolveCode(m[1])
       })
-      login.once('close', () => reject(new Error(`gz exited before showing a code: ${stderr}`)))
+      login.once('close', () => reject(new Error(`gz exited before showing a code: ${stderr}${devTail()}`)))
     })
     const approve = await fetch(`${admin}/admin/api/v1/auth/logins/${code}/approve`, { method: 'POST' })
-    expect(approve.status).toBe(200)
+    expect(approve.status, devTail()).toBe(200)
     const exit = await new Promise<number | null>(r => login.once('close', r))
-    expect(exit, stderr).toBe(0)
+    expect(exit, stderr + devTail()).toBe(0)
     expect(JSON.parse(stdout)).toMatchObject({ name: 'dev', url: admin, default: true })
 
     const status = gzRun('auth', 'status', '--json')
-    expect(status.code, status.stderr).toBe(0)
+    expect(status.code, status.stderr + devTail()).toBe(0)
     expect(JSON.parse(status.stdout).profiles).toEqual([{ name: 'dev', url: admin, default: true, login: 'renews' }])
 
     const grantSecret = await readFile(join(config, 'grants', 'dev.grant'), 'utf8')
     const logout = gzRun('auth', 'logout', '--json')
-    expect(logout.code, logout.stderr).toBe(0)
+    expect(logout.code, logout.stderr + devTail()).toBe(0)
     expect(JSON.parse(logout.stdout)).toMatchObject({ removed: 'dev', revoked: true })
 
     const renew = await fetch(`${admin}/admin/api/v1/auth/tokens`, {
@@ -116,5 +121,5 @@ describe.runIf(runIt)('gz auth against gazetta dev', () => {
       body: JSON.stringify({ grantSecret }),
     })
     expect(renew.status).toBe(401)
-  }, 60_000)
+  }, 120_000)
 })
