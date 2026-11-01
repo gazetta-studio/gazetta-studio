@@ -63,7 +63,7 @@ An editable filesystem target's storage counts as private automatically — an e
 
 ## `publicStorage`
 
-Whether visitors can reach the target's storage directly — a host serving the bucket or folder as the site. A public target keeps no history, audit, review or CLI login state in its storage.
+Whether visitors can reach the target's storage directly — a host serving the bucket or folder as the site. A public target keeps no history, audit, review or CLI sign-in state in its storage.
 
 When `publicStorage` is unset, a target counts as private only if it is an editable filesystem target or its deploy adapter copies site files to the host; every other target is assumed public, so a forgotten declaration never leaks history or audit data. Set `publicStorage: false` for storage only a worker reads, such as a private R2 bucket behind `cloudflareWorkersDeploy`.
 

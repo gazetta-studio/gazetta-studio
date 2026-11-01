@@ -291,7 +291,7 @@ function printHelp() {
     gazetta archive rename <oldname> <newname> [--kind=...] [--no-keep-alias] [target] [site]
                                     Rename a live item; keeps the redirect by default
     gazetta state remove <target> [site]
-                                    Delete history, audit, review and CLI logins from a target's storage
+                                    Delete history, audit, review and CLI sign-ins from a target's storage
     gazetta help                    Show this help message
 
   Options:
