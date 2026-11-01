@@ -415,6 +415,23 @@ Decided: maintainer, 2026-11-01 (#1630)
 |---|---|
 | Generated and stored in the target's private `.gazetta/auth/` folder | Whoever can read target storage could forge tokens |
 
+How CLI login is turned on: it's on whenever `GAZETTA_SIGNING_KEY` is set. On a hosted admin (any trust mode other than `none`) without the key, the login and token routes answer a problem 503 and the admin still starts. `gazetta dev` (trust `none`) generates a key and is always on. No new config. This replaces "a hosted admin with CLI login enabled refuses to start without it" above.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| A new `admin.cliLogin: true` in `site.config.ts`; with the flag set and no key, a hosted admin refuses to start | The maintainer chose the key's presence |
+| Every hosted admin needs `GAZETTA_SIGNING_KEY` and refuses to start without it | Existing hosted setups break until they set the key |
+
+Tokens are signed and verified with jose (panva/jose; MIT, no dependencies). It handles RS256, key ids for rotation, clock leeway (Q27) and the claim checks, and cut 9 can reuse it to publish the public keys (Q15). The version and its advisories are checked when it's added (cut 7).
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| Hand-written on `node:crypto` (about 60 lines) | We'd own the security-sensitive parsing and checks, and cut 9's public key output by hand too |
+
 ### Q26 — Every auth action is audited
 
 Login approved, elevation approved and ended, grant revoked, and refused approvals are new audit actions, recorded on the source like other events.
