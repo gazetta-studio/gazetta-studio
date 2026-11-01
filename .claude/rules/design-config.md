@@ -180,7 +180,15 @@ export default defineSite({
 | Production (`NODE_ENV !== 'development'`) | Load once at boot; restart to apply changes |
 | Dev (`NODE_ENV === 'development'`, `gazetta dev`) | File watcher on `gazetta.config.ts` + `sites/*/site.config.ts`; reload on save |
 
-**Dev reload and plugins**: there is no plugin runtime, so nothing has an `init`/`dispose` lifecycle. A reload re-evaluates the config ([#1353](https://github.com/gazetta-studio/gazetta-studio/issues/1353)); which config-built state it rebuilds, including the `admin.hooks`/`admin.validators`/`admin.routes` contributions, is not decided here; [`design-plugins.md`](design-plugins.md) lists plugin hot-reload as out of scope (admin restart) under Future directions.
+**Dev reload restarts `gazetta dev`**: there is no plugin runtime, so nothing has an `init`/`dispose` lifecycle. Saving a config file restarts the `gazetta dev` server itself, so everything built from the config (storage and other providers, the `admin.hooks`/`admin.validators`/`admin.routes` contributions, auth, the validation scanner) is rebuilt and nothing stays stale. The admin reconnects through the existing reload channel; in-memory caches and the scanner's per-page results are rebuilt. This replaces the live swap of #1444, and matches `design-cache.md`'s "dev hot-reload of config triggers full process restart". As today (#1444), a config that fails to load keeps the last good one.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| Keep the live swap and tell the developer what needs a restart | The developer still restarts by hand |
+| Rebuild only providers whose target changed | Every reload builds new instances, so "changed" can't be told apart, and hooks and auth stay stale |
+| Rebuild everything live, in place | The most code; old providers can't release connections (no `dispose`, ADR-0009) |
 
 Follows from ADR-0009 (no lifecycle) and #1353, decided 2026-10-24 (reload on save).
 
