@@ -1,5 +1,6 @@
-import { Hono, type Context } from 'hono'
-import type { DraftOverrides, ManifestKey, ResolvedComponent } from '../../types.js'
+import type { Context } from 'hono'
+import { createRoute, z } from '@hono/zod-openapi'
+import type { ComponentEntry, DraftOverrides, ManifestKey, ResolvedComponent } from '../../types.js'
 import { manifestKeyToString } from '../../types.js'
 import { allPageEntries, type Site } from '../../site-loader.js'
 import { loadSiteFromSource } from '../source-context.js'
@@ -9,11 +10,48 @@ import { defaultLocaleFor } from '../../locale.js'
 import type { SourceContext, SourceContextResolver } from '../source-context.js'
 import { requireCapability } from '../middleware/capability.js'
 import { isArchived } from '../../archive-helpers.js'
+import { apiApp, problems, UNVERSIONED } from '../openapi.js'
+import { PreviewQuerySchema, PreviewRequestSchema } from '../schemas/preview.js'
 
 const EMPTY_OVERRIDES: DraftOverrides = { content: {}, structural: {} }
 
+/** Preview answers are HTML pages for the admin's iframe, errors included. */
+function htmlPage(description: string) {
+  return { description, content: { 'text/html': { schema: z.string() } } }
+}
+
+const previewResponses = {
+  200: htmlPage('The rendered page or fragment (or an archive placeholder)'),
+  404: htmlPage('No page at this path, or no content on the target yet'),
+  500: htmlPage('A template failed to render'),
+  ...problems({ 403: ['FORBIDDEN'] }),
+}
+
+const getPreview = createRoute({
+  method: 'get',
+  path: '/preview/*',
+  summary: 'Render a page (`/preview/<route>`) or fragment (`/preview/@<name>`) as stored',
+  ...UNVERSIONED,
+  middleware: [requireCapability('read:pages')] as const,
+  request: { query: PreviewQuerySchema },
+  responses: previewResponses,
+})
+
+const postPreview = createRoute({
+  method: 'post',
+  path: '/preview/*',
+  summary: 'Render a page or fragment with unsaved edits',
+  ...UNVERSIONED,
+  middleware: [requireCapability('read:pages')] as const,
+  request: {
+    query: PreviewQuerySchema,
+    body: { content: { 'application/json': { schema: PreviewRequestSchema } } },
+  },
+  responses: previewResponses,
+})
+
 export function previewRoutes(resolve: SourceContextResolver, templatesDir?: string) {
-  const app = new Hono()
+  const app = apiApp()
 
   // No caching — preview always serves fresh content for editing
   app.use('/preview/*', async (c, next) => {
@@ -21,17 +59,17 @@ export function previewRoutes(resolve: SourceContextResolver, templatesDir?: str
     c.header('Cache-Control', 'no-store')
   })
 
-  app.get('/preview/*', requireCapability('read:pages'), async c => {
-    const source = await resolve(c.req.query('target'))
+  app.openapi(getPreview, async c => {
+    const source = await resolve(c.req.valid('query').target)
     return renderPreview(c, source, EMPTY_OVERRIDES, templatesDir)
   })
 
-  app.post('/preview/*', requireCapability('read:pages'), async c => {
-    const source = await resolve(c.req.query('target'))
-    const body = (await c.req.json()) as { overrides?: Partial<DraftOverrides> }
+  app.openapi(postPreview, async c => {
+    const source = await resolve(c.req.valid('query').target)
+    const body = c.req.valid('json')
     const overrides: DraftOverrides = {
       content: body.overrides?.content ?? {},
-      structural: body.overrides?.structural ?? {},
+      structural: (body.overrides?.structural ?? {}) as Record<string, ComponentEntry[]>,
     }
     return renderPreview(c, source, overrides, templatesDir)
   })

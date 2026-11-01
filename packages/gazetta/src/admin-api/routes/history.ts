@@ -17,7 +17,7 @@
  * revision. Route here just glues HTTP to the core.
  */
 
-import { Hono } from 'hono'
+import { createRoute } from '@hono/zod-openapi'
 import type { StorageProvider, TargetConfig } from '../../types.js'
 import { isHistoryEnabled, getHistoryRetention } from '../../types.js'
 import { createHistoryProvider } from '../../history-provider.js'
@@ -28,13 +28,57 @@ import { requireCapability } from '../middleware/capability.js'
 import type { AuditEnv } from '../middleware/audit.js'
 import { problem, problemFrom } from '../problem.js'
 import type { ErrorCode } from '../schemas/error.js'
+import { apiApp, json, problems } from '../openapi.js'
+import {
+  HistoryListQuerySchema,
+  HistoryRestoreQuerySchema,
+  HistoryUndoQuerySchema,
+  ListHistoryResponseSchema,
+  RestoreRevisionResponseSchema,
+} from '../schemas/history.js'
+
+const listHistory = createRoute({
+  method: 'get',
+  path: '/api/history',
+  summary: "A target's revisions, newest first",
+  middleware: [requireCapability('read:pages')] as const,
+  request: { query: HistoryListQuerySchema },
+  responses: {
+    200: json(ListHistoryResponseSchema, 'The revisions'),
+    ...problems({ 400: ['BAD_REQUEST'], 403: ['FORBIDDEN'], 409: ['CONFLICT'] }),
+  },
+})
+
+const undoHistory = createRoute({
+  method: 'post',
+  path: '/api/history/undo',
+  summary: 'Restore the revision before the latest one',
+  middleware: [requireCapability('restore:history')] as const,
+  request: { query: HistoryUndoQuerySchema },
+  responses: {
+    200: json(RestoreRevisionResponseSchema, 'The new revision'),
+    ...problems({ 400: ['BAD_REQUEST'], 403: ['FORBIDDEN'], 409: ['CONFLICT'] }),
+  },
+})
+
+const restoreHistory = createRoute({
+  method: 'post',
+  path: '/api/history/restore',
+  summary: 'Restore a revision',
+  middleware: [requireCapability('restore:history')] as const,
+  request: { query: HistoryRestoreQuerySchema },
+  responses: {
+    200: json(RestoreRevisionResponseSchema, 'The new revision'),
+    ...problems({ 400: ['BAD_REQUEST'], 403: ['FORBIDDEN'], 404: ['NOT_FOUND'], 409: ['CONFLICT'] }),
+  },
+})
 
 export function historyRoutes(
   resolve: SourceContextResolver,
   preInitTargets?: Map<string, StorageProvider>,
   targetConfigs?: Record<string, TargetConfig>,
 ) {
-  const app = new Hono<AuditEnv>()
+  const app = apiApp<AuditEnv>()
 
   let targets: Map<string, StorageProvider> | null = preInitTargets ?? null
   let targetsInitPromise: Promise<Map<string, StorageProvider>> | null = null
@@ -106,20 +150,22 @@ export function historyRoutes(
     return { kind: 'ok', storage, config, history, contentRoot }
   }
 
-  app.get('/api/history', requireCapability('read:pages'), async c => {
-    const source = await resolve(c.req.query('source'))
-    const targetName = c.req.query('target')
+  app.openapi(listHistory, async c => {
+    const query = c.req.valid('query')
+    const source = await resolve(query.source)
+    const targetName = query.target
     if (!targetName) return problem(c, 400, 'BAD_REQUEST', 'Missing "target" query parameter')
     const resolved = await resolveHistory(targetName, source.projectSiteDir)
     if (resolved.kind === 'err') return problemFrom(c, resolved.status, resolved.body)
-    const limit = Number(c.req.query('limit') ?? '50')
+    const limit = Number(query.limit ?? '50')
     const revisions = await resolved.history.listRevisions(limit)
-    return c.json({ revisions })
+    return c.json({ revisions }, 200)
   })
 
-  app.post('/api/history/undo', requireCapability('restore:history'), async c => {
-    const source = await resolve(c.req.query('source'))
-    const targetName = c.req.query('target')
+  app.openapi(undoHistory, async c => {
+    const query = c.req.valid('query')
+    const source = await resolve(query.source)
+    const targetName = query.target
     if (!targetName) return problem(c, 400, 'BAD_REQUEST', 'Missing "target" query parameter')
     const resolved = await resolveHistory(targetName, source.projectSiteDir)
     if (resolved.kind === 'err') return problemFrom(c, resolved.status, resolved.body)
@@ -150,13 +196,14 @@ export function historyRoutes(
       scope: { kind: 'site' },
       metadata: { targetName, restoredFrom: list[1].id, undoneOperation: list[0].operation },
     })
-    return c.json({ revision: restored, restoredFrom: list[1].id })
+    return c.json({ revision: restored, restoredFrom: list[1].id }, 200)
   })
 
-  app.post('/api/history/restore', requireCapability('restore:history'), async c => {
-    const source = await resolve(c.req.query('source'))
-    const targetName = c.req.query('target')
-    const revisionId = c.req.query('id')
+  app.openapi(restoreHistory, async c => {
+    const query = c.req.valid('query')
+    const source = await resolve(query.source)
+    const targetName = query.target
+    const revisionId = query.id
     if (!targetName) return problem(c, 400, 'BAD_REQUEST', 'Missing "target" query parameter')
     if (!revisionId) return problem(c, 400, 'BAD_REQUEST', 'Missing "id" query parameter')
     const resolved = await resolveHistory(targetName, source.projectSiteDir)
@@ -179,7 +226,7 @@ export function historyRoutes(
         scope: { kind: 'site' },
         metadata: { targetName, restoredFrom: revisionId },
       })
-      return c.json({ revision: restored, restoredFrom: revisionId })
+      return c.json({ revision: restored, restoredFrom: revisionId }, 200)
     } catch (err) {
       // readRevision throws ENOENT-style errors when the id doesn't
       // exist — treat as a 404 so clients can render a helpful message.
