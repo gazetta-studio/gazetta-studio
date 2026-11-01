@@ -94,3 +94,16 @@ it('shows a picker for the init hero even when no optional image is selected', (
     vi.unstubAllGlobals()
   }
 })
+it('escapes image attributes so a quote in the alt text cannot break the tag', async () => {
+  const html = (
+    await hero.render({
+      content: { title: 'Hello', image: { url: '/assets/a.png?x=1&y="2"', alt: 'Say "hi" <now>', srcset: null } },
+    } as any)
+  ).html
+  const container = document.createElement('div')
+  container.innerHTML = html
+  const img = container.querySelector('img')!
+  expect(img.getAttribute('alt')).toBe('Say "hi" <now>')
+  expect(img.getAttribute('src')).toBe('/assets/a.png?x=1&y="2"')
+  expect(html).toContain('alt="Say &quot;hi&quot; &lt;now&gt;"')
+})

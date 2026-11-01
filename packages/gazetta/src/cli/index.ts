@@ -507,11 +507,14 @@ export const schema = z.object({
 
 type Resolved = Content<z.infer<typeof schema>>
 
+const attr = (value: string | number) =>
+  String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
 const template: TemplateFunction<Resolved> = ({ content }) => {
   const image = content?.image
   const img = image
     ? \`
-  <img src="\${image.url}"\${image.srcset ? \` srcset="\${image.srcset}"\` : ''} alt="\${image.alt}"\${image.width ? \` width="\${image.width}"\` : ''}\${image.height ? \` height="\${image.height}"\` : ''}>\`
+  <img src="\${attr(image.url)}"\${image.srcset ? \` srcset="\${attr(image.srcset)}"\` : ''} alt="\${attr(image.alt)}"\${image.width ? \` width="\${attr(image.width)}"\` : ''}\${image.height ? \` height="\${attr(image.height)}"\` : ''}>\`
     : ''
   return {
     html: \`<section class="hero">\${img}
