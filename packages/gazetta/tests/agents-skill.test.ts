@@ -148,7 +148,8 @@ const neverRunPart = (text: string) => text.slice(text.indexOf('ever run these')
 const commandEntries = (text: string) => listed(neverRunPart(text), /^gazetta /).map(entry => entry.slice(8))
 const routeEntries = (text: string) => listed(neverRunPart(text), /^[A-Z]+ \//)
 
-describe('the never-run list (Q32)', () => {
+// These run the built CLI or the TypeScript compiler: seconds each on loaded CI runners.
+describe('the never-run list (Q32)', { timeout: 60_000 }, () => {
   it('sorts every CLI command, and lists exactly the never ones in the skill and AGENTS.md', () => {
     expect(helpCommands()).toEqual(Object.keys(COMMANDS).sort())
     expect(commandEntries(skill)).toEqual(never(COMMANDS))
@@ -162,7 +163,7 @@ describe('the never-run list (Q32)', () => {
   })
 })
 
-describe('skill drift (Q4)', () => {
+describe('skill drift (Q4)', { timeout: 60_000 }, () => {
   it('names only commands and flags the CLI has', () => {
     const commands = new Set(helpCommands())
     const named = [...skill.matchAll(/`gazetta ([a-z-]+)(?: ([a-z-]+))?/g)].map(match =>
