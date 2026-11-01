@@ -8,7 +8,7 @@
  *    not error-message bodies, so replacing the labels with `''` doesn't
  *    fail any assertion. Pinning error messages catches this class.
  *
- *  - NoCoverage on the PATCH `/api/fragments/:name/alias` route
+ *  - NoCoverage on the PATCH `/api/v1/fragments/:name/alias` route
  *    registration + the `handleSetAlias` fragment branch — the existing
  *    fragment-alias test in `admin-api-archive.test.ts` is a single
  *    happy-path case; this file pins the same matrix the page-alias
@@ -147,29 +147,29 @@ describe('Error message labels — pin PAGE_HANDLE.label / FRAGMENT_HANDLE.label
   // assertions, the error body becomes ` "name" not found` (leading space)
   // and no test fails. Asserting the exact body kills the mutant.
 
-  it('POST /api/pages/missing/archive → 404 body uses "Page" label', async () => {
-    const res = await app.request('/api/pages/missing/archive', { method: 'POST' })
+  it('POST /api/v1/pages/missing/archive → 404 body uses "Page" label', async () => {
+    const res = await app.request('/api/v1/pages/missing/archive', { method: 'POST' })
     expect(res.status).toBe(404)
     const body = ErrorResponseSchema.parse(await res.json())
     expect(body.detail).toBe('Page "missing" not found')
   })
 
-  it('POST /api/pages/missing/unarchive → 404 body uses "Page" label', async () => {
-    const res = await app.request('/api/pages/missing/unarchive', { method: 'POST' })
+  it('POST /api/v1/pages/missing/unarchive → 404 body uses "Page" label', async () => {
+    const res = await app.request('/api/v1/pages/missing/unarchive', { method: 'POST' })
     expect(res.status).toBe(404)
     const body = ErrorResponseSchema.parse(await res.json())
     expect(body.detail).toBe('Page "missing" not found')
   })
 
-  it('DELETE /api/pages/missing/purge → 404 body uses "Page" label', async () => {
-    const res = await app.request('/api/pages/missing/purge', { method: 'DELETE' })
+  it('DELETE /api/v1/pages/missing/purge → 404 body uses "Page" label', async () => {
+    const res = await app.request('/api/v1/pages/missing/purge', { method: 'DELETE' })
     expect(res.status).toBe(404)
     const body = ErrorResponseSchema.parse(await res.json())
     expect(body.detail).toBe('Page "missing" not found')
   })
 
-  it('PATCH /api/pages/missing/alias → 404 body uses "Page" label', async () => {
-    const res = await app.request('/api/pages/missing/alias', {
+  it('PATCH /api/v1/pages/missing/alias → 404 body uses "Page" label', async () => {
+    const res = await app.request('/api/v1/pages/missing/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: null }),
@@ -179,8 +179,8 @@ describe('Error message labels — pin PAGE_HANDLE.label / FRAGMENT_HANDLE.label
     expect(body.detail).toBe('Page "missing" not found')
   })
 
-  it('PATCH /api/pages/home/alias on a live page → 409 body uses "Page" label', async () => {
-    const res = await app.request('/api/pages/home/alias', {
+  it('PATCH /api/v1/pages/home/alias on a live page → 409 body uses "Page" label', async () => {
+    const res = await app.request('/api/v1/pages/home/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'landing' }),
@@ -190,29 +190,29 @@ describe('Error message labels — pin PAGE_HANDLE.label / FRAGMENT_HANDLE.label
     expect(body.detail).toBe('Page "home" is not archived; cannot set alias on a live item')
   })
 
-  it('POST /api/fragments/missing/archive → 404 body uses "Fragment" label', async () => {
-    const res = await app.request('/api/fragments/missing/archive', { method: 'POST' })
+  it('POST /api/v1/fragments/missing/archive → 404 body uses "Fragment" label', async () => {
+    const res = await app.request('/api/v1/fragments/missing/archive', { method: 'POST' })
     expect(res.status).toBe(404)
     const body = ErrorResponseSchema.parse(await res.json())
     expect(body.detail).toBe('Fragment "missing" not found')
   })
 
-  it('POST /api/fragments/missing/unarchive → 404 body uses "Fragment" label', async () => {
-    const res = await app.request('/api/fragments/missing/unarchive', { method: 'POST' })
+  it('POST /api/v1/fragments/missing/unarchive → 404 body uses "Fragment" label', async () => {
+    const res = await app.request('/api/v1/fragments/missing/unarchive', { method: 'POST' })
     expect(res.status).toBe(404)
     const body = ErrorResponseSchema.parse(await res.json())
     expect(body.detail).toBe('Fragment "missing" not found')
   })
 
-  it('DELETE /api/fragments/missing/purge → 404 body uses "Fragment" label', async () => {
-    const res = await app.request('/api/fragments/missing/purge', { method: 'DELETE' })
+  it('DELETE /api/v1/fragments/missing/purge → 404 body uses "Fragment" label', async () => {
+    const res = await app.request('/api/v1/fragments/missing/purge', { method: 'DELETE' })
     expect(res.status).toBe(404)
     const body = ErrorResponseSchema.parse(await res.json())
     expect(body.detail).toBe('Fragment "missing" not found')
   })
 
-  it('PATCH /api/fragments/missing/alias → 404 body uses "Fragment" label', async () => {
-    const res = await app.request('/api/fragments/missing/alias', {
+  it('PATCH /api/v1/fragments/missing/alias → 404 body uses "Fragment" label', async () => {
+    const res = await app.request('/api/v1/fragments/missing/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: null }),
@@ -222,8 +222,8 @@ describe('Error message labels — pin PAGE_HANDLE.label / FRAGMENT_HANDLE.label
     expect(body.detail).toBe('Fragment "missing" not found')
   })
 
-  it('PATCH /api/fragments/header/alias on a live fragment → 409 body uses "Fragment" label', async () => {
-    const res = await app.request('/api/fragments/header/alias', {
+  it('PATCH /api/v1/fragments/header/alias on a live fragment → 409 body uses "Fragment" label', async () => {
+    const res = await app.request('/api/v1/fragments/header/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'footer' }),
@@ -234,7 +234,7 @@ describe('Error message labels — pin PAGE_HANDLE.label / FRAGMENT_HANDLE.label
   })
 })
 
-describe('PATCH /api/fragments/:name/alias — full parity matrix with pages', () => {
+describe('PATCH /api/v1/fragments/:name/alias — full parity matrix with pages', () => {
   beforeEach(() => setup())
 
   // The pages PATCH alias route has 8 tests in admin-api-archive.test.ts;
@@ -244,8 +244,8 @@ describe('PATCH /api/fragments/:name/alias — full parity matrix with pages', (
   // These tests pin the full matrix.
 
   it('sets aliasOf on an archived fragment + writes the sidecar', async () => {
-    await app.request('/api/fragments/header/archive', { method: 'POST' })
-    const res = await app.request('/api/fragments/header/alias', {
+    await app.request('/api/v1/fragments/header/archive', { method: 'POST' })
+    const res = await app.request('/api/v1/fragments/header/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'top-bar' }),
@@ -260,14 +260,14 @@ describe('PATCH /api/fragments/:name/alias — full parity matrix with pages', (
   })
 
   it('drops aliasOf when set to null + tears down sidecar', async () => {
-    await app.request('/api/fragments/header/archive', {
+    await app.request('/api/v1/fragments/header/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'top-bar' }),
     })
     expect(await storage.exists('.gazetta/alias-targets/top-bar/fragments.header')).toBe(true)
 
-    const res = await app.request('/api/fragments/header/alias', {
+    const res = await app.request('/api/v1/fragments/header/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: null }),
@@ -280,14 +280,14 @@ describe('PATCH /api/fragments/:name/alias — full parity matrix with pages', (
   })
 
   it('moves the sidecar when alias target changes (top-bar → footer)', async () => {
-    await app.request('/api/fragments/header/archive', {
+    await app.request('/api/v1/fragments/header/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'top-bar' }),
     })
     expect(await storage.exists('.gazetta/alias-targets/top-bar/fragments.header')).toBe(true)
 
-    await app.request('/api/fragments/header/alias', {
+    await app.request('/api/v1/fragments/header/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'footer' }),
@@ -297,8 +297,8 @@ describe('PATCH /api/fragments/:name/alias — full parity matrix with pages', (
   })
 
   it('returns 400 on missing aliasOf field', async () => {
-    await app.request('/api/fragments/header/archive', { method: 'POST' })
-    const res = await app.request('/api/fragments/header/alias', {
+    await app.request('/api/v1/fragments/header/archive', { method: 'POST' })
+    const res = await app.request('/api/v1/fragments/header/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
@@ -307,13 +307,13 @@ describe('PATCH /api/fragments/:name/alias — full parity matrix with pages', (
   })
 
   it('idempotent — same alias returns 200 without rewriting', async () => {
-    await app.request('/api/fragments/header/archive', {
+    await app.request('/api/v1/fragments/header/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'top-bar' }),
     })
     const before = await readJson('fragments/header/fragment.json')
-    const res = await app.request('/api/fragments/header/alias', {
+    const res = await app.request('/api/v1/fragments/header/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'top-bar' }),
@@ -332,11 +332,11 @@ describe('notifyScanner — PATCH /alias must notify the validation scanner', ()
   // fragments archive/unarchive/purge are covered by
   // admin-api-archive-scanner.test.ts; PATCH /alias is not.
 
-  it('PATCH /api/pages/:name/alias triggers rescan with page scope', async () => {
-    await app.request('/api/pages/landing/archive', { method: 'POST' })
+  it('PATCH /api/v1/pages/:name/alias triggers rescan with page scope', async () => {
+    await app.request('/api/v1/pages/landing/archive', { method: 'POST' })
     rescanCalls.length = 0 // ignore the archive's rescan
 
-    const res = await app.request('/api/pages/landing/alias', {
+    const res = await app.request('/api/v1/pages/landing/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
@@ -351,11 +351,11 @@ describe('notifyScanner — PATCH /alias must notify the validation scanner', ()
     })
   })
 
-  it('PATCH /api/fragments/:name/alias triggers rescan with fragment scope', async () => {
-    await app.request('/api/fragments/header/archive', { method: 'POST' })
+  it('PATCH /api/v1/fragments/:name/alias triggers rescan with fragment scope', async () => {
+    await app.request('/api/v1/fragments/header/archive', { method: 'POST' })
     rescanCalls.length = 0
 
-    const res = await app.request('/api/fragments/header/alias', {
+    const res = await app.request('/api/v1/fragments/header/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'top-bar' }),
@@ -371,14 +371,14 @@ describe('notifyScanner — PATCH /alias must notify the validation scanner', ()
   })
 
   it('PATCH /alias with null (drop) still notifies the scanner', async () => {
-    await app.request('/api/pages/landing/archive', {
+    await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
     })
     rescanCalls.length = 0
 
-    const res = await app.request('/api/pages/landing/alias', {
+    const res = await app.request('/api/v1/pages/landing/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: null }),
@@ -398,14 +398,14 @@ describe('notifyScanner — PATCH /alias must notify the validation scanner', ()
     // aliasOf equals the current one, the manifest isn't rewritten,
     // so notifyScanner shouldn't fire either. Catches a future
     // regression that drops the early-return.
-    await app.request('/api/pages/landing/archive', {
+    await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
     })
     rescanCalls.length = 0
 
-    const res = await app.request('/api/pages/landing/alias', {
+    const res = await app.request('/api/v1/pages/landing/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
@@ -446,7 +446,7 @@ describe('Cache invalidation — pin `source.cache.invalidatePrefix` calls', () 
 
   it('POST /pages/:name/archive → invalidatePrefix("pages:") called exactly once', async () => {
     const spy = vi.spyOn(source.cache, 'invalidatePrefix')
-    await app.request('/api/pages/landing/archive', { method: 'POST' })
+    await app.request('/api/v1/pages/landing/archive', { method: 'POST' })
     expect(spy).toHaveBeenCalledWith('pages:')
     // Page archive must NOT invalidate the fragments prefix, and must
     // NOT invalidate the pages prefix twice (the mutant on line 301
@@ -457,34 +457,34 @@ describe('Cache invalidation — pin `source.cache.invalidatePrefix` calls', () 
 
   it('POST /fragments/:name/archive → invalidatePrefix called with BOTH "fragments:" and "pages:"', async () => {
     const spy = vi.spyOn(source.cache, 'invalidatePrefix')
-    await app.request('/api/fragments/header/archive', { method: 'POST' })
+    await app.request('/api/v1/fragments/header/archive', { method: 'POST' })
     expect(spy).toHaveBeenCalledWith('fragments:')
     expect(spy).toHaveBeenCalledWith('pages:')
     expect(spy).toHaveBeenCalledTimes(2)
   })
 
   it('POST /pages/:name/unarchive → invalidatePrefix("pages:") called exactly once', async () => {
-    await app.request('/api/pages/landing/archive', { method: 'POST' })
+    await app.request('/api/v1/pages/landing/archive', { method: 'POST' })
     const spy = vi.spyOn(source.cache, 'invalidatePrefix')
-    await app.request('/api/pages/landing/unarchive', { method: 'POST' })
+    await app.request('/api/v1/pages/landing/unarchive', { method: 'POST' })
     expect(spy).toHaveBeenCalledWith('pages:')
     expect(spy).not.toHaveBeenCalledWith('fragments:')
     expect(spy).toHaveBeenCalledTimes(1)
   })
 
   it('POST /fragments/:name/unarchive → invalidatePrefix called with BOTH "fragments:" and "pages:"', async () => {
-    await app.request('/api/fragments/header/archive', { method: 'POST' })
+    await app.request('/api/v1/fragments/header/archive', { method: 'POST' })
     const spy = vi.spyOn(source.cache, 'invalidatePrefix')
-    await app.request('/api/fragments/header/unarchive', { method: 'POST' })
+    await app.request('/api/v1/fragments/header/unarchive', { method: 'POST' })
     expect(spy).toHaveBeenCalledWith('fragments:')
     expect(spy).toHaveBeenCalledWith('pages:')
     expect(spy).toHaveBeenCalledTimes(2)
   })
 
   it('PATCH /pages/:name/alias → invalidatePrefix("pages:") called exactly once', async () => {
-    await app.request('/api/pages/landing/archive', { method: 'POST' })
+    await app.request('/api/v1/pages/landing/archive', { method: 'POST' })
     const spy = vi.spyOn(source.cache, 'invalidatePrefix')
-    await app.request('/api/pages/landing/alias', {
+    await app.request('/api/v1/pages/landing/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
@@ -495,9 +495,9 @@ describe('Cache invalidation — pin `source.cache.invalidatePrefix` calls', () 
   })
 
   it('PATCH /fragments/:name/alias → invalidatePrefix called with BOTH "fragments:" and "pages:"', async () => {
-    await app.request('/api/fragments/header/archive', { method: 'POST' })
+    await app.request('/api/v1/fragments/header/archive', { method: 'POST' })
     const spy = vi.spyOn(source.cache, 'invalidatePrefix')
-    await app.request('/api/fragments/header/alias', {
+    await app.request('/api/v1/fragments/header/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'top-bar' }),
@@ -508,18 +508,18 @@ describe('Cache invalidation — pin `source.cache.invalidatePrefix` calls', () 
   })
 
   it('DELETE /pages/:name/purge → invalidatePrefix("pages:") called exactly once', async () => {
-    await app.request('/api/pages/landing/archive', { method: 'POST' })
+    await app.request('/api/v1/pages/landing/archive', { method: 'POST' })
     const spy = vi.spyOn(source.cache, 'invalidatePrefix')
-    await app.request('/api/pages/landing/purge', { method: 'DELETE' })
+    await app.request('/api/v1/pages/landing/purge', { method: 'DELETE' })
     expect(spy).toHaveBeenCalledWith('pages:')
     expect(spy).not.toHaveBeenCalledWith('fragments:')
     expect(spy).toHaveBeenCalledTimes(1)
   })
 
   it('DELETE /fragments/:name/purge → invalidatePrefix called with BOTH "fragments:" and "pages:"', async () => {
-    await app.request('/api/fragments/header/archive', { method: 'POST' })
+    await app.request('/api/v1/fragments/header/archive', { method: 'POST' })
     const spy = vi.spyOn(source.cache, 'invalidatePrefix')
-    await app.request('/api/fragments/header/purge', { method: 'DELETE' })
+    await app.request('/api/v1/fragments/header/purge', { method: 'DELETE' })
     expect(spy).toHaveBeenCalledWith('fragments:')
     expect(spy).toHaveBeenCalledWith('pages:')
     expect(spy).toHaveBeenCalledTimes(2)
@@ -541,7 +541,7 @@ describe('Idempotent archive-return with aliasOf field (line 267)', () => {
 
   it('archive already-archived page WITH aliasOf → response includes aliasOf', async () => {
     // First archive sets aliasOf.
-    await app.request('/api/pages/landing/archive', {
+    await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
@@ -551,7 +551,7 @@ describe('Idempotent archive-return with aliasOf field (line 267)', () => {
     // Response body must round-trip the aliasOf from the existing
     // manifest. Mutant on line 267 spreads `{}` instead of `{aliasOf}`,
     // dropping the field.
-    const res = await app.request('/api/pages/landing/archive', { method: 'POST' })
+    const res = await app.request('/api/v1/pages/landing/archive', { method: 'POST' })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { ok: boolean; name: string; archivedAt: string; aliasOf?: string }
     expect(body.ok).toBe(true)
@@ -561,13 +561,13 @@ describe('Idempotent archive-return with aliasOf field (line 267)', () => {
 
   it('archive already-archived page WITHOUT aliasOf → response omits aliasOf', async () => {
     // Pure soft-delete (no aliasOf).
-    await app.request('/api/pages/about/archive', { method: 'POST' })
+    await app.request('/api/v1/pages/about/archive', { method: 'POST' })
 
     // Second archive — idempotent-return. Response body should NOT
     // contain aliasOf (existing manifest has none). Pins the truthy
     // check on line 267 — a mutant like `manifest.aliasOf ? ... : { aliasOf: manifest.aliasOf }`
     // (inverting the ternary) would surface an aliasOf-undefined field.
-    const res = await app.request('/api/pages/about/archive', { method: 'POST' })
+    const res = await app.request('/api/v1/pages/about/archive', { method: 'POST' })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { ok: boolean; name: string; aliasOf?: string }
     expect(body.ok).toBe(true)
@@ -578,13 +578,13 @@ describe('Idempotent archive-return with aliasOf field (line 267)', () => {
   })
 
   it('archive already-archived fragment WITH aliasOf → response includes aliasOf (parity with pages)', async () => {
-    await app.request('/api/fragments/header/archive', {
+    await app.request('/api/v1/fragments/header/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'top-bar' }),
     })
 
-    const res = await app.request('/api/fragments/header/archive', { method: 'POST' })
+    const res = await app.request('/api/v1/fragments/header/archive', { method: 'POST' })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { ok: boolean; name: string; aliasOf?: string }
     expect(body.aliasOf).toBe('top-bar')

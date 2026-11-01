@@ -7,7 +7,7 @@
  * exist ("which editor tried to publish to prod last Friday?").
  *
  * These tests pin the middleware-level recording through
- * createAdminApp + GET /api/audit (the forensic surface operators
+ * createAdminApp + GET /api/v1/audit (the forensic surface operators
  * use), per #1192's acceptance criteria:
  *
  *   - editor deleting a page: 403 + one event
@@ -93,7 +93,7 @@ function buildApp(): { app: Hono; sourceStorage: MemoryStorage } {
 }
 
 async function auditLog(app: Hono): Promise<Array<Record<string, unknown>>> {
-  const res = await app.request('/api/audit', { headers: ADMIN_HEADERS }, FROM_PROXY)
+  const res = await app.request('/api/v1/audit', { headers: ADMIN_HEADERS }, FROM_PROXY)
   expect(res.status).toBe(200)
   const body = (await res.json()) as { events: Array<Record<string, unknown>> }
   return body.events
@@ -106,7 +106,7 @@ describe('capability denial audit records (#1192)', { timeout: 30000 }, () => {
   })
 
   it('records one forbidden delete event with page scope and the editor as actor', async () => {
-    const res = await app.request('/api/pages/home', { method: 'DELETE', headers: EDITOR_HEADERS }, FROM_PROXY)
+    const res = await app.request('/api/v1/pages/home', { method: 'DELETE', headers: EDITOR_HEADERS }, FROM_PROXY)
     expect(res.status).toBe(403)
 
     const events = await auditLog(app)
@@ -119,14 +119,18 @@ describe('capability denial audit records (#1192)', { timeout: 30000 }, () => {
 
   it('keeps item scope when the app is mounted under a path prefix', async () => {
     // The CLI serves the CMS at /admin (cli/index.ts `app.route('/admin',
-    // cmsApp)`), so c.req.path arrives as /admin/api/pages/home. Pin the
+    // cmsApp)`), so c.req.path arrives as /admin/api/v1/pages/home. Pin the
     // item scope against that production mount shape.
     const outer = new Hono()
     outer.route('/admin', app)
-    const res = await outer.request('/admin/api/pages/home', { method: 'DELETE', headers: EDITOR_HEADERS }, FROM_PROXY)
+    const res = await outer.request(
+      '/admin/api/v1/pages/home',
+      { method: 'DELETE', headers: EDITOR_HEADERS },
+      FROM_PROXY,
+    )
     expect(res.status).toBe(403)
 
-    const auditRes = await outer.request('/admin/api/audit', { headers: ADMIN_HEADERS }, FROM_PROXY)
+    const auditRes = await outer.request('/admin/api/v1/audit', { headers: ADMIN_HEADERS }, FROM_PROXY)
     expect(auditRes.status).toBe(200)
     const body = (await auditRes.json()) as { events: Array<Record<string, unknown>> }
     const denied = body.events.filter(e => e.action === 'delete' && e.outcome === 'forbidden')
@@ -136,7 +140,7 @@ describe('capability denial audit records (#1192)', { timeout: 30000 }, () => {
 
   it('records a forbidden publish event for a viewer', async () => {
     const res = await app.request(
-      '/api/publish',
+      '/api/v1/publish',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...VIEWER_HEADERS },
@@ -154,7 +158,7 @@ describe('capability denial audit records (#1192)', { timeout: 30000 }, () => {
 
   it('records an unauthenticated event for an anonymous save attempt', async () => {
     const res = await app.request(
-      '/api/pages/home',
+      '/api/v1/pages/home',
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -183,14 +187,14 @@ describe('capability denial audit records (#1192)', { timeout: 30000 }, () => {
       })
       await next()
     })
-    bare.delete('/api/pages/:name', requireCapability('delete:pages'), c => c.json({ ok: true }))
+    bare.delete('/api/v1/pages/:name', requireCapability('delete:pages'), c => c.json({ ok: true }))
 
-    const res = await bare.request('/api/pages/home', { method: 'DELETE' })
+    const res = await bare.request('/api/v1/pages/home', { method: 'DELETE' })
     expect(res.status).toBe(403)
   })
 
   it('records nothing for a denied read', async () => {
-    const res = await app.request('/api/audit', { headers: EDITOR_HEADERS }, FROM_PROXY)
+    const res = await app.request('/api/v1/audit', { headers: EDITOR_HEADERS }, FROM_PROXY)
     expect(res.status).toBe(403)
 
     const events = await auditLog(app)

@@ -47,7 +47,7 @@ beforeEach(() => {
 
 describe('PUT on an archived item (#1340)', () => {
   it('answers 409 ARCHIVED for an archived page and writes nothing', async () => {
-    const archive = await app.request('/api/pages/home/archive', {
+    const archive = await app.request('/api/v1/pages/home/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: '{}',
@@ -56,7 +56,7 @@ describe('PUT on an archived item (#1340)', () => {
     const before = await storage.readFile('pages/home/page.json')
     expect(JSON.parse(before).archived).toBe(true)
 
-    const res = await app.request('/api/pages/home', {
+    const res = await app.request('/api/v1/pages/home', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { title: 'Edited' } }),
@@ -70,7 +70,7 @@ describe('PUT on an archived item (#1340)', () => {
   })
 
   it('answers 409 ARCHIVED for an archived fragment and writes nothing', async () => {
-    const archive = await app.request('/api/fragments/header/archive', {
+    const archive = await app.request('/api/v1/fragments/header/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: '{}',
@@ -79,7 +79,7 @@ describe('PUT on an archived item (#1340)', () => {
     const before = await storage.readFile('fragments/header/fragment.json')
     expect(JSON.parse(before).archived).toBe(true)
 
-    const res = await app.request('/api/fragments/header', {
+    const res = await app.request('/api/v1/fragments/header', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: {} }),

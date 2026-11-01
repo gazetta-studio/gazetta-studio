@@ -52,16 +52,16 @@ const snapshot = (s: ReturnType<typeof memoryStorage>) =>
 // `issues` is false where a route keeps its own pinned message, checked
 // in middleware before the body validator (still before the handler).
 const INVALID: Array<[group: string, path: string, init: RequestInit, issues?: false]> = [
-  ['pages: save with content as a list', '/api/pages/home', json('PUT', { content: [] })],
-  ['fragments: save with components as a string', '/api/fragments/header', json('PUT', { components: 'x' })],
-  ['pages: create with a numeric name', '/api/pages', json('POST', { name: 5, template: 'page-default' })],
-  ['publish: items as a string', '/api/publish', json('POST', { items: 'pages/home', targets: ['staging'] })],
-  ['fetch: source as a number', '/api/fetch', json('POST', { source: 5 })],
-  ['archive: aliasOf as a number', '/api/pages/home/archive', json('POST', { aliasOf: 5 })],
-  ['alias: aliasOf as a list', '/api/pages/home/alias', json('PATCH', { aliasOf: [] })],
-  ['rename: to as a number', '/api/pages/home/rename', json('POST', { to: 5 })],
-  ['redirects: from as a number', '/api/page-redirects', json('POST', { from: 5, to: 'home' })],
-  ['assets: metadata with alt as a number', '/api/assets/hero', json('PATCH', { alt: 5 }), false],
+  ['pages: save with content as a list', '/api/v1/pages/home', json('PUT', { content: [] })],
+  ['fragments: save with components as a string', '/api/v1/fragments/header', json('PUT', { components: 'x' })],
+  ['pages: create with a numeric name', '/api/v1/pages', json('POST', { name: 5, template: 'page-default' })],
+  ['publish: items as a string', '/api/v1/publish', json('POST', { items: 'pages/home', targets: ['staging'] })],
+  ['fetch: source as a number', '/api/v1/fetch', json('POST', { source: 5 })],
+  ['archive: aliasOf as a number', '/api/v1/pages/home/archive', json('POST', { aliasOf: 5 })],
+  ['alias: aliasOf as a list', '/api/v1/pages/home/alias', json('PATCH', { aliasOf: [] })],
+  ['rename: to as a number', '/api/v1/pages/home/rename', json('POST', { to: 5 })],
+  ['redirects: from as a number', '/api/v1/page-redirects', json('POST', { from: 5, to: 'home' })],
+  ['assets: metadata with alt as a number', '/api/v1/assets/hero', json('PATCH', { alt: 5 }), false],
 ]
 
 describe('input that fails its schema', () => {
@@ -79,15 +79,15 @@ describe('input that fails its schema', () => {
 
 describe('asset bodies without the declared content type', () => {
   it.each([
-    ['metadata body without Content-Type', '/api/assets/hero', { method: 'PATCH', body: '{"alt":"x"}' }, 415],
+    ['metadata body without Content-Type', '/api/v1/assets/hero', { method: 'PATCH', body: '{"alt":"x"}' }, 415],
     [
       'metadata with an empty JSON body',
-      '/api/assets/hero',
+      '/api/v1/assets/hero',
       { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: '' },
       400,
     ],
-    ['upload without a body', '/api/assets', { method: 'POST' }, 400],
-    ['language version without a body', '/api/assets/hero/locale-bytes?locale=fr', { method: 'POST' }, 400],
+    ['upload without a body', '/api/v1/assets', { method: 'POST' }, 400],
+    ['language version without a body', '/api/v1/assets/hero/locale-bytes?locale=fr', { method: 'POST' }, 400],
   ] as Array<[string, string, RequestInit, number]>)(
     '%s: refused as a problem, nothing written',
     async (_name, path, init, status) => {
@@ -102,19 +102,19 @@ describe('asset bodies without the declared content type', () => {
 
   it('documents the asset bodies as required', async () => {
     const { app } = buildApp()
-    const doc = (await (await app.request('/api/openapi.json')).json()) as {
+    const doc = (await (await app.request('/api/v1/openapi.json')).json()) as {
       paths: Record<string, Record<string, { requestBody?: { required?: boolean } }>>
     }
-    expect(doc.paths['/api/assets/{name}'].patch.requestBody?.required).toBe(true)
-    expect(doc.paths['/api/assets'].post.requestBody?.required).toBe(true)
-    expect(doc.paths['/api/assets/{name}/locale-bytes'].post.requestBody?.required).toBe(true)
+    expect(doc.paths['/api/v1/assets/{name}'].patch.requestBody?.required).toBe(true)
+    expect(doc.paths['/api/v1/assets'].post.requestBody?.required).toBe(true)
+    expect(doc.paths['/api/v1/assets/{name}/locale-bytes'].post.requestBody?.required).toBe(true)
   })
 })
 
 describe('unversioned routes in the document', () => {
   it('marks the dev and preview routes unversioned, and no /api route', async () => {
     const { app } = buildApp()
-    const doc = (await (await app.request('/api/openapi.json')).json()) as {
+    const doc = (await (await app.request('/api/v1/openapi.json')).json()) as {
       paths: Record<string, Record<string, { 'x-gazetta-unversioned'?: boolean } | unknown>>
     }
     const unversioned: string[] = []

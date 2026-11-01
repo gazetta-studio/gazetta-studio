@@ -12,7 +12,7 @@
  * Two test layers:
  *   - dispatch-level: HookContext.auditEmit fires once per hook
  *     firing with the right shape (success / cancelled / timeout)
- *   - admin-api-level: PUT /api/pages with hooks → audit log
+ *   - admin-api-level: PUT /api/v1/pages with hooks → audit log
  *     contains both the original 'save' event AND a 'hook-fired'
  *     event
  */
@@ -255,13 +255,13 @@ async function readAuditEvents(): Promise<AuditEvent[]> {
 }
 
 describe('Cut 7 — end-to-end hook-fired audit events', () => {
-  it('hook firing during PUT /api/pages records action: hook-fired', async () => {
-    await app.request('/api/pages', {
+  it('hook firing during PUT /api/v1/pages records action: hook-fired', async () => {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'audit-hook-test', template: 'page-default' }),
     })
-    const res = await app.request('/api/pages/audit-hook-test', {
+    const res = await app.request('/api/v1/pages/audit-hook-test', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { title: 'Hi' } }),

@@ -10,11 +10,11 @@
  *
  *   #1. Boot validate — `warnOnCapabilityGaps(manifest)` warns at
  *       admin boot per gapped target
- *   #2. Author modal — `/api/targets` returns `capabilities: { has,
+ *   #2. Author modal — `/api/v1/targets` returns `capabilities: { has,
  *       gaps }` per target so the archive modal can render badges
  *   #3. Validator scanner — `archive-not-supported-on-target` (P4)
  *       fires for archived items on gapped targets
- *   #4. Publish gate — `/api/publish/audit` includes `capabilities`
+ *   #4. Publish gate — `/api/v1/publish/audit` includes `capabilities`
  *       in the response when the publish set includes archived items
  *
  * Each surface is tested in isolation today (boot test in
@@ -138,8 +138,8 @@ describe('Cross-foundation gap #3 — capability-gap surfaces fire at all four p
     }
   })
 
-  it('Surface #2 (author modal data) — /api/targets reports capabilities with gaps for plain-static', async () => {
-    const res = await app.request('/api/targets')
+  it('Surface #2 (author modal data) — /api/v1/targets reports capabilities with gaps for plain-static', async () => {
+    const res = await app.request('/api/v1/targets')
     expect(res.status).toBe(200)
     const targets = (await res.json()) as Array<{
       name: string
@@ -190,8 +190,8 @@ describe('Cross-foundation gap #3 — capability-gap surfaces fire at all four p
     expect(ours!.message).toContain('plain-static')
   })
 
-  it('Surface #4 (publish gate) — /api/publish/audit includes capabilities when publish set has archived items', async () => {
-    const res = await app.request('/api/publish/audit', {
+  it('Surface #4 (publish gate) — /api/v1/publish/audit includes capabilities when publish set has archived items', async () => {
+    const res = await app.request('/api/v1/publish/audit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -221,14 +221,14 @@ describe('Cross-foundation gap #3 — capability-gap surfaces fire at all four p
     // forks the inspection into surface-specific branches would
     // produce divergent UX (e.g., scanner warns about 'redirects'
     // while the modal says 'all good'). This test pins consistency.
-    const targetsRes = await app.request('/api/targets')
+    const targetsRes = await app.request('/api/v1/targets')
     const targets = (await targetsRes.json()) as Array<{
       name: string
       capabilities: { has: string[]; gaps: Array<{ capability: string; reason: string }> }
     }>
     const surface2 = targets.find(t => t.name === 'plain-static')!.capabilities
 
-    const auditRes = await app.request('/api/publish/audit', {
+    const auditRes = await app.request('/api/v1/publish/audit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

@@ -13,10 +13,10 @@
  * These tests pin the enforcement through createAdminApp (the same
  * wiring production uses) against acceptance criteria:
  *
- *   - strict + throwing provider: PUT /api/pages/:name refused with
+ *   - strict + throwing provider: PUT /api/v1/pages/:name refused with
  *     typed AUDIT_FAILED, storage unchanged
- *   - strict + throwing provider: POST /api/publish refused
- *   - strict + throwing provider: POST /api/assets refused
+ *   - strict + throwing provider: POST /api/v1/publish refused
+ *   - strict + throwing provider: POST /api/v1/assets refused
  *   - strict + write fails after the record: a second event with
  *     outcome 'write-failed' is recorded (manifest write AND
  *     history write - the write phase is one try/catch)
@@ -133,7 +133,7 @@ function buildApp(opts: {
 }
 
 async function auditLog(app: Hono): Promise<Array<Record<string, unknown>>> {
-  const res = await app.request('/api/audit', { headers: ADMIN_HEADERS }, FROM_PROXY)
+  const res = await app.request('/api/v1/audit', { headers: ADMIN_HEADERS }, FROM_PROXY)
   expect(res.status).toBe(200)
   const body = (await res.json()) as { events: Array<Record<string, unknown>> }
   return body.events
@@ -152,7 +152,7 @@ describe('admin.audit.strict enforcement (#1393)', { timeout: 30000 }, () => {
     const { app, sourceStorage } = buildApp({ strict: true, failAuditWrites: true })
 
     const res = await app.request(
-      '/api/pages/home',
+      '/api/v1/pages/home',
       {
         method: 'PUT',
         headers: { ...ADMIN_HEADERS, 'Content-Type': 'application/json' },
@@ -175,7 +175,7 @@ describe('admin.audit.strict enforcement (#1393)', { timeout: 30000 }, () => {
     const { app, targetStorage } = buildApp({ strict: true, failAuditWrites: true })
 
     const res = await app.request(
-      '/api/publish',
+      '/api/v1/publish',
       {
         method: 'POST',
         headers: { ...ADMIN_HEADERS, 'Content-Type': 'application/json' },
@@ -199,7 +199,7 @@ describe('admin.audit.strict enforcement (#1393)', { timeout: 30000 }, () => {
     form.set('name', 'hero')
     form.set('alt', 'Hero banner')
 
-    const res = await app.request('/api/assets', { method: 'POST', headers: ADMIN_HEADERS, body: form }, FROM_PROXY)
+    const res = await app.request('/api/v1/assets', { method: 'POST', headers: ADMIN_HEADERS, body: form }, FROM_PROXY)
     expect(res.status).toBe(500)
     const body = (await res.json()) as { code: string }
     expect(body.code).toBe('AUDIT_FAILED')
@@ -215,7 +215,7 @@ describe('admin.audit.strict enforcement (#1393)', { timeout: 30000 }, () => {
     const { app, sourceStorage } = buildApp({ strict: true, failContentWrite: true })
 
     const res = await app.request(
-      '/api/pages/home',
+      '/api/v1/pages/home',
       {
         method: 'PUT',
         headers: { ...ADMIN_HEADERS, 'Content-Type': 'application/json' },
@@ -233,7 +233,7 @@ describe('admin.audit.strict enforcement (#1393)', { timeout: 30000 }, () => {
     const events = await auditLog(app)
     const saves = events.filter(e => e.action === 'save')
     expect(saves).toHaveLength(2)
-    // /api/audit returns newest-first and both events can share a
+    // /api/v1/audit returns newest-first and both events can share a
     // timestamp, so compare as a set.
     expect(saves.map(e => e.outcome).sort()).toEqual(['success', 'write-failed'])
   })
@@ -242,7 +242,7 @@ describe('admin.audit.strict enforcement (#1393)', { timeout: 30000 }, () => {
     const { app, targetStorage } = buildApp({ strict: true, failAuditWrites: true })
 
     const res = await app.request(
-      '/api/publish/stream',
+      '/api/v1/publish/stream',
       {
         method: 'POST',
         headers: { ...ADMIN_HEADERS, 'Content-Type': 'application/json' },
@@ -262,7 +262,7 @@ describe('admin.audit.strict enforcement (#1393)', { timeout: 30000 }, () => {
     const { app, sourceStorage } = buildApp({ strict: true, failHistoryWrite: true })
 
     const res = await app.request(
-      '/api/pages/home',
+      '/api/v1/pages/home',
       {
         method: 'PUT',
         headers: { ...ADMIN_HEADERS, 'Content-Type': 'application/json' },
@@ -288,7 +288,7 @@ describe('admin.audit.strict enforcement (#1393)', { timeout: 30000 }, () => {
     const { app, sourceStorage } = buildApp({ strict: false, failAuditWrites: true })
 
     const res = await app.request(
-      '/api/pages/home',
+      '/api/v1/pages/home',
       {
         method: 'PUT',
         headers: { ...ADMIN_HEADERS, 'Content-Type': 'application/json' },

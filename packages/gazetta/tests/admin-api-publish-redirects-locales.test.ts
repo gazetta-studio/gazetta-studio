@@ -95,7 +95,7 @@ function buildApp(opts: BuildOpts = {}): { app: Hono; sourceStorage: MemoryStora
 }
 
 async function publishAndReadRedirects(app: Hono, targetStorage: MemoryStorage): Promise<string> {
-  const res = await app.request('/api/publish', {
+  const res = await app.request('/api/v1/publish', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ items: ['fragments/header'], targets: ['staging'] }),
@@ -207,7 +207,7 @@ describe('publish route — redirects rows per target language (#1130)', () => {
     const second = buildApp({
       storages: { sourceStorage: first.sourceStorage, targetStorage: first.targetStorage },
     })
-    const res = await second.app.request('/api/publish', {
+    const res = await second.app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: ['fragments/header'], targets: ['staging'] }),

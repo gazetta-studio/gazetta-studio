@@ -2,7 +2,7 @@
  * Cut 6 tests: end-to-end upload hook firing.
  *
  * Validates the asset-route wiring: HookRegistry → assetRoutes →
- * POST /api/assets multipart → dispatchBeforeUpload → ingestAsset
+ * POST /api/v1/assets multipart → dispatchBeforeUpload → ingestAsset
  * → dispatchAfterUpload → 201 response.
  *
  * Strategy: mount assetRoutes directly under a Hono app with the
@@ -82,7 +82,7 @@ function buildApp(opts: { hooks?: HookRegistry; manifest?: SiteManifest } = {}) 
   const resolve = staticSourceResolver(source)
   const app = new Hono()
   app.use('/api/*', principalMiddleware())
-  app.route('/', assetRoutes(resolve, opts))
+  app.route('/api/v1', assetRoutes(resolve, opts))
   return { app, storage }
 }
 
@@ -98,7 +98,7 @@ describe('Cut 6 — beforeUpload + afterUpload firing', () => {
 
     const { app } = buildApp({ hooks })
     const bytes = await jpegBuffer()
-    const res = await app.request('/api/assets', {
+    const res = await app.request('/api/v1/assets', {
       method: 'POST',
       body: multipartForm({
         file: { name: 'hero.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
@@ -126,7 +126,7 @@ describe('Cut 6 — beforeUpload + afterUpload firing', () => {
 
     const { app } = buildApp({ hooks, manifest: { name: 'Test Site' } as SiteManifest })
     const bytes = await jpegBuffer()
-    const res = await app.request('/api/assets', {
+    const res = await app.request('/api/v1/assets', {
       method: 'POST',
       headers: { 'x-request-id': 'req-998' },
       body: multipartForm({
@@ -149,7 +149,7 @@ describe('Cut 6 — beforeUpload + afterUpload firing', () => {
 
     const { app } = buildApp({ hooks })
     const bytes = await jpegBuffer()
-    const res = await app.request('/api/assets', {
+    const res = await app.request('/api/v1/assets', {
       method: 'POST',
       body: multipartForm({
         file: { name: 'hero.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
@@ -173,7 +173,7 @@ describe('Cut 6 — beforeUpload + afterUpload firing', () => {
 
     const { app, storage } = buildApp({ hooks })
     const bytes = await jpegBuffer()
-    const res = await app.request('/api/assets', {
+    const res = await app.request('/api/v1/assets', {
       method: 'POST',
       body: multipartForm({
         file: { name: 'hero.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
@@ -199,7 +199,7 @@ describe('Cut 6 — beforeUpload + afterUpload firing', () => {
 
     const { app, storage } = buildApp({ hooks })
     const bytes = await jpegBuffer()
-    const res = await app.request('/api/assets', {
+    const res = await app.request('/api/v1/assets', {
       method: 'POST',
       body: multipartForm({
         file: { name: 'hero.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
@@ -223,7 +223,7 @@ describe('Cut 6 — beforeUpload + afterUpload firing', () => {
 
     const { app, storage } = buildApp({ hooks })
     const bytes = await jpegBuffer()
-    const res = await app.request('/api/assets', {
+    const res = await app.request('/api/v1/assets', {
       method: 'POST',
       body: multipartForm({
         file: { name: 'hero.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
@@ -242,7 +242,7 @@ describe('Cut 6 — beforeUpload + afterUpload firing', () => {
   it('upload works without hooks (opts.hooks undefined)', async () => {
     const { app, storage } = buildApp({})
     const bytes = await jpegBuffer()
-    const res = await app.request('/api/assets', {
+    const res = await app.request('/api/v1/assets', {
       method: 'POST',
       body: multipartForm({
         file: { name: 'hero.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
@@ -272,7 +272,7 @@ describe('Cut 6 — beforeUpload + afterUpload firing', () => {
 
     const { app, storage } = buildApp({ hooks })
     const bytes = await jpegBuffer()
-    const res = await app.request('/api/assets', {
+    const res = await app.request('/api/v1/assets', {
       method: 'POST',
       body: multipartForm({
         file: { name: 'hero.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },

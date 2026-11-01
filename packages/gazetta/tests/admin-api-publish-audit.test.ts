@@ -3,8 +3,8 @@
  *
  * Wires a custom `ValidatorRegistry` with a synthetic pre-publish-stage
  * validator into `createAdminApp`, exercising:
- *   - POST /api/publish/audit returns issues + the per-target strict flag
- *   - POST /api/publish refuses with 409 when the audit produces error-
+ *   - POST /api/v1/publish/audit returns issues + the per-target strict flag
+ *   - POST /api/v1/publish refuses with 409 when the audit produces error-
  *     severity issues (same code as the validation cut document calls
  *     out — defense in depth so the dialog can't be bypassed)
  *   - publishAudit.strict promotes warns to errors at the gate
@@ -78,13 +78,13 @@ function setupApp(opts: { validator: Validator; publishAuditStrict?: boolean }):
   })
 }
 
-describe('Validation Cut 4 — POST /api/publish/audit', () => {
+describe('Validation Cut 4 — POST /api/v1/publish/audit', () => {
   beforeEach(() => {
     setupApp({ validator: buildAlwaysFailValidator('error') })
   })
 
   it('returns the validator-emitted issues + the target strict flag', async () => {
-    const res = await app.request('/api/publish/audit', {
+    const res = await app.request('/api/v1/publish/audit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -101,7 +101,7 @@ describe('Validation Cut 4 — POST /api/publish/audit', () => {
   })
 
   it('400s on a missing items array', async () => {
-    const res = await app.request('/api/publish/audit', {
+    const res = await app.request('/api/v1/publish/audit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ target: 'staging' }),
@@ -111,7 +111,7 @@ describe('Validation Cut 4 — POST /api/publish/audit', () => {
 
   it('promotes warns to errors when target.publishAudit.strict is set', async () => {
     setupApp({ validator: buildAlwaysFailValidator('warn'), publishAuditStrict: true })
-    const res = await app.request('/api/publish/audit', {
+    const res = await app.request('/api/v1/publish/audit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -127,7 +127,7 @@ describe('Validation Cut 4 — POST /api/publish/audit', () => {
   })
 
   it('returns empty issues when no items are pages or fragments', async () => {
-    const res = await app.request('/api/publish/audit', {
+    const res = await app.request('/api/v1/publish/audit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ target: 'staging', items: [] }),
@@ -138,10 +138,10 @@ describe('Validation Cut 4 — POST /api/publish/audit', () => {
   })
 })
 
-describe('Validation Cut 4 — POST /api/publish gate', () => {
+describe('Validation Cut 4 — POST /api/v1/publish gate', () => {
   it('refuses with 409 PUBLISH_AUDIT_FAILED when the audit produces errors', async () => {
     setupApp({ validator: buildAlwaysFailValidator('error') })
-    const res = await app.request('/api/publish', {
+    const res = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: ['pages/home'], targets: ['staging'] }),
@@ -159,7 +159,7 @@ describe('Validation Cut 4 — POST /api/publish gate', () => {
 
   it('does NOT block when the validator produces only warns (non-strict target)', async () => {
     setupApp({ validator: buildAlwaysFailValidator('warn') })
-    const res = await app.request('/api/publish', {
+    const res = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: ['pages/home'], targets: ['staging'] }),
@@ -172,7 +172,7 @@ describe('Validation Cut 4 — POST /api/publish gate', () => {
 
   it('blocks when strict promotion turns warns into errors', async () => {
     setupApp({ validator: buildAlwaysFailValidator('warn'), publishAuditStrict: true })
-    const res = await app.request('/api/publish', {
+    const res = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: ['pages/home'], targets: ['staging'] }),

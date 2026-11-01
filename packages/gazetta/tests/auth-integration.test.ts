@@ -131,13 +131,13 @@ async function buildAndTrack(authBlock: Record<string, unknown> | undefined): Pr
 describe('Cut 10 — none trust mode (default)', () => {
   it('no admin.auth → admin role granted; reads succeed', async () => {
     const app = await buildAndTrack(undefined)
-    const res = await app.request('/api/pages')
+    const res = await app.request('/api/v1/pages')
     expect(res.status).toBe(200)
   })
 
   it('explicit { trust: "none" } → same as no admin.auth', async () => {
     const app = await buildAndTrack({ trust: 'none' })
-    const res = await app.request('/api/pages')
+    const res = await app.request('/api/v1/pages')
     expect(res.status).toBe(200)
   })
 })
@@ -151,7 +151,7 @@ describe('Cut 10 — forwarded-user trust mode', () => {
       trustedProxies: ['10.0.0.0/8'],
     })
     const res = await app.request(
-      '/api/pages',
+      '/api/v1/pages',
       { headers: { 'X-Forwarded-User': 'alice' } },
       fromConnection('203.0.113.1'), // not in 10.0.0.0/8
     )
@@ -166,7 +166,7 @@ describe('Cut 10 — forwarded-user trust mode', () => {
       trustedProxies: ['10.0.0.0/8'],
     })
     const res = await app.request(
-      '/api/pages',
+      '/api/v1/pages',
       { headers: { 'X-Forwarded-User': 'alice' } },
       fromConnection('10.0.0.5'),
     )
@@ -179,7 +179,7 @@ describe('Cut 10 — forwarded-user trust mode', () => {
       trustedProxies: ['10.0.0.0/8'],
     })
     const res = await app.request(
-      '/api/pages/home',
+      '/api/v1/pages/home',
       { method: 'DELETE', headers: { 'X-Forwarded-User': 'alice' } },
       fromConnection('10.0.0.5'),
     )
@@ -195,7 +195,7 @@ describe('Cut 10 — forwarded-user trust mode', () => {
       trust: 'forwarded-user',
       trustedProxies: ['10.0.0.0/8'],
     })
-    const res = await app.request('/api/pages', {}, fromConnection('10.0.0.5'))
+    const res = await app.request('/api/v1/pages', {}, fromConnection('10.0.0.5'))
     expect(res.status).toBe(401)
   })
 
@@ -205,7 +205,7 @@ describe('Cut 10 — forwarded-user trust mode', () => {
       allowAnyOrigin: true,
     })
     const res = await app.request(
-      '/api/pages',
+      '/api/v1/pages',
       { headers: { 'X-Forwarded-User': 'alice' } },
       fromConnection('8.8.8.8'), // anywhere
     )
@@ -220,7 +220,11 @@ describe('Cut 10 — forwarded-user trust mode', () => {
     // Default role from buildAuthProvider is editor. We can't override
     // through the schema yet (defaultRole field reserved for follow-up
     // role-mapping work), so this test confirms editor reads succeed.
-    const res = await app.request('/api/pages', { headers: { 'X-Forwarded-User': 'bob' } }, fromConnection('10.0.0.5'))
+    const res = await app.request(
+      '/api/v1/pages',
+      { headers: { 'X-Forwarded-User': 'bob' } },
+      fromConnection('10.0.0.5'),
+    )
     expect(res.status).toBe(200)
   })
 
@@ -252,7 +256,7 @@ describe('Cut 10 — cloudflare-access trust mode (route-level fixture)', () => 
     const { requireCapability } = await import('../src/admin-api/middleware/capability.js')
     const app = new HonoCtor()
     app.use('/api/*', principalMiddleware(provider))
-    app.get('/api/test', requireCapability('read:pages'), c => c.json({ id: c.get('principal').id }))
+    app.get('/api/v1/test', requireCapability('read:pages'), c => c.json({ id: c.get('principal').id }))
     return { app, privateKey, sign: makeSigner(privateKey) }
   }
 
@@ -270,7 +274,7 @@ describe('Cut 10 — cloudflare-access trust mode (route-level fixture)', () => 
 
   it('missing JWT → 401', async () => {
     const { app } = await buildCfTestApp()
-    const res = await app.request('/api/test')
+    const res = await app.request('/api/v1/test')
     expect(res.status).toBe(401)
   })
 
@@ -280,7 +284,7 @@ describe('Cut 10 — cloudflare-access trust mode (route-level fixture)', () => 
       { sub: 'cf-user-1', email: 'alice@example.com' },
       { iss: 'https://acme.cloudflareaccess.com' },
     )
-    const res = await app.request('/api/test', {
+    const res = await app.request('/api/v1/test', {
       headers: { 'Cf-Access-Jwt-Assertion': token },
     })
     expect(res.status).toBe(200)
@@ -298,7 +302,7 @@ describe('Cut 10 — cloudflare-access trust mode (route-level fixture)', () => 
       .setExpirationTime('5m')
       .setIssuer('https://acme.cloudflareaccess.com')
       .sign(attackerKey)
-    const res = await app.request('/api/test', {
+    const res = await app.request('/api/v1/test', {
       headers: { 'Cf-Access-Jwt-Assertion': forged },
     })
     expect(res.status).toBe(401)
@@ -315,7 +319,7 @@ describe('Cut 10 — cloudflare-access trust mode (route-level fixture)', () => 
       .setExpirationTime(past + 100)
       .setIssuer('https://acme.cloudflareaccess.com')
       .sign(privateKey)
-    const res = await app.request('/api/test', {
+    const res = await app.request('/api/v1/test', {
       headers: { 'Cf-Access-Jwt-Assertion': expiredToken },
     })
     expect(res.status).toBe(401)

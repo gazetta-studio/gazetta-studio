@@ -1,5 +1,5 @@
 /**
- * Cut 6 tests: GET /api/audit endpoint.
+ * Cut 6 tests: GET /api/v1/audit endpoint.
  *
  * Validates the route in isolation — provides a synthetic
  * AuditProvider list (no real storage) so each test pins one
@@ -82,7 +82,7 @@ function buildApp(providers: AuditProvider[]): Hono {
   // 'unknown' / 'admin' principal which holds `*` capabilities — same
   // shape createAdminApp uses when no auth is configured.
   app.use('/api/*', principalMiddleware(noneAuthProvider))
-  app.route('/', auditRoutes({ providers }))
+  app.route('/api/v1', auditRoutes({ providers }))
   return app
 }
 
@@ -105,11 +105,11 @@ function buildAppWithRole(providers: AuditProvider[], role: string, capabilities
     },
   }
   app.use('/api/*', principalMiddleware(fakeProvider))
-  app.route('/', auditRoutes({ providers }))
+  app.route('/api/v1', auditRoutes({ providers }))
   return app
 }
 
-describe('Cut 6 — GET /api/audit', () => {
+describe('Cut 6 — GET /api/v1/audit', () => {
   it('returns events from a single queryable provider, newest-first', async () => {
     const provider = makeQueryableProvider('history', [
       makeEvent({ timestamp: '2026-05-04T10:00:00Z', scope: { kind: 'page', name: 'a' } }),
@@ -117,7 +117,7 @@ describe('Cut 6 — GET /api/audit', () => {
       makeEvent({ timestamp: '2026-05-04T11:00:00Z', scope: { kind: 'page', name: 'c' } }),
     ])
     const app = buildApp([provider])
-    const res = await app.request('/api/audit')
+    const res = await app.request('/api/v1/audit')
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.events).toHaveLength(3)
@@ -135,7 +135,7 @@ describe('Cut 6 — GET /api/audit', () => {
     for (const action of ['review-submit', 'review-reject', 'review-withdraw'] as const) {
       await history.record(makeEvent({ timestamp: at, action }))
     }
-    const res = await buildApp([history]).request('/api/audit')
+    const res = await buildApp([history]).request('/api/v1/audit')
     const body = await res.json()
     expect(body.events.map((e: AuditEvent) => e.action)).toEqual(['review-withdraw', 'review-reject', 'review-submit'])
   })
@@ -156,7 +156,7 @@ describe('Cut 6 — GET /api/audit', () => {
     const history = makeQueryableProvider('history', [sharedEvent, historyOnly])
     const file = makeQueryableProvider('file', [sharedEvent, fileOnly])
     const app = buildApp([history, file])
-    const res = await app.request('/api/audit')
+    const res = await app.request('/api/v1/audit')
     expect(res.status).toBe(200)
     const body = await res.json()
     // 3 unique events (shared dedupes once)
@@ -170,7 +170,7 @@ describe('Cut 6 — GET /api/audit', () => {
     const cloudwatch = makeExternalSinkProvider('cloudwatch', 'https://aws.example.com/audit')
     const webhook = makeExternalSinkProvider('webhook', null)
     const app = buildApp([queryable, cloudwatch, webhook])
-    const res = await app.request('/api/audit')
+    const res = await app.request('/api/v1/audit')
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.events).toHaveLength(1)
@@ -187,7 +187,7 @@ describe('Cut 6 — GET /api/audit', () => {
       makeEvent({ action: 'delete', scope: { kind: 'page', name: 'c' } }),
     ]
     const app = buildApp([makeQueryableProvider('history', events)])
-    const res = await app.request('/api/audit?action=publish')
+    const res = await app.request('/api/v1/audit?action=publish')
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.events).toHaveLength(1)
@@ -200,7 +200,7 @@ describe('Cut 6 — GET /api/audit', () => {
       makeEvent({ outcome: 'validation-failed', scope: { kind: 'page', name: 'b' } }),
     ]
     const app = buildApp([makeQueryableProvider('history', events)])
-    const res = await app.request('/api/audit?outcome=validation-failed')
+    const res = await app.request('/api/v1/audit?outcome=validation-failed')
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.events).toHaveLength(1)
@@ -214,9 +214,9 @@ describe('Cut 6 — GET /api/audit', () => {
       makeEvent({ scope: { kind: 'page', name: 'about' } }),
     ]
     const app = buildApp([makeQueryableProvider('history', events)])
-    const resKind = await app.request('/api/audit?scopeKind=fragment')
+    const resKind = await app.request('/api/v1/audit?scopeKind=fragment')
     expect((await resKind.json()).events).toHaveLength(1)
-    const resName = await app.request('/api/audit?scopeName=home')
+    const resName = await app.request('/api/v1/audit?scopeName=home')
     expect((await resName.json()).events).toHaveLength(1)
   })
 
@@ -226,7 +226,7 @@ describe('Cut 6 — GET /api/audit', () => {
       makeEvent({ actor: { id: 'bob@example.com', role: 'editor', trustMode: 'forwarded-user' } }),
     ]
     const app = buildApp([makeQueryableProvider('history', events)])
-    const res = await app.request('/api/audit?actor=alice')
+    const res = await app.request('/api/v1/audit?actor=alice')
     const body = await res.json()
     expect(body.events).toHaveLength(1)
     expect(body.events[0].actor.id).toBe('alice@example.com')
@@ -239,7 +239,7 @@ describe('Cut 6 — GET /api/audit', () => {
       makeEvent({ timestamp: '2026-05-04T12:00:00Z', scope: { kind: 'page', name: 'c' } }),
     ]
     const app = buildApp([makeQueryableProvider('history', events)])
-    const res = await app.request('/api/audit?since=2026-05-04T11:00:00Z&until=2026-05-04T12:00:00Z')
+    const res = await app.request('/api/v1/audit?since=2026-05-04T11:00:00Z&until=2026-05-04T12:00:00Z')
     const body = await res.json()
     expect(body.events).toHaveLength(1)
     expect(body.events[0].scope.name).toBe('b')
@@ -253,21 +253,21 @@ describe('Cut 6 — GET /api/audit', () => {
       }),
     )
     const app = buildApp([makeQueryableProvider('history', events)])
-    const res = await app.request('/api/audit?limit=10')
+    const res = await app.request('/api/v1/audit?limit=10')
     const body = await res.json()
     expect(body.events).toHaveLength(10)
     // Default limit when omitted = 100; we have 50 events so we get all 50.
-    const resDefault = await app.request('/api/audit')
+    const resDefault = await app.request('/api/v1/audit')
     expect((await resDefault.json()).events).toHaveLength(50)
   })
 
   it('rejects invalid action / outcome / scopeKind / limit with 400', async () => {
     const app = buildApp([makeQueryableProvider('history', [makeEvent()])])
-    expect((await app.request('/api/audit?action=bogus')).status).toBe(400)
-    expect((await app.request('/api/audit?outcome=bogus')).status).toBe(400)
-    expect((await app.request('/api/audit?scopeKind=bogus')).status).toBe(400)
-    expect((await app.request('/api/audit?limit=-5')).status).toBe(400)
-    expect((await app.request('/api/audit?limit=abc')).status).toBe(400)
+    expect((await app.request('/api/v1/audit?action=bogus')).status).toBe(400)
+    expect((await app.request('/api/v1/audit?outcome=bogus')).status).toBe(400)
+    expect((await app.request('/api/v1/audit?scopeKind=bogus')).status).toBe(400)
+    expect((await app.request('/api/v1/audit?limit=-5')).status).toBe(400)
+    expect((await app.request('/api/v1/audit?limit=abc')).status).toBe(400)
   })
 
   it('treats provider query() failures as fail-open (empty result, no throw)', async () => {
@@ -280,7 +280,7 @@ describe('Cut 6 — GET /api/audit', () => {
     }
     const ok = makeQueryableProvider('history', [makeEvent()])
     const app = buildApp([failing, ok])
-    const res = await app.request('/api/audit')
+    const res = await app.request('/api/v1/audit')
     expect(res.status).toBe(200)
     const body = await res.json()
     // Failing provider contributed nothing; ok provider's events still flow.
@@ -289,7 +289,7 @@ describe('Cut 6 — GET /api/audit', () => {
 
   it('returns empty events + empty externalSinks when no providers configured', async () => {
     const app = buildApp([])
-    const res = await app.request('/api/audit')
+    const res = await app.request('/api/v1/audit')
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.events).toEqual([])
@@ -303,7 +303,7 @@ describe('Cut 6 — GET /api/audit', () => {
   describe('Cut 9 — capability gating', () => {
     it('admin role with `*` is allowed (200)', async () => {
       const app = buildAppWithRole([makeQueryableProvider('history', [])], 'admin', ['*'])
-      const res = await app.request('/api/audit')
+      const res = await app.request('/api/v1/audit')
       expect(res.status).toBe(200)
     })
 
@@ -313,19 +313,19 @@ describe('Cut 6 — GET /api/audit', () => {
         'edit:*',
         'publish:non-production',
       ])
-      const res = await app.request('/api/audit')
+      const res = await app.request('/api/v1/audit')
       expect(res.status).toBe(403)
     })
 
     it('viewer role with read:* is forbidden (403)', async () => {
       const app = buildAppWithRole([makeQueryableProvider('history', [])], 'viewer', ['read:*'])
-      const res = await app.request('/api/audit')
+      const res = await app.request('/api/v1/audit')
       expect(res.status).toBe(403)
     })
 
     it('custom auditor role with explicit read:audit-log is allowed (200)', async () => {
       const app = buildAppWithRole([makeQueryableProvider('history', [])], 'auditor', ['read:*', 'read:audit-log'])
-      const res = await app.request('/api/audit')
+      const res = await app.request('/api/v1/audit')
       expect(res.status).toBe(200)
     })
   })

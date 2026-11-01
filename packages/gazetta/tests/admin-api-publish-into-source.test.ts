@@ -1,5 +1,5 @@
 /**
- * #1526: `POST /api/publish` naming the editing source as a destination
+ * #1526: `POST /api/v1/publish` naming the editing source as a destination
  * copied the site onto itself. Parallel copies then read each other's
  * half-written temp files. The route refuses with 400 before writing
  * anything, and publishing to a real destination still works.
@@ -53,7 +53,7 @@ function contents(storage: MemoryStorage): Record<string, string> {
 }
 
 function publish(app: Hono, targets: string[]) {
-  return app.request('/api/publish', {
+  return app.request('/api/v1/publish', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ items: ['pages/about'], targets }),

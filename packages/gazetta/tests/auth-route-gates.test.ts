@@ -61,71 +61,71 @@ afterAll(async () => {
 // gated route still works under the admin baseline.
 
 describe('Cut 9 — admin-api route gates (none mode = admin role with *)', () => {
-  it('GET /api/site → 200 (read:pages gate satisfied by *)', async () => {
-    const res = await app.request('/api/site')
+  it('GET /api/v1/site → 200 (read:pages gate satisfied by *)', async () => {
+    const res = await app.request('/api/v1/site')
     expect(res.status).toBe(200)
   })
 
-  it('GET /api/pages → 200', async () => {
-    const res = await app.request('/api/pages')
+  it('GET /api/v1/pages → 200', async () => {
+    const res = await app.request('/api/v1/pages')
     expect(res.status).toBe(200)
   })
 
-  it('GET /api/fragments → 200', async () => {
-    const res = await app.request('/api/fragments')
+  it('GET /api/v1/fragments → 200', async () => {
+    const res = await app.request('/api/v1/fragments')
     expect(res.status).toBe(200)
   })
 
-  it('GET /api/templates → 200', async () => {
-    const res = await app.request('/api/templates')
+  it('GET /api/v1/templates → 200', async () => {
+    const res = await app.request('/api/v1/templates')
     expect(res.status).toBe(200)
   })
 
-  it('GET /api/fields → 200', async () => {
-    const res = await app.request('/api/fields')
+  it('GET /api/v1/fields → 200', async () => {
+    const res = await app.request('/api/v1/fields')
     expect(res.status).toBe(200)
   })
 
-  it('GET /api/targets → 200', async () => {
-    const res = await app.request('/api/targets')
+  it('GET /api/v1/targets → 200', async () => {
+    const res = await app.request('/api/v1/targets')
     expect(res.status).toBe(200)
   })
 
-  it('GET /api/dependents → 200 (or 400 for missing query)', async () => {
-    const res = await app.request('/api/dependents')
+  it('GET /api/v1/dependents → 200 (or 400 for missing query)', async () => {
+    const res = await app.request('/api/v1/dependents')
     // Capability gate passed; route may reject for other reasons.
     expect([200, 400]).toContain(res.status)
   })
 
-  it('GET /api/system/cache/stats → 200 (configure:site gate satisfied by *)', async () => {
-    const res = await app.request('/api/system/cache/stats')
+  it('GET /api/v1/system/cache/stats → 200 (configure:site gate satisfied by *)', async () => {
+    const res = await app.request('/api/v1/system/cache/stats')
     expect(res.status).toBe(200)
   })
 
-  it('GET /api/health → 200 (no gate; intentionally public)', async () => {
-    const res = await app.request('/api/health')
+  it('GET /api/v1/health → 200 (no gate; intentionally public)', async () => {
+    const res = await app.request('/api/v1/health')
     expect(res.status).toBe(200)
   })
 
-  it('GET /api/assets → 200 (read:assets gate)', async () => {
-    const res = await app.request('/api/assets')
+  it('GET /api/v1/assets → 200 (read:assets gate)', async () => {
+    const res = await app.request('/api/v1/assets')
     expect(res.status).toBe(200)
   })
 
-  it('GET /api/history → 200 or 400 (read:pages gate satisfied; route requires target)', async () => {
-    const res = await app.request('/api/history')
+  it('GET /api/v1/history → 200 or 400 (read:pages gate satisfied; route requires target)', async () => {
+    const res = await app.request('/api/v1/history')
     // Capability gate passed; route returns 400 for missing ?target
     // query. We just confirm it's not 401/403.
     expect([200, 400]).toContain(res.status)
   })
 
-  it('GET /api/validation/issues → 200 (read:pages gate satisfied by *)', async () => {
-    const res = await app.request('/api/validation/issues')
+  it('GET /api/v1/validation/issues → 200 (read:pages gate satisfied by *)', async () => {
+    const res = await app.request('/api/v1/validation/issues')
     expect(res.status).toBe(200)
   })
 })
 
-// `GET /api/validation/issues` returns the full site issue list —
+// `GET /api/v1/validation/issues` returns the full site issue list —
 // item paths + validator messages. It must carry the same
 // `read:pages` gate every peer read route (compare / fields / site /
 // templates) has. The none-mode suite above can only confirm the
@@ -152,18 +152,18 @@ const anonymousProvider: AuthIdentityProvider = {
 function buildValidationApp(provider: AuthIdentityProvider) {
   const inner = new Hono<PrincipalEnv>()
   inner.use('/api/*', principalMiddleware(provider))
-  inner.route('/', validationRoutes({ scanner: null }))
+  inner.route('/api/v1', validationRoutes({ scanner: null }))
   return inner
 }
 
-describe('GET /api/validation/issues — read:pages capability gate', () => {
+describe('GET /api/v1/validation/issues — read:pages capability gate', () => {
   it('200 when the principal has read:pages', async () => {
-    const res = await buildValidationApp(providerWithCaps(['read:pages'])).request('/api/validation/issues')
+    const res = await buildValidationApp(providerWithCaps(['read:pages'])).request('/api/v1/validation/issues')
     expect(res.status).toBe(200)
   })
 
   it('403 when the authenticated principal lacks read:pages', async () => {
-    const res = await buildValidationApp(providerWithCaps([], 'editor')).request('/api/validation/issues')
+    const res = await buildValidationApp(providerWithCaps([], 'editor')).request('/api/v1/validation/issues')
     expect(res.status).toBe(403)
     const body = await res.json()
     expect(body.code).toBe('FORBIDDEN')
@@ -171,7 +171,7 @@ describe('GET /api/validation/issues — read:pages capability gate', () => {
   })
 
   it('401 when the request is anonymous (no upstream identity)', async () => {
-    const res = await buildValidationApp(anonymousProvider).request('/api/validation/issues')
+    const res = await buildValidationApp(anonymousProvider).request('/api/v1/validation/issues')
     expect(res.status).toBe(401)
     const body = await res.json()
     expect(body.code).toBe('UNAUTHENTICATED')
@@ -180,7 +180,7 @@ describe('GET /api/validation/issues — read:pages capability gate', () => {
 
 // The peer SSE channel `GET /__validation` streams `ScanEvent`s
 // carrying item paths + validator messages — the same payload class
-// as `GET /api/validation/issues`. It's mounted on the OUTER Hono app
+// as `GET /api/v1/validation/issues`. It's mounted on the OUTER Hono app
 // (not under `/api/*`), so the bearer-token + principal middleware
 // stacked on `/api/*` in `createAdminApp` do NOT reach it. After the
 // fix, `mountValidationSse(app, scanner, authProvider)` accepts the

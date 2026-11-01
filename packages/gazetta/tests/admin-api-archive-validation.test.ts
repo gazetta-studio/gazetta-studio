@@ -104,8 +104,8 @@ describe('handleArchive — invalid-body 400 branch (lines 232-238)', () => {
 
   beforeEach(() => setup())
 
-  it('POST /api/pages/:name/archive with aliasOf: wrong-type returns 400 + structured issues body', async () => {
-    const res = await app.request('/api/pages/landing/archive', {
+  it('POST /api/v1/pages/:name/archive with aliasOf: wrong-type returns 400 + structured issues body', async () => {
+    const res = await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 42 }), // number — schema requires string
@@ -125,8 +125,8 @@ describe('handleArchive — invalid-body 400 branch (lines 232-238)', () => {
     expect(body.issues[0].message.length).toBeGreaterThan(0)
   })
 
-  it('POST /api/pages/:name/archive with aliasOf: "" (empty, min(1) violation) returns 400 + structured issues body', async () => {
-    const res = await app.request('/api/pages/landing/archive', {
+  it('POST /api/v1/pages/:name/archive with aliasOf: "" (empty, min(1) violation) returns 400 + structured issues body', async () => {
+    const res = await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: '' }),
@@ -140,13 +140,13 @@ describe('handleArchive — invalid-body 400 branch (lines 232-238)', () => {
     expect(body.issues[0].message.length).toBeGreaterThan(0)
   })
 
-  it('POST /api/fragments/:name/archive with aliasOf: wrong-type returns 400 + structured issues body (parity with pages)', async () => {
+  it('POST /api/v1/fragments/:name/archive with aliasOf: wrong-type returns 400 + structured issues body (parity with pages)', async () => {
     // Same branch in handleArchive serves both pages and fragments —
     // pinning fragments separately closes the kind-axis coverage and
     // kills the cluster regardless of which handle.scopeKind branch
     // hits it. Modelled on `admin-api-archive-mutation-coverage.test.ts`'s
     // fragment-parity matrix for handleSetAlias.
-    const res = await app.request('/api/fragments/header/archive', {
+    const res = await app.request('/api/v1/fragments/header/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 42 }),
@@ -165,7 +165,7 @@ describe('handleArchive — invalid-body 400 branch (lines 232-238)', () => {
     // the schema-rejection branch above isn't accidentally swallowing
     // a valid request. Catches a future mistake where someone tightens
     // the schema (e.g. requires aliasOf) without updating callers.
-    const res = await app.request('/api/pages/landing/archive', {
+    const res = await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
@@ -215,7 +215,7 @@ describe('handleArchive — idempotent re-archive guard (line 252 ConditionalExp
   })
 
   it('re-archiving an already-archived fragment with live refs returns 200 (idempotent — does NOT run the live-refs scan)', async () => {
-    const res = await app.request('/api/fragments/header/archive', {
+    const res = await app.request('/api/v1/fragments/header/archive', {
       method: 'POST',
       // No body — aliasOf undefined, force undefined.
     })
@@ -253,7 +253,7 @@ describe('handleArchive — idempotent re-archive guard (line 252 ConditionalExp
     // circuits), but pinning it documents the intent and guards
     // against a future regression that moves the idempotent check
     // below the alias-update logic.
-    const res = await app.request('/api/fragments/header/archive', {
+    const res = await app.request('/api/v1/fragments/header/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'footer' }),
@@ -262,7 +262,7 @@ describe('handleArchive — idempotent re-archive guard (line 252 ConditionalExp
     const body = (await res.json()) as { ok: boolean; archivedAt: string }
     // Still returns the original archivedAt (idempotent), not a fresh
     // one. The aliasOf in the request body is NOT applied — operators
-    // use PATCH /api/fragments/:name/alias for that (covered by the
+    // use PATCH /api/v1/fragments/:name/alias for that (covered by the
     // existing handleSetAlias tests).
     expect(body.archivedAt).toBe('2026-06-01T00:00:00Z')
     const manifest = JSON.parse(await storage.readFile('fragments/header/fragment.json')) as {

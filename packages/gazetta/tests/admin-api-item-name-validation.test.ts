@@ -75,13 +75,13 @@ const post = (body: unknown) => ({
 
 describe('item names on write routes', { timeout: 30000 }, () => {
   it.each([
-    ['POST /api/pages', '/api/pages', { name: '../../escaped', template: 'page-default' }],
-    ['POST /api/fragments', '/api/fragments', { name: '../../escaped', template: 'header-layout' }],
-    ['page rename', '/api/pages/home/rename', { to: '../../escaped', keepAlias: false }],
-    ['fragment rename', '/api/fragments/header/rename', { to: '../../escaped', keepAlias: false }],
-    ['page redirect from', '/api/page-redirects', { from: '../../escaped', to: 'home' }],
-    ['page redirect to', '/api/page-redirects', { from: 'old', to: '../../escaped' }],
-    ['fragment redirect from', '/api/fragment-redirects', { from: '../../escaped', to: 'header' }],
+    ['POST /api/v1/pages', '/api/v1/pages', { name: '../../escaped', template: 'page-default' }],
+    ['POST /api/v1/fragments', '/api/v1/fragments', { name: '../../escaped', template: 'header-layout' }],
+    ['page rename', '/api/v1/pages/home/rename', { to: '../../escaped', keepAlias: false }],
+    ['fragment rename', '/api/v1/fragments/header/rename', { to: '../../escaped', keepAlias: false }],
+    ['page redirect from', '/api/v1/page-redirects', { from: '../../escaped', to: 'home' }],
+    ['page redirect to', '/api/v1/page-redirects', { from: 'old', to: '../../escaped' }],
+    ['fragment redirect from', '/api/v1/fragment-redirects', { from: '../../escaped', to: 'header' }],
   ])('%s refuses a name with .. and writes nothing outside the target', async (_label, path, body) => {
     const { app, root, target } = await buildApp()
 
@@ -94,7 +94,7 @@ describe('item names on write routes', { timeout: 30000 }, () => {
   it('still creates nested pages', async () => {
     const { app } = await buildApp()
 
-    const res = await app.request('/api/pages', post({ name: 'blog/post', template: 'page-default' }))
+    const res = await app.request('/api/v1/pages', post({ name: 'blog/post', template: 'page-default' }))
 
     expect(res.status).toBe(200)
   })

@@ -9,7 +9,7 @@
  * End-to-end per the issue's acceptance criteria: a real project on
  * disk (gazetta.config.ts + site.config.ts) loaded through
  * `buildSourceContext` + `createAdminApp` reports the default cache's
- * `instance` from `/api/system/cache/stats`, and a site-level
+ * `instance` from `/api/v1/system/cache/stats`, and a site-level
  * `cache:` still overrides the project default.
  */
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -72,7 +72,7 @@ async function statsInstance(): Promise<unknown> {
     targetConfigs,
     disableCacheStatsLogger: true,
   })
-  const res = await app.request('/api/system/cache/stats')
+  const res = await app.request('/api/v1/system/cache/stats')
   expect(res.status).toBe(200)
   const body = (await res.json()) as { instance?: string }
   return body.instance

@@ -2,7 +2,7 @@
  * Tests for Cut 9 — runtime capability inspection primitive.
  *
  * Pins the per-target capability inspection that all four
- * capability-gap surfaces consume (boot validate, /api/targets,
+ * capability-gap surfaces consume (boot validate, /api/v1/targets,
  * P4 validator, publish-audit).
  */
 import { describe, expect, it } from 'vitest'

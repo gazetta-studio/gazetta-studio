@@ -116,7 +116,7 @@ describe('publish generation on the target (#1125)', { timeout: 30_000 }, () => 
   })
 
   it('admin route: written after the content writes and before the purge', async () => {
-    const res = await app.request('/api/publish', {
+    const res = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: ['pages/home', 'fragments/footer'], targets: ['staging'] }),
@@ -136,7 +136,7 @@ describe('publish generation on the target (#1125)', { timeout: 30_000 }, () => 
   })
 
   it('admin route: also written when no purge is configured', async () => {
-    const res = await app.request('/api/publish', {
+    const res = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: ['pages/home'], targets: ['preview'] }),

@@ -81,9 +81,9 @@
  *
  * Cluster G — `invalidateTemplatesCache` closure (line 505):
  *   - ArrowFunction `[Survived] → "() => undefined"`
- *   Kill: after two `/api/compare` calls (which memoize the scan per
+ *   Kill: after two `/api/v1/compare` calls (which memoize the scan per
  *   Cluster 5 of the resolver test file), call
- *   `app.invalidateTemplatesCache()`; the next `/api/compare` re-invokes
+ *   `app.invalidateTemplatesCache()`; the next `/api/v1/compare` re-invokes
  *   `scanTemplates`. Under the mutant, `invalidateTemplatesCache` is a
  *   no-op — the next compare would still hit the memoized value → call
  *   count stays at 1 (mutant) vs. 2 (original).
@@ -142,7 +142,7 @@
  *   - Lines 408–458 various StringLiteral mutants replacing `'/'`
  *     mount prefixes with `''` on `app.route(...)` calls: equivalent
  *     under Hono's mount semantics — the sub-app's own routes carry
- *     their own paths (e.g. `/api/pages/:name`), and the empty string
+ *     their own paths (e.g. `/api/v1/pages/:name`), and the empty string
  *     mount prefix is idiomatic no-prefix mounting. Both `'/'` and
  *     `''` produce identical routing behavior at the sub-app level.
  *
@@ -269,7 +269,7 @@ describe('Cluster A — buildHistory guard (line 310)', () => {
     // any legacy-path calls during boot don't contaminate the count.
     vi.mocked(mockableCreateHistoryProvider).mockClear()
 
-    const res = await app.request('/api/pages/home', {
+    const res = await app.request('/api/v1/pages/home', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { title: 'Hello' } }),
@@ -331,7 +331,7 @@ describe('Cluster A — buildHistory guard (line 310)', () => {
     // lookup inside lazyInit AND buildHistory now returns undefined.
     delete targetConfigs.ghost
 
-    const res = await app.request('/api/pages?target=ghost')
+    const res = await app.request('/api/v1/pages?target=ghost')
     // Under the original: lazyInit's `!config` short-circuit fires;
     // registry.get then throws UnknownTargetError (per resolver-file
     // Cluster 6). buildHistory is never reached for this ghost
@@ -764,7 +764,7 @@ describe('Cluster G — invalidateTemplatesCache closure (line 505)', () => {
     // Kills:
     // - Line 505 ArrowFunction `() => undefined`:
     //   invalidateTemplatesCache becomes a no-op → the memoized
-    //   scan survives → subsequent /api/compare calls return the
+    //   scan survives → subsequent /api/v1/compare calls return the
     //   cached result → scanTemplates call count stays at 1 (not 2).
     const storage = memoryStorage()
     const targetConfigs = {
@@ -787,11 +787,11 @@ describe('Cluster G — invalidateTemplatesCache closure (line 505)', () => {
     })
 
     // First compare — populates the memoized scan.
-    await app.request('/api/compare?target=local')
+    await app.request('/api/v1/compare?target=local')
 
     // Second compare BEFORE invalidation — should hit the memoized
     // scan (same behavior as the resolver-file's Cluster 5 test).
-    await app.request('/api/compare?target=local')
+    await app.request('/api/v1/compare?target=local')
 
     // Extend the admin app's public surface as declared in the module
     // (AdminApp type augments Hono with invalidateTemplatesCache).
@@ -801,7 +801,7 @@ describe('Cluster G — invalidateTemplatesCache closure (line 505)', () => {
     // scanTemplates call. Under the mutant, invalidateTemplatesCache
     // did nothing → scan is still memoized → this call is served
     // from the memo.
-    await app.request('/api/compare?target=local')
+    await app.request('/api/v1/compare?target=local')
 
     const matchingCalls = vi
       .mocked(mockableScanTemplates)

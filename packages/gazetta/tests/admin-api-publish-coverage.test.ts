@@ -136,7 +136,7 @@ describe('publish route — getTargets lazy initialization (covers publish.ts:15
     // silently break the empty-config UX.
     const { app } = buildApp({})
 
-    const res = await app.request('/api/targets')
+    const res = await app.request('/api/v1/targets')
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as Array<unknown>
@@ -150,16 +150,16 @@ describe('publish route — getTargets lazy initialization (covers publish.ts:15
     //
     //   Line 153 `=== 0` → `!== 0`: with non-empty configs, the
     //     mutated condition is true → line 153 short-circuits with
-    //     empty Map → `/api/targets` returns `[]` → THIS test fails
+    //     empty Map → `/api/v1/targets` returns `[]` → THIS test fails
     //     (expected ['local', 'staging']).
     //
     //   Lines 158-167 BlockStatement `{}`: IIFE body becomes empty;
     //     `targets` never gets set; the unresolved promise resolves
-    //     to undefined; `t.keys()` throws → `/api/targets` returns
+    //     to undefined; `t.keys()` throws → `/api/v1/targets` returns
     //     500 → test fails.
     const { app } = buildApp({ withTargetConfigs: true })
 
-    const res = await app.request('/api/targets')
+    const res = await app.request('/api/v1/targets')
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as Array<{ name: string }>
@@ -168,7 +168,7 @@ describe('publish route — getTargets lazy initialization (covers publish.ts:15
 })
 
 describe('publish route — ensureFragmentDepsIndex backfill (covers publish.ts:183-205)', () => {
-  it('GET /api/dependents on a fresh source rebuilds the fragment-deps index and resolves dependents', async () => {
+  it('GET /api/v1/dependents on a fresh source rebuilds the fragment-deps index and resolves dependents', async () => {
     // Exercises the full `ensureFragmentDepsIndex` body — a fresh
     // source with NO `.gazetta/fragment-deps/` directory forces the
     // existence probe at line 192 to return false, then the rebuild
@@ -193,7 +193,7 @@ describe('publish route — ensureFragmentDepsIndex backfill (covers publish.ts:
 
     const { app } = buildApp({ sourceStorage, withTargetConfigs: true })
 
-    const res = await app.request('/api/dependents?item=fragments/header')
+    const res = await app.request('/api/v1/dependents?item=fragments/header')
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as { pages: string[]; fragments: string[] }
@@ -210,7 +210,7 @@ describe('publish route — ensureFragmentDepsIndex backfill (covers publish.ts:
     expect(sidecarExists).toBe(true)
   })
 
-  it('GET /api/dependents resolves transitive dependents via fragment-deps backfill', async () => {
+  it('GET /api/v1/dependents resolves transitive dependents via fragment-deps backfill', async () => {
     // Covers the BFS path through `findDependentsFromSidecars` after
     // `ensureFragmentDepsIndex` completes: `@inner` referenced by
     // `@outer` referenced by `pages/home` should surface home +
@@ -238,7 +238,7 @@ describe('publish route — ensureFragmentDepsIndex backfill (covers publish.ts:
 
     const { app } = buildApp({ sourceStorage, withTargetConfigs: true })
 
-    const res = await app.request('/api/dependents?item=fragments/inner')
+    const res = await app.request('/api/v1/dependents?item=fragments/inner')
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as { pages: string[]; fragments: string[] }
@@ -246,7 +246,7 @@ describe('publish route — ensureFragmentDepsIndex backfill (covers publish.ts:
     expect(body.fragments).toEqual(['outer'])
   })
 
-  it('GET /api/dependents 400s when the item query is missing or invalid', async () => {
+  it('GET /api/v1/dependents 400s when the item query is missing or invalid', async () => {
     // Pins the route-handler input validation at publish.ts:265-267
     // — explicitly NOT one of #564's reported clusters, but it's the
     // entry-point guard before `ensureFragmentDepsIndex` runs. Locks
@@ -254,10 +254,10 @@ describe('publish route — ensureFragmentDepsIndex backfill (covers publish.ts:
     // a documented counterpart.
     const { app } = buildApp({ withTargetConfigs: true })
 
-    const missing = await app.request('/api/dependents')
+    const missing = await app.request('/api/v1/dependents')
     expect(missing.status).toBe(400)
 
-    const invalid = await app.request('/api/dependents?item=pages/home')
+    const invalid = await app.request('/api/v1/dependents?item=pages/home')
     expect(invalid.status).toBe(400)
   })
 
@@ -293,7 +293,7 @@ describe('publish route — ensureFragmentDepsIndex backfill (covers publish.ts:
 
     const { app } = buildApp({ sourceStorage, withTargetConfigs: true })
 
-    const res1 = await app.request('/api/dependents?item=fragments/header')
+    const res1 = await app.request('/api/v1/dependents?item=fragments/header')
     expect(res1.status).toBe(200)
     expect(await sourceStorage.exists('.gazetta/fragment-deps/header/pages.home')).toBe(true)
 
@@ -302,7 +302,7 @@ describe('publish route — ensureFragmentDepsIndex backfill (covers publish.ts:
     await sourceStorage.rm('.gazetta/fragment-deps')
     expect(await sourceStorage.exists('.gazetta/fragment-deps/header/pages.home')).toBe(false)
 
-    const res2 = await app.request('/api/dependents?item=fragments/header')
+    const res2 = await app.request('/api/v1/dependents?item=fragments/header')
     expect(res2.status).toBe(200)
     const body = (await res2.json()) as { pages: string[]; fragments: string[] }
 
@@ -347,7 +347,7 @@ describe('publish route — ensureFragmentDepsIndex backfill (covers publish.ts:
 
     const { app } = buildApp({ sourceStorage, withTargetConfigs: true })
 
-    const res = await app.request('/api/dependents?item=fragments/header')
+    const res = await app.request('/api/v1/dependents?item=fragments/header')
     expect(res.status).toBe(200)
     const body = (await res.json()) as { pages: string[]; fragments: string[] }
 
@@ -387,7 +387,7 @@ describe('publish route — ensureFragmentDepsIndex backfill (covers publish.ts:
 
     const { app } = buildApp({ sourceStorage, withTargetConfigs: true })
 
-    const res = await app.request('/api/dependents?item=fragments/header')
+    const res = await app.request('/api/v1/dependents?item=fragments/header')
     expect(res.status).toBe(200)
     const body = (await res.json()) as { pages: string[]; fragments: string[] }
 

@@ -48,7 +48,7 @@ function runCli(cwd: string, args: string[], env: Record<string, string> = {}): 
 /** Make N saves via the admin-api PUT route to seed history. */
 async function seedHistory(projectDir: string, count: number): Promise<void> {
   // Use the history-recorder directly — spinning up a dev server per
-  // test is too slow. Mirrors what the PUT /api/pages route does.
+  // test is too slow. Mirrors what the PUT /api/v1/pages route does.
   const gazetta = await import('../src/index.js')
   const storage = gazetta.createFilesystemProvider(resolve(projectDir, 'sites/main/targets/local'))
   const history = gazetta.createHistoryProvider({ storage })

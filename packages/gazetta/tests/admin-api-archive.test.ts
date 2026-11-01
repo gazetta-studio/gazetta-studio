@@ -54,11 +54,11 @@ async function readJson(path: string): Promise<Record<string, unknown>> {
   return JSON.parse(raw) as Record<string, unknown>
 }
 
-describe('POST /api/pages/:name/archive', () => {
+describe('POST /api/v1/pages/:name/archive', () => {
   beforeEach(() => setup())
 
   it('archives a page with aliasOf and writes the per-edge sidecar', async () => {
-    const res = await app.request('/api/pages/landing/archive', {
+    const res = await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
@@ -82,7 +82,7 @@ describe('POST /api/pages/:name/archive', () => {
 
   it('returns 400 for an aliasOf with markup or whitespace, leaving the page live', async () => {
     for (const aliasOf of ['x--><b>bold</b><!--', 'x\n/*  /elsewhere  200!\n/y']) {
-      const res = await app.request('/api/pages/landing/archive', {
+      const res = await app.request('/api/v1/pages/landing/archive', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ aliasOf }),
@@ -93,7 +93,7 @@ describe('POST /api/pages/:name/archive', () => {
   })
 
   it('archives without aliasOf (pure soft-delete) — no sidecar written', async () => {
-    const res = await app.request('/api/pages/landing/archive', { method: 'POST' })
+    const res = await app.request('/api/v1/pages/landing/archive', { method: 'POST' })
     expect(res.status).toBe(200)
     const manifest = await readJson('pages/landing/page.json')
     expect(manifest.archived).toBe(true)
@@ -104,12 +104,12 @@ describe('POST /api/pages/:name/archive', () => {
   })
 
   it('returns 404 when the page does not exist', async () => {
-    const res = await app.request('/api/pages/missing/archive', { method: 'POST' })
+    const res = await app.request('/api/v1/pages/missing/archive', { method: 'POST' })
     expect(res.status).toBe(404)
   })
 
   it('is idempotent on a second archive — same archivedAt preserved', async () => {
-    await app.request('/api/pages/landing/archive', {
+    await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
@@ -118,14 +118,14 @@ describe('POST /api/pages/:name/archive', () => {
     const archivedAt = first.archivedAt as string
 
     // Second archive — same shape; archivedAt preserved (not bumped).
-    const res2 = await app.request('/api/pages/landing/archive', { method: 'POST' })
+    const res2 = await app.request('/api/v1/pages/landing/archive', { method: 'POST' })
     expect(res2.status).toBe(200)
     const second = await readJson('pages/landing/page.json')
     expect(second.archivedAt).toBe(archivedAt)
   })
 })
 
-describe('POST /api/pages/:name/unarchive — Manual Redirect refusal (#1343)', () => {
+describe('POST /api/v1/pages/:name/unarchive — Manual Redirect refusal (#1343)', () => {
   // A Manual Redirect manifest carries only archive fields + aliasOf;
   // restoring it would write `{}` and lose the redirect.
   const redirectManifest = JSON.stringify({
@@ -137,7 +137,7 @@ describe('POST /api/pages/:name/unarchive — Manual Redirect refusal (#1343)', 
 
   it('answers 409 and leaves the manifest byte-identical (page)', async () => {
     setup({ 'pages/old-products/page.json': redirectManifest })
-    const res = await app.request('/api/pages/old-products/unarchive', { method: 'POST' })
+    const res = await app.request('/api/v1/pages/old-products/unarchive', { method: 'POST' })
     expect(res.status).toBe(409)
     const body = ErrorResponseSchema.parse(await res.json())
     expect(body.detail).toBe('This is a redirect: delete it or change where it points')
@@ -146,7 +146,7 @@ describe('POST /api/pages/:name/unarchive — Manual Redirect refusal (#1343)', 
 
   it('answers 409 and leaves the manifest byte-identical (fragment)', async () => {
     setup({ 'fragments/old-promo/fragment.json': redirectManifest })
-    const res = await app.request('/api/fragments/old-promo/unarchive', { method: 'POST' })
+    const res = await app.request('/api/v1/fragments/old-promo/unarchive', { method: 'POST' })
     expect(res.status).toBe(409)
     expect(await storage.readFile('fragments/old-promo/fragment.json')).toBe(redirectManifest)
   })
@@ -160,7 +160,7 @@ describe('POST /api/pages/:name/unarchive — Manual Redirect refusal (#1343)', 
       archivedBy: 'tester',
     })
     setup({ 'pages/old-products/page.json': dropped })
-    const res = await app.request('/api/pages/old-products/unarchive', { method: 'POST' })
+    const res = await app.request('/api/v1/pages/old-products/unarchive', { method: 'POST' })
     expect(res.status).toBe(409)
     expect(await storage.readFile('pages/old-products/page.json')).toBe(dropped)
   })
@@ -170,12 +170,12 @@ describe('POST /api/pages/:name/unarchive — Manual Redirect refusal (#1343)', 
     // its alias via PATCH alias (the purge-blocked dialog's "Drop
     // alias"), then attempt restore.
     setup()
-    await app.request('/api/page-redirects', {
+    await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-products', to: 'home' }),
     })
-    const patch = await app.request('/api/pages/old-products/alias', {
+    const patch = await app.request('/api/v1/pages/old-products/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: null }),
@@ -184,7 +184,7 @@ describe('POST /api/pages/:name/unarchive — Manual Redirect refusal (#1343)', 
     const afterDrop = await storage.readFile('pages/old-products/page.json')
     expect(afterDrop).not.toContain('aliasOf')
 
-    const res = await app.request('/api/pages/old-products/unarchive', { method: 'POST' })
+    const res = await app.request('/api/v1/pages/old-products/unarchive', { method: 'POST' })
     expect(res.status).toBe(409)
     const body = ErrorResponseSchema.parse(await res.json())
     expect(body.detail).toBe('This is a redirect: delete it or change where it points')
@@ -204,7 +204,7 @@ describe('POST /api/pages/:name/unarchive — Manual Redirect refusal (#1343)', 
         aliasOf: 'home',
       }),
     })
-    const res = await app.request('/api/pages/old-landing/unarchive', { method: 'POST' })
+    const res = await app.request('/api/v1/pages/old-landing/unarchive', { method: 'POST' })
     expect(res.status).toBe(200)
     const manifest = await readJson('pages/old-landing/page.json')
     expect(manifest.archived).toBeUndefined()
@@ -212,12 +212,12 @@ describe('POST /api/pages/:name/unarchive — Manual Redirect refusal (#1343)', 
   })
 })
 
-describe('POST /api/pages/:name/unarchive', () => {
+describe('POST /api/v1/pages/:name/unarchive', () => {
   beforeEach(() => setup())
 
   it('strips archive fields and tears down the alias sidecar', async () => {
     // Archive first.
-    await app.request('/api/pages/landing/archive', {
+    await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
@@ -225,7 +225,7 @@ describe('POST /api/pages/:name/unarchive', () => {
     expect(await storage.exists('.gazetta/alias-targets/home/pages.landing')).toBe(true)
 
     // Unarchive.
-    const res = await app.request('/api/pages/landing/unarchive', { method: 'POST' })
+    const res = await app.request('/api/v1/pages/landing/unarchive', { method: 'POST' })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { ok: boolean; name: string }
     expect(body.ok).toBe(true)
@@ -242,24 +242,24 @@ describe('POST /api/pages/:name/unarchive', () => {
   })
 
   it('returns 404 when the page does not exist', async () => {
-    const res = await app.request('/api/pages/missing/unarchive', { method: 'POST' })
+    const res = await app.request('/api/v1/pages/missing/unarchive', { method: 'POST' })
     expect(res.status).toBe(404)
   })
 
   it('is idempotent on a live page', async () => {
-    const res = await app.request('/api/pages/home/unarchive', { method: 'POST' })
+    const res = await app.request('/api/v1/pages/home/unarchive', { method: 'POST' })
     expect(res.status).toBe(200)
   })
 })
 
-describe('DELETE /api/pages/:name/purge', () => {
+describe('DELETE /api/v1/pages/:name/purge', () => {
   beforeEach(() => setup())
 
   it('purges an archive with no blockers — manifest gone, sidecars torn down', async () => {
-    await app.request('/api/pages/landing/archive', { method: 'POST' })
+    await app.request('/api/v1/pages/landing/archive', { method: 'POST' })
     expect(await storage.exists('pages/landing/page.json')).toBe(true)
 
-    const res = await app.request('/api/pages/landing/purge', { method: 'DELETE' })
+    const res = await app.request('/api/v1/pages/landing/purge', { method: 'DELETE' })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { ok: boolean; name: string }
     expect(body.ok).toBe(true)
@@ -269,13 +269,13 @@ describe('DELETE /api/pages/:name/purge', () => {
 
   it('refuses purge of a target name with aliases pointing at it (no force)', async () => {
     // Archive `landing` aliasing `home` — `home` now has an alias-pointer.
-    await app.request('/api/pages/landing/archive', {
+    await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
     })
     // Try to purge `home` — should refuse with the structured 409 body.
-    const res = await app.request('/api/pages/home/purge', { method: 'DELETE' })
+    const res = await app.request('/api/v1/pages/home/purge', { method: 'DELETE' })
     expect(res.status).toBe(409)
     const body = (await res.json()) as {
       code: string
@@ -291,14 +291,14 @@ describe('DELETE /api/pages/:name/purge', () => {
   })
 
   it('?force=true bypasses both alias-pointers and live-refs', async () => {
-    await app.request('/api/pages/landing/archive', {
+    await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
     })
     // Force bypasses the blockers only; the target must still be archived.
-    await app.request('/api/pages/home/archive', { method: 'POST' })
-    const res = await app.request('/api/pages/home/purge?force=true', { method: 'DELETE' })
+    await app.request('/api/v1/pages/home/archive', { method: 'POST' })
+    const res = await app.request('/api/v1/pages/home/purge?force=true', { method: 'DELETE' })
     expect(res.status).toBe(200)
     expect(await storage.exists('pages/home/page.json')).toBe(false)
     // The dangling alias survives — validator P3 surfaces it later.
@@ -306,7 +306,7 @@ describe('DELETE /api/pages/:name/purge', () => {
   })
 
   it('?force=true still refuses purge of a live page with NOT_ARCHIVED (#1341)', async () => {
-    const res = await app.request('/api/pages/home/purge?force=true', { method: 'DELETE' })
+    const res = await app.request('/api/v1/pages/home/purge?force=true', { method: 'DELETE' })
     expect(res.status).toBe(409)
     const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('NOT_ARCHIVED')
@@ -314,12 +314,12 @@ describe('DELETE /api/pages/:name/purge', () => {
   })
 
   it('returns 404 when the page does not exist', async () => {
-    const res = await app.request('/api/pages/missing/purge', { method: 'DELETE' })
+    const res = await app.request('/api/v1/pages/missing/purge', { method: 'DELETE' })
     expect(res.status).toBe(404)
   })
 
   it('refuses purge of a live page with NOT_ARCHIVED (#1341)', async () => {
-    const res = await app.request('/api/pages/home/purge', { method: 'DELETE' })
+    const res = await app.request('/api/v1/pages/home/purge', { method: 'DELETE' })
     expect(res.status).toBe(409)
     const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('NOT_ARCHIVED')
@@ -332,13 +332,13 @@ describe('DELETE /api/pages/:name/purge', () => {
   it('answers DELETE_BLOCKED for an archived item with alias-pointers', async () => {
     // Archive landing aliasing home, then archive home itself: purge
     // of the archived home is still blocked by landing's alias-pointer.
-    await app.request('/api/pages/landing/archive', {
+    await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
     })
-    await app.request('/api/pages/home/archive', { method: 'POST' })
-    const res = await app.request('/api/pages/home/purge', { method: 'DELETE' })
+    await app.request('/api/v1/pages/home/archive', { method: 'POST' })
+    const res = await app.request('/api/v1/pages/home/purge', { method: 'DELETE' })
     expect(res.status).toBe(409)
     const body = (await res.json()) as { code: string }
     expect(body.code).toBe('DELETE_BLOCKED')
@@ -346,12 +346,12 @@ describe('DELETE /api/pages/:name/purge', () => {
   })
 })
 
-describe('PATCH /api/{kind}/:name/alias (Cut 12 — set / drop alias)', () => {
+describe('PATCH /api/v1/{kind}/:name/alias (Cut 12 — set / drop alias)', () => {
   beforeEach(() => setup())
 
   it('sets aliasOf on an archived page', async () => {
-    await app.request('/api/pages/landing/archive', { method: 'POST' })
-    const res = await app.request('/api/pages/landing/alias', {
+    await app.request('/api/v1/pages/landing/archive', { method: 'POST' })
+    const res = await app.request('/api/v1/pages/landing/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
@@ -367,14 +367,14 @@ describe('PATCH /api/{kind}/:name/alias (Cut 12 — set / drop alias)', () => {
   })
 
   it('drops aliasOf when set to null', async () => {
-    await app.request('/api/pages/landing/archive', {
+    await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
     })
     expect(await storage.exists('.gazetta/alias-targets/home/pages.landing')).toBe(true)
 
-    const res = await app.request('/api/pages/landing/alias', {
+    const res = await app.request('/api/v1/pages/landing/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: null }),
@@ -388,14 +388,14 @@ describe('PATCH /api/{kind}/:name/alias (Cut 12 — set / drop alias)', () => {
   })
 
   it('moves the sidecar when alias target changes', async () => {
-    await app.request('/api/pages/landing/archive', {
+    await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
     })
     expect(await storage.exists('.gazetta/alias-targets/home/pages.landing')).toBe(true)
 
-    await app.request('/api/pages/landing/alias', {
+    await app.request('/api/v1/pages/landing/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'about' }),
@@ -405,7 +405,7 @@ describe('PATCH /api/{kind}/:name/alias (Cut 12 — set / drop alias)', () => {
   })
 
   it('returns 409 when called on a live item', async () => {
-    const res = await app.request('/api/pages/home/alias', {
+    const res = await app.request('/api/v1/pages/home/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'landing' }),
@@ -414,7 +414,7 @@ describe('PATCH /api/{kind}/:name/alias (Cut 12 — set / drop alias)', () => {
   })
 
   it('returns 404 when the page does not exist', async () => {
-    const res = await app.request('/api/pages/missing/alias', {
+    const res = await app.request('/api/v1/pages/missing/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: null }),
@@ -427,8 +427,8 @@ describe('PATCH /api/{kind}/:name/alias (Cut 12 — set / drop alias)', () => {
     ['a newline', 'x\n/*  /elsewhere  200!\n/y'],
     ['a space', 'two words'],
   ])('returns 400 for an alias with %s, leaving the manifest unchanged', async (_what, aliasOf) => {
-    await app.request('/api/pages/landing/archive', { method: 'POST' })
-    const res = await app.request('/api/pages/landing/alias', {
+    await app.request('/api/v1/pages/landing/archive', { method: 'POST' })
+    const res = await app.request('/api/v1/pages/landing/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf }),
@@ -438,12 +438,12 @@ describe('PATCH /api/{kind}/:name/alias (Cut 12 — set / drop alias)', () => {
   })
 
   it('returns 400 for a fragment alias with markup', async () => {
-    await app.request('/api/fragments/header/archive', {
+    await app.request('/api/v1/fragments/header/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: '{}',
     })
-    const res = await app.request('/api/fragments/header/alias', {
+    const res = await app.request('/api/v1/fragments/header/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'x--><b>bold</b><!--' }),
@@ -452,8 +452,8 @@ describe('PATCH /api/{kind}/:name/alias (Cut 12 — set / drop alias)', () => {
   })
 
   it('returns 400 on missing aliasOf field', async () => {
-    await app.request('/api/pages/landing/archive', { method: 'POST' })
-    const res = await app.request('/api/pages/landing/alias', {
+    await app.request('/api/v1/pages/landing/archive', { method: 'POST' })
+    const res = await app.request('/api/v1/pages/landing/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
@@ -462,12 +462,12 @@ describe('PATCH /api/{kind}/:name/alias (Cut 12 — set / drop alias)', () => {
   })
 
   it('idempotent — same alias returns 200 without rewriting', async () => {
-    await app.request('/api/pages/landing/archive', {
+    await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
     })
-    const res = await app.request('/api/pages/landing/alias', {
+    const res = await app.request('/api/v1/pages/landing/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
@@ -476,8 +476,8 @@ describe('PATCH /api/{kind}/:name/alias (Cut 12 — set / drop alias)', () => {
   })
 
   it('works for fragments (parity with pages)', async () => {
-    await app.request('/api/fragments/header/archive', { method: 'POST' })
-    const res = await app.request('/api/fragments/header/alias', {
+    await app.request('/api/v1/fragments/header/archive', { method: 'POST' })
+    const res = await app.request('/api/v1/fragments/header/alias', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'top-bar' }),
@@ -492,7 +492,7 @@ describe('Fragment archive lifecycle (parity with pages)', () => {
   beforeEach(() => setup())
 
   it('archives a fragment with aliasOf and writes the sidecar', async () => {
-    const res = await app.request('/api/fragments/header/archive', {
+    const res = await app.request('/api/v1/fragments/header/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'top-bar' }),
@@ -502,22 +502,22 @@ describe('Fragment archive lifecycle (parity with pages)', () => {
   })
 
   it('unarchive restores the fragment manifest', async () => {
-    await app.request('/api/fragments/header/archive', { method: 'POST' })
-    const res = await app.request('/api/fragments/header/unarchive', { method: 'POST' })
+    await app.request('/api/v1/fragments/header/archive', { method: 'POST' })
+    const res = await app.request('/api/v1/fragments/header/unarchive', { method: 'POST' })
     expect(res.status).toBe(200)
     const manifest = await readJson('fragments/header/fragment.json')
     expect(manifest.archived).toBeUndefined()
   })
 
   it('purge tears down the fragment manifest', async () => {
-    await app.request('/api/fragments/header/archive', { method: 'POST' })
-    const res = await app.request('/api/fragments/header/purge', { method: 'DELETE' })
+    await app.request('/api/v1/fragments/header/archive', { method: 'POST' })
+    const res = await app.request('/api/v1/fragments/header/purge', { method: 'DELETE' })
     expect(res.status).toBe(200)
     expect(await storage.exists('fragments/header/fragment.json')).toBe(false)
   })
 
   it('refuses purge of a live fragment with NOT_ARCHIVED (#1341)', async () => {
-    const res = await app.request('/api/fragments/header/purge', { method: 'DELETE' })
+    const res = await app.request('/api/v1/fragments/header/purge', { method: 'DELETE' })
     expect(res.status).toBe(409)
     const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('NOT_ARCHIVED')
@@ -541,7 +541,7 @@ describe('P8 — archive-blocked: archive without aliasOf when live refs exist',
   })
 
   it('refuses archive without aliasOf when live refs exist (409 ARCHIVE_HAS_LIVE_REFS)', async () => {
-    const res = await app.request('/api/fragments/header/archive', { method: 'POST' })
+    const res = await app.request('/api/v1/fragments/header/archive', { method: 'POST' })
     expect(res.status).toBe(409)
     const body = (await res.json()) as { code: string; liveRefs: Array<{ kind: string; name: string }> }
     expect(body.code).toBe('ARCHIVE_HAS_LIVE_REFS')
@@ -556,7 +556,7 @@ describe('P8 — archive-blocked: archive without aliasOf when live refs exist',
     storage.seed({
       'fragments/top-bar/fragment.json': JSON.stringify({ template: 'header-layout', content: {} }),
     })
-    const res = await app.request('/api/fragments/header/archive', {
+    const res = await app.request('/api/v1/fragments/header/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'top-bar' }),
@@ -565,7 +565,7 @@ describe('P8 — archive-blocked: archive without aliasOf when live refs exist',
   })
 
   it('?force=true bypasses the live-refs check', async () => {
-    const res = await app.request('/api/fragments/header/archive?force=true', { method: 'POST' })
+    const res = await app.request('/api/v1/fragments/header/archive?force=true', { method: 'POST' })
     expect(res.status).toBe(200)
     const manifest = await readJson('fragments/header/fragment.json')
     expect(manifest.archived).toBe(true)
@@ -593,7 +593,7 @@ describe('Purge-blocked: live refs from page → fragment', () => {
   it('refuses fragment purge when a live page references it', async () => {
     expect(await storage.exists('.gazetta/fragment-deps/header/pages.home')).toBe(true)
 
-    const res = await app.request('/api/fragments/header/purge', { method: 'DELETE' })
+    const res = await app.request('/api/v1/fragments/header/purge', { method: 'DELETE' })
     expect(res.status).toBe(409)
     const body = (await res.json()) as {
       code: string
@@ -622,7 +622,7 @@ describe('archive-blocked without the derived fragment-deps index', () => {
   it('refuses archive without aliasOf when a live page references the fragment (no sidecar)', async () => {
     expect(await storage.exists('.gazetta/fragment-deps/header/pages.home')).toBe(false)
 
-    const res = await app.request('/api/fragments/header/archive', { method: 'POST' })
+    const res = await app.request('/api/v1/fragments/header/archive', { method: 'POST' })
     expect(res.status).toBe(409)
     const body = (await res.json()) as { code: string; liveRefs: Array<{ kind: string; name: string }> }
     expect(body.code).toBe('ARCHIVE_HAS_LIVE_REFS')

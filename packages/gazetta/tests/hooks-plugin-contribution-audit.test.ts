@@ -110,7 +110,7 @@ describe('Cross-foundation gap #5 — plugin-contributed hooks audit with packag
   it('plugin factory contribution fires hook with source = package name in audit metadata', async () => {
     await setup([cdnPurgePlugin({ zone: 'cdn.example.com', apiToken: 'test-token' })])
 
-    const res = await app.request('/api/pages/home', {
+    const res = await app.request('/api/v1/pages/home', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { title: 'Hello' } }),
@@ -145,7 +145,7 @@ describe('Cross-foundation gap #5 — plugin-contributed hooks audit with packag
 
     await setup([cdnPurgePlugin({ zone: 'cdn.example.com', apiToken: 'test-token' }), loggerPlugin()])
 
-    const res = await app.request('/api/pages/home', {
+    const res = await app.request('/api/v1/pages/home', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { title: 'Hello' } }),
@@ -176,7 +176,7 @@ describe('Cross-foundation gap #5 — plugin-contributed hooks audit with packag
 
     await setup([siteLocalAutoSlugify(), cdnPurgePlugin({ zone: 'cdn.example.com', apiToken: 'test-token' })])
 
-    const res = await app.request('/api/pages/home', {
+    const res = await app.request('/api/v1/pages/home', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { title: 'Hello' } }),

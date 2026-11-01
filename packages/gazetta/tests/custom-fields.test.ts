@@ -17,7 +17,7 @@ import { tempDir } from './_helpers/temp.js'
 function withAuth(routesApp: Hono): Hono {
   const wrapped = new Hono()
   wrapped.use('/api/*', principalMiddleware())
-  wrapped.route('/', routesApp)
+  wrapped.route('/api/v1', routesApp)
   return wrapped
 }
 
@@ -68,7 +68,7 @@ describe('fields API', () => {
     const storage = createFilesystemProvider()
     const { createSourceContext, staticSourceResolver } = await import('../src/admin-api/source-context.js')
     const app = withAuth(fieldRoutes(staticSourceResolver(createSourceContext({ storage, siteDir: testDir }))))
-    const res = await app.request('/api/fields')
+    const res = await app.request('/api/v1/fields')
     expect(res.status).toBe(200)
     const fields = (await res.json()) as { name: string; path: string }[]
     expect(fields).toHaveLength(2)
@@ -82,7 +82,7 @@ describe('fields API', () => {
     const storage = createFilesystemProvider()
     const { createSourceContext, staticSourceResolver } = await import('../src/admin-api/source-context.js')
     const app = withAuth(fieldRoutes(staticSourceResolver(createSourceContext({ storage, siteDir: testDir }))))
-    const res = await app.request('/api/fields')
+    const res = await app.request('/api/v1/fields')
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual([])
   })
@@ -96,7 +96,7 @@ describe('fields API', () => {
     const storage = createFilesystemProvider()
     const { createSourceContext, staticSourceResolver } = await import('../src/admin-api/source-context.js')
     const app = withAuth(fieldRoutes(staticSourceResolver(createSourceContext({ storage, siteDir: testDir }))))
-    const res = await app.request('/api/fields')
+    const res = await app.request('/api/v1/fields')
     const fields = (await res.json()) as { name: string }[]
     expect(fields).toHaveLength(1)
     expect(fields[0].name).toBe('brand-color')
@@ -116,7 +116,7 @@ describe('templates API includes fieldsBaseUrl', () => {
       templateRoutes(staticSourceResolver(source), join(projectRoot, 'templates'), join(projectRoot, 'admin')),
     )
 
-    const res = await app.request('/api/templates/hero/schema')
+    const res = await app.request('/api/v1/templates/hero/schema')
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.fieldsBaseUrl).toBeDefined()
@@ -137,7 +137,7 @@ describe('templates API includes fieldsBaseUrl', () => {
       templateRoutes(staticSourceResolver(source), join(projectRoot, 'templates'), join(projectRoot, 'admin')),
     )
 
-    const res = await app.request('/api/templates/banner/schema')
+    const res = await app.request('/api/v1/templates/banner/schema')
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     const properties = body.properties as Record<string, Record<string, unknown>>

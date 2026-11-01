@@ -18,7 +18,7 @@
  *     `.gazetta/fragment-deps/{frag}/`, plus BFS for transitive
  *     fragment→fragment refs. Tree-badge query path.
  *   - rebuildDepIndex(FRAGMENT_DEPS) [cold]: full source rebuild — the
- *     cost paid on first /api/dependents query after a fresh dev server
+ *     cost paid on first /api/v1/dependents query after a fresh dev server
  *     starts. Memoized in production, but the cold path matters.
  *   - compareTargets [post-13a]: end-to-end compare with always-rehash.
  *     13a removed the source-side hash cache as a correctness fix; this
@@ -134,7 +134,7 @@ async function setup(backend: BackendName, N: number): Promise<PreparedScenario>
   await buildSyntheticSite(storage, { pageCount: N, contentRoot: '' })
   // Populate the fragment-deps index — this is what `gazetta publish`
   // writes at end-of-publish via publishDepIndices, and what the admin's
-  // memoized `ensureFragmentDepsIndex` rebuilds on first /api/dependents
+  // memoized `ensureFragmentDepsIndex` rebuilds on first /api/v1/dependents
   // for a fresh dev server.
   const site = await loadSite({ contentRoot: createContentRoot(storage, ''), manifest: syntheticManifest })
   await rebuildDepIndex(FRAGMENT_DEPS, site, storage, '')

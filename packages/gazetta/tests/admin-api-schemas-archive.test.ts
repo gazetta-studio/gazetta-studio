@@ -77,7 +77,7 @@ describe('CreatePageRequestSchema — create-contract unchanged', () => {
   it('still rejects payloads missing template (refinement does not leak)', () => {
     // The refinement above applies to the PERSISTED manifest, not the
     // create request. Page creation still demands a template — manual
-    // redirects use their own POST /api/redirects endpoint (Cut 3).
+    // redirects use their own POST /api/v1/redirects endpoint (Cut 3).
     const badCreate = { name: 'about' }
     expect(() => CreatePageRequestSchema.parse(badCreate)).toThrow()
   })

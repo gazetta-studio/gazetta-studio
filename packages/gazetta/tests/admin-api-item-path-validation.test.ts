@@ -1,6 +1,6 @@
 /**
  * #1196: route-boundary item validation. Before the fix, `POST
- * /api/publish`, `/api/publish/stream` and `/api/fetch` built storage
+ * /api/v1/publish`, `/api/v1/publish/stream` and `/api/v1/fetch` built storage
  * paths straight from request item strings, so an item like
  * `pages/../../secret` copied a folder outside the site onto a path
  * outside the target. The routes now parse every item (known folder
@@ -10,8 +10,8 @@
  * invalid locale, before anything is read or written.
  *
  * Verified fail-unfixed before commit: the three traversal tests fail
- * against the unpatched route - `/api/publish` and `/api/publish/stream`
- * answer 207 and copy `<root>/secret/` outside the target, `/api/fetch`
+ * against the unpatched route - `/api/v1/publish` and `/api/v1/publish/stream`
+ * answer 207 and copy `<root>/secret/` outside the target, `/api/v1/fetch`
  * answers 200 and copies it into the destination.
  *
  * Fixtures are real filesystem trees in a temp folder with synthetic
@@ -84,7 +84,7 @@ afterEach(async () => {
 })
 
 function postPublish(items: string[], stream = false) {
-  return app.request(stream ? '/api/publish/stream' : '/api/publish', {
+  return app.request(stream ? '/api/v1/publish/stream' : '/api/v1/publish', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ items, targets: ['staging'] }),
@@ -92,7 +92,7 @@ function postPublish(items: string[], stream = false) {
 }
 
 describe('item path validation at the publish/fetch route boundary (#1196)', () => {
-  it('/api/publish answers 400 for an item with a .. segment and copies nothing', async () => {
+  it('/api/v1/publish answers 400 for an item with a .. segment and copies nothing', async () => {
     const res = await postPublish(['pages/../../secret'])
 
     expect(res.status).toBe(400)
@@ -100,7 +100,7 @@ describe('item path validation at the publish/fetch route boundary (#1196)', () 
     expect(existsSync(join(root, 'x', 'y', 'target', 'pages'))).toBe(false)
   })
 
-  it('/api/publish/stream answers 400 for an item with a .. segment and copies nothing', async () => {
+  it('/api/v1/publish/stream answers 400 for an item with a .. segment and copies nothing', async () => {
     const res = await postPublish(['pages/../../secret'], true)
 
     expect(res.status).toBe(400)
@@ -108,11 +108,11 @@ describe('item path validation at the publish/fetch route boundary (#1196)', () 
     expect(existsSync(join(root, 'x', 'y', 'target', 'pages'))).toBe(false)
   })
 
-  it('/api/fetch answers 400 for an item with a .. segment and copies nothing', async () => {
+  it('/api/v1/fetch answers 400 for an item with a .. segment and copies nothing', async () => {
     // Without validation the fetch copies <root>/x/y/stolen into <root>/stolen (site/pages/../.. = root).
     mkdirSync(join(root, 'x', 'y', 'stolen'), { recursive: true })
     writeFileSync(join(root, 'x', 'y', 'stolen', 'credentials.txt'), 'SYNTHETIC FIXTURE - NOT A REAL SECRET')
-    const res = await app.request('/api/fetch', {
+    const res = await app.request('/api/v1/fetch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source: 'staging', items: ['pages/../../stolen'] }),

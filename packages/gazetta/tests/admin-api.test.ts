@@ -60,17 +60,17 @@ async function getText(path: string) {
   return { status: res.status, body: await res.text() }
 }
 
-describe('GET /api/site', () => {
+describe('GET /api/v1/site', () => {
   it('returns site manifest', async () => {
-    const { status, body } = await get('/api/site')
+    const { status, body } = await get('/api/v1/site')
     expect(status).toBe(200)
     expect(body.name).toBe('Gazetta Starter')
   })
 })
 
-describe('GET /api/health', () => {
+describe('GET /api/v1/health', () => {
   it('returns ok + ISO timestamp without auth', async () => {
-    const { status, body } = await get('/api/health')
+    const { status, body } = await get('/api/v1/health')
     expect(status).toBe(200)
     expect(body.ok).toBe(true)
     // ISO 8601 with Z; smoke check that timestamp parses back as the
@@ -85,32 +85,32 @@ describe('GET /api/health', () => {
     // Browser-side connection-detection cadence relies on each call
     // getting a fresh response so a CDN-cached old response can't
     // masquerade as a live heartbeat.
-    const a = (await get('/api/health')).body.timestamp as string
+    const a = (await get('/api/v1/health')).body.timestamp as string
     await new Promise(r => setTimeout(r, 5))
-    const b = (await get('/api/health')).body.timestamp as string
+    const b = (await get('/api/v1/health')).body.timestamp as string
     expect(b).not.toBe(a)
   })
 })
 
-describe('GET /api/system/cache/stats', () => {
+describe('GET /api/v1/system/cache/stats', () => {
   it('returns the source cache snapshot', async () => {
-    // Hit /api/pages first so the cache has something to report —
+    // Hit /api/v1/pages first so the cache has something to report —
     // the stats() shape is provider-defined but the floor (hits,
     // misses, size) is required by the AdminCache contract.
-    await get('/api/pages')
-    const { status, body } = await get('/api/system/cache/stats')
+    await get('/api/v1/pages')
+    const { status, body } = await get('/api/v1/system/cache/stats')
     expect(status).toBe(200)
     expect(body).toMatchObject({
       hits: expect.any(Number),
       misses: expect.any(Number),
       size: expect.any(Number),
     })
-    // /api/pages writes to the cache on miss → at least one entry.
+    // /api/v1/pages writes to the cache on miss → at least one entry.
     expect(body.size).toBeGreaterThanOrEqual(1)
   })
 
   it('includes the instance field for multi-instance correlation (Gap 1)', async () => {
-    const { body } = await get('/api/system/cache/stats')
+    const { body } = await get('/api/v1/system/cache/stats')
     // Instance is resolved from K_REVISION → os.hostname() → random hex.
     // We don't pin a specific value — only that the field is present
     // and non-empty. Operators in multi-instance deployments use this
@@ -120,19 +120,19 @@ describe('GET /api/system/cache/stats', () => {
   })
 })
 
-describe('GET /api/system/cache/invalidations (SSE)', () => {
+describe('GET /api/v1/system/cache/invalidations (SSE)', () => {
   it('opens an SSE stream and emits an invalidation event on save', async () => {
     // Use AbortController so we can cleanly close the long-lived
     // stream after asserting. Without it the test runtime would
     // hang waiting on a never-closing connection.
     const ctrl = new AbortController()
-    const res = await app.request('/api/system/cache/invalidations', { signal: ctrl.signal })
+    const res = await app.request('/api/v1/system/cache/invalidations', { signal: ctrl.signal })
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toMatch(/text\/event-stream/)
     expect(res.body).toBeTruthy()
 
     // Read the stream incrementally. After the initial 'ready' event,
-    // trigger a save via /api/pages and assert that an invalidation
+    // trigger a save via /api/v1/pages and assert that an invalidation
     // event arrives in a bounded window.
     const reader = res.body!.getReader()
     const decoder = new TextDecoder()
@@ -149,7 +149,7 @@ describe('GET /api/system/cache/invalidations (SSE)', () => {
           saveTriggered = true
           // Don't await — the save's response cycle is independent
           // of this stream; we just want the invalidation it triggers.
-          void app.request('/api/pages', {
+          void app.request('/api/v1/pages', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: 'sse-cache-test', template: 'page-default' }),
@@ -180,9 +180,9 @@ describe('GET /api/system/cache/invalidations (SSE)', () => {
   }, 15_000)
 })
 
-describe('GET /api/pages', () => {
+describe('GET /api/v1/pages', () => {
   it('returns all pages', async () => {
-    const { status, body } = await get('/api/pages')
+    const { status, body } = await get('/api/v1/pages')
     expect(status).toBe(200)
     expect(body.length).toBeGreaterThanOrEqual(4)
     const names = body.map((p: { name: string }) => p.name)
@@ -193,16 +193,16 @@ describe('GET /api/pages', () => {
   })
 
   it('pages have route and template', async () => {
-    const { body } = await get('/api/pages')
+    const { body } = await get('/api/v1/pages')
     const home = body.find((p: { name: string }) => p.name === 'home')
     expect(home.route).toBe('/')
     expect(home.template).toBe('page-default')
   })
 })
 
-describe('GET /api/pages/:name', () => {
+describe('GET /api/v1/pages/:name', () => {
   it('returns page detail', async () => {
-    const { status, body } = await get('/api/pages/home')
+    const { status, body } = await get('/api/v1/pages/home')
     expect(status).toBe(200)
     expect(body.route).toBe('/')
     expect(body.components).toContain('@header')
@@ -213,20 +213,20 @@ describe('GET /api/pages/:name', () => {
   })
 
   it('returns nested page', async () => {
-    const { status, body } = await get('/api/pages/blog/[slug]')
+    const { status, body } = await get('/api/v1/pages/blog/[slug]')
     expect(status).toBe(200)
     expect(body.route).toBe('/blog/:slug')
   })
 
   it('returns 404 for missing page', async () => {
-    const { status } = await get('/api/pages/nonexistent')
+    const { status } = await get('/api/v1/pages/nonexistent')
     expect(status).toBe(404)
   })
 })
 
-describe('GET /api/fragments', () => {
+describe('GET /api/v1/fragments', () => {
   it('returns all fragments', async () => {
-    const { status, body } = await get('/api/fragments')
+    const { status, body } = await get('/api/v1/fragments')
     expect(status).toBe(200)
     expect(body).toHaveLength(2)
     const names = body.map((f: { name: string }) => f.name)
@@ -238,7 +238,7 @@ describe('GET /api/fragments', () => {
   // mutation-watcher (issue #623) surfaced as uncovered: `locales`
   // array construction, archive-state spread, and aliasOf spread. Each
   // pins one branch of the summary map in fragments.ts's `GET
-  // /api/fragments` handler. A subsequent regression that flattens any
+  // /api/v1/fragments` handler. A subsequent regression that flattens any
   // of these branches (e.g. `locales: []`, `archived` never surfaced,
   // `aliasOf` never surfaced) trips a specific assertion here.
 
@@ -246,7 +246,7 @@ describe('GET /api/fragments', () => {
     // The starter's `header` fragment ships fr / ar / ja variants; if
     // the summary map replaces `[...localeEntry.locales.keys()]` with
     // `[]` the array becomes empty and this assertion fails.
-    const { body } = await get('/api/fragments')
+    const { body } = await get('/api/v1/fragments')
     const header = body.find((f: { name: string }) => f.name === 'header')
     expect(header).toBeDefined()
     expect(Array.isArray(header.locales)).toBe(true)
@@ -258,12 +258,12 @@ describe('GET /api/fragments', () => {
     // absent from the summary. If the summary map drops the
     // `localeEntry ?` guard, `locales` would appear on every entry
     // and this absence check fails.
-    await app.request('/api/fragments', {
+    await app.request('/api/v1/fragments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'issue-623-nolocale', template: 'footer-layout' }),
     })
-    const { body: post } = await get('/api/fragments')
+    const { body: post } = await get('/api/v1/fragments')
     const noLocale = post.find((f: { name: string }) => f.name === 'issue-623-nolocale')
     expect(noLocale).toBeDefined()
     expect(noLocale.locales).toBeUndefined()
@@ -278,26 +278,26 @@ describe('GET /api/fragments', () => {
     // The summary uses two spread branches; a mutation that flips
     // either `archived === true` predicate OR either spread body
     // (e.g. `{ archived: true }` → `{}`) fails this assertion.
-    await app.request('/api/fragments', {
+    await app.request('/api/v1/fragments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'issue-623-archived', template: 'footer-layout' }),
     })
-    const archiveRes = await app.request('/api/fragments/issue-623-archived/archive', {
+    const archiveRes = await app.request('/api/v1/fragments/issue-623-archived/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'header' }),
     })
     expect(archiveRes.status).toBe(200)
 
-    const { body } = await get('/api/fragments')
+    const { body } = await get('/api/v1/fragments')
     const archived = body.find((f: { name: string }) => f.name === 'issue-623-archived')
     expect(archived).toBeDefined()
     expect(archived.archived).toBe(true)
     expect(archived.aliasOf).toBe('header')
 
     // Cleanup — purge the archive so subsequent tests see a clean tree.
-    await app.request('/api/fragments/issue-623-archived/purge?force=true', { method: 'DELETE' })
+    await app.request('/api/v1/fragments/issue-623-archived/purge?force=true', { method: 'DELETE' })
   })
 
   it('reflects a newly-created fragment on the next GET (paired-invalidation round-trip)', async () => {
@@ -308,16 +308,16 @@ describe('GET /api/fragments', () => {
     // invalidation path is removed OR the cache-hit guard is flipped
     // in a way that stops honoring fresh writes, the second GET below
     // misses `issue-623-cache` in the list.
-    const preWarm = await get('/api/fragments')
+    const preWarm = await get('/api/v1/fragments')
     expect(preWarm.body.find((f: { name: string }) => f.name === 'issue-623-cache')).toBeUndefined()
 
-    await app.request('/api/fragments', {
+    await app.request('/api/v1/fragments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'issue-623-cache', template: 'footer-layout' }),
     })
 
-    const postCreate = await get('/api/fragments')
+    const postCreate = await get('/api/v1/fragments')
     const created = postCreate.body.find((f: { name: string }) => f.name === 'issue-623-cache')
     expect(created).toBeDefined()
     expect(created.template).toBe('footer-layout')
@@ -331,9 +331,9 @@ describe('GET /api/fragments', () => {
   })
 })
 
-describe('GET /api/fragments/:name', () => {
+describe('GET /api/v1/fragments/:name', () => {
   it('returns fragment detail', async () => {
-    const { status, body } = await get('/api/fragments/header')
+    const { status, body } = await get('/api/v1/fragments/header')
     expect(status).toBe(200)
     expect(body.template).toBe('header-layout')
     const logo = body.components.find((c: any) => typeof c === 'object' && c.name === 'logo')
@@ -343,14 +343,14 @@ describe('GET /api/fragments/:name', () => {
   })
 
   it('returns 404 for missing fragment', async () => {
-    const { status } = await get('/api/fragments/nonexistent')
+    const { status } = await get('/api/v1/fragments/nonexistent')
     expect(status).toBe(404)
   })
 })
 
-describe('GET /api/templates', () => {
+describe('GET /api/v1/templates', () => {
   it('returns all templates', async () => {
-    const { status, body } = await get('/api/templates')
+    const { status, body } = await get('/api/v1/templates')
     expect(status).toBe(200)
     const names = body.map((t: { name: string }) => t.name)
     expect(names).toContain('hero')
@@ -359,9 +359,9 @@ describe('GET /api/templates', () => {
   })
 })
 
-describe('GET /api/templates/:name/schema', () => {
+describe('GET /api/v1/templates/:name/schema', () => {
   it('returns JSON Schema for a template', async () => {
-    const { status, body } = await get('/api/templates/hero/schema')
+    const { status, body } = await get('/api/v1/templates/hero/schema')
     expect(status).toBe(200)
     expect(body.type).toBe('object')
     expect(body.properties.title).toBeDefined()
@@ -369,18 +369,18 @@ describe('GET /api/templates/:name/schema', () => {
   })
 
   it('returns 500 for missing template', async () => {
-    const { status } = await get('/api/templates/nonexistent/schema')
+    const { status } = await get('/api/v1/templates/nonexistent/schema')
     expect(status).toBe(500)
   })
 })
 
-describe('GET /api/templates/:name/impact (Validation Cut 6)', () => {
+describe('GET /api/v1/templates/:name/impact (Validation Cut 6)', () => {
   it('lists pages + fragments using the template, with empty issues when no scanner', async () => {
     // The starter's `home` page top-level-uses `page-default` and
     // contains nested inline components (hero, features-grid, etc.).
     // Without a scanner injected (this admin app's setup), every item
     // reports empty issues — accurate, since validation didn't run.
-    const { status, body } = await get('/api/templates/page-default/impact')
+    const { status, body } = await get('/api/v1/templates/page-default/impact')
     expect(status).toBe(200)
     expect(body.template).toBe('page-default')
     expect(Array.isArray(body.items)).toBe(true)
@@ -395,14 +395,14 @@ describe('GET /api/templates/:name/impact (Validation Cut 6)', () => {
   it('finds nested inline components recursively (hero is inline-only on home)', async () => {
     // `hero` doesn't appear at any page's top level — it's an inline
     // component inside home/page.json. The recursive walk must catch it.
-    const { status, body } = await get('/api/templates/hero/impact')
+    const { status, body } = await get('/api/v1/templates/hero/impact')
     expect(status).toBe(200)
     const names = body.items.map((i: { name: string }) => i.name)
     expect(names).toContain('home')
   })
 
   it('returns an empty list for a template that no item references', async () => {
-    const { status, body } = await get('/api/templates/no-such-template/impact')
+    const { status, body } = await get('/api/v1/templates/no-such-template/impact')
     expect(status).toBe(200)
     expect(body.items).toEqual([])
     expect(body.affectedItemCount).toBe(0)
@@ -411,7 +411,7 @@ describe('GET /api/templates/:name/impact (Validation Cut 6)', () => {
 
 describe('component data via page API', () => {
   it('page detail includes inline component content', async () => {
-    const { status, body } = await get('/api/pages/home')
+    const { status, body } = await get('/api/v1/pages/home')
     expect(status).toBe(200)
     const hero = body.components.find((c: any) => typeof c === 'object' && c.name === 'hero')
     expect(hero.content.title).toBe('Welcome to Gazetta')
@@ -448,7 +448,7 @@ describe('GET /preview/*', () => {
 
 describe('GET /preview/* for archived pages (#971)', () => {
   it('shows a redirect placeholder for a Manual Redirect instead of a template error', async () => {
-    const created = await app.request('/api/page-redirects', {
+    const created = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-about-971', to: 'about' }),
@@ -462,13 +462,13 @@ describe('GET /preview/* for archived pages (#971)', () => {
   })
 
   it('shows a gone placeholder for an archived page without an alias', async () => {
-    const created = await app.request('/api/pages', {
+    const created = await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'gone-971', template: 'page-default' }),
     })
     expect(created.status).toBeLessThan(300)
-    const archived = await app.request('/api/pages/gone-971/archive', { method: 'POST' })
+    const archived = await app.request('/api/v1/pages/gone-971/archive', { method: 'POST' })
     expect(archived.status).toBeLessThan(300)
     const { status, body } = await getText('/preview/gone-971')
     expect(status).toBe(200)
@@ -479,13 +479,13 @@ describe('GET /preview/* for archived pages (#971)', () => {
 
 describe('GET /preview/@fragment for archived fragments (#1001)', () => {
   it('shows an alias placeholder for an archived fragment instead of a template error', async () => {
-    const created = await app.request('/api/fragments', {
+    const created = await app.request('/api/v1/fragments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'archived-frag-alias-1001', template: 'footer-layout' }),
     })
     expect(created.status).toBe(200)
-    const archived = await app.request('/api/fragments/archived-frag-alias-1001/archive', {
+    const archived = await app.request('/api/v1/fragments/archived-frag-alias-1001/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'header' }),
@@ -503,13 +503,13 @@ describe('GET /preview/@fragment for archived fragments (#1001)', () => {
   })
 
   it('shows a gone placeholder for an archived fragment without an alias', async () => {
-    const created = await app.request('/api/fragments', {
+    const created = await app.request('/api/v1/fragments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'archived-frag-gone-1001', template: 'footer-layout' }),
     })
     expect(created.status).toBe(200)
-    const archived = await app.request('/api/fragments/archived-frag-gone-1001/archive', { method: 'POST' })
+    const archived = await app.request('/api/v1/fragments/archived-frag-gone-1001/archive', { method: 'POST' })
     expect(archived.status).toBe(200)
 
     const { status, body } = await getText('/preview/@archived-frag-gone-1001')
@@ -583,7 +583,7 @@ describe('POST /preview/*', () => {
 
   it('renders with a structural override (reordered components)', async () => {
     // Pull the original components, swap the first two non-fragment children, send as override.
-    const original = await app.request('/api/pages/home').then(r => r.json())
+    const original = await app.request('/api/v1/pages/home').then(r => r.json())
     const components = (original as { components: unknown[] }).components.slice()
     // Find the hero (index 1, after @header) and features (index 2) and swap them.
     const heroIdx = components.findIndex(
@@ -619,7 +619,7 @@ describe('POST /preview/*', () => {
     // Sequentially: render with structural override, then render without — second
     // render should reflect ORIGINAL order, proving the override did not mutate
     // the in-memory Site.
-    const original = await app.request('/api/pages/home').then(r => r.json())
+    const original = await app.request('/api/v1/pages/home').then(r => r.json())
     const components = (original as { components: unknown[] }).components.slice().reverse()
 
     await app.request('/preview/', {
@@ -641,14 +641,14 @@ describe('POST /preview/*', () => {
   })
 })
 
-describe('POST /api/pages (create)', () => {
+describe('POST /api/v1/pages (create)', () => {
   afterAll(async () => {
     await rm(resolve(localTargetDir, 'pages/test-page'), { recursive: true, force: true })
     await rm(resolve(localTargetDir, 'pages/docs'), { recursive: true, force: true })
   })
 
   it('creates a new page', { timeout: 15_000 }, async () => {
-    const res = await app.request('/api/pages', {
+    const res = await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'test-page', template: 'page-default' }),
@@ -657,12 +657,12 @@ describe('POST /api/pages (create)', () => {
     const body = await res.json()
     expect(body.ok).toBe(true)
 
-    const { body: pages } = await get('/api/pages')
+    const { body: pages } = await get('/api/v1/pages')
     expect(pages.some((p: { name: string }) => p.name === 'test-page')).toBe(true)
   })
 
   it('rejects duplicate page', async () => {
-    const res = await app.request('/api/pages', {
+    const res = await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'test-page', template: 'page-default' }),
@@ -671,7 +671,7 @@ describe('POST /api/pages (create)', () => {
   })
 
   it('rejects missing fields', async () => {
-    const res = await app.request('/api/pages', {
+    const res = await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'x' }),
@@ -680,21 +680,21 @@ describe('POST /api/pages (create)', () => {
   })
 })
 
-describe('PUT /api/pages/:name', () => {
+describe('PUT /api/v1/pages/:name', () => {
   afterAll(async () => {
     await rm(resolve(localTargetDir, 'pages/update-test'), { recursive: true, force: true })
   })
 
   it('updates page content', async () => {
     // Create
-    await app.request('/api/pages', {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'update-test', template: 'page-default' }),
     })
 
     // Update
-    const res = await app.request('/api/pages/update-test', {
+    const res = await app.request('/api/v1/pages/update-test', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { title: 'Updated Title' } }),
@@ -702,12 +702,12 @@ describe('PUT /api/pages/:name', () => {
     expect(res.status).toBe(200)
 
     // Verify
-    const { body } = await get('/api/pages/update-test')
+    const { body } = await get('/api/v1/pages/update-test')
     expect(body.content.title).toBe('Updated Title')
   })
 
   it('returns 404 for missing page', async () => {
-    const res = await app.request('/api/pages/nonexistent', {
+    const res = await app.request('/api/v1/pages/nonexistent', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: {} }),
@@ -717,13 +717,13 @@ describe('PUT /api/pages/:name', () => {
 
   it('returns 409 with VALIDATION_FAILED when save introduces a missing asset ref', async () => {
     // Create a clean page first
-    await app.request('/api/pages', {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'val-test', template: 'page-default' }),
     })
     // Update with content that references a non-existent asset
-    const res = await app.request('/api/pages/val-test', {
+    const res = await app.request('/api/v1/pages/val-test', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { hero: { _asset: 'definitely-not-an-asset-name' } } }),
@@ -738,12 +738,12 @@ describe('PUT /api/pages/:name', () => {
   })
 
   it('returns 409 when a fragment ref is introduced that does not exist', async () => {
-    await app.request('/api/pages', {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'val-frag-test', template: 'page-default' }),
     })
-    const res = await app.request('/api/pages/val-frag-test', {
+    const res = await app.request('/api/v1/pages/val-frag-test', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ components: ['@nonexistent-fragment'] }),
@@ -761,12 +761,12 @@ describe('PUT /api/pages/:name', () => {
   // these tests use templates that exist in examples/starter/templates/
   // (banner, counter, features-grid).
   it('auto-generates IDs on ID-less InlineComponents', async () => {
-    await app.request('/api/pages', {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'cid-test', template: 'page-default' }),
     })
-    const putRes = await app.request('/api/pages/cid-test', {
+    const putRes = await app.request('/api/v1/pages/cid-test', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -777,7 +777,7 @@ describe('PUT /api/pages/:name', () => {
       }),
     })
     expect(putRes.status).toBe(200)
-    const { body } = await get('/api/pages/cid-test')
+    const { body } = await get('/api/v1/pages/cid-test')
     expect(body.components).toHaveLength(2)
     expect(body.components[0].id).toBeDefined()
     expect(body.components[1].id).toBeDefined()
@@ -786,13 +786,13 @@ describe('PUT /api/pages/:name', () => {
   })
 
   it('preserves existing IDs across saves (the load-bearing reorder invariant)', async () => {
-    await app.request('/api/pages', {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'cid-reorder', template: 'page-default' }),
     })
     // First save adds IDs
-    const first = await app.request('/api/pages/cid-reorder', {
+    const first = await app.request('/api/v1/pages/cid-reorder', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -803,12 +803,12 @@ describe('PUT /api/pages/:name', () => {
       }),
     })
     expect(first.status).toBe(200)
-    const firstBody = (await get('/api/pages/cid-reorder')).body
+    const firstBody = (await get('/api/v1/pages/cid-reorder')).body
     const aId = firstBody.components[0].id
     const bId = firstBody.components[1].id
     // Author reorders and re-saves with the existing IDs intact —
     // simulating the admin's component-tree reorder flow.
-    const second = await app.request('/api/pages/cid-reorder', {
+    const second = await app.request('/api/v1/pages/cid-reorder', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -824,19 +824,19 @@ describe('PUT /api/pages/:name', () => {
       }),
     })
     expect(second.status).toBe(200)
-    const after = (await get('/api/pages/cid-reorder')).body
+    const after = (await get('/api/v1/pages/cid-reorder')).body
     expect(after.components[0].id).toBe(bId)
     expect(after.components[1].id).toBe(aId)
     await rm(resolve(localTargetDir, 'pages/cid-reorder'), { recursive: true, force: true })
   })
 
   it('does not assign IDs to fragment-reference strings', async () => {
-    await app.request('/api/pages', {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'cid-frags', template: 'page-default' }),
     })
-    const res = await app.request('/api/pages/cid-frags', {
+    const res = await app.request('/api/v1/pages/cid-frags', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -844,7 +844,7 @@ describe('PUT /api/pages/:name', () => {
       }),
     })
     expect(res.status).toBe(200)
-    const { body } = await get('/api/pages/cid-frags')
+    const { body } = await get('/api/v1/pages/cid-frags')
     expect(body.components[0]).toBe('@header')
     expect(body.components[2]).toBe('@footer')
     expect(typeof body.components[1]).toBe('object')
@@ -863,28 +863,28 @@ describe('save-etag concurrency (design-offline.md Q3)', () => {
     return etag?.replace(/^"(.*)"$/, '$1') ?? null
   }
 
-  it('GET /api/pages/:name returns ETag header (16 hex, RFC-7232 quoted)', async () => {
-    const res = await app.request('/api/pages/home')
+  it('GET /api/v1/pages/:name returns ETag header (16 hex, RFC-7232 quoted)', async () => {
+    const res = await app.request('/api/v1/pages/home')
     expect(res.status).toBe(200)
     const etag = res.headers.get('ETag')
     expect(etag).not.toBeNull()
     expect(etag).toMatch(/^"[0-9a-f]{16}"$/)
   })
 
-  it('GET /api/fragments/:name returns ETag header', async () => {
-    const res = await app.request('/api/fragments/header')
+  it('GET /api/v1/fragments/:name returns ETag header', async () => {
+    const res = await app.request('/api/v1/fragments/header')
     expect(res.status).toBe(200)
     const etag = res.headers.get('ETag')
     expect(etag).toMatch(/^"[0-9a-f]{16}"$/)
   })
 
   it('PUT without If-Match succeeds (last-write-wins for non-offline-aware clients)', async () => {
-    await app.request('/api/pages', {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'etag-test', template: 'page-default' }),
     })
-    const res = await app.request('/api/pages/etag-test', {
+    const res = await app.request('/api/v1/pages/etag-test', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { title: 'No If-Match' } }),
@@ -899,11 +899,11 @@ describe('save-etag concurrency (design-offline.md Q3)', () => {
 
   it('PUT with matching If-Match succeeds', async () => {
     // Read current etag.
-    const readRes = await app.request('/api/pages/etag-test')
+    const readRes = await app.request('/api/v1/pages/etag-test')
     const currentEtag = unquote(readRes.headers.get('ETag'))!
     expect(currentEtag).toMatch(/^[0-9a-f]{16}$/)
 
-    const res = await app.request('/api/pages/etag-test', {
+    const res = await app.request('/api/v1/pages/etag-test', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'If-Match': `"${currentEtag}"` },
       body: JSON.stringify({ content: { title: 'Matching If-Match' } }),
@@ -917,19 +917,19 @@ describe('save-etag concurrency (design-offline.md Q3)', () => {
   it('PUT with stale If-Match returns 409 STALE with current manifest', async () => {
     // Read once to capture an etag, save twice via the no-If-Match
     // path so the etag goes stale.
-    const readRes = await app.request('/api/pages/etag-test')
+    const readRes = await app.request('/api/v1/pages/etag-test')
     const staleEtag = unquote(readRes.headers.get('ETag'))!
 
     // Drift the server state — simulates "another author saved while
     // I was offline."
-    await app.request('/api/pages/etag-test', {
+    await app.request('/api/v1/pages/etag-test', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { title: 'Drift' } }),
     })
 
     // Now try to save with the stale etag.
-    const res = await app.request('/api/pages/etag-test', {
+    const res = await app.request('/api/v1/pages/etag-test', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'If-Match': `"${staleEtag}"` },
       body: JSON.stringify({ content: { title: 'My Edit' } }),
@@ -952,11 +952,11 @@ describe('save-etag concurrency (design-offline.md Q3)', () => {
     // Simulates the chained-projection pattern from design-offline.md
     // Q3: A1 saves with If-Match=baseline; A2 saves with If-Match=
     // projected-from-A1's-result. Both succeed end-to-end.
-    const readRes = await app.request('/api/pages/etag-test')
+    const readRes = await app.request('/api/v1/pages/etag-test')
     const baselineEtag = unquote(readRes.headers.get('ETag'))!
 
     // A1
-    const a1 = await app.request('/api/pages/etag-test', {
+    const a1 = await app.request('/api/v1/pages/etag-test', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'If-Match': `"${baselineEtag}"` },
       body: JSON.stringify({ content: { title: 'A1' } }),
@@ -965,7 +965,7 @@ describe('save-etag concurrency (design-offline.md Q3)', () => {
     const a1Body = (await a1.json()) as { etag: string }
 
     // A2 chains via A1's projected etag.
-    const a2 = await app.request('/api/pages/etag-test', {
+    const a2 = await app.request('/api/v1/pages/etag-test', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'If-Match': `"${a1Body.etag}"` },
       body: JSON.stringify({ content: { title: 'A2' } }),
@@ -974,17 +974,17 @@ describe('save-etag concurrency (design-offline.md Q3)', () => {
   })
 
   it('fragments PUT honors If-Match (same shape as pages)', async () => {
-    await app.request('/api/fragments', {
+    await app.request('/api/v1/fragments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'etag-test', template: 'header-layout' }),
     })
-    const readRes = await app.request('/api/fragments/etag-test')
+    const readRes = await app.request('/api/v1/fragments/etag-test')
     const currentEtag = unquote(readRes.headers.get('ETag'))!
     expect(currentEtag).toMatch(/^[0-9a-f]{16}$/)
 
     // Stale If-Match → 409 STALE.
-    const stale = await app.request('/api/fragments/etag-test', {
+    const stale = await app.request('/api/v1/fragments/etag-test', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'If-Match': '"0000000000000000"' },
       body: JSON.stringify({ content: { title: 'Stale' } }),
@@ -995,7 +995,7 @@ describe('save-etag concurrency (design-offline.md Q3)', () => {
     expect(staleBody.current).toBeDefined()
 
     // Matching If-Match → success.
-    const ok = await app.request('/api/fragments/etag-test', {
+    const ok = await app.request('/api/v1/fragments/etag-test', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'If-Match': `"${currentEtag}"` },
       body: JSON.stringify({ content: { title: 'Fresh' } }),
@@ -1004,21 +1004,21 @@ describe('save-etag concurrency (design-offline.md Q3)', () => {
   })
 })
 
-describe('PUT /api/pages/:name (metadata round-trip)', () => {
+describe('PUT /api/v1/pages/:name (metadata round-trip)', () => {
   afterAll(async () => {
     await rm(resolve(localTargetDir, 'pages/meta-test'), { recursive: true, force: true })
   })
 
   it('saves and retrieves metadata', async () => {
     // Create page
-    await app.request('/api/pages', {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'meta-test', template: 'page-default' }),
     })
 
     // Set metadata
-    const res = await app.request('/api/pages/meta-test', {
+    const res = await app.request('/api/v1/pages/meta-test', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1034,7 +1034,7 @@ describe('PUT /api/pages/:name (metadata round-trip)', () => {
     expect(res.status).toBe(200)
 
     // Verify round-trip
-    const { body } = await get('/api/pages/meta-test')
+    const { body } = await get('/api/v1/pages/meta-test')
     expect(body.metadata).toEqual({
       title: 'SEO Title',
       description: 'SEO desc',
@@ -1046,36 +1046,36 @@ describe('PUT /api/pages/:name (metadata round-trip)', () => {
 
   it('preserves metadata when updating only content', async () => {
     // Update content only — metadata should be preserved
-    const res = await app.request('/api/pages/meta-test', {
+    const res = await app.request('/api/v1/pages/meta-test', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { title: 'New Content Title' } }),
     })
     expect(res.status).toBe(200)
 
-    const { body } = await get('/api/pages/meta-test')
+    const { body } = await get('/api/v1/pages/meta-test')
     expect(body.content.title).toBe('New Content Title')
     expect(body.metadata.title).toBe('SEO Title')
     expect(body.metadata.robots).toBe('noindex')
   })
 
   it('clears metadata when explicitly set to empty object', async () => {
-    const res = await app.request('/api/pages/meta-test', {
+    const res = await app.request('/api/v1/pages/meta-test', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ metadata: {} }),
     })
     expect(res.status).toBe(200)
 
-    const { body } = await get('/api/pages/meta-test')
+    const { body } = await get('/api/v1/pages/meta-test')
     expect(body.metadata).toEqual({})
   })
 })
 
-describe('PUT /api/pages/:name (update component content)', () => {
+describe('PUT /api/v1/pages/:name (update component content)', () => {
   it('updates page with modified component content', async () => {
     // Read current page
-    const { body: page } = await get('/api/pages/home')
+    const { body: page } = await get('/api/v1/pages/home')
     const components = page.components.map((c: any) => {
       if (typeof c === 'object' && c.name === 'hero') {
         return { ...c, content: { title: 'Updated Hero', subtitle: 'New subtitle' } }
@@ -1084,7 +1084,7 @@ describe('PUT /api/pages/:name (update component content)', () => {
     })
 
     // Update page
-    const res = await app.request('/api/pages/home', {
+    const res = await app.request('/api/v1/pages/home', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ components }),
@@ -1092,7 +1092,7 @@ describe('PUT /api/pages/:name (update component content)', () => {
     expect(res.status).toBe(200)
 
     // Verify
-    const { body: updated } = await get('/api/pages/home')
+    const { body: updated } = await get('/api/v1/pages/home')
     const hero = updated.components.find((c: any) => typeof c === 'object' && c.name === 'hero')
     expect(hero.content.title).toBe('Updated Hero')
 
@@ -1109,7 +1109,7 @@ describe('PUT /api/pages/:name (update component content)', () => {
       }
       return c
     })
-    await app.request('/api/pages/home', {
+    await app.request('/api/v1/pages/home', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ components: restored }),
@@ -1117,53 +1117,53 @@ describe('PUT /api/pages/:name (update component content)', () => {
   })
 })
 
-describe('DELETE /api/pages/:name', () => {
+describe('DELETE /api/v1/pages/:name', () => {
   it('archives a page (soft-delete is the default per Cut 7 cutover)', async () => {
-    await app.request('/api/pages', {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'to-archive', template: 'page-default' }),
     })
 
-    const res = await app.request('/api/pages/to-archive', { method: 'DELETE' })
+    const res = await app.request('/api/v1/pages/to-archive', { method: 'DELETE' })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { ok: boolean; name: string; archivedAt: string }
     expect(body.ok).toBe(true)
     expect(typeof body.archivedAt).toBe('string')
 
     // Manifest still exists with archived: true (DELETE = archive, not hard-delete).
-    const { status, body: page } = await get('/api/pages/to-archive')
+    const { status, body: page } = await get('/api/v1/pages/to-archive')
     expect(status).toBe(200)
     expect((page as { archived?: boolean }).archived).toBe(true)
   })
 
   it('purges with ?permanent=true (explicit hard-delete intent)', async () => {
-    await app.request('/api/pages', {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'to-purge', template: 'page-default' }),
     })
 
-    const res = await app.request('/api/pages/to-purge?permanent=true', { method: 'DELETE' })
+    const res = await app.request('/api/v1/pages/to-purge?permanent=true', { method: 'DELETE' })
     expect(res.status).toBe(200)
 
-    const { status } = await get('/api/pages/to-purge')
+    const { status } = await get('/api/v1/pages/to-purge')
     expect(status).toBe(404)
   })
 
   it('returns 404 for missing page', async () => {
-    const res = await app.request('/api/pages/nonexistent', { method: 'DELETE' })
+    const res = await app.request('/api/v1/pages/nonexistent', { method: 'DELETE' })
     expect(res.status).toBe(404)
   })
 })
 
-describe('POST /api/fragments (create)', () => {
+describe('POST /api/v1/fragments (create)', () => {
   afterAll(async () => {
     await rm(resolve(localTargetDir, 'fragments/test-frag'), { recursive: true, force: true })
   })
 
   it('creates a new fragment', async () => {
-    const res = await app.request('/api/fragments', {
+    const res = await app.request('/api/v1/fragments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'test-frag', template: 'footer-layout' }),
@@ -1174,7 +1174,7 @@ describe('POST /api/fragments (create)', () => {
   })
 
   it('rejects missing fields', async () => {
-    const res = await app.request('/api/fragments', {
+    const res = await app.request('/api/v1/fragments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'x' }),
@@ -1183,7 +1183,7 @@ describe('POST /api/fragments (create)', () => {
   })
 })
 
-describe('PUT /api/fragments/:name component IDs', () => {
+describe('PUT /api/v1/fragments/:name component IDs', () => {
   // Component IDs apply uniformly to pages and fragments. The pages
   // suite covers full reorder semantics; here we just verify the
   // save handler wires the generator on this route too.
@@ -1192,12 +1192,12 @@ describe('PUT /api/fragments/:name component IDs', () => {
   })
 
   it('auto-generates IDs on InlineComponents within fragments', async () => {
-    await app.request('/api/fragments', {
+    await app.request('/api/v1/fragments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'cid-frag-test', template: 'footer-layout' }),
     })
-    const res = await app.request('/api/fragments/cid-frag-test', {
+    const res = await app.request('/api/v1/fragments/cid-frag-test', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1208,21 +1208,21 @@ describe('PUT /api/fragments/:name component IDs', () => {
       }),
     })
     expect(res.status).toBe(200)
-    const { body } = await get('/api/fragments/cid-frag-test')
+    const { body } = await get('/api/v1/fragments/cid-frag-test')
     expect(body.components[0].id).toBeDefined()
     expect(body.components[1].id).toBe('preserved')
   })
 })
 
-describe('DELETE /api/fragments/:name', () => {
+describe('DELETE /api/v1/fragments/:name', () => {
   it('archives a fragment (soft-delete is the default per Cut 7 cutover)', async () => {
-    await app.request('/api/fragments', {
+    await app.request('/api/v1/fragments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'to-archive-frag', template: 'footer-layout' }),
     })
 
-    const res = await app.request('/api/fragments/to-archive-frag', { method: 'DELETE' })
+    const res = await app.request('/api/v1/fragments/to-archive-frag', { method: 'DELETE' })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { ok: boolean; archivedAt: string }
     expect(body.ok).toBe(true)
@@ -1230,19 +1230,19 @@ describe('DELETE /api/fragments/:name', () => {
   })
 
   it('purges with ?permanent=true', async () => {
-    await app.request('/api/fragments', {
+    await app.request('/api/v1/fragments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'to-purge-frag', template: 'footer-layout' }),
     })
-    const res = await app.request('/api/fragments/to-purge-frag?permanent=true', { method: 'DELETE' })
+    const res = await app.request('/api/v1/fragments/to-purge-frag?permanent=true', { method: 'DELETE' })
     expect(res.status).toBe(200)
   })
 
   it('returns 404 for missing fragment', async () => {
-    const res = await app.request('/api/fragments/nonexistent', { method: 'DELETE' })
+    const res = await app.request('/api/v1/fragments/nonexistent', { method: 'DELETE' })
     expect(res.status).toBe(404)
   })
 })
 
-// Component create/delete is now done via PUT /api/pages/:name (update components array)
+// Component create/delete is now done via PUT /api/v1/pages/:name (update components array)

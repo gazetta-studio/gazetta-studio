@@ -1,6 +1,6 @@
 /**
- * Integration tests for Cut 3 of redirect-ui — POST /api/page-redirects
- * and POST /api/fragment-redirects.
+ * Integration tests for Cut 3 of redirect-ui — POST /api/v1/page-redirects
+ * and POST /api/v1/fragment-redirects.
  *
  * Per `design-redirect-ui.md` Q2 (endpoint shape), Q4 (live-name
  * collision + normalize + edge-case rejections), Q7 (audit event),
@@ -114,11 +114,11 @@ const FU_HEADERS = {
   'X-Forwarded-Groups': 'somegroup',
 }
 
-describe('POST /api/page-redirects — happy paths', () => {
+describe('POST /api/v1/page-redirects — happy paths', () => {
   beforeEach(() => setup())
 
   it('creates a page redirect with archive fields + 201 + correct response shape', async () => {
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-products', to: 'products/featured' }),
@@ -147,7 +147,7 @@ describe('POST /api/page-redirects — happy paths', () => {
   })
 
   it('creates a fragment redirect at fragments/{from}/fragment.json', async () => {
-    const res = await app.request('/api/fragment-redirects', {
+    const res = await app.request('/api/v1/fragment-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-header', to: 'header' }),
@@ -175,12 +175,12 @@ describe('POST /api/page-redirects — happy paths', () => {
   })
 })
 
-describe('POST /api/fragment-redirects — collision handling (symmetric with pages)', () => {
+describe('POST /api/v1/fragment-redirects — collision handling (symmetric with pages)', () => {
   beforeEach(() => setup())
 
   it('rejects with 409 LIVE_NAME_CONFLICT when from is a live fragment', async () => {
     // `header` is a live fragment in the seed.
-    const res = await app.request('/api/fragment-redirects', {
+    const res = await app.request('/api/v1/fragment-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'header', to: 'footer' }),
@@ -199,7 +199,7 @@ describe('POST /api/fragment-redirects — collision handling (symmetric with pa
   })
 
   it('rejects with 409 ALIAS_TARGET_NOT_FOUND when to does not resolve to a fragment', async () => {
-    const res = await app.request('/api/fragment-redirects', {
+    const res = await app.request('/api/v1/fragment-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-header', to: 'nonexistent-fragment' }),
@@ -215,11 +215,11 @@ describe('POST /api/fragment-redirects — collision handling (symmetric with pa
   })
 })
 
-describe('POST /api/page-redirects — from-route normalization (Q4 lock)', () => {
+describe('POST /api/v1/page-redirects — from-route normalization (Q4 lock)', () => {
   beforeEach(() => setup())
 
   it('strips leading slash — /old-products and old-products produce same manifest path', async () => {
-    const r1 = await app.request('/api/page-redirects', {
+    const r1 = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: '/old-products', to: 'products/featured' }),
@@ -233,11 +233,11 @@ describe('POST /api/page-redirects — from-route normalization (Q4 lock)', () =
   })
 })
 
-describe('POST /api/page-redirects — edge-case rejections (absorbs old Cut 5)', () => {
+describe('POST /api/v1/page-redirects — edge-case rejections (absorbs old Cut 5)', () => {
   beforeEach(() => setup())
 
   it('rejects from="home" with 400 INVALID and a clear message', async () => {
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'home', to: 'about' }),
@@ -250,7 +250,7 @@ describe('POST /api/page-redirects — edge-case rejections (absorbs old Cut 5)'
   })
 
   it('rejects from="blog/[slug]" with 400 INVALID — wildcards not supported', async () => {
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'blog/[slug]', to: 'about' }),
@@ -265,7 +265,7 @@ describe('POST /api/page-redirects — edge-case rejections (absorbs old Cut 5)'
     // Q4 normalize: `:param` → `[param]`. Per the acceptance bullet,
     // `from: 'blog/:slug'` normalizes to `blog/[slug]` which IS a
     // wildcard pattern → reject.
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'blog/:slug', to: 'about' }),
@@ -276,12 +276,12 @@ describe('POST /api/page-redirects — edge-case rejections (absorbs old Cut 5)'
   })
 })
 
-describe('POST /api/page-redirects — collision handling', () => {
+describe('POST /api/v1/page-redirects — collision handling', () => {
   beforeEach(() => setup())
 
   it('rejects with 409 LIVE_NAME_CONFLICT when from is a live page', async () => {
     // `about` is a live page in the seed.
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'about', to: 'products/featured' }),
@@ -298,7 +298,7 @@ describe('POST /api/page-redirects — collision handling', () => {
   })
 
   it('rejects with 409 ALIAS_TARGET_NOT_FOUND when to does not resolve', async () => {
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-products', to: 'does-not-exist' }),
@@ -337,7 +337,7 @@ describe('POST /api/page-redirects — collision handling', () => {
         }),
       },
     })
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-promo', to: 'archived-target' }),
@@ -351,13 +351,13 @@ describe('POST /api/page-redirects — collision handling', () => {
 
   it('rejects with 409 ARCHIVED_NAME_CONFLICT when from is already archived', async () => {
     // Archive 'old-products' first by creating a redirect, then try to re-create.
-    await app.request('/api/page-redirects', {
+    await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-products', to: 'home' }),
     })
 
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-products', to: 'products/featured' }),
@@ -372,7 +372,7 @@ describe('POST /api/page-redirects — collision handling', () => {
 
   it('?onConflict=restore on a Manual Redirect answers 409 and writes nothing (#1343)', async () => {
     // Create the first redirect pointing at 'home'.
-    await app.request('/api/page-redirects', {
+    await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-products', to: 'home' }),
@@ -380,7 +380,7 @@ describe('POST /api/page-redirects — collision handling', () => {
     const before = await storage.readFile('pages/old-products/page.json')
     // Retry with restore — the existing archive is itself a redirect:
     // unarchiving would strip its manifest to `{}` and lose it.
-    const res = await app.request('/api/page-redirects?onConflict=restore', {
+    const res = await app.request('/api/v1/page-redirects?onConflict=restore', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-products', to: 'products/featured' }),
@@ -405,7 +405,7 @@ describe('POST /api/page-redirects — collision handling', () => {
         }),
       },
     })
-    const res = await app.request('/api/page-redirects?onConflict=restore', {
+    const res = await app.request('/api/v1/page-redirects?onConflict=restore', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-products', to: 'products/featured' }),
@@ -417,12 +417,12 @@ describe('POST /api/page-redirects — collision handling', () => {
   })
 
   it('?onConflict=replace purges old archive + creates new redirect atomically', async () => {
-    await app.request('/api/page-redirects', {
+    await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-products', to: 'home' }),
     })
-    const res = await app.request('/api/page-redirects?onConflict=replace', {
+    const res = await app.request('/api/v1/page-redirects?onConflict=replace', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-products', to: 'products/featured' }),
@@ -438,12 +438,12 @@ describe('POST /api/page-redirects — collision handling', () => {
   })
 
   it('?onConflict=moveAside renames old archive with date suffix + creates new', async () => {
-    await app.request('/api/page-redirects', {
+    await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-products', to: 'home' }),
     })
-    const res = await app.request('/api/page-redirects?onConflict=moveAside', {
+    const res = await app.request('/api/v1/page-redirects?onConflict=moveAside', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-products', to: 'products/featured' }),
@@ -459,11 +459,11 @@ describe('POST /api/page-redirects — collision handling', () => {
   })
 })
 
-describe('POST /api/page-redirects — audit + history (Q7 lock)', () => {
+describe('POST /api/v1/page-redirects — audit + history (Q7 lock)', () => {
   beforeEach(() => setup())
 
   it('emits exactly ONE audit event with action create-redirect + correct metadata', async () => {
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-products', to: 'products/featured' }),
@@ -483,7 +483,7 @@ describe('POST /api/page-redirects — audit + history (Q7 lock)', () => {
   })
 
   it('emits exactly ONE audit event for fragment redirect with scope.kind: fragment', async () => {
-    const res = await app.request('/api/fragment-redirects', {
+    const res = await app.request('/api/v1/fragment-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-header', to: 'header' }),
@@ -503,14 +503,14 @@ describe('POST /api/page-redirects — audit + history (Q7 lock)', () => {
     // produces exactly ONE NEW revision (not 2 — `recordWrite` creates
     // a baseline revision on the very first write to a target, capturing
     // pre-write state; subsequent writes record one revision each).
-    await app.request('/api/page-redirects', {
+    await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'warmup-redirect', to: 'home' }),
     })
     const before = (await readHistoryRevisions()).length
 
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-products', to: 'products/featured' }),
@@ -522,13 +522,13 @@ describe('POST /api/page-redirects — audit + history (Q7 lock)', () => {
   })
 })
 
-describe('POST /api/page-redirects — locale-variant alias target (Q4 verification)', () => {
+describe('POST /api/v1/page-redirects — locale-variant alias target (Q4 verification)', () => {
   beforeEach(() => setup())
 
   it('accepts alias target that has locale variants (aliasOf is locale-agnostic per soft-delete Q1)', async () => {
     // `products/featured` has both default + French variants in the seed.
     // The redirect's `aliasOf` resolves to the name (not the URL or locale).
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-promo', to: 'products/featured' }),
@@ -543,7 +543,7 @@ describe('POST /api/page-redirects — locale-variant alias target (Q4 verificat
   })
 })
 
-describe('POST /api/page-redirects — capability gate (Q8 lock: edit:pages)', () => {
+describe('POST /api/v1/page-redirects — capability gate (Q8 lock: edit:pages)', () => {
   it('returns 403 FORBIDDEN with code FORBIDDEN when principal lacks edit:pages', async () => {
     // Forwarded-user trust with a roleMapping that resolves to viewer
     // (built-in viewer has `read:*` only — no `edit:pages`).
@@ -561,7 +561,7 @@ describe('POST /api/page-redirects — capability gate (Q8 lock: edit:pages)', (
 
     // X-Forwarded-Groups: somegroup → no match → defaultRole 'viewer' →
     // viewer lacks edit:pages.
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: FU_HEADERS,
       body: JSON.stringify({ from: 'old-products', to: 'products/featured' }),
@@ -574,7 +574,7 @@ describe('POST /api/page-redirects — capability gate (Q8 lock: edit:pages)', (
   })
 })
 
-describe('POST /api/fragment-redirects — capability gate (Q8 lock: edit:fragments)', () => {
+describe('POST /api/v1/fragment-redirects — capability gate (Q8 lock: edit:fragments)', () => {
   it('returns 403 FORBIDDEN with code FORBIDDEN when principal lacks edit:fragments', async () => {
     setup({
       auth: {
@@ -588,7 +588,7 @@ describe('POST /api/fragment-redirects — capability gate (Q8 lock: edit:fragme
       },
     })
 
-    const res = await app.request('/api/fragment-redirects', {
+    const res = await app.request('/api/v1/fragment-redirects', {
       method: 'POST',
       headers: FU_HEADERS,
       body: JSON.stringify({ from: 'old-header', to: 'header' }),
@@ -614,14 +614,14 @@ describe('POST /api/fragment-redirects — capability gate (Q8 lock: edit:fragme
  * mutants can no longer survive silently.
  *
  * Both routes share `handleCreateRedirect`, so each scenario runs through
- * both `/api/page-redirects` and `/api/fragment-redirects` — keeps a single
+ * both `/api/v1/page-redirects` and `/api/v1/fragment-redirects` — keeps a single
  * source of truth for the prologue's contract.
  */
-describe('POST /api/page-redirects — request validation (kills NoCoverage mutants)', () => {
+describe('POST /api/v1/page-redirects — request validation (kills NoCoverage mutants)', () => {
   beforeEach(() => setup())
 
   it('returns 400 INVALID with "Invalid JSON body" when the body is not valid JSON', async () => {
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: 'not-json{',
@@ -635,7 +635,7 @@ describe('POST /api/page-redirects — request validation (kills NoCoverage muta
   })
 
   it('returns 400 INVALID with "Invalid request body" + issues[] when both fields are missing', async () => {
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
@@ -661,7 +661,7 @@ describe('POST /api/page-redirects — request validation (kills NoCoverage muta
   })
 
   it('returns 400 INVALID with a single issue when only "from" is missing', async () => {
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'products/featured' }),
@@ -678,7 +678,7 @@ describe('POST /api/page-redirects — request validation (kills NoCoverage muta
   })
 
   it('returns 400 INVALID with a single issue when only "to" is missing', async () => {
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-products' }),
@@ -695,7 +695,7 @@ describe('POST /api/page-redirects — request validation (kills NoCoverage muta
   })
 
   it('returns 400 INVALID with issues[] when "from" is an empty string (min(1) violation)', async () => {
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: '', to: 'products/featured' }),
@@ -712,7 +712,7 @@ describe('POST /api/page-redirects — request validation (kills NoCoverage muta
   })
 
   it('returns 400 INVALID with issues[] when "from" is not a string (wrong type)', async () => {
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 42, to: 'products/featured' }),
@@ -729,11 +729,11 @@ describe('POST /api/page-redirects — request validation (kills NoCoverage muta
   })
 })
 
-describe('POST /api/fragment-redirects — request validation (kills NoCoverage mutants)', () => {
+describe('POST /api/v1/fragment-redirects — request validation (kills NoCoverage mutants)', () => {
   beforeEach(() => setup())
 
   it('returns 400 INVALID with "Invalid JSON body" when the body is not valid JSON', async () => {
-    const res = await app.request('/api/fragment-redirects', {
+    const res = await app.request('/api/v1/fragment-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: 'not-json{',
@@ -745,7 +745,7 @@ describe('POST /api/fragment-redirects — request validation (kills NoCoverage 
   })
 
   it('returns 400 INVALID with "Invalid request body" + issues[] when both fields are missing', async () => {
-    const res = await app.request('/api/fragment-redirects', {
+    const res = await app.request('/api/v1/fragment-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
@@ -798,13 +798,13 @@ describe('POST /api/fragment-redirects — request validation (kills NoCoverage 
  * behaviorally equivalent for all accepted inputs. Those mutants are
  * accepted as equivalent-mutants under the current validation rules.
  */
-describe('POST /api/{page,fragment}-redirects — kind-discriminant ternary on targetRoute (kills line-213 mutants)', () => {
+describe('POST /api/v1/{page,fragment}-redirects — kind-discriminant ternary on targetRoute (kills line-213 mutants)', () => {
   beforeEach(() => setup())
 
   it('page redirect with to: "home" pins the deriveRoute branch → targetRoute === "/"', async () => {
     // 'home' is a live page in the seed; from is a novel name so the
     // happy-path proceeds to write the redirect.
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-landing', to: 'home' }),
@@ -841,7 +841,7 @@ describe('POST /api/{page,fragment}-redirects — kind-discriminant ternary on t
         }),
       },
     })
-    const res = await app.request('/api/fragment-redirects', {
+    const res = await app.request('/api/v1/fragment-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-nav', to: 'home' }),
@@ -881,14 +881,14 @@ describe('POST /api/{page,fragment}-redirects — kind-discriminant ternary on t
  * `ARCHIVED_NAME_CONFLICT` from `ALIAS_TARGET_NOT_FOUND` (both 409),
  * catching the mutant more sharply.
  */
-describe('POST /api/page-redirects — archived-name-conflict precedes alias-target check (kills line-180 mutants)', () => {
+describe('POST /api/v1/page-redirects — archived-name-conflict precedes alias-target check (kills line-180 mutants)', () => {
   beforeEach(() => setup())
 
   it('archived from + missing alias target → 409 ARCHIVED_NAME_CONFLICT (not ALIAS_TARGET_NOT_FOUND)', async () => {
     // Establish 'old-blog' as an archive via a first POST pointing at a
     // valid alias target. After this, 'old-blog' exists on disk as an
     // archived manifest with aliasOf: 'home'.
-    const seedRes = await app.request('/api/page-redirects', {
+    const seedRes = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-blog', to: 'home' }),
@@ -900,7 +900,7 @@ describe('POST /api/page-redirects — archived-name-conflict precedes alias-tar
     // alias-target check would otherwise fire on 'does-not-exist' and
     // return ALIAS_TARGET_NOT_FOUND. Pinning the exact code proves the
     // short-circuit.
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-blog', to: 'does-not-exist' }),
@@ -964,7 +964,7 @@ describe('POST /api/page-redirects — archived-name-conflict precedes alias-tar
  *   kill all three ternary mutants (→ true, → false, `===` → `!==`) on
  *   that specific line.
  */
-describe('POST /api/page-redirects — mutation-coverage backfill (issue #773)', () => {
+describe('POST /api/v1/page-redirects — mutation-coverage backfill (issue #773)', () => {
   beforeEach(() => setup())
 
   it('trailing newline on serialized manifest — kills line-271 StringLiteral mutant', async () => {
@@ -974,7 +974,7 @@ describe('POST /api/page-redirects — mutation-coverage backfill (issue #773)',
     // manifest.aliasOf === 'x') won't fail. The invariant is byte-level:
     // manifests end with a newline. Common POSIX convention; pinning it
     // prevents accidental drift.
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-marketing', to: 'products/featured' }),
@@ -1002,7 +1002,7 @@ describe('POST /api/page-redirects — mutation-coverage backfill (issue #773)',
     //     so captures `s` → `blog/[s]lug` in message → assertion FAILS
     //
     // Both regex mutants killed with a single load-bearing assertion.
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'blog/:slug', to: 'about' }),
@@ -1027,7 +1027,7 @@ describe('POST /api/page-redirects — mutation-coverage backfill (issue #773)',
     // adds a second load-bearing input covering a different character
     // class (underscore) so a future regex refactor that broke
     // underscore handling would surface immediately rather than silently.
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'blog/:post_id', to: 'about' }),
@@ -1056,7 +1056,7 @@ describe('POST /api/page-redirects — mutation-coverage backfill (issue #773)',
         }),
       },
     })
-    const res = await app.request('/api/page-redirects?onConflict=restore', {
+    const res = await app.request('/api/v1/page-redirects?onConflict=restore', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-restore-page', to: 'home' }),
@@ -1097,7 +1097,7 @@ describe('POST /api/page-redirects — mutation-coverage backfill (issue #773)',
         }),
       },
     })
-    const res = await app.request('/api/fragment-redirects?onConflict=restore', {
+    const res = await app.request('/api/v1/fragment-redirects?onConflict=restore', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-restore-frag', to: 'home' }),
@@ -1114,12 +1114,12 @@ describe('POST /api/page-redirects — mutation-coverage backfill (issue #773)',
   })
 
   it('replace path response body pins the ternary — kills line-370/371 page-branch mutants', async () => {
-    await app.request('/api/page-redirects', {
+    await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-replace-page', to: 'about' }),
     })
-    const res = await app.request('/api/page-redirects?onConflict=replace', {
+    const res = await app.request('/api/v1/page-redirects?onConflict=replace', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-replace-page', to: 'home' }),
@@ -1146,12 +1146,12 @@ describe('POST /api/page-redirects — mutation-coverage backfill (issue #773)',
         }),
       },
     })
-    await app.request('/api/fragment-redirects', {
+    await app.request('/api/v1/fragment-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-replace-frag', to: 'header' }),
     })
-    const res = await app.request('/api/fragment-redirects?onConflict=replace', {
+    const res = await app.request('/api/v1/fragment-redirects?onConflict=replace', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-replace-frag', to: 'home' }),
@@ -1163,12 +1163,12 @@ describe('POST /api/page-redirects — mutation-coverage backfill (issue #773)',
   })
 
   it('moveAside path response body pins the ternary — kills line-391/392 page-branch mutants', async () => {
-    await app.request('/api/page-redirects', {
+    await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-aside-page', to: 'about' }),
     })
-    const res = await app.request('/api/page-redirects?onConflict=moveAside', {
+    const res = await app.request('/api/v1/page-redirects?onConflict=moveAside', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-aside-page', to: 'home' }),
@@ -1194,12 +1194,12 @@ describe('POST /api/page-redirects — mutation-coverage backfill (issue #773)',
         }),
       },
     })
-    await app.request('/api/fragment-redirects', {
+    await app.request('/api/v1/fragment-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-aside-frag', to: 'header' }),
     })
-    const res = await app.request('/api/fragment-redirects?onConflict=moveAside', {
+    const res = await app.request('/api/v1/fragment-redirects?onConflict=moveAside', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-aside-frag', to: 'home' }),
@@ -1221,7 +1221,7 @@ describe('POST redirects - mutation coverage (#1129)', () => {
   )
 
   it('page redirect to "home" answers targetRoute "/" (page branch of the kind ternary)', async () => {
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-root', to: 'home' }),
@@ -1237,7 +1237,7 @@ describe('POST redirects - mutation coverage (#1129)', () => {
   })
 
   it('fragment redirect to a fragment named "home" answers targetRoute "/home" (fragment branch)', async () => {
-    const res = await app.request('/api/fragment-redirects', {
+    const res = await app.request('/api/v1/fragment-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-home-frag', to: 'home' }),
@@ -1252,7 +1252,7 @@ describe('POST redirects - mutation coverage (#1129)', () => {
   })
 
   it('records the redirect manifest path in the history revision items', async () => {
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-products', to: 'products/featured' }),
@@ -1312,7 +1312,7 @@ describe('POST redirects - mutation coverage (#1129)', () => {
     setupWithCache()
     await source.cache.set('pages:summary', { warm: true })
     await source.cache.set('fragments:summary', { warm: true })
-    const res = await app.request('/api/page-redirects', {
+    const res = await app.request('/api/v1/page-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-products', to: 'products/featured' }),
@@ -1328,7 +1328,7 @@ describe('POST redirects - mutation coverage (#1129)', () => {
     setupWithCache()
     await source.cache.set('pages:summary', { warm: true })
     await source.cache.set('fragments:summary', { warm: true })
-    const res = await app.request('/api/fragment-redirects', {
+    const res = await app.request('/api/v1/fragment-redirects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: 'old-header', to: 'header' }),

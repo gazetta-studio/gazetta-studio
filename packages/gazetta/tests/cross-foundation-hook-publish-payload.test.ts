@@ -4,10 +4,10 @@
  * payload (post-beforeSave), not the pre-hook input.
  *
  * The contract chain (per design-hooks.md "Save flow with hooks"):
- *   1. PUT /api/pages → validators run → beforeSave hooks fire →
+ *   1. PUT /api/v1/pages → validators run → beforeSave hooks fire →
  *      hook returns mutated payload → manifest written to source
  *      with post-hook content
- *   2. POST /api/publish source → non-editable destination → publish
+ *   2. POST /api/v1/publish source → non-editable destination → publish
  *      reads source manifest verbatim (no hook re-fire) → destination
  *      receives post-hook content
  *
@@ -92,7 +92,7 @@ describe('Cross-foundation gap #7 — publish observes hook-modified manifest', 
   it('save → beforeSave hook mutates content → publish copies post-hook bytes to non-editable target', async () => {
     // Save a fragment update through the full pipeline. The hook
     // appends '[post-hook]' to content.title before storage write.
-    const saveRes = await app.request('/api/fragments/header', {
+    const saveRes = await app.request('/api/v1/fragments/header', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -107,7 +107,7 @@ describe('Cross-foundation gap #7 — publish observes hook-modified manifest', 
     expect(sourceManifest.content.title).toBe('Updated [post-hook]')
 
     // Publish source → staging (editable: false).
-    const publishRes = await app.request('/api/publish', {
+    const publishRes = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -125,7 +125,7 @@ describe('Cross-foundation gap #7 — publish observes hook-modified manifest', 
 
   it('publish bypasses re-firing beforeSave (the hook ran at save time, not publish time)', async () => {
     // Save once (hook fires, content gets the marker).
-    await app.request('/api/fragments/header', {
+    await app.request('/api/v1/fragments/header', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -138,7 +138,7 @@ describe('Cross-foundation gap #7 — publish observes hook-modified manifest', 
     // Publish — beforeSave should NOT fire here; the manifest is
     // already in its post-hook state from the save. If it did fire,
     // the destination would have 'Once [post-hook] [post-hook]'.
-    await app.request('/api/publish', {
+    await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

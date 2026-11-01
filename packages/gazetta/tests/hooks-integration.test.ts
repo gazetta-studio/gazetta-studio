@@ -3,7 +3,7 @@
  *
  * Validates the full stack: HookRegistry → factory-contribution
  * registration (or direct programmatic registration) → admin app
- * boot → PUT /api/pages → dispatchBeforeSave + dispatchAfterSave
+ * boot → PUT /api/v1/pages → dispatchBeforeSave + dispatchAfterSave
  * → response includes mutated payload + audit + afterSave hooks
  * observed the result.
  *
@@ -107,14 +107,14 @@ afterAll(async () => {
 describe('Cut 4 — end-to-end hook firing', () => {
   it('beforeSave mutates the manifest before storage write', async () => {
     // Create a page first (creates the directory + manifest).
-    await app.request('/api/pages', {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'hooks-test-1', template: 'page-default' }),
     })
     // PUT updates the manifest. The beforeSave hook adds
     // `metadata.modifiedByHook: true` before storage write.
-    const res = await app.request('/api/pages/hooks-test-1', {
+    const res = await app.request('/api/v1/pages/hooks-test-1', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { title: 'Hi' } }),
@@ -130,12 +130,12 @@ describe('Cut 4 — end-to-end hook firing', () => {
 
   it('afterSave fires with the persisted result + etag', async () => {
     afterSaveCalls.length = 0
-    await app.request('/api/pages', {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'hooks-test-2', template: 'page-default' }),
     })
-    await app.request('/api/pages/hooks-test-2', {
+    await app.request('/api/v1/pages/hooks-test-2', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { title: 'Two' } }),
@@ -149,13 +149,13 @@ describe('Cut 4 — end-to-end hook firing', () => {
   })
 
   it('afterLoad enriches GET responses', async () => {
-    await app.request('/api/pages', {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'hooks-test-3', template: 'page-default' }),
     })
     afterLoadCalls.length = 0
-    const res = await app.request('/api/pages/hooks-test-3')
+    const res = await app.request('/api/v1/pages/hooks-test-3')
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body._hookEnriched).toBe(true)
@@ -168,12 +168,12 @@ describe('Cut 4 — end-to-end hook firing', () => {
     // not the original. If etag was on the pre-hook manifest, a
     // subsequent GET would compute a different etag and the next
     // PUT's If-Match would fail with STALE.
-    await app.request('/api/pages', {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'hooks-test-4', template: 'page-default' }),
     })
-    const putRes = await app.request('/api/pages/hooks-test-4', {
+    const putRes = await app.request('/api/v1/pages/hooks-test-4', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { title: 'Four' } }),
@@ -184,7 +184,7 @@ describe('Cut 4 — end-to-end hook firing', () => {
 
     // Subsequent GET should yield the same etag (afterLoad doesn't
     // affect etag — it transforms the response body, not the source).
-    const getRes = await app.request('/api/pages/hooks-test-4')
+    const getRes = await app.request('/api/v1/pages/hooks-test-4')
     const getEtag = getRes.headers.get('etag')?.replace(/"/g, '')
     expect(getEtag).toBe(putEtag)
   })
@@ -217,12 +217,12 @@ describe('Cut 4 — end-to-end hook firing', () => {
         disableCacheStatsLogger: true,
         // hooks omitted — should be no-op
       })
-      await noHooksApp.request('/api/pages', {
+      await noHooksApp.request('/api/v1/pages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: 'no-hooks', template: 'page-default' }),
       })
-      const res = await noHooksApp.request('/api/pages/no-hooks', {
+      const res = await noHooksApp.request('/api/v1/pages/no-hooks', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: { title: 'No hooks' } }),
@@ -274,7 +274,7 @@ describe('Cut 4 — beforeSave cancellation', () => {
       disableCacheStatsLogger: true,
       hooks,
     })
-    await cancellingApp.request('/api/pages', {
+    await cancellingApp.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'cancel-test', template: 'page-default' }),
@@ -286,7 +286,7 @@ describe('Cut 4 — beforeSave cancellation', () => {
   })
 
   it('beforeSave throw returns 409 with HOOK_CANCELLED code', async () => {
-    const res = await cancellingApp.request('/api/pages/cancel-test', {
+    const res = await cancellingApp.request('/api/v1/pages/cancel-test', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { title: 'Should fail' } }),

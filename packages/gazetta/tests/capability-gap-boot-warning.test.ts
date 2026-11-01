@@ -105,12 +105,12 @@ describe("deferred boot warning for servers without a boot site load ('defer')",
     try {
       const app = deferredApp(true)
       expect(gapWarns(warnSpy)).toHaveLength(0)
-      const res = await app.request('/api/pages')
+      const res = await app.request('/api/v1/pages')
       expect(res.status).toBe(200)
       expect(gapWarns(warnSpy)).toHaveLength(1)
       expect(gapWarns(warnSpy)[0][0] as string).toContain('plain-static')
       // Once per process: a second site-loading request does not re-warn.
-      await app.request('/api/pages')
+      await app.request('/api/v1/pages')
       expect(gapWarns(warnSpy)).toHaveLength(1)
     } finally {
       warnSpy.mockRestore()
@@ -121,7 +121,7 @@ describe("deferred boot warning for servers without a boot site load ('defer')",
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
       const app = deferredApp(false)
-      const res = await app.request('/api/pages')
+      const res = await app.request('/api/v1/pages')
       expect(res.status).toBe(200)
       expect(gapWarns(warnSpy)).toHaveLength(0)
     } finally {

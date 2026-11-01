@@ -7,11 +7,11 @@
  * `publish:production`") could copy the site into one.
  *
  * These tests pin the per-target gate on all three write routes
- * (POST /api/publish, POST /api/publish/stream, POST /api/fetch):
+ * (POST /api/v1/publish, POST /api/v1/publish/stream, POST /api/v1/fetch):
  * a request that would write a target with `environment:
  * 'production'` gets the design's 403 body before any hook fires or
  * anything is written, and a mixed staging + production request
- * writes to NEITHER. `/api/publish/audit` only reads and keeps its
+ * writes to NEITHER. `/api/v1/publish/audit` only reads and keeps its
  * baseline gate.
  *
  * Strategy mirrors auth-integration.test.ts: a real createAdminApp
@@ -146,7 +146,7 @@ describe('publish production gate (#1191)', { timeout: 30000 }, () => {
   }
 
   it('refuses an editor publishing to a production target, and the target stays empty', async () => {
-    const res = await post(app, '/api/publish', EDITOR_HEADERS, {
+    const res = await post(app, '/api/v1/publish', EDITOR_HEADERS, {
       items: ['pages/home'],
       targets: ['production'],
     })
@@ -160,7 +160,7 @@ describe('publish production gate (#1191)', { timeout: 30000 }, () => {
   })
 
   it('lets the same editor publish to a staging target', async () => {
-    const res = await post(app, '/api/publish', EDITOR_HEADERS, {
+    const res = await post(app, '/api/v1/publish', EDITOR_HEADERS, {
       items: ['pages/home'],
       targets: ['staging'],
     })
@@ -170,7 +170,7 @@ describe('publish production gate (#1191)', { timeout: 30000 }, () => {
   })
 
   it('lets an admin publish to the production target', async () => {
-    const res = await post(app, '/api/publish', ADMIN_HEADERS, {
+    const res = await post(app, '/api/v1/publish', ADMIN_HEADERS, {
       items: ['pages/home'],
       targets: ['production'],
     })
@@ -180,7 +180,7 @@ describe('publish production gate (#1191)', { timeout: 30000 }, () => {
   })
 
   it('refuses a mixed staging + production request and writes to NEITHER', async () => {
-    const res = await post(app, '/api/publish', EDITOR_HEADERS, {
+    const res = await post(app, '/api/v1/publish', EDITOR_HEADERS, {
       items: ['pages/home'],
       targets: ['staging', 'production'],
     })
@@ -192,7 +192,7 @@ describe('publish production gate (#1191)', { timeout: 30000 }, () => {
   })
 
   it('refuses an editor on the SSE route before the stream opens', async () => {
-    const res = await post(app, '/api/publish/stream', EDITOR_HEADERS, {
+    const res = await post(app, '/api/v1/publish/stream', EDITOR_HEADERS, {
       items: ['pages/home'],
       targets: ['production'],
     })
@@ -203,7 +203,7 @@ describe('publish production gate (#1191)', { timeout: 30000 }, () => {
   })
 
   it('refuses an editor fetching INTO an editable production target', async () => {
-    const res = await post(app, '/api/fetch', EDITOR_HEADERS, {
+    const res = await post(app, '/api/v1/fetch', EDITOR_HEADERS, {
       source: 'staging',
       destination: 'production',
     })
@@ -217,7 +217,7 @@ describe('publish production gate (#1191)', { timeout: 30000 }, () => {
     // editable target IS the editable production one, and an omitted
     // `destination` used to skip the gate (it only saw the named value).
     ;({ app, stagingStorage, productionStorage } = buildApp({ defaultEditableProduction: true }))
-    const res = await post(app, '/api/fetch', EDITOR_HEADERS, {
+    const res = await post(app, '/api/v1/fetch', EDITOR_HEADERS, {
       source: 'staging',
       items: ['pages/home'],
     })
@@ -228,7 +228,7 @@ describe('publish production gate (#1191)', { timeout: 30000 }, () => {
   })
 
   it('records a forbidden event for a denied production publish (#1192)', async () => {
-    const res = await post(app, '/api/publish', EDITOR_HEADERS, {
+    const res = await post(app, '/api/v1/publish', EDITOR_HEADERS, {
       items: ['pages/home'],
       targets: ['production'],
     })
@@ -240,7 +240,7 @@ describe('publish production gate (#1191)', { timeout: 30000 }, () => {
   })
 
   it('records a forbidden event for a denied production stream publish (#1192)', async () => {
-    const res = await post(app, '/api/publish/stream', EDITOR_HEADERS, {
+    const res = await post(app, '/api/v1/publish/stream', EDITOR_HEADERS, {
       items: ['pages/home'],
       targets: ['production'],
     })
@@ -250,7 +250,7 @@ describe('publish production gate (#1191)', { timeout: 30000 }, () => {
   })
 
   it('records a forbidden event for a denied production fetch (#1192)', async () => {
-    const res = await post(app, '/api/fetch', EDITOR_HEADERS, {
+    const res = await post(app, '/api/v1/fetch', EDITOR_HEADERS, {
       source: 'staging',
       destination: 'production',
     })
@@ -260,7 +260,7 @@ describe('publish production gate (#1191)', { timeout: 30000 }, () => {
   })
 
   it('keeps the read-only audit route on its baseline gate', async () => {
-    const res = await post(app, '/api/publish/audit', EDITOR_HEADERS, {
+    const res = await post(app, '/api/v1/publish/audit', EDITOR_HEADERS, {
       target: 'production',
       items: [{ kind: 'page', name: 'home' }],
     })

@@ -57,7 +57,7 @@
  *       "GAZETTA_TOKEN gates `/api/*` requests".
  *   - `''` StringLiteral on line 222 (adminDir default):
  *       adminDir becomes `join(siteDir, '')` === siteDir. The
- *       `/api/fields` route looks under `siteDir/fields` instead
+ *       `/api/v1/fields` route looks under `siteDir/fields` instead
  *       of `siteDir/admin/fields/` → returns []. Killed by
  *       "default adminDir resolves to siteDir/admin".
  *   - LogicalOperator on line 222 (`opts.adminDir ?? join(...)` → `opts.adminDir`):
@@ -165,7 +165,7 @@ async function triggerSaveAudit(app: Hono): Promise<Response> {
   // (per `manifest-save.ts`). For our purpose we only care that the
   // .gazetta/audit/events-{instance}.jsonl file exists with the
   // expected instance suffix — outcome value is incidental.
-  return app.request('/api/pages/home', {
+  return app.request('/api/v1/pages/home', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content: { title: 'Hello' } }),
@@ -264,8 +264,8 @@ describe('Cluster 2a — auth middleware route prefix `/api/*` (line 219 StringL
 
     // Without Authorization: 401 from authMiddleware. Killed by the
     // mutant — if the prefix is '', authMiddleware never runs on
-    // `/api/*` and `/api/health` returns 200 instead of 401.
-    const unauthorized = await app.request('/api/health')
+    // `/api/*` and `/api/v1/health` returns 200 instead of 401.
+    const unauthorized = await app.request('/api/v1/health')
     expect(unauthorized.status).toBe(401)
     const errorBody = ErrorResponseSchema.parse(await unauthorized.json())
     expect(errorBody).toMatchObject({ code: 'UNAUTHENTICATED', detail: 'Unauthorized' })
@@ -273,7 +273,7 @@ describe('Cluster 2a — auth middleware route prefix `/api/*` (line 219 StringL
     // With Authorization header: 200. Confirms the auth gate accepts
     // the bearer token; not strictly needed to kill the mutant but
     // documents the happy path.
-    const authorized = await app.request('/api/health', {
+    const authorized = await app.request('/api/v1/health', {
       headers: { Authorization: 'Bearer secret-bearer-value' },
     })
     expect(authorized.status).toBe(200)
@@ -284,7 +284,7 @@ describe('Cluster 2b — adminDir default `join(siteDir, "admin")` (line 222 Str
   // The two mutants are killed by the same test shape:
   //
   // - StringLiteral `'admin' → ''`: with the mutant adminDir becomes
-  //   `join(siteDir, '')` = siteDir. /api/fields looks at
+  //   `join(siteDir, '')` = siteDir. /api/v1/fields looks at
   //   `siteDir/fields`. Our setup places fields at
   //   `siteDir/admin/fields/` → fields list comes back empty.
   //
@@ -300,7 +300,7 @@ describe('Cluster 2b — adminDir default `join(siteDir, "admin")` (line 222 Str
   beforeEach(async () => {
     root = tempDir('admin-index-mutcov-' + Date.now())
     // Seed siteDir/admin/fields/brand-color.tsx. fieldRoutes' GET
-    // /api/fields lists files under `${adminDir}/fields/` and
+    // /api/v1/fields lists files under `${adminDir}/fields/` and
     // returns those with .ts/.tsx extensions.
     await mkdir(join(root, 'site/admin/fields'), { recursive: true })
     await writeFile(join(root, 'site/admin/fields/brand-color.tsx'), '// stub')
@@ -310,7 +310,7 @@ describe('Cluster 2b — adminDir default `join(siteDir, "admin")` (line 222 Str
     await rm(root, { recursive: true, force: true })
   })
 
-  it('default adminDir resolves to `siteDir/admin` so /api/fields finds seeded fields', async () => {
+  it('default adminDir resolves to `siteDir/admin` so /api/v1/fields finds seeded fields', async () => {
     const siteDir = join(root, 'site')
     // projectSiteDir intentionally differs from siteDir so the
     // LogicalOperator mutant is observable: with the mutant, the
@@ -335,7 +335,7 @@ describe('Cluster 2b — adminDir default `join(siteDir, "admin")` (line 222 Str
       disableAuditRetentionPruner: true,
     })
 
-    const res = await app.request('/api/fields')
+    const res = await app.request('/api/v1/fields')
     expect(res.status).toBe(200)
     const body = (await res.json()) as Array<{ name: string }>
     expect(body.map(f => f.name)).toContain('brand-color')
@@ -370,11 +370,11 @@ describe('Cluster 2c — site-root regex `/[\\/]sites[\\/][^\\/]+$/` (line 234 R
       disableAuditRetentionPruner: true,
     })
 
-    // GET /api/compare?target=local triggers compareTargets which
+    // GET /api/v1/compare?target=local triggers compareTargets which
     // calls the cached scan via `scan(templatesDir, projectRoot)`.
     // We don't care about the response body — only about which args
     // the spy captured.
-    await app.request('/api/compare?target=local')
+    await app.request('/api/v1/compare?target=local')
 
     // The mocked scanTemplates may be called multiple times depending
     // on the route flow; we assert that at least one call matches the
@@ -406,7 +406,7 @@ describe('Cluster 2c — site-root regex `/[\\/]sites[\\/][^\\/]+$/` (line 234 R
  * this difference: original calls `scanTemplates('/test/project/templates', ...)`;
  * mutant calls `scanTemplates('/test/project', ...)`.
  *
- * Triggered via `/api/compare` so the cached scan runs end-to-end.
+ * Triggered via `/api/v1/compare` so the cached scan runs end-to-end.
  */
 describe('Cluster 2d — templatesDir default `siteDir/templates` (line 222 StringLiteral)', () => {
   it('derives templatesDir as `siteDir/templates` when opts.templatesDir is unset', async () => {
@@ -431,7 +431,7 @@ describe('Cluster 2d — templatesDir default `siteDir/templates` (line 222 Stri
     })
 
     // Compare route triggers the cached scan with (templatesDir, projectRoot).
-    await app.request('/api/compare?target=local')
+    await app.request('/api/v1/compare?target=local')
 
     const calls = vi.mocked(mockableScanTemplates).mock.calls
     expect(calls.length).toBeGreaterThanOrEqual(1)
@@ -482,7 +482,7 @@ describe('Cluster 2e — site-root regex anchored at end (line 235 Regex)', () =
       disableAuditRetentionPruner: true,
     })
 
-    await app.request('/api/compare?target=local')
+    await app.request('/api/v1/compare?target=local')
 
     const calls = vi.mocked(mockableScanTemplates).mock.calls
     expect(calls.length).toBeGreaterThanOrEqual(1)

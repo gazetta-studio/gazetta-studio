@@ -54,7 +54,7 @@ function buildApp(opts: { type: 'static' | 'esi'; with404?: boolean }): {
 }
 
 async function publish(app: Hono, items: string[]): Promise<void> {
-  const res = await app.request('/api/publish', {
+  const res = await app.request('/api/v1/publish', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ items, targets: ['staging'] }),
