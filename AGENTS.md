@@ -9,6 +9,7 @@ These are the instructions for any coding agent working in this repository. Clau
 - `apps/admin/` — CMS admin frontend (Vue 3 editor shell on our own components, `apps/admin/src/client/components/ui/`)
 - `packages/gazetta/` — Core package (renderer, CLI, admin API, editor, storage providers)
 - `tools/mcp-dev/` — MCP dev server (screenshot tool)
+- `gz/` — `gz`, the Go command line for content creators and their agents (see `gz/README.md`)
 - `bots/` — Autonomous repo bots run on GitHub Actions cron (e.g., flake-watcher); see `bots/README.md`
 - `examples/starter/` — Sample site with templates, fragments, pages
 - `sites/gazetta.studio/` — The gazetta.studio website (dogfooding)

@@ -1,0 +1,63 @@
+# Release config for gz (design-agent-access.md Q35, Q39). Nothing publishes
+# from here yet: the release workflow comes in a separate PR for the
+# maintainer. The version is the gazetta package's, from the release tag.
+version: 2
+
+project_name: gz
+
+builds:
+  - id: gz
+    main: ./cmd/gz
+    binary: gz
+    env: [CGO_ENABLED=0]
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X github.com/gazetta-studio/gazetta-studio/gz/internal/version.Version={{ .Version }}
+  # The same binary as gazetta-cli, for machines where Gazebo's `gz`
+  # (Debian, Ubuntu) already owns the name (Q35).
+  - id: gazetta-cli
+    main: ./cmd/gz
+    binary: gazetta-cli
+    env: [CGO_ENABLED=0]
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X github.com/gazetta-studio/gazetta-studio/gz/internal/version.Version={{ .Version }}
+
+archives:
+  - id: gz
+    ids: [gz, gazetta-cli]
+    name_template: "gz_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: checksums.txt
+
+release:
+  github:
+    owner: gazetta-studio
+    name: gazetta-studio
+  # Tags are shared with the gazetta npm package (v0.9.0 releases both).
+  name_template: "gz {{ .Version }}"
+
+homebrew_casks:
+  - name: gz
+    ids: [gz]
+    repository:
+      owner: gazetta-studio
+      name: homebrew-tap
+    homepage: https://gazetta.studio
+    description: Edit a Gazetta site through its admin
+    binaries: [gz]
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  disable: true
