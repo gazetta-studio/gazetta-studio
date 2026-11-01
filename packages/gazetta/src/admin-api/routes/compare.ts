@@ -1,4 +1,4 @@
-import { Hono } from 'hono'
+import { createRoute } from '@hono/zod-openapi'
 import { join } from 'node:path'
 import type { StorageProvider, TargetConfig } from '../../types.js'
 import { getType } from '../../types.js'
@@ -7,6 +7,20 @@ import type { TemplateInfo } from '../../templates-scan.js'
 import type { SourceContextResolver } from '../source-context.js'
 import { requireCapability } from '../middleware/capability.js'
 import { problem } from '../problem.js'
+import { apiApp, json, problems } from '../openapi.js'
+import { CompareQuerySchema, CompareResultSchema } from '../schemas/compare.js'
+
+const compare = createRoute({
+  method: 'get',
+  path: '/api/compare',
+  summary: 'What differs between the source and a target',
+  middleware: [requireCapability('read:pages')] as const,
+  request: { query: CompareQuerySchema },
+  responses: {
+    200: json(CompareResultSchema, 'Items added, modified, deleted and unchanged on the target'),
+    ...problems({ 400: ['BAD_REQUEST'], 401: ['UNAUTHENTICATED'], 403: ['FORBIDDEN'], 500: ['INTERNAL'] }),
+  },
+})
 
 export function compareRoutes(
   resolve: SourceContextResolver,
@@ -15,7 +29,7 @@ export function compareRoutes(
   templatesDir?: string,
   scanTemplatesInjected?: (templatesDir: string, projectRoot: string) => Promise<TemplateInfo[]>,
 ) {
-  const app = new Hono()
+  const app = apiApp()
 
   let targets: Map<string, StorageProvider> | null = preInitTargets ?? null
   let targetsInitPromise: Promise<Map<string, StorageProvider>> | null = null
@@ -41,14 +55,15 @@ export function compareRoutes(
     return targetsInitPromise
   }
 
-  app.get('/api/compare', requireCapability('read:pages'), async c => {
+  app.openapi(compare, async c => {
+    const query = c.req.valid('query')
     // `target` = compare destination (what we're diffing against)
     // `source` = source of the compare (which editable target to read from);
     //           defaults to the resolver's default editable target
-    const targetName = c.req.query('target')
+    const targetName = query.target
     if (!targetName) return problem(c, 400, 'BAD_REQUEST', 'Missing "target" query parameter')
 
-    const source = await resolve(c.req.query('source'))
+    const source = await resolve(query.source)
     const { projectSiteDir } = source
 
     const t = await getTargets(projectSiteDir)
@@ -71,7 +86,7 @@ export function compareRoutes(
         scanTemplates: scanTemplatesInjected,
         manifest: source.manifest,
       })
-      return c.json(result)
+      return c.json(result, 200)
     } catch (err) {
       return problem(c, 500, 'INTERNAL', `Compare failed: ${(err as Error).message}`)
     }

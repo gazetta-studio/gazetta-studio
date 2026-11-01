@@ -23,12 +23,26 @@
  * - ISP: scanner exposes a narrow read surface (`allIssues` + `subscribe`);
  *   the route consumes only what it needs.
  */
-import { Hono } from 'hono'
+import { createRoute } from '@hono/zod-openapi'
+import type { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import type { ScanEvent, ValidationScanner } from '../../validation/scanner.js'
 import type { AuthIdentityProvider } from '../../auth/index.js'
 import { requireCapability } from '../middleware/capability.js'
 import { principalMiddleware } from '../middleware/principal.js'
+import { apiApp, json, problems } from '../openapi.js'
+import { ValidationIssuesResponseSchema } from '../schemas/validation.js'
+
+const listIssues = createRoute({
+  method: 'get',
+  path: '/api/validation/issues',
+  summary: "The background scanner's current issues",
+  middleware: [requireCapability('read:pages')] as const,
+  responses: {
+    200: json(ValidationIssuesResponseSchema, 'Every current issue across the site'),
+    ...problems({ 401: ['UNAUTHENTICATED'], 403: ['FORBIDDEN'] }),
+  },
+})
 
 export interface ValidationRoutesOptions {
   /** Scanner instance shared across all routes. May be null when validation isn't enabled. */
@@ -36,7 +50,7 @@ export interface ValidationRoutesOptions {
 }
 
 export function validationRoutes(opts: ValidationRoutesOptions) {
-  const app = new Hono()
+  const app = apiApp()
 
   /**
    * GET /api/validation/issues — current issues. Returns an empty list when
@@ -46,10 +60,10 @@ export function validationRoutes(opts: ValidationRoutesOptions) {
    * messages, so it follows the same capability gate as every peer read
    * route (compare / fields / site / templates).
    */
-  app.get('/api/validation/issues', requireCapability('read:pages'), c => {
-    if (!opts.scanner) return c.json({ issues: [], total: 0 })
+  app.openapi(listIssues, c => {
+    if (!opts.scanner) return c.json({ issues: [], total: 0 }, 200)
     const issues = opts.scanner.allIssues()
-    return c.json({ issues, total: issues.length })
+    return c.json({ issues: [...issues], total: issues.length }, 200)
   })
 
   return app

@@ -57,13 +57,20 @@
  *   - LSP: every provider's query result fits the same wire shape;
  *     consumers branch only on `outcome` for behavior.
  */
-import { Hono } from 'hono'
+import { createRoute } from '@hono/zod-openapi'
 import type { AuditEvent, AuditQuery } from '../../audit/types.js'
 import type { AuditProvider } from '../../audit/provider.js'
 import type { AuditEventWire, AuditExternalSinkWire, AuditQueryResponseWire } from '../schemas/audit.js'
-import { AuditActionSchema, AuditOutcomeSchema, AuditScopeKindSchema } from '../schemas/audit.js'
+import {
+  AuditActionSchema,
+  AuditOutcomeSchema,
+  AuditQueryParamsSchema,
+  AuditQueryResponseSchema,
+  AuditScopeKindSchema,
+} from '../schemas/audit.js'
 import { requireCapability } from '../middleware/capability.js'
 import { problem } from '../problem.js'
+import { apiApp, json, problems } from '../openapi.js'
 
 export interface AuditRoutesOptions {
   /**
@@ -77,20 +84,34 @@ export interface AuditRoutesOptions {
 const DEFAULT_LIMIT = 100
 const MAX_LIMIT = 1000
 
-export function auditRoutes(opts: AuditRoutesOptions) {
-  const app = new Hono()
+const queryAudit = createRoute({
+  method: 'get',
+  path: '/api/audit',
+  summary: 'Audit events matching a filter',
+  middleware: [requireCapability('read:audit-log')] as const,
+  request: { query: AuditQueryParamsSchema },
+  responses: {
+    200: json(AuditQueryResponseSchema, 'Events from queryable providers, newest first, and links to external sinks'),
+    ...problems({ 400: ['BAD_REQUEST'], 401: ['UNAUTHENTICATED'], 403: ['FORBIDDEN'] }),
+  },
+})
 
-  app.get('/api/audit', requireCapability('read:audit-log'), async c => {
+export function auditRoutes(opts: AuditRoutesOptions) {
+  const app = apiApp()
+
+  app.openapi(queryAudit, async c => {
     // Filter parsing — closed enums validated against the schemas;
     // invalid values surface as 400 (operator typo, not server bug).
-    const rawAction = c.req.query('action')
-    const rawOutcome = c.req.query('outcome')
-    const rawScopeKind = c.req.query('scopeKind')
-    const rawScopeName = c.req.query('scopeName')
-    const rawActor = c.req.query('actor')
-    const rawSince = c.req.query('since')
-    const rawUntil = c.req.query('until')
-    const rawLimit = c.req.query('limit')
+    const {
+      action: rawAction,
+      outcome: rawOutcome,
+      scopeKind: rawScopeKind,
+      scopeName: rawScopeName,
+      actor: rawActor,
+      since: rawSince,
+      until: rawUntil,
+      limit: rawLimit,
+    } = c.req.valid('query')
 
     const filter: AuditQuery = {}
     if (rawAction !== undefined) {
@@ -192,7 +213,7 @@ export function auditRoutes(opts: AuditRoutesOptions) {
       events: limited as AuditEventWire[],
       externalSinks,
     }
-    return c.json(body)
+    return c.json(body, 200)
   })
 
   return app

@@ -31,3 +31,12 @@ export const CompareResultSchema = z.object({
   invalidTemplates: z.array(InvalidTemplateSchema),
 })
 export type CompareResult = z.infer<typeof CompareResultSchema>
+
+/**
+ * Query of GET /api/compare. `target` is the destination to diff against
+ * (the handler checks it's present); `source` the target read from.
+ */
+export const CompareQuerySchema = z.object({
+  target: z.string().optional(),
+  source: z.string().optional(),
+})

@@ -107,3 +107,22 @@ export const AuditQueryResponseSchema = z.object({
   externalSinks: z.array(AuditExternalSinkSchema),
 })
 export type AuditQueryResponseWire = z.infer<typeof AuditQueryResponseSchema>
+
+/**
+ * Query of `GET /api/audit`. Every field is optional; the handler checks
+ * the enum values and `limit` and answers its own message for bad ones.
+ */
+export const AuditQueryParamsSchema = z.object({
+  action: z.string().optional(),
+  outcome: z.string().optional(),
+  scopeKind: z.string().optional(),
+  scopeName: z.string().optional(),
+  /** Actor id. */
+  actor: z.string().optional(),
+  /** ISO 8601 lower bound. */
+  since: z.string().optional(),
+  /** ISO 8601 upper bound. */
+  until: z.string().optional(),
+  /** Maximum events (default 100, capped at 1000). */
+  limit: z.string().optional(),
+})
