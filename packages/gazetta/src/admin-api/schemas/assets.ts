@@ -89,22 +89,24 @@ const FocalPointSchema = z.object({ x: z.number().min(0).max(1), y: z.number().m
 const AssetVariantSchema = z.object({ width: z.number(), path: z.string(), size: z.number() })
 
 /** Library-list summary of an asset (GET /api/assets, GET /api/assets/:name). */
-export const AssetSummarySchema = z.object({
-  name: z.string(),
-  kind: z.enum(['embedded', 'downloadable', 'font']),
-  mime: z.string(),
-  size: z.number(),
-  hash: z.string(),
-  width: z.number().nullable(),
-  height: z.number().nullable(),
-  alt: z.string().nullable(),
-  focalPoint: FocalPointSchema.optional(),
-  animated: z.boolean().optional(),
-  poster: z.string().nullable().optional(),
-  uploadedAt: z.string(),
-  overrideLocales: z.array(z.string()).readonly(),
-  overrideThemes: z.array(z.string()).readonly(),
-})
+export const AssetSummarySchema = z
+  .object({
+    name: z.string(),
+    kind: z.enum(['embedded', 'downloadable', 'font']),
+    mime: z.string(),
+    size: z.number(),
+    hash: z.string(),
+    width: z.number().nullable(),
+    height: z.number().nullable(),
+    alt: z.string().nullable(),
+    focalPoint: FocalPointSchema.optional(),
+    animated: z.boolean().optional(),
+    poster: z.string().nullable().optional(),
+    uploadedAt: z.string(),
+    overrideLocales: z.array(z.string()).readonly(),
+    overrideThemes: z.array(z.string()).readonly(),
+  })
+  .meta({ id: 'AssetSummary' })
 
 /** Body of a 200 response on PATCH /api/assets/:name. */
 export const AssetMetadataResponseSchema = z.object({ manifest: AssetSummarySchema })

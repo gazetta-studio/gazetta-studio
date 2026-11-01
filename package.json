@@ -32,6 +32,7 @@
     "build-storybook": "storybook build",
     "test:storybook": "vitest run --config vitest.storybook.config.ts",
     "docs:site": "tsx sites/gazetta.studio/scripts/docs-pages.ts",
+    "gz:api": "tsx packages/gazetta/scripts/openapi-document.ts gz/internal/api/openapi.json && cd gz && go generate ./internal/api",
     "test:tutorial": "playwright test -c tests/tutorial/playwright.config.ts"
   },
   "devDependencies": {

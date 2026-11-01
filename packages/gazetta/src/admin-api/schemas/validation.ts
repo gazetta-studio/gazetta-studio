@@ -10,14 +10,16 @@ import { ErrorResponseSchema } from './error.js'
 export const SeveritySchema = z.enum(['error', 'warn', 'info'])
 export type Severity = z.infer<typeof SeveritySchema>
 
-export const IssueSchema = z.object({
-  validator: z.string(),
-  severity: SeveritySchema,
-  message: z.string(),
-  itemPath: z.string(),
-  contentPath: z.string().optional(),
-  suppressible: z.boolean().optional(),
-})
+export const IssueSchema = z
+  .object({
+    validator: z.string(),
+    severity: SeveritySchema,
+    message: z.string(),
+    itemPath: z.string(),
+    contentPath: z.string().optional(),
+    suppressible: z.boolean().optional(),
+  })
+  .meta({ id: 'Issue' })
 export type Issue = z.infer<typeof IssueSchema>
 
 /**

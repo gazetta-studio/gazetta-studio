@@ -1,0 +1,9 @@
+# gz's client, generated from the admin API's OpenAPI document
+# (design-agent-access.md Q8). nullable-type keeps null apart from absent,
+# so a field such as alt can be cleared.
+package: api
+generate:
+  client: true
+  models: true
+output-options:
+  nullable-type: true

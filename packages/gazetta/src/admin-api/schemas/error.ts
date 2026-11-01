@@ -125,12 +125,14 @@ export type _AICodesInEnum = AssertCodes<AIErrorCode>
  * on `FORBIDDEN`, ...) are further extension members, so the object is
  * loose.
  */
-export const ErrorResponseSchema = z.looseObject({
-  type: z.literal('about:blank'),
-  title: z.string(),
-  status: z.number().int().min(400).max(599),
-  detail: z.string().optional(),
-  code: ErrorCodeSchema,
-  missing: z.array(z.string()).optional(),
-})
+export const ErrorResponseSchema = z
+  .looseObject({
+    type: z.literal('about:blank'),
+    title: z.string(),
+    status: z.number().int().min(400).max(599),
+    detail: z.string().optional(),
+    code: ErrorCodeSchema,
+    missing: z.array(z.string()).optional(),
+  })
+  .meta({ id: 'Problem' })
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>
