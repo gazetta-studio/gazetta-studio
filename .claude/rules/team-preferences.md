@@ -44,7 +44,7 @@ Default for new rules: untagged (apply universally). Add `[local]` only when bot
    ```
    `npm version -w` updates package.json and lockfile but does NOT commit or tag (disabled for workspaces). Must do it manually.
 
-   **Why `npm run docs:site`:** the generated docs pages show the package version in their banner (`sites/gazetta.studio/scripts/docs-pages.ts`), and CI fails when they don't match, so a bump commit without them breaks `main`. Decided: maintainer, 2026-11-01 (#<PR>)
+   **Why `npm run docs:site`:** the generated docs pages show the package version in their banner (`sites/gazetta.studio/scripts/docs-pages.ts`), and CI fails when they don't match, so a bump commit without them breaks `main`. Decided: maintainer, 2026-11-01 (#1646)
 
    **Why local Node must match CI Node:** optional peer deps in the lockfile are Node-version-conditional. Running `npm version` on Node 25.1.0 stripped `@emnapi/core` + `@emnapi/runtime` from the lockfile that Node 22 CI requires; `npm ci` then failed with `Missing: @emnapi/core ... from lock file`. The same family of mismatch as the v0.1.1 lockfile bug — different mechanism.
 
