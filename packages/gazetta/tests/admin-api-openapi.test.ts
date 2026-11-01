@@ -95,8 +95,8 @@ describe('GET /api/v1/openapi.json', () => {
       .filter(([path]) => !path.startsWith('/api/v1/'))
       .filter(([, ops]) => !Object.values(ops).every(op => op['x-gazetta-unversioned']))
       .map(([path]) => path)
-    // `/api/version` sits outside the major so a client can ask before it picks one (Q43).
-    expect(outside).toEqual(['/api/version'])
+    // `/api/version` and `/api/health` sit outside the major so a client can ask before it picks one (Q43).
+    expect(outside.sort()).toEqual(['/api/health', '/api/version'])
   })
 
   it('lists exactly the /api routes the app registers', async () => {

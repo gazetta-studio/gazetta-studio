@@ -5,7 +5,7 @@ import { test, expect } from './fixtures'
  * `/api/health` — the site root, which always 404s — so once the
  * Offline banner appeared it never cleared, even after the network
  * recovered. The check now targets `${API_BASE}/health`
- * (`/admin/api/v1/health` under the admin mount).
+ * (`/admin/api/health` under the admin mount).
  *
  * Fails on current main: the banner survives a full offline heartbeat
  * interval (30 s) after the network comes back, and no "Connection

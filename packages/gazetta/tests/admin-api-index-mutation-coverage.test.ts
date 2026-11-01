@@ -264,8 +264,8 @@ describe('Cluster 2a — auth middleware route prefix `/api/*` (line 219 StringL
 
     // Without Authorization: 401 from authMiddleware. Killed by the
     // mutant — if the prefix is '', authMiddleware never runs on
-    // `/api/*` and `/api/v1/health` returns 200 instead of 401.
-    const unauthorized = await app.request('/api/v1/health')
+    // `/api/*` and `/api/health` returns 200 instead of 401.
+    const unauthorized = await app.request('/api/health')
     expect(unauthorized.status).toBe(401)
     const errorBody = ErrorResponseSchema.parse(await unauthorized.json())
     expect(errorBody).toMatchObject({ code: 'UNAUTHENTICATED', detail: 'Unauthorized' })
@@ -273,7 +273,7 @@ describe('Cluster 2a — auth middleware route prefix `/api/*` (line 219 StringL
     // With Authorization header: 200. Confirms the auth gate accepts
     // the bearer token; not strictly needed to kill the mutant but
     // documents the happy path.
-    const authorized = await app.request('/api/v1/health', {
+    const authorized = await app.request('/api/health', {
       headers: { Authorization: 'Bearer secret-bearer-value' },
     })
     expect(authorized.status).toBe(200)

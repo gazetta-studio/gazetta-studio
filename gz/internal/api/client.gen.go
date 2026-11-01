@@ -285,6 +285,21 @@ func (e RevisionSummaryOperation) Valid() bool {
 	}
 }
 
+// Defines values for GetApiHealth200JSONResponseBodyOk.
+const (
+	GetApiHealth200JSONResponseBodyOkTrue GetApiHealth200JSONResponseBodyOk = true
+)
+
+// Valid indicates whether the value is a known member of the GetApiHealth200JSONResponseBodyOk enum.
+func (e GetApiHealth200JSONResponseBodyOk) Valid() bool {
+	switch e {
+	case GetApiHealth200JSONResponseBodyOkTrue:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PostApiV1Assets201JSONResponseBodyManifestKind.
 const (
 	PostApiV1Assets201JSONResponseBodyManifestKindDownloadable PostApiV1Assets201JSONResponseBodyManifestKind = "downloadable"
@@ -777,21 +792,6 @@ func (e PostApiV1FragmentsNameUnarchive200JSONResponseBodyOk) Valid() bool {
 	}
 }
 
-// Defines values for GetApiV1Health200JSONResponseBodyOk.
-const (
-	GetApiV1Health200JSONResponseBodyOkTrue GetApiV1Health200JSONResponseBodyOk = true
-)
-
-// Valid indicates whether the value is a known member of the GetApiV1Health200JSONResponseBodyOk enum.
-func (e GetApiV1Health200JSONResponseBodyOk) Valid() bool {
-	switch e {
-	case GetApiV1Health200JSONResponseBodyOkTrue:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for PostApiV1PageRedirects201JSONResponseBodyKind.
 const (
 	PostApiV1PageRedirects201JSONResponseBodyKindFragment PostApiV1PageRedirects201JSONResponseBodyKind = "fragment"
@@ -1025,20 +1025,20 @@ type AssetSummary struct {
 	Alt        nullable.Nullable[string] `json:"alt"`
 	Animated   *bool                     `json:"animated,omitempty"`
 	FocalPoint *struct {
-		X float32 `json:"x"`
-		Y float32 `json:"y"`
+		X float64 `json:"x"`
+		Y float64 `json:"y"`
 	} `json:"focalPoint,omitempty"`
 	Hash            string                     `json:"hash"`
-	Height          nullable.Nullable[float32] `json:"height"`
+	Height          nullable.Nullable[float64] `json:"height"`
 	Kind            AssetSummaryKind           `json:"kind"`
 	Mime            string                     `json:"mime"`
 	Name            string                     `json:"name"`
 	OverrideLocales []string                   `json:"overrideLocales"`
 	OverrideThemes  []string                   `json:"overrideThemes"`
 	Poster          nullable.Nullable[string]  `json:"poster,omitempty"`
-	Size            float32                    `json:"size"`
+	Size            float64                    `json:"size"`
 	UploadedAt      string                     `json:"uploadedAt"`
-	Width           nullable.Nullable[float32] `json:"width"`
+	Width           nullable.Nullable[float64] `json:"width"`
 }
 
 // AssetSummaryKind defines model for AssetSummary.Kind.
@@ -1089,6 +1089,9 @@ type RevisionSummary struct {
 // RevisionSummaryOperation defines model for RevisionSummary.Operation.
 type RevisionSummaryOperation string
 
+// GetApiHealth200JSONResponseBodyOk defines parameters for GetApiHealth.
+type GetApiHealth200JSONResponseBodyOk bool
+
 // GetApiV1AssetsParams defines parameters for GetApiV1Assets.
 type GetApiV1AssetsParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
@@ -1113,7 +1116,7 @@ type PostApiV1Assets201JSONResponseBodyManifestKind string
 type PostApiV1Assets201JSONResponseBodyManifestSource string
 
 // PostApiV1Assets201JSONResponseBodyManifestVersion defines parameters for PostApiV1Assets.
-type PostApiV1Assets201JSONResponseBodyManifestVersion float32
+type PostApiV1Assets201JSONResponseBodyManifestVersion float64
 
 // DeleteApiV1AssetsNameParams defines parameters for DeleteApiV1AssetsName.
 type DeleteApiV1AssetsNameParams struct {
@@ -1129,8 +1132,8 @@ type GetApiV1AssetsNameParams struct {
 type PatchApiV1AssetsNameJSONBody struct {
 	Alt        nullable.Nullable[string] `json:"alt,omitempty"`
 	FocalPoint nullable.Nullable[struct {
-		X float32 `json:"x"`
-		Y float32 `json:"y"`
+		X float64 `json:"x"`
+		Y float64 `json:"y"`
 	}] `json:"focalPoint,omitempty"`
 }
 
@@ -1159,7 +1162,7 @@ type PostApiV1AssetsNameLocaleBytesParams struct {
 }
 
 // PostApiV1AssetsNameLocaleBytes201JSONResponseBodyManifestVersion defines parameters for PostApiV1AssetsNameLocaleBytes.
-type PostApiV1AssetsNameLocaleBytes201JSONResponseBodyManifestVersion float32
+type PostApiV1AssetsNameLocaleBytes201JSONResponseBodyManifestVersion float64
 
 // PostApiV1AssetsNameRenameToNewNameParams defines parameters for PostApiV1AssetsNameRenameToNewName.
 type PostApiV1AssetsNameRenameToNewNameParams struct {
@@ -1241,7 +1244,7 @@ type PostApiV1AuthLoginsCodeRedeem200JSONResponseBody0Status string
 
 // PostApiV1AuthLoginsCodeRedeem200JSONResponseBody1 defines parameters for PostApiV1AuthLoginsCodeRedeem.
 type PostApiV1AuthLoginsCodeRedeem200JSONResponseBody1 struct {
-	ExpiresAt   float32                                                 `json:"expiresAt"`
+	ExpiresAt   float64                                                 `json:"expiresAt"`
 	GrantId     string                                                  `json:"grantId"`
 	GrantSecret string                                                  `json:"grantSecret"`
 	Status      PostApiV1AuthLoginsCodeRedeem200JSONResponseBody1Status `json:"status"`
@@ -1468,9 +1471,6 @@ type PostApiV1FragmentsNameUnarchiveParams struct {
 
 // PostApiV1FragmentsNameUnarchive200JSONResponseBodyOk defines parameters for PostApiV1FragmentsNameUnarchive.
 type PostApiV1FragmentsNameUnarchive200JSONResponseBodyOk bool
-
-// GetApiV1Health200JSONResponseBodyOk defines parameters for GetApiV1Health.
-type GetApiV1Health200JSONResponseBodyOk bool
 
 // GetApiV1HistoryParams defines parameters for GetApiV1History.
 type GetApiV1HistoryParams struct {
@@ -3485,6 +3485,11 @@ type ClientInterface interface {
 	// Corresponds with GET /__validation (the `GetValidation` operationId).
 	GetValidation(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetApiHealth Whether the admin API answers
+	//
+	// Corresponds with GET /api/health (the `GetApiHealth` operationId).
+	GetApiHealth(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetApiV1Assets The assets on a target
 	//
 	// Corresponds with GET /api/v1/assets (the `GetApiV1Assets` operationId).
@@ -3781,11 +3786,6 @@ type ClientInterface interface {
 	// Corresponds with POST /api/v1/fragments/{name}/unarchive (the `PostApiV1FragmentsNameUnarchive` operationId).
 	PostApiV1FragmentsNameUnarchive(ctx context.Context, name string, params *PostApiV1FragmentsNameUnarchiveParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetApiV1Health Whether the admin API answers
-	//
-	// Corresponds with GET /api/v1/health (the `GetApiV1Health` operationId).
-	GetApiV1Health(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// GetApiV1History A target's revisions, newest first
 	//
 	// Corresponds with GET /api/v1/history (the `GetApiV1History` operationId).
@@ -4053,6 +4053,21 @@ func (c *Client) GetReload(ctx context.Context, reqEditors ...RequestEditorFn) (
 // Corresponds with GET /__validation (the `GetValidation` operationId).
 func (c *Client) GetValidation(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetValidationRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetApiHealth Whether the admin API answers
+//
+// Corresponds with GET /api/health (the `GetApiHealth` operationId).
+func (c *Client) GetApiHealth(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetApiHealthRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -4839,21 +4854,6 @@ func (c *Client) PostApiV1FragmentsNameUnarchive(ctx context.Context, name strin
 	return c.Client.Do(req)
 }
 
-// GetApiV1Health Whether the admin API answers
-//
-// Corresponds with GET /api/v1/health (the `GetApiV1Health` operationId).
-func (c *Client) GetApiV1Health(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiV1HealthRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 // GetApiV1History A target's revisions, newest first
 //
 // Corresponds with GET /api/v1/history (the `GetApiV1History` operationId).
@@ -5537,6 +5537,33 @@ func NewGetValidationRequest(server string) (*http.Request, error) {
 	}
 
 	operationPath := fmt.Sprintf("/__validation")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetApiHealthRequest constructs an http.Request for the GetApiHealth method
+func NewGetApiHealthRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/health")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7844,33 +7871,6 @@ func NewPostApiV1FragmentsNameUnarchiveRequest(server string, name string, param
 	return req, nil
 }
 
-// NewGetApiV1HealthRequest constructs an http.Request for the GetApiV1Health method
-func NewGetApiV1HealthRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/health")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewGetApiV1HistoryRequest constructs an http.Request for the GetApiV1History method
 func NewGetApiV1HistoryRequest(server string, params *GetApiV1HistoryParams) (*http.Request, error) {
 	var err error
@@ -9785,6 +9785,13 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /__validation (the `GetValidation` operationId).
 	GetValidationWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetValidationResponse, error)
 
+	// GetApiHealthWithResponse Whether the admin API answers
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/health (the `GetApiHealth` operationId).
+	GetApiHealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiHealthResponse, error)
+
 	// GetApiV1AssetsWithResponse The assets on a target
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -10120,13 +10127,6 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/v1/fragments/{name}/unarchive (the `PostApiV1FragmentsNameUnarchive` operationId).
 	PostApiV1FragmentsNameUnarchiveWithResponse(ctx context.Context, name string, params *PostApiV1FragmentsNameUnarchiveParams, reqEditors ...RequestEditorFn) (*PostApiV1FragmentsNameUnarchiveResponse, error)
-
-	// GetApiV1HealthWithResponse Whether the admin API answers
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /api/v1/health (the `GetApiV1Health` operationId).
-	GetApiV1HealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiV1HealthResponse, error)
 
 	// GetApiV1HistoryWithResponse A target's revisions, newest first
 	//
@@ -10493,6 +10493,53 @@ func (r GetValidationResponse) ContentType() string {
 	return ""
 }
 
+type GetApiHealthResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Ok        GetApiHealth200JSONResponseBodyOk `json:"ok"`
+		Timestamp string                            `json:"timestamp"`
+	}
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetApiHealthResponse) GetJSON200() *struct {
+	Ok        GetApiHealth200JSONResponseBodyOk `json:"ok"`
+	Timestamp string                            `json:"timestamp"`
+} {
+	return r.JSON200
+}
+
+// GetBody returns the raw response body bytes
+func (r GetApiHealthResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetApiHealthResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetApiHealthResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetApiHealthResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetApiV1AssetsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -10564,29 +10611,29 @@ type PostApiV1AssetsResponse struct {
 		Manifest  struct {
 			Alt        nullable.Nullable[string]  `json:"alt"`
 			Animated   *bool                      `json:"animated,omitempty"`
-			Duration   nullable.Nullable[float32] `json:"duration,omitempty"`
+			Duration   nullable.Nullable[float64] `json:"duration,omitempty"`
 			FocalPoint *struct {
-				X float32 `json:"x"`
-				Y float32 `json:"y"`
+				X float64 `json:"x"`
+				Y float64 `json:"y"`
 			} `json:"focalPoint,omitempty"`
-			Frames     *float32                                         `json:"frames,omitempty"`
+			Frames     *float64                                         `json:"frames,omitempty"`
 			Hash       string                                           `json:"hash"`
-			Height     nullable.Nullable[float32]                       `json:"height"`
+			Height     nullable.Nullable[float64]                       `json:"height"`
 			Kind       PostApiV1Assets201JSONResponseBodyManifestKind   `json:"kind"`
 			Mime       string                                           `json:"mime"`
 			Name       string                                           `json:"name"`
 			Poster     nullable.Nullable[string]                        `json:"poster,omitempty"`
-			Size       float32                                          `json:"size"`
+			Size       float64                                          `json:"size"`
 			Source     PostApiV1Assets201JSONResponseBodyManifestSource `json:"source"`
 			UploadedAt string                                           `json:"uploadedAt"`
 			UploadedBy string                                           `json:"uploadedBy"`
 			Variants   []struct {
 				Path  string  `json:"path"`
-				Size  float32 `json:"size"`
-				Width float32 `json:"width"`
+				Size  float64 `json:"size"`
+				Width float64 `json:"width"`
 			} `json:"variants"`
 			Version PostApiV1Assets201JSONResponseBodyManifestVersion `json:"version"`
-			Width   nullable.Nullable[float32]                        `json:"width"`
+			Width   nullable.Nullable[float64]                        `json:"width"`
 		} `json:"manifest"`
 	}
 	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
@@ -10609,29 +10656,29 @@ func (r PostApiV1AssetsResponse) GetJSON201() *struct {
 	Manifest  struct {
 		Alt        nullable.Nullable[string]  `json:"alt"`
 		Animated   *bool                      `json:"animated,omitempty"`
-		Duration   nullable.Nullable[float32] `json:"duration,omitempty"`
+		Duration   nullable.Nullable[float64] `json:"duration,omitempty"`
 		FocalPoint *struct {
-			X float32 `json:"x"`
-			Y float32 `json:"y"`
+			X float64 `json:"x"`
+			Y float64 `json:"y"`
 		} `json:"focalPoint,omitempty"`
-		Frames     *float32                                         `json:"frames,omitempty"`
+		Frames     *float64                                         `json:"frames,omitempty"`
 		Hash       string                                           `json:"hash"`
-		Height     nullable.Nullable[float32]                       `json:"height"`
+		Height     nullable.Nullable[float64]                       `json:"height"`
 		Kind       PostApiV1Assets201JSONResponseBodyManifestKind   `json:"kind"`
 		Mime       string                                           `json:"mime"`
 		Name       string                                           `json:"name"`
 		Poster     nullable.Nullable[string]                        `json:"poster,omitempty"`
-		Size       float32                                          `json:"size"`
+		Size       float64                                          `json:"size"`
 		Source     PostApiV1Assets201JSONResponseBodyManifestSource `json:"source"`
 		UploadedAt string                                           `json:"uploadedAt"`
 		UploadedBy string                                           `json:"uploadedBy"`
 		Variants   []struct {
 			Path  string  `json:"path"`
-			Size  float32 `json:"size"`
-			Width float32 `json:"width"`
+			Size  float64 `json:"size"`
+			Width float64 `json:"width"`
 		} `json:"variants"`
 		Version PostApiV1Assets201JSONResponseBodyManifestVersion `json:"version"`
-		Width   nullable.Nullable[float32]                        `json:"width"`
+		Width   nullable.Nullable[float64]                        `json:"width"`
 	} `json:"manifest"`
 } {
 	return r.JSON201
@@ -11014,22 +11061,22 @@ type PostApiV1AssetsNameLocaleBytesResponse struct {
 			Alt         nullable.Nullable[string] `json:"alt,omitempty"`
 			Description *string                   `json:"description,omitempty"`
 			FocalPoint  *struct {
-				X float32 `json:"x"`
-				Y float32 `json:"y"`
+				X float64 `json:"x"`
+				Y float64 `json:"y"`
 			} `json:"focalPoint,omitempty"`
 			Hash     string                     `json:"hash"`
-			Height   nullable.Nullable[float32] `json:"height"`
+			Height   nullable.Nullable[float64] `json:"height"`
 			Mime     string                     `json:"mime"`
 			Name     string                     `json:"name"`
-			Size     float32                    `json:"size"`
+			Size     float64                    `json:"size"`
 			Title    *string                    `json:"title,omitempty"`
 			Variants []struct {
 				Path  string  `json:"path"`
-				Size  float32 `json:"size"`
-				Width float32 `json:"width"`
+				Size  float64 `json:"size"`
+				Width float64 `json:"width"`
 			} `json:"variants"`
 			Version PostApiV1AssetsNameLocaleBytes201JSONResponseBodyManifestVersion `json:"version"`
-			Width   nullable.Nullable[float32]                                       `json:"width"`
+			Width   nullable.Nullable[float64]                                       `json:"width"`
 		} `json:"manifest"`
 	}
 	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
@@ -11055,22 +11102,22 @@ func (r PostApiV1AssetsNameLocaleBytesResponse) GetJSON201() *struct {
 		Alt         nullable.Nullable[string] `json:"alt,omitempty"`
 		Description *string                   `json:"description,omitempty"`
 		FocalPoint  *struct {
-			X float32 `json:"x"`
-			Y float32 `json:"y"`
+			X float64 `json:"x"`
+			Y float64 `json:"y"`
 		} `json:"focalPoint,omitempty"`
 		Hash     string                     `json:"hash"`
-		Height   nullable.Nullable[float32] `json:"height"`
+		Height   nullable.Nullable[float64] `json:"height"`
 		Mime     string                     `json:"mime"`
 		Name     string                     `json:"name"`
-		Size     float32                    `json:"size"`
+		Size     float64                    `json:"size"`
 		Title    *string                    `json:"title,omitempty"`
 		Variants []struct {
 			Path  string  `json:"path"`
-			Size  float32 `json:"size"`
-			Width float32 `json:"width"`
+			Size  float64 `json:"size"`
+			Width float64 `json:"width"`
 		} `json:"variants"`
 		Version PostApiV1AssetsNameLocaleBytes201JSONResponseBodyManifestVersion `json:"version"`
-		Width   nullable.Nullable[float32]                                       `json:"width"`
+		Width   nullable.Nullable[float64]                                       `json:"width"`
 	} `json:"manifest"`
 } {
 	return r.JSON201
@@ -12106,7 +12153,7 @@ type PostApiV1AuthTokensResponse struct {
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *struct {
-		ExpiresAt float32 `json:"expiresAt"`
+		ExpiresAt float64 `json:"expiresAt"`
 		Token     string  `json:"token"`
 	}
 	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
@@ -12119,7 +12166,7 @@ type PostApiV1AuthTokensResponse struct {
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
 func (r PostApiV1AuthTokensResponse) GetJSON200() *struct {
-	ExpiresAt float32 `json:"expiresAt"`
+	ExpiresAt float64 `json:"expiresAt"`
 	Token     string  `json:"token"`
 } {
 	return r.JSON200
@@ -12331,7 +12378,7 @@ type PostApiV1FetchResponse struct {
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *struct {
-		CopiedFiles float32  `json:"copiedFiles"`
+		CopiedFiles float64  `json:"copiedFiles"`
 		Items       []string `json:"items"`
 		Success     bool     `json:"success"`
 	}
@@ -12349,7 +12396,7 @@ type PostApiV1FetchResponse struct {
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
 func (r PostApiV1FetchResponse) GetJSON200() *struct {
-	CopiedFiles float32  `json:"copiedFiles"`
+	CopiedFiles float64  `json:"copiedFiles"`
 	Items       []string `json:"items"`
 	Success     bool     `json:"success"`
 } {
@@ -13390,53 +13437,6 @@ func (r PostApiV1FragmentsNameUnarchiveResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r PostApiV1FragmentsNameUnarchiveResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type GetApiV1HealthResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *struct {
-		Ok        GetApiV1Health200JSONResponseBodyOk `json:"ok"`
-		Timestamp string                              `json:"timestamp"`
-	}
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r GetApiV1HealthResponse) GetJSON200() *struct {
-	Ok        GetApiV1Health200JSONResponseBodyOk `json:"ok"`
-	Timestamp string                              `json:"timestamp"`
-} {
-	return r.JSON200
-}
-
-// GetBody returns the raw response body bytes
-func (r GetApiV1HealthResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r GetApiV1HealthResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetApiV1HealthResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r GetApiV1HealthResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -14641,7 +14641,7 @@ type PostApiV1PublishResponse struct {
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *struct {
 		Results []struct {
-			CopiedFiles float32 `json:"copiedFiles"`
+			CopiedFiles float64 `json:"copiedFiles"`
 			Error       *string `json:"error,omitempty"`
 			Success     bool    `json:"success"`
 			Target      string  `json:"target"`
@@ -14650,7 +14650,7 @@ type PostApiV1PublishResponse struct {
 	// JSON207 the response for an HTTP 207 `application/json` response
 	JSON207 *struct {
 		Results []struct {
-			CopiedFiles float32 `json:"copiedFiles"`
+			CopiedFiles float64 `json:"copiedFiles"`
 			Error       *string `json:"error,omitempty"`
 			Success     bool    `json:"success"`
 			Target      string  `json:"target"`
@@ -14671,7 +14671,7 @@ type PostApiV1PublishResponse struct {
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
 func (r PostApiV1PublishResponse) GetJSON200() *struct {
 	Results []struct {
-		CopiedFiles float32 `json:"copiedFiles"`
+		CopiedFiles float64 `json:"copiedFiles"`
 		Error       *string `json:"error,omitempty"`
 		Success     bool    `json:"success"`
 		Target      string  `json:"target"`
@@ -14683,7 +14683,7 @@ func (r PostApiV1PublishResponse) GetJSON200() *struct {
 // GetJSON207 returns the response for an HTTP 207 `application/json` response
 func (r PostApiV1PublishResponse) GetJSON207() *struct {
 	Results []struct {
-		CopiedFiles float32 `json:"copiedFiles"`
+		CopiedFiles float64 `json:"copiedFiles"`
 		Error       *string `json:"error,omitempty"`
 		Success     bool    `json:"success"`
 		Target      string  `json:"target"`
@@ -15582,6 +15582,19 @@ func (c *ClientWithResponses) GetValidationWithResponse(ctx context.Context, req
 	return ParseGetValidationResponse(rsp)
 }
 
+// GetApiHealthWithResponse Whether the admin API answers
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/health (the `GetApiHealth` operationId).
+func (c *ClientWithResponses) GetApiHealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiHealthResponse, error) {
+	rsp, err := c.GetApiHealth(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetApiHealthResponse(rsp)
+}
+
 // GetApiV1AssetsWithResponse The assets on a target
 //
 // Returns a wrapper object for the known response body format(s).
@@ -16206,19 +16219,6 @@ func (c *ClientWithResponses) PostApiV1FragmentsNameUnarchiveWithResponse(ctx co
 	return ParsePostApiV1FragmentsNameUnarchiveResponse(rsp)
 }
 
-// GetApiV1HealthWithResponse Whether the admin API answers
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /api/v1/health (the `GetApiV1Health` operationId).
-func (c *ClientWithResponses) GetApiV1HealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiV1HealthResponse, error) {
-	rsp, err := c.GetApiV1Health(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetApiV1HealthResponse(rsp)
-}
-
 // GetApiV1HistoryWithResponse A target's revisions, newest first
 //
 // Returns a wrapper object for the known response body format(s).
@@ -16790,6 +16790,35 @@ func ParseGetValidationResponse(rsp *http.Response) (*GetValidationResponse, err
 	return response, nil
 }
 
+// ParseGetApiHealthResponse parses an HTTP response from a GetApiHealthWithResponse call
+func ParseGetApiHealthResponse(rsp *http.Response) (*GetApiHealthResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetApiHealthResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Ok        GetApiHealth200JSONResponseBodyOk `json:"ok"`
+			Timestamp string                            `json:"timestamp"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetApiV1AssetsResponse parses an HTTP response from a GetApiV1AssetsWithResponse call
 func ParseGetApiV1AssetsResponse(rsp *http.Response) (*GetApiV1AssetsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -16857,29 +16886,29 @@ func ParsePostApiV1AssetsResponse(rsp *http.Response) (*PostApiV1AssetsResponse,
 			Manifest  struct {
 				Alt        nullable.Nullable[string]  `json:"alt"`
 				Animated   *bool                      `json:"animated,omitempty"`
-				Duration   nullable.Nullable[float32] `json:"duration,omitempty"`
+				Duration   nullable.Nullable[float64] `json:"duration,omitempty"`
 				FocalPoint *struct {
-					X float32 `json:"x"`
-					Y float32 `json:"y"`
+					X float64 `json:"x"`
+					Y float64 `json:"y"`
 				} `json:"focalPoint,omitempty"`
-				Frames     *float32                                         `json:"frames,omitempty"`
+				Frames     *float64                                         `json:"frames,omitempty"`
 				Hash       string                                           `json:"hash"`
-				Height     nullable.Nullable[float32]                       `json:"height"`
+				Height     nullable.Nullable[float64]                       `json:"height"`
 				Kind       PostApiV1Assets201JSONResponseBodyManifestKind   `json:"kind"`
 				Mime       string                                           `json:"mime"`
 				Name       string                                           `json:"name"`
 				Poster     nullable.Nullable[string]                        `json:"poster,omitempty"`
-				Size       float32                                          `json:"size"`
+				Size       float64                                          `json:"size"`
 				Source     PostApiV1Assets201JSONResponseBodyManifestSource `json:"source"`
 				UploadedAt string                                           `json:"uploadedAt"`
 				UploadedBy string                                           `json:"uploadedBy"`
 				Variants   []struct {
 					Path  string  `json:"path"`
-					Size  float32 `json:"size"`
-					Width float32 `json:"width"`
+					Size  float64 `json:"size"`
+					Width float64 `json:"width"`
 				} `json:"variants"`
 				Version PostApiV1Assets201JSONResponseBodyManifestVersion `json:"version"`
-				Width   nullable.Nullable[float32]                        `json:"width"`
+				Width   nullable.Nullable[float64]                        `json:"width"`
 			} `json:"manifest"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -17207,22 +17236,22 @@ func ParsePostApiV1AssetsNameLocaleBytesResponse(rsp *http.Response) (*PostApiV1
 				Alt         nullable.Nullable[string] `json:"alt,omitempty"`
 				Description *string                   `json:"description,omitempty"`
 				FocalPoint  *struct {
-					X float32 `json:"x"`
-					Y float32 `json:"y"`
+					X float64 `json:"x"`
+					Y float64 `json:"y"`
 				} `json:"focalPoint,omitempty"`
 				Hash     string                     `json:"hash"`
-				Height   nullable.Nullable[float32] `json:"height"`
+				Height   nullable.Nullable[float64] `json:"height"`
 				Mime     string                     `json:"mime"`
 				Name     string                     `json:"name"`
-				Size     float32                    `json:"size"`
+				Size     float64                    `json:"size"`
 				Title    *string                    `json:"title,omitempty"`
 				Variants []struct {
 					Path  string  `json:"path"`
-					Size  float32 `json:"size"`
-					Width float32 `json:"width"`
+					Size  float64 `json:"size"`
+					Width float64 `json:"width"`
 				} `json:"variants"`
 				Version PostApiV1AssetsNameLocaleBytes201JSONResponseBodyManifestVersion `json:"version"`
-				Width   nullable.Nullable[float32]                                       `json:"width"`
+				Width   nullable.Nullable[float64]                                       `json:"width"`
 			} `json:"manifest"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -18037,7 +18066,7 @@ func ParsePostApiV1AuthTokensResponse(rsp *http.Response) (*PostApiV1AuthTokensR
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			ExpiresAt float32 `json:"expiresAt"`
+			ExpiresAt float64 `json:"expiresAt"`
 			Token     string  `json:"token"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -18201,7 +18230,7 @@ func ParsePostApiV1FetchResponse(rsp *http.Response) (*PostApiV1FetchResponse, e
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			CopiedFiles float32  `json:"copiedFiles"`
+			CopiedFiles float64  `json:"copiedFiles"`
 			Items       []string `json:"items"`
 			Success     bool     `json:"success"`
 		}
@@ -19006,35 +19035,6 @@ func ParsePostApiV1FragmentsNameUnarchiveResponse(rsp *http.Response) (*PostApiV
 			return nil, err
 		}
 		response.ApplicationproblemJSON409 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetApiV1HealthResponse parses an HTTP response from a GetApiV1HealthWithResponse call
-func ParseGetApiV1HealthResponse(rsp *http.Response) (*GetApiV1HealthResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetApiV1HealthResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Ok        GetApiV1Health200JSONResponseBodyOk `json:"ok"`
-			Timestamp string                              `json:"timestamp"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
 
 	}
 
@@ -19971,7 +19971,7 @@ func ParsePostApiV1PublishResponse(rsp *http.Response) (*PostApiV1PublishRespons
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
 			Results []struct {
-				CopiedFiles float32 `json:"copiedFiles"`
+				CopiedFiles float64 `json:"copiedFiles"`
 				Error       *string `json:"error,omitempty"`
 				Success     bool    `json:"success"`
 				Target      string  `json:"target"`
@@ -19985,7 +19985,7 @@ func ParsePostApiV1PublishResponse(rsp *http.Response) (*PostApiV1PublishRespons
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 207:
 		var dest struct {
 			Results []struct {
-				CopiedFiles float32 `json:"copiedFiles"`
+				CopiedFiles float64 `json:"copiedFiles"`
 				Error       *string `json:"error,omitempty"`
 				Success     bool    `json:"success"`
 				Target      string  `json:"target"`
