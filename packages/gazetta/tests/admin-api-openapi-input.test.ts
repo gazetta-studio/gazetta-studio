@@ -77,6 +77,40 @@ describe('input that fails its schema', () => {
   })
 })
 
+describe('asset bodies without the declared content type', () => {
+  it.each([
+    ['metadata body without Content-Type', '/api/assets/hero', { method: 'PATCH', body: '{"alt":"x"}' }, 415],
+    [
+      'metadata with an empty JSON body',
+      '/api/assets/hero',
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: '' },
+      400,
+    ],
+    ['upload without a body', '/api/assets', { method: 'POST' }, 400],
+    ['language version without a body', '/api/assets/hero/locale-bytes?locale=fr', { method: 'POST' }, 400],
+  ] as Array<[string, string, RequestInit, number]>)(
+    '%s: refused as a problem, nothing written',
+    async (_name, path, init, status) => {
+      const { app, sourceStorage, targetStorage } = buildApp()
+      const before = [snapshot(sourceStorage), snapshot(targetStorage)]
+      const res = await app.request(path, init)
+      expect(res.status).toBe(status)
+      expect(res.headers.get('content-type')).toBe(PROBLEM_CONTENT_TYPE)
+      expect([snapshot(sourceStorage), snapshot(targetStorage)]).toEqual(before)
+    },
+  )
+
+  it('documents the asset bodies as required', async () => {
+    const { app } = buildApp()
+    const doc = (await (await app.request('/api/openapi.json')).json()) as {
+      paths: Record<string, Record<string, { requestBody?: { required?: boolean } }>>
+    }
+    expect(doc.paths['/api/assets/{name}'].patch.requestBody?.required).toBe(true)
+    expect(doc.paths['/api/assets'].post.requestBody?.required).toBe(true)
+    expect(doc.paths['/api/assets/{name}/locale-bytes'].post.requestBody?.required).toBe(true)
+  })
+})
+
 describe('unversioned routes in the document', () => {
   it('marks the dev and preview routes unversioned, and no /api route', async () => {
     const { app } = buildApp()

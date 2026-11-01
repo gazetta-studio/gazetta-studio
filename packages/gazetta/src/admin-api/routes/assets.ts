@@ -220,7 +220,7 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
     request: {
       params: AssetNameParamSchema,
       query: TargetQuerySchema,
-      body: { content: { 'application/json': { schema: AssetMetadataPatchSchema } } },
+      body: { required: true, content: { 'application/json': { schema: AssetMetadataPatchSchema } } },
     },
     responses: {
       200: json(AssetMetadataResponseSchema, 'The updated asset'),
@@ -381,7 +381,7 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
     request: {
       params: AssetNameParamSchema,
       query: AssetSelectorQuerySchema,
-      body: { content: { 'multipart/form-data': { schema: LocaleBytesFormSchema } } },
+      body: { required: true, content: { 'multipart/form-data': { schema: LocaleBytesFormSchema } } },
     },
     responses: {
       201: json(LocaleBytesUploadResponseSchema, 'The override manifest and where its bytes are'),
@@ -444,7 +444,7 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
     middleware: [requireCapability('edit:assets'), editableTarget] as const,
     request: {
       query: TargetQuerySchema,
-      body: { content: { 'multipart/form-data': { schema: AssetUploadFormSchema } } },
+      body: { required: true, content: { 'multipart/form-data': { schema: AssetUploadFormSchema } } },
     },
     responses: {
       201: json(AssetUploadResponseSchema, 'The new asset manifest and where its bytes are'),
