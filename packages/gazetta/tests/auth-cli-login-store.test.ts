@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { createCliLoginStore, GRANT_TTL_MS, LOGIN_TTL_MS, normalizeLoginCode } from '../src/auth/cli-login-store.js'
+import { stateFolderPath } from '../src/state-folders.js'
 import { memoryStorage } from './_helpers/memory-storage.js'
 
 const alice = { id: 'alice', email: 'alice@example.com', role: 'editor', trustMode: 'forwarded-user' }
@@ -119,5 +120,30 @@ describe('CLI login store', () => {
     const { code } = await a.start({ machine: 'laptop' })
     const results = await Promise.all([a.approve(code, alice), b.deny(code)])
     expect(results.map(r => r.status).sort()).toEqual(['decided', 'ok'])
+  })
+
+  it('creates an elevation only for the approval that claims the code', async () => {
+    const storage = memoryStorage()
+    const store = createCliLoginStore(storage)
+    const { code } = await store.startElevation({ grantId: 'g1', machine: 'laptop', scope: 'non-production' })
+    let created = 0
+    const elevate = async () => ({ elevationId: `g1.e${++created}`, endsAt: '2026-11-01T12:15:00Z' })
+    // Another instance has claimed the code but not yet written its record: this approval lost.
+    await storage.writeFile(stateFolderPath('auth', 'logins', `${code}.decided`), 'denied')
+    expect((await store.approve(code, alice, elevate)).status).toBe('decided')
+    expect(created).toBe(0)
+  })
+
+  it('records the elevation an approval created', async () => {
+    const store = createCliLoginStore(memoryStorage())
+    const { code } = await store.startElevation({ grantId: 'g1', machine: 'laptop', scope: 'non-production' })
+    const result = await store.approve(code, alice, async () => ({
+      elevationId: 'g1.e1',
+      endsAt: '2026-11-01T12:15:00Z',
+    }))
+    expect(result.status === 'ok' && result.login).toMatchObject({
+      elevationId: 'g1.e1',
+      endsAt: '2026-11-01T12:15:00Z',
+    })
   })
 })

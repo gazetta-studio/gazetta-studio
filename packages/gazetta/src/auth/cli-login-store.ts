@@ -80,6 +80,11 @@ export type RedeemResult =
   | { status: 'approved'; grant: Grant; grantSecret: string }
   | { status: 'elevated'; elevationId: string; endsAt: string }
 
+export interface ApprovedElevation {
+  elevationId: string
+  endsAt: string
+}
+
 export type DecideResult =
   | { status: 'ok'; login: PendingLogin }
   | { status: 'not-found' }
@@ -130,8 +135,11 @@ export interface CliLoginStore {
   start(input: { machine: string; ip?: string }): Promise<StartedCode>
   startElevation(input: { grantId: string; machine: string; ip?: string; scope: ElevationScope }): Promise<StartedCode>
   get(code: string): Promise<PendingLogin | null>
-  /** `elevation`: the approved elevation's id and end, for an elevation code. */
-  approve(code: string, person: LoginPerson, elevation?: { elevationId: string; endsAt: string }): Promise<DecideResult>
+  /**
+   * `elevate`: for an elevation code, creates the elevation. Called only
+   * once this approval has claimed the code, so a lost race creates none.
+   */
+  approve(code: string, person: LoginPerson, elevate?: () => Promise<ApprovedElevation>): Promise<DecideResult>
   deny(code: string): Promise<DecideResult>
   redeem(code: string, pollSecret: string): Promise<RedeemResult>
   /**
@@ -160,7 +168,7 @@ export function createCliLoginStore(storage: StorageProvider, now: () => number 
     code: string,
     state: 'approved' | 'denied',
     person?: LoginPerson,
-    elevation?: { elevationId: string; endsAt: string },
+    elevate?: () => Promise<ApprovedElevation>,
   ): Promise<DecideResult> {
     const login = await readJson<PendingLogin>(loginPath(code))
     if (!login) return { status: 'not-found' }
@@ -172,6 +180,7 @@ export function createCliLoginStore(storage: StorageProvider, now: () => number 
       if (err instanceof StorageConditionalFailedError) return { status: 'decided' }
       throw err
     }
+    const elevation = elevate ? await elevate() : undefined
     const decided: PendingLogin = {
       ...login,
       state,
@@ -218,7 +227,7 @@ export function createCliLoginStore(storage: StorageProvider, now: () => number 
 
     get: code => readJson<PendingLogin>(loginPath(code)),
 
-    approve: (code, person, elevation) => decide(code, 'approved', person, elevation),
+    approve: (code, person, elevate) => decide(code, 'approved', person, elevate),
     deny: code => decide(code, 'denied'),
 
     async redeem(code, pollSecret) {
