@@ -493,7 +493,7 @@ What counts, and when `gz` joins: Decided: maintainer, 2026-11-01 (#1649)
 
 ### Q33 — A command refreshes the skill in an existing project
 
-A command, `gazetta agents update` (named 2026-11-01, #<PR>), rewrites the files Gazetta owns: `SKILL.md` and the marked `AGENTS.md` section, never the person's other text. `gazetta dev` prints a one-line hint when the installed skill is older than the package.
+A command, `gazetta agents update` (named 2026-11-01, #1653), rewrites the files Gazetta owns: `SKILL.md` and the marked `AGENTS.md` section, never the person's other text. `gazetta dev` prints a one-line hint when the installed skill is older than the package.
 
 Decided: maintainer, 2026-11-01 (#1649)
 
@@ -612,7 +612,7 @@ Research: [Go CLI on #49](https://github.com/gazetta-studio/gazetta-studio/issue
 
 Content creators' projects may have no `AGENTS.md` section. `gz auth login` ends by printing "Using an AI agent? Run `gz skill install <your agent's skills folder>`", and `gz --help` lists it first. `gz skill install` writes a version line into the skill, and `gz` warns at most once a day when the installed skill is older than itself. `gz` writes no files unless asked.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1653)
 
 | Rejected | Why |
 |---|---|
@@ -621,7 +621,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 The refresh command (Q33) is `gazetta agents update`, a `gazetta agents` group with room for `agents status` later.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1653)
 
 | Rejected | Why |
 |---|---|
