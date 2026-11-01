@@ -2,7 +2,7 @@
 
 How AI agents (coding agents, scripts, chat apps) reach Gazetta's content: in what order the ways in ship, how they write, what stops them publishing, and how they learn about changes. This sets the direction for the design pass in [#49](https://github.com/gazetta-studio/gazetta-studio/issues/49), which now covers agent access as a whole, MCP included; each piece below gets its details there.
 
-**Status**: direction decided 2026-10-31, Q1–Q11; agent identity decided 2026-11-01, Q12–Q30; presets Q31; the skill's never-run list, updates and install Q32–Q34; the Go CLI Q35–Q40. The #49 design pass designs the details.
+**Status**: direction decided 2026-10-31, Q1–Q11; agent identity decided 2026-11-01, Q12–Q30; presets Q31; the skill's never-run list, updates and install Q32–Q34; the Go CLI Q35–Q41. The #49 design pass designs the details.
 
 **Companion docs:**
 - [`design-ai-direction.md`](design-ai-direction.md): agents lead Gazetta's AI work; they can't publish by default (they act as the person who signed them in, Q12); the live view of agents' changes (Q8)
@@ -493,7 +493,7 @@ What counts, and when `gz` joins: Decided: maintainer, 2026-11-01 (#1649)
 
 ### Q33 — A command refreshes the skill in an existing project
 
-A command (named in the #49 pass, for example `gazetta agents update`) rewrites the files Gazetta owns: `SKILL.md` and the marked `AGENTS.md` section, never the person's other text. `gazetta dev` prints a one-line hint when the installed skill is older than the package.
+A command, `gazetta agents update` (named 2026-11-01, #<PR>), rewrites the files Gazetta owns: `SKILL.md` and the marked `AGENTS.md` section, never the person's other text. `gazetta dev` prints a one-line hint when the installed skill is older than the package.
 
 Decided: maintainer, 2026-11-01 (#1649)
 
@@ -608,9 +608,29 @@ Decided: maintainer, 2026-11-01 (#1652)
 
 Research: [Go CLI on #49](https://github.com/gazetta-studio/gazetta-studio/issues/49#issuecomment-6558349884) (the name clash, how other CLIs find servers, commands, output and distribution).
 
+### Q41 — `gz` tells its user how to install the skill
+
+Content creators' projects may have no `AGENTS.md` section. `gz auth login` ends by printing "Using an AI agent? Run `gz skill install <your agent's skills folder>`", and `gz --help` lists it first. `gz skill install` writes a version line into the skill, and `gz` warns at most once a day when the installed skill is older than itself. `gz` writes no files unless asked.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| `gz auth login` asks which agent you use and installs the skill into its folder | Writes into client folders, which Q34 avoided |
+| Docs only | The content creators' docs page alone would say to run `gz skill install` |
+
+The refresh command (Q33) is `gazetta agents update`, a `gazetta agents` group with room for `agents status` later.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| `gazetta init --agents` | `init` would then behave two ways |
+| `gazetta skill update` | It updates `AGENTS.md`, not the skill itself |
+
 ## What this changes in the plan
 
-Follows from Q1–Q40.
+Follows from Q1–Q41.
 - ROADMAP's "MCP server design pass" becomes "Agent access design pass" (#49), and "MCP server build" becomes "Agent access build".
 - The skill (#1622) is the first step, in Now; the Deferred row for agent instructions goes.
-- The #49 pass designs: the agent token and elevation flow (Q12–Q30), the remote MCP server's sign-in (Q28), the skill refresh command's name (Q33), audit source and run id, per-run undo, the schema check at save, page search, the thin CLI's later commands (Q37), how `gz` users' agents learn to install and refresh the skill (Q40), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract, its versioning and v1 cut-off, the bulk save, the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
+- The #49 pass designs: the agent token and elevation flow (Q12–Q30), the remote MCP server's sign-in (Q28), audit source and run id, per-run undo, the schema check at save, page search, the thin CLI's later commands (Q37), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract, its versioning and v1 cut-off, the bulk save, the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
