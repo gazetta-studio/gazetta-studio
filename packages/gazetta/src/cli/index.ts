@@ -21,6 +21,7 @@ import { buildHooksRegistry, createAdminApp } from '../admin-api/index.js'
 import { parseValidateFlags } from './validate-flags.js'
 import { logDefaultedPublicTargets } from '../validation/validators/public-storage-config.js'
 import { parseArgs } from './args.js'
+import { readAgentsSection, withAgentsSection } from './agents-section.js'
 import { authTrustOf, exitOnListenError, resolveListenHost, SERVER_COMMANDS } from './listen-host.js'
 import { devNotFound } from './dev-not-found.js'
 import { isInside } from './is-inside.js'
@@ -650,6 +651,14 @@ export default template
     await writeFile(fullPath, content)
   }
 
+  // Agents install the skill themselves from the package (design-agent-access.md Q34).
+  const agentsPath = join(target, 'AGENTS.md')
+  const agentsContent = withAgentsSection(
+    existsSync(agentsPath) ? readFileSync(agentsPath, 'utf-8') : undefined,
+    readAgentsSection(dirname(ownPackageJson)),
+  )
+  if (agentsContent !== undefined) await writeFile(agentsPath, agentsContent)
+
   const { intro, outro, note, spinner } = await import('@clack/prompts')
   intro(c.bgGreen(c.bold(' gazetta ')))
 
@@ -662,6 +671,7 @@ export default template
       `    ${c.dim('pages/home/')}       ${c.dim('home page with hero + intro')}\n` +
       `    ${c.dim('pages/404/')}        ${c.dim('error page')}\n` +
       `    ${c.dim('fragments/header/')} ${c.dim('shared header nav')}\n` +
+      `${c.bold('AGENTS.md')}           ${c.dim('instructions for coding agents')}\n` +
       `${c.bold('package.json')}`,
     `Created ${c.green(name)}/`,
   )

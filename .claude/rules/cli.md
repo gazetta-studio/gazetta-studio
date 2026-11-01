@@ -273,6 +273,7 @@ gazetta publish productoin
 my-site/
   package.json             # see below
   .gitignore               # node_modules/, dist/, .env, .env.local, **/.gazetta/
+  AGENTS.md                # coding-agent section; agents install the skill from node_modules/gazetta/agents/
   tsconfig.json            # paths: { "@templates/*": ["./templates/*"] }
   admin/
     package.json           # { name: "admin", ... }
