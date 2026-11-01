@@ -58,6 +58,11 @@ CI checks content against the base branch's templates and the PR's templates, an
 
 Decided: maintainer, 2026-11-01 (#1666)
 
+| Rejected | Why |
+|---|---|
+| Check only items using a changed template, no base run | A PR touching `hero` fails for an old, unrelated hero problem |
+| Fail on any problem anywhere | One old broken page fails every PR until someone fixes it |
+
 The rule covers every check that fails `gazetta validate` (a missing fragment, asset or template, a circular fragment, a schema problem): any such error fails the PR only if the base branch didn't have it, and old ones are listed under "already broken".
 
 Decided: maintainer, 2026-11-01 (#1666)
@@ -65,11 +70,6 @@ Decided: maintainer, 2026-11-01 (#1666)
 | Rejected | Why |
 |---|---|
 | Compare only schema problems with the base | Any other error, even one that existed before the PR, fails it, so an old missing fragment blocks every PR until someone fixes it |
-
-| Rejected | Why |
-|---|---|
-| Check only items using a changed template, no base run | A PR touching `hero` fails for an old, unrelated hero problem |
-| Fail on any problem anywhere | One old broken page fails every PR until someone fixes it |
 
 ### T3 — A deliberate breaking change passes by fixing the content in the PR
 
