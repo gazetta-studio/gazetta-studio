@@ -220,8 +220,10 @@ test.describe('Component operations', () => {
     const tree = new ComponentTreePom(page)
     const name = `dup-source-${testInfo.testId}`
     // Add a fresh component so the test owns a clean source — avoids
-    // collisions with other tests in this file that mutate `home`.
-    await tree.add(name, 'text-block')
+    // collisions with other tests in this file that mutate `home`. Its
+    // template has no required fields: saving a new component whose
+    // required fields are empty is refused (design-agent-access.md Q49).
+    await tree.add(name, 'two-column')
     await expect(tree.row(name)).toBeVisible({ timeout: 10000 })
 
     await tree.duplicate(name)

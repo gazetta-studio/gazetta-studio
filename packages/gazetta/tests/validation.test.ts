@@ -129,7 +129,7 @@ describe('defaultValidatorRegistry', () => {
     expect(names).toContain('dynamic-route-conflict')
   })
 
-  it('every Cut 1 ref-existence validator + Cut 3 altRequired + Cut 8 archive validators run at save-delta', () => {
+  it('the ref-existence, altRequired, archive and schema-conformance validators run at save-delta', () => {
     const reg = defaultValidatorRegistry()
     const saveDeltaNames = reg
       .forStage('save-delta')
@@ -144,10 +144,11 @@ describe('defaultValidatorRegistry', () => {
       'referenced-asset-exists',
       'referenced-fragment-exists',
       'referenced-template-exists',
+      'schema-conformance',
     ])
   })
 
-  it('Cut 2 background-only validators are present and tagged background+cli', () => {
+  it('the Cut 2 background validators are present; only schema-conformance also runs at save', () => {
     const reg = defaultValidatorRegistry()
     const backgroundNames = reg
       .forStage('background')
@@ -156,9 +157,9 @@ describe('defaultValidatorRegistry', () => {
     expect(backgroundNames).toContain('schema-conformance')
     expect(backgroundNames).toContain('orphaned-locale-file')
     expect(backgroundNames).toContain('unused-fragment')
-    // None of the background-only validators leak into save-delta
+    // schema-conformance checks touched components at save (design-agent-access.md Q49)
     const saveDeltaNames = reg.forStage('save-delta').map(v => v.name)
-    expect(saveDeltaNames).not.toContain('schema-conformance')
+    expect(saveDeltaNames).toContain('schema-conformance')
     expect(saveDeltaNames).not.toContain('orphaned-locale-file')
     expect(saveDeltaNames).not.toContain('unused-fragment')
   })

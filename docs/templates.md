@@ -43,6 +43,8 @@ The function returns a `RenderOutput` or a `Promise<RenderOutput>`.
 
 A template module exports only `default` and `schema` — the CMS generates the editing form from `schema`. To replace the form with a custom editor, add a separate file under `admin/editors/`; see [Custom editors](./customize-editor.md#custom-editors).
 
+Saving checks every component it adds or changes against its template's schema, whether the save comes from the admin, a script or an agent: content that doesn't fit is refused, with the field and the component named. Components the save doesn't change aren't checked, so content an earlier schema change made invalid still saves when you edit something else, and Site health lists it. A template that exists but fails to load refuses saves of components that use it.
+
 The admin's preview shows each page in a sandboxed frame with an origin of its own. Template scripts run there, but can't use cookies, `localStorage`, form submits, pop-ups or dialogs such as `alert()`; on the published site they can.
 
 ## Template fields

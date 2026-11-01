@@ -25,7 +25,7 @@ async function fsExists(path: string): Promise<boolean> {
   }
 }
 
-async function findTemplateFile(templatesDir: string, templateName: string): Promise<string | null> {
+export async function findTemplateFile(templatesDir: string, templateName: string): Promise<string | null> {
   for (const file of TEMPLATE_FILES) {
     const path = join(templatesDir, templateName, file)
     if (await fsExists(path)) return path
