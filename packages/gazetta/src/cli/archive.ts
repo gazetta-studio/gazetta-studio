@@ -291,8 +291,8 @@ async function runRestore(opts: {
   // refusal from #1343) instead of a bare status line.
   let detail = ''
   try {
-    const body = (await res.json()) as { error?: string }
-    if (body.error) detail = `: ${body.error}`
+    const body = (await res.json()) as { detail?: string }
+    if (body.detail) detail = `: ${body.detail}`
   } catch {
     // Non-JSON error body — keep the status-only message.
   }
