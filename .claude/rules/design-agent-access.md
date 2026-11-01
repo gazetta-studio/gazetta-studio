@@ -544,7 +544,7 @@ The `CLAUDE.md` import line and the trade-off: Decided: maintainer, 2026-11-01 (
 
 ### Q35 — The Go CLI is `gz`, published as `@gazetta/cli`
 
-The binary is `gz`. It's published on npm as `@gazetta/cli` (the `@gazetta` npm scope is to be claimed now; it isn't yet) and on Homebrew as `gazetta/tap/gz`, and a `gazetta-cli` copy of the binary ships for people who have Gazebo's robotics CLI, which is also called `gz` (in Debian and Ubuntu). The docs mention the clash.
+The binary is `gz`. It's published on npm as `@gazetta/cli` (the `@gazetta` npm scope was claimed on 2026-11-01) and on Homebrew as `gazetta/tap/gz`, and a `gazetta-cli` copy of the binary ships for people who have Gazebo's robotics CLI, which is also called `gz` (in Debian and Ubuntu). The docs mention the clash.
 
 Decided: maintainer, 2026-11-01 (#1652)
 
