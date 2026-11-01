@@ -55,7 +55,7 @@ Decided: maintainer, 2026-10-31 (#1623)
 |---|---|
 | Leave the wording as written | A multi-instance claim the cache design contradicts |
 
-The thin CLI has a publish command too, through the API: on a target that needs approval it creates a publish request, where `gazetta publish` refuses. Two commands named publish with different behaviour depart from team rule 7 (one word per concept); the maintainer chose to keep both and record the difference. With it, an agent with publish rights on a hosted admin can publish or request a publish through the same client. Follows from Q12: an agent's token publishes only while its person has elevated; without an elevation, the command starts one and waits for the person's approval (Q29).
+The thin CLI has a publish command too, through the API: on a target that needs approval it creates a publish request, where `gazetta publish` refuses. Two commands named publish with different behaviour depart from team rule 7 (one word per concept); the maintainer chose to keep both and record the difference. With it, an agent with publish rights on a hosted admin can publish or request a publish through the same client. Follows from Q12 and Q29: an agent's token publishes only while its person has elevated; without an elevation, the command creates a request on a target that needs approval, and elsewhere starts an elevation and waits for the person's approval.
 
 Decided: maintainer, 2026-10-31 (#1623)
 
@@ -214,17 +214,16 @@ Both CLIs can return URLs that an AI can use to see rendered content.
 
 Decided: maintainer, 2026-10-31 (#1623)
 
-Open for the #49 pass (product owner's note): which URLs (the preview of a page just edited, the page on a target after publish) and, on a hosted admin, how an agent opens preview URLs that sit behind authentication with its own identity (#1624). The maintainer's ideas for that discovery, not decisions (posted on #1624): "to authenticate, user can do that from ui, or we can think of other ways if needed"; "maybe a pincode"; "or gz auth login" (`gz` as a candidate name for the Go CLI).
+Open for the #49 pass (product owner's note): which URLs (the preview of a page just edited, the page on a target after publish) and, on a hosted admin, how an agent opens preview URLs that sit behind authentication (#1624; it acts with its person's identity, Q12). The maintainer's ideas for that discovery, not decisions (posted on #1624): "to authenticate, user can do that from ui, or we can think of other ways if needed"; "maybe a pincode"; "or gz auth login" (`gz` as a candidate name for the Go CLI).
 
 ### Q12 — An agent uses its person's identity; publishing needs an elevation
 
-An agent signs in as the person using it; there is no separate agent identity. Any token used outside the browser (the Go CLI, the API, MCP) can edit at most. Publishing or deleting through such a token needs a short elevation the person approves in the admin (for example `gz elevate`, showing a pin to confirm there). Without an elevation, a CLI publish starts one itself (Q29). Each save records the way it came in (browser or CLI token) and a run id, so an agent's run can be reviewed and undone. Logging in uses the same pin flow (`gz auth login`).
+An agent signs in as the person using it; there is no separate agent identity. Any token used outside the browser (the Go CLI, the API, MCP) can edit at most. Publishing or deleting through such a token needs a short elevation the person approves in the admin (for example `gz elevate`, showing a pin to confirm there). What a CLI publish does without an elevation is Q29. Each save records the way it came in (browser or CLI token) and a run id, so an agent's run can be reviewed and undone. Login codes are approved in the admin (Q19, Q21), except where Q15 says otherwise.
 
 Decided: maintainer, 2026-11-01 (#1630)
 
 | Rejected | Why |
 |---|---|
-| The agent uses the person's credentials unchanged | The agent could publish and delete, reopening Q3 and `design-ai-direction.md` Q6, and the audit log couldn't tell its saves from the person's |
 | Two identities per person (`alice` and `alice-agent` in the login layer) | A second account per person on every platform; Cloudflare service tokens are refused today |
 | The agent as its own principal (`agent:<name>` with an owner) | More to build: an owner link and a new role, for the same "can't publish" guarantee |
 
@@ -266,7 +265,7 @@ Decided: maintainer, 2026-11-01 (#1630)
 - **AWS ALB:** its JWT rule checks Gazetta's own token; the person pastes a token from the admin into `gz`, since a pin can't work there.
 - **Tailscale:** the device's own identity.
 
-Gazetta's token always travels in its own `Gazetta-Token` header, never in `Authorization` (which Easy Auth, Cloudflare's single-header service-token mode and the `GAZETTA_TOKEN` guard read).
+Gazetta's token travels in its own `Gazetta-Token` header, not in `Authorization`, except on ALB (below). Research on #1624 found that Easy Auth and Cloudflare's single-header service-token mode read `Authorization`, as does the `GAZETTA_TOKEN` guard (`admin-api/middleware/auth.ts`).
 
 On ALB the token goes in `Authorization: Bearer` instead, because ALB's JWT check reads only that header and needs an RS256 token with a public key set: Gazetta's tokens are RS256-signed (the Q25 secret is the private key) and the admin publishes its public keys for ALB. The legacy `GAZETTA_TOKEN` guard can't be used on ALB.
 
@@ -284,7 +283,7 @@ Decided: maintainer, 2026-11-01 (#1630)
 
 ### Q16 — Short-lived signed tokens plus a grant record
 
-A signed token lasts about 15 minutes and is renewed from one stored grant per `gz auth login`, in a private `.gazetta/auth/` folder. API calls read no storage; deleting the grant ends access within 15 minutes; the signing key is an environment secret shared by all instances.
+A signed token lasts about 15 minutes and is renewed from one stored grant per `gz auth login`, in a private `.gazetta/auth/` folder on the source (a private target, like the audit events in Q26), registered as not safe on public targets (`design-public-storage.md` Q5, Q7). API calls read no storage; deleting the grant ends access within 15 minutes; the signing key is an environment secret shared by all instances.
 
 Decided: maintainer, 2026-11-01 (#1630)
 
@@ -334,6 +333,8 @@ Decided: maintainer, 2026-11-01 (#1630)
 |---|---|
 | Elevation counts as the approval | One approval at the start of 15 minutes would cover anything the agent publishes, unseen |
 
+On a target that allows self-approval, an elevated agent can still approve its own request (Q18); `allowSelfPublishApproval: false` prevents it.
+
 ### Q21 — The approve page shows where the code came from
 
 It shows the machine name, IP address and time the login started, and warns "only approve a code you started yourself"; each code works once and expires in 10 minutes. This defends against someone starting a login and sending the person the link.
@@ -354,7 +355,7 @@ Decided: maintainer, 2026-11-01 (#1630)
 | Rejected | Why |
 |---|---|
 | One run per login session | Runs grow for days and mix unrelated tasks |
-| One run per CLI command | An agent's task spans many runs, so reviewing or undoing a task means picking each one |
+| One run per CLI command as the only rule | An agent's task spans many runs, so reviewing or undoing a task means picking each one |
 
 ### Q23 — Cloudflare service tokens: shared or per person, the operator chooses
 
@@ -378,7 +379,7 @@ Decided: maintainer, 2026-11-01 (#1630)
 
 ### Q25 — The signing key is an environment secret, required on hosted admins
 
-An environment variable (for example `GAZETTA_SIGNING_KEY`), with two keys allowed for rotation. A hosted admin with CLI login enabled refuses to start without it; local `gazetta dev` generates one, since it runs as one instance.
+An environment variable (for example `GAZETTA_SIGNING_KEY`), with two keys allowed for rotation; it is the RS256 private key whose public keys the admin publishes for ALB (Q15). A hosted admin with CLI login enabled refuses to start without it; local `gazetta dev` generates one, since it runs as one instance.
 
 Decided: maintainer, 2026-11-01 (#1630)
 
@@ -419,7 +420,13 @@ Decided: maintainer, 2026-11-01 (#1630)
 
 ### Q29 — Publishing without an elevation starts one and waits
 
-`gz publish` (and delete) without an elevation shows a code and a link, waits up to the code's 10 minutes (Q21) for the person's approval in the admin, then publishes; the elevation then lasts its 15 minutes (Q17). `--no-wait` and CI refuse at once with the message. `gz elevate` stays, for elevating ahead of time. This replaces Q12's "a CLI publish becomes a publish request", which had no meaning on targets that don't require approval.
+On a target that doesn't need approval, `gz publish` (and delete) without an elevation shows a code and a link, waits up to the code's 10 minutes (Q21) for the person's approval in the admin, then publishes; the elevation then lasts its 15 minutes (Q17). `--no-wait` and CI refuse at once with the message. `gz elevate` stays, for elevating ahead of time. On a target that needs approval, an un-elevated publish creates the request directly, without an elevation: the request already waits for a person's approval. This replaces the first version of Q12, under which every un-elevated CLI publish became a publish request.
+
+Decided: maintainer, 2026-11-01 (#1630)
+
+| Rejected | Why |
+|---|---|
+| Start an elevation first on targets that need approval too | Two approvals in a row (the elevation, then the request), unless self-approval is allowed |
 
 Decided: maintainer, 2026-11-01 (#1630)
 
