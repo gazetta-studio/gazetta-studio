@@ -2,6 +2,7 @@ import { createRouter as createVueRouter, createWebHistory } from 'vue-router'
 import EditorView from './components/EditorView.vue'
 import DevPlayground from './components/DevPlayground.vue'
 import CliLoginView from './components/CliLoginView.vue'
+import CliSigninView from './components/CliSigninView.vue'
 import { useSiteStore } from './stores/site.js'
 import { useSelectionStore } from './stores/selection.js'
 import { useEditingStore } from './stores/editing.js'
@@ -25,6 +26,7 @@ export function createRouter() {
       { path: '/dev/field/:field', component: DevPlayground, name: 'dev-field' },
       // A standalone page, outside the editor (App.vue renders it alone).
       { path: '/cli-login/:code', component: CliLoginView, name: 'cli-login', meta: { standalone: true } },
+      { path: '/cli-signin', component: CliSigninView, name: 'cli-signin', meta: { standalone: true } },
       { path: '/:pathMatch(.*)*', redirect: '/' },
     ],
   })

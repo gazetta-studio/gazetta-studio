@@ -48,6 +48,10 @@ import {
   StartElevationRequestSchema,
   StartLoginResponseSchema,
   TokenResponseSchema,
+  CliSetupResponseSchema,
+  CreateGrantRequestSchema,
+  CreateGrantResponseSchema,
+  JwksResponseSchema,
 } from '../schemas/auth.js'
 
 export interface AuthRoutesOptions {
@@ -57,6 +61,13 @@ export interface AuthRoutesOptions {
   elevations: ElevationStore
   /** How long an approved elevation lasts (`admin.auth.elevationMinutes`). */
   elevationMinutes: number
+  /** The admin's trust mode: behind ALB (`aws-cognito`), grants are pasted (Q15). */
+  trustMode: string
+  /**
+   * A shared Cloudflare service token to show signed-in people, from
+   * `GAZETTA_CF_ACCESS_CLIENT_ID` / `GAZETTA_CF_ACCESS_CLIENT_SECRET` (Q23).
+   */
+  cloudflareServiceToken?: () => { clientId: string; clientSecret: string } | undefined
 }
 
 const jsonBody = <S>(schema: S) => ({ required: true, content: { 'application/json': { schema } } })
@@ -173,6 +184,44 @@ const endElevation = createRoute({
   },
 })
 
+const getKeys = createRoute({
+  method: 'get',
+  path: '/auth/keys',
+  summary: "The admin's public signing keys, as a JWKS",
+  description:
+    "Readable without signing in. Lists the current key and, during rotation, the previous one. ALB's JWT check reads it (design-agent-access.md Q15).",
+  responses: {
+    200: json(JwksResponseSchema, 'The public keys'),
+    ...problems({ 503: ['CLI_LOGIN_UNAVAILABLE'] }),
+  },
+})
+
+const getCliSetup = createRoute({
+  method: 'get',
+  path: '/auth/cli-setup',
+  summary: 'How to sign in a command line here (in the browser)',
+  responses: {
+    200: json(CliSetupResponseSchema, 'The sign-in setup'),
+    ...problems({ 401: ['UNAUTHENTICATED'], 403: ['BROWSER_REQUIRED'], 503: ['CLI_LOGIN_UNAVAILABLE'] }),
+  },
+})
+
+const createGrant = createRoute({
+  method: 'post',
+  path: '/auth/grants',
+  summary: 'Sign in a command line by pasting a grant (in the browser, behind ALB)',
+  request: { body: jsonBody(CreateGrantRequestSchema) },
+  responses: {
+    201: json(CreateGrantResponseSchema, 'The grant; its secret is shown once'),
+    ...problems({
+      400: ['BAD_REQUEST'],
+      401: ['UNAUTHENTICATED'],
+      403: ['BROWSER_REQUIRED', 'FORBIDDEN'],
+      503: ['CLI_LOGIN_UNAVAILABLE'],
+    }),
+  },
+})
+
 /** The approve page's URL: the admin's base (where `/api/v1` is mounted) plus `/cli-login/<code>`. */
 function approveUrl(c: Context, code: string): string {
   const url = new URL(c.req.url)
@@ -180,7 +229,14 @@ function approveUrl(c: Context, code: string): string {
   return new URL(`${base}/cli-login/${code}`, url.origin).toString()
 }
 
-export function authRoutes({ store, keys, elevations, elevationMinutes }: AuthRoutesOptions) {
+export function authRoutes({
+  store,
+  keys,
+  elevations,
+  elevationMinutes,
+  trustMode,
+  cloudflareServiceToken,
+}: AuthRoutesOptions) {
   const app = apiApp<AuditEnv>()
 
   // CLI login is off until there's a signing key.
@@ -387,6 +443,48 @@ export function authRoutes({ store, keys, elevations, elevationMinutes }: AuthRo
     const { grant } = found
     const { token, expiresAt } = await issueToken((await keys())!, { ...grant.person, grantId: grant.grantId })
     return c.json({ token, expiresAt }, 200)
+  })
+
+  app.openapi(getKeys, async c => {
+    const k = (await keys()) as SigningKeys
+    return c.json(
+      {
+        keys: [k.current, ...(k.previous ? [k.previous] : [])].map(key => ({
+          ...key.publicJwk,
+          kid: key.kid,
+          kty: key.publicJwk.kty ?? 'RSA',
+        })),
+      },
+      200,
+    )
+  })
+
+  app.openapi(getCliSetup, async c => {
+    const refused = browserOnly(c)
+    if (refused) return refused
+    const shared = trustMode === 'cloudflare-access' ? cloudflareServiceToken?.() : undefined
+    return c.json({ trustMode, paste: trustMode === 'aws-cognito', ...(shared ? { cloudflare: shared } : {}) }, 200)
+  })
+
+  app.openapi(createGrant, async c => {
+    const refused = browserOnly(c)
+    if (refused) return refused
+    if (trustMode !== 'aws-cognito') {
+      return problem(c, 403, 'FORBIDDEN', 'Here, sign in with gz auth login and approve the code instead')
+    }
+    const { machine } = c.req.valid('json')
+    const { id, email, role, trustMode: mode } = c.var.principal
+    const { grant, grantSecret } = await store.createGrant(
+      { id, ...(email ? { email } : {}), role, trustMode: mode },
+      machine,
+    )
+    await c.var.audit.record({
+      action: 'login-approve',
+      outcome: 'success',
+      scope: { kind: 'site' },
+      metadata: { machine, method: 'paste', grantId: grant.grantId },
+    })
+    return c.json({ grantId: grant.grantId, grantSecret }, 201)
   })
 
   app.openapi(revokeGrant, async c => {

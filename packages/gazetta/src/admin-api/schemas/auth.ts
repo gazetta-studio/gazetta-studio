@@ -82,6 +82,25 @@ export const TokenResponseSchema = z.object(TokenFields)
 export const GrantParamSchema = z.object({ id: z.string() })
 export const ElevationParamSchema = z.object({ id: z.string() })
 
+/** The admin's public signing keys, for ALB's JWT check (Q15). */
+export const JwksResponseSchema = z.object({ keys: z.array(z.looseObject({ kid: z.string(), kty: z.string() })) })
+
+/** What the "Sign in a command line" page needs (Q15, Q23). */
+export const CliSetupResponseSchema = z.object({
+  trustMode: z.string(),
+  /** A grant can be created here and pasted into gz: behind ALB only. */
+  paste: z.boolean(),
+  /** A shared Cloudflare service token the operator configured, to copy into gz. */
+  cloudflare: z.object({ clientId: z.string(), clientSecret: z.string() }).optional(),
+})
+
+export const CreateGrantRequestSchema = z.object({ machine: z.string().min(1).max(200) })
+export const CreateGrantResponseSchema = z.object({
+  grantId: z.string(),
+  /** Shown once: paste it into `gz auth login --paste`. */
+  grantSecret: z.string(),
+})
+
 export type StartLoginResponse = z.infer<typeof StartLoginResponseSchema>
 export type LoginDetailsResponse = z.infer<typeof LoginDetailsResponseSchema>
 export type RedeemLoginResponse = z.infer<typeof RedeemLoginResponseSchema>

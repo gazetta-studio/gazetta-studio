@@ -32,7 +32,9 @@ type Admin struct {
 	Polls, TokensIssued int
 	Machines            []string
 	Revoked             map[string]bool
-	TokensSeen          []string // Gazetta-Token on authenticated calls
+	TokensSeen          []string // the Gazetta token on authenticated calls
+	// Headers holds every request's headers, in order.
+	Headers []http.Header
 }
 
 const grantID = "g-1"
@@ -74,6 +76,7 @@ func (a *Admin) token() map[string]any {
 func (a *Admin) serve(w http.ResponseWriter, r *http.Request) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	a.Headers = append(a.Headers, r.Header.Clone())
 	path := strings.TrimPrefix(r.URL.Path, "/admin")
 	switch {
 	case r.Method == "GET" && path == "/api/version":
@@ -116,6 +119,9 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request) {
 		}
 	case r.Method == "DELETE" && path == "/api/v1/auth/grants/"+grantID:
 		tok := r.Header.Get("Gazetta-Token")
+		if tok == "" {
+			tok = strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		}
 		a.TokensSeen = append(a.TokensSeen, tok)
 		if tok == "" {
 			problem(w, 401, "TOKEN_REQUIRED")
@@ -133,4 +139,56 @@ func (a *Admin) Set(f func(a *Admin)) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	f(a)
+}
+
+// Entra is a fake Microsoft Entra token endpoint for the device-code flow:
+// the first poll is pending, the second signs in; refreshes rotate the
+// refresh token.
+type Entra struct {
+	*httptest.Server
+
+	mu        sync.Mutex
+	Polls     int
+	Refreshes int
+	// Decision is what the second poll answers: "" signs in, else the error.
+	Decision string
+}
+
+// NewEntra starts the fake.
+func NewEntra() *Entra {
+	e := &Entra{}
+	e.Server = httptest.NewServer(http.HandlerFunc(e.serve))
+	return e
+}
+
+func (e *Entra) serve(w http.ResponseWriter, r *http.Request) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	_ = r.ParseForm()
+	switch {
+	case strings.HasSuffix(r.URL.Path, "/oauth2/v2.0/devicecode"):
+		reply(w, 200, map[string]any{
+			"device_code": "dev-code", "user_code": "WXYZ-1234", "verification_uri": "https://microsoft.com/devicelogin",
+			"expires_in": 900, "interval": 5, "message": "To sign in, use a web browser",
+		})
+	case strings.HasSuffix(r.URL.Path, "/oauth2/v2.0/token") && r.Form.Get("grant_type") == "refresh_token":
+		e.Refreshes++
+		reply(w, 200, map[string]any{
+			"access_token": fmt.Sprintf("entra-access-r%d", e.Refreshes), "expires_in": 3600,
+			"refresh_token": fmt.Sprintf("entra-refresh-r%d", e.Refreshes),
+		})
+	case strings.HasSuffix(r.URL.Path, "/oauth2/v2.0/token"):
+		e.Polls++
+		if e.Polls == 1 {
+			reply(w, 400, map[string]any{"error": "authorization_pending"})
+			return
+		}
+		if e.Decision != "" {
+			reply(w, 400, map[string]any{"error": e.Decision, "error_description": "fake " + e.Decision})
+			return
+		}
+		reply(w, 200, map[string]any{"access_token": "entra-access", "refresh_token": "entra-refresh", "expires_in": 3600})
+	default:
+		w.WriteHeader(404)
+	}
 }

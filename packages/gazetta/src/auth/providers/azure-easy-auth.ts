@@ -77,6 +77,13 @@ export interface AzureEasyAuthConfig {
    * resolver when `roleMapping` points at a non-built-in role.
    */
   customRoles?: Readonly<Record<string, ReadonlyArray<string>>>
+  /**
+   * The client id of the `gz` app registration (design-agent-access.md
+   * Q15). A principal whose token that app requested is the command
+   * line, not the person's browser: it names no person, and the request
+   * needs a Gazetta token for an identity.
+   */
+  cliClientId?: string
 }
 
 interface AzureClaim {
@@ -91,6 +98,16 @@ interface AzureClientPrincipal {
 
 const NAMEID_CLAIM = 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'
 const EMAIL_CLAIM = 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'
+
+/**
+ * The calling app's client id: `appid` in v1.0 access tokens, `azp` in
+ * v2.0 (https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference).
+ * App Service may rename claims, so a URI form ending in either name
+ * counts too.
+ */
+function callingApp(claims: AzureClaim[]): string | undefined {
+  return claims.find(c => /(^|\/)(appid|azp)$/.test(c.typ))?.val
+}
 
 export function createAzureEasyAuthProvider(config: AzureEasyAuthConfig = {}): AuthIdentityProvider {
   const defaultRole = config.defaultRole ?? 'editor'
@@ -119,6 +136,8 @@ export function createAzureEasyAuthProvider(config: AzureEasyAuthConfig = {}): A
       if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.claims)) {
         throw new AuthenticationError('X-MS-CLIENT-PRINCIPAL is malformed (missing claims array)')
       }
+
+      if (config.cliClientId && callingApp(parsed.claims) === config.cliClientId) return null
 
       // Prefer X-MS-CLIENT-PRINCIPAL-ID when present (stable id);
       // fall back to the nameidentifier claim.

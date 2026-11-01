@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -38,6 +39,7 @@ type Env struct {
 	// Talking to an admin. Zero values get working defaults, so tests set
 	// only what they drive.
 	Ctx        stdctx.Context
+	Stdin      io.Reader
 	HTTP       *http.Client
 	Hostname   func() (string, error)
 	Terminal   bool // stdin and stdout are a terminal: gz may open a browser
@@ -45,11 +47,16 @@ type Env struct {
 	Now        func() time.Time
 	Sleep      func(ctx stdctx.Context, d time.Duration) error
 	PollPeriod time.Duration
+	// EntraAuthority replaces Microsoft's sign-in host (tests).
+	EntraAuthority string
 }
 
 func (e Env) withDefaults() Env {
 	if e.Ctx == nil {
 		e.Ctx = stdctx.Background()
+	}
+	if e.Stdin == nil {
+		e.Stdin = os.Stdin
 	}
 	if e.HTTP == nil {
 		e.HTTP = &http.Client{Timeout: 30 * time.Second}
@@ -142,6 +149,8 @@ type command struct {
 	run     func(ctx *context, args []string) error
 	// flags the command takes, each taking a value.
 	flags []string
+	// switches the command takes, without a value.
+	switches []string
 }
 
 type context struct {
@@ -164,14 +173,15 @@ var commands []command
 
 func init() {
 	commands = []command{
-		{"auth login", "gz auth login <admin-url> [--name <name>]", "Sign in to an admin", 1, 1, authLogin, []string{"--name"}},
-		{"auth list", "gz auth list", "List your admin profiles", 0, 0, authList, nil},
-		{"auth use", "gz auth use <name>", "Make a profile the default", 1, 1, authUse, nil},
-		{"auth status", "gz auth status", "Show which admin gz uses and which logins still work", 0, 0, authStatus, nil},
-		{"auth logout", "gz auth logout [name]", "Sign out: revoke the login and remove the profile", 0, 1, authLogout, nil},
-		{"skill", "gz skill", "Print the agent skill", 0, 0, skillPrint, nil},
-		{"skill install", "gz skill install <dir>", "Write the agent skill into an agent's skills folder", 1, 1, skillInstall, nil},
-		{"version", "gz version", "Print the gz version", 0, 0, showVersion, nil},
+		{"auth login", "gz auth login <admin-url> [--name <name>] [--paste] [--cf-client-id <id> --cf-client-secret <secret>] [--entra-tenant <t> --entra-client-id <id> --entra-scope <s>]", "Sign in to an admin", 1, 1, authLogin,
+			[]string{"--name", "--cf-client-id", "--cf-client-secret", "--entra-tenant", "--entra-client-id", "--entra-scope"}, []string{"--paste"}},
+		{"auth list", "gz auth list", "List your admin profiles", 0, 0, authList, nil, nil},
+		{"auth use", "gz auth use <name>", "Make a profile the default", 1, 1, authUse, nil, nil},
+		{"auth status", "gz auth status", "Show which admin gz uses and which logins still work", 0, 0, authStatus, nil, nil},
+		{"auth logout", "gz auth logout [name]", "Sign out: revoke the login and remove the profile", 0, 1, authLogout, nil, nil},
+		{"skill", "gz skill", "Print the agent skill", 0, 0, skillPrint, nil, nil},
+		{"skill install", "gz skill install <dir>", "Write the agent skill into an agent's skills folder", 1, 1, skillInstall, nil, nil},
+		{"version", "gz version", "Print the gz version", 0, 0, showVersion, nil, nil},
 	}
 }
 
@@ -258,11 +268,11 @@ func commandFlags(cmd *command, args []string) ([]string, map[string]string, err
 			continue
 		}
 		name, value, inline := strings.Cut(a, "=")
-		known := false
-		for _, f := range cmd.flags {
-			known = known || f == name
+		if slices.Contains(cmd.switches, name) && !inline {
+			flags[name] = "true"
+			continue
 		}
-		if !known {
+		if !slices.Contains(cmd.flags, name) {
 			return nil, nil, output.Errorf(output.Usage, "unknown flag %s", name).WithHint("usage: " + cmd.usage)
 		}
 		if !inline {

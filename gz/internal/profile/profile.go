@@ -17,11 +17,31 @@ import (
 // LocalAdmin is the admin `gazetta dev` serves.
 const LocalAdmin = "http://localhost:3000"
 
-// Profile is one admin gz can talk to.
+// Profile is one admin gz can talk to, and the login layer in front of it
+// (design-agent-access.md Q15). Secrets live in the grant store, not here.
 type Profile struct {
 	Name string `json:"name"`
 	URL  string `json:"url"`
+	// Platform is "" (nothing extra: gazetta dev, Tailscale), "cloudflare"
+	// (a service token), "entra" (Azure Easy Auth) or "alb" (a pasted grant,
+	// tokens in Authorization).
+	Platform string `json:"platform,omitempty"`
+	Entra    *Entra `json:"entra,omitempty"`
 }
+
+// Entra is the gz app registration gz signs in with behind Azure Easy Auth.
+type Entra struct {
+	Tenant   string `json:"tenant"`
+	ClientID string `json:"clientId"`
+	Scope    string `json:"scope"`
+}
+
+// Platforms gz knows.
+const (
+	PlatformCloudflare = "cloudflare"
+	PlatformEntra      = "entra"
+	PlatformALB        = "alb"
+)
 
 // Config is the profiles file.
 type Config struct {

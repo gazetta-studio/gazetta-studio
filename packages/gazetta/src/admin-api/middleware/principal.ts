@@ -173,6 +173,12 @@ export interface TokenAuth {
   environmentOf?: (c: Context) => string | undefined
 }
 
+/** The token in `Authorization: Bearer <token>`, if there is one. */
+function bearerOf(c: Context): string | undefined {
+  const m = /^Bearer\s+(\S+)$/i.exec(c.req.header('Authorization') ?? '')
+  return m?.[1]
+}
+
 /** The header a Gazetta token travels in (design-agent-access.md Q15). */
 export const GAZETTA_TOKEN_HEADER = 'Gazetta-Token'
 
@@ -180,7 +186,9 @@ export function principalMiddleware(provider: AuthIdentityProvider = noneAuthPro
   return createMiddleware<PrincipalEnv>(async (c, next) => {
     // A request carrying a Gazetta token is that token's person or
     // nobody: a bad token never falls back to the login layer's identity.
-    const token = c.req.header(GAZETTA_TOKEN_HEADER)
+    // Behind ALB, the token travels in `Authorization: Bearer`, the only
+    // header ALB's JWT check reads (design-agent-access.md Q15).
+    const token = c.req.header(GAZETTA_TOKEN_HEADER) ?? (provider.trustMode === 'aws-cognito' ? bearerOf(c) : undefined)
     if (token !== undefined) {
       const keys = tokens ? await tokens.keys() : null
       try {

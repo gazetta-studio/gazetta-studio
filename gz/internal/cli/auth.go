@@ -1,12 +1,15 @@
 package cli
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"strings"
 
 	"github.com/gazetta-studio/gazetta-studio/gz/internal/api"
+	"github.com/gazetta-studio/gazetta-studio/gz/internal/entra"
 	"github.com/gazetta-studio/gazetta-studio/gz/internal/grant"
 	"github.com/gazetta-studio/gazetta-studio/gz/internal/login"
 	"github.com/gazetta-studio/gazetta-studio/gz/internal/output"
@@ -18,27 +21,132 @@ import (
 // skillHint ends a login (design-agent-access.md Q41).
 const skillHint = "Using an AI agent? Run gz skill install <your agent's skills folder>."
 
-// client is an unauthenticated client for the admin at adminURL.
-func (ctx *context) client(adminURL string) (*api.ClientWithResponses, error) {
-	return session.NewClient(adminURL, ctx.env.HTTP)
+// connection is a profile's way in: the login layer's credentials on every
+// request, and a Gazetta token renewed from the grant (Q15, Q16).
+type connection struct {
+	// plain carries only the login layer's credentials: login, version and
+	// token renewal go through it.
+	plain *api.ClientWithResponses
+	// tokens renews Gazetta tokens; nil before a grant exists.
+	tokens *session.GrantSource
+	// signedIn adds the Gazetta token; nil before a grant exists.
+	signedIn *api.ClientWithResponses
 }
 
-// signedIn is a client whose requests carry a Gazetta token renewed from
-// the profile's grant (Q15, Q16).
-func (ctx *context) signedIn(p profile.Profile) (*api.ClientWithResponses, error) {
-	secret, err := ctx.env.Grants().Get(p.Name)
+// connect builds a profile's clients. Commands get these and never handle
+// grants or platform secrets themselves.
+func (ctx *context) connect(p profile.Profile, creds session.Credentials, entraToken *entra.Token) (connection, error) {
+	var platform []session.Decorator
+	switch p.Platform {
+	case profile.PlatformCloudflare:
+		platform = append(platform, session.CloudflareAccess(creds.CFClientID, creds.CFClientSecret))
+	case profile.PlatformEntra:
+		if p.Entra == nil {
+			return connection{}, output.Errorf(output.NeedsLogin, "the profile %s has no Microsoft sign-in settings", p.Name).
+				WithHint("Run gz auth login " + p.URL + " with --entra-tenant, --entra-client-id and --entra-scope.")
+		}
+		tok := entra.Token{Refresh: creds.EntraRefreshToken}
+		if entraToken != nil {
+			tok = *entraToken
+		}
+		save := func(refresh string) error {
+			if p.Name == "" {
+				return nil
+			}
+			creds.EntraRefreshToken = refresh
+			return ctx.env.Grants().Set(p.Name, creds.String())
+		}
+		src := entra.NewSource(ctx.env.HTTP, ctx.entraConfig(p.Entra), tok, ctx.env.Now, save)
+		platform = append(platform, session.WithBearerToken(src))
+	}
+	plain, err := session.NewClient(p.URL, ctx.env.HTTP, platform...)
+	if err != nil {
+		return connection{}, err
+	}
+	c := connection{plain: plain}
+	if creds.Grant == "" {
+		return c, nil
+	}
+	c.tokens = session.NewGrantSource(plain, p.URL, creds.Grant, ctx.env.Now)
+	token := session.WithToken(c.tokens)
+	if p.Platform == profile.PlatformALB {
+		token = session.WithBearerToken(c.tokens)
+	}
+	c.signedIn, err = session.NewClient(p.URL, ctx.env.HTTP, append(platform, token)...)
+	return c, err
+}
+
+func (ctx *context) entraConfig(e *profile.Entra) entra.Config {
+	return entra.Config{Authority: ctx.env.EntraAuthority, Tenant: e.Tenant, ClientID: e.ClientID, Scope: e.Scope}
+}
+
+// credentials reads a profile's stored credentials; NeedsLogin when none.
+func (ctx *context) credentials(p profile.Profile) (session.Credentials, error) {
+	stored, err := ctx.env.Grants().Get(p.Name)
 	if errors.Is(err, grant.ErrNotFound) {
-		return nil, output.Errorf(output.NeedsLogin, "not signed in to %s", p.URL).WithHint("Run: gz auth login " + p.URL)
+		return session.Credentials{}, output.Errorf(output.NeedsLogin, "not signed in to %s", p.URL).WithHint("Run: gz auth login " + p.URL)
 	}
+	if err != nil {
+		return session.Credentials{}, err
+	}
+	return session.ParseCredentials(stored), nil
+}
+
+// signedIn is a client whose requests carry the profile's credentials.
+func (ctx *context) signedIn(p profile.Profile) (*api.ClientWithResponses, error) {
+	creds, err := ctx.credentials(p)
 	if err != nil {
 		return nil, err
 	}
-	plain, err := ctx.client(p.URL)
+	c, err := ctx.connect(p, creds, nil)
 	if err != nil {
 		return nil, err
 	}
-	src := session.NewGrantSource(plain, p.URL, secret, ctx.env.Now)
-	return session.NewClient(p.URL, ctx.env.HTTP, session.WithToken(src))
+	return c.signedIn, nil
+}
+
+// loginPlatform reads the platform flags, falling back to the existing
+// profile's platform when none is given (a re-login).
+func (ctx *context) loginPlatform(existing profile.Profile, creds *session.Credentials) (profile.Profile, error) {
+	p := profile.Profile{Platform: existing.Platform, Entra: existing.Entra}
+	flag := func(name, env string) string {
+		if v := ctx.flags[name]; v != "" {
+			return v
+		}
+		if env != "" {
+			return ctx.env.Getenv(env)
+		}
+		return ""
+	}
+	cfID, cfSecret := flag("--cf-client-id", "GZ_CF_ACCESS_CLIENT_ID"), flag("--cf-client-secret", "GZ_CF_ACCESS_CLIENT_SECRET")
+	tenant, clientID, scope := flag("--entra-tenant", ""), flag("--entra-client-id", ""), flag("--entra-scope", "")
+	paste := ctx.flags["--paste"] == "true"
+
+	chosen := 0
+	for _, on := range []bool{cfID != "" || cfSecret != "", tenant != "" || clientID != "" || scope != "", paste} {
+		if on {
+			chosen++
+		}
+	}
+	if chosen > 1 {
+		return p, output.Errorf(output.Usage, "use one of --cf-client-id, --entra-* or --paste")
+	}
+	switch {
+	case cfID != "" || cfSecret != "":
+		if cfID == "" || cfSecret == "" {
+			return p, output.Errorf(output.Usage, "a Cloudflare service token needs both --cf-client-id and --cf-client-secret")
+		}
+		p.Platform, p.Entra = profile.PlatformCloudflare, nil
+		creds.CFClientID, creds.CFClientSecret = cfID, cfSecret
+	case tenant != "" || clientID != "" || scope != "":
+		if tenant == "" || clientID == "" || scope == "" {
+			return p, output.Errorf(output.Usage, "a Microsoft sign-in needs --entra-tenant, --entra-client-id and --entra-scope")
+		}
+		p.Platform, p.Entra = profile.PlatformEntra, &profile.Entra{Tenant: tenant, ClientID: clientID, Scope: scope}
+	case paste:
+		p.Platform, p.Entra = profile.PlatformALB, nil
+	}
+	return p, nil
 }
 
 func authLogin(ctx *context, args []string) error {
@@ -52,7 +160,8 @@ func authLogin(ctx *context, args []string) error {
 		return err
 	}
 	name := ctx.flags["--name"]
-	if existing, ok := c.Find(adminURL); ok && name == "" {
+	existing, hasExisting := c.Find(adminURL)
+	if hasExisting && name == "" {
 		name = existing.Name
 	}
 	if name == "" {
@@ -61,19 +170,37 @@ func authLogin(ctx *context, args []string) error {
 	if other, ok := c.Find(name); ok && strings.TrimRight(other.URL, "/") != adminURL {
 		return output.Errorf(output.Usage, "the profile %q is already %s", name, other.URL).WithHint("Pick another name with --name.")
 	}
-	machine, err := ctx.env.Hostname()
-	if err != nil || machine == "" {
-		machine = "unknown machine"
+
+	// A re-login keeps the platform secrets already stored.
+	var creds session.Credentials
+	if hasExisting {
+		if stored, err := ctx.env.Grants().Get(existing.Name); err == nil {
+			creds = session.ParseCredentials(stored)
+		}
 	}
-	client, err := ctx.client(adminURL)
+	creds.Grant = ""
+	p, err := ctx.loginPlatform(existing, &creds)
+	if err != nil {
+		return err
+	}
+	p.Name, p.URL = name, adminURL
+
+	var entraToken *entra.Token
+	if p.Platform == profile.PlatformEntra {
+		tok, err := ctx.entraSignIn(p.Entra)
+		if err != nil {
+			return err
+		}
+		entraToken, creds.EntraRefreshToken = &tok, tok.Refresh
+	}
+	conn, err := ctx.connect(p, creds, entraToken)
 	if err != nil {
 		return err
 	}
 	flow := &login.Flow{
-		Client:     client,
+		Client:     conn.plain,
 		AdminURL:   adminURL,
 		GzVersion:  version.String(),
-		Machine:    machine,
 		Status:     ctx.env.Stderr,
 		Terminal:   ctx.env.Terminal,
 		Open:       ctx.env.Open,
@@ -81,14 +208,24 @@ func authLogin(ctx *context, args []string) error {
 		Now:        ctx.env.Now,
 		PollPeriod: ctx.env.PollPeriod,
 	}
-	res, err := flow.Run(ctx.env.Ctx)
+	var res login.Result
+	if p.Platform == profile.PlatformALB {
+		res, err = ctx.pasteLogin(flow, p, creds)
+	} else {
+		flow.Machine, err = ctx.env.Hostname()
+		if err != nil || flow.Machine == "" {
+			flow.Machine = "unknown machine"
+		}
+		res, err = flow.Run(ctx.env.Ctx)
+	}
 	if err != nil {
 		return err
 	}
-	if err := ctx.env.Grants().Set(name, res.GrantSecret); err != nil {
+	creds.Grant = res.GrantSecret
+	if err := ctx.env.Grants().Set(name, creds.String()); err != nil {
 		return fmt.Errorf("storing the login: %w", err)
 	}
-	c.Put(profile.Profile{Name: name, URL: adminURL})
+	c.Put(p)
 	if err := c.Save(path); err != nil {
 		return err
 	}
@@ -101,21 +238,71 @@ func authLogin(ctx *context, args []string) error {
 	})
 }
 
+// entraSignIn runs Microsoft's device-code sign-in (Q15).
+func (ctx *context) entraSignIn(e *profile.Entra) (entra.Token, error) {
+	cfg := ctx.entraConfig(e)
+	d, err := entra.Start(ctx.env.Ctx, ctx.env.HTTP, cfg, ctx.env.Now())
+	if err != nil {
+		return entra.Token{}, err
+	}
+	fmt.Fprintf(ctx.env.Stderr, "Sign in to Microsoft: open %s and enter %s\n", d.VerificationURI, d.UserCode)
+	if ctx.env.Terminal && ctx.env.Open != nil {
+		_ = ctx.env.Open(d.VerificationURI)
+	}
+	return d.Wait(ctx.env.Ctx, ctx.env.HTTP, cfg, ctx.env.Now, ctx.env.Sleep)
+}
+
+// pasteLogin reads a grant created on the admin's "Sign in a command line"
+// page, behind ALB where a code can't be approved (Q15): from stdin, after
+// a prompt when run in a terminal.
+func (ctx *context) pasteLogin(flow *login.Flow, p profile.Profile, creds session.Credentials) (login.Result, error) {
+	if err := flow.CheckVersion(ctx.env.Ctx); err != nil {
+		return login.Result{}, err
+	}
+	if ctx.env.Terminal {
+		fmt.Fprintf(ctx.env.Stderr, "Create a sign-in at %s/admin/cli-signin and paste it here: ", p.URL)
+	}
+	line, err := bufio.NewReader(ctx.env.Stdin).ReadString('\n')
+	secret := strings.TrimSpace(line)
+	if secret == "" {
+		if err != nil && !errors.Is(err, io.EOF) {
+			return login.Result{}, err
+		}
+		return login.Result{}, output.Errorf(output.NeedsLogin, "no sign-in was pasted").
+			WithHint(fmt.Sprintf("Create one at %s/admin/cli-signin, then run: gz auth login %s --paste", p.URL, p.URL))
+	}
+	// Renewing a token proves the grant works before it's stored.
+	creds.Grant = secret
+	conn, err := ctx.connect(p, creds, nil)
+	if err != nil {
+		return login.Result{}, err
+	}
+	if _, err := conn.tokens.Token(ctx.env.Ctx); err != nil {
+		var e *output.Error
+		if errors.As(err, &e) && e.Exit == output.NeedsLogin {
+			return login.Result{}, output.Errorf(output.NeedsLogin, "the pasted sign-in doesn't work on %s", p.URL).
+				WithHint("Create a new one at " + p.URL + "/admin/cli-signin.")
+		}
+		return login.Result{}, err
+	}
+	return login.Result{GrantID: session.GrantID(secret), GrantSecret: secret}, nil
+}
+
 // loginState says whether a profile's grant still renews a token.
 func (ctx *context) loginState(p profile.Profile) string {
-	secret, err := ctx.env.Grants().Get(p.Name)
-	if errors.Is(err, grant.ErrNotFound) {
-		return "signed-out"
-	}
-	if err != nil {
-		return "unknown"
-	}
-	plain, err := ctx.client(p.URL)
-	if err != nil {
-		return "unknown"
-	}
-	_, err = session.NewGrantSource(plain, p.URL, secret, ctx.env.Now).Token(ctx.env.Ctx)
+	creds, err := ctx.credentials(p)
 	var e *output.Error
+	switch {
+	case errors.As(err, &e) && e.Exit == output.NeedsLogin:
+		return "signed-out"
+	case err != nil:
+		return "unknown"
+	}
+	conn, err := ctx.connect(p, creds, nil)
+	if err != nil {
+		return "unknown"
+	}
+	_, err = conn.tokens.Token(ctx.env.Ctx)
 	switch {
 	case err == nil:
 		return "renews"
@@ -226,7 +413,7 @@ func (ctx *context) revoke(p profile.Profile) (bool, string) {
 	if err != nil {
 		return false, stays
 	}
-	res, err := client.DeleteApiV1AuthGrantsIdWithResponse(ctx.env.Ctx, session.GrantID(secret))
+	res, err := client.DeleteApiV1AuthGrantsIdWithResponse(ctx.env.Ctx, session.GrantID(session.ParseCredentials(secret).Grant))
 	if err != nil {
 		var e *output.Error
 		// The grant no longer renews: it's expired or revoked already.

@@ -24,7 +24,12 @@ import {
 import { authMiddleware } from './middleware/auth.js'
 import { principalMiddleware } from './middleware/principal.js'
 import { auditMiddleware } from './middleware/audit.js'
-import { elevationMinutesFromManifest, resolveAuthProviderFromManifest } from '../auth/index.js'
+import {
+  AuthConfigurationError,
+  type AuthIdentityProvider,
+  elevationMinutesFromManifest,
+  resolveAuthProviderFromManifest,
+} from '../auth/index.js'
 import { createElevationStore } from '../auth/elevation-store.js'
 import { createTokenAuth } from './token-auth.js'
 import type { TokenAuth } from './middleware/principal.js'
@@ -113,6 +118,11 @@ export async function buildHooksRegistry(opts: BuildHooksRegistryOptions = {}): 
 import { startCacheStatsLogger } from './cache-stats-logger.js'
 
 export interface AdminAppOptions {
+  /**
+   * The identity provider. Defaults to the one `admin.auth` configures;
+   * tests pass one built with a local key set.
+   */
+  authProvider?: AuthIdentityProvider
   /**
    * Pre-built SourceContext — preferred when the caller controls source-content
    * resolution (e.g., derived from a TargetRegistry via createSourceContextFromRegistry).
@@ -376,7 +386,14 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   // we strict-parse it here against the typed AuthConfigSchema and
   // throw a clear AuthConfigurationError if the operator's block is
   // malformed.
-  const authProvider = resolveAuthProviderFromManifest(source.manifest?.admin?.auth)
+  const authProvider = opts.authProvider ?? resolveAuthProviderFromManifest(source.manifest?.admin?.auth)
+  // Behind ALB, Gazetta tokens use `Authorization: Bearer` (Q15), which
+  // the legacy GAZETTA_TOKEN guard also reads: the two can't share it.
+  if (authProvider.trustMode === 'aws-cognito' && process.env.GAZETTA_TOKEN) {
+    throw new AuthConfigurationError(
+      "GAZETTA_TOKEN can't be used with trust: 'aws-cognito': CLI tokens travel in the Authorization header behind ALB. Unset GAZETTA_TOKEN.",
+    )
+  }
   // CLI login (design-agent-access.md Q12, Q25): one token setup for
   // every principal middleware on this server.
   const sourceTarget =
@@ -536,6 +553,12 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
       keys,
       elevations,
       elevationMinutes: elevationMinutesFromManifest(source.manifest?.admin?.auth),
+      trustMode: authProvider.trustMode,
+      cloudflareServiceToken: () => {
+        const clientId = process.env.GAZETTA_CF_ACCESS_CLIENT_ID
+        const clientSecret = process.env.GAZETTA_CF_ACCESS_CLIENT_SECRET
+        return clientId && clientSecret ? { clientId, clientSecret } : undefined
+      },
     }),
   )
   app.route(API_PREFIX, api)
