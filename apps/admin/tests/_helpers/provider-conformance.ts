@@ -18,7 +18,7 @@
  * callback. The helper calls it once at suite start.
  */
 import { beforeAll, describe, it, expect } from 'vitest'
-import type { StorageProvider } from 'gazetta'
+import { StorageConditionalFailedError, type StorageProvider } from 'gazetta'
 
 export interface ProviderFactory {
   /** Human-readable name, used in the describe() label. */
@@ -169,6 +169,33 @@ export function runProviderConformance(factory: ProviderFactory): void {
       await provider.writeStream(path, oneShotStream(replacement))
       const actual = await drainStream(await provider.readStream(path))
       expect(actual).toEqual(replacement)
+    })
+
+    // Create-if-absent (#1554): one step on the server, so of racing
+    // writers exactly one wins and an existing file is never replaced.
+    it('writeFile with ifNoneMatch creates a missing file', async () => {
+      await provider.writeFile('conditional/new.txt', 'first', { ifNoneMatch: '*' })
+      expect(await provider.readFile('conditional/new.txt')).toBe('first')
+    })
+
+    it('writeFile with ifNoneMatch refuses an existing file and leaves it unchanged', async () => {
+      await provider.writeFile('conditional/existing.txt', 'first')
+      const err = await provider.writeFile('conditional/existing.txt', 'second', { ifNoneMatch: '*' }).catch(e => e)
+      expect(err).toBeInstanceOf(StorageConditionalFailedError)
+      expect(await provider.readFile('conditional/existing.txt')).toBe('first')
+    })
+
+    it('writeFile with ifNoneMatch lets exactly one of concurrent writers win', async () => {
+      const writers = Array.from({ length: 8 }, (_, i) => `writer-${i}`)
+      const results = await Promise.allSettled(
+        writers.map(w => provider.writeFile('conditional/race.txt', w, { ifNoneMatch: '*' })),
+      )
+      const won = results.flatMap((r, i) => (r.status === 'fulfilled' ? [writers[i]] : []))
+      expect(won).toHaveLength(1)
+      for (const r of results) {
+        if (r.status === 'rejected') expect(r.reason).toBeInstanceOf(StorageConditionalFailedError)
+      }
+      expect(await provider.readFile('conditional/race.txt')).toBe(won[0])
     })
   })
 }

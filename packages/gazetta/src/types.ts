@@ -870,6 +870,12 @@ export interface ByteRange {
   end: number
 }
 
+/** Options for `StorageProvider.writeFile`. */
+export interface WriteFileOptions {
+  /** `'*'`: create the file only if it doesn't exist (atomic create-if-absent). */
+  ifNoneMatch?: '*'
+}
+
 /**
  * Storage abstraction — filesystem, S3, R2, Azure Blob.
  *
@@ -911,7 +917,13 @@ export interface StorageProvider {
   readFile(path: string): Promise<string>
   readDir(path: string): Promise<DirEntry[]>
   exists(path: string): Promise<boolean>
-  writeFile(path: string, content: string): Promise<void>
+  /**
+   * Write `content` to `path`. With `ifNoneMatch: '*'`, write only if
+   * `path` doesn't exist yet, checked and written in one step: of two
+   * writers racing for the same path, one succeeds and the other gets
+   * `StorageConditionalFailedError`, and the existing file is unchanged.
+   */
+  writeFile(path: string, content: string, opts?: WriteFileOptions): Promise<void>
   mkdir(path: string): Promise<void>
   rm(path: string): Promise<void>
   /**

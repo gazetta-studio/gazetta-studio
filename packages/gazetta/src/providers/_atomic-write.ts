@@ -23,10 +23,11 @@
  * naturally atomic single-object PUT and does not need this policy.
  */
 import { createWriteStream } from 'node:fs'
-import { mkdir, rename, rm } from 'node:fs/promises'
+import { link, mkdir, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import writeFileAtomic from 'write-file-atomic'
+import { StorageConditionalFailedError } from '../storage-errors.js'
 import { webReadableToNode, type Writable } from './_stream-interop.js'
 
 export async function atomicWriteString(path: string, content: string): Promise<void> {
@@ -34,6 +35,28 @@ export async function atomicWriteString(path: string, content: string): Promise<
   // next to the target. Same contract as atomicWriteStream.
   await mkdir(dirname(path), { recursive: true })
   await writeFileAtomic(path, content, 'utf-8')
+}
+
+/**
+ * Create `path` with `content` only if it doesn't exist (#1554), throwing
+ * `StorageConditionalFailedError` if it does. The content goes to a temp
+ * file first and is then hard-linked into place: `link(2)` fails with
+ * EEXIST when the target exists and is atomic, so of two writers only one
+ * wins, an existing file is never replaced, and readers never see a
+ * partial file (which writing the target with `wx` directly would allow).
+ */
+export async function atomicCreateString(path: string, content: string): Promise<void> {
+  await mkdir(dirname(path), { recursive: true })
+  const tmpPath = `${path}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`
+  try {
+    await writeFile(tmpPath, content, { encoding: 'utf-8', flag: 'wx' })
+    await link(tmpPath, path)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'EEXIST') throw new StorageConditionalFailedError(path, { cause: err })
+    throw err
+  } finally {
+    await rm(tmpPath, { force: true })
+  }
 }
 
 /**

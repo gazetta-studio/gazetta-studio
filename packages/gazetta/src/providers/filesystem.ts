@@ -1,8 +1,9 @@
 import { createReadStream } from 'node:fs'
 import { access, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { ByteRange, DirEntry, StorageProvider } from '../types.js'
-import { atomicWriteBytes, atomicWriteStream, atomicWriteString } from './_atomic-write.js'
+import { StorageConditionalFailedError } from '../storage-errors.js'
+import type { ByteRange, DirEntry, StorageProvider, WriteFileOptions } from '../types.js'
+import { atomicCreateString, atomicWriteBytes, atomicWriteStream, atomicWriteString } from './_atomic-write.js'
 import { nodeReadableToWeb } from './_stream-interop.js'
 
 /**
@@ -59,11 +60,13 @@ export function createFilesystemProvider(basePath?: string): StorageProvider {
       }
     },
 
-    async writeFile(path: string, content: string): Promise<void> {
+    async writeFile(path: string, content: string, opts?: WriteFileOptions): Promise<void> {
       const fullPath = resolvePath(path)
       try {
-        await atomicWriteString(fullPath, content)
+        if (opts?.ifNoneMatch === '*') await atomicCreateString(fullPath, content)
+        else await atomicWriteString(fullPath, content)
       } catch (err) {
+        if (err instanceof StorageConditionalFailedError) throw new StorageConditionalFailedError(path, { cause: err })
         throw new Error(`Cannot write ${fullPath}: ${(err as Error).message}`)
       }
     },
