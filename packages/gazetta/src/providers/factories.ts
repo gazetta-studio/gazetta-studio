@@ -241,8 +241,8 @@ function makeLazyStorageProxy(
     async exists(path) {
       return (await ensure()).exists(path)
     },
-    async writeFile(path, content) {
-      return (await ensure()).writeFile(path, content)
+    async writeFile(path, content, opts) {
+      return (await ensure()).writeFile(path, content, opts)
     },
     async readBytes(path) {
       return (await ensure()).readBytes(path)

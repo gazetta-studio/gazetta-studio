@@ -1,5 +1,6 @@
 import { BlobServiceClient, type ContainerClient } from '@azure/storage-blob'
-import type { ByteRange, DirEntry, StorageProvider } from '../types.js'
+import { StorageConditionalFailedError } from '../storage-errors.js'
+import type { ByteRange, DirEntry, StorageProvider, WriteFileOptions } from '../types.js'
 import { nodeReadableToWeb, webReadableToNode } from './_stream-interop.js'
 
 export interface AzureBlobProviderOptions {
@@ -72,11 +73,21 @@ export function createAzureBlobProvider(
       return false
     },
 
-    async writeFile(path: string, content: string): Promise<void> {
+    async writeFile(path: string, content: string, opts?: WriteFileOptions): Promise<void> {
       const blobClient = containerClient.getBlockBlobClient(normalizePath(path))
-      await blobClient.upload(content, Buffer.byteLength(content), {
-        blobHTTPHeaders: { blobContentType: 'text/plain; charset=utf-8' },
-      })
+      try {
+        await blobClient.upload(content, Buffer.byteLength(content), {
+          blobHTTPHeaders: { blobContentType: 'text/plain; charset=utf-8' },
+          ...(opts?.ifNoneMatch ? { conditions: { ifNoneMatch: opts.ifNoneMatch } } : {}),
+        })
+      } catch (err) {
+        // 409 BlobAlreadyExists when the blob exists; 412 on a failed precondition.
+        const status = (err as { statusCode?: number }).statusCode
+        if (opts?.ifNoneMatch && (status === 409 || status === 412)) {
+          throw new StorageConditionalFailedError(path, { cause: err })
+        }
+        throw err
+      }
     },
 
     async readBytes(path: string): Promise<Uint8Array> {

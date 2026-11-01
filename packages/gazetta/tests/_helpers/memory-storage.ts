@@ -17,7 +17,8 @@
  *
  * # Test contract
  *
- * - `readFile` / `writeFile`: text round-trip via UTF-8.
+ * - `readFile` / `writeFile`: text round-trip via UTF-8; `writeFile`
+ *   honours `ifNoneMatch: '*'`.
  * - `readBytes` / `writeBytes`: bytes-in / bytes-out, no encoding.
  * - `readStream` / `writeStream`: implemented for completeness;
  *    callers that exercise streaming get correct behavior. Single-
@@ -30,7 +31,8 @@
  * `dump()` and `seed()` are test-only escape hatches for inspecting
  * and pre-populating storage state.
  */
-import type { ByteRange, DirEntry, StorageProvider } from '../../src/types.js'
+import { StorageConditionalFailedError } from '../../src/storage-errors.js'
+import type { ByteRange, DirEntry, StorageProvider, WriteFileOptions } from '../../src/types.js'
 
 export interface MemoryStorage extends StorageProvider {
   /** Inspect the entire storage map. Bytes are the canonical form. */
@@ -57,7 +59,9 @@ export function memoryStorage(): MemoryStorage {
       if (v === undefined) throw new Error(`ENOENT: ${path}`)
       return dec.decode(v)
     },
-    async writeFile(path: string, content: string): Promise<void> {
+    async writeFile(path: string, content: string, opts?: WriteFileOptions): Promise<void> {
+      // Synchronous check-and-set: atomic within one JS realm.
+      if (opts?.ifNoneMatch === '*' && files.has(path)) throw new StorageConditionalFailedError(path)
       files.set(path, enc.encode(content))
     },
     async readBytes(path: string): Promise<Uint8Array> {

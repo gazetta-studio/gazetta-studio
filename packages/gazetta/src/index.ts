@@ -15,10 +15,12 @@ export type {
   DirEntry,
   StorageKind,
   StorageProvider,
+  WriteFileOptions,
   ByteRange,
   PurgeStrategy,
 } from './types.js'
 export { getType, isEditable, isPublicStorage } from './types.js'
+export { StorageConditionalFailedError } from './storage-errors.js'
 export type { TargetType } from './types.js'
 export {
   createTargetRegistryView,

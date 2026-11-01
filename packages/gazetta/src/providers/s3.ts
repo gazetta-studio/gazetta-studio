@@ -10,7 +10,8 @@ import {
 } from '@aws-sdk/client-s3'
 import { Upload } from '@aws-sdk/lib-storage'
 import type { Readable } from 'node:stream'
-import type { ByteRange, DirEntry, StorageProvider } from '../types.js'
+import { StorageConditionalFailedError } from '../storage-errors.js'
+import type { ByteRange, DirEntry, StorageProvider, WriteFileOptions } from '../types.js'
 import { nodeReadableToWeb, webReadableToNode } from './_stream-interop.js'
 
 export interface S3ProviderOptions {
@@ -105,21 +106,32 @@ export function createS3Provider(options: S3ProviderOptions): StorageProvider & 
       }
     },
 
-    async writeFile(path: string, content: string): Promise<void> {
+    async writeFile(path: string, content: string, opts?: WriteFileOptions): Promise<void> {
       // Encode to Buffer so the SDK sees a known length and skips the
       // "Stream of unknown length" warning. Same wire bytes either way —
       // strings get UTF-8-encoded by the SDK on the way out, we're just
       // doing it ourselves to make the length explicit.
       const body = Buffer.from(content, 'utf-8')
-      await client.send(
-        new PutObjectCommand({
-          Bucket: bucket,
-          Key: normalizePath(path),
-          Body: body,
-          ContentLength: body.length,
-          ContentType: 'text/plain; charset=utf-8',
-        }),
-      )
+      try {
+        await client.send(
+          new PutObjectCommand({
+            Bucket: bucket,
+            Key: normalizePath(path),
+            Body: body,
+            ContentLength: body.length,
+            ContentType: 'text/plain; charset=utf-8',
+            ...(opts?.ifNoneMatch ? { IfNoneMatch: opts.ifNoneMatch } : {}),
+          }),
+        )
+      } catch (err) {
+        // 412 when the object exists; AWS answers 409 to a conditional
+        // write racing another one for the same key.
+        const status = (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode
+        if (opts?.ifNoneMatch && (status === 412 || status === 409)) {
+          throw new StorageConditionalFailedError(path, { cause: err })
+        }
+        throw err
+      }
     },
 
     async readBytes(path: string): Promise<Uint8Array> {
