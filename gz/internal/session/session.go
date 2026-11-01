@@ -8,6 +8,7 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"sync"
@@ -86,6 +87,12 @@ func (s *GrantSource) Token(ctx context.Context) (string, error) {
 	}
 	res, err := s.client.PostApiV1AuthTokensWithResponse(ctx, api.PostApiV1AuthTokensJSONRequestBody{GrantSecret: s.grantSecret})
 	if err != nil {
+		// A request decorator's own error (a lapsed Entra sign-in) says
+		// what to do; only a transport failure means the admin is out of reach.
+		var e *output.Error
+		if errors.As(err, &e) {
+			return "", e
+		}
 		return "", output.Errorf(output.Failure, "can't reach %s: %v", s.adminURL, err)
 	}
 	if res.StatusCode() != http.StatusOK {

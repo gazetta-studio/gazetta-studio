@@ -152,6 +152,8 @@ type Entra struct {
 	Refreshes int
 	// Decision is what the second poll answers: "" signs in, else the error.
 	Decision string
+	// RefuseRefresh makes refreshes answer invalid_grant, as a lapsed session does.
+	RefuseRefresh bool
 }
 
 // NewEntra starts the fake.
@@ -172,6 +174,10 @@ func (e *Entra) serve(w http.ResponseWriter, r *http.Request) {
 			"expires_in": 900, "interval": 5, "message": "To sign in, use a web browser",
 		})
 	case strings.HasSuffix(r.URL.Path, "/oauth2/v2.0/token") && r.Form.Get("grant_type") == "refresh_token":
+		if e.RefuseRefresh {
+			reply(w, 400, map[string]any{"error": "invalid_grant", "error_description": "the session expired"})
+			return
+		}
 		e.Refreshes++
 		reply(w, 200, map[string]any{
 			"access_token": fmt.Sprintf("entra-access-r%d", e.Refreshes), "expires_in": 3600,
