@@ -1,7 +1,7 @@
-<!-- gazetta:agents start -->
+<!-- gazetta:agents start version={{version}} -->
 ## Gazetta
 
-This project is a Gazetta site. Before you change anything under `sites/`, `templates/` or `admin/`, install the Gazetta skill if your skills folder doesn't have it yet: copy the folder `node_modules/gazetta/agents/gazetta/` into the folder your agent reads skills from (for example `.claude/skills/gazetta/` for Claude Code, or `.agents/skills/gazetta/` for Codex, Copilot and Cursor). It matches the installed version of Gazetta. Then follow it.
+This project is a Gazetta site, and this section is for Gazetta {{version}}. Before you change anything under `sites/`, `templates/` or `admin/`, make sure the Gazetta skill is installed: copy the folder `node_modules/gazetta/agents/gazetta/` into the folder your agent reads skills from (for example `.claude/skills/gazetta/` for Claude Code, or `.agents/skills/gazetta/` for Codex, Copilot and Cursor). Copy it again, replacing the old one, when your installed copy's `gazetta-version` is older than {{version}}. Then follow it.
 
 Never run these; ask the person to:
 - `gazetta publish`

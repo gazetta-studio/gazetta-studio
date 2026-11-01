@@ -91,3 +91,7 @@ coverage/
 # next to its package.json so `npm publish` ships it and the npm page shows
 # it. The root README is the single source - never commit the copy.
 packages/gazetta/README.md
+
+# The agent skill and AGENTS.md section with the package version stamped in:
+# packages/gazetta's build writes agents/ from agents-src/ (scripts/stamp-agents.mjs).
+packages/gazetta/agents/
