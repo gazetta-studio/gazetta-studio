@@ -27,7 +27,7 @@ interface GzFormContext {
   reorderArray: (path: readonly (string | number)[], fromIndex: number, toIndex: number) => void
   /** Base URL for loading custom field modules (e.g. /admin/@fs/path/to/fields) */
   fieldsBaseUrl?: string
-  /** Base URL of the admin API (e.g. `/admin/api`) for asset summary fetches */
+  /** Base URL of the admin API (e.g. `/admin/api/v1`) for asset summary fetches */
   assetsApiBase?: string
   /** Current theme — passed to custom field widgets */
   theme?: 'dark' | 'light'
@@ -1207,7 +1207,7 @@ export interface DefaultEditorFormProps {
    */
   onPickAsset?: (options: { accept?: string[]; currentAssetName?: string | null }) => Promise<{ _asset: string } | null>
   /**
-   * Base URL of the admin API (e.g. `/admin/api`) — used by the asset
+   * Base URL of the admin API (e.g. `/admin/api/v1`) — used by the asset
    * field widget to fetch asset summaries. Supplied by the admin; the
    * editor package can't derive it reliably from the page URL.
    */

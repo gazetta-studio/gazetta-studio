@@ -41,7 +41,7 @@ interface AssetSummaryShape {
 /** Context the admin supplies — widget depends on the abstract shape. */
 interface AssetPickerContext {
   onPickAsset?: (options: { accept?: string[]; currentAssetName?: string | null }) => Promise<{ _asset: string } | null>
-  /** Admin API base (e.g. `/admin/api`) — preferred source for summary fetches */
+  /** Admin API base (e.g. `/admin/api/v1`) — preferred source for summary fetches */
   assetsApiBase?: string
 }
 
@@ -82,7 +82,7 @@ export function AssetEmbeddedWidget(props: WidgetProps) {
     // `/` in dev-monorepo). The `/admin/api/...` prefix is added by the
     // admin's build — at runtime we fetch relative to the document.
     const ctx = props.formContext as AssetPickerContext | undefined
-    const apiBase = ctx?.assetsApiBase ?? `${resolveAdminBase()}/api`
+    const apiBase = ctx?.assetsApiBase ?? `${resolveAdminBase()}/api/v1`
     fetch(`${apiBase}/assets/${encodeURIComponent(assetName)}`, {
       headers: { 'Content-Type': 'application/json' },
     })
@@ -169,7 +169,7 @@ export function AssetEmbeddedWidget(props: WidgetProps) {
  * monorepo dev setup the admin is served at `/admin/`; in site-project
  * dev it's at `/admin/` too; the admin SPA's document is always mounted
  * under the admin path, so we strip everything after `/admin/` and use
- * that as the base for `/api/...` calls.
+ * that as the base for `/api/v1/...` calls.
  *
  * Keeps the widget free of Vite's `import.meta.env` (which would tie
  * this package to a Vite build and break its Node-only tsc).
@@ -179,7 +179,7 @@ function resolveAdminBase(): string {
   const href = document.baseURI
   try {
     const url = new URL(href)
-    // Strip trailing slash; the widget prepends its own `/api/...`.
+    // Strip trailing slash; the widget prepends its own `/api/v1/...`.
     return url.pathname.replace(/\/$/, '')
   } catch {
     return ''

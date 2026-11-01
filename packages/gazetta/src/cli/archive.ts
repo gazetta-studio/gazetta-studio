@@ -244,7 +244,7 @@ async function runPurge(opts: {
     return
   }
   const { app } = await buildApp(opts.siteDir, opts.targetName)
-  const path = `/api/${kind}s/${opts.name}/purge${opts.force ? '?force=true' : ''}`
+  const path = `/api/v1/${kind}s/${opts.name}/purge${opts.force ? '?force=true' : ''}`
   const res = await app.request(path, { method: 'DELETE' })
   if (res.status === 200) {
     sink.line(`✓ Purged ${kind} ${opts.name}`)
@@ -282,7 +282,7 @@ async function runRestore(opts: {
     return
   }
   const { app } = await buildApp(opts.siteDir, opts.targetName)
-  const res = await app.request(`/api/${kind}s/${opts.name}/unarchive`, { method: 'POST' })
+  const res = await app.request(`/api/v1/${kind}s/${opts.name}/unarchive`, { method: 'POST' })
   if (res.status === 200) {
     sink.line(`✓ Restored ${kind} ${opts.name}`)
     return
@@ -322,7 +322,7 @@ async function runRename(opts: {
     return
   }
   const { app } = await buildApp(opts.siteDir, opts.targetName)
-  const res = await app.request(`/api/${kind}s/${opts.oldName}/rename${opts.force ? '?force=true' : ''}`, {
+  const res = await app.request(`/api/v1/${kind}s/${opts.oldName}/rename${opts.force ? '?force=true' : ''}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ to: opts.newName, keepAlias: opts.keepAlias }),
