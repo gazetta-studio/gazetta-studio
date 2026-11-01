@@ -417,7 +417,7 @@ Decided: maintainer, 2026-11-01 (#1630)
 
 How CLI login is turned on: it's on whenever `GAZETTA_SIGNING_KEY` is set. On a hosted admin (any trust mode other than `none`) without the key, the login and token routes answer a problem 503 and the admin still starts. `gazetta dev` (trust `none`) generates a key and is always on. No new config. This replaces "a hosted admin with CLI login enabled refuses to start without it" above.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1689)
 
 | Rejected | Why |
 |---|---|
@@ -426,7 +426,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 Tokens are signed and verified with jose (panva/jose; MIT, no dependencies). It handles RS256, key ids for rotation, clock leeway (Q27) and the claim checks, and cut 9 can reuse it to publish the public keys (Q15). The version and its advisories are checked when it's added (cut 7).
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1689)
 
 | Rejected | Why |
 |---|---|
