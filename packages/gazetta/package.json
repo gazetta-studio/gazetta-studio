@@ -146,7 +146,7 @@
     "@aws-sdk/lib-storage": "^3.1159.0",
     "@azure/storage-blob": "^12.34.0",
     "@cloudflare/workers-types": "^4.20260511.1",
-    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/core": "^10.1.1",
     "@stryker-mutator/typescript-checker": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
     "@types/jsdom": "^30.0.0",
