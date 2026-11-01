@@ -807,7 +807,7 @@ Cut 10 depends on cut 2 and cut 11 on cut 4, so the bulk save never ships withou
 
 To reach a working `gz` sooner, the REVIEW PRS session builds cuts 1, 3, 4 and 7 back to back instead of one cut per night, and at the same time cut 12a: the Go work that needs no server (the module, CI job, goreleaser, login profiles, keychain storage, output and exit codes, and `gz skill`). `gz auth login` and the version check stay in cut 12, after cut 7, so `gz` works against an admin once tokens land.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1669)
 
 | Rejected | Why |
 |---|---|
