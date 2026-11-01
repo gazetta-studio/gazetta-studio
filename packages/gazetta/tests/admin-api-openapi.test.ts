@@ -3,6 +3,7 @@
  * Q44): it lists exactly the /api routes the admin app registers, so a
  * route added without a schema fails here.
  */
+import { Validator } from '@seriousme/openapi-schema-validator'
 import { describe, expect, it } from 'vitest'
 import { createAdminApp } from '../src/admin-api/index.js'
 import { createSourceContext } from '../src/admin-api/source-context.js'
@@ -71,6 +72,12 @@ describe('GET /api/openapi.json', () => {
     const doc = await documentOf(buildApp())
     expect(doc.openapi).toBe('3.1.0')
     expect(doc.servers).toEqual([{ url: '/' }])
+  })
+
+  it('validates against the OpenAPI 3.1 schema', async () => {
+    const result = await new Validator().validate(await documentOf(buildApp()))
+    expect(result.errors ?? []).toEqual([])
+    expect(result.valid).toBe(true)
   })
 
   it('lists exactly the /api routes the app registers', async () => {
