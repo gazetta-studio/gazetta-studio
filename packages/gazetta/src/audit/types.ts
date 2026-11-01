@@ -61,7 +61,8 @@
  * `login-approve` / `login-deny` / `grant-revoke`. An approval refused
  * because the request wasn't a person's browser is `login-approve` with
  * outcome `forbidden` (or `unauthenticated`), as capability denials are
- * recorded. Elevation actions come with cut 8.
+ * recorded. Elevations (Q17) add `elevation-approve` / `elevation-deny` /
+ * `elevation-end`; one that simply runs out records nothing.
  */
 export type AuditAction =
   | 'save'
@@ -83,6 +84,9 @@ export type AuditAction =
   | 'login-approve'
   | 'login-deny'
   | 'grant-revoke'
+  | 'elevation-approve'
+  | 'elevation-deny'
+  | 'elevation-end'
 
 /**
  * Closed enum of outcomes. Locked: every recording site supplies

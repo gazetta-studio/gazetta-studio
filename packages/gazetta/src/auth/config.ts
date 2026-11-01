@@ -68,6 +68,11 @@ const noneAuthSchema = z
     trust: z.literal('none'),
     /** Custom role declarations (rare in `none` mode but allowed). */
     roles: z.record(z.string(), roleSchema).optional(),
+    /**
+     * How long an approved elevation lasts, in minutes (design-agent-access.md
+     * Q17). Default 15. Fixed from approval: using it doesn't extend it.
+     */
+    elevationMinutes: z.number().int().positive().optional(),
     /** Strict mode — invalid roles fail boot vs. log warning. */
     strict: z.boolean().optional(),
   })
@@ -110,6 +115,11 @@ const forwardedUserAuthSchema = z
      */
     allowAnyOrigin: z.boolean().optional(),
     roles: z.record(z.string(), roleSchema).optional(),
+    /**
+     * How long an approved elevation lasts, in minutes (design-agent-access.md
+     * Q17). Default 15. Fixed from approval: using it doesn't extend it.
+     */
+    elevationMinutes: z.number().int().positive().optional(),
     roleMapping: roleMappingSchema.optional(),
     strict: z.boolean().optional(),
   })
@@ -150,6 +160,11 @@ const cloudflareAccessAuthSchema = z
     /** Optional aud claim — recommended for production. */
     audience: z.string().optional(),
     roles: z.record(z.string(), roleSchema).optional(),
+    /**
+     * How long an approved elevation lasts, in minutes (design-agent-access.md
+     * Q17). Default 15. Fixed from approval: using it doesn't extend it.
+     */
+    elevationMinutes: z.number().int().positive().optional(),
     roleMapping: roleMappingSchema.optional(),
     strict: z.boolean().optional(),
   })
@@ -165,6 +180,11 @@ const azureEasyAuthSchema = z
   .object({
     trust: z.literal('azure-easy-auth'),
     roles: z.record(z.string(), roleSchema).optional(),
+    /**
+     * How long an approved elevation lasts, in minutes (design-agent-access.md
+     * Q17). Default 15. Fixed from approval: using it doesn't extend it.
+     */
+    elevationMinutes: z.number().int().positive().optional(),
     roleMapping: roleMappingSchema.optional(),
     strict: z.boolean().optional(),
   })
@@ -188,6 +208,11 @@ const awsCognitoAuthSchema = z
     /** Optional aud claim — Cognito user-pool app client id. */
     audience: z.string().optional(),
     roles: z.record(z.string(), roleSchema).optional(),
+    /**
+     * How long an approved elevation lasts, in minutes (design-agent-access.md
+     * Q17). Default 15. Fixed from approval: using it doesn't extend it.
+     */
+    elevationMinutes: z.number().int().positive().optional(),
     roleMapping: roleMappingSchema.optional(),
     strict: z.boolean().optional(),
   })
@@ -207,6 +232,11 @@ const tailscaleAuthSchema = z
   .object({
     trust: z.literal('tailscale'),
     roles: z.record(z.string(), roleSchema).optional(),
+    /**
+     * How long an approved elevation lasts, in minutes (design-agent-access.md
+     * Q17). Default 15. Fixed from approval: using it doesn't extend it.
+     */
+    elevationMinutes: z.number().int().positive().optional(),
     /** Role every tailnet user gets: a built-in role or one from `roles`. Default `editor`. */
     defaultRole: z.string().optional(),
     roleMapping: z.never({ error: TAILSCALE_ROLE_MAPPING_UNSUPPORTED }).optional(),
