@@ -52,6 +52,8 @@ homebrew_casks:
     repository:
       owner: gazetta-studio
       name: homebrew-tap
+      # A token that can push to the tap; GITHUB_TOKEN reaches only this repo.
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: https://gazetta.studio
     description: Edit a Gazetta site through its admin
     binaries: [gz]
