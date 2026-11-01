@@ -12,7 +12,6 @@
  */
 import { createRoute, z } from '@hono/zod-openapi'
 import type { Context } from 'hono'
-import { createMiddleware } from 'hono/factory'
 import { problem, type ProblemResponse } from '../problem.js'
 import { enumerateOverrideSlices } from '../../assets/asset-paths.js'
 import { deleteAsset } from '../../assets/delete.js'
@@ -47,6 +46,7 @@ import type { AssetErrorHttpStatus } from '../../assets/errors.js'
 import type { AssetManifest } from '../../schema/types.js'
 import type { StorageProvider } from '../../types.js'
 import { apiApp, json, problems } from '../openapi.js'
+import { bodyFailure, jsonBody } from '../route-input.js'
 import {
   AssetMetadataPatchSchema,
   AssetMetadataResponseSchema,
@@ -113,38 +113,6 @@ function assetProblem<S extends AssetErrorHttpStatus = AssetErrorHttpStatus>(
  * PATCH /api/assets/:name's body checks, run before the schema so a bad
  * body answers the same messages it did before the route had one.
  */
-const checkMetadataPatch = createMiddleware(async (c, next) => {
-  let raw: unknown
-  try {
-    raw = await c.req.json()
-  } catch {
-    return problem(c, 400, 'BAD_REQUEST', 'Invalid JSON body')
-  }
-  const wrong = metadataPatchProblem(raw)
-  if (wrong) return problem(c, 400, 'BAD_REQUEST', wrong)
-  await next()
-})
-
-/** What's wrong with a PATCH body, or null when it's a valid patch. */
-function metadataPatchProblem(raw: unknown): string | null {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return 'Body must be an object'
-  const body = raw as Record<string, unknown>
-  if ('alt' in body && body.alt !== null && typeof body.alt !== 'string') return 'alt must be string or null'
-  if ('focalPoint' in body && body.focalPoint !== null) {
-    const v = body.focalPoint
-    if (
-      typeof v !== 'object' ||
-      typeof (v as Record<string, unknown>).x !== 'number' ||
-      typeof (v as Record<string, unknown>).y !== 'number'
-    ) {
-      return 'focalPoint must be { x: number, y: number } or null'
-    }
-    const fp = v as { x: number; y: number }
-    if (fp.x < 0 || fp.x > 1 || fp.y < 0 || fp.y > 1) return 'focalPoint x and y must be in [0, 1]'
-  }
-  return null
-}
-
 /** Override locales and themes of an asset, for its summary. */
 async function overridesOf(storage: StorageProvider, manifest: AssetManifest) {
   const slices = await enumerateOverrideSlices(storage, ASSETS_ROOT, manifest)
@@ -161,7 +129,7 @@ async function overridesOf(storage: StorageProvider, manifest: AssetManifest) {
 
 const listAssetsRoute = createRoute({
   method: 'get',
-  path: '/api/assets',
+  path: '/assets',
   summary: 'The assets on a target',
   middleware: [requireCapability('read:assets')] as const,
   request: { query: TargetQuerySchema },
@@ -173,7 +141,7 @@ const listAssetsRoute = createRoute({
 
 const getAssetRoute = createRoute({
   method: 'get',
-  path: '/api/assets/:name',
+  path: '/assets/:name',
   summary: 'An asset',
   middleware: [requireCapability('read:assets')] as const,
   request: { params: AssetNameParamSchema, query: TargetQuerySchema },
@@ -214,9 +182,13 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
    */
   const patchAssetRoute = createRoute({
     method: 'patch',
-    path: '/api/assets/:name',
+    path: '/assets/:name',
     summary: "Update an asset's alt text or focal point",
-    middleware: [requireCapability('edit:assets'), editableTarget, checkMetadataPatch] as const,
+    middleware: [
+      requireCapability('edit:assets'),
+      editableTarget,
+      jsonBody({ malformed: { code: 'BAD_REQUEST', detail: 'Invalid JSON body' } }),
+    ] as const,
     request: {
       params: AssetNameParamSchema,
       query: TargetQuerySchema,
@@ -237,7 +209,7 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
 
   const deleteAssetRoute = createRoute({
     method: 'delete',
-    path: '/api/assets/:name',
+    path: '/assets/:name',
     summary: 'Delete an asset nothing uses',
     middleware: [requireCapability('delete:assets'), editableTarget] as const,
     request: { params: AssetNameParamSchema, query: TargetQuerySchema },
@@ -270,7 +242,7 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
    */
   const renameAssetRoute = createRoute({
     method: 'post',
-    path: '/api/assets/:name/rename-to/:newName',
+    path: '/assets/:name/rename-to/:newName',
     summary: 'Rename an asset and every reference to it',
     middleware: [requireCapability('edit:assets'), editableTarget] as const,
     request: { params: AssetRenameParamSchema, query: TargetQuerySchema },
@@ -302,7 +274,7 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
    */
   const replaceAssetRoute = createRoute({
     method: 'post',
-    path: '/api/assets/:name/replace-with/:newName',
+    path: '/assets/:name/replace-with/:newName',
     summary: 'Point every reference at another asset, then delete this one',
     middleware: [requireCapability('edit:assets'), editableTarget] as const,
     request: { params: AssetRenameParamSchema, query: TargetQuerySchema },
@@ -340,7 +312,7 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
    */
   const suggestAltRoute = createRoute({
     method: 'post',
-    path: '/api/assets/:name/suggest-alt',
+    path: '/assets/:name/suggest-alt',
     summary: 'Suggest alt text for an asset with the configured AI provider',
     middleware: [requireCapability('edit:assets')] as const,
     request: { params: AssetNameParamSchema, query: SuggestAltQuerySchema },
@@ -375,7 +347,7 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
    */
   const uploadLocaleBytesRoute = createRoute({
     method: 'post',
-    path: '/api/assets/:name/locale-bytes',
+    path: '/assets/:name/locale-bytes',
     summary: "Upload an asset's bytes for a locale or theme",
     middleware: [requireCapability('edit:assets'), editableTarget] as const,
     request: {
@@ -421,7 +393,7 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
    */
   const removeLocaleBytesRoute = createRoute({
     method: 'delete',
-    path: '/api/assets/:name/locale-bytes',
+    path: '/assets/:name/locale-bytes',
     summary: "Remove an asset's bytes for a locale or theme",
     middleware: [requireCapability('edit:assets'), editableTarget] as const,
     request: { params: AssetNameParamSchema, query: AssetSelectorQuerySchema },
@@ -439,7 +411,7 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
 
   const uploadAssetRoute = createRoute({
     method: 'post',
-    path: '/api/assets',
+    path: '/assets',
     summary: 'Upload a new asset',
     middleware: [requireCapability('edit:assets'), editableTarget] as const,
     request: {
@@ -497,30 +469,33 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
     }
   })
 
-  app.openapi(patchAssetRoute, async c => {
-    const { name } = c.req.valid('param')
-    const source = await resolve(c.req.valid('query').target)
-    // `checkMetadataPatch` has answered the body's own messages; the
-    // schema keeps only `alt` and `focalPoint`, each when present.
-    const patch = c.req.valid('json')
+  app.openapi(
+    patchAssetRoute,
+    async c => {
+      const { name } = c.req.valid('param')
+      const source = await resolve(c.req.valid('query').target)
+      // The schema keeps only `alt` and `focalPoint`, each when present.
+      const patch = c.req.valid('json')
 
-    try {
-      const updated = await updateAssetMetadata({
-        storage: source.storage,
-        assetsRoot: ASSETS_ROOT,
-        assetName: name,
-        patch,
-        history: source.history,
-        contentRoot: source.contentRoot,
-      })
-      // Re-summarize with override locales so the client refresh shape
-      // matches GET. Single-asset case uses the same enumerator.
-      const { locales, themes } = await overridesOf(source.storage, updated)
-      return c.json({ manifest: toSummary(updated, locales, themes) }, 200)
-    } catch (err) {
-      return assetProblem<400 | 404 | 500>(c, err)
-    }
-  })
+      try {
+        const updated = await updateAssetMetadata({
+          storage: source.storage,
+          assetsRoot: ASSETS_ROOT,
+          assetName: name,
+          patch,
+          history: source.history,
+          contentRoot: source.contentRoot,
+        })
+        // Re-summarize with override locales so the client refresh shape
+        // matches GET. Single-asset case uses the same enumerator.
+        const { locales, themes } = await overridesOf(source.storage, updated)
+        return c.json({ manifest: toSummary(updated, locales, themes) }, 200)
+      } catch (err) {
+        return assetProblem<400 | 404 | 500>(c, err)
+      }
+    },
+    bodyFailure('BAD_REQUEST', first => first ?? 'Invalid request body'),
+  )
 
   app.openapi(deleteAssetRoute, async c => {
     const { name } = c.req.valid('param')

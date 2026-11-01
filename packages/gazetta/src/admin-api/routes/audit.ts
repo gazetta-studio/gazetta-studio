@@ -86,7 +86,7 @@ const MAX_LIMIT = 1000
 
 const queryAudit = createRoute({
   method: 'get',
-  path: '/api/audit',
+  path: '/audit',
   summary: 'Audit events matching a filter',
   middleware: [requireCapability('read:audit-log')] as const,
   request: { query: AuditQueryParamsSchema },

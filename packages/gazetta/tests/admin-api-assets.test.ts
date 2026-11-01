@@ -1,5 +1,5 @@
 /**
- * HTTP-level tests for the `/api/assets` route. POST verifies the route
+ * HTTP-level tests for the `/api/v1/assets` route. POST verifies the route
  * adapter correctly wires multipart → ingest → HTTP response; GET verifies
  * list → response. Ingest and list correctness themselves are covered by
  * assets-ingest.test.ts and assets-list.test.ts.
@@ -19,7 +19,8 @@ import { ErrorResponseSchema } from '../src/admin-api/schemas/error.js'
 /** A 400 answered as a problem body with exactly this `detail`. */
 async function expectBadRequest(res: Response, detail: string): Promise<void> {
   expect(res.headers.get('content-type')).toBe('application/problem+json')
-  expect(ErrorResponseSchema.parse(await res.json())).toEqual({
+  // Schema failures also list their `issues`.
+  expect(ErrorResponseSchema.parse(await res.json())).toMatchObject({
     type: 'about:blank',
     title: 'Bad Request',
     status: 400,
@@ -48,8 +49,8 @@ function buildApp() {
   // Wire the principal middleware (none-mode by default → admin role)
   // so the capability gates on the routes are populated. Tests bypass
   // createAdminApp; they need to wire what createAdminApp wires.
-  app.use('/api/*', principalMiddleware())
-  app.route('/', assetRoutes(resolve))
+  app.use('/api/v1/*', principalMiddleware())
+  app.route('/api/v1', assetRoutes(resolve))
   return { app, storage }
 }
 
@@ -78,7 +79,7 @@ describe('POST /api/assets', () => {
     const { app } = buildApp()
     const bytes = await jpegBuffer()
 
-    const res = await app.request('/api/assets', {
+    const res = await app.request('/api/v1/assets', {
       method: 'POST',
       body: multipartForm({
         file: { name: 'hero.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
@@ -103,7 +104,7 @@ describe('POST /api/assets', () => {
     const { app } = buildApp()
     const bytes = await jpegBuffer()
 
-    const res = await app.request('/api/assets', {
+    const res = await app.request('/api/v1/assets', {
       method: 'POST',
       body: multipartForm({
         file: { name: 'hero.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
@@ -121,7 +122,7 @@ describe('POST /api/assets', () => {
     const { app } = buildApp()
     const bytes = await jpegBuffer()
 
-    const res = await app.request('/api/assets', {
+    const res = await app.request('/api/v1/assets', {
       method: 'POST',
       body: multipartForm({
         file: { name: 'hero.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
@@ -136,7 +137,7 @@ describe('POST /api/assets', () => {
 
   it('400s when file field is missing', async () => {
     const { app } = buildApp()
-    const res = await app.request('/api/assets', {
+    const res = await app.request('/api/v1/assets', {
       method: 'POST',
       body: multipartForm({ name: 'hero' }),
     })
@@ -154,7 +155,7 @@ describe('POST /api/assets', () => {
       file: { name: 'hero.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
     }
     if (name !== undefined) fields.name = name
-    const res = await app.request('/api/assets', { method: 'POST', body: multipartForm(fields) })
+    const res = await app.request('/api/v1/assets', { method: 'POST', body: multipartForm(fields) })
     expect(res.status).toBe(400)
     await expectBadRequest(res, 'Missing or invalid "name" field')
   })
@@ -167,7 +168,7 @@ describe('POST /api/assets', () => {
       .webp()
       .toBuffer()
 
-    const res = await app.request('/api/assets', {
+    const res = await app.request('/api/v1/assets', {
       method: 'POST',
       body: multipartForm({
         file: { name: 'x.webp', bytes: new Uint8Array(webp), type: 'image/webp' },
@@ -184,7 +185,7 @@ describe('POST /api/assets', () => {
     const { app } = buildApp()
     const bytes = await jpegBuffer()
 
-    const res = await app.request('/api/assets', {
+    const res = await app.request('/api/v1/assets', {
       method: 'POST',
       body: multipartForm({
         file: { name: 'hero.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
@@ -201,7 +202,7 @@ describe('POST /api/assets', () => {
 describe('GET /api/assets', () => {
   it('returns an empty array when the target has no assets', async () => {
     const { app } = buildApp()
-    const res = await app.request('/api/assets')
+    const res = await app.request('/api/v1/assets')
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual([])
   })
@@ -211,7 +212,7 @@ describe('GET /api/assets', () => {
     const bytes = await jpegBuffer()
 
     // Upload two assets
-    await app.request('/api/assets', {
+    await app.request('/api/v1/assets', {
       method: 'POST',
       body: multipartForm({
         file: { name: 'a.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
@@ -219,7 +220,7 @@ describe('GET /api/assets', () => {
         alt: 'First asset',
       }),
     })
-    await app.request('/api/assets', {
+    await app.request('/api/v1/assets', {
       method: 'POST',
       body: multipartForm({
         file: { name: 'b.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
@@ -227,7 +228,7 @@ describe('GET /api/assets', () => {
       }),
     })
 
-    const res = await app.request('/api/assets')
+    const res = await app.request('/api/v1/assets')
     expect(res.status).toBe(200)
     const summaries = (await res.json()) as Array<{ name: string; alt: string | null }>
     expect(summaries).toHaveLength(2)
@@ -240,7 +241,7 @@ describe('GET /api/assets', () => {
     const { app } = buildApp()
     const bytes = await jpegBuffer()
 
-    await app.request('/api/assets', {
+    await app.request('/api/v1/assets', {
       method: 'POST',
       body: multipartForm({
         file: { name: 'a.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
@@ -249,7 +250,7 @@ describe('GET /api/assets', () => {
       }),
     })
 
-    const res = await app.request('/api/assets')
+    const res = await app.request('/api/v1/assets')
     const [summary] = (await res.json()) as Array<Record<string, unknown>>
     // Summary fields present
     expect(summary.name).toBe('shape-test')
@@ -268,7 +269,7 @@ describe('GET /api/assets/:name', () => {
     const { app } = buildApp()
     const bytes = await jpegBuffer()
 
-    await app.request('/api/assets', {
+    await app.request('/api/v1/assets', {
       method: 'POST',
       body: multipartForm({
         file: { name: 'a.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
@@ -277,7 +278,7 @@ describe('GET /api/assets/:name', () => {
       }),
     })
 
-    const res = await app.request('/api/assets/single')
+    const res = await app.request('/api/v1/assets/single')
     expect(res.status).toBe(200)
     const summary = (await res.json()) as Record<string, unknown>
     expect(summary.name).toBe('single')
@@ -289,7 +290,7 @@ describe('GET /api/assets/:name', () => {
 
   it('404s when the asset does not exist', async () => {
     const { app } = buildApp()
-    const res = await app.request('/api/assets/nope')
+    const res = await app.request('/api/v1/assets/nope')
     expect(res.status).toBe(404)
     const body = await res.json()
     expect(body.code).toBe('ASSET_MANIFEST_NOT_FOUND')
@@ -299,7 +300,7 @@ describe('GET /api/assets/:name', () => {
 describe('DELETE /api/assets/:name', () => {
   async function uploadHero(app: Hono) {
     const bytes = await jpegBuffer()
-    await app.request('/api/assets', {
+    await app.request('/api/v1/assets', {
       method: 'POST',
       body: multipartForm({
         file: { name: 'hero.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
@@ -313,11 +314,11 @@ describe('DELETE /api/assets/:name', () => {
     const { app } = buildApp()
     await uploadHero(app)
 
-    const res = await app.request('/api/assets/hero', { method: 'DELETE' })
+    const res = await app.request('/api/v1/assets/hero', { method: 'DELETE' })
     expect(res.status).toBe(204)
 
     // Asset is gone from the list.
-    const listRes = await app.request('/api/assets')
+    const listRes = await app.request('/api/v1/assets')
     expect(await listRes.json()).toEqual([])
   })
 
@@ -328,11 +329,11 @@ describe('DELETE /api/assets/:name', () => {
     const storage = createFilesystemProvider(testDir)
     const source = createSourceContext({ storage, siteDir: '' })
     const app = new Hono()
-    app.use('/api/*', principalMiddleware())
-    app.route('/', assetRoutes(staticSourceResolver(source)))
+    app.use('/api/v1/*', principalMiddleware())
+    app.route('/api/v1', assetRoutes(staticSourceResolver(source)))
     await uploadHero(app)
 
-    const res = await app.request('/api/assets/hero', { method: 'DELETE' })
+    const res = await app.request('/api/v1/assets/hero', { method: 'DELETE' })
     expect(res.status).toBe(204)
   })
 
@@ -352,7 +353,7 @@ describe('DELETE /api/assets/:name', () => {
       }),
     )
 
-    const res = await app.request('/api/assets/hero', { method: 'DELETE' })
+    const res = await app.request('/api/v1/assets/hero', { method: 'DELETE' })
     expect(res.status).toBe(409)
     const body = (await res.json()) as {
       code: string
@@ -369,14 +370,14 @@ describe('DELETE /api/assets/:name', () => {
     })
 
     // Asset files are untouched.
-    const listRes = await app.request('/api/assets')
+    const listRes = await app.request('/api/v1/assets')
     const list = (await listRes.json()) as Array<{ name: string }>
     expect(list.some(a => a.name === 'hero')).toBe(true)
   })
 
   it('404s when the asset does not exist', async () => {
     const { app } = buildApp()
-    const res = await app.request('/api/assets/nope', { method: 'DELETE' })
+    const res = await app.request('/api/v1/assets/nope', { method: 'DELETE' })
     expect(res.status).toBe(404)
     const body = await res.json()
     expect(body.code).toBe('ASSET_MANIFEST_NOT_FOUND')
@@ -386,7 +387,7 @@ describe('DELETE /api/assets/:name', () => {
 describe('POST /api/assets/:name/replace-with/:newName', () => {
   async function uploadAsset(app: Hono, name: string) {
     const bytes = await jpegBuffer()
-    await app.request('/api/assets', {
+    await app.request('/api/v1/assets', {
       method: 'POST',
       body: multipartForm({
         file: { name: `${name}.jpg`, bytes: new Uint8Array(bytes), type: 'image/jpeg' },
@@ -412,11 +413,11 @@ describe('POST /api/assets/:name/replace-with/:newName', () => {
       }),
     )
 
-    const res = await app.request('/api/assets/hero/replace-with/banner', { method: 'POST' })
+    const res = await app.request('/api/v1/assets/hero/replace-with/banner', { method: 'POST' })
     expect(res.status).toBe(204)
 
     // Old asset gone.
-    const list = (await (await app.request('/api/assets')).json()) as Array<{ name: string }>
+    const list = (await (await app.request('/api/v1/assets')).json()) as Array<{ name: string }>
     expect(list.map(a => a.name).sort()).toEqual(['banner'])
 
     // Page now references `banner`.
@@ -428,7 +429,7 @@ describe('POST /api/assets/:name/replace-with/:newName', () => {
     const { app } = buildApp()
     await uploadAsset(app, 'banner')
 
-    const res = await app.request('/api/assets/ghost/replace-with/banner', { method: 'POST' })
+    const res = await app.request('/api/v1/assets/ghost/replace-with/banner', { method: 'POST' })
     expect(res.status).toBe(404)
   })
 
@@ -436,7 +437,7 @@ describe('POST /api/assets/:name/replace-with/:newName', () => {
     const { app } = buildApp()
     await uploadAsset(app, 'hero')
 
-    const res = await app.request('/api/assets/hero/replace-with/ghost', { method: 'POST' })
+    const res = await app.request('/api/v1/assets/hero/replace-with/ghost', { method: 'POST' })
     expect(res.status).toBe(404)
   })
 
@@ -453,7 +454,7 @@ describe('POST /api/assets/:name/replace-with/:newName', () => {
     m.mime = 'application/pdf'
     await fs.writeFile(manifestPath, JSON.stringify(m, null, 2))
 
-    const res = await app.request('/api/assets/hero/replace-with/banner', { method: 'POST' })
+    const res = await app.request('/api/v1/assets/hero/replace-with/banner', { method: 'POST' })
     expect(res.status).toBe(409)
     const body = (await res.json()) as {
       code: string
@@ -473,7 +474,7 @@ describe('POST /api/assets/:name/replace-with/:newName', () => {
 describe('POST /api/assets/:name/rename-to/:newName', () => {
   async function uploadAsset(app: Hono, name: string) {
     const bytes = await jpegBuffer()
-    await app.request('/api/assets', {
+    await app.request('/api/v1/assets', {
       method: 'POST',
       body: multipartForm({
         file: { name: `${name}.jpg`, bytes: new Uint8Array(bytes), type: 'image/jpeg' },
@@ -497,11 +498,11 @@ describe('POST /api/assets/:name/rename-to/:newName', () => {
       }),
     )
 
-    const res = await app.request('/api/assets/hero/rename-to/banner', { method: 'POST' })
+    const res = await app.request('/api/v1/assets/hero/rename-to/banner', { method: 'POST' })
     expect(res.status).toBe(204)
 
     // Old name gone, new name lives.
-    const list = (await (await app.request('/api/assets')).json()) as Array<{ name: string }>
+    const list = (await (await app.request('/api/v1/assets')).json()) as Array<{ name: string }>
     expect(list.map(a => a.name).sort()).toEqual(['banner'])
 
     // Page now references `banner`.
@@ -511,7 +512,7 @@ describe('POST /api/assets/:name/rename-to/:newName', () => {
 
   it('404s when the source asset is missing', async () => {
     const { app } = buildApp()
-    const res = await app.request('/api/assets/ghost/rename-to/banner', { method: 'POST' })
+    const res = await app.request('/api/v1/assets/ghost/rename-to/banner', { method: 'POST' })
     expect(res.status).toBe(404)
   })
 
@@ -520,7 +521,7 @@ describe('POST /api/assets/:name/rename-to/:newName', () => {
     await uploadAsset(app, 'hero')
     await uploadAsset(app, 'banner')
 
-    const res = await app.request('/api/assets/hero/rename-to/banner', { method: 'POST' })
+    const res = await app.request('/api/v1/assets/hero/rename-to/banner', { method: 'POST' })
     expect(res.status).toBe(409)
     const body = (await res.json()) as { code: string; newName: string }
     expect(body.code).toBe('ASSET_NAME_COLLISION')
@@ -531,7 +532,7 @@ describe('POST /api/assets/:name/rename-to/:newName', () => {
 describe('POST /api/assets/:name/locale-bytes', () => {
   async function uploadAsset(app: Hono, name: string) {
     const bytes = await jpegBuffer()
-    await app.request('/api/assets', {
+    await app.request('/api/v1/assets', {
       method: 'POST',
       body: multipartForm({
         file: { name: `${name}.jpg`, bytes: new Uint8Array(bytes), type: 'image/jpeg' },
@@ -545,7 +546,7 @@ describe('POST /api/assets/:name/locale-bytes', () => {
     await uploadAsset(app, 'hero')
 
     const overrideBytes = await jpegBuffer()
-    const res = await app.request('/api/assets/hero/locale-bytes?locale=fr', {
+    const res = await app.request('/api/v1/assets/hero/locale-bytes?locale=fr', {
       method: 'POST',
       body: multipartForm({ file: { name: 'hero.jpg', bytes: new Uint8Array(overrideBytes), type: 'image/jpeg' } }),
     })
@@ -559,7 +560,7 @@ describe('POST /api/assets/:name/locale-bytes', () => {
     const { app } = buildApp()
     await uploadAsset(app, 'hero')
 
-    const res = await app.request('/api/assets/hero/locale-bytes', {
+    const res = await app.request('/api/v1/assets/hero/locale-bytes', {
       method: 'POST',
       body: multipartForm({
         file: { name: 'hero.jpg', bytes: new Uint8Array(await jpegBuffer()), type: 'image/jpeg' },
@@ -571,7 +572,7 @@ describe('POST /api/assets/:name/locale-bytes', () => {
   it('400s when the file field is missing', async () => {
     const { app } = buildApp()
     await uploadAsset(app, 'hero')
-    const res = await app.request('/api/assets/hero/locale-bytes?locale=fr', {
+    const res = await app.request('/api/v1/assets/hero/locale-bytes?locale=fr', {
       method: 'POST',
       body: multipartForm({ name: 'hero' }),
     })
@@ -582,7 +583,7 @@ describe('POST /api/assets/:name/locale-bytes', () => {
   it('400s on invalid locale code', async () => {
     const { app } = buildApp()
     await uploadAsset(app, 'hero')
-    const res = await app.request('/api/assets/hero/locale-bytes?locale=NOT-A-LOCALE-FORMAT', {
+    const res = await app.request('/api/v1/assets/hero/locale-bytes?locale=NOT-A-LOCALE-FORMAT', {
       method: 'POST',
       body: multipartForm({
         file: { name: 'hero.jpg', bytes: new Uint8Array(await jpegBuffer()), type: 'image/jpeg' },
@@ -593,7 +594,7 @@ describe('POST /api/assets/:name/locale-bytes', () => {
 
   it('404s when the asset does not exist', async () => {
     const { app } = buildApp()
-    const res = await app.request('/api/assets/ghost/locale-bytes?locale=fr', {
+    const res = await app.request('/api/v1/assets/ghost/locale-bytes?locale=fr', {
       method: 'POST',
       body: multipartForm({
         file: { name: 'hero.jpg', bytes: new Uint8Array(await jpegBuffer()), type: 'image/jpeg' },
@@ -606,7 +607,7 @@ describe('POST /api/assets/:name/locale-bytes', () => {
 describe('DELETE /api/assets/:name/locale-bytes', () => {
   async function uploadAsset(app: Hono, name: string) {
     const bytes = await jpegBuffer()
-    await app.request('/api/assets', {
+    await app.request('/api/v1/assets', {
       method: 'POST',
       body: multipartForm({
         file: { name: `${name}.jpg`, bytes: new Uint8Array(bytes), type: 'image/jpeg' },
@@ -617,7 +618,7 @@ describe('DELETE /api/assets/:name/locale-bytes', () => {
 
   async function uploadOverride(app: Hono, name: string, locale: string) {
     const bytes = await jpegBuffer()
-    return app.request(`/api/assets/${name}/locale-bytes?locale=${locale}`, {
+    return app.request(`/api/v1/assets/${name}/locale-bytes?locale=${locale}`, {
       method: 'POST',
       body: multipartForm({ file: { name: `${name}.jpg`, bytes: new Uint8Array(bytes), type: 'image/jpeg' } }),
     })
@@ -628,20 +629,20 @@ describe('DELETE /api/assets/:name/locale-bytes', () => {
     await uploadAsset(app, 'hero')
     await uploadOverride(app, 'hero', 'fr')
 
-    const res = await app.request('/api/assets/hero/locale-bytes?locale=fr', { method: 'DELETE' })
+    const res = await app.request('/api/v1/assets/hero/locale-bytes?locale=fr', { method: 'DELETE' })
     expect(res.status).toBe(204)
   })
 
   it('400s when no selector is provided', async () => {
     const { app } = buildApp()
-    const res = await app.request('/api/assets/hero/locale-bytes', { method: 'DELETE' })
+    const res = await app.request('/api/v1/assets/hero/locale-bytes', { method: 'DELETE' })
     expect(res.status).toBe(400)
   })
 
   it('404s when the override does not exist', async () => {
     const { app } = buildApp()
     await uploadAsset(app, 'hero')
-    const res = await app.request('/api/assets/hero/locale-bytes?locale=fr', { method: 'DELETE' })
+    const res = await app.request('/api/v1/assets/hero/locale-bytes?locale=fr', { method: 'DELETE' })
     expect(res.status).toBe(404)
   })
 })
@@ -654,14 +655,14 @@ describe('PATCH /api/assets/:name', () => {
       name,
     })
     if (alt !== null) form.set('alt', alt)
-    await app.request('/api/assets', { method: 'POST', body: form })
+    await app.request('/api/v1/assets', { method: 'POST', body: form })
   }
 
   it('200s with the updated summary on alt change', async () => {
     const { app } = buildApp()
     await uploadAsset(app, 'hero')
 
-    const res = await app.request('/api/assets/hero', {
+    const res = await app.request('/api/v1/assets/hero', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ alt: 'Mountain sunset' }),
@@ -675,7 +676,7 @@ describe('PATCH /api/assets/:name', () => {
     const { app } = buildApp()
     await uploadAsset(app, 'hero', 'starts with text')
 
-    const res = await app.request('/api/assets/hero', {
+    const res = await app.request('/api/v1/assets/hero', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ alt: null }),
@@ -689,7 +690,7 @@ describe('PATCH /api/assets/:name', () => {
     const { app } = buildApp()
     await uploadAsset(app, 'hero')
 
-    const res = await app.request('/api/assets/hero', {
+    const res = await app.request('/api/v1/assets/hero', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ alt: '' }),
@@ -703,7 +704,7 @@ describe('PATCH /api/assets/:name', () => {
     const { app } = buildApp()
     await uploadAsset(app, 'hero')
 
-    const res = await app.request('/api/assets/hero', {
+    const res = await app.request('/api/v1/assets/hero', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ alt: 42 }),
@@ -716,7 +717,7 @@ describe('PATCH /api/assets/:name', () => {
     const { app } = buildApp()
     await uploadAsset(app, 'hero')
 
-    const res = await app.request('/api/assets/hero', {
+    const res = await app.request('/api/v1/assets/hero', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: 'not json',
@@ -726,7 +727,7 @@ describe('PATCH /api/assets/:name', () => {
 
   it('404s when the asset does not exist', async () => {
     const { app } = buildApp()
-    const res = await app.request('/api/assets/ghost', {
+    const res = await app.request('/api/v1/assets/ghost', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ alt: 'x' }),
@@ -738,7 +739,7 @@ describe('PATCH /api/assets/:name', () => {
     const { app } = buildApp()
     await uploadAsset(app, 'hero')
 
-    const res = await app.request('/api/assets/hero', {
+    const res = await app.request('/api/v1/assets/hero', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ alt: 'description' }),
@@ -753,7 +754,7 @@ describe('PATCH /api/assets/:name', () => {
     await uploadAsset(app, 'hero')
     // Two slices share the `fr` locale; the summary lists it once.
     for (const query of ['locale=fr', 'locale=fr&theme=dark']) {
-      const up = await app.request(`/api/assets/hero/locale-bytes?${query}`, {
+      const up = await app.request(`/api/v1/assets/hero/locale-bytes?${query}`, {
         method: 'POST',
         body: multipartForm({
           file: { name: 'hero.jpg', bytes: new Uint8Array(await jpegBuffer()), type: 'image/jpeg' },
@@ -762,7 +763,7 @@ describe('PATCH /api/assets/:name', () => {
       expect(up.status).toBe(201)
     }
 
-    const res = await app.request('/api/assets/hero', {
+    const res = await app.request('/api/v1/assets/hero', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ alt: 'description' }),
@@ -777,7 +778,7 @@ describe('PATCH /api/assets/:name', () => {
     const { app } = buildApp()
     await uploadAsset(app, 'hero', 'preserved')
 
-    const res = await app.request('/api/assets/hero', {
+    const res = await app.request('/api/v1/assets/hero', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: '{}',
@@ -792,7 +793,7 @@ describe('PATCH /api/assets/:name', () => {
       const { app } = buildApp()
       await uploadAsset(app, 'hero')
 
-      const res = await app.request('/api/assets/hero', {
+      const res = await app.request('/api/v1/assets/hero', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ focalPoint: { x: 0.3, y: 0.7 } }),
@@ -806,13 +807,13 @@ describe('PATCH /api/assets/:name', () => {
       const { app } = buildApp()
       await uploadAsset(app, 'hero')
       // Set it first.
-      await app.request('/api/assets/hero', {
+      await app.request('/api/v1/assets/hero', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ focalPoint: { x: 0.5, y: 0.5 } }),
       })
       // Clear.
-      const res = await app.request('/api/assets/hero', {
+      const res = await app.request('/api/v1/assets/hero', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ focalPoint: null }),
@@ -831,7 +832,7 @@ describe('PATCH /api/assets/:name', () => {
       const { app } = buildApp()
       await uploadAsset(app, 'hero')
 
-      const res = await app.request('/api/assets/hero', {
+      const res = await app.request('/api/v1/assets/hero', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ focalPoint }),
@@ -848,7 +849,7 @@ describe('PATCH /api/assets/:name', () => {
       const { app } = buildApp()
       await uploadAsset(app, 'hero')
 
-      const res = await app.request('/api/assets/hero', {
+      const res = await app.request('/api/v1/assets/hero', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ focalPoint }),
@@ -867,7 +868,7 @@ describe('PATCH /api/assets/:name', () => {
       const { app } = buildApp()
       await uploadAsset(app, 'hero')
 
-      const res = await app.request('/api/assets/hero', {
+      const res = await app.request('/api/v1/assets/hero', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ focalPoint }),
@@ -880,7 +881,7 @@ describe('PATCH /api/assets/:name', () => {
       const { app } = buildApp()
       await uploadAsset(app, 'hero')
 
-      const res = await app.request('/api/assets/hero', {
+      const res = await app.request('/api/v1/assets/hero', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ alt: 'Mountains', focalPoint: { x: 0.6, y: 0.4 } }),

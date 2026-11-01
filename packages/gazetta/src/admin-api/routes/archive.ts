@@ -174,7 +174,7 @@ export function archiveRoutes(resolve: SourceContextResolver, opts: ArchiveRoute
 
     const archive = createRoute({
       method: 'post',
-      path: `/api/${kind}/:name/archive`,
+      path: `/${kind}/:name/archive`,
       summary: `Archive a ${label}`,
       middleware: [del, editableTarget, jsonBody({ optional: true })] as const,
       request: {
@@ -200,7 +200,7 @@ export function archiveRoutes(resolve: SourceContextResolver, opts: ArchiveRoute
 
     const unarchive = createRoute({
       method: 'post',
-      path: `/api/${kind}/:name/unarchive`,
+      path: `/${kind}/:name/unarchive`,
       summary: `Restore an archived ${label}`,
       middleware: [edit, editableTarget] as const,
       request: { params: ItemNameParamSchema, query: TargetQuerySchema },
@@ -222,7 +222,7 @@ export function archiveRoutes(resolve: SourceContextResolver, opts: ArchiveRoute
 
     const purge = createRoute({
       method: 'delete',
-      path: `/api/${kind}/:name/purge`,
+      path: `/${kind}/:name/purge`,
       summary: `Permanently delete an archived ${label}`,
       middleware: [del, editableTarget] as const,
       request: { params: ItemNameParamSchema, query: ForceQuerySchema },
@@ -242,7 +242,7 @@ export function archiveRoutes(resolve: SourceContextResolver, opts: ArchiveRoute
     // a content-state edit, not destruction (symmetric with unarchive).
     const setAlias = createRoute({
       method: 'patch',
-      path: `/api/${kind}/:name/alias`,
+      path: `/${kind}/:name/alias`,
       summary: `Set or drop an archived ${label}'s alias`,
       middleware: [
         edit,

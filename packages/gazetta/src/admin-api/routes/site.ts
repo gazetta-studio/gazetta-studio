@@ -8,7 +8,7 @@ import { TargetQuerySchema } from '../schemas/target-query.js'
 
 const getSite = createRoute({
   method: 'get',
-  path: '/api/site',
+  path: '/site',
   summary: "The site's manifest",
   middleware: [requireCapability('read:pages')] as const,
   request: { query: TargetQuerySchema },

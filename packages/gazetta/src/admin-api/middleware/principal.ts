@@ -84,6 +84,14 @@ const ANONYMOUS_PRINCIPAL: Principal = {
 }
 
 /**
+ * Whether the principal is the anonymous one: the request carried no
+ * identity the trust mode could resolve.
+ */
+export function isAnonymous(principal: Principal): boolean {
+  return principal.id === UNKNOWN_ACTOR_ID && principal.role === 'unknown'
+}
+
+/**
  * Adapt a Hono request into the `AuthRequest` shape the auth/
  * providers expect. Headers come from Hono's case-insensitive
  * lookup; we normalize to lowercase keys for provider consistency.

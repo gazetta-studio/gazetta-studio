@@ -39,7 +39,7 @@ import {
 
 const listHistory = createRoute({
   method: 'get',
-  path: '/api/history',
+  path: '/history',
   summary: "A target's revisions, newest first",
   middleware: [requireCapability('read:pages')] as const,
   request: { query: HistoryListQuerySchema },
@@ -51,7 +51,7 @@ const listHistory = createRoute({
 
 const undoHistory = createRoute({
   method: 'post',
-  path: '/api/history/undo',
+  path: '/history/undo',
   summary: 'Restore the revision before the latest one',
   middleware: [requireCapability('restore:history')] as const,
   request: { query: HistoryUndoQuerySchema },
@@ -63,7 +63,7 @@ const undoHistory = createRoute({
 
 const restoreHistory = createRoute({
   method: 'post',
-  path: '/api/history/restore',
+  path: '/history/restore',
   summary: 'Restore a revision',
   middleware: [requireCapability('restore:history')] as const,
   request: { query: HistoryRestoreQuerySchema },

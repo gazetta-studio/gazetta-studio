@@ -67,7 +67,7 @@ export function pageRoutes(
 
   const listPages = createRoute({
     method: 'get',
-    path: '/api/pages',
+    path: '/pages',
     summary: 'List pages',
     middleware: [requireCapability('read:pages')] as const,
     request: { query: TargetQuerySchema },
@@ -133,7 +133,7 @@ export function pageRoutes(
   // project `CreatePageResult` to HTTP. Same response shape as before.
   const createPageRoute = createRoute({
     method: 'post',
-    path: '/api/pages',
+    path: '/pages',
     summary: 'Create a page',
     middleware: [requireCapability('edit:pages'), editableTarget] as const,
     request: {
@@ -196,7 +196,7 @@ export function pageRoutes(
 
   const getPage = createRoute({
     method: 'get',
-    path: '/api/pages/:name{.+}',
+    path: '/pages/:name{.+}',
     summary: 'Read a page',
     middleware: [requireCapability('read:pages')] as const,
     request: { params: ItemNameParamSchema, query: ItemLocaleQuerySchema, headers: RequestIdHeaderSchema },
@@ -280,7 +280,7 @@ export function pageRoutes(
   // project `SaveResult` to HTTP. Same response shape as before.
   const savePageRoute = createRoute({
     method: 'put',
-    path: '/api/pages/:name{.+}',
+    path: '/pages/:name{.+}',
     summary: 'Save a page',
     middleware: [requireCapability('edit:pages'), editableTarget] as const,
     request: {
@@ -375,7 +375,7 @@ export function pageRoutes(
   // `action: 'purge'`.
   const deletePage = createRoute({
     method: 'delete',
-    path: '/api/pages/:name{.+}',
+    path: '/pages/:name{.+}',
     summary: 'Archive a page, or delete it with `permanent=true`',
     middleware: [requireCapability('delete:pages'), editableTarget, jsonBody({ optional: true })] as const,
     request: {

@@ -40,7 +40,8 @@
 import type { Context } from 'hono'
 import { problem } from '../problem.js'
 import { createMiddleware } from 'hono/factory'
-import { capabilityGrants, UNKNOWN_ACTOR_ID } from '../../auth/index.js'
+import { capabilityGrants } from '../../auth/index.js'
+import { isAnonymous } from './principal.js'
 import type { AuditAction, AuditScope } from '../../audit/index.js'
 import type { AuditEnv } from './audit.js'
 
@@ -67,7 +68,7 @@ function actionForCapability(capability: string): AuditAction | null {
  */
 function denialScope(path: string, name: string | undefined): AuditScope {
   if (name === undefined) return { kind: 'site' }
-  const match = /(?:^|\/)api\/(pages|fragments|assets)\//.exec(path)
+  const match = /(?:^|\/)api\/(?:v\d+\/)?(pages|fragments|assets)\//.exec(path)
   if (match === null) return { kind: 'site' }
   const kind = match[1] === 'pages' ? 'page' : match[1] === 'fragments' ? 'fragment' : 'asset'
   return { kind, name }
@@ -102,7 +103,7 @@ export async function denyWithoutCapability(c: Context<AuditEnv>, capability: st
         }) ?? Promise.resolve())
   // Anonymous principal — no upstream identity. Translate to
   // 401 (not 403); the request hasn't authenticated yet.
-  if (principal.id === UNKNOWN_ACTOR_ID && principal.role === 'unknown') {
+  if (isAnonymous(principal)) {
     await recordDenial('unauthenticated')
     c.header('WWW-Authenticate', 'Bearer realm="gazetta-admin"')
     return problem(c, 401, 'UNAUTHENTICATED', `This endpoint requires capability "${capability}"`)

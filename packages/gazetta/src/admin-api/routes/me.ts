@@ -10,15 +10,14 @@
  * live in their own store".
  */
 import { createRoute } from '@hono/zod-openapi'
-import { UNKNOWN_ACTOR_ID } from '../../auth/index.js'
-import type { PrincipalEnv } from '../middleware/principal.js'
+import { isAnonymous, type PrincipalEnv } from '../middleware/principal.js'
 import { apiApp, json, problems } from '../openapi.js'
 import { MeResponseSchema, type MeResponse } from '../schemas/me.js'
 import { problem } from '../problem.js'
 
 const getMe = createRoute({
   method: 'get',
-  path: '/api/me',
+  path: '/me',
   summary: 'The signed-in principal',
   responses: {
     200: json(MeResponseSchema, 'Who the admin API thinks is asking'),
@@ -31,8 +30,7 @@ export function meRoutes() {
 
   app.openapi(getMe, c => {
     const { id, role, trustMode } = c.var.principal
-    // Same anonymous test as the capability middleware.
-    if (id === UNKNOWN_ACTOR_ID && role === 'unknown') {
+    if (isAnonymous(c.var.principal)) {
       c.header('WWW-Authenticate', 'Bearer realm="gazetta-admin"')
       return problem(c, 401, 'UNAUTHENTICATED', 'Not signed in')
     }

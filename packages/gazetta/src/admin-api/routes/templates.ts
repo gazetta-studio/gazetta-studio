@@ -22,7 +22,7 @@ const EDITOR_EXTENSIONS = ['.tsx', '.ts']
 
 const listTemplates = createRoute({
   method: 'get',
-  path: '/api/templates',
+  path: '/templates',
   summary: "The project's templates",
   middleware: [requireCapability('read:pages')] as const,
   request: { query: TargetQuerySchema },
@@ -34,7 +34,7 @@ const listTemplates = createRoute({
 
 const templateSchema = createRoute({
   method: 'get',
-  path: '/api/templates/:name/schema',
+  path: '/templates/:name/schema',
   summary: "A template's content schema",
   middleware: [requireCapability('read:pages')] as const,
   request: { params: TemplateNameParamSchema, query: TargetQuerySchema },
@@ -46,7 +46,7 @@ const templateSchema = createRoute({
 
 const templateImpact = createRoute({
   method: 'get',
-  path: '/api/templates/:name/impact',
+  path: '/templates/:name/impact',
   summary: 'The pages and fragments that use a template, with their issues',
   middleware: [requireCapability('read:pages')] as const,
   request: { params: TemplateNameParamSchema, query: TargetQuerySchema },

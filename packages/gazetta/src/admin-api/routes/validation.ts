@@ -35,7 +35,7 @@ import { ValidationIssuesResponseSchema } from '../schemas/validation.js'
 
 const listIssues = createRoute({
   method: 'get',
-  path: '/api/validation/issues',
+  path: '/validation/issues',
   summary: "The background scanner's current issues",
   middleware: [requireCapability('read:pages')] as const,
   responses: {

@@ -164,10 +164,21 @@ export const LocaleBytesUploadResponseSchema = z.object({
  * Body of PATCH /api/assets/:name. Alt is three-state: a string, `""`
  * (decorative) or `null` (cleared); an omitted field is left unchanged.
  */
-export const AssetMetadataPatchSchema = z.object({
-  alt: z.string().nullable().optional(),
-  focalPoint: FocalPointSchema.nullable().optional(),
-})
+const FOCAL_POINT_SHAPE = 'focalPoint must be { x: number, y: number } or null'
+const PatchFocalPointSchema = z
+  .object(
+    { x: z.number({ error: FOCAL_POINT_SHAPE }), y: z.number({ error: FOCAL_POINT_SHAPE }) },
+    { error: FOCAL_POINT_SHAPE },
+  )
+  .refine(fp => fp.x >= 0 && fp.x <= 1 && fp.y >= 0 && fp.y <= 1, { message: 'focalPoint x and y must be in [0, 1]' })
+
+export const AssetMetadataPatchSchema = z.object(
+  {
+    alt: z.string({ error: 'alt must be string or null' }).nullable().optional(),
+    focalPoint: PatchFocalPointSchema.nullable().optional(),
+  },
+  { error: 'Body must be an object' },
+)
 
 /** Path of the single-asset routes. */
 export const AssetNameParamSchema = z.object({ name: z.string() })

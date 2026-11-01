@@ -115,7 +115,7 @@ export function renameRoutes(resolve: SourceContextResolver) {
   const mount = <K extends 'pages' | 'fragments'>(kind: K, handle: ItemHandle) => {
     const rename = createRoute({
       method: 'post',
-      path: `/api/${kind}/:name/rename`,
+      path: `/${kind}/:name/rename`,
       summary: `Rename a ${handle.label.toLowerCase()}`,
       middleware: [
         requireCapability(`edit:${kind}`),

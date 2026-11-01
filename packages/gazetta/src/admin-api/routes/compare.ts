@@ -12,7 +12,7 @@ import { CompareQuerySchema, CompareResultSchema } from '../schemas/compare.js'
 
 const compare = createRoute({
   method: 'get',
-  path: '/api/compare',
+  path: '/compare',
   summary: 'What differs between the source and a target',
   middleware: [requireCapability('read:pages')] as const,
   request: { query: CompareQuerySchema },

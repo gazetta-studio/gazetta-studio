@@ -1,6 +1,6 @@
 import type { Hono } from 'hono'
 import { OpenAPIHono } from '@hono/zod-openapi'
-import { openApiDocument, registerDevRoutes, withOpenApiPaths } from './openapi.js'
+import { API_PREFIX, OPENAPI_PATH, openApiDocument, registerDevRoutes, withOpenApiPaths } from './openapi.js'
 import { HTTPException } from 'hono/http-exception'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { problem } from './problem.js'
@@ -50,6 +50,7 @@ import { auditRoutes } from './routes/audit.js'
 import { validationRoutes } from './routes/validation.js'
 import { healthRoutes } from './routes/health.js'
 import { meRoutes } from './routes/me.js'
+import { versionRoutes } from './routes/version.js'
 import { archiveRoutes } from './routes/archive.js'
 import { renameRoutes } from './routes/rename.js'
 import { redirectRoutes } from './routes/redirects.js'
@@ -440,58 +441,64 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
     }),
   )
 
-  app.route('/', siteRoutes(resolveSource))
+  // The versioned API (design-agent-access.md Q42): route modules write
+  // paths without the prefix, and the whole set mounts once below.
+  const api = new OpenAPIHono()
+  api.route('/', siteRoutes(resolveSource))
   // Archive + rename routes must register BEFORE pageRoutes /
   // fragmentRoutes — those modules use `:name{.+}` greedy regex
   // parameters that would capture `landing/archive` (or `/rename`)
   // when these routes' literal-suffix paths would correctly capture
   // `landing` + the suffix. First-match-wins in Hono's routing trie
   // means specific suffixes register first.
-  app.route('/', archiveRoutes(resolveSource, { scanner: opts.validationScanner ?? null }))
-  app.route('/', renameRoutes(resolveSource))
+  api.route('/', archiveRoutes(resolveSource, { scanner: opts.validationScanner ?? null }))
+  api.route('/', renameRoutes(resolveSource))
   // Manual Redirect creation (`POST /api/{page,fragment}-redirects`). Per
   // `design-redirect-ui.md` Q2, two parallel routes with literal
   // capability gates + a shared handler body. Registers BEFORE the
   // greedy `pages` / `fragments` matchers — same first-match-wins
   // consideration as archive + rename above.
-  app.route('/', redirectRoutes(resolveSource))
-  app.route(
+  api.route('/', redirectRoutes(resolveSource))
+  api.route(
     '/',
     pageRoutes(resolveSource, validators, templatesDir, {
       hooks: opts.hooks,
       scanner: opts.validationScanner ?? null,
     }),
   )
-  app.route(
+  api.route(
     '/',
     fragmentRoutes(resolveSource, validators, templatesDir, {
       hooks: opts.hooks,
       scanner: opts.validationScanner ?? null,
     }),
   )
-  app.route(
+  api.route(
     '/',
     templateRoutes(resolveSource, templatesDir, adminDir, opts.production, {
       scanner: opts.validationScanner ?? null,
     }),
   )
-  app.route('/', previewRoutes(resolveSource, templatesDir))
-  app.route(
+  api.route(
     '/',
     publishRoutes(resolveSource, opts.targets, opts.targetConfigs, templatesDir, scan, {
       hooks: opts.hooks,
       validators,
     }),
   )
-  app.route('/', compareRoutes(resolveSource, opts.targets, opts.targetConfigs, templatesDir, scan))
-  app.route('/', fieldRoutes(resolveSource, adminDir))
-  app.route('/', historyRoutes(resolveSource, opts.targets, opts.targetConfigs))
-  app.route('/', assetRoutes(resolveSource, { hooks: opts.hooks }))
-  app.route('/', systemRoutes(resolveSource))
-  app.route('/', auditRoutes({ providers: auditProviders }))
-  app.route('/', validationRoutes({ scanner: opts.validationScanner ?? null }))
-  app.route('/', healthRoutes())
-  app.route('/', meRoutes())
+  api.route('/', compareRoutes(resolveSource, opts.targets, opts.targetConfigs, templatesDir, scan))
+  api.route('/', fieldRoutes(resolveSource, adminDir))
+  api.route('/', historyRoutes(resolveSource, opts.targets, opts.targetConfigs))
+  api.route('/', assetRoutes(resolveSource, { hooks: opts.hooks }))
+  api.route('/', systemRoutes(resolveSource))
+  api.route('/', auditRoutes({ providers: auditProviders }))
+  api.route('/', validationRoutes({ scanner: opts.validationScanner ?? null }))
+  api.route('/', healthRoutes())
+  api.route('/', meRoutes())
+  app.route(API_PREFIX, api)
+  // Outside the versioned API: preview (Q5) and the version route (Q43).
+  app.route('/', previewRoutes(resolveSource, templatesDir))
+  app.route('/', versionRoutes())
 
   // Errors as problem+json (design-agent-access.md Q45). Registered after
   // every route: an unknown API path answers a problem, not the host's
@@ -499,7 +506,7 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   // an unhandled throw answers a problem, not Hono's plain-text 500.
   // The OpenAPI document of every route registered above (Q5, Q44).
   registerDevRoutes(app)
-  app.get('/api/openapi.json', c =>
+  app.get(OPENAPI_PATH, c =>
     c.json(withOpenApiPaths(app.getOpenAPI31Document(openApiDocument(new URL(c.req.url).pathname)))),
   )
   app.all('/api/*', c => problem(c, 404, 'NOT_FOUND', `No API route for ${c.req.method} ${c.req.path}`))
@@ -520,7 +527,7 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   // bootstrap source's cache. Runs unobtrusively (timer.unref()
   // means it never blocks process exit). Tests pass
   // `disableCacheStatsLogger: true` to avoid background timers; the
-  // route at /api/system/cache/stats still exposes on-demand
+  // route at /api/v1/system/cache/stats still exposes on-demand
   // snapshots either way.
   if (!opts.disableCacheStatsLogger) {
     startCacheStatsLogger({ cache: source.cache })
