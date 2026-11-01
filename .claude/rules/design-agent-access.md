@@ -74,7 +74,7 @@ Decided: maintainer, 2026-10-31 (#1623)
 
 The discovery's outcome is Q12–Q13.
 
-### Q3 — "Can't publish" is enforced on hosted admins; locally, a plain statement
+### Q3 — "Can't publish" is enforced on hosted admins; locally, presets and a plain statement
 
 Gazetta enforces it where it can: an agent calling an admin with its own token can't publish. On a developer's machine, the skill ships agent-client permission presets that deny `gazetta publish` and archive purge, and the docs say local use is trusted like the developer. Follows from Q2: the presets must also deny the thin CLI's publish command and publish calls to the API; the #49 pass designs them.
 
@@ -251,7 +251,7 @@ Decided: maintainer, 2026-11-01 (#1630)
 
 ### Q14 — "Agents can't publish" is guaranteed per platform
 
-Research on #1624 (2026-11-01) found that where the CLI's platform credential is the same as the browser's, Gazetta can't tell an agent's request from the person's browser, so an agent could skip Gazetta's edit-only token and publish with the person's full rights: confirmed for Tailscale Serve (the same identity headers on every tailnet request), probable for Cloudflare's `cloudflared access login` (unverified). Each platform is steered to a credential Gazetta can tell apart (Q15), and the docs state per platform where "agents can't publish" is enforced; on Tailscale and with `cloudflared access login`, nothing in Gazetta stops it, as on a developer's machine (Q3, Q31).
+Research on #1624 (2026-11-01) found that where the CLI's platform credential is the same as the browser's, Gazetta can't tell an agent's request from the person's browser, so an agent could skip Gazetta's edit-only token and publish with the person's full rights: confirmed for Tailscale Serve (the same identity headers on every tailnet request), probable for Cloudflare's `cloudflared access login` (unverified). Each platform is steered to a credential Gazetta can tell apart (Q15), and the docs state per platform where "agents can't publish" is enforced; on Tailscale and with `cloudflared access login`, only the agent's own judgement and the person's own client settings stop it, as on a developer's machine (Q3, Q31).
 
 Decided: maintainer, 2026-11-01 (#1630)
 
@@ -452,7 +452,7 @@ Research: [follow-up on #1624](https://github.com/gazetta-studio/gazetta-studio/
 
 ### Q31 — No permission presets; the skill says what an agent must never run
 
-`gazetta init` writes no agent-client permission presets (no deny rules in `.claude/settings.json`, `.codex/rules` or other client files). The skill and the `AGENTS.md` section list the commands and admin routes an agent must never use (publishing, deleting, undo and rollback, archive purge, approving requests) and tell it to ask the person instead. The skill declares no tool permissions: the Agent Skills standard can't deny anything (`allowed-tools` only pre-approves, and is experimental). So locally, and on Tailscale and with `cloudflared access login` (Q14), nothing in Gazetta stops an agent from publishing; the docs say so. This reverses the presets in Q3.
+`gazetta init` writes no agent-client permission presets (no deny rules in `.claude/settings.json`, `.codex/rules` or other client files). The skill and the `AGENTS.md` section list the commands and admin routes an agent must never use, such as publishing and archive purge (Q3), and tell it to ask the person instead; the full list is designed with the skill (#1622). The skill declares no tool permissions: the Agent Skills standard can't deny anything (`allowed-tools` only pre-approves, and is experimental). So locally, and on Tailscale and with `cloudflared access login` (Q14), only the agent's own judgement and the person's own client settings stop an agent from publishing; the docs say so. This reverses the presets in Q3.
 
 Decided: maintainer, 2026-11-01 (#1648)
 
@@ -468,7 +468,7 @@ Decided: maintainer, 2026-11-01 (#1648)
 
 | Rejected | Why |
 |---|---|
-| Skip anything that exists and print what to add | A project with its own `AGENTS.md` would get nothing |
+| Skip anything that exists and print what to add | A project with its own `AGENTS.md` would have to add the Gazetta section by hand |
 
 Research: [presets on #49](https://github.com/gazetta-studio/gazetta-studio/issues/49#issuecomment-6557871960) (what each client can deny, the commands and routes to list, what others ship).
 
