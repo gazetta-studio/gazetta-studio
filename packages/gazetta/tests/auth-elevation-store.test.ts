@@ -4,7 +4,10 @@
  */
 import { describe, expect, it } from 'vitest'
 import { createElevationStore, elevationScopeFor } from '../src/auth/elevation-store.js'
+import { mkdir, rm } from 'node:fs/promises'
+import { createFilesystemProvider } from '../src/providers/filesystem.js'
 import { memoryStorage } from './_helpers/memory-storage.js'
+import { tempDir } from './_helpers/temp.js'
 
 function clock(start = Date.parse('2026-11-01T12:00:00Z')) {
   let t = start
@@ -52,6 +55,22 @@ describe('elevation records', () => {
     expect(await store.covers('g1', 'production', 'delete:pages')).toBe(true)
     await store.endAll('g1')
     expect(await store.covers('g1', 'production', 'delete:pages')).toBe(false)
+  })
+  it('end quietly on filesystem storage when there is nothing to remove', async () => {
+    // Revoking a grant that never elevated must not throw (filesystem rm does on a missing path).
+    const dir = tempDir(`elevation-fs-${Date.now()}-${Math.random()}`)
+    await mkdir(dir, { recursive: true })
+    try {
+      const store = createElevationStore(createFilesystemProvider(dir))
+      await expect(store.endAll('never-elevated')).resolves.toBeUndefined()
+      const e = await store.create({ ...base, scope: 'non-production' })
+      await store.end(e.elevationId)
+      await expect(store.end(e.elevationId)).resolves.toBeUndefined()
+      await store.endAll('g1')
+      await expect(store.endAll('g1')).resolves.toBeUndefined()
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
   })
 })
 

@@ -10,6 +10,7 @@
  */
 import { capabilityGrants } from './capabilities.js'
 import { stateFolderPath } from '../state-folders.js'
+import { rmIgnoreMissing } from '../providers/_rm-ignore-missing.js'
 import type { StorageProvider } from '../types.js'
 
 export type ElevationScope = 'non-production' | 'production'
@@ -113,11 +114,12 @@ export function createElevationStore(storage: StorageProvider, now: () => number
 
     async end(elevationId) {
       const grantId = grantOf(elevationId)
-      if (grantId) await storage.rm(path(elevationId, grantId))
+      if (grantId) await rmIgnoreMissing(storage, path(elevationId, grantId))
     },
 
     async endAll(grantId) {
-      if (/^[\w-]+$/.test(grantId)) await storage.rm(dir(grantId))
+      // A grant that never elevated has no folder.
+      if (/^[\w-]+$/.test(grantId)) await rmIgnoreMissing(storage, dir(grantId))
     },
   }
 }

@@ -260,15 +260,17 @@ export function authRoutes({ store, keys, elevations, elevationMinutes }: AuthRo
     if (capabilities.length === 0) {
       return problem(c, 403, 'FORBIDDEN', `Role "${principal.role}" can't publish, delete or restore`)
     }
-    return elevations.create({
-      grantId: grant.grantId,
-      personId: grant.person.id,
-      scope: login.scope ?? 'non-production',
-      capabilities,
-      minutes: elevationMinutes,
-      // An elevation ends with its grant (#1693).
-      notAfter: grantExpiresAt(grant),
-    })
+    // Created only once the approval has claimed the code (store.approve).
+    return () =>
+      elevations.create({
+        grantId: grant.grantId,
+        personId: grant.person.id,
+        scope: login.scope ?? 'non-production',
+        capabilities,
+        minutes: elevationMinutes,
+        // An elevation ends with its grant (#1693).
+        notAfter: grantExpiresAt(grant),
+      })
   }
 
   for (const verb of ['approve', 'deny'] as const) {
@@ -300,7 +302,7 @@ export function authRoutes({ store, keys, elevations, elevationMinutes }: AuthRo
       }
       if (login.state !== 'pending') return problem(c, 409, 'CONFLICT', 'This code was already decided')
 
-      let elevation: Awaited<ReturnType<ElevationStore['create']>> | undefined
+      let elevate: (() => ReturnType<ElevationStore['create']>) | undefined
       if (verb === 'approve' && kind === 'elevation') {
         const approved = await approveElevation(c, login)
         if (approved instanceof Response) {
@@ -312,24 +314,20 @@ export function authRoutes({ store, keys, elevations, elevationMinutes }: AuthRo
           })
           return approved
         }
-        elevation = approved
+        elevate = approved
       }
       const { id, email, role, trustMode } = c.var.principal
       const result =
         verb === 'approve'
-          ? await store.approve(
-              code,
-              { id, ...(email ? { email } : {}), role, trustMode },
-              elevation && { elevationId: elevation.elevationId, endsAt: elevation.endsAt },
-            )
+          ? await store.approve(code, { id, ...(email ? { email } : {}), role, trustMode }, elevate)
           : await store.deny(code)
       if (result.status !== 'ok') {
-        // Lost a race with another decision: the elevation never took effect.
-        if (elevation) await elevations.end(elevation.elevationId)
         if (result.status === 'not-found') return problem(c, 404, 'NOT_FOUND', 'No such login')
         if (result.status === 'expired') return problem(c, 410, 'LOGIN_EXPIRED', 'This code has expired')
         return problem(c, 409, 'CONFLICT', 'This code was already decided')
       }
+      const { elevationId, endsAt } = result.login
+      const elevation = elevationId && endsAt ? { elevationId, endsAt } : undefined
       await c.var.audit.record({
         action,
         outcome: 'success',
