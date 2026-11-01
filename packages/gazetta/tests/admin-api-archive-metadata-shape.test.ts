@@ -48,7 +48,7 @@
  *   - **Line 213 ObjectLiteral `{}` + StringLiteral `""` (NoCoverage).**
  *     The `if (!name) return c.json({ error: 'Missing name parameter' }, 400)`
  *     defensive guard in `handleArchive`. Verified empirically via
- *     Hono probe (`/api/pages//archive` → 404, not routed to handler):
+ *     Hono probe (`/api/v1/pages//archive` → 404, not routed to handler):
  *     the branch is unreachable via HTTP with the `:name` route
  *     pattern. Killing would require direct handler invocation with
  *     a synthetic Context — high cost, no forensic value (the guard
@@ -147,7 +147,7 @@ describe('bare archive audit event — metadata field is entirely absent', () =>
     // truthy but with zero keys after JSON round-trip). Correct
     // behavior: `metadata === undefined`. `.toBe(undefined)` is strict
     // and rejects both `{}` and `null`.
-    const res = await app.request('/api/pages/landing/archive', {
+    const res = await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
     })
     expect(res.status).toBe(200)
@@ -162,7 +162,7 @@ describe('bare archive audit event — metadata field is entirely absent', () =>
     // if they only survive on the fragment branch of the shared
     // handler — cheap belt-and-suspenders coverage per the fragment-
     // parity pattern in `admin-api-archive-mutation-coverage.test.ts`.
-    const res = await app.request('/api/fragments/footer/archive', {
+    const res = await app.request('/api/v1/fragments/footer/archive', {
       method: 'POST',
     })
     expect(res.status).toBe(200)
@@ -186,7 +186,7 @@ describe('archive with aliasOf → metadata.aliasOf carries the target', () => {
     // Mutant `→ false`: `metadata = undefined` (empty archiveMetadata
     // falls through the length check to `undefined`).
     // Discriminator: assert the specific field value.
-    const res = await app.request('/api/pages/landing/archive', {
+    const res = await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
@@ -200,7 +200,7 @@ describe('archive with aliasOf → metadata.aliasOf carries the target', () => {
   })
 
   it('archive fragment with aliasOf → audit metadata.aliasOf === target (parity with pages)', async () => {
-    const res = await app.request('/api/fragments/footer/archive', {
+    const res = await app.request('/api/v1/fragments/footer/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'header' }),
@@ -220,7 +220,7 @@ describe('archive with aliasOf → metadata.aliasOf carries the target', () => {
     // present ⇒ operator-declared intent (aliasOf / forced /
     // priorReviewState). A drift adding, say, `defaultAlias: true`
     // silently would degrade the contract.
-    const res = await app.request('/api/pages/landing/archive', {
+    const res = await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),

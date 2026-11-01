@@ -15,7 +15,7 @@
  *   - `archive-not-supported-on-target` (P4) fires for a Manual
  *     Redirect manifest on a plain-static target. Same surface the
  *     site-health drawer reads from Cut 2's background scanner.
- *   - `POST /api/publish/audit` surfaces `capabilities` when the
+ *   - `POST /api/v1/publish/audit` surfaces `capabilities` when the
  *     publish set includes a Manual Redirect manifest. Same surface
  *     PublishPanel reads to render the pre-publish capability
  *     warning.
@@ -39,7 +39,7 @@ import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
  * route implementation: archive fields set, NO template field, name
  * matches the from-route. Distinct from a Rename Redirect because no
  * preceding live page existed — operator created this manifest via
- * `POST /api/page-redirects`.
+ * `POST /api/v1/page-redirects`.
  */
 function makeManualRedirectPageManifest(aliasOf: string): PageManifest {
   return {
@@ -148,7 +148,7 @@ describe('Cut 5 — Manual Redirects compose with the four-point capability-gap 
     })
   })
 
-  describe('surface #4 (publish gate) — /api/publish/audit includes capabilities for Manual Redirects', () => {
+  describe('surface #4 (publish gate) — /api/v1/publish/audit includes capabilities for Manual Redirects', () => {
     let app: Hono
     let storage: MemoryStorage
 
@@ -210,7 +210,7 @@ describe('Cut 5 — Manual Redirects compose with the four-point capability-gap 
     })
 
     it('publish-audit surfaces capabilities when a Manual Redirect is in the publish set on a gapped target', async () => {
-      const res = await app.request('/api/publish/audit', {
+      const res = await app.request('/api/v1/publish/audit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -242,7 +242,7 @@ describe('Cut 5 — Manual Redirects compose with the four-point capability-gap 
       // capabilities omitted. Pins the "only surfaces when relevant"
       // contract from publish.ts so the dialog doesn't spam warnings
       // for non-redirect publishes.
-      const res = await app.request('/api/publish/audit', {
+      const res = await app.request('/api/v1/publish/audit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

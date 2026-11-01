@@ -99,8 +99,8 @@ describe('Error message labels — pin PAGE_HANDLE.label / FRAGMENT_HANDLE.label
   // the 404 body becomes ` "name" not found` (leading space) and no
   // existing rename test fails. Asserting exact body kills them.
 
-  it('POST /api/pages/missing/rename → 404 body uses "Page" label', async () => {
-    const res = await app.request('/api/pages/missing/rename', {
+  it('POST /api/v1/pages/missing/rename → 404 body uses "Page" label', async () => {
+    const res = await app.request('/api/v1/pages/missing/rename', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'whatever' }),
@@ -110,8 +110,8 @@ describe('Error message labels — pin PAGE_HANDLE.label / FRAGMENT_HANDLE.label
     expect(body.detail).toBe('Page "missing" not found')
   })
 
-  it('POST /api/fragments/missing/rename → 404 body uses "Fragment" label', async () => {
-    const res = await app.request('/api/fragments/missing/rename', {
+  it('POST /api/v1/fragments/missing/rename → 404 body uses "Fragment" label', async () => {
+    const res = await app.request('/api/v1/fragments/missing/rename', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'whatever' }),
@@ -129,7 +129,7 @@ describe('Invalid-body handling — 400 branches', () => {
     // The catch block on lines 126-128 has no coverage — no existing
     // test POSTs bytes that aren't valid JSON. Sending a body that
     // fails c.req.json() reaches the catch and returns the 400.
-    const res = await app.request('/api/pages/landing/rename', {
+    const res = await app.request('/api/v1/pages/landing/rename', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: '{ not json at all }',
@@ -140,7 +140,7 @@ describe('Invalid-body handling — 400 branches', () => {
   })
 
   it('malformed JSON on fragment rename → same 400 shape', async () => {
-    const res = await app.request('/api/fragments/header/rename', {
+    const res = await app.request('/api/v1/fragments/header/rename', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: '{ not json at all }',
@@ -155,7 +155,7 @@ describe('Invalid-body handling — 400 branches', () => {
     // response body's shape (issues[] with path + message) is a
     // surviving ObjectLiteral mutant target. Asserting the shape
     // structurally kills the mutant.
-    const res = await app.request('/api/pages/landing/rename', {
+    const res = await app.request('/api/v1/pages/landing/rename', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
@@ -172,7 +172,7 @@ describe('Invalid-body handling — 400 branches', () => {
   })
 
   it('body with `to` of wrong type → 400 with issues[] naming `to`', async () => {
-    const res = await app.request('/api/pages/landing/rename', {
+    const res = await app.request('/api/v1/pages/landing/rename', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 42 }),
@@ -186,7 +186,7 @@ describe('Invalid-body handling — 400 branches', () => {
 
   it('body with empty `to` string → 400 with issues[] naming `to`', async () => {
     // Zod `.min(1)` on `to` — empty string fails validation.
-    const res = await app.request('/api/pages/landing/rename', {
+    const res = await app.request('/api/v1/pages/landing/rename', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: '' }),
@@ -208,7 +208,7 @@ describe('No-op rename (to === from) — response body shape', () => {
     // would replace the object with `{}`, and StringLiteral mutants on
     // any field values would blank them — none of which trip existing
     // assertions. Pin the shape.
-    const res = await app.request('/api/pages/landing/rename', {
+    const res = await app.request('/api/v1/pages/landing/rename', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'landing' }),
@@ -240,7 +240,7 @@ describe('Audit metadata — pin the metadata literal on line 217-219', () => {
   // event and asserting the shape covers them.
 
   it('records action=rename with metadata.fromName + keepAlias=true', async () => {
-    const res = await app.request('/api/pages/landing/rename', {
+    const res = await app.request('/api/v1/pages/landing/rename', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'new-landing' }),
@@ -266,7 +266,7 @@ describe('Audit metadata — pin the metadata literal on line 217-219', () => {
     // Pins the `keepAlias` field's identity — a StringLiteral mutant
     // that blanks the key wouldn't be detectable without checking the
     // value round-trips.
-    const res = await app.request('/api/pages/landing/rename', {
+    const res = await app.request('/api/v1/pages/landing/rename', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'new-landing', keepAlias: false }),
@@ -285,12 +285,12 @@ describe('Audit metadata — pin the metadata literal on line 217-219', () => {
     // this coverage, mutating the conditional to `if (true)` or
     // `if (false)` would survive on the happy path.
     // Archive `landing` aliasing `home` first.
-    await app.request('/api/pages/landing/archive', {
+    await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
     })
-    const res = await app.request('/api/pages/home/rename', {
+    const res = await app.request('/api/v1/pages/home/rename', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'welcome' }),
@@ -314,7 +314,7 @@ describe('Audit metadata — pin the metadata literal on line 217-219', () => {
       'pages/landing/page.fr.json': JSON.stringify({ template: 'page-default', content: { title: 'Atterrissage' } }),
       'pages/landing/page.es.json': JSON.stringify({ template: 'page-default', content: { title: 'Aterrizaje' } }),
     })
-    const res = await app.request('/api/pages/landing/rename', {
+    const res = await app.request('/api/v1/pages/landing/rename', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'new-landing' }),
@@ -344,7 +344,7 @@ describe('Audit metadata — pin the metadata literal on line 217-219', () => {
     setup({
       'fragments/header/fragment.fr.json': JSON.stringify({ template: 'header-layout', content: { label: 'En-tête' } }),
     })
-    const res = await app.request('/api/fragments/header/rename', {
+    const res = await app.request('/api/v1/fragments/header/rename', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'top-bar' }),
@@ -376,13 +376,13 @@ describe('Conflict response bodies — pin the 409 literals', () => {
   it('ARCHIVED_NAME_CONFLICT body includes archivedAt + archivedBy from the archive manifest', async () => {
     // Archive `home` first with an alias — the archive manifest gets
     // archivedAt (timestamp) + archivedBy (actor) written.
-    await app.request('/api/pages/home/archive', {
+    await app.request('/api/v1/pages/home/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'landing' }),
     })
     // Try to rename landing → home; 409 with archive body.
-    const res = await app.request('/api/pages/landing/rename', {
+    const res = await app.request('/api/v1/pages/landing/rename', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'home' }),

@@ -1,6 +1,6 @@
 /**
  * Unit tests for `updateAssetMetadata` — the asset-domain operation
- * behind PATCH /api/assets/:name. Covers the three-state alt model,
+ * behind PATCH /api/v1/assets/:name. Covers the three-state alt model,
  * no-op patches, history recording, and the absent-vs-explicit-null
  * distinction.
  */

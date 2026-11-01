@@ -99,7 +99,7 @@ describe('Cut 14 — archive on pending-review', () => {
   })
 
   it('emits review-withdraw THEN archive event in that order', async () => {
-    const res = await app.request('/api/pages/landing/archive', {
+    const res = await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
@@ -131,7 +131,7 @@ describe('Cut 14 — archive on pending-review', () => {
   })
 
   it('archive event captures priorReviewState in metadata', async () => {
-    await app.request('/api/pages/landing/archive', {
+    await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
@@ -151,7 +151,7 @@ describe('Cut 14 — archive on pending-review', () => {
   it('resets the review sidecar once the archive consumed the state (#1344)', async () => {
     expect(await readSidecar('page', 'landing')).not.toBeNull()
 
-    await app.request('/api/pages/landing/archive', { method: 'POST' })
+    await app.request('/api/v1/pages/landing/archive', { method: 'POST' })
 
     expect(await readSidecar('page', 'landing')).toBeNull()
   })
@@ -165,7 +165,7 @@ describe('Cut 14 — archive on approved', () => {
   })
 
   it('does NOT emit review-withdraw (approved discards via priorReviewState only)', async () => {
-    await app.request('/api/pages/landing/archive', { method: 'POST' })
+    await app.request('/api/v1/pages/landing/archive', { method: 'POST' })
 
     const events = await readAuditEvents()
     const matched = events.filter(e => e.scope.kind === 'page' && e.scope.name === 'landing')
@@ -174,7 +174,7 @@ describe('Cut 14 — archive on approved', () => {
   })
 
   it('archive event metadata captures priorReviewState: approved', async () => {
-    await app.request('/api/pages/landing/archive', { method: 'POST' })
+    await app.request('/api/v1/pages/landing/archive', { method: 'POST' })
 
     const events = await readAuditEvents()
     const archiveEvent = events.find(e => e.action === 'archive' && e.scope.name === 'landing')
@@ -186,7 +186,7 @@ describe('Cut 14 — archive with no review sidecar (current production)', () =>
   beforeEach(() => setup())
 
   it('emits archive only, no priorReviewState metadata', async () => {
-    await app.request('/api/pages/landing/archive', {
+    await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
@@ -220,14 +220,14 @@ describe('Cut 14 — unarchive restores to draft (Q9 N-B.1)', () => {
   it('resets the review sidecar, leaving the restored item in draft (#1344)', async () => {
     expect(await readSidecar('page', 'landing')).not.toBeNull()
 
-    const res = await app.request('/api/pages/landing/unarchive', { method: 'POST' })
+    const res = await app.request('/api/v1/pages/landing/unarchive', { method: 'POST' })
     expect(res.status).toBe(200)
 
     expect(await readSidecar('page', 'landing')).toBeNull()
   })
 
   it('restored manifest has no reviewState (Q9 N-B.1: always to draft)', async () => {
-    const res = await app.request('/api/pages/landing/unarchive', { method: 'POST' })
+    const res = await app.request('/api/v1/pages/landing/unarchive', { method: 'POST' })
     expect(res.status).toBe(200)
 
     const restored = await readJson('pages/landing/page.json')
@@ -248,7 +248,7 @@ describe('Cut 14 — unarchive restores to draft (Q9 N-B.1)', () => {
       }),
     })
 
-    const res = await app.request('/api/pages/landing/unarchive', { method: 'POST' })
+    const res = await app.request('/api/v1/pages/landing/unarchive', { method: 'POST' })
     expect(res.status).toBe(200)
 
     const restored = await readJson('pages/landing/page.json')
@@ -275,7 +275,7 @@ describe('#1344 review — dotted item names have no sidecar path', () => {
   })
 
   it('archives a dotted page name without touching the sidecar encoding', async () => {
-    const res = await app.request('/api/pages/release.notes/archive', { method: 'POST' })
+    const res = await app.request('/api/v1/pages/release.notes/archive', { method: 'POST' })
     expect(res.status).toBe(200)
 
     const archived = await readJson('pages/release.notes/page.json')
@@ -283,9 +283,9 @@ describe('#1344 review — dotted item names have no sidecar path', () => {
   })
 
   it('unarchives a dotted page name without touching the sidecar encoding', async () => {
-    await app.request('/api/pages/release.notes/archive', { method: 'POST' })
+    await app.request('/api/v1/pages/release.notes/archive', { method: 'POST' })
 
-    const res = await app.request('/api/pages/release.notes/unarchive', { method: 'POST' })
+    const res = await app.request('/api/v1/pages/release.notes/unarchive', { method: 'POST' })
     expect(res.status).toBe(200)
 
     const restored = await readJson('pages/release.notes/page.json')

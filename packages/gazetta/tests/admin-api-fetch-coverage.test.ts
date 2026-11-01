@@ -1,8 +1,8 @@
 /**
- * Mutation-coverage tests for `POST /api/fetch` in
+ * Mutation-coverage tests for `POST /api/v1/fetch` in
  * `src/admin-api/routes/publish.ts` (lines 881-944) — closes the
  * NoCoverage bulk reported on issue #703. Today's test surface for
- * `/api/fetch` is schema-only ([apps/admin/tests/api-contract.test.ts](../../../apps/admin/tests/api-contract.test.ts)
+ * `/api/v1/fetch` is schema-only ([apps/admin/tests/api-contract.test.ts](../../../apps/admin/tests/api-contract.test.ts)
  * only parses response shapes); the route handler itself — 63 lines
  * of body-parsing, target lookup, discovery walk, and copy path —
  * has no behavioral test.
@@ -63,7 +63,7 @@ function buildApp(): Built {
   return { app, sourceStorage, remoteStorage }
 }
 
-describe('POST /api/fetch — input validation (covers publish.ts:886-890)', () => {
+describe('POST /api/v1/fetch — input validation (covers publish.ts:886-890)', () => {
   it('returns 400 with a specific message when the `source` field is missing', async () => {
     // Kills the string literal at line 886 (`'Missing "source" target
     // name'` → `""`). The error prose IS the contract; a mutation to
@@ -71,7 +71,7 @@ describe('POST /api/fetch — input validation (covers publish.ts:886-890)', () 
     // body message that the admin UI can't display meaningfully.
     const { app } = buildApp()
 
-    const res = await app.request('/api/fetch', {
+    const res = await app.request('/api/v1/fetch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
@@ -91,7 +91,7 @@ describe('POST /api/fetch — input validation (covers publish.ts:886-890)', () 
     // contract catches the mutation via response shape).
     const { app } = buildApp()
 
-    const res = await app.request('/api/fetch', {
+    const res = await app.request('/api/v1/fetch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source: 'does-not-exist' }),
@@ -103,7 +103,7 @@ describe('POST /api/fetch — input validation (covers publish.ts:886-890)', () 
   })
 })
 
-describe('POST /api/fetch — discovery walk (covers publish.ts:900-927)', () => {
+describe('POST /api/v1/fetch — discovery walk (covers publish.ts:900-927)', () => {
   it('fetches nested items when discovery lists only their parent directories', async () => {
     const { app, remoteStorage, sourceStorage } = buildApp()
     const files = {
@@ -115,7 +115,7 @@ describe('POST /api/fetch — discovery walk (covers publish.ts:900-927)', () =>
     }
     remoteStorage.seed(files)
 
-    const res = await app.request('/api/fetch', {
+    const res = await app.request('/api/v1/fetch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source: 'remote' }),
@@ -134,7 +134,7 @@ describe('POST /api/fetch — discovery walk (covers publish.ts:900-927)', () =>
     // found on target'` → `""`.
     const { app } = buildApp()
 
-    const res = await app.request('/api/fetch', {
+    const res = await app.request('/api/v1/fetch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source: 'remote' }),
@@ -160,7 +160,7 @@ describe('POST /api/fetch — discovery walk (covers publish.ts:900-927)', () =>
       'pages/about/page.json': JSON.stringify({ template: 'page-default', route: '/about', content: {} }),
     })
 
-    const res = await app.request('/api/fetch', {
+    const res = await app.request('/api/v1/fetch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source: 'remote' }),
@@ -191,7 +191,7 @@ describe('POST /api/fetch — discovery walk (covers publish.ts:900-927)', () =>
       'fragments/footer/fragment.json': JSON.stringify({ template: 'footer-layout' }),
     })
 
-    const res = await app.request('/api/fetch', {
+    const res = await app.request('/api/v1/fetch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source: 'remote' }),
@@ -217,7 +217,7 @@ describe('POST /api/fetch — discovery walk (covers publish.ts:900-927)', () =>
       'templates/card/index.tsx': 'export default () => ({ html: "", css: "", js: "" })',
     })
 
-    const res = await app.request('/api/fetch', {
+    const res = await app.request('/api/v1/fetch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source: 'remote' }),
@@ -243,7 +243,7 @@ describe('POST /api/fetch — discovery walk (covers publish.ts:900-927)', () =>
       'templates/hero/index.tsx': 'export default () => ({ html: "", css: "", js: "" })',
     })
 
-    const res = await app.request('/api/fetch', {
+    const res = await app.request('/api/v1/fetch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source: 'remote' }),
@@ -255,7 +255,7 @@ describe('POST /api/fetch — discovery walk (covers publish.ts:900-927)', () =>
   })
 })
 
-describe('POST /api/fetch — explicit items path (covers publish.ts:900-902 + 933-938)', () => {
+describe('POST /api/v1/fetch — explicit items path (covers publish.ts:900-902 + 933-938)', () => {
   it('honors an explicit `items` list, skipping the discovery walk', async () => {
     // Kills the ConditionalExpression at line 901 (`if
     // (body.items?.length)` → `false` would ignore explicit items
@@ -267,7 +267,7 @@ describe('POST /api/fetch — explicit items path (covers publish.ts:900-902 + 9
       'pages/about/page.json': JSON.stringify({ template: 'page-default', route: '/about', content: {} }),
     })
 
-    const res = await app.request('/api/fetch', {
+    const res = await app.request('/api/v1/fetch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source: 'remote', items: ['pages/home'] }),
@@ -294,7 +294,7 @@ describe('POST /api/fetch — explicit items path (covers publish.ts:900-902 + 9
       'pages/home/page.json': JSON.stringify({ template: 'page-default', route: '/', content: {} }),
     })
 
-    const res = await app.request('/api/fetch', {
+    const res = await app.request('/api/v1/fetch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source: 'remote', items: ['pages/home'] }),

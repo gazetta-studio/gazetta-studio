@@ -108,7 +108,7 @@ describe('gazetta dev config reload (#1353)', () => {
     await waitFor(async () => (await fetchWithRetry(`${base}de/`, 10000)).includes('lang="de"'), 20000)
 
     // A target edit is visible through the admin API without a restart.
-    // environment drives the /api/targets display; the explicit editable
+    // environment drives the /api/v1/targets display; the explicit editable
     // override keeps `local` the editing target despite the non-local
     // environment (editable defaults to environment === 'local').
     const config4 = await readFile(configPath, 'utf-8')
@@ -120,7 +120,7 @@ describe('gazetta dev config reload (#1353)', () => {
       ),
     )
     await waitFor(async () => {
-      const res = await fetch(`http://127.0.0.1:${port}/admin/api/targets`)
+      const res = await fetch(`http://127.0.0.1:${port}/admin/api/v1/targets`)
       if (res.status !== 200) return false
       const targets = (await res.json()) as Array<{ name: string; environment: string }>
       return targets.some(t => t.name === 'local' && t.environment === 'staging')

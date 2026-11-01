@@ -26,7 +26,7 @@ import { principalMiddleware, type PrincipalEnv } from '../src/admin-api/middlew
 function buildTestApp(provider?: AuthIdentityProvider) {
   const app = new Hono<PrincipalEnv>()
   app.use('/api/*', principalMiddleware(provider))
-  app.get('/api/whoami', c => {
+  app.get('/api/v1/whoami', c => {
     const p = c.get('principal')
     return c.json({ id: p.id, role: p.role, trustMode: p.trustMode, capabilities: p.capabilities })
   })
@@ -36,7 +36,7 @@ function buildTestApp(provider?: AuthIdentityProvider) {
 describe('principalMiddleware (Cut 7)', () => {
   it('defaults to none mode when no provider is supplied', async () => {
     const app = buildTestApp()
-    const res = await app.request('/api/whoami')
+    const res = await app.request('/api/v1/whoami')
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.id).toBe(UNKNOWN_ACTOR_ID)
@@ -59,7 +59,7 @@ describe('principalMiddleware (Cut 7)', () => {
       },
     }
     const app = buildTestApp(provider)
-    const res = await app.request('/api/whoami')
+    const res = await app.request('/api/v1/whoami')
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.id).toBe('alice')
@@ -74,7 +74,7 @@ describe('principalMiddleware (Cut 7)', () => {
       },
     }
     const app = buildTestApp(provider)
-    const res = await app.request('/api/whoami')
+    const res = await app.request('/api/v1/whoami')
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.id).toBe(UNKNOWN_ACTOR_ID)
@@ -91,7 +91,7 @@ describe('principalMiddleware (Cut 7)', () => {
       },
     }
     const app = buildTestApp(provider)
-    const res = await app.request('/api/whoami')
+    const res = await app.request('/api/v1/whoami')
     expect(res.status).toBe(401)
     expect(res.headers.get('www-authenticate')).toContain('Bearer')
     expect(res.headers.get('content-type')).toBe('application/problem+json')
@@ -108,7 +108,7 @@ describe('principalMiddleware (Cut 7)', () => {
       },
     }
     const app = buildTestApp(provider)
-    const res = await app.request('/api/whoami')
+    const res = await app.request('/api/v1/whoami')
     expect(res.status).toBe(500)
   })
 
@@ -127,7 +127,7 @@ describe('principalMiddleware (Cut 7)', () => {
       },
     }
     const app = buildTestApp(provider)
-    const res = await app.request('/api/whoami', {
+    const res = await app.request('/api/v1/whoami', {
       headers: { 'X-Forwarded-User': 'bob', 'cf-connecting-ip': '203.0.113.1' },
     })
     expect(res.status).toBe(200)
@@ -145,7 +145,7 @@ describe('principalMiddleware (Cut 7)', () => {
       },
     }
     const app = buildTestApp(provider)
-    await app.request('/api/whoami', {
+    await app.request('/api/v1/whoami', {
       headers: { 'X-Forwarded-For': '203.0.113.1, 10.0.0.1' },
     })
     // First entry per the X-Forwarded-For convention (leftmost = client)

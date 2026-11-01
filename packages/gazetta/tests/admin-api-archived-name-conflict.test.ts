@@ -55,19 +55,19 @@ async function readJson(path: string): Promise<Record<string, unknown>> {
 
 async function postCreate(name: string, onConflict?: string) {
   const qs = onConflict ? `?onConflict=${onConflict}` : ''
-  return app.request(`/api/pages${qs}`, {
+  return app.request(`/api/v1/pages${qs}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, template: 'page-default' }),
   })
 }
 
-describe('POST /api/pages — archived-name-conflict (no onConflict flag)', () => {
+describe('POST /api/v1/pages — archived-name-conflict (no onConflict flag)', () => {
   beforeEach(() => setup())
 
   it('returns 409 ARCHIVED_NAME_CONFLICT when target is archived', async () => {
     // Archive `home` first.
-    await app.request('/api/pages/home/archive', {
+    await app.request('/api/v1/pages/home/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'about' }),
@@ -96,11 +96,11 @@ describe('POST /api/pages — archived-name-conflict (no onConflict flag)', () =
   })
 })
 
-describe('POST /api/pages?onConflict=restore', () => {
+describe('POST /api/v1/pages?onConflict=restore', () => {
   beforeEach(() => setup())
 
   it('unarchives the existing archive and returns the resolution', async () => {
-    await app.request('/api/pages/home/archive', {
+    await app.request('/api/v1/pages/home/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'about' }),
@@ -121,7 +121,7 @@ describe('POST /api/pages?onConflict=restore', () => {
   })
 
   it('tears down the archive-aliases sidecar', async () => {
-    await app.request('/api/pages/home/archive', {
+    await app.request('/api/v1/pages/home/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'about' }),
@@ -133,7 +133,7 @@ describe('POST /api/pages?onConflict=restore', () => {
   })
 
   it('resets the review sidecar, leaving the restored item in draft (#1344)', async () => {
-    await app.request('/api/pages/home/archive', { method: 'POST' })
+    await app.request('/api/v1/pages/home/archive', { method: 'POST' })
     // Seed the sidecar AFTER archiving so this isolates the
     // conflict-restore path: the archive route itself also resets
     // review state (#1344), and seeding first would let that path
@@ -166,7 +166,7 @@ describe('#1344 review — dotted item names on conflict-restore', () => {
   })
 
   it('conflict-restores a dotted page name without touching the sidecar encoding', async () => {
-    await app.request('/api/pages/release.notes/archive', { method: 'POST' })
+    await app.request('/api/v1/pages/release.notes/archive', { method: 'POST' })
 
     const res = await postCreate('release.notes', 'restore')
     expect(res.status).toBe(200)
@@ -189,7 +189,7 @@ describe('Manual Redirect restore refusal (#1343)', () => {
     aliasOf: 'home',
   })
 
-  it('POST /api/pages?onConflict=restore on a redirect archive answers 409 + writes nothing', async () => {
+  it('POST /api/v1/pages?onConflict=restore on a redirect archive answers 409 + writes nothing', async () => {
     setup({ 'pages/old-landing/page.json': redirectManifest })
     const res = await postCreate('old-landing', 'restore')
     expect(res.status).toBe(409)
@@ -198,9 +198,9 @@ describe('Manual Redirect restore refusal (#1343)', () => {
     expect(await storage.readFile('pages/old-landing/page.json')).toBe(redirectManifest)
   })
 
-  it('POST /api/fragments?onConflict=restore on a redirect archive answers 409 + writes nothing', async () => {
+  it('POST /api/v1/fragments?onConflict=restore on a redirect archive answers 409 + writes nothing', async () => {
     setup({ 'fragments/old-promo/fragment.json': redirectManifest })
-    const res = await app.request('/api/fragments?onConflict=restore', {
+    const res = await app.request('/api/v1/fragments?onConflict=restore', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'old-promo', template: 'card' }),
@@ -226,7 +226,7 @@ describe('Manual Redirect restore refusal (#1343)', () => {
 
   it('ARCHIVED_CONFLICT body for archived content does not mark `redirect`', async () => {
     setup()
-    await app.request('/api/pages/home/archive', {
+    await app.request('/api/v1/pages/home/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'about' }),
@@ -238,16 +238,16 @@ describe('Manual Redirect restore refusal (#1343)', () => {
   })
 })
 
-describe('POST /api/pages?onConflict=replace', () => {
+describe('POST /api/v1/pages?onConflict=replace', () => {
   beforeEach(() => setup())
 
   it('purges the archive and creates the new content', async () => {
-    await app.request('/api/pages/home/archive', { method: 'POST' })
+    await app.request('/api/v1/pages/home/archive', { method: 'POST' })
     const archived = await readJson('pages/home/page.json')
     expect(archived.archived).toBe(true)
     expect(archived.content).toEqual({ title: 'Home' }) // pre-existing archive content
 
-    const res = await app.request('/api/pages?onConflict=replace', {
+    const res = await app.request('/api/v1/pages?onConflict=replace', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'home', template: 'new-template', content: { title: 'New Home' } }),
@@ -263,11 +263,11 @@ describe('POST /api/pages?onConflict=replace', () => {
   })
 })
 
-describe('POST /api/pages?onConflict=moveAside', () => {
+describe('POST /api/v1/pages?onConflict=moveAside', () => {
   beforeEach(() => setup())
 
   it('renames the archive to <name>-archived-<date> and creates new content', async () => {
-    await app.request('/api/pages/home/archive', { method: 'POST' })
+    await app.request('/api/v1/pages/home/archive', { method: 'POST' })
 
     const res = await postCreate('home', 'moveAside')
     expect(res.status).toBe(200)
@@ -288,17 +288,17 @@ describe('POST /api/pages?onConflict=moveAside', () => {
   })
 })
 
-describe('POST /api/pages?onConflict=invalid', () => {
+describe('POST /api/v1/pages?onConflict=invalid', () => {
   beforeEach(() => setup())
 
   it('returns 400 for unknown onConflict mode', async () => {
-    await app.request('/api/pages/home/archive', { method: 'POST' })
+    await app.request('/api/v1/pages/home/archive', { method: 'POST' })
     const res = await postCreate('home', 'frobnicate')
     expect(res.status).toBe(400)
   })
 })
 
-describe('POST /api/fragments — archived-name-conflict parity', () => {
+describe('POST /api/v1/fragments — archived-name-conflict parity', () => {
   beforeEach(() => {
     setup({
       'fragments/header/fragment.json': JSON.stringify({ template: 'header-layout', content: {} }),
@@ -306,8 +306,8 @@ describe('POST /api/fragments — archived-name-conflict parity', () => {
   })
 
   it('returns ARCHIVED_NAME_CONFLICT for archived fragment names', async () => {
-    await app.request('/api/fragments/header/archive', { method: 'POST' })
-    const res = await app.request('/api/fragments', {
+    await app.request('/api/v1/fragments/header/archive', { method: 'POST' })
+    const res = await app.request('/api/v1/fragments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'header', template: 'header-layout' }),
@@ -319,8 +319,8 @@ describe('POST /api/fragments — archived-name-conflict parity', () => {
   })
 
   it('?onConflict=restore unarchives the fragment', async () => {
-    await app.request('/api/fragments/header/archive', { method: 'POST' })
-    const res = await app.request('/api/fragments?onConflict=restore', {
+    await app.request('/api/v1/fragments/header/archive', { method: 'POST' })
+    const res = await app.request('/api/v1/fragments?onConflict=restore', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'header', template: 'header-layout' }),

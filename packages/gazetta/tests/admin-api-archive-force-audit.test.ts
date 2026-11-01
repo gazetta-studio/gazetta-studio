@@ -130,7 +130,7 @@ describe('archive ?force=true + live refs → metadata records forced + bypassed
   })
 
   it('emits audit event with metadata.forced === true (not omitted, not false)', async () => {
-    const res = await app.request('/api/fragments/header/archive?force=true', {
+    const res = await app.request('/api/v1/fragments/header/archive?force=true', {
       method: 'POST',
     })
     expect(res.status).toBe(200)
@@ -145,7 +145,7 @@ describe('archive ?force=true + live refs → metadata records forced + bypassed
   })
 
   it('emits audit event with metadata.bypassedRefs populated with the stranded refs', async () => {
-    const res = await app.request('/api/fragments/header/archive?force=true', {
+    const res = await app.request('/api/v1/fragments/header/archive?force=true', {
       method: 'POST',
     })
     expect(res.status).toBe(200)
@@ -168,7 +168,7 @@ describe('archive ?force=true + NO live refs → metadata records forced but NOT
     // Fragment `footer` has no fragment-deps sidecars — no live refs
     // to bypass. Force still applies (operator's declared intent), so
     // `forced: true` records.
-    const res = await app.request('/api/fragments/footer/archive?force=true', {
+    const res = await app.request('/api/v1/fragments/footer/archive?force=true', {
       method: 'POST',
     })
     expect(res.status).toBe(200)
@@ -183,7 +183,7 @@ describe('archive ?force=true + NO live refs → metadata records forced but NOT
     // bypassedRefs, including as `[]`). The forensic contract per
     // design-soft-delete.md Q5 E1: bypassedRefs present ONLY when
     // refs were actually bypassed — its absence is meaningful.
-    const res = await app.request('/api/fragments/footer/archive?force=true', {
+    const res = await app.request('/api/v1/fragments/footer/archive?force=true', {
       method: 'POST',
     })
     expect(res.status).toBe(200)
@@ -202,7 +202,7 @@ describe('archive WITHOUT ?force=true → metadata records neither forced nor by
     // force branch on every archive). A regular archive without
     // `?force=true` must NOT carry `forced` — that's the operator's
     // declared intent, not a system default.
-    const res = await app.request('/api/pages/landing/archive', {
+    const res = await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
     })
     expect(res.status).toBe(200)
@@ -222,7 +222,7 @@ describe('archive WITHOUT ?force=true → metadata records neither forced nor by
     // Same shape — belt-and-suspenders check for the paired assertion
     // above. Kills any mutant that would spuriously add bypassedRefs
     // to non-force audits.
-    const res = await app.request('/api/pages/landing/archive', {
+    const res = await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
     })
     expect(res.status).toBe(200)

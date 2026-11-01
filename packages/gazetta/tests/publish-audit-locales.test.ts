@@ -170,7 +170,7 @@ function buildApp(strict = false, targetLocales?: string[], wireValidators = tru
 describe('publish audit translation HTML', () => {
   it('reports each translation’s broken link and keeps the default audit clean', async () => {
     const { app } = buildApp()
-    const res = await app.request('/api/publish/audit', {
+    const res = await app.request('/api/v1/publish/audit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -200,7 +200,7 @@ describe('publish audit translation HTML', () => {
 
   it('blocks a strict translation publish even when the client skips the audit endpoint', async () => {
     const { app, target } = buildApp(true)
-    const res = await app.request('/api/publish', {
+    const res = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: ['pages/about:fr'], targets: ['staging'] }),
@@ -221,7 +221,7 @@ describe('publish audit translation HTML', () => {
 
   it.each(['FR', 'fR'])('normalizes %s for both the audit endpoint and strict publish gate', async locale => {
     const { app, target } = buildApp(true)
-    const audit = await app.request('/api/publish/audit', {
+    const audit = await app.request('/api/v1/publish/audit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ target: 'staging', items: [{ kind: 'page', name: `about:${locale}` }] }),
@@ -233,7 +233,7 @@ describe('publish audit translation HTML', () => {
         message: expect.stringContaining('/missing-fr'),
       }),
     ])
-    const publish = await app.request('/api/publish', {
+    const publish = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: [`pages/about:${locale}`], targets: ['staging'] }),
@@ -245,7 +245,7 @@ describe('publish audit translation HTML', () => {
 
   it('publishes mixed-case locale requests from the same canonical variant that was audited', async () => {
     const { app, target } = buildApp()
-    const publish = await app.request('/api/publish', {
+    const publish = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: ['pages/about:fR', 'fragments/footer:fR'], targets: ['staging'] }),
@@ -259,7 +259,7 @@ describe('publish audit translation HTML', () => {
 
   it('audits only target-enabled translations expanded from a bare page', async () => {
     const { app, target } = buildApp(true, ['fr'])
-    const audit = await app.request('/api/publish/audit', {
+    const audit = await app.request('/api/v1/publish/audit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ target: 'staging', items: [{ kind: 'page', name: 'about' }] }),
@@ -271,7 +271,7 @@ describe('publish audit translation HTML', () => {
         message: expect.stringContaining('/missing-fr'),
       }),
     ])
-    const publish = await app.request('/api/publish', {
+    const publish = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: ['pages/about'], targets: ['staging'] }),
@@ -283,7 +283,7 @@ describe('publish audit translation HTML', () => {
 
   it('does not audit translations excluded from the destination target', async () => {
     const { app } = buildApp(true, [])
-    const audit = await app.request('/api/publish/audit', {
+    const audit = await app.request('/api/v1/publish/audit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ target: 'staging', items: [{ kind: 'page', name: 'about' }] }),
@@ -294,7 +294,7 @@ describe('publish audit translation HTML', () => {
 
   it('still audits an explicitly requested translation outside the bare-item target filter', async () => {
     const { app } = buildApp(true, [])
-    const audit = await app.request('/api/publish/audit', {
+    const audit = await app.request('/api/v1/publish/audit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ target: 'staging', items: [{ kind: 'page', name: 'about:fr' }] }),
@@ -313,7 +313,7 @@ describe('publish audit translation HTML', () => {
     const page = JSON.parse(await storage.readFile('pages/about/page.json'))
     page.components[0].content.body = '<a href="/missing-default">Broken fallback</a>'
     await storage.writeFile('pages/about/page.json', JSON.stringify(page))
-    const publish = await app.request('/api/publish', {
+    const publish = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: ['pages/about:es'], targets: ['staging'] }),
@@ -337,7 +337,7 @@ describe('publish audit translation HTML', () => {
     { kind: 'asset', name: 'about' },
   ])('rejects malformed audit item %j at the request boundary', async item => {
     const { app, target } = buildApp()
-    const audit = await app.request('/api/publish/audit', {
+    const audit = await app.request('/api/v1/publish/audit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ target: 'staging', items: [item] }),
@@ -350,7 +350,7 @@ describe('publish audit translation HTML', () => {
 
   it('validates audit items even without a validator registry', async () => {
     const { app, target } = buildApp(false, undefined, false)
-    const audit = await app.request('/api/publish/audit', {
+    const audit = await app.request('/api/v1/publish/audit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ target: 'staging', items: [{ kind: 'page' }] }),

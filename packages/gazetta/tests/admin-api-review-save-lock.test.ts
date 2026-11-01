@@ -77,11 +77,11 @@ function setup(reviewWorkflow: ReviewWorkflowConfig | undefined): Harness {
 }
 
 const KINDS = [
-  { kind: 'page' as ReviewStateKind, name: 'home', url: '/api/pages/home', file: 'pages/home/page.json' },
+  { kind: 'page' as ReviewStateKind, name: 'home', url: '/api/v1/pages/home', file: 'pages/home/page.json' },
   {
     kind: 'fragment' as ReviewStateKind,
     name: 'header',
-    url: '/api/fragments/header',
+    url: '/api/v1/fragments/header',
     file: 'fragments/header/fragment.json',
   },
 ]
@@ -198,7 +198,7 @@ describe('save-handler review gate — scope', () => {
     await seedState(h, 'page', 'home', APPROVED)
     await seedState(h, 'fragment', 'header', APPROVED)
 
-    expect((await put(h, '/api/pages/home', changedBody)).status).toBe(200)
+    expect((await put(h, '/api/v1/pages/home', changedBody)).status).toBe(200)
 
     expect((await readReviewSidecar(h.contentRoot, 'page', 'home'))?.state).toBe('draft')
     expect((await readReviewSidecar(h.contentRoot, 'fragment', 'header'))?.state).toBe('approved')

@@ -130,7 +130,7 @@ describe('Cross-foundation gap #4 — suggest-alt audit recording', () => {
       throw new Error(`unexpected url: ${url}`)
     }
     try {
-      const res = await app.request('/api/assets/hero/suggest-alt', { method: 'POST' })
+      const res = await app.request('/api/v1/assets/hero/suggest-alt', { method: 'POST' })
       expect(res.status).toBe(200)
     } finally {
       globalThis.fetch = originalFetch
@@ -165,7 +165,7 @@ describe('Cross-foundation gap #4 — suggest-alt audit recording', () => {
       throw new Error(`unexpected url: ${url}`)
     }
     try {
-      const res = await app.request('/api/assets/hero/suggest-alt', { method: 'POST' })
+      const res = await app.request('/api/v1/assets/hero/suggest-alt', { method: 'POST' })
       expect(res.status).toBe(200)
       const body = (await res.json()) as { refused: boolean }
       expect(body.refused).toBe(true)
@@ -203,7 +203,7 @@ describe('Cross-foundation gap #4 — suggest-alt audit recording', () => {
       throw new Error(`unexpected url: ${url}`)
     }
     try {
-      await app.request('/api/assets/hero/suggest-alt?locale=fr', { method: 'POST' })
+      await app.request('/api/v1/assets/hero/suggest-alt?locale=fr', { method: 'POST' })
     } finally {
       globalThis.fetch = originalFetch
     }

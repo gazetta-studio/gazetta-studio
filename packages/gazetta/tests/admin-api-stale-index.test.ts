@@ -78,7 +78,7 @@ describe('stale derived indices (#1139)', () => {
     // `.gazetta/alias-targets/` index was never built (fresh clone).
     storage.seed({ 'pages/landing/page.json': archivedWithAlias('home') })
 
-    const res = await app.request('/api/pages/home/purge', { method: 'DELETE' })
+    const res = await app.request('/api/v1/pages/home/purge', { method: 'DELETE' })
     expect(res.status).toBe(409)
     const body = (await res.json()) as {
       code: string
@@ -110,7 +110,7 @@ describe('stale derived indices (#1139)', () => {
       }),
     })
 
-    const res = await app.request('/api/fragments/header/purge', { method: 'DELETE' })
+    const res = await app.request('/api/v1/fragments/header/purge', { method: 'DELETE' })
     expect(res.status).toBe(409)
     const body = (await res.json()) as { liveRefs: Array<{ kind: string; name: string }> }
     expect(body.liveRefs).toEqual([{ kind: 'page', name: 'home' }])
@@ -120,7 +120,7 @@ describe('stale derived indices (#1139)', () => {
   it('rename cascades to aliasing archives when the alias-targets index was never built', async () => {
     storage.seed({ 'pages/landing/page.json': archivedWithAlias('home') })
 
-    const res = await app.request('/api/pages/home/rename', {
+    const res = await app.request('/api/v1/pages/home/rename', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'front' }),
@@ -202,7 +202,7 @@ describe('stale derived indices (#1139)', () => {
       '.gazetta/asset-refs/hero/pages.contact': JSON.stringify({ refs: [] }),
     })
 
-    const res = await app.request('/api/assets/hero', { method: 'DELETE' })
+    const res = await app.request('/api/v1/assets/hero', { method: 'DELETE' })
     expect(res.status).toBe(409)
     const body = (await res.json()) as { refs: Array<{ path?: string }> }
     const paths = body.refs.map(r => r.path ?? '')

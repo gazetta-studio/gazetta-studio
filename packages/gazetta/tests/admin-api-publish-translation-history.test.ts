@@ -1,6 +1,6 @@
 /**
  * #1174: a translation-only admin publish must copy the variant manifest
- * and record it in history. Before the fix, `POST /api/publish` with
+ * and record it in history. Before the fix, `POST /api/v1/publish` with
  * `items: ['pages/about:fr']` rendered the new French HTML but left the
  * target's old `page.fr.json` underneath it (publishItems looked for a
  * literal `about:fr` folder and copied nothing), and the revision
@@ -89,7 +89,7 @@ function buildApp(): { app: Hono; sourceStorage: MemoryStorage; targetStorage: M
 }
 
 async function publish(app: Hono, items: string[]): Promise<void> {
-  const res = await app.request('/api/publish', {
+  const res = await app.request('/api/v1/publish', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ items, targets: ['staging'] }),
@@ -152,7 +152,7 @@ describe('publish route — translation manifests copied and recorded (#1174)', 
       'pages/about/page.../escape.json': JSON.stringify({ template: 'page-default', content: {} }),
     })
 
-    const res = await app.request('/api/publish', {
+    const res = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: ['pages/about:../escape'], targets: ['staging'] }),

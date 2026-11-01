@@ -47,21 +47,21 @@ const json = (method: string, body: unknown, headers: Record<string, string> = {
 })
 
 const ERROR_PATHS: Array<[label: string, path: string, init?: RequestInit]> = [
-  ['an unknown API path', '/api/no-such-route'],
-  ['a missing page', '/api/pages/no-such-page'],
-  ['a missing fragment', '/api/fragments/no-such-fragment'],
-  ['a page create with no name', '/api/pages', json('POST', {})],
-  ['a stale page save', '/api/pages/home', json('PUT', { components: [] }, { 'If-Match': '"not-the-etag"' })],
-  ['a publish with no items', '/api/publish', json('POST', { targets: ['staging'] })],
-  ['a publish to an unknown target', '/api/publish', json('POST', { items: ['pages/home'], targets: ['nope'] })],
-  ['a compare against an unknown target', '/api/compare?target=nope'],
-  ['history of an unknown target', '/api/history?target=nope'],
-  ['a missing asset', '/api/assets/no-such-asset'],
-  ['deleting a missing asset', '/api/assets/no-such-asset', { method: 'DELETE' }],
-  ['a missing template schema', '/api/templates/no-such-template/schema'],
-  ['archiving a missing page', '/api/pages/no-such-page/archive', json('POST', {})],
-  ['purging a page that is not archived', '/api/pages/home/purge', { method: 'DELETE' }],
-  ['renaming a missing page', '/api/pages/no-such-page/rename', json('POST', { newName: 'other' })],
+  ['an unknown API path', '/api/v1/no-such-route'],
+  ['a missing page', '/api/v1/pages/no-such-page'],
+  ['a missing fragment', '/api/v1/fragments/no-such-fragment'],
+  ['a page create with no name', '/api/v1/pages', json('POST', {})],
+  ['a stale page save', '/api/v1/pages/home', json('PUT', { components: [] }, { 'If-Match': '"not-the-etag"' })],
+  ['a publish with no items', '/api/v1/publish', json('POST', { targets: ['staging'] })],
+  ['a publish to an unknown target', '/api/v1/publish', json('POST', { items: ['pages/home'], targets: ['nope'] })],
+  ['a compare against an unknown target', '/api/v1/compare?target=nope'],
+  ['history of an unknown target', '/api/v1/history?target=nope'],
+  ['a missing asset', '/api/v1/assets/no-such-asset'],
+  ['deleting a missing asset', '/api/v1/assets/no-such-asset', { method: 'DELETE' }],
+  ['a missing template schema', '/api/v1/templates/no-such-template/schema'],
+  ['archiving a missing page', '/api/v1/pages/no-such-page/archive', json('POST', {})],
+  ['purging a page that is not archived', '/api/v1/pages/home/purge', { method: 'DELETE' }],
+  ['renaming a missing page', '/api/v1/pages/no-such-page/rename', json('POST', { newName: 'other' })],
 ]
 
 describe('admin-API errors are problem+json', () => {

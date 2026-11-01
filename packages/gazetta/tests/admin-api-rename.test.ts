@@ -53,14 +53,14 @@ async function readJson(path: string): Promise<Record<string, unknown>> {
 }
 
 async function postRename(name: string, body: Record<string, unknown>) {
-  return app.request(`/api/pages/${name}/rename`, {
+  return app.request(`/api/v1/pages/${name}/rename`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
 }
 
-describe('POST /api/pages/:name/rename — happy path', () => {
+describe('POST /api/v1/pages/:name/rename — happy path', () => {
   beforeEach(() => setup())
 
   it('renames A → B: new manifest at B (live), old archived with aliasOf=B', async () => {
@@ -113,7 +113,7 @@ describe('POST /api/pages/:name/rename — happy path', () => {
   })
 })
 
-describe('POST /api/pages/:name/rename — conflict shapes', () => {
+describe('POST /api/v1/pages/:name/rename — conflict shapes', () => {
   beforeEach(() => setup())
 
   it('409 NAME_COLLISION when the target is a live page', async () => {
@@ -130,7 +130,7 @@ describe('POST /api/pages/:name/rename — conflict shapes', () => {
 
   it('409 ARCHIVED_NAME_CONFLICT when the target is archived', async () => {
     // Archive `home` first.
-    await app.request('/api/pages/home/archive', {
+    await app.request('/api/v1/pages/home/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'landing' }),
@@ -161,12 +161,12 @@ describe('POST /api/pages/:name/rename — conflict shapes', () => {
   })
 })
 
-describe('POST /api/pages/:name/rename — flatten cascade', () => {
+describe('POST /api/v1/pages/:name/rename — flatten cascade', () => {
   beforeEach(() => setup())
 
   it('rewrites archive aliases when renaming the alias target', async () => {
     // Archive `landing` aliasing `home` → home now has an alias-pointer.
-    await app.request('/api/pages/landing/archive', {
+    await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
@@ -199,7 +199,7 @@ describe('POST /api/pages/:name/rename — flatten cascade', () => {
     })
     // Archive v1, v2, v3 — all aliasing 'home'.
     for (const name of ['v1', 'v2', 'v3']) {
-      await app.request(`/api/pages/${name}/archive`, {
+      await app.request(`/api/v1/pages/${name}/archive`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ aliasOf: 'home' }),
@@ -218,11 +218,11 @@ describe('POST /api/pages/:name/rename — flatten cascade', () => {
   })
 })
 
-describe('POST /api/fragments/:name/rename', () => {
+describe('POST /api/v1/fragments/:name/rename', () => {
   beforeEach(() => setup())
 
   it('renames a fragment with the same shape as pages', async () => {
-    const res = await app.request('/api/fragments/header/rename', {
+    const res = await app.request('/api/v1/fragments/header/rename', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'top-bar' }),
@@ -252,7 +252,7 @@ describe('rename without keeping an alias', () => {
 
   it('needs delete:pages, so an editor gets 403 and nothing changes', async () => {
     setup({}, editorAuth)
-    const res = await app.request('/api/pages/landing/rename', {
+    const res = await app.request('/api/v1/pages/landing/rename', {
       method: 'POST',
       headers: asEditor,
       body: JSON.stringify({ to: 'welcome', keepAlias: false }),
@@ -265,7 +265,7 @@ describe('rename without keeping an alias', () => {
 
   it('still lets an editor rename with an alias', async () => {
     setup({}, editorAuth)
-    const res = await app.request('/api/pages/landing/rename', {
+    const res = await app.request('/api/v1/pages/landing/rename', {
       method: 'POST',
       headers: asEditor,
       body: JSON.stringify({ to: 'welcome' }),
@@ -277,7 +277,7 @@ describe('rename without keeping an alias', () => {
     setup({
       'pages/about/page.json': JSON.stringify({ template: 'page-default', content: {}, components: ['@header'] }),
     })
-    const res = await app.request('/api/fragments/header/rename', {
+    const res = await app.request('/api/v1/fragments/header/rename', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'masthead', keepAlias: false }),
@@ -294,7 +294,7 @@ describe('rename without keeping an alias', () => {
     setup({
       'pages/about/page.json': JSON.stringify({ template: 'page-default', content: {}, components: ['@header'] }),
     })
-    const res = await app.request('/api/fragments/header/rename?force=true', {
+    const res = await app.request('/api/v1/fragments/header/rename?force=true', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'masthead', keepAlias: false }),

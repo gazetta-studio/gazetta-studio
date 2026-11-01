@@ -109,7 +109,7 @@ describe('publish route — toPublishItem categorization (covers publish.ts:85-9
     const capture: CapturedBefore[] = []
     const { app } = buildApp({ capture })
 
-    const res = await app.request('/api/publish', {
+    const res = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: ['pages/home'], targets: ['staging'] }),
@@ -124,7 +124,7 @@ describe('publish route — toPublishItem categorization (covers publish.ts:85-9
     const capture: CapturedBefore[] = []
     const { app } = buildApp({ capture })
 
-    const res = await app.request('/api/publish', {
+    const res = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: ['fragments/header'], targets: ['staging'] }),
@@ -139,7 +139,7 @@ describe('publish route — toPublishItem categorization (covers publish.ts:85-9
     const capture: CapturedBefore[] = []
     const { app } = buildApp({ capture })
 
-    const res = await app.request('/api/publish', {
+    const res = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: ['assets/hero'], targets: ['staging'] }),
@@ -159,7 +159,7 @@ describe('publish route — toPublishItem categorization (covers publish.ts:85-9
     const capture: CapturedBefore[] = []
     const { app } = buildApp({ capture })
 
-    const res = await app.request('/api/publish', {
+    const res = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: ['orphan-thing'], targets: ['staging'] }),
@@ -177,7 +177,7 @@ describe('publish route — toPublishItem categorization (covers publish.ts:85-9
     const capture: CapturedBefore[] = []
     const { app } = buildApp({ capture })
 
-    const res = await app.request('/api/publish', {
+    const res = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: ['assets/folder/nested-asset'], targets: ['staging'] }),
@@ -194,7 +194,7 @@ describe('publish route — toPublishItem categorization (covers publish.ts:85-9
     const capture: CapturedBefore[] = []
     const { app } = buildApp({ capture })
 
-    const res = await app.request('/api/publish', {
+    const res = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -217,7 +217,7 @@ describe('publish route — evaluatePublishGate kind filter (covers publish.ts:1
   it('triggers the gate (409) for page items when a pre-publish validator errors', async () => {
     const { app } = buildApp({ validator: alwaysFailValidator() })
 
-    const res = await app.request('/api/publish', {
+    const res = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: ['pages/home'], targets: ['staging'] }),
@@ -240,7 +240,7 @@ describe('publish route — evaluatePublishGate kind filter (covers publish.ts:1
   it('triggers the gate (409) for fragment items when a pre-publish validator errors', async () => {
     const { app } = buildApp({ validator: alwaysFailValidator() })
 
-    const res = await app.request('/api/publish', {
+    const res = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: ['fragments/header'], targets: ['staging'] }),
@@ -257,7 +257,7 @@ describe('publish route — evaluatePublishGate kind filter (covers publish.ts:1
   it('skips the gate for an asset-only publish (no 409 even with an always-fail validator)', async () => {
     const { app } = buildApp({ validator: alwaysFailValidator() })
 
-    const res = await app.request('/api/publish', {
+    const res = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: ['assets/hero'], targets: ['staging'] }),

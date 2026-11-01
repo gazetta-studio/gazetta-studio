@@ -1,6 +1,6 @@
 /**
  * Route-level tests for `admin-api/routes/history.ts`:
- * `GET /api/history`, `POST /api/history/undo`, `POST /api/history/restore`.
+ * `GET /api/v1/history`, `POST /api/v1/history/undo`, `POST /api/v1/history/restore`.
  *
  * The routes are mounted directly (not through `createAdminApp`) so each
  * test controls the three constructor inputs the handlers branch on:
@@ -76,7 +76,7 @@ function mount(opts: MountOptions): Mounted {
     c.set('audit', audit)
     await next()
   })
-  app.route('/', historyRoutes(resolve, opts.preInit, opts.configs === null ? undefined : opts.configs))
+  app.route('/api/v1', historyRoutes(resolve, opts.preInit, opts.configs === null ? undefined : opts.configs))
   return { app, events, invalidated }
 }
 
@@ -113,7 +113,7 @@ describe('target resolution', () => {
     const storage = memoryStorage()
     await seedRevisions(storage)
     const { app } = mount({ configs: { staging: config(storage) } })
-    const res = await app.request('/api/history?target=staging')
+    const res = await app.request('/api/v1/history?target=staging')
     expect(res.status).toBe(200)
     const body = await json(res)
     expect((body.revisions as unknown[]).length).toBe(3)
@@ -130,27 +130,27 @@ describe('target resolution', () => {
     })
     const { app } = mount({ configs: { staging: config(counted) } })
     const [a, b] = await Promise.all([
-      app.request('/api/history?target=staging'),
-      app.request('/api/history?target=staging'),
+      app.request('/api/v1/history?target=staging'),
+      app.request('/api/v1/history?target=staging'),
     ])
     expect(a.status).toBe(200)
     expect(b.status).toBe(200)
     expect(inits).toBe(1)
     // A later request reuses the resolved registry without re-initialising.
-    expect((await app.request('/api/history?target=staging')).status).toBe(200)
+    expect((await app.request('/api/v1/history?target=staging')).status).toBe(200)
     expect(inits).toBe(1)
   })
 
   it('400 "Unknown target" when no target configs exist', async () => {
     const { app } = mount({ configs: null })
-    const res = await app.request('/api/history?target=staging')
+    const res = await app.request('/api/v1/history?target=staging')
     expect(res.status).toBe(400)
     await expectProblem(res, 'BAD_REQUEST', 'Unknown target: staging')
   })
 
   it('400 "Unknown target" when target configs are empty', async () => {
     const { app } = mount({ configs: {} })
-    const res = await app.request('/api/history?target=staging')
+    const res = await app.request('/api/v1/history?target=staging')
     expect(res.status).toBe(400)
     await expectProblem(res, 'BAD_REQUEST', 'Unknown target: staging')
   })
@@ -158,7 +158,7 @@ describe('target resolution', () => {
   it('400 "Unknown target" when storage exists but the target has no config', async () => {
     const storage = memoryStorage()
     const { app } = mount({ preInit: new Map([['staging', storage]]), configs: {} })
-    const res = await app.request('/api/history?target=staging')
+    const res = await app.request('/api/v1/history?target=staging')
     expect(res.status).toBe(400)
     await expectProblem(res, 'BAD_REQUEST', 'Unknown target: staging')
   })
@@ -166,7 +166,7 @@ describe('target resolution', () => {
   it('400 "Unknown target" when the config exists but no storage was initialised for it', async () => {
     const storage = memoryStorage()
     const { app } = mount({ preInit: new Map(), configs: { staging: config(storage) } })
-    const res = await app.request('/api/history?target=staging')
+    const res = await app.request('/api/v1/history?target=staging')
     expect(res.status).toBe(400)
     await expectProblem(res, 'BAD_REQUEST', 'Unknown target: staging')
   })
@@ -174,16 +174,16 @@ describe('target resolution', () => {
   it('409 when history is disabled for the target', async () => {
     const storage = memoryStorage()
     const { app } = mount({ configs: { staging: config(storage, { history: { enabled: false } }) } })
-    const res = await app.request('/api/history?target=staging')
+    const res = await app.request('/api/v1/history?target=staging')
     expect(res.status).toBe(409)
     await expectProblem(res, 'CONFLICT', 'History disabled for target "staging"')
   })
 })
 
-describe('GET /api/history', () => {
+describe('GET /api/v1/history', () => {
   it('400 when the target query is missing or empty', async () => {
     const { app } = mount({ configs: {} })
-    for (const url of ['/api/history', '/api/history?target=']) {
+    for (const url of ['/api/v1/history', '/api/v1/history?target=']) {
       const res = await app.request(url)
       expect(res.status).toBe(400)
       await expectProblem(res, 'BAD_REQUEST', 'Missing "target" query parameter')
@@ -194,7 +194,7 @@ describe('GET /api/history', () => {
     const storage = memoryStorage()
     const { r2, r3 } = await seedRevisions(storage)
     const { app } = mount({ configs: { staging: config(storage) } })
-    const res = await app.request('/api/history?target=staging&limit=2')
+    const res = await app.request('/api/v1/history?target=staging&limit=2')
     expect(res.status).toBe(200)
     const revisions = (await json(res)).revisions as { id: string }[]
     expect(revisions.map(r => r.id)).toEqual([r3.id, r2.id])
@@ -207,22 +207,22 @@ describe('GET /api/history', () => {
       await history.recordRevision({ operation: 'save', items: new Map([[HOME, String(i)]]) })
     }
     const { app } = mount({ configs: { staging: config(storage, { history: { retention: 100 } }) } })
-    const res = await app.request('/api/history?target=staging')
+    const res = await app.request('/api/v1/history?target=staging')
     expect(((await json(res)).revisions as unknown[]).length).toBe(50)
   })
 })
 
-describe('POST /api/history/undo', () => {
+describe('POST /api/v1/history/undo', () => {
   it('400 when the target query is missing', async () => {
     const { app } = mount({ configs: {} })
-    const res = await app.request('/api/history/undo', { method: 'POST' })
+    const res = await app.request('/api/v1/history/undo', { method: 'POST' })
     expect(res.status).toBe(400)
     await expectProblem(res, 'BAD_REQUEST', 'Missing "target" query parameter')
   })
 
   it('passes resolution errors through', async () => {
     const { app } = mount({ configs: {} })
-    const res = await app.request('/api/history/undo?target=staging', { method: 'POST' })
+    const res = await app.request('/api/v1/history/undo?target=staging', { method: 'POST' })
     expect(res.status).toBe(400)
     await expectProblem(res, 'BAD_REQUEST', 'Unknown target: staging')
   })
@@ -231,7 +231,7 @@ describe('POST /api/history/undo', () => {
     const storage = memoryStorage()
     await createHistoryProvider({ storage }).recordRevision({ operation: 'save', items: new Map([[HOME, v1]]) })
     const { app, events } = mount({ configs: { staging: config(storage) } })
-    const res = await app.request('/api/history/undo?target=staging', { method: 'POST' })
+    const res = await app.request('/api/v1/history/undo?target=staging', { method: 'POST' })
     expect(res.status).toBe(409)
     await expectProblem(res, 'CONFLICT', 'Nothing to undo — no prior revision on this target')
     expect(events).toEqual([])
@@ -241,7 +241,7 @@ describe('POST /api/history/undo', () => {
     const storage = memoryStorage()
     const { history, r2, r3 } = await seedRevisions(storage)
     const { app, events, invalidated } = mount({ configs: { staging: config(storage) }, sourceTargetName: 'local' })
-    const res = await app.request('/api/history/undo?target=staging', { method: 'POST' })
+    const res = await app.request('/api/v1/history/undo?target=staging', { method: 'POST' })
     expect(res.status).toBe(200)
     const body = await json(res)
     expect(body.restoredFrom).toBe(r2.id)
@@ -267,7 +267,7 @@ describe('POST /api/history/undo', () => {
     const storage = memoryStorage()
     await seedRevisions(storage)
     const { app, invalidated } = mount({ configs: { local: config(storage) }, sourceTargetName: 'local' })
-    const res = await app.request('/api/history/undo?target=local', { method: 'POST' })
+    const res = await app.request('/api/v1/history/undo?target=local', { method: 'POST' })
     expect(res.status).toBe(200)
     expect(invalidated.sort()).toEqual(['fragments:', 'pages:'])
   })
@@ -276,18 +276,18 @@ describe('POST /api/history/undo', () => {
     const storage = memoryStorage()
     const { history } = await seedRevisions(storage, 100)
     const { app } = mount({ configs: { staging: config(storage, { history: { retention: 2 } }) } })
-    expect((await app.request('/api/history/undo?target=staging', { method: 'POST' })).status).toBe(200)
+    expect((await app.request('/api/v1/history/undo?target=staging', { method: 'POST' })).status).toBe(200)
     expect((await history.listRevisions(100)).length).toBe(2)
   })
 })
 
-describe('POST /api/history/restore', () => {
+describe('POST /api/v1/history/restore', () => {
   it('400 when the target or id query is missing', async () => {
     const { app } = mount({ configs: {} })
-    const noTarget = await app.request('/api/history/restore?id=rev-1', { method: 'POST' })
+    const noTarget = await app.request('/api/v1/history/restore?id=rev-1', { method: 'POST' })
     expect(noTarget.status).toBe(400)
     await expectProblem(noTarget, 'BAD_REQUEST', 'Missing "target" query parameter')
-    const noId = await app.request('/api/history/restore?target=staging', { method: 'POST' })
+    const noId = await app.request('/api/v1/history/restore?target=staging', { method: 'POST' })
     expect(noId.status).toBe(400)
     await expectProblem(noId, 'BAD_REQUEST', 'Missing "id" query parameter')
   })
@@ -295,7 +295,7 @@ describe('POST /api/history/restore', () => {
   it('passes resolution errors through', async () => {
     const storage = memoryStorage()
     const { app } = mount({ configs: { staging: config(storage, { history: { enabled: false } }) } })
-    const res = await app.request('/api/history/restore?target=staging&id=rev-1', { method: 'POST' })
+    const res = await app.request('/api/v1/history/restore?target=staging&id=rev-1', { method: 'POST' })
     expect(res.status).toBe(409)
     await expectProblem(res, 'CONFLICT', 'History disabled for target "staging"')
   })
@@ -304,7 +304,7 @@ describe('POST /api/history/restore', () => {
     const storage = memoryStorage()
     const { history, r1 } = await seedRevisions(storage)
     const { app, events, invalidated } = mount({ configs: { staging: config(storage) }, sourceTargetName: 'local' })
-    const res = await app.request(`/api/history/restore?target=staging&id=${r1.id}`, { method: 'POST' })
+    const res = await app.request(`/api/v1/history/restore?target=staging&id=${r1.id}`, { method: 'POST' })
     expect(res.status).toBe(200)
     const body = await json(res)
     expect(body.restoredFrom).toBe(r1.id)
@@ -327,7 +327,7 @@ describe('POST /api/history/restore', () => {
     const storage = memoryStorage()
     const { r1 } = await seedRevisions(storage)
     const { app, invalidated } = mount({ configs: { local: config(storage) }, sourceTargetName: 'local' })
-    const res = await app.request(`/api/history/restore?target=local&id=${r1.id}`, { method: 'POST' })
+    const res = await app.request(`/api/v1/history/restore?target=local&id=${r1.id}`, { method: 'POST' })
     expect(res.status).toBe(200)
     expect(invalidated.sort()).toEqual(['fragments:', 'pages:'])
   })
@@ -336,7 +336,7 @@ describe('POST /api/history/restore', () => {
     const storage = memoryStorage()
     await seedRevisions(storage)
     const { app, events } = mount({ configs: { staging: config(storage) } })
-    const res = await app.request('/api/history/restore?target=staging&id=rev-does-not-exist', { method: 'POST' })
+    const res = await app.request('/api/v1/history/restore?target=staging&id=rev-does-not-exist', { method: 'POST' })
     expect(res.status).toBe(404)
     const body = await expectProblem(res, 'NOT_FOUND')
     expect(typeof body.detail).toBe('string')

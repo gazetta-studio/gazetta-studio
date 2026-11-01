@@ -1,5 +1,5 @@
 /**
- * Tests for the GET /api/targets route in `admin-api/routes/publish.ts`:
+ * Tests for the GET /api/v1/targets route in `admin-api/routes/publish.ts`:
  * how each target's config entry (or the lack of one) maps onto the
  * response the admin UI renders target badges from.
  */
@@ -15,7 +15,7 @@ interface BuildOpts {
   targetConfigs?: Record<string, TargetConfig>
   /**
    * Pre-initialized providers (deprecated path). When supplied, `getTargets`
-   * short-circuits on this map, so names here drive `/api/targets` while
+   * short-circuits on this map, so names here drive `/api/v1/targets` while
    * `targetConfigs` drives the per-target config lookup.
    */
   preInitTargets?: Map<string, StorageProvider>
@@ -45,7 +45,7 @@ function buildApp(opts: BuildOpts = {}): { app: Hono; sourceStorage: MemoryStora
   return { app, sourceStorage }
 }
 
-describe('GET /api/targets response mapping', () => {
+describe('GET /api/v1/targets response mapping', () => {
   it('maps explicit environment, type and editable from each target config', async () => {
     // A target with a config entry is reported with that entry's own
     // environment, type and editable, never the route's defaults.
@@ -62,7 +62,7 @@ describe('GET /api/targets response mapping', () => {
       ]),
     })
 
-    const res = await app.request('/api/targets')
+    const res = await app.request('/api/v1/targets')
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as Array<{ name: string; environment: string; type: string; editable: boolean }>
@@ -84,7 +84,7 @@ describe('GET /api/targets response mapping', () => {
       preInitTargets: new Map<string, StorageProvider>([['bare', bareStorage]]),
     })
 
-    const res = await app.request('/api/targets')
+    const res = await app.request('/api/v1/targets')
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as Array<{
@@ -117,7 +117,7 @@ describe('GET /api/targets response mapping', () => {
       ]),
     })
 
-    const res = await app.request('/api/targets')
+    const res = await app.request('/api/v1/targets')
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as Array<{
@@ -154,7 +154,7 @@ describe('GET /api/targets response mapping', () => {
       ]),
     })
 
-    const res = await app.request('/api/targets')
+    const res = await app.request('/api/v1/targets')
 
     expect(res.status).toBe(200)
     const body = (await res.json()) as Array<{

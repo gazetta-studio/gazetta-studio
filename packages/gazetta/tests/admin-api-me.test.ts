@@ -1,5 +1,5 @@
 /**
- * `GET /api/me` reports the principal the trust mode resolved for this
+ * `GET /api/v1/me` reports the principal the trust mode resolved for this
  * request. The admin client uses it to decide whose persisted drafts it
  * may load, so two different upstream users must get two different
  * answers.
@@ -27,9 +27,9 @@ function appWith(admin?: SiteManifest['admin']) {
 
 const forwardedUser = { auth: { trust: 'forwarded-user' as const, allowAnyOrigin: true } }
 
-describe('GET /api/me', () => {
+describe('GET /api/v1/me', () => {
   it('reports the none-mode principal', async () => {
-    const res = await appWith().request('/api/me')
+    const res = await appWith().request('/api/v1/me')
     expect(res.status).toBe(200)
     expect(MeResponseSchema.parse(await res.json())).toEqual({ id: 'unknown', role: 'admin', trustMode: 'none' })
   })
@@ -37,13 +37,13 @@ describe('GET /api/me', () => {
   it('reports each forwarded user as themselves', async () => {
     const app = appWith(forwardedUser)
     const ask = async (user: string) =>
-      MeResponseSchema.parse(await (await app.request('/api/me', { headers: { 'X-Forwarded-User': user } })).json())
+      MeResponseSchema.parse(await (await app.request('/api/v1/me', { headers: { 'X-Forwarded-User': user } })).json())
     expect(await ask('alice')).toEqual({ id: 'alice', role: 'editor', trustMode: 'forwarded-user' })
     expect(await ask('bob')).toEqual({ id: 'bob', role: 'editor', trustMode: 'forwarded-user' })
   })
 
   it('rejects a request the trust mode cannot identify', async () => {
-    const res = await appWith(forwardedUser).request('/api/me')
+    const res = await appWith(forwardedUser).request('/api/v1/me')
     expect(res.status).toBe(401)
   })
 })

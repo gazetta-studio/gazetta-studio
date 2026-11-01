@@ -19,9 +19,9 @@ import { requireCapability } from '../src/admin-api/middleware/capability.js'
 function buildApp(provider?: AuthIdentityProvider) {
   const app = new Hono<PrincipalEnv>()
   app.use('/api/*', principalMiddleware(provider))
-  app.get('/api/pages', requireCapability('read:pages'), c => c.json({ ok: true }))
-  app.put('/api/pages', requireCapability('edit:pages'), c => c.json({ ok: true }))
-  app.delete('/api/pages/*', requireCapability('delete:pages'), c => c.json({ ok: true }))
+  app.get('/api/v1/pages', requireCapability('read:pages'), c => c.json({ ok: true }))
+  app.put('/api/v1/pages', requireCapability('edit:pages'), c => c.json({ ok: true }))
+  app.delete('/api/v1/pages/*', requireCapability('delete:pages'), c => c.json({ ok: true }))
   return app
 }
 
@@ -29,28 +29,28 @@ describe('requireCapability (Cut 8)', () => {
   it('allows access when principal has wildcard *', async () => {
     // none mode produces admin principal with capabilities: ['*']
     const app = buildApp(noneAuthProvider)
-    const res = await app.request('/api/pages')
+    const res = await app.request('/api/v1/pages')
     expect(res.status).toBe(200)
   })
 
   it('allows access when principal has the exact capability', async () => {
     const provider = providerWithCaps(['read:pages'])
     const app = buildApp(provider)
-    const res = await app.request('/api/pages')
+    const res = await app.request('/api/v1/pages')
     expect(res.status).toBe(200)
   })
 
   it('allows access when principal has the prefix wildcard', async () => {
     const provider = providerWithCaps(['read:*'])
     const app = buildApp(provider)
-    const res = await app.request('/api/pages')
+    const res = await app.request('/api/v1/pages')
     expect(res.status).toBe(200)
   })
 
   it('returns 403 with structured body when authenticated principal lacks capability', async () => {
     const provider = providerWithCaps(['read:pages'], 'editor')
     const app = buildApp(provider)
-    const res = await app.request('/api/pages', { method: 'PUT' })
+    const res = await app.request('/api/v1/pages', { method: 'PUT' })
     expect(res.status).toBe(403)
     expect(res.headers.get('content-type')).toBe('application/problem+json')
     const body = ErrorResponseSchema.parse(await res.json())
@@ -71,7 +71,7 @@ describe('requireCapability (Cut 8)', () => {
       },
     }
     const app = buildApp(provider)
-    const res = await app.request('/api/pages')
+    const res = await app.request('/api/v1/pages')
     expect(res.status).toBe(401)
     expect(res.headers.get('www-authenticate')).toContain('Bearer')
     const body = await res.json()
@@ -95,7 +95,7 @@ describe('requireCapability (Cut 8)', () => {
       },
     }
     const app = buildApp(provider)
-    const res = await app.request('/api/pages', { method: 'PUT' })
+    const res = await app.request('/api/v1/pages', { method: 'PUT' })
     expect(res.status).toBe(403)
   })
 
@@ -106,18 +106,18 @@ describe('requireCapability (Cut 8)', () => {
     const provider = providerWithCaps(['@my-org/search:*'])
     const app = new Hono<PrincipalEnv>()
     app.use('/api/*', principalMiddleware(provider))
-    app.get('/api/plugin', requireCapability('@my-org/search:rebuild-index'), c => c.json({ ok: true }))
-    app.get('/api/other', requireCapability('@other-org/search:rebuild-index'), c => c.json({ ok: true }))
-    expect((await app.request('/api/plugin')).status).toBe(200)
-    expect((await app.request('/api/other')).status).toBe(403)
+    app.get('/api/v1/plugin', requireCapability('@my-org/search:rebuild-index'), c => c.json({ ok: true }))
+    app.get('/api/v1/other', requireCapability('@other-org/search:rebuild-index'), c => c.json({ ok: true }))
+    expect((await app.request('/api/v1/plugin')).status).toBe(200)
+    expect((await app.request('/api/v1/other')).status).toBe(403)
   })
 
   it('different capabilities on different routes work independently', async () => {
     const provider = providerWithCaps(['read:pages']) // can read, can't write
     const app = buildApp(provider)
-    expect((await app.request('/api/pages')).status).toBe(200)
-    expect((await app.request('/api/pages', { method: 'PUT' })).status).toBe(403)
-    expect((await app.request('/api/pages/x', { method: 'DELETE' })).status).toBe(403)
+    expect((await app.request('/api/v1/pages')).status).toBe(200)
+    expect((await app.request('/api/v1/pages', { method: 'PUT' })).status).toBe(403)
+    expect((await app.request('/api/v1/pages/x', { method: 'DELETE' })).status).toBe(403)
   })
 })
 

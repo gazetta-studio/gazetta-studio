@@ -74,7 +74,7 @@ describe('Cross-foundation gap #6 — archive notifies validation scanner', () =
   beforeEach(() => setup())
 
   it('POST /archive triggers rescan with kind=manifest for the archived page', async () => {
-    const res = await app.request('/api/pages/landing/archive', {
+    const res = await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
@@ -93,14 +93,14 @@ describe('Cross-foundation gap #6 — archive notifies validation scanner', () =
 
   it('POST /unarchive triggers rescan with kind=manifest for the restored page', async () => {
     // First archive landing.
-    await app.request('/api/pages/landing/archive', {
+    await app.request('/api/v1/pages/landing/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
     })
     rescanCalls.length = 0 // reset so we only check unarchive's call
 
-    const res = await app.request('/api/pages/landing/unarchive', { method: 'POST' })
+    const res = await app.request('/api/v1/pages/landing/unarchive', { method: 'POST' })
     expect(res.status).toBe(200)
 
     const manifestRescans = rescanCalls.filter(c => c.kind === 'manifest')
@@ -113,10 +113,10 @@ describe('Cross-foundation gap #6 — archive notifies validation scanner', () =
 
   it('DELETE /purge triggers rescan with kind=manifest (issues cleared as item is gone)', async () => {
     // Archive then purge.
-    await app.request('/api/pages/landing/archive', { method: 'POST' })
+    await app.request('/api/v1/pages/landing/archive', { method: 'POST' })
     rescanCalls.length = 0
 
-    const res = await app.request('/api/pages/landing/purge', { method: 'DELETE' })
+    const res = await app.request('/api/v1/pages/landing/purge', { method: 'DELETE' })
     expect(res.status).toBe(200)
 
     // Purge removes the manifest; scanner notification clears stale
@@ -130,7 +130,7 @@ describe('Cross-foundation gap #6 — archive notifies validation scanner', () =
   })
 
   it('archive of a fragment triggers rescan with the fragment scope', async () => {
-    const res = await app.request('/api/fragments/header/archive', {
+    const res = await app.request('/api/v1/fragments/header/archive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ aliasOf: 'home' }),
@@ -140,7 +140,7 @@ describe('Cross-foundation gap #6 — archive notifies validation scanner', () =
     // `?force=true` bypasses. Use it to keep the test focused on
     // scanner notification, not P8 logic.
     if (res.status !== 200) {
-      const forceRes = await app.request('/api/fragments/header/archive?force=true', {
+      const forceRes = await app.request('/api/v1/fragments/header/archive?force=true', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ aliasOf: 'home' }),

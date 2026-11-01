@@ -2,7 +2,7 @@
  * Cut 5 tests: end-to-end publish hook firing.
  *
  * Validates the publish-route wiring: HookRegistry →
- * createAdminApp → POST /api/publish → dispatchBeforePublish (per
+ * createAdminApp → POST /api/v1/publish → dispatchBeforePublish (per
  * target) → publishItems → audit → dispatchAfterPublish (per
  * target).
  *
@@ -106,7 +106,7 @@ afterEach(() => {
 
 describe('Cut 5 — end-to-end publish hooks', () => {
   it('beforePublish receives the requested items + target', async () => {
-    const res = await app.request('/api/publish', {
+    const res = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -121,7 +121,7 @@ describe('Cut 5 — end-to-end publish hooks', () => {
   })
 
   it('afterPublish fires with success result per target', async () => {
-    const res = await app.request('/api/publish', {
+    const res = await app.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -179,7 +179,7 @@ describe('Cut 5 — end-to-end publish hooks', () => {
     })
 
     beforeCalls.length = 0
-    const res = await app2.request('/api/publish', {
+    const res = await app2.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -230,7 +230,7 @@ describe('Cut 5 — end-to-end publish hooks', () => {
       disableCacheStatsLogger: true,
       hooks: hooks2,
     })
-    const res = await app2.request('/api/publish', {
+    const res = await app2.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -289,7 +289,7 @@ describe('Cut 5 — end-to-end publish hooks', () => {
 
     beforeCalls.length = 0
     afterCalls.length = 0
-    const res = await app2.request('/api/publish', {
+    const res = await app2.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -331,7 +331,7 @@ describe('Cut 5 — end-to-end publish hooks', () => {
     })
     beforeCalls.length = 0
     afterCalls.length = 0
-    const res = await appNoHooks.request('/api/publish', {
+    const res = await appNoHooks.request('/api/v1/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

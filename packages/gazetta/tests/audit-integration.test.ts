@@ -65,13 +65,13 @@ async function readAuditEvents(): Promise<AuditEvent[]> {
 describe('Cut 5 — end-to-end audit recording', () => {
   it('successful page save records action: save, outcome: success', async () => {
     // Create the page first (this also produces a save event).
-    await app.request('/api/pages', {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'audit-save-test', template: 'page-default' }),
     })
     // Then update it — that's the wired PUT handler we record from.
-    const res = await app.request('/api/pages/audit-save-test', {
+    const res = await app.request('/api/v1/pages/audit-save-test', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { title: 'Hi' } }),
@@ -92,12 +92,12 @@ describe('Cut 5 — end-to-end audit recording', () => {
   })
 
   it('validation-failed save records action: save, outcome: validation-failed', async () => {
-    await app.request('/api/pages', {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'audit-vf-test', template: 'page-default' }),
     })
-    const res = await app.request('/api/pages/audit-vf-test', {
+    const res = await app.request('/api/v1/pages/audit-vf-test', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { hero: { _asset: 'definitely-not-an-asset-name' } } }),
@@ -112,12 +112,12 @@ describe('Cut 5 — end-to-end audit recording', () => {
   })
 
   it('DELETE on a page records action: archive (soft-delete per Cut 7 cutover)', async () => {
-    await app.request('/api/pages', {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'audit-delete-test', template: 'page-default' }),
     })
-    const res = await app.request('/api/pages/audit-delete-test', { method: 'DELETE' })
+    const res = await app.request('/api/v1/pages/audit-delete-test', { method: 'DELETE' })
     expect(res.status).toBe(200)
     const events = await readAuditEvents()
     const matched = events.filter(
@@ -127,12 +127,12 @@ describe('Cut 5 — end-to-end audit recording', () => {
   })
 
   it('DELETE with ?permanent=true records action: purge', async () => {
-    await app.request('/api/pages', {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'audit-purge-test', template: 'page-default' }),
     })
-    const res = await app.request('/api/pages/audit-purge-test?permanent=true', { method: 'DELETE' })
+    const res = await app.request('/api/v1/pages/audit-purge-test?permanent=true', { method: 'DELETE' })
     expect(res.status).toBe(200)
     const events = await readAuditEvents()
     const matched = events.filter(
@@ -143,12 +143,12 @@ describe('Cut 5 — end-to-end audit recording', () => {
 
   it('audit events carry scope.kind correctly per route', async () => {
     // Fragment save → kind: 'fragment'.
-    await app.request('/api/fragments', {
+    await app.request('/api/v1/fragments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'audit-frag-test', template: 'footer-layout' }),
     })
-    const res = await app.request('/api/fragments/audit-frag-test', {
+    const res = await app.request('/api/v1/fragments/audit-frag-test', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { copyright: 'test' } }),

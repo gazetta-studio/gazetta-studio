@@ -27,7 +27,7 @@
  *   - ConditionalExpression `tDir === templatesDir ? cachedScan.get() : scanTemplates(tDir, root)`
  *     mutated to `false` (always fresh) and `!==` (swapped predicate)
  *   Both mutants make scan skip the cache and call scanTemplates
- *   fresh every time. Two successive `/api/compare` requests should
+ *   fresh every time. Two successive `/api/v1/compare` requests should
  *   invoke scanTemplates exactly ONCE under the original; mutants
  *   would call it twice. The `true` mutant is structurally
  *   equivalent under the current HTTP surface (all callers use the
@@ -154,7 +154,7 @@ describe('Cluster 4 — resolver selection (line 280 ConditionalExpression)', ()
     // response is 500 (or a thrown error), not 200.
     const { app } = setup({ targetConfigs: undefined })
 
-    const res = await app.request('/api/pages?target=any-name-whatsoever')
+    const res = await app.request('/api/v1/pages?target=any-name-whatsoever')
     expect(res.status).toBe(200)
     const body = (await res.json()) as Array<{ name: string }>
     expect(body.map(p => p.name)).toContain('home')
@@ -165,7 +165,7 @@ describe('Cluster 4 — resolver selection (line 280 ConditionalExpression)', ()
     // resolve time. Also kills `>= 0` for the same reason.
     const { app } = setup({ targetConfigs: {} })
 
-    const res = await app.request('/api/pages?target=any-name-whatsoever')
+    const res = await app.request('/api/v1/pages?target=any-name-whatsoever')
     expect(res.status).toBe(200)
   })
 
@@ -185,7 +185,7 @@ describe('Cluster 4 — resolver selection (line 280 ConditionalExpression)', ()
       preInitTargets: new Map([['known', storage]]),
     })
 
-    const res = await app.request('/api/pages?target=totally-unknown-target')
+    const res = await app.request('/api/v1/pages?target=totally-unknown-target')
     // Registry path: UnknownTargetError. Under the mutant taking
     // static: 200 with the bootstrap source. Any non-200 outcome
     // kills the mutant.
@@ -208,13 +208,13 @@ describe('Cluster 4 — resolver selection (line 280 ConditionalExpression)', ()
       preInitTargets: new Map([['known', storage]]),
     })
 
-    const res = await app.request('/api/pages?target=known')
+    const res = await app.request('/api/v1/pages?target=known')
     expect(res.status).toBe(200)
   })
 })
 
 describe('Cluster 5 — cached scan reuse (line 237 ConditionalExpression)', () => {
-  it('repeated `/api/compare` requests share one cached scanTemplates call', async () => {
+  it('repeated `/api/v1/compare` requests share one cached scanTemplates call', async () => {
     // scan closure: `tDir === templatesDir ? cachedScan.get() : scanTemplates(tDir, root)`.
     // Two successive compare calls that both pass tDir === templatesDir
     // should invoke the underlying scanTemplates exactly ONCE — the
@@ -253,8 +253,8 @@ describe('Cluster 5 — cached scan reuse (line 237 ConditionalExpression)', () 
     // where tDir === templatesDir → cachedScan.get() → first call
     // invokes scanTemplates, subsequent calls return the memoized
     // Promise.
-    await app.request('/api/compare?target=local')
-    await app.request('/api/compare?target=local')
+    await app.request('/api/v1/compare?target=local')
+    await app.request('/api/v1/compare?target=local')
 
     // The mocked scanTemplates may be invoked in other flows on boot
     // (none today, but be defensive). Count only calls matching the
@@ -328,7 +328,7 @@ describe('Cluster 6 — lazyInit fall-through when config is missing (line 296 C
     // `if (!config) return`.
     delete targetConfigs.ghost
 
-    const res = await app.request('/api/pages?target=ghost')
+    const res = await app.request('/api/v1/pages?target=ghost')
     expect(res.status).toBe(500)
     const body = (await res.json()) as { errorName: string; errorMessage: string }
 

@@ -1,5 +1,5 @@
 /**
- * HTTP-level tests for `POST /api/assets/:name/suggest-alt`.
+ * HTTP-level tests for `POST /api/v1/assets/:name/suggest-alt`.
  *
  * Verifies the route adapter correctly translates orchestration
  * results (`SuggestAltResult` from `alt/route-handler.ts`) to HTTP
@@ -76,7 +76,7 @@ function buildApp(siteManifest?: SiteManifest) {
   const app = new Hono()
   // Wire the principal + audit middleware (none-mode = admin role,
   // empty audit providers = recording no-ops) so the capability
-  // gates on /api/assets routes are satisfied AND the suggest-alt
+  // gates on /api/v1/assets routes are satisfied AND the suggest-alt
   // route's audit emit (per gap #4 fix) doesn't fail with
   // `c.var.audit` undefined. Tests bypass createAdminApp; they need
   // to wire what createAdminApp wires.
@@ -91,7 +91,7 @@ function buildApp(siteManifest?: SiteManifest) {
       recordUserAgent: 'none',
     }),
   )
-  app.route('/', assetRoutes(resolve))
+  app.route('/api/v1', assetRoutes(resolve))
   return { app, storage }
 }
 
@@ -120,7 +120,7 @@ async function seedAsset(storage: MemoryStorage, name = 'hero', hash = 'abc12345
   await storage.writeBytes(`assets/${name}-${hash}.jpg`, bytes)
 }
 
-describe('POST /api/assets/:name/suggest-alt — happy path', () => {
+describe('POST /api/v1/assets/:name/suggest-alt — happy path', () => {
   it('200s with structured suggestion when adapter responds', async () => {
     const site: SiteManifest = {
       name: 'test',
@@ -145,7 +145,7 @@ describe('POST /api/assets/:name/suggest-alt — happy path', () => {
       throw new Error(`unexpected url: ${url}`)
     }
     try {
-      const res = await app.request('/api/assets/hero/suggest-alt', { method: 'POST' })
+      const res = await app.request('/api/v1/assets/hero/suggest-alt', { method: 'POST' })
       expect(res.status).toBe(200)
       const body = await res.json()
       expect(body.text).toBe('A black square.')
@@ -180,7 +180,7 @@ describe('POST /api/assets/:name/suggest-alt — happy path', () => {
       throw new Error(`unexpected url: ${url}`)
     }
     try {
-      const res = await app.request('/api/assets/hero/suggest-alt', { method: 'POST' })
+      const res = await app.request('/api/v1/assets/hero/suggest-alt', { method: 'POST' })
       expect(res.status).toBe(200)
       const body = await res.json()
       expect(body.refused).toBe(true)
@@ -191,7 +191,7 @@ describe('POST /api/assets/:name/suggest-alt — happy path', () => {
   })
 })
 
-describe('POST /api/assets/:name/suggest-alt — locale parameter', () => {
+describe('POST /api/v1/assets/:name/suggest-alt — locale parameter', () => {
   it('forwards locale query to the adapter', async () => {
     const site: SiteManifest = {
       name: 'test',
@@ -218,7 +218,7 @@ describe('POST /api/assets/:name/suggest-alt — locale parameter', () => {
       throw new Error(`unexpected url: ${url}`)
     }
     try {
-      const res = await app.request('/api/assets/hero/suggest-alt?locale=fr', { method: 'POST' })
+      const res = await app.request('/api/v1/assets/hero/suggest-alt?locale=fr', { method: 'POST' })
       expect(res.status).toBe(200)
       // Composed prompt should mention the locale.
       expect(captured).toBeDefined()
@@ -235,19 +235,19 @@ describe('POST /api/assets/:name/suggest-alt — locale parameter', () => {
       altText: { auto: true },
     }
     const { app } = buildApp(site)
-    const res = await app.request('/api/assets/hero/suggest-alt?locale=NOT_A_LOCALE!!!', { method: 'POST' })
+    const res = await app.request('/api/v1/assets/hero/suggest-alt?locale=NOT_A_LOCALE!!!', { method: 'POST' })
     expect(res.status).toBe(400)
     await expectErrorResponse(res, 'BAD_REQUEST')
   })
 })
 
-describe('POST /api/assets/:name/suggest-alt — unavailable', () => {
+describe('POST /api/v1/assets/:name/suggest-alt — unavailable', () => {
   it('503s when no adapter is configured', async () => {
     // No `ai:` block at all.
     const site: SiteManifest = { name: 'test' }
     const { app, storage } = buildApp(site)
     await seedAsset(storage)
-    const res = await app.request('/api/assets/hero/suggest-alt', { method: 'POST' })
+    const res = await app.request('/api/v1/assets/hero/suggest-alt', { method: 'POST' })
     expect(res.status).toBe(503)
     await expectErrorResponse(res, 'AI_ADAPTER_UNAVAILABLE')
   })
@@ -256,7 +256,7 @@ describe('POST /api/assets/:name/suggest-alt — unavailable', () => {
     // No siteManifest passed to buildApp.
     const { app, storage } = buildApp()
     await seedAsset(storage)
-    const res = await app.request('/api/assets/hero/suggest-alt', { method: 'POST' })
+    const res = await app.request('/api/v1/assets/hero/suggest-alt', { method: 'POST' })
     expect(res.status).toBe(503)
     await expectErrorResponse(res, 'AI_ADAPTER_UNAVAILABLE')
   })
@@ -273,7 +273,7 @@ describe('POST /api/assets/:name/suggest-alt — unavailable', () => {
     }
     const { app, storage } = buildApp(site)
     await seedAsset(storage)
-    const res = await app.request('/api/assets/hero/suggest-alt', { method: 'POST' })
+    const res = await app.request('/api/v1/assets/hero/suggest-alt', { method: 'POST' })
     // Could be 502 (transport failure reaches SDK) or 503 (some
     // environments treat unreachable hosts differently). The point is
     // the response is not 200.
@@ -281,7 +281,7 @@ describe('POST /api/assets/:name/suggest-alt — unavailable', () => {
   })
 })
 
-describe('POST /api/assets/:name/suggest-alt — failed', () => {
+describe('POST /api/v1/assets/:name/suggest-alt — failed', () => {
   it('502s when the adapter call fails', async () => {
     const site: SiteManifest = {
       name: 'test',
@@ -297,7 +297,7 @@ describe('POST /api/assets/:name/suggest-alt — failed', () => {
       throw new TypeError('connection refused')
     }
     try {
-      const res = await app.request('/api/assets/hero/suggest-alt', { method: 'POST' })
+      const res = await app.request('/api/v1/assets/hero/suggest-alt', { method: 'POST' })
       expect(res.status).toBe(502)
       await expectErrorResponse(res, 'AI_ADAPTER_FAILED')
     } finally {
@@ -306,7 +306,7 @@ describe('POST /api/assets/:name/suggest-alt — failed', () => {
   })
 })
 
-describe('POST /api/assets/:name/suggest-alt — not found', () => {
+describe('POST /api/v1/assets/:name/suggest-alt — not found', () => {
   it('404s when asset does not exist on the target', async () => {
     const site: SiteManifest = {
       name: 'test',
@@ -315,7 +315,7 @@ describe('POST /api/assets/:name/suggest-alt — not found', () => {
     }
     const { app } = buildApp(site)
     // No asset seeded.
-    const res = await app.request('/api/assets/missing/suggest-alt', { method: 'POST' })
+    const res = await app.request('/api/v1/assets/missing/suggest-alt', { method: 'POST' })
     expect(res.status).toBe(404)
     await expectErrorResponse(res, 'ASSET_MANIFEST_NOT_FOUND')
   })

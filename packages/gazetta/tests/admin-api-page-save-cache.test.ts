@@ -1,5 +1,5 @@
 /**
- * #982 — `PUT /api/pages/:name` must keep the manifest's `cache` field.
+ * #982 — `PUT /api/v1/pages/:name` must keep the manifest's `cache` field.
  * The publisher reads `page.cache` for Cache-Control, so a save that
  * drops it silently resets the page to the target's defaults.
  *
@@ -57,7 +57,7 @@ describe('page save keeps cache (#982)', () => {
         cache: { browser: 60 },
       },
     })
-    const res = await put(app, '/api/pages/home', { content: { title: 'Changed' } })
+    const res = await put(app, '/api/v1/pages/home', { content: { title: 'Changed' } })
     expect(res.status).toBe(200)
     const saved = JSON.parse(await storage.readFile('pages/home/page.json'))
     expect(saved.content).toEqual({ title: 'Changed' })
@@ -79,7 +79,7 @@ describe('page save keeps cache (#982)', () => {
         cache: { edge: 300 },
       },
     })
-    const res = await put(app, '/api/pages/home?locale=fr', { content: { title: 'Changé' } })
+    const res = await put(app, '/api/v1/pages/home?locale=fr', { content: { title: 'Changé' } })
     expect(res.status).toBe(200)
     const saved = JSON.parse(await storage.readFile('pages/home/page.fr.json'))
     expect(saved.content).toEqual({ title: 'Changé' })
@@ -90,7 +90,7 @@ describe('page save keeps cache (#982)', () => {
     const { app, storage } = setup({
       'pages/home/page.json': { template: 'page-default', content: { title: 'Home' }, components: [] },
     })
-    const res = await put(app, '/api/pages/home', { content: { title: 'Changed' } })
+    const res = await put(app, '/api/v1/pages/home', { content: { title: 'Changed' } })
     expect(res.status).toBe(200)
     const saved = JSON.parse(await storage.readFile('pages/home/page.json'))
     expect('cache' in saved).toBe(false)
@@ -105,7 +105,7 @@ describe('page save keeps cache (#982)', () => {
         cache: { browser: 60 },
       },
     })
-    const res = await put(app, '/api/pages/home', { cache: { browser: 5 } })
+    const res = await put(app, '/api/v1/pages/home', { cache: { browser: 5 } })
     expect(res.status).toBe(200)
     const saved = JSON.parse(await storage.readFile('pages/home/page.json'))
     expect(saved.cache).toEqual({ browser: 5 })
