@@ -9,6 +9,8 @@
  *                                  items map (itemPath → blob hash)
  *   objects/<hh>/<rest>            content-addressed blobs (SHA-256, sharded
  *                                  by first 2 hex chars)
+ *   runs/<runId>/...               which items and revisions each agent run
+ *                                  wrote (history-runs.ts)
  *
  * Design-decisions.md #18:
  *  - One uniform approach across all providers (no native versioning).
@@ -28,6 +30,7 @@ import { rmIgnoreMissing } from './providers/_rm-ignore-missing.js'
 import type { StorageProvider } from './types.js'
 import type { BlobContent, HistoryProvider, Revision, RevisionInput, RevisionManifest } from './history.js'
 import { DEFAULT_HISTORY_RETENTION } from './types.js'
+import { createRunIndex } from './history-runs.js'
 import { stateFolderPath } from './state-folders.js'
 
 export interface CreateHistoryProviderOptions {
@@ -71,6 +74,7 @@ export function createHistoryProvider(opts: CreateHistoryProviderOptions): Histo
   const root = opts.rootPath ?? stateFolderPath('history')
   const retention = Math.max(1, opts.retention ?? DEFAULT_HISTORY_RETENTION)
   const indexPath = join(root, 'index.json')
+  const runs = createRunIndex(storage, root)
 
   /**
    * Read the index cache or return an empty one if it doesn't exist yet.
@@ -306,6 +310,7 @@ export function createHistoryProvider(opts: CreateHistoryProviderOptions): Histo
     }
     const json = JSON.stringify(manifest, null, 2) + '\n'
     await writeWithParents(revisionPath(id), json)
+    if (input.origin?.runId) await runs.record(input.origin.runId, id, manifest.items)
 
     // Refresh the index cache, then apply retention. The manifest is
     // already durable at this point, and the listing - not the cache -
@@ -321,33 +326,46 @@ export function createHistoryProvider(opts: CreateHistoryProviderOptions): Histo
   }
 
   /**
-   * Evict oldest revisions to fit `retention`. Deletes manifests; blobs
-   * become eligible for GC if no remaining revision references them.
-   * GC is lazy — blob files stay until an explicit GC pass, which is
-   * fine for v1 (disk is cheap; a future `gazetta gc` command can walk
-   * all manifests and prune orphans).
+   * Evict the oldest entries to fit `retention`. An entry is one
+   * revision, or all the revisions of one agent run, which count as one
+   * and go together (design-agent-access.md Q51), so a run stays
+   * undoable as a whole until it ages out. Entries are ordered by their
+   * newest revision, so a run still being written isn't evicted.
+   *
+   * Deletes manifests and the run's index folder; blobs become eligible
+   * for GC if no remaining revision references them. GC is lazy — blob
+   * files stay until an explicit GC pass (a future `gazetta gc`).
    */
   async function applyRetention(protectedId?: string): Promise<void> {
     const ids = await listRevisionIds()
-    const excess = ids.length - retention
-    if (excess <= 0) return
-    const evict = ids.slice(0, excess)
-    if (protectedId) {
-      // Under clock skew the just-written id can sort oldest; deleting it
-      // would silently drop the record the caller believes is durable.
-      // Evict the next oldest instead.
-      const idx = evict.indexOf(protectedId)
-      if (idx >= 0) {
-        const replacement = ids[excess]
-        if (!replacement) return
-        evict[idx] = replacement
-      }
+    // Grouping only ever merges revisions into fewer entries, so a count
+    // within the limit needs no run lookups.
+    if (ids.length <= retention) return
+    const runOf = new Map<string, string>()
+    for (const runId of await runs.listRuns()) {
+      for (const revisionId of await runs.listRevisions(runId)) runOf.set(revisionId, runId)
     }
-    for (const id of evict) {
-      // Idempotent delete: a concurrent writer can pick the same
-      // eviction set, and a plain rm on the already-deleted manifest
-      // would fail the whole write (#1107 review).
-      await rmIgnoreMissing(storage, revisionPath(id))
+    const entries = groupIntoEntries(ids, id => runOf.get(id))
+    const excess = entries.length - retention
+    if (excess <= 0) return
+    // Under clock skew the just-written id can sort oldest; deleting it
+    // would silently drop the record the caller believes is durable.
+    const evict = entries.filter(e => !(protectedId && e.revisions.includes(protectedId))).slice(0, excess)
+    for (const entry of evict) {
+      for (const id of entry.revisions) {
+        // Idempotent delete: a concurrent writer can pick the same
+        // eviction set, and a plain rm on the already-deleted manifest
+        // would fail the whole write (#1107 review).
+        await rmIgnoreMissing(storage, revisionPath(id))
+      }
+      if (entry.runId) {
+        try {
+          await runs.deleteRun(entry.runId)
+        } catch {
+          // The manifests are gone; a leftover index folder only lists
+          // revisions that no longer exist, and must not fail the save.
+        }
+      }
     }
     await syncIndexCache()
   }
@@ -401,6 +419,31 @@ export function createHistoryProvider(opts: CreateHistoryProviderOptions): Histo
     readBlob,
     deleteRevision,
   }
+}
+
+interface RetentionEntry {
+  runId?: string
+  /** Oldest first. */
+  revisions: string[]
+}
+
+/**
+ * Group revision ids (oldest first) into retention entries: one per
+ * run, one per revision without a run. Entries are ordered by their
+ * newest revision, oldest entry first. This is the one place that
+ * decides what counts as an entry.
+ */
+export function groupIntoEntries(ids: readonly string[], runOf: (id: string) => string | undefined): RetentionEntry[] {
+  const groups = new Map<string, { entry: RetentionEntry; last: number }>()
+  ids.forEach((id, i) => {
+    const runId = runOf(id)
+    const key = runId ? `run:${runId}` : id
+    const group = groups.get(key) ?? { entry: { ...(runId ? { runId } : {}), revisions: [] }, last: i }
+    group.entry.revisions.push(id)
+    group.last = i
+    groups.set(key, group)
+  })
+  return [...groups.values()].sort((a, b) => a.last - b.last).map(g => g.entry)
 }
 
 /**

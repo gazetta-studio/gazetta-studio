@@ -33,8 +33,16 @@ export type OriginFields = Pick<RequestOrigin, 'channel' | 'runId' | 'tokenId' |
 /** The request header carrying the run id (Q22). */
 export const RUN_HEADER = 'Gazetta-Run'
 
-/** A run id: at most 64 characters of letters, digits, `.`, `_` and `-`. */
-export const RUN_ID_PATTERN = /^[A-Za-z0-9._-]{1,64}$/
+/**
+ * A run id: at most 64 characters of letters, digits, `.`, `_` and `-`,
+ * other than `.` and `..`. It names a folder in the run index
+ * (history-runs.ts).
+ */
+export const RUN_ID_PATTERN = /^(?!\.\.?$)[A-Za-z0-9._-]{1,64}$/
+
+export function isRunId(runId: string): boolean {
+  return RUN_ID_PATTERN.test(runId)
+}
 
 /** The origin of a request from its principal and run id. */
 export function originOf(principal: Principal, runId?: string): RequestOrigin {

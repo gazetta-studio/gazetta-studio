@@ -6,15 +6,20 @@
  * anything is written.
  */
 import { createMiddleware } from 'hono/factory'
-import { originOf, RUN_HEADER, RUN_ID_PATTERN, runWithOrigin } from '../../request-origin.js'
+import { isRunId, originOf, RUN_HEADER, runWithOrigin } from '../../request-origin.js'
 import { problem } from '../problem.js'
 import type { PrincipalEnv } from './principal.js'
 
 export function originMiddleware() {
   return createMiddleware<PrincipalEnv>(async (c, next) => {
     const runId = c.req.header(RUN_HEADER)
-    if (runId !== undefined && !RUN_ID_PATTERN.test(runId)) {
-      return problem(c, 400, 'BAD_REQUEST', `${RUN_HEADER} must be 1 to 64 letters, digits, ".", "_" or "-"`)
+    if (runId !== undefined && !isRunId(runId)) {
+      return problem(
+        c,
+        400,
+        'BAD_REQUEST',
+        `${RUN_HEADER} must be 1 to 64 letters, digits, ".", "_" or "-", other than "." and ".."`,
+      )
     }
     await runWithOrigin(originOf(c.var.principal, runId), () => next())
   })

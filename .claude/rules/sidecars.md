@@ -58,6 +58,17 @@ multi-instance write correctness (concurrent admins on different items don't
 serialize through one shared file) and turn each query into an O(N) `readDir`
 rather than a parse-and-walk pass over a JSON map.
 
+### Per-run index (`.gazetta/history/runs/{runId}/...`)
+
+Which items and revisions an agent run wrote (`design-agent-access.md` Q48), for reviewing and reverting the run. It sits inside history, so it exists only where history does and is removed with it.
+
+| Path | Meaning | Example |
+|---|---|---|
+| `.gazetta/history/runs/{runId}/items/{item}` | The run touched `{item}` (`pages.home`, `pages.home:fr`, `assets.hero`) | `.gazetta/history/runs/r1/items/pages.home` |
+| `.gazetta/history/runs/{runId}/revisions/{revisionId}` | The run wrote that revision | `.gazetta/history/runs/r1/revisions/rev-1792648514738-1-a1b2c3d4` |
+
+Written with each revision that carries a run id ([history-runs.ts](../packages/gazetta/src/history-runs.ts)). Retention counts a run's revisions as one entry and deletes the run's folder when it evicts them (Q51). Nothing rebuilds it from history: unlike the reverse-dependency indices, drift here is a bug.
+
 ## Where sidecars live
 
 Same filename format on both sides — [sidecars.ts](../packages/gazetta/src/sidecars.ts)
@@ -68,6 +79,8 @@ work for either source or target storage:
 |---|---|---|
 | **Source** — `sites/{name}/pages/{page}/` | _(not written today; `gazetta validate` may add this in a future pass)_ | Admin API save handlers (per-edge incremental); `gazetta reindex` CLI; admin's first-time `/api/dependents` rebuild (memoized) |
 | **Target** — `pages/{page}/` in target storage | `publishPageRendered` / `publishPageStatic` / `publishFragmentRendered` | `publishDepIndices` after each publish (full rebuild from in-memory site) — **changing to per-item updates, see below** |
+
+The per-run index lives wherever history is kept, on source and target alike: `recordRevision` writes it for revisions with a run id, and retention removes it.
 
 ## Target indices describe the target (decided 2026-10-21, #1077)
 

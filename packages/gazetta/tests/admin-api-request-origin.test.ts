@@ -13,6 +13,7 @@ import { PROBLEM_CONTENT_TYPE } from '../src/admin-api/problem.js'
 import { createSourceContext } from '../src/admin-api/source-context.js'
 import { generateSigningKeys } from '../src/auth/tokens/keys.js'
 import { createHistoryProvider } from '../src/history-provider.js'
+import { createRunIndex } from '../src/history-runs.js'
 import type { SiteManifest, StorageProvider } from '../src/types.js'
 import { memoryStorage } from './_helpers/memory-storage.js'
 import { starterTemplatesDir } from './_helpers/starter.js'
@@ -29,9 +30,14 @@ const auth = {
 }
 const alice = { 'X-Forwarded-User': 'alice', 'X-Forwarded-Groups': 'admins' }
 
-function setup() {
+function setup(opts: { stagingHistory?: boolean } = {}) {
   const local = memoryStorage()
-  local.seed({ 'pages/home/page.json': JSON.stringify({ template: 'page-default', content: { title: 'Home' } }) })
+  const page = (title: string) => JSON.stringify({ template: 'page-default', content: { title } })
+  local.seed({
+    'pages/home/page.json': page('Home'),
+    'pages/home/page.fr.json': page('Accueil'),
+    'pages/about/page.json': page('About'),
+  })
   const staging = memoryStorage()
   const targetConfigs = {
     local: {
@@ -41,7 +47,13 @@ function setup() {
       editable: true,
       publicStorage: false,
     },
-    staging: { storage: staging, type: 'esi' as const, environment: 'staging' as const, publicStorage: false },
+    staging: {
+      storage: staging,
+      type: 'esi' as const,
+      environment: 'staging' as const,
+      publicStorage: false,
+      history: { enabled: opts.stagingHistory ?? true },
+    },
   }
   const manifest: SiteManifest = { name: 'site', targets: targetConfigs, admin: { auth } }
   const app = createAdminApp({
@@ -234,4 +246,81 @@ describe('the origin of a write', () => {
       items: ['pages/home'],
     })
   })
+})
+
+/** The run index on a target's history (design-agent-access.md Q48). */
+const runIndex = (storage: StorageProvider) => createRunIndex(storage, '.gazetta/history')
+
+describe('the run index (cut 6)', () => {
+  const put = (path: string, title: string, token: string) => ({
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'Gazetta-Token': token, 'Gazetta-Run': 'r1' },
+    body: JSON.stringify({ content: { title } }),
+  })
+
+  it('three saves in one run index two items and three revisions; a language version is its own item', async () => {
+    const { app, local } = setup()
+    const token = await signIn(app)
+    for (const [path, title] of [
+      ['/api/v1/pages/home', 'One'],
+      ['/api/v1/pages/about', 'Two'],
+      ['/api/v1/pages/home', 'Three'],
+    ] as const) {
+      expect((await app.request(path, put(path, title, token))).status).toBe(200)
+    }
+    expect(await runIndex(local).listItems('r1')).toEqual(['pages.about', 'pages.home'])
+    expect(await runIndex(local).listRevisions('r1')).toHaveLength(3)
+
+    expect((await app.request('/api/v1/pages/home?locale=fr', put('', 'Quatre', token))).status).toBe(200)
+    expect(await runIndex(local).listItems('r1')).toEqual(['pages.about', 'pages.home', 'pages.home:fr'])
+  })
+
+  it('an asset upload is indexed by its name, not its bytes', async () => {
+    const { app, local } = setup()
+    const token = await signIn(app)
+    const bytes = await sharp({ create: { width: 8, height: 8, channels: 3, background: { r: 1, g: 2, b: 3 } } })
+      .jpeg()
+      .toBuffer()
+    const form = new FormData()
+    form.set('file', new File([new Uint8Array(bytes)], 'hero.jpg', { type: 'image/jpeg' }))
+    form.set('name', 'hero')
+    const up = await app.request('/api/v1/assets', {
+      method: 'POST',
+      headers: { 'Gazetta-Token': token, 'Gazetta-Run': 'r2' },
+      body: form,
+    })
+    expect(up.status).toBe(201)
+    expect(await runIndex(local).listItems('r2')).toEqual(['assets.hero'])
+  })
+
+  it('a run id of "." or ".." answers 400', async () => {
+    const { app } = setup()
+    for (const runId of ['.', '..']) {
+      const res = await app.request('/api/v1/pages/home', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...alice, 'Gazetta-Run': runId },
+        body: JSON.stringify({ content: { title: 'x' } }),
+      })
+      expect(res.status).toBe(400)
+    }
+  })
+
+  // The index lives inside history, so it goes wherever history goes. Public
+  // targets will keep no history once public-storage cut 4 gates it; until
+  // then a target with history turned off shows the same.
+  it.each([true, false])(
+    'a publish with a run to a target with history enabled: %s indexes the run',
+    async enabled => {
+      const { app, staging } = setup({ stagingHistory: enabled })
+      const res = await app.request(
+        '/api/v1/publish',
+        post({ items: ['pages/home'], targets: ['staging'] }, { ...alice, 'Gazetta-Run': 'pub' }),
+      )
+      expect(res.status).toBe(200)
+      const keys = [...staging.dump().keys()]
+      expect(keys.some(k => k.startsWith('.gazetta/history/runs/pub/'))).toBe(enabled)
+      expect(keys.some(k => k.startsWith('.gazetta/history/'))).toBe(enabled)
+    },
+    30_000,
+  )
 })
