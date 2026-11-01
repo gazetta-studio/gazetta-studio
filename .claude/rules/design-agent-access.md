@@ -85,7 +85,7 @@ Decided: maintainer, 2026-10-31 (#1623)
 | A local agent principal in config | Anything the agent can run, it can edit, including that config; calling it a guarantee would overstate it |
 | Docs only | Presets cost little and stop the common accident |
 
-Amended by Q31 (2026-11-01, #<PR>): no presets ship; the skill lists what an agent must never run.
+Amended by Q31 (2026-11-01, #1648): no presets ship; the skill lists what an agent must never run.
 
 ### Q4 — The skill ships in the npm package and `gazetta init` adds it
 
@@ -454,7 +454,7 @@ Research: [follow-up on #1624](https://github.com/gazetta-studio/gazetta-studio/
 
 `gazetta init` writes no agent-client permission presets (no deny rules in `.claude/settings.json`, `.codex/rules` or other client files). The skill and the `AGENTS.md` section list the commands and admin routes an agent must never use (publishing, deleting, undo and rollback, archive purge, approving requests) and tell it to ask the person instead. The skill declares no tool permissions: the Agent Skills standard can't deny anything (`allowed-tools` only pre-approves, and is experimental). So locally, and on Tailscale and with `cloudflared access login` (Q14), nothing in Gazetta stops an agent from publishing; the docs say so. This reverses the presets in Q3.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1648)
 
 | Rejected | Why |
 |---|---|
@@ -464,7 +464,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 When `gazetta init .` finds existing agent files, it never overwrites them: it skips `SKILL.md` if present and appends a marked Gazetta section to `AGENTS.md` only if missing. How existing projects get updated skills is left to the #49 pass.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1648)
 
 | Rejected | Why |
 |---|---|
