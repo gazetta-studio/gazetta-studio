@@ -2,7 +2,7 @@
 
 How AI agents (coding agents, scripts, chat apps) reach Gazetta's content: in what order the ways in ship, how they write, what stops them publishing, and how they learn about changes. This sets the direction for the design pass in [#49](https://github.com/gazetta-studio/gazetta-studio/issues/49), which now covers agent access as a whole, MCP included; each piece below gets its details there.
 
-**Status**: direction decided 2026-10-31, Q1–Q11; agent identity decided 2026-11-01, Q12–Q28. The #49 design pass designs the details.
+**Status**: direction decided 2026-10-31, Q1–Q11; agent identity decided 2026-11-01, Q12–Q30. The #49 design pass designs the details.
 
 **Companion docs:**
 - [`design-ai-direction.md`](design-ai-direction.md): agents lead Gazetta's AI work; they can't publish by default (they act as the person who signed them in, Q12); the live view of agents' changes (Q8)
@@ -55,7 +55,7 @@ Decided: maintainer, 2026-10-31 (#1623)
 |---|---|
 | Leave the wording as written | A multi-instance claim the cache design contradicts |
 
-The thin CLI has a publish command too, through the API: on a target that needs approval it creates a publish request, where `gazetta publish` refuses. Two commands named publish with different behaviour depart from team rule 7 (one word per concept); the maintainer chose to keep both and record the difference. With it, an agent with publish rights on a hosted admin can publish or request a publish through the same client. Follows from Q12: an agent's token publishes only while its person has elevated; otherwise the command creates a publish request the person confirms in the admin.
+The thin CLI has a publish command too, through the API: on a target that needs approval it creates a publish request, where `gazetta publish` refuses. Two commands named publish with different behaviour depart from team rule 7 (one word per concept); the maintainer chose to keep both and record the difference. With it, an agent with publish rights on a hosted admin can publish or request a publish through the same client. Follows from Q12: an agent's token publishes only while its person has elevated; without an elevation, the command starts one and waits for the person's approval (Q29).
 
 Decided: maintainer, 2026-10-31 (#1623)
 
@@ -218,7 +218,7 @@ Open for the #49 pass (product owner's note): which URLs (the preview of a page 
 
 ### Q12 — An agent uses its person's identity; publishing needs an elevation
 
-An agent signs in as the person using it; there is no separate agent identity. Any token used outside the browser (the Go CLI, the API, MCP) can edit at most. Publishing or deleting through such a token needs a short elevation the person approves in the admin (for example `gz elevate`, showing a pin to confirm there). Without an elevation, a CLI publish becomes a publish request the person confirms in the admin. Each save records the way it came in (browser or CLI token) and a run id, so an agent's run can be reviewed and undone. Logging in uses the same pin flow (`gz auth login`).
+An agent signs in as the person using it; there is no separate agent identity. Any token used outside the browser (the Go CLI, the API, MCP) can edit at most. Publishing or deleting through such a token needs a short elevation the person approves in the admin (for example `gz elevate`, showing a pin to confirm there). Without an elevation, a CLI publish starts one itself (Q29). Each save records the way it came in (browser or CLI token) and a run id, so an agent's run can be reviewed and undone. Logging in uses the same pin flow (`gz auth login`).
 
 Decided: maintainer, 2026-11-01 (#1630)
 
@@ -267,6 +267,14 @@ Decided: maintainer, 2026-11-01 (#1630)
 - **Tailscale:** the device's own identity.
 
 Gazetta's token always travels in its own `Gazetta-Token` header, never in `Authorization` (which Easy Auth, Cloudflare's single-header service-token mode and the `GAZETTA_TOKEN` guard read).
+
+On ALB the token goes in `Authorization: Bearer` instead, because ALB's JWT check reads only that header and needs an RS256 token with a public key set: Gazetta's tokens are RS256-signed (the Q25 secret is the private key) and the admin publishes its public keys for ALB. The legacy `GAZETTA_TOKEN` guard can't be used on ALB.
+
+Decided: maintainer, 2026-11-01 (#1630)
+
+| Rejected | Why |
+|---|---|
+| No CLI on ALB for now | The maintainer chose an ALB exception |
 
 Decided: maintainer, 2026-11-01 (#1630)
 
@@ -409,11 +417,33 @@ Decided: maintainer, 2026-11-01 (#1630)
 | Gazetta acts as the OAuth server now | The `/mcp` endpoint would have to be let through the login layer, against Q13 |
 | A local MCP server only | Chat apps without a local MCP (Claude.ai on the web, ChatGPT) couldn't use it |
 
+### Q29 — Publishing without an elevation starts one and waits
+
+`gz publish` (and delete) without an elevation shows a code and a link, waits up to the code's 10 minutes (Q21) for the person's approval in the admin, then publishes; the elevation then lasts its 15 minutes (Q17). `--no-wait` and CI refuse at once with the message. `gz elevate` stays, for elevating ahead of time. This replaces Q12's "a CLI publish becomes a publish request", which had no meaning on targets that don't require approval.
+
+Decided: maintainer, 2026-11-01 (#1630)
+
+| Rejected | Why |
+|---|---|
+| Show the code and exit; run publish again after approving | Two commands every time |
+| Refuse with a message ("run `gz elevate` first") | An extra step every time |
+| Create a publish request on targets that don't require approval too | Requests on targets that never asked for approval, and `publish:request` for every editing role |
+
+### Q30 — The auth-rbac lock is amended narrowly
+
+Gazetta still never authenticates people: no passwords, no sign-in, no OIDC or SAML; the login layer does that. After the login layer has identified a person, Gazetta may issue its own tokens for the CLI, API and MCP, approved from that person's browser (Q12–Q29). `design-auth-rbac.md` carries the amendment.
+
+Decided: maintainer, 2026-11-01 (#1630)
+
+| Rejected | Why |
+|---|---|
+| Keep the lock and drop Gazetta tokens | Most of Q12–Q27 (edit-only tokens, elevation) would need redoing |
+
 Research: [follow-up on #1624](https://github.com/gazetta-studio/gazetta-studio/issues/1624#issuecomment-6556747492) (platform sources, token comparisons, where state is stored).
 
 ## What this changes in the plan
 
-Follows from Q1–Q28.
+Follows from Q1–Q30.
 - ROADMAP's "MCP server design pass" becomes "Agent access design pass" (#49), and "MCP server build" becomes "Agent access build".
 - The skill (#1622) is the first step, in Now; the Deferred row for agent instructions goes.
-- The #49 pass designs: the agent token and elevation flow (Q12–Q28), the remote MCP server's sign-in (Q28), the agent-client permission presets, audit source and run id, per-run undo, the schema check at save, page search, the thin CLI for content creators (name, discovery of a local admin, commands, output for people and agents, how its users' agents get the skill, release and distribution), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract, its versioning and v1 cut-off, the bulk save, the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
+- The #49 pass designs: the agent token and elevation flow (Q12–Q30), the remote MCP server's sign-in (Q28), the agent-client permission presets, audit source and run id, per-run undo, the schema check at save, page search, the thin CLI for content creators (name, discovery of a local admin, commands, output for people and agents, how its users' agents get the skill, release and distribution), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract, its versioning and v1 cut-off, the bulk save, the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
