@@ -210,7 +210,7 @@ Decided: maintainer, 2026-11-01 (#1686)
 | Rejected | Why |
 |---|---|
 | ogen | Fails on our three anyOf schemas; with that skipped it drops DELETE /pages/{name}, DELETE /fragments/{name} and part of the preview body. Output is 11 MB with 20 modules, OpenTelemetry among them |
-| OpenAPI Generator | Its 3.1 support is beta, its Go generator doesn't support the null type, and it needs a JVM in CI and on every contributor's machine |
+| OpenAPI Generator | Not tried: its 3.1 support is beta, its Go generator doesn't support the null type, and it needs a JVM in CI and on every contributor's machine |
 
 The cut that generates `gz`'s client (cut 13) first registers shared schemas as named components, the problem+json error body first: today every schema is inline, so the generated client has 907 types, 239 of them copies of the error body.
 
