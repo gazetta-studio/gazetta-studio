@@ -46,17 +46,17 @@ async function getText(path: string) {
   return { status: res.status, body: await res.text() }
 }
 
-describe('GET /api/site', () => {
+describe('GET /api/v1/site', () => {
   it('returns site manifest', async () => {
-    const { status, body } = await get('/api/site')
+    const { status, body } = await get('/api/v1/site')
     expect(status).toBe(200)
     expect(body.name).toBe('Gazetta Starter')
   })
 })
 
-describe('GET /api/pages', () => {
+describe('GET /api/v1/pages', () => {
   it('returns all pages', async () => {
-    const { status, body } = await get('/api/pages')
+    const { status, body } = await get('/api/v1/pages')
     expect(status).toBe(200)
     expect(body.length).toBeGreaterThanOrEqual(3)
     const names = body.map((p: { name: string }) => p.name)
@@ -66,16 +66,16 @@ describe('GET /api/pages', () => {
   })
 
   it('pages have route and template', async () => {
-    const { body } = await get('/api/pages')
+    const { body } = await get('/api/v1/pages')
     const home = body.find((p: { name: string }) => p.name === 'home')
     expect(home.route).toBe('/')
     expect(home.template).toBe('page-default')
   })
 })
 
-describe('GET /api/pages/:name', () => {
+describe('GET /api/v1/pages/:name', () => {
   it('returns page detail', async () => {
-    const { status, body } = await get('/api/pages/home')
+    const { status, body } = await get('/api/v1/pages/home')
     expect(status).toBe(200)
     expect(body.route).toBe('/')
     // Merged JSON format — components are a mix of strings (fragment refs) and inline component objects
@@ -86,20 +86,20 @@ describe('GET /api/pages/:name', () => {
   })
 
   it('returns nested page', async () => {
-    const { status, body } = await get('/api/pages/blog/[slug]')
+    const { status, body } = await get('/api/v1/pages/blog/[slug]')
     expect(status).toBe(200)
     expect(body.route).toBe('/blog/:slug')
   })
 
   it('returns 404 for missing page', async () => {
-    const { status } = await get('/api/pages/nonexistent')
+    const { status } = await get('/api/v1/pages/nonexistent')
     expect(status).toBe(404)
   })
 })
 
-describe('GET /api/fragments', () => {
+describe('GET /api/v1/fragments', () => {
   it('returns all fragments', async () => {
-    const { status, body } = await get('/api/fragments')
+    const { status, body } = await get('/api/v1/fragments')
     expect(status).toBe(200)
     expect(body.length).toBeGreaterThanOrEqual(2)
     const names = body.map((f: { name: string }) => f.name)
@@ -108,9 +108,9 @@ describe('GET /api/fragments', () => {
   })
 })
 
-describe('GET /api/fragments/:name', () => {
+describe('GET /api/v1/fragments/:name', () => {
   it('returns fragment detail', async () => {
-    const { status, body } = await get('/api/fragments/header')
+    const { status, body } = await get('/api/v1/fragments/header')
     expect(status).toBe(200)
     expect(body.template).toBe('header-layout')
     const names = body.components.filter((c: unknown) => typeof c === 'object').map((c: { name: string }) => c.name)
@@ -119,14 +119,14 @@ describe('GET /api/fragments/:name', () => {
   })
 
   it('returns 404 for missing fragment', async () => {
-    const { status } = await get('/api/fragments/nonexistent')
+    const { status } = await get('/api/v1/fragments/nonexistent')
     expect(status).toBe(404)
   })
 })
 
-describe('GET /api/templates', () => {
+describe('GET /api/v1/templates', () => {
   it('returns all templates', async () => {
-    const { status, body } = await get('/api/templates')
+    const { status, body } = await get('/api/v1/templates')
     expect(status).toBe(200)
     const names = body.map((t: { name: string }) => t.name)
     expect(names).toContain('hero')
@@ -135,9 +135,9 @@ describe('GET /api/templates', () => {
   })
 })
 
-describe('GET /api/templates/:name/schema', () => {
+describe('GET /api/v1/templates/:name/schema', () => {
   it('returns JSON Schema for a template', async () => {
-    const { status, body } = await get('/api/templates/hero/schema')
+    const { status, body } = await get('/api/v1/templates/hero/schema')
     expect(status).toBe(200)
     expect(body.type).toBe('object')
     expect(body.properties.title).toBeDefined()
@@ -145,7 +145,7 @@ describe('GET /api/templates/:name/schema', () => {
   })
 
   it('returns 500 for missing template', async () => {
-    const { status } = await get('/api/templates/nonexistent/schema')
+    const { status } = await get('/api/v1/templates/nonexistent/schema')
     expect(status).toBe(500)
   })
 })
@@ -208,9 +208,9 @@ describe('POST /preview/*', () => {
   })
 })
 
-describe('PUT /api/pages/:name', () => {
+describe('PUT /api/v1/pages/:name', () => {
   beforeAll(async () => {
-    await app.request('/api/pages', {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: '.test-put-page', route: '/.test-put-page', template: 'page-default' }),
@@ -218,19 +218,19 @@ describe('PUT /api/pages/:name', () => {
   })
 
   it('updates page content', async () => {
-    const res = await app.request('/api/pages/.test-put-page', {
+    const res = await app.request('/api/v1/pages/.test-put-page', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { title: 'Updated' } }),
     })
     expect(res.status).toBe(200)
 
-    const { body } = await get('/api/pages/.test-put-page')
+    const { body } = await get('/api/v1/pages/.test-put-page')
     expect(body.content.title).toBe('Updated')
   })
 
   it('returns 404 for missing page', async () => {
-    const res = await app.request('/api/pages/nonexistent', {
+    const res = await app.request('/api/v1/pages/nonexistent', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: {} }),
@@ -239,9 +239,9 @@ describe('PUT /api/pages/:name', () => {
   })
 })
 
-describe('PUT /api/fragments/:name', () => {
+describe('PUT /api/v1/fragments/:name', () => {
   beforeAll(async () => {
-    await app.request('/api/fragments', {
+    await app.request('/api/v1/fragments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: '.test-put-frag', template: 'footer-layout' }),
@@ -249,19 +249,19 @@ describe('PUT /api/fragments/:name', () => {
   })
 
   it('updates fragment content', async () => {
-    const res = await app.request('/api/fragments/.test-put-frag', {
+    const res = await app.request('/api/v1/fragments/.test-put-frag', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { brand: 'Updated' } }),
     })
     expect(res.status).toBe(200)
 
-    const { body } = await get('/api/fragments/.test-put-frag')
+    const { body } = await get('/api/v1/fragments/.test-put-frag')
     expect(body.content.brand).toBe('Updated')
   })
 
   it('returns 404 for missing fragment', async () => {
-    const res = await app.request('/api/fragments/nonexistent', {
+    const res = await app.request('/api/v1/fragments/nonexistent', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: {} }),
@@ -270,9 +270,9 @@ describe('PUT /api/fragments/:name', () => {
   })
 })
 
-describe('POST /api/pages (create)', () => {
+describe('POST /api/v1/pages (create)', () => {
   it('creates a new page', async () => {
-    const res = await app.request('/api/pages', {
+    const res = await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: '.test-page', route: '/.test-page', template: 'page-default' }),
@@ -282,12 +282,12 @@ describe('POST /api/pages (create)', () => {
     expect(body.ok).toBe(true)
 
     // Verify it appears in the list
-    const { body: pages } = await get('/api/pages')
+    const { body: pages } = await get('/api/v1/pages')
     expect(pages.some((p: { name: string }) => p.name === '.test-page')).toBe(true)
   })
 
   it('creates a nested page', async () => {
-    const res = await app.request('/api/pages', {
+    const res = await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: '.test-nested/intro', route: '/.test-nested/intro', template: 'page-default' }),
@@ -296,7 +296,7 @@ describe('POST /api/pages (create)', () => {
   })
 
   it('rejects duplicate page', async () => {
-    const res = await app.request('/api/pages', {
+    const res = await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: '.test-page', route: '/.test-page', template: 'page-default' }),
@@ -305,7 +305,7 @@ describe('POST /api/pages (create)', () => {
   })
 
   it('rejects missing fields', async () => {
-    const res = await app.request('/api/pages', {
+    const res = await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'x' }),
@@ -314,46 +314,46 @@ describe('POST /api/pages (create)', () => {
   })
 })
 
-describe('DELETE /api/pages/:name', () => {
+describe('DELETE /api/v1/pages/:name', () => {
   it('archives a page (soft-delete is the default per Cut 7 cutover)', async () => {
     // Create first
-    await app.request('/api/pages', {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'test-to-archive', route: '/test-to-archive', template: 'page-default' }),
     })
 
-    const res = await app.request('/api/pages/test-to-archive', { method: 'DELETE' })
+    const res = await app.request('/api/v1/pages/test-to-archive', { method: 'DELETE' })
     expect(res.status).toBe(200)
 
     // Manifest still listed but with archived: true.
-    const { body: pages } = await get('/api/pages')
+    const { body: pages } = await get('/api/v1/pages')
     const matched = (pages as Array<{ name: string; archived?: boolean }>).find(p => p.name === 'test-to-archive')
     expect(matched).toBeDefined()
     expect(matched?.archived).toBe(true)
   })
 
   it('purges with ?permanent=true', async () => {
-    await app.request('/api/pages', {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'test-to-purge', route: '/test-to-purge', template: 'page-default' }),
     })
-    const res = await app.request('/api/pages/test-to-purge?permanent=true', { method: 'DELETE' })
+    const res = await app.request('/api/v1/pages/test-to-purge?permanent=true', { method: 'DELETE' })
     expect(res.status).toBe(200)
-    const { body: pages } = await get('/api/pages')
+    const { body: pages } = await get('/api/v1/pages')
     expect((pages as Array<{ name: string }>).some(p => p.name === 'test-to-purge')).toBe(false)
   })
 
   it('returns 404 for missing page', async () => {
-    const res = await app.request('/api/pages/nonexistent', { method: 'DELETE' })
+    const res = await app.request('/api/v1/pages/nonexistent', { method: 'DELETE' })
     expect(res.status).toBe(404)
   })
 })
 
-describe('POST /api/fragments (create)', () => {
+describe('POST /api/v1/fragments (create)', () => {
   it('creates a new fragment', async () => {
-    const res = await app.request('/api/fragments', {
+    const res = await app.request('/api/v1/fragments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: '.test-frag', template: 'footer-layout' }),
@@ -362,12 +362,12 @@ describe('POST /api/fragments (create)', () => {
     const body = (await res.json()) as { ok: boolean }
     expect(body.ok).toBe(true)
 
-    const { body: frags } = await get('/api/fragments')
+    const { body: frags } = await get('/api/v1/fragments')
     expect(frags.some((f: { name: string }) => f.name === '.test-frag')).toBe(true)
   })
 
   it('rejects duplicate fragment', async () => {
-    const res = await app.request('/api/fragments', {
+    const res = await app.request('/api/v1/fragments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: '.test-frag', template: 'footer-layout' }),
@@ -376,7 +376,7 @@ describe('POST /api/fragments (create)', () => {
   })
 
   it('rejects missing fields', async () => {
-    const res = await app.request('/api/fragments', {
+    const res = await app.request('/api/v1/fragments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'x' }),
@@ -385,51 +385,51 @@ describe('POST /api/fragments (create)', () => {
   })
 })
 
-describe('DELETE /api/fragments/:name', () => {
+describe('DELETE /api/v1/fragments/:name', () => {
   it('archives a fragment (soft-delete is the default per Cut 7 cutover)', async () => {
-    await app.request('/api/fragments', {
+    await app.request('/api/v1/fragments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'test-to-archive', template: 'footer-layout' }),
     })
 
-    const res = await app.request('/api/fragments/test-to-archive', { method: 'DELETE' })
+    const res = await app.request('/api/v1/fragments/test-to-archive', { method: 'DELETE' })
     expect(res.status).toBe(200)
 
-    const { body: frags } = await get('/api/fragments')
+    const { body: frags } = await get('/api/v1/fragments')
     const matched = (frags as Array<{ name: string; archived?: boolean }>).find(f => f.name === 'test-to-archive')
     expect(matched).toBeDefined()
     expect(matched?.archived).toBe(true)
   })
 
   it('purges with ?permanent=true', async () => {
-    await app.request('/api/fragments', {
+    await app.request('/api/v1/fragments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'test-to-purge', template: 'footer-layout' }),
     })
-    const res = await app.request('/api/fragments/test-to-purge?permanent=true', { method: 'DELETE' })
+    const res = await app.request('/api/v1/fragments/test-to-purge?permanent=true', { method: 'DELETE' })
     expect(res.status).toBe(200)
-    const { body: frags } = await get('/api/fragments')
+    const { body: frags } = await get('/api/v1/fragments')
     expect((frags as Array<{ name: string }>).some(f => f.name === 'test-to-purge')).toBe(false)
   })
 
   it('returns 404 for missing fragment', async () => {
-    const res = await app.request('/api/fragments/nonexistent', { method: 'DELETE' })
+    const res = await app.request('/api/v1/fragments/nonexistent', { method: 'DELETE' })
     expect(res.status).toBe(404)
   })
 })
 
-// /api/components routes were removed in #112 (merged JSON format).
-// Component create/update now happens via PUT /api/pages/:name with updated components array.
+// /api/v1/components routes were removed in #112 (merged JSON format).
+// Component create/update now happens via PUT /api/v1/pages/:name with updated components array.
 
 // ---------------------------------------------------------------------------
 // Locale endpoints (i18n)
 // ---------------------------------------------------------------------------
 
-describe('GET /api/pages (locale support)', () => {
+describe('GET /api/v1/pages (locale support)', () => {
   it('page list includes locales array for pages with translations', async () => {
-    const { body } = await get('/api/pages')
+    const { body } = await get('/api/v1/pages')
     const home = body.find((p: { name: string }) => p.name === 'home')
     // Starter has page.fr.json for home
     expect(home.locales).toBeDefined()
@@ -437,22 +437,22 @@ describe('GET /api/pages (locale support)', () => {
   })
 
   it('pages without translations have no locales array', async () => {
-    const { body } = await get('/api/pages')
+    const { body } = await get('/api/v1/pages')
     const blog = body.find((p: { name: string }) => p.name === 'blog/[slug]')
     // Blog has no locale files
     expect(blog.locales ?? []).toHaveLength(0)
   })
 })
 
-describe('GET /api/pages/:name?locale=', () => {
+describe('GET /api/v1/pages/:name?locale=', () => {
   it('returns default page when no locale param', async () => {
-    const { status, body } = await get('/api/pages/home')
+    const { status, body } = await get('/api/v1/pages/home')
     expect(status).toBe(200)
     expect(body.locale).toBeUndefined()
   })
 
   it('returns locale-specific content when locale param provided', async () => {
-    const { status, body } = await get('/api/pages/home?locale=fr')
+    const { status, body } = await get('/api/v1/pages/home?locale=fr')
     expect(status).toBe(200)
     expect(body.locale).toBe('fr')
     // French page has different content
@@ -460,16 +460,16 @@ describe('GET /api/pages/:name?locale=', () => {
   })
 
   it('falls back to default when requested locale not available', async () => {
-    const { status, body } = await get('/api/pages/home?locale=de')
+    const { status, body } = await get('/api/v1/pages/home?locale=de')
     expect(status).toBe(200)
     // Should return the page (fallback), not 404
     expect(body.template).toBeDefined()
   })
 })
 
-describe('GET /api/fragments (locale support)', () => {
+describe('GET /api/v1/fragments (locale support)', () => {
   it('fragment list returns successfully', async () => {
-    const { status, body } = await get('/api/fragments')
+    const { status, body } = await get('/api/v1/fragments')
     expect(status).toBe(200)
     // Fragments may or may not have locale files in the starter
     expect(body.length).toBeGreaterThanOrEqual(2)
@@ -490,9 +490,9 @@ describe('GET /preview/* (locale support)', () => {
   })
 })
 
-describe('GET /api/site (locale config)', () => {
+describe('GET /api/v1/site (locale config)', () => {
   it('returns site manifest with locales config', async () => {
-    const { status, body } = await get('/api/site')
+    const { status, body } = await get('/api/v1/site')
     expect(status).toBe(200)
     // Starter has locales.supported: [en, fr]
     if (body.locales) {

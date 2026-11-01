@@ -2,7 +2,7 @@
  * Wire-level primitives shared by every API module.
  *
  * This file owns:
- *   - the API base URL derivation (`/admin/api`, `/cms/api`, `/api`)
+ *   - the API base URL derivation (`/admin/api/v1`, `/cms/api/v1`, `/api/v1`)
  *   - the active-target injection (`?target=<name>`) — a cross-cutting
  *     concern that every endpoint honors
  *
@@ -22,7 +22,8 @@
 
 // API is relative to the CMS base path. `import.meta.env.BASE_URL` resolves
 // to `/admin/`, `/cms/`, or `/` depending on how the admin SPA is mounted.
-export const API_BASE = (import.meta.env.BASE_URL || '/').replace(/\/$/, '') + '/api'
+// The admin uses the newest API major; unprefixed `/api/...` paths answer 404.
+export const API_BASE = (import.meta.env.BASE_URL || '/').replace(/\/$/, '') + '/api/v1'
 
 /**
  * Active-target provider — injected at app boot by `setActiveTargetProvider`.

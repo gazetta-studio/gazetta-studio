@@ -7,7 +7,7 @@
  *
  * State machine: 'loading' | 'loaded' | 'error'. The badge is always
  * rendered — earlier "hidden on error" silently dropped genuine
- * failures (slow `/api/dependents` on cold dev start, intermittent
+ * failures (slow `/api/v1/dependents` on cold dev start, intermittent
  * network), leaving the user staring at empty space with no signal.
  * A visible state lets the user (or a test) tell the difference
  * between "still loading", "no dependents yet", and "load failed".

@@ -82,7 +82,7 @@ function seedSite({ pages = [], fragments = [], manifest = {} }: SeedOpts) {
     systemPages: undefined,
     ...manifest,
   } as SiteManifest
-  // Prevent publishStatus.refresh from calling out to /api/compare on
+  // Prevent publishStatus.refresh from calling out to /api/v1/compare on
   // mount — we're not testing the dirty-dot path here.
   vi.spyOn(usePublishStatusStore(), 'refresh').mockResolvedValue(undefined)
   return site

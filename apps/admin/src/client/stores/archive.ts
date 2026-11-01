@@ -126,7 +126,7 @@ export const useArchiveStore = defineStore('archive', () => {
   }
 
   /**
-   * Fire POST /api/{kind}/:name/archive. Resolves true when archive
+   * Fire POST /api/v1/{kind}/:name/archive. Resolves true when archive
    * succeeded; false on error (status flips to 'error', errorMessage
    * populated). The 409 ARCHIVE_HAS_LIVE_REFS body surfaces as an
    * error today; Cut 12's resolve modal will handle it specifically.
@@ -167,7 +167,7 @@ export const useArchiveStore = defineStore('archive', () => {
   }
 
   /**
-   * Fire DELETE /api/{kind}/:name/purge. On 409 DELETE_BLOCKED, the
+   * Fire DELETE /api/v1/{kind}/:name/purge. On 409 DELETE_BLOCKED, the
    * store transitions to `purge-blocked` and exposes `blockedAliases`
    * / `blockedLiveRefs` so the PurgeBlockedModal can render the
    * resolution UI. On other errors transitions to `error`.

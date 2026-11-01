@@ -115,9 +115,9 @@ describe('History on save', () => {
     await rm(contentDir, { recursive: true, force: true })
   })
 
-  it('records a revision on PUT /api/pages/:name', async () => {
+  it('records a revision on PUT /api/v1/pages/:name', async () => {
     // First save — triggers the initial full-tree scan.
-    const res = await app.request('/api/pages/home', {
+    const res = await app.request('/api/v1/pages/home', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { title: 'Edited' } }),
@@ -155,7 +155,7 @@ describe('History on save', () => {
   })
 
   it('second save writes delta onto the previous snapshot', async () => {
-    const res = await app.request('/api/pages/about', {
+    const res = await app.request('/api/v1/pages/about', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { title: 'About edited' } }),
@@ -178,17 +178,17 @@ describe('History on save', () => {
     expect(secondSave.snapshot['pages/about/page.json']).not.toBe(firstSave.snapshot['pages/about/page.json'])
   })
 
-  it('records a revision on DELETE /api/pages/:name (archive) with the manifest carrying archived: true', async () => {
+  it('records a revision on DELETE /api/v1/pages/:name (archive) with the manifest carrying archived: true', async () => {
     // Per Cut 7 cutover: DELETE = soft-delete (archive). The manifest
     // stays in the snapshot but flips to `archived: true`. Hard delete
     // (purge) is opt-in via `?permanent=true` and DOES remove from the
     // snapshot — covered by the next test.
-    await app.request('/api/pages', {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: '.history-delete-test', template: 'page-default' }),
     })
-    const del = await app.request('/api/pages/.history-delete-test', { method: 'DELETE' })
+    const del = await app.request('/api/v1/pages/.history-delete-test', { method: 'DELETE' })
     expect(del.status).toBe(200)
 
     const entries = await readdir(resolve(contentDir, '.gazetta/history/revisions'))
@@ -203,13 +203,13 @@ describe('History on save', () => {
     expect(blob.archived).toBe(true)
   })
 
-  it('records a revision on DELETE /api/pages/:name?permanent=true (purge) with the item removed from the snapshot', async () => {
-    await app.request('/api/pages', {
+  it('records a revision on DELETE /api/v1/pages/:name?permanent=true (purge) with the item removed from the snapshot', async () => {
+    await app.request('/api/v1/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'history-purge-test', template: 'page-default' }),
     })
-    const del = await app.request('/api/pages/history-purge-test?permanent=true', { method: 'DELETE' })
+    const del = await app.request('/api/v1/pages/history-purge-test?permanent=true', { method: 'DELETE' })
     expect(del.status).toBe(200)
 
     const entries = await readdir(resolve(contentDir, '.gazetta/history/revisions'))
@@ -237,7 +237,7 @@ describe('History disabled on save', () => {
   })
 
   it('does not create .gazetta/history/ when the source has no history provider', async () => {
-    const res = await app.request('/api/pages/home', {
+    const res = await app.request('/api/v1/pages/home', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { title: 'Quiet save' } }),
@@ -268,7 +268,7 @@ describe('Retention', () => {
 
   it('evicts oldest revisions once retention is hit', async () => {
     for (let i = 0; i < 5; i++) {
-      const res = await app.request('/api/pages/home', {
+      const res = await app.request('/api/v1/pages/home', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: { title: `rev ${i}` } }),
@@ -311,7 +311,7 @@ describe('History HTTP endpoints', () => {
   })
 
   async function save(title: string) {
-    const res = await app.request('/api/pages/home', {
+    const res = await app.request('/api/v1/pages/home', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { title } }),
@@ -319,11 +319,11 @@ describe('History HTTP endpoints', () => {
     expect(res.status).toBe(200)
   }
 
-  it('GET /api/history lists revisions newest first', async () => {
+  it('GET /api/v1/history lists revisions newest first', async () => {
     await save('one')
     await save('two')
     await save('three')
-    const res = await app.request('/api/history?target=local')
+    const res = await app.request('/api/v1/history?target=local')
     expect(res.status).toBe(200)
     const body = (await res.json()) as { revisions: { id: string; operation: string; message?: string }[] }
     // Baseline + 3 saves = 4 revisions, newest first.
@@ -336,55 +336,55 @@ describe('History HTTP endpoints', () => {
     expect(body.revisions.at(-1)?.message).toBe('Initial baseline')
   })
 
-  it('GET /api/history 400 without ?target=', async () => {
-    const res = await app.request('/api/history')
+  it('GET /api/v1/history 400 without ?target=', async () => {
+    const res = await app.request('/api/v1/history')
     expect(res.status).toBe(400)
   })
 
-  it('POST /api/history/undo restores previous revision with operation=rollback', async () => {
+  it('POST /api/v1/history/undo restores previous revision with operation=rollback', async () => {
     // Read current content — should be "three" from the prior test.
-    const before = await app.request('/api/pages/home')
+    const before = await app.request('/api/v1/pages/home')
     const beforeBody = (await before.json()) as { content: { title: string } }
     expect(beforeBody.content.title).toBe('three')
 
     // Capture the expected restoredFrom: it's head-1 in newest-first order.
-    const listRes = await app.request('/api/history?target=local')
+    const listRes = await app.request('/api/v1/history?target=local')
     const listBody = (await listRes.json()) as { revisions: { id: string }[] }
     const expectedRestoredFrom = listBody.revisions[1].id
 
-    const res = await app.request('/api/history/undo?target=local', { method: 'POST' })
+    const res = await app.request('/api/v1/history/undo?target=local', { method: 'POST' })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { revision: { operation: string }; restoredFrom: string }
     expect(body.revision.operation).toBe('rollback')
     expect(body.restoredFrom).toBe(expectedRestoredFrom)
 
     // Content now reflects the previous save's state ("two").
-    const after = await app.request('/api/pages/home')
+    const after = await app.request('/api/v1/pages/home')
     const afterBody = (await after.json()) as { content: { title: string } }
     expect(afterBody.content.title).toBe('two')
   })
 
-  it('POST /api/history/restore restores an arbitrary revision', async () => {
+  it('POST /api/v1/history/restore restores an arbitrary revision', async () => {
     // Current state is now "two" from the undo above; find the id of the
     // earliest save (title="one") — it's the second-oldest revision
     // (baseline is oldest). Use newest-first list: the oldest non-
     // baseline save is at list.length-2.
-    const listRes = await app.request('/api/history?target=local')
+    const listRes = await app.request('/api/v1/history?target=local')
     const listBody = (await listRes.json()) as { revisions: { id: string; message?: string }[] }
     const firstSaveId = listBody.revisions[listBody.revisions.length - 2].id
 
-    const res = await app.request(`/api/history/restore?target=local&id=${firstSaveId}`, { method: 'POST' })
+    const res = await app.request(`/api/v1/history/restore?target=local&id=${firstSaveId}`, { method: 'POST' })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { revision: { operation: string }; restoredFrom: string }
     expect(body.revision.operation).toBe('rollback')
     expect(body.restoredFrom).toBe(firstSaveId)
 
-    const after = await app.request('/api/pages/home')
+    const after = await app.request('/api/v1/pages/home')
     const afterBody = (await after.json()) as { content: { title: string } }
     expect(afterBody.content.title).toBe('one')
   })
 
-  it('POST /api/history/undo 409 when there is nothing to undo', async () => {
+  it('POST /api/v1/history/undo 409 when there is nothing to undo', async () => {
     // Fresh working copy, no prior revision.
     const fresh = await setupWorkingCopy('history-http-no-undo-test')
     try {
@@ -399,15 +399,15 @@ describe('History HTTP endpoints', () => {
         targetConfigs: { local: { storage: { type: 'filesystem' }, environment: 'local', editable: true } },
         disableCacheStatsLogger: true,
       })
-      const res = await freshApp.request('/api/history/undo?target=local', { method: 'POST' })
+      const res = await freshApp.request('/api/v1/history/undo?target=local', { method: 'POST' })
       expect(res.status).toBe(409)
     } finally {
       await rm(fresh, { recursive: true, force: true })
     }
   })
 
-  it('POST /api/history/restore 404 for unknown revision id', async () => {
-    const res = await app.request('/api/history/restore?target=local&id=rev-9999', { method: 'POST' })
+  it('POST /api/v1/history/restore 404 for unknown revision id', async () => {
+    const res = await app.request('/api/v1/history/restore?target=local&id=rev-9999', { method: 'POST' })
     expect(res.status).toBe(404)
   })
 })
