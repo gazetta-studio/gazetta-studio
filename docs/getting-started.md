@@ -57,6 +57,8 @@ In the publish result, click **Undo** next to staging. Reload http://localhost:3
 
 The admin still shows your edit. Undo changed staging, not `local`, so your work is safe and you can publish it again whenever you like.
 
+> **Not yet in this release:** Undo restores staging's content and history, but staging keeps serving the pages it rendered, so http://localhost:3001 still shows the new title. Re-rendering on undo is tracked in [#1092](https://github.com/gazetta-studio/gazetta-studio/issues/1092); see [Destination undo does not change served pages yet](./publishing.md#destination-undo-does-not-change-served-pages-yet).
+
 ## What you did
 
 - A **target** holds a whole copy of your site. You edited `local` and published to `staging`.
