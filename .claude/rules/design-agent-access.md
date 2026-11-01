@@ -295,7 +295,7 @@ Decided: maintainer, 2026-11-01 (#1630)
 | 2 hours, extended by each use (GitHub sudo mode) | An agent publishing every few minutes keeps it open indefinitely |
 | One action | That's the publish request that already exists, with no elevation at all |
 
-Research: [r1624 follow-up on #1624](https://github.com/gazetta-studio/gazetta-studio/issues/1624) (platform sources, token comparisons, where state is stored).
+Research: [follow-up on #1624](https://github.com/gazetta-studio/gazetta-studio/issues/1624#issuecomment-6556747492) (platform sources, token comparisons, where state is stored).
 
 ## What this changes in the plan
 
