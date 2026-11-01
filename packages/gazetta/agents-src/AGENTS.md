@@ -21,6 +21,8 @@ Never run these; ask the person to:
 - `DELETE /api/v1/fragments/:name/purge`
 - `DELETE /api/v1/assets/:name`
 - `POST /api/v1/assets/:name/replace-with/:newName`
+- `POST /api/v1/auth/logins/:code/approve`
+- `POST /api/v1/auth/logins/:code/deny`
 
 Never approve a publish or review request on the person's behalf.
 <!-- gazetta:agents end -->

@@ -58,6 +58,9 @@ import {
   UNKNOWN_ACTOR_ID,
 } from '../../auth/index.js'
 import { unmapIPv4 } from '../../auth/ip-match.js'
+import { principalFromToken } from '../../auth/token-principal.js'
+import type { SigningKeys } from '../../auth/tokens/keys.js'
+import { TokenRejectedError, verifyToken } from '../../auth/tokens/token.js'
 
 /**
  * Hono context augmentation — readers see `c.var.principal` typed
@@ -122,6 +125,15 @@ function toAuthRequest(c: Context): AuthRequest {
 }
 
 /**
+ * The client's address for display and recording: the address headers
+ * report, else the connection's. Never used for access decisions.
+ */
+export function requestSourceIp(c: Context): string | undefined {
+  const { sourceIp, peerAddress } = toAuthRequest(c)
+  return sourceIp ?? peerAddress
+}
+
+/**
  * The connection's remote address, from `@hono/node-server`'s socket.
  * Undefined when the request didn't come through the Node server
  * (`app.request()` without an env in tests).
@@ -147,8 +159,33 @@ function extractFirstXffEntry(xff: string | null): string | null {
  * omit to fall back to `none` mode. Production wiring resolves the
  * provider from `site.config.ts admin.auth` at boot.
  */
-export function principalMiddleware(provider: AuthIdentityProvider = noneAuthProvider) {
+export interface TokenAuth {
+  /** The signing keys, or null when CLI login is off. */
+  keys: () => Promise<SigningKeys | null>
+  /** Custom roles from `admin.auth.roles`, to expand a token's role. */
+  customRoles?: Readonly<Record<string, ReadonlyArray<string>>>
+}
+
+/** The header a Gazetta token travels in (design-agent-access.md Q15). */
+export const GAZETTA_TOKEN_HEADER = 'Gazetta-Token'
+
+export function principalMiddleware(provider: AuthIdentityProvider = noneAuthProvider, tokens?: TokenAuth) {
   return createMiddleware<PrincipalEnv>(async (c, next) => {
+    // A request carrying a Gazetta token is that token's person or
+    // nobody: a bad token never falls back to the login layer's identity.
+    const token = c.req.header(GAZETTA_TOKEN_HEADER)
+    if (token !== undefined) {
+      const keys = tokens ? await tokens.keys() : null
+      try {
+        if (!keys) throw new TokenRejectedError('CLI login is off on this admin')
+        c.set('principal', principalFromToken(await verifyToken(keys, token), tokens?.customRoles))
+      } catch (err) {
+        if (!(err instanceof TokenRejectedError)) throw err
+        c.header('WWW-Authenticate', 'Bearer realm="gazetta-admin"')
+        return problem(c, 401, 'TOKEN_INVALID', err.message)
+      }
+      return next()
+    }
     let principal: Principal | null
     try {
       principal = await provider.extractPrincipal(toAuthRequest(c))

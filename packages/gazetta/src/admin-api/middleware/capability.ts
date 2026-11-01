@@ -41,6 +41,7 @@ import type { Context } from 'hono'
 import { problem } from '../problem.js'
 import { createMiddleware } from 'hono/factory'
 import { capabilityGrants } from '../../auth/index.js'
+import { deniedOnlyForToken } from '../../auth/token-cap.js'
 import { isAnonymous } from './principal.js'
 import type { AuditAction, AuditScope } from '../../audit/index.js'
 import type { AuditEnv } from './audit.js'
@@ -111,6 +112,11 @@ export async function denyWithoutCapability(c: Context<AuditEnv>, capability: st
   // Authenticated principal — capability check.
   if (!capabilityGrants(principal.capabilities, capability)) {
     await recordDenial('forbidden')
+    if (deniedOnlyForToken(principal, capability)) {
+      return problem(c, 403, 'TOKEN_EDIT_ONLY', `A Gazetta token can only edit; "${capability}" needs the browser`, {
+        missing: [capability],
+      })
+    }
     return problem(c, 403, 'FORBIDDEN', `Role "${principal.role}" does not have capability "${capability}"`, {
       missing: [capability],
       role: principal.role,

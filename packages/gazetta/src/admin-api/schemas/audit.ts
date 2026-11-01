@@ -34,6 +34,10 @@ export const AuditActionSchema = z.enum([
   // Redirect UI extension per design-redirect-ui.md Q7 lock.
   // Closed-enum-additive — `metadata.aliasOf` carries the alias target.
   'create-redirect',
+  // CLI login per design-agent-access.md Q26.
+  'login-approve',
+  'login-deny',
+  'grant-revoke',
 ])
 export type AuditActionWire = z.infer<typeof AuditActionSchema>
 
