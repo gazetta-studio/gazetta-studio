@@ -311,7 +311,7 @@ Decided: maintainer, 2026-11-01 (#1630)
 
 ### Q16 — Short-lived signed tokens plus a grant record
 
-A signed token lasts about 15 minutes and is renewed from one stored grant per `gz auth login`, in a private `.gazetta/auth/` folder; as a new `.gazetta/` folder it isn't written on public targets (`design-public-storage.md` Q5, Q7). API calls read no storage; deleting the grant ends access within 15 minutes; the signing key is an environment secret shared by all instances.
+A signed token lasts about 15 minutes and is renewed from one stored grant per `gz auth login`, in a private `.gazetta/auth/` folder; as a new `.gazetta/` folder it isn't written on public targets (`design-public-storage.md` Q5, Q7). It counts as sensitive state, like history and audit (`design-public-storage.md` Q6; #1689). API calls read no storage; deleting the grant ends access within 15 minutes; the signing key is an environment secret shared by all instances.
 
 Decided: maintainer, 2026-11-01 (#1630)
 
