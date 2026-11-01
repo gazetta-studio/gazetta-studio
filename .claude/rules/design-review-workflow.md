@@ -486,7 +486,7 @@ Cut 20 follow-ups ([#1230](https://github.com/gazetta-studio/gazetta-studio/issu
 - **Stylesheet-only cuts capture a fixed sample.** A cut that changes only stylesheets Storybook's preview imports (`tokens.css`, `base.css`) affects no story file, so the check captures a fixed set of representative stories, one per component, up to the cap.
 - **The reviewer prompt is validated by reading, not replay.** The first UX cut's Agent B transcript is read to confirm it used the screenshots sensibly; replay isn't extended to feature-bot for this.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1636)
 
 | Rejected | Why |
 |---|---|
