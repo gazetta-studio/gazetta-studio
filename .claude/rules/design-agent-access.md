@@ -196,6 +196,30 @@ Decided: maintainer, 2026-10-31 (#1623)
 |---|---|
 | Bot support for Go before any Go cut is filed | Delays the CLI behind bot and workflow changes |
 
+The client is generated from the OpenAPI 3.1 document directly. Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| Emit a 3.0 copy of the document for `gz` | The maintainer chose to generate from 3.1 |
+| A thin hand-written client checked against the document by a test | Same |
+
+The generator is oapi-codegen (v2.8.2, Apache-2.0) with `nullable-type: true`, so a field such as `alt` keeps all three states (a value, null, absent) and `gz` can clear it. On cut 4's document (47 paths) it generated every operation with no errors and builds without cgo; its own docs call its 3.1 support initial.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| ogen | Fails on our three anyOf schemas; with that skipped it drops DELETE /pages/{name}, DELETE /fragments/{name} and part of the preview body. Output is 11 MB with 20 modules, OpenTelemetry among them |
+| OpenAPI Generator | Its 3.1 support is beta, its Go generator doesn't support the null type, and it needs a JVM in CI and on every contributor's machine |
+
+The cut that generates `gz`'s client (cut 13) first registers shared schemas as named components, the problem+json error body first: today every schema is inline, so the generated client has 907 types, 239 of them copies of the error body.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| A separate follow-up issue, generating from today's document in cut 13 | `gz` carries a 5.4 MB client until then |
+
 ### Q9 — The Go CLI is for content creators; the `gazetta` CLI is for developers
 
 The thin Go CLI (Q2, Q8) serves people who don't develop templates (content creators), and their agents (Q10). The `gazetta` CLI serves developers.
@@ -794,7 +818,7 @@ The build of Q12–Q51. The MCP server (with its sign-in, Q28), the live view of
 | 11 | Revert a run item by item, with skip-and-report (Q48, Q50) | 4, 6 | api-first | Medium |
 | 12a | `gz` without a server: Go module, CI job, goreleaser, login profiles, keychain storage, output and exit codes, `gz skill` (Q35, Q36, Q39, Q24, Q38, Q40) | — | integration | Medium |
 | 12 | `gz auth login` and the version check (Q36, Q43) | 7, 12a | integration | Medium |
-| 13 | `gz` content commands and run id (Q37, Q22) | 10, 12 | integration | Medium |
+| 13 | `gz` content commands and run id; shared schemas registered as components, then the client generated with oapi-codegen (Q37, Q22, Q8) | 10, 12 | integration | Medium |
 | 14 | `gz` publish, elevate and assets; the install hint and daily warning; `gz` entries on the never-run list (Q37, Q41, Q32) | 8, 13 | integration | Medium |
 | 15 | `gazetta agents update` and the `gazetta dev` warning (Q33) | — | integration | Low |
 | 16 | Docs: content creators with `gz`, operators per platform including where "agents can't publish" is enforced (Q14), the API reference | 14 | docs | Low |
