@@ -3,15 +3,22 @@
  *
  * Route modules build their apps with `apiApp()` and register each route
  * with `app.openapi(createRoute(...), handler)`, so a route's schemas and
- * its handler sit together and the document at `/api/openapi.json` can't
- * drift from the routes. Input that fails its schema is answered here, as a
+ * its handler sit together and the document at `/api/v1/openapi.json`
+ * can't drift from the routes. Route modules write paths without the
+ * version prefix; the admin app mounts them once under `API_PREFIX`. Input that fails its schema is answered here, as a
  * problem+json 400, before the handler runs.
  */
-import { OpenAPIHono, z } from '@hono/zod-openapi'
-import type { Context, Env } from 'hono'
+import { OpenAPIHono, type RouteConfig, z } from '@hono/zod-openapi'
+import type { Context, Env, MiddlewareHandler } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { PROBLEM_CONTENT_TYPE, problem } from './problem.js'
 import { type ErrorCode, ErrorResponseSchema } from './schemas/error.js'
+
+/** Where the versioned API is mounted (design-agent-access.md Q42). */
+export const API_PREFIX = '/api/v1'
+
+/** The majors this admin serves, newest last (Q43). */
+export const API_MAJORS = ['v1'] as const
 
 /** Marks a route that isn't part of the versioned API (Q5). */
 export const UNVERSIONED = { 'x-gazetta-unversioned': true } as const
@@ -75,18 +82,21 @@ export function problems<S extends ContentfulStatusCode>(spec: Partial<Record<S,
   return out
 }
 
+/** Where the document is served, under the versioned prefix. */
+export const OPENAPI_PATH = `${API_PREFIX}/openapi.json`
+
 /**
  * The document's header. `docPath` is where the document was requested
- * (`/admin/api/openapi.json` when the CLI mounts the admin at `/admin`), so
- * the server URL makes every documented path resolve.
+ * (`/admin/api/v1/openapi.json` when the CLI mounts the admin at `/admin`),
+ * so the server URL makes every documented path resolve.
  */
 export function openApiDocument(docPath: string) {
-  const base = docPath.slice(0, -'/api/openapi.json'.length)
+  const base = docPath.slice(0, -OPENAPI_PATH.length)
   return {
     openapi: '3.1.0',
     info: {
       title: 'Gazetta admin API',
-      version: 'preview',
+      version: 'v1 (preview)',
       description:
         'The admin API every Gazetta client uses (design-agent-access.md Q5). A preview until v1; routes marked `x-gazetta-unversioned` are outside the versioned contract. Errors are RFC 9457 problem+json.',
     },
@@ -134,4 +144,39 @@ export function registerDevRoutes(app: OpenAPIHono<any>): void {
     responses: { 200: stream, ...problems({ 401: ['UNAUTHENTICATED'], 403: ['FORBIDDEN'] }) },
     ...UNVERSIONED,
   })
+}
+
+/** When a route was deprecated and when it goes away. */
+export interface DeprecationDates {
+  /** When the route was deprecated. */
+  since: Date
+  /** When it's removed: at least 6 months after `since`. */
+  sunset: Date
+}
+
+const SIX_MONTHS_MS = 182 * 24 * 60 * 60 * 1000
+
+/**
+ * The route, deprecated: it answers with `Deprecation` (RFC 9745) and
+ * `Sunset` (RFC 8594) headers and the document marks it deprecated. The
+ * handler doesn't change.
+ *
+ * A deprecated route keeps working for at least two minor releases or six
+ * months, whichever is longer (design-agent-access.md Q43). Only the six
+ * months can be checked here: a shorter window throws. The two minor
+ * releases are the release's job.
+ */
+export function deprecate<R extends RouteConfig>(route: R, dates: DeprecationDates): R & { deprecated: true } {
+  if (dates.sunset.getTime() - dates.since.getTime() < SIX_MONTHS_MS) {
+    throw new Error(
+      `${route.method.toUpperCase()} ${route.path}: the sunset must be at least six months after deprecation`,
+    )
+  }
+  const headers: MiddlewareHandler = async (c, next) => {
+    await next()
+    c.header('Deprecation', `@${Math.floor(dates.since.getTime() / 1000)}`)
+    c.header('Sunset', dates.sunset.toUTCString())
+  }
+  const middleware = route.middleware === undefined ? [] : [route.middleware].flat()
+  return { ...route, deprecated: true, middleware: [headers, ...middleware] }
 }

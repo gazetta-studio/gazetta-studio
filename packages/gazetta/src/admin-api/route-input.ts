@@ -7,7 +7,8 @@
  *   request body"), and lets optional bodies be empty, since the admin
  *   client sends `Content-Type: application/json` on bodyless requests.
  * - `bodyFailure()` is a route hook: a body that fails its schema gets the
- *   route's own code and detail with the schema's issues; other input gets
+ *   route's own code and detail (fixed, or built from the first issue's
+ *   message) with the schema's issues; other input gets
  *   the same answer as `apiApp()`'s default hook.
  */
 import type { Context, MiddlewareHandler } from 'hono'
@@ -55,11 +56,14 @@ interface ValidationResult {
   error?: { issues: ReadonlyArray<{ path: ReadonlyArray<PropertyKey>; message: string }> }
 }
 
-export function bodyFailure(code: ErrorCode, detail: string) {
+export function bodyFailure(code: ErrorCode, detail: string | ((firstIssue: string | undefined) => string)) {
   return (result: ValidationResult, c: Context): ProblemResponse<400> | undefined => {
     if (result.success) return undefined
     const issues = result.error?.issues ?? []
-    if (result.target === 'json') return problem(c, 400, code, detail, { issues: issueList(issues) })
+    if (result.target === 'json') {
+      const text = typeof detail === 'string' ? detail : detail(issues[0]?.message)
+      return problem(c, 400, code, text, { issues: issueList(issues) })
+    }
     return invalidInput(c, result.target, issues)
   }
 }

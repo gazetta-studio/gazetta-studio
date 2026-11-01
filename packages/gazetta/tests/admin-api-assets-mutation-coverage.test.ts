@@ -93,8 +93,8 @@ function buildApp() {
   const source = createSourceContext({ storage, siteDir: '', manifest: { name: 'test-site' } })
   const resolve = staticSourceResolver(source)
   const app = new Hono()
-  app.use('/api/*', principalMiddleware())
-  app.route('/', assetRoutes(resolve))
+  app.use('/api/v1/*', principalMiddleware())
+  app.route('/api/v1', assetRoutes(resolve))
   return { app, storage }
 }
 
@@ -120,7 +120,7 @@ function multipartForm(fields: Record<string, string | { name: string; bytes: Ui
 
 async function uploadHero(app: Hono) {
   const bytes = await jpegBuffer()
-  await app.request('/api/assets', {
+  await app.request('/api/v1/assets', {
     method: 'POST',
     body: multipartForm({
       file: { name: 'hero.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
@@ -131,7 +131,7 @@ async function uploadHero(app: Hono) {
 
 async function uploadFrenchOverride(app: Hono) {
   const bytes = await jpegBuffer()
-  return app.request('/api/assets/hero/locale-bytes?locale=fr', {
+  return app.request('/api/v1/assets/hero/locale-bytes?locale=fr', {
     method: 'POST',
     body: multipartForm({ file: { name: 'hero.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' } }),
   })
@@ -143,7 +143,7 @@ describe('selectorFromQuery — POST /api/assets/:name/locale-bytes', () => {
       const { app } = buildApp()
       await uploadHero(app)
 
-      const res = await app.request('/api/assets/hero/locale-bytes?locale=NOT-A-LOCALE-FORMAT', {
+      const res = await app.request('/api/v1/assets/hero/locale-bytes?locale=NOT-A-LOCALE-FORMAT', {
         method: 'POST',
         body: multipartForm({
           file: { name: 'hero.jpg', bytes: new Uint8Array(await jpegBuffer()), type: 'image/jpeg' },
@@ -169,7 +169,7 @@ describe('selectorFromQuery — POST /api/assets/:name/locale-bytes', () => {
       const { app } = buildApp()
       await uploadHero(app)
 
-      const res = await app.request('/api/assets/hero/locale-bytes?theme=NOT-A-VALID-THEME', {
+      const res = await app.request('/api/v1/assets/hero/locale-bytes?theme=NOT-A-VALID-THEME', {
         method: 'POST',
         body: multipartForm({
           file: { name: 'hero.jpg', bytes: new Uint8Array(await jpegBuffer()), type: 'image/jpeg' },
@@ -192,7 +192,7 @@ describe('selectorFromQuery — POST /api/assets/:name/locale-bytes', () => {
       const { app } = buildApp()
       await uploadHero(app)
 
-      const res = await app.request('/api/assets/hero/locale-bytes?locale=NOT-A-LOCALE-FORMAT&theme=dark', {
+      const res = await app.request('/api/v1/assets/hero/locale-bytes?locale=NOT-A-LOCALE-FORMAT&theme=dark', {
         method: 'POST',
         body: multipartForm({
           file: { name: 'hero.jpg', bytes: new Uint8Array(await jpegBuffer()), type: 'image/jpeg' },
@@ -220,7 +220,7 @@ describe('selectorFromQuery — POST /api/assets/:name/locale-bytes', () => {
       const { app } = buildApp()
       await uploadHero(app)
 
-      const res = await app.request('/api/assets/hero/locale-bytes', {
+      const res = await app.request('/api/v1/assets/hero/locale-bytes', {
         method: 'POST',
         body: multipartForm({
           file: { name: 'hero.jpg', bytes: new Uint8Array(await jpegBuffer()), type: 'image/jpeg' },
@@ -242,7 +242,7 @@ describe('selectorFromQuery — POST /api/assets/:name/locale-bytes', () => {
       const { app } = buildApp()
       await uploadHero(app)
 
-      const res = await app.request('/api/assets/hero/locale-bytes?locale=fr', {
+      const res = await app.request('/api/v1/assets/hero/locale-bytes?locale=fr', {
         method: 'POST',
         body: multipartForm({
           file: { name: 'hero.jpg', bytes: new Uint8Array(await jpegBuffer()), type: 'image/jpeg' },
@@ -265,7 +265,7 @@ describe('selectorFromQuery — POST /api/assets/:name/locale-bytes', () => {
       const { app } = buildApp()
       await uploadHero(app)
 
-      const res = await app.request('/api/assets/hero/locale-bytes?theme=dark', {
+      const res = await app.request('/api/v1/assets/hero/locale-bytes?theme=dark', {
         method: 'POST',
         body: multipartForm({
           file: { name: 'hero.jpg', bytes: new Uint8Array(await jpegBuffer()), type: 'image/jpeg' },
@@ -287,7 +287,7 @@ describe('selectorFromQuery — POST /api/assets/:name/locale-bytes', () => {
       const { app } = buildApp()
       await uploadHero(app)
 
-      const res = await app.request('/api/assets/hero/locale-bytes?locale=fr&theme=dark', {
+      const res = await app.request('/api/v1/assets/hero/locale-bytes?locale=fr&theme=dark', {
         method: 'POST',
         body: multipartForm({
           file: { name: 'hero.jpg', bytes: new Uint8Array(await jpegBuffer()), type: 'image/jpeg' },
@@ -308,7 +308,7 @@ describe('selectorFromQuery — DELETE /api/assets/:name/locale-bytes', () => {
       const { app } = buildApp()
       await uploadHero(app)
 
-      const res = await app.request('/api/assets/hero/locale-bytes?locale=NOT-A-LOCALE-FORMAT', {
+      const res = await app.request('/api/v1/assets/hero/locale-bytes?locale=NOT-A-LOCALE-FORMAT', {
         method: 'DELETE',
       })
 
@@ -324,7 +324,7 @@ describe('selectorFromQuery — DELETE /api/assets/:name/locale-bytes', () => {
       const { app } = buildApp()
       await uploadHero(app)
 
-      const res = await app.request('/api/assets/hero/locale-bytes?theme=NOT-A-VALID-THEME', {
+      const res = await app.request('/api/v1/assets/hero/locale-bytes?theme=NOT-A-VALID-THEME', {
         method: 'DELETE',
       })
 
@@ -342,7 +342,7 @@ describe('selectorFromQuery — DELETE /api/assets/:name/locale-bytes', () => {
       const { app } = buildApp()
       await uploadHero(app)
 
-      const res = await app.request('/api/assets/hero/locale-bytes', { method: 'DELETE' })
+      const res = await app.request('/api/v1/assets/hero/locale-bytes', { method: 'DELETE' })
 
       expect(res.status).toBe(400)
       const body = await problemOf(res)
@@ -360,7 +360,7 @@ describe('selectorFromQuery — DELETE /api/assets/:name/locale-bytes', () => {
       const { app } = buildApp()
       await uploadHero(app)
 
-      const res = await app.request('/api/assets/hero/locale-bytes?locale=fr', { method: 'DELETE' })
+      const res = await app.request('/api/v1/assets/hero/locale-bytes?locale=fr', { method: 'DELETE' })
 
       expect(res.status).toBe(404)
     })
@@ -369,7 +369,7 @@ describe('selectorFromQuery — DELETE /api/assets/:name/locale-bytes', () => {
       const { app } = buildApp()
       await uploadHero(app)
 
-      const res = await app.request('/api/assets/hero/locale-bytes?theme=dark', { method: 'DELETE' })
+      const res = await app.request('/api/v1/assets/hero/locale-bytes?theme=dark', { method: 'DELETE' })
 
       expect(res.status).toBe(404)
     })
@@ -383,7 +383,7 @@ describe('selectorFromQuery — DELETE /api/assets/:name/locale-bytes', () => {
       await uploadHero(app)
       await uploadFrenchOverride(app)
 
-      const res = await app.request('/api/assets/hero/locale-bytes?locale=fr', { method: 'DELETE' })
+      const res = await app.request('/api/v1/assets/hero/locale-bytes?locale=fr', { method: 'DELETE' })
       expect(res.status).toBe(204)
     })
   })
@@ -434,8 +434,8 @@ function buildAppWith(provider: AuthIdentityProvider) {
   const source = createSourceContext({ storage, siteDir: '', manifest: { name: 'test-site' } })
   const resolve = staticSourceResolver(source)
   const app = new Hono()
-  app.use('/api/*', principalMiddleware(provider))
-  app.route('/', assetRoutes(resolve))
+  app.use('/api/v1/*', principalMiddleware(provider))
+  app.route('/api/v1', assetRoutes(resolve))
   return { app, storage }
 }
 
@@ -458,8 +458,8 @@ function buildAppWithThrowingStorage() {
   const source = createSourceContext({ storage: throwing, siteDir: '', manifest: { name: 'test-site' } })
   const resolve = staticSourceResolver(source)
   const app = new Hono()
-  app.use('/api/*', principalMiddleware())
-  app.route('/', assetRoutes(resolve))
+  app.use('/api/v1/*', principalMiddleware())
+  app.route('/api/v1', assetRoutes(resolve))
   return { app }
 }
 
@@ -472,7 +472,7 @@ describe('GET /api/assets — read:assets capability gate', () => {
     // mutation: the genuine gate matches the principal's capability;
     // the mutant gate doesn't match anything.
     const { app } = buildAppWith(providerWithCaps(['read:assets']))
-    const res = await app.request('/api/assets')
+    const res = await app.request('/api/v1/assets')
     expect(res.status).toBe(200)
   })
 
@@ -483,7 +483,7 @@ describe('GET /api/assets — read:assets capability gate', () => {
     // exact literal kills the mutation independently of whether the
     // mutated gate happens to also produce 403.
     const { app } = buildAppWith(providerWithCaps(['read:pages'], 'editor'))
-    const res = await app.request('/api/assets')
+    const res = await app.request('/api/v1/assets')
     expect(res.status).toBe(403)
     const body = (await res.json()) as { code: string; missing: string[]; role: string }
     expect(body.code).toBe('FORBIDDEN')
@@ -493,7 +493,7 @@ describe('GET /api/assets — read:assets capability gate', () => {
 
   it('401 when the request is anonymous (no upstream identity)', async () => {
     const { app } = buildAppWith(anonymousProvider)
-    const res = await app.request('/api/assets')
+    const res = await app.request('/api/v1/assets')
     expect(res.status).toBe(401)
     const body = (await res.json()) as { code: string }
     expect(body.code).toBe('UNAUTHENTICATED')
@@ -508,13 +508,13 @@ describe('GET /api/assets/:name — read:assets capability gate', () => {
     // 401/403). Under the gate-string mutation the response would be
     // 403, which the `[200, 404]` assertion rejects.
     const { app } = buildAppWith(providerWithCaps(['read:assets']))
-    const res = await app.request('/api/assets/missing')
+    const res = await app.request('/api/v1/assets/missing')
     expect([200, 404]).toContain(res.status)
   })
 
   it('403 with missing: ["read:assets"] when the principal lacks the gate', async () => {
     const { app } = buildAppWith(providerWithCaps(['read:pages'], 'editor'))
-    const res = await app.request('/api/assets/hero')
+    const res = await app.request('/api/v1/assets/hero')
     expect(res.status).toBe(403)
     const body = (await res.json()) as { code: string; missing: string[]; role: string }
     expect(body.code).toBe('FORBIDDEN')
@@ -524,7 +524,7 @@ describe('GET /api/assets/:name — read:assets capability gate', () => {
 
   it('401 when the request is anonymous', async () => {
     const { app } = buildAppWith(anonymousProvider)
-    const res = await app.request('/api/assets/hero')
+    const res = await app.request('/api/v1/assets/hero')
     expect(res.status).toBe(401)
     const body = (await res.json()) as { code: string }
     expect(body.code).toBe('UNAUTHENTICATED')
@@ -540,7 +540,7 @@ describe('GET /api/assets — listAssets error path (catch block)', () => {
     // response. Asserting on the typed body shape kills the mutation
     // regardless of what Hono produces in the mutated case.
     const { app } = buildAppWithThrowingStorage()
-    const res = await app.request('/api/assets')
+    const res = await app.request('/api/v1/assets')
     expect(res.status).toBe(500)
     expect(res.headers.get('content-type')).toBe('application/problem+json')
     const body = await problemOf(res)
@@ -566,7 +566,7 @@ describe('GET /api/assets/:name — overrideLocales / overrideThemes arrays', ()
     const { app } = buildAppWith(providerWithCaps(['read:assets', 'edit:assets']))
     await uploadHero(app)
 
-    const res = await app.request('/api/assets/hero')
+    const res = await app.request('/api/v1/assets/hero')
     expect(res.status).toBe(200)
     const body = (await res.json()) as {
       name: string
@@ -588,7 +588,7 @@ describe('GET /api/assets/:name — overrideLocales / overrideThemes arrays', ()
     await uploadHero(app)
     await uploadFrenchOverride(app)
 
-    const res = await app.request('/api/assets/hero')
+    const res = await app.request('/api/v1/assets/hero')
     expect(res.status).toBe(200)
     const body = (await res.json()) as {
       name: string
@@ -648,7 +648,7 @@ describe('capability gates on write routes — StringLiteral pinning', () => {
     const { app } = buildAppWith(providerWithCaps(readOnly, 'viewer'))
     // No body needed — requireCapability middleware short-circuits
     // before multipart parsing.
-    const res = await app.request('/api/assets', { method: 'POST' })
+    const res = await app.request('/api/v1/assets', { method: 'POST' })
     expect(res.status).toBe(403)
     const body = (await res.json()) as { code: string; missing: string[]; role: string }
     expect(body.code).toBe('FORBIDDEN')
@@ -658,7 +658,7 @@ describe('capability gates on write routes — StringLiteral pinning', () => {
 
   it('PATCH /api/assets/:name — 403 with missing:[edit:assets] when principal lacks edit:assets', async () => {
     const { app } = buildAppWith(providerWithCaps(readOnly, 'viewer'))
-    const res = await app.request('/api/assets/hero', { method: 'PATCH' })
+    const res = await app.request('/api/v1/assets/hero', { method: 'PATCH' })
     expect(res.status).toBe(403)
     const body = (await res.json()) as { code: string; missing: string[]; role: string }
     expect(body.code).toBe('FORBIDDEN')
@@ -672,7 +672,7 @@ describe('capability gates on write routes — StringLiteral pinning', () => {
     // the exact `delete:assets` literal (not `edit:assets`) proves
     // the gate value ships correctly on the DELETE route.
     const { app } = buildAppWith(providerWithCaps(readOnly, 'viewer'))
-    const res = await app.request('/api/assets/hero', { method: 'DELETE' })
+    const res = await app.request('/api/v1/assets/hero', { method: 'DELETE' })
     expect(res.status).toBe(403)
     const body = (await res.json()) as { code: string; missing: string[]; role: string }
     expect(body.code).toBe('FORBIDDEN')
@@ -682,7 +682,7 @@ describe('capability gates on write routes — StringLiteral pinning', () => {
 
   it('POST /api/assets/:name/rename-to/:newName — 403 with missing:[edit:assets]', async () => {
     const { app } = buildAppWith(providerWithCaps(readOnly, 'viewer'))
-    const res = await app.request('/api/assets/hero/rename-to/banner', { method: 'POST' })
+    const res = await app.request('/api/v1/assets/hero/rename-to/banner', { method: 'POST' })
     expect(res.status).toBe(403)
     const body = (await res.json()) as { code: string; missing: string[]; role: string }
     expect(body.code).toBe('FORBIDDEN')
@@ -692,7 +692,7 @@ describe('capability gates on write routes — StringLiteral pinning', () => {
 
   it('POST /api/assets/:name/replace-with/:newName — 403 with missing:[edit:assets]', async () => {
     const { app } = buildAppWith(providerWithCaps(readOnly, 'viewer'))
-    const res = await app.request('/api/assets/hero/replace-with/banner', { method: 'POST' })
+    const res = await app.request('/api/v1/assets/hero/replace-with/banner', { method: 'POST' })
     expect(res.status).toBe(403)
     const body = (await res.json()) as { code: string; missing: string[]; role: string }
     expect(body.code).toBe('FORBIDDEN')
@@ -706,7 +706,7 @@ describe('capability gates on write routes — StringLiteral pinning', () => {
     // regardless of AI config. Asserting the 403 shape (not 503)
     // proves the gate short-circuits above the handler.
     const { app } = buildAppWith(providerWithCaps(readOnly, 'viewer'))
-    const res = await app.request('/api/assets/hero/suggest-alt', { method: 'POST' })
+    const res = await app.request('/api/v1/assets/hero/suggest-alt', { method: 'POST' })
     expect(res.status).toBe(403)
     const body = (await res.json()) as { code: string; missing: string[]; role: string }
     expect(body.code).toBe('FORBIDDEN')
@@ -716,7 +716,7 @@ describe('capability gates on write routes — StringLiteral pinning', () => {
 
   it('POST /api/assets/:name/locale-bytes — 403 with missing:[edit:assets]', async () => {
     const { app } = buildAppWith(providerWithCaps(readOnly, 'viewer'))
-    const res = await app.request('/api/assets/hero/locale-bytes?locale=fr', { method: 'POST' })
+    const res = await app.request('/api/v1/assets/hero/locale-bytes?locale=fr', { method: 'POST' })
     expect(res.status).toBe(403)
     const body = (await res.json()) as { code: string; missing: string[]; role: string }
     expect(body.code).toBe('FORBIDDEN')
@@ -726,7 +726,7 @@ describe('capability gates on write routes — StringLiteral pinning', () => {
 
   it('DELETE /api/assets/:name/locale-bytes — 403 with missing:[edit:assets]', async () => {
     const { app } = buildAppWith(providerWithCaps(readOnly, 'viewer'))
-    const res = await app.request('/api/assets/hero/locale-bytes?locale=fr', { method: 'DELETE' })
+    const res = await app.request('/api/v1/assets/hero/locale-bytes?locale=fr', { method: 'DELETE' })
     expect(res.status).toBe(403)
     const body = (await res.json()) as { code: string; missing: string[]; role: string }
     expect(body.code).toBe('FORBIDDEN')
@@ -748,7 +748,7 @@ describe('PATCH /api/assets/:name — invalid-JSON catch (lines 151-153)', () =>
     // lookup runs. Principal must have edit:assets so the capability
     // gate passes and control reaches the body-parse code.
     const { app } = buildAppWith(providerWithCaps(['edit:assets']))
-    const res = await app.request('/api/assets/hero', {
+    const res = await app.request('/api/v1/assets/hero', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: 'not valid json{{{',
@@ -822,7 +822,7 @@ describe('PATCH /api/assets/:name — body-shape validator (line 154)', () => {
     // before the storage read. Capability gate must pass so control
     // reaches the shape check; `edit:assets` satisfies the gate.
     const { app } = buildAppWith(providerWithCaps(['edit:assets']))
-    const res = await app.request('/api/assets/hero', {
+    const res = await app.request('/api/v1/assets/hero', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: raw,
@@ -853,7 +853,7 @@ describe('GET /api/assets/:name — theme-dedup NoCoverage (line 116)', () => {
     await uploadHero(app)
 
     const bytes = await jpegBuffer()
-    const uploadRes = await app.request('/api/assets/hero/locale-bytes?theme=dark', {
+    const uploadRes = await app.request('/api/v1/assets/hero/locale-bytes?theme=dark', {
       method: 'POST',
       body: multipartForm({
         file: { name: 'hero.jpg', bytes: new Uint8Array(bytes), type: 'image/jpeg' },
@@ -863,7 +863,7 @@ describe('GET /api/assets/:name — theme-dedup NoCoverage (line 116)', () => {
     // GET assertion would mask the real failure mode.
     expect(uploadRes.status).toBe(201)
 
-    const res = await app.request('/api/assets/hero')
+    const res = await app.request('/api/v1/assets/hero')
     expect(res.status).toBe(200)
     const body = (await res.json()) as {
       name: string

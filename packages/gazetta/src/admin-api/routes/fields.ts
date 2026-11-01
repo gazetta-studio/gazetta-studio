@@ -11,7 +11,7 @@ const FIELD_EXTENSIONS = ['.ts', '.tsx']
 
 const listFields = createRoute({
   method: 'get',
-  path: '/api/fields',
+  path: '/fields',
   summary: "The project's custom fields",
   middleware: [requireCapability('read:pages')] as const,
   request: { query: TargetQuerySchema },

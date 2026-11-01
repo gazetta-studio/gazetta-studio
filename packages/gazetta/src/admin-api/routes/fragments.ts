@@ -60,7 +60,7 @@ export function fragmentRoutes(
 
   const listFragments = createRoute({
     method: 'get',
-    path: '/api/fragments',
+    path: '/fragments',
     summary: 'List fragments',
     middleware: [requireCapability('read:fragments')] as const,
     request: { query: TargetQuerySchema },
@@ -104,7 +104,7 @@ export function fragmentRoutes(
   // shape as pages POST.
   const createFragmentRoute = createRoute({
     method: 'post',
-    path: '/api/fragments',
+    path: '/fragments',
     summary: 'Create a fragment',
     middleware: [requireCapability('edit:fragments'), editableTarget] as const,
     request: {
@@ -165,7 +165,7 @@ export function fragmentRoutes(
 
   const getFragment = createRoute({
     method: 'get',
-    path: '/api/fragments/:name',
+    path: '/fragments/:name',
     summary: 'Read a fragment',
     middleware: [requireCapability('read:fragments')] as const,
     request: { params: ItemNameParamSchema, query: ItemLocaleQuerySchema, headers: RequestIdHeaderSchema },
@@ -236,7 +236,7 @@ export function fragmentRoutes(
   // `SaveResult` to HTTP. Same response shape as before.
   const saveFragmentRoute = createRoute({
     method: 'put',
-    path: '/api/fragments/:name',
+    path: '/fragments/:name',
     summary: 'Save a fragment',
     middleware: [requireCapability('edit:fragments'), editableTarget] as const,
     request: {
@@ -325,7 +325,7 @@ export function fragmentRoutes(
   // See pages.ts for the full rationale; same shape applies here.
   const deleteFragment = createRoute({
     method: 'delete',
-    path: '/api/fragments/:name',
+    path: '/fragments/:name',
     summary: 'Archive a fragment, or delete it with `permanent=true`',
     middleware: [requireCapability('delete:fragments'), editableTarget, jsonBody({ optional: true })] as const,
     request: {

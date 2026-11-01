@@ -92,7 +92,7 @@ export function redirectRoutes(resolve: SourceContextResolver) {
   const editableTarget = requireEditableTarget(resolve)
   const app = apiApp<AuditEnv>()
 
-  const mount = <P extends '/api/page-redirects' | '/api/fragment-redirects'>(path: P, binding: KindBinding) => {
+  const mount = <P extends '/page-redirects' | '/fragment-redirects'>(path: P, binding: KindBinding) => {
     const create = createRoute({
       method: 'post',
       path,
@@ -128,8 +128,8 @@ export function redirectRoutes(resolve: SourceContextResolver) {
     )
   }
 
-  mount('/api/page-redirects', PAGE_BINDING)
-  mount('/api/fragment-redirects', FRAGMENT_BINDING)
+  mount('/page-redirects', PAGE_BINDING)
+  mount('/fragment-redirects', FRAGMENT_BINDING)
 
   return app
 }

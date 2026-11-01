@@ -9,7 +9,7 @@ import { apiApp, json, problems } from '../openapi.js'
 
 const cacheStats = createRoute({
   method: 'get',
-  path: '/api/system/cache/stats',
+  path: '/system/cache/stats',
   summary: "The admin cache's statistics",
   middleware: [requireCapability('configure:site')] as const,
   request: { query: TargetQuerySchema },
@@ -21,7 +21,7 @@ const cacheStats = createRoute({
 
 const cacheInvalidations = createRoute({
   method: 'get',
-  path: '/api/system/cache/invalidations',
+  path: '/system/cache/invalidations',
   summary: "The admin cache's invalidations, as they happen",
   middleware: [requireCapability('configure:site')] as const,
   request: { query: TargetQuerySchema },

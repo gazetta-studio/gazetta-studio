@@ -48,7 +48,7 @@ import {
 
 const listTargets = createRoute({
   method: 'get',
-  path: '/api/targets',
+  path: '/targets',
   summary: 'The configured targets and what each can do',
   middleware: [requireCapability('read:pages')] as const,
   responses: {
@@ -59,7 +59,7 @@ const listTargets = createRoute({
 
 const getDependents = createRoute({
   method: 'get',
-  path: '/api/dependents',
+  path: '/dependents',
   summary: 'The pages and fragments that use a fragment',
   middleware: [requireCapability('read:pages')] as const,
   request: { query: DependentsQuerySchema },
@@ -85,7 +85,7 @@ const publishRequest = {
 
 const postPublish = createRoute({
   method: 'post',
-  path: '/api/publish',
+  path: '/publish',
   summary: 'Publish items to targets',
   middleware: [requireCapability('publish:non-production')] as const,
   request: publishRequest,
@@ -98,7 +98,7 @@ const postPublish = createRoute({
 
 const postPublishStream = createRoute({
   method: 'post',
-  path: '/api/publish/stream',
+  path: '/publish/stream',
   summary: 'Publish items to targets, streaming progress',
   middleware: [requireCapability('publish:non-production')] as const,
   request: publishRequest,
@@ -114,7 +114,7 @@ const postPublishStream = createRoute({
 
 const postFetch = createRoute({
   method: 'post',
-  path: '/api/fetch',
+  path: '/fetch',
   summary: 'Copy content from a target into an editable target',
   middleware: [requireCapability('publish:non-production')] as const,
   request: { body: { required: true, content: { 'application/json': { schema: FetchRequestSchema } } } },
@@ -132,7 +132,7 @@ const postFetch = createRoute({
 
 const postPublishAudit = createRoute({
   method: 'post',
-  path: '/api/publish/audit',
+  path: '/publish/audit',
   summary: 'Run the pre-publish audit for items about to be published',
   middleware: [requireCapability('publish:non-production')] as const,
   request: {

@@ -58,7 +58,7 @@ type HealthResponse = z.infer<typeof HealthResponseSchema>
 
 const getHealth = createRoute({
   method: 'get',
-  path: '/api/health',
+  path: '/health',
   summary: 'Whether the admin API answers',
   responses: { 200: json(HealthResponseSchema, 'The admin API is up') },
 })
