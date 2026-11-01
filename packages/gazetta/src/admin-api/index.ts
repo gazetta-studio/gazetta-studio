@@ -1,6 +1,6 @@
 import type { Hono } from 'hono'
 import { OpenAPIHono } from '@hono/zod-openapi'
-import { openApiDocument } from './openapi.js'
+import { openApiDocument, registerDevRoutes, withOpenApiPaths } from './openapi.js'
 import { HTTPException } from 'hono/http-exception'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { problem } from './problem.js'
@@ -498,7 +498,10 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   // plain-text 404 (a mounted sub-app's notFound handler is never used), and
   // an unhandled throw answers a problem, not Hono's plain-text 500.
   // The OpenAPI document of every route registered above (Q5, Q44).
-  app.doc31('/api/openapi.json', c => openApiDocument(new URL(c.req.url).pathname))
+  registerDevRoutes(app)
+  app.get('/api/openapi.json', c =>
+    c.json(withOpenApiPaths(app.getOpenAPI31Document(openApiDocument(new URL(c.req.url).pathname)))),
+  )
   app.all('/api/*', c => problem(c, 404, 'NOT_FOUND', `No API route for ${c.req.method} ${c.req.path}`))
   app.onError((err, c) => {
     if (err instanceof HTTPException && err.status < 500) {
