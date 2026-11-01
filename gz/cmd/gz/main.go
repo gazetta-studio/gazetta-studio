@@ -3,8 +3,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
 
 	"github.com/gazetta-studio/gazetta-studio/gz/internal/cli"
 	"github.com/gazetta-studio/gazetta-studio/gz/internal/output"
@@ -16,5 +18,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "gz:", err)
 		os.Exit(output.Failure)
 	}
-	os.Exit(cli.Run(os.Args[1:], env))
+	// Ctrl+C cancels a waiting login (exit 3) instead of killing gz mid-write.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	env.Ctx = ctx
+	code := cli.Run(os.Args[1:], env)
+	stop()
+	os.Exit(code)
 }

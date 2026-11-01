@@ -2,13 +2,16 @@ package cli
 
 import (
 	"bytes"
+	stdctx "context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gazetta-studio/gazetta-studio/gz/internal/grant"
 	"github.com/gazetta-studio/gazetta-studio/gz/internal/output"
@@ -16,6 +19,12 @@ import (
 	"github.com/gazetta-studio/gazetta-studio/gz/internal/skill"
 	"github.com/gazetta-studio/gazetta-studio/gz/internal/version"
 )
+
+type refuse struct{}
+
+func (refuse) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New("connection refused")
+}
 
 type harness struct {
 	env    Env
@@ -41,6 +50,11 @@ func newHarness(t *testing.T, profiles *profile.Config) *harness {
 		ConfigDir: dir,
 		Grants:    func() grant.Store { return grants },
 		Probe:     func(string) bool { return false },
+		// No admin answers unless a test starts one.
+		HTTP:       &http.Client{Transport: refuse{}},
+		Sleep:      func(stdctx.Context, time.Duration) error { return nil },
+		PollPeriod: time.Millisecond,
+		Hostname:   func() (string, error) { return "laptop", nil },
 	}
 	return h
 }
@@ -120,7 +134,7 @@ func TestAuthUseUnknownIsNotFound(t *testing.T) {
 func TestAuthStatusSelection(t *testing.T) {
 	h := newHarness(t, twoProfiles())
 	h.vars["GZ_ADMIN"] = "local"
-	if code := h.run("auth", "status"); code != output.OK || h.stdout.String() != "Using local (http://localhost:3000)\n" {
+	if code := h.run("auth", "status"); code != output.OK || !strings.HasPrefix(h.stdout.String(), "Using local (http://localhost:3000)\n") {
 		t.Fatalf("env: %d %q", code, h.stdout.String())
 	}
 	if code := h.run("--admin", "work", "auth", "status", "--json"); code != output.OK || h.json(t)["url"] != "https://cms.example.com" {
@@ -228,6 +242,7 @@ func TestProbeRecognisesOnlyAGazettaAdmin(t *testing.T) {
 				w.WriteHeader(http.StatusNotFound)
 				return
 			}
+			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(c.status)
 			_, _ = w.Write([]byte(c.body))
 		}))
