@@ -225,9 +225,27 @@ A command-line client, such as `gz` and the agents that run it, signs in as you 
 2. You open the link in your browser. The page shows the code, the machine name, the IP address and when the sign-in started. Approve it only if you started it yourself: anyone who gets you to approve their code can edit content as you.
 3. The client receives a token and keeps a grant to renew it. A token lasts 15 minutes and travels in the `Gazetta-Token` header. A code works once and expires after 10 minutes.
 
-A token has your role's capabilities except publishing, deleting (purge included), undo, rollback and history restore, and approving publish requests. Those answer `403` with the code `TOKEN_EDIT_ONLY`; do them in the admin. A token can still create a publish request. A token that is wrong or expired is refused with `401` (`TOKEN_INVALID`); the request is never treated as coming from your browser instead.
+A token has your role's capabilities except publishing, deleting (purge included), undo, rollback and history restore, and approving publish requests. Without an elevation (below), those answer `403` with the code `ELEVATION_REQUIRED` and the `scope` to ask for; if your role can't do them in the admin either, the code is `TOKEN_EDIT_ONLY`. A token that is wrong or expired is refused with `401` (`TOKEN_INVALID`); the request is never treated as coming from your browser instead.
 
-To end a sign-in, revoke its grant: `DELETE /api/v1/auth/grants/:id`. The client can't get new tokens after that, and the token it holds stops working within 15 minutes.
+A grant renews tokens for 30 days from the sign-in's approval. After that, renewing answers `401` (`GRANT_EXPIRED`), and the client signs in again. A grant keeps the role you had when you approved it: if your role changes, sign in again.
+
+To end a sign-in, revoke its grant: `DELETE /api/v1/auth/grants/:id`. The client can't get new tokens after that, its elevations end, and the token it holds stops working within 15 minutes.
+
+### Elevations: publishing from the command line
+
+To publish, delete or restore, the client asks for an elevation, and you approve it in your browser the same way as a sign-in.
+
+1. With its token, the client calls `POST /api/v1/auth/elevations` with a scope, `non-production` (every target whose `environment` isn't `production`) or `production`, and shows you a code and a link.
+2. The page says what you're allowing, for example "Allow laptop to publish to production for a short time", with the machine, IP address and start time. Approve it only if you started it yourself. Only the person the client signed in as can approve it, and only if their role still has the capabilities it would use.
+3. For the next 15 minutes, that sign-in's tokens can do what your role can do in the admin, on targets in the scope. The window is fixed: using it doesn't extend it. A production publish needs a production elevation even while a non-production one is active.
+
+The page shows when the elevation ends, with **End now**. The client can also end it with `DELETE /api/v1/auth/elevations/:id`. Ending one takes effect at once on every instance of the admin.
+
+Set the window with `admin.auth.elevationMinutes` (default `15`):
+
+```ts
+admin: { auth: { trust: 'cloudflare-access', teamDomain: 'example', audience: '…', elevationMinutes: 10 } }
+```
 
 ### Turning it on
 
@@ -241,11 +259,11 @@ The value is the whole PEM. Where a host stores environment variables on one lin
 
 To change the key, move the old value to `GAZETTA_SIGNING_KEY_PREVIOUS` and set the new one. Tokens signed with the old key keep working until they expire; remove `GAZETTA_SIGNING_KEY_PREVIOUS` after 20 minutes. Grants are kept, so clients don't sign in again.
 
-Grants live in the editing target's storage, in `.gazetta/auth/`. They hold who signed in and from which machine, never a usable secret. `gazetta state remove` deletes them. If the editing target's storage is public, sign-in stays off.
+Grants and elevations live in the editing target's storage, in `.gazetta/auth/`. They hold who signed in and from which machine, never a usable secret. `gazetta state remove` deletes them. If the editing target's storage is public, sign-in stays off.
 
 ### Where "can only edit" is enforced
 
-The approve page refuses requests that carry a Gazetta token, so a token can't approve a sign-in or extend itself. That holds when the client reaches the admin with a credential of its own, such as a Cloudflare Access service token. On Tailscale the client's requests arrive with the same identity as your browser's, and probably also with `cloudflared access login` (not yet checked), so Gazetta can't tell them apart: there, only the agent's own judgement and your agent's settings stop it from publishing, as on your own machine.
+The approve page refuses requests that carry a Gazetta token, so a token can't approve a sign-in or an elevation, or extend itself. That holds when the client reaches the admin with a credential of its own, such as a Cloudflare Access service token. On Tailscale the client's requests arrive with the same identity as your browser's, and probably also with `cloudflared access login` (not yet checked), so Gazetta can't tell them apart: there, only the agent's own judgement and your agent's settings stop it from publishing, as on your own machine.
 
 ## Composing with the bearer-token guard
 
