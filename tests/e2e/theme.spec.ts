@@ -79,7 +79,13 @@ test.describe('Toast', () => {
     // exercises the persistence + dismiss behavior end-to-end.
     // Wildcard suffix so the ?target=<active> query the api client auto-appends
     // still matches. Without `**` after home, glob expects end-of-path.
-    await page.route('**/admin/api/pages/home**', route => route.fulfill({ status: 500, body: '{"error":"boom"}' }))
+    await page.route('**/admin/api/pages/home**', route =>
+      route.fulfill({
+        status: 500,
+        contentType: 'application/problem+json',
+        body: '{"type":"about:blank","title":"Internal Server Error","status":500,"code":"INTERNAL","detail":"boom"}',
+      }),
+    )
     await page.goto('/admin/pages/home')
     const toast = page.locator('[data-testid="global-toast"]')
     await expect(toast).toBeVisible()

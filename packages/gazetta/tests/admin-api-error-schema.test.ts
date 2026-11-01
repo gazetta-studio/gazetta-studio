@@ -16,14 +16,14 @@ describe('ErrorCodeSchema — closed enum of admin-API error codes', () => {
   it('accepts every documented error code', () => {
     const codes = [
       'AI_ADAPTER_FAILED',
-      'AI_ADAPTER_UNAVAILABLE',
       'ARCHIVED_NAME_CONFLICT',
-      'ASSET_MANIFEST_NOT_FOUND',
+      'ASSET_IN_USE',
       'BAD_REQUEST',
+      'CONFLICT',
+      'EDIT_LOCKED',
       'FORBIDDEN',
-      'HOOK_CANCELLED',
+      'INTERNAL',
       'NOT_FOUND',
-      'PUBLISH_AUDIT_FAILED',
       'STALE',
       'UNAUTHENTICATED',
       'VALIDATION_FAILED',
@@ -43,73 +43,53 @@ describe('ErrorCodeSchema — closed enum of admin-API error codes', () => {
   })
 })
 
-describe('ErrorResponseSchema — shape of admin-API error responses', () => {
-  it('accepts the canonical { code, message } shape', () => {
-    const body = ErrorResponseSchema.parse({
-      code: 'BAD_REQUEST',
-      message: 'Invalid locale code: NOT_A_LOCALE',
-    })
+const problem = (extra: Record<string, unknown>) => ({
+  type: 'about:blank',
+  title: 'Bad Request',
+  status: 400,
+  ...extra,
+})
+
+describe('ErrorResponseSchema — RFC 9457 problem bodies', () => {
+  it('accepts a problem with code and detail', () => {
+    const body = ErrorResponseSchema.parse(
+      problem({ code: 'BAD_REQUEST', detail: 'Invalid locale code: NOT_A_LOCALE' }),
+    )
     expect(body.code).toBe('BAD_REQUEST')
-    expect(body.message).toBe('Invalid locale code: NOT_A_LOCALE')
+    expect(body.detail).toBe('Invalid locale code: NOT_A_LOCALE')
   })
 
   it('accepts FORBIDDEN with a missing-capabilities list', () => {
     // Per design-auth-rbac.md Q3 lock: FORBIDDEN responses carry the
-    // missing capability list. The base schema reserves this field so
-    // tests don't have to discriminate by code first.
-    const body = ErrorResponseSchema.parse({
-      code: 'FORBIDDEN',
-      message: 'Missing capability',
-      missing: ['edit:pages'],
-    })
-    expect(body.code).toBe('FORBIDDEN')
+    // missing capability list.
+    const body = ErrorResponseSchema.parse(
+      problem({ title: 'Forbidden', status: 403, code: 'FORBIDDEN', missing: ['edit:pages'] }),
+    )
     expect(body.missing).toEqual(['edit:pages'])
   })
 
-  it('accepts code without message (forward-compat for terse error classes)', () => {
-    // `message` is optional — future error classes might omit it if
-    // the code alone carries enough information. Schema must allow it.
-    const body = ErrorResponseSchema.parse({ code: 'NOT_FOUND' })
-    expect(body.code).toBe('NOT_FOUND')
-    expect(body.message).toBeUndefined()
+  it('keeps typed extension members (loose object)', () => {
+    const body = ErrorResponseSchema.parse(problem({ status: 409, code: 'STALE', currentEtag: 'abc' }))
+    expect(body.currentEtag).toBe('abc')
   })
 
-  it('rejects responses missing the code field', () => {
-    expect(() => ErrorResponseSchema.parse({ message: 'oops' })).toThrow()
+  it('accepts a problem without detail', () => {
+    const body = ErrorResponseSchema.parse(problem({ code: 'NOT_FOUND' }))
+    expect(body.detail).toBeUndefined()
   })
 
-  it('rejects responses with an unknown code (closed-enum)', () => {
-    expect(() => ErrorResponseSchema.parse({ code: 'WHO_KNOWS', message: 'oops' })).toThrow()
-  })
-
-  it('rejects empty body', () => {
-    // The textbook tautology survivor from cycle 1: assets.ts:404
-    // mutated `c.json({ code: 'BAD_REQUEST', message: '...' }, 400)`
-    // to `c.json({}, 400)` and tests stayed green because they only
-    // checked status. Schema parse on the body would have caught it.
-    expect(() => ErrorResponseSchema.parse({})).toThrow()
-  })
-
-  it('rejects responses with empty-string code (the cycle 1 mutation)', () => {
-    // assets.ts:61 survived `code: 'BAD_REQUEST'` → `code: ''`. Empty
-    // string isn't a valid enum member; schema parse rejects it.
-    expect(() => ErrorResponseSchema.parse({ code: '', message: 'oops' })).toThrow()
-  })
-
-  it('rejects responses with non-string code', () => {
-    expect(() => ErrorResponseSchema.parse({ code: 400, message: 'oops' })).toThrow()
-  })
-
-  it('rejects missing as non-array', () => {
-    // Forward-compat: if a future error class accidentally emits
-    // `missing: 'edit:pages'` instead of `['edit:pages']`, schema
-    // parse rejects it before consumers see the malformed shape.
-    expect(() =>
-      ErrorResponseSchema.parse({
-        code: 'FORBIDDEN',
-        message: 'oops',
-        missing: 'edit:pages',
-      }),
-    ).toThrow()
+  it.each([
+    ['the old { code, message } shape', { code: 'BAD_REQUEST', message: 'oops' }],
+    ['the old { error } shape', { error: 'oops' }],
+    ['a missing code', problem({ detail: 'oops' })],
+    ['an unknown code', problem({ code: 'WHO_KNOWS' })],
+    ['an empty-string code (the cycle 1 mutation)', problem({ code: '' })],
+    ['a numeric code', problem({ code: 400 })],
+    ['a type other than about:blank', problem({ code: 'BAD_REQUEST', type: 'https://example.com/x' })],
+    ['a status below 400', problem({ code: 'BAD_REQUEST', status: 200 })],
+    ['missing as non-array', problem({ code: 'FORBIDDEN', missing: 'edit:pages' })],
+    ['an empty body', {}],
+  ])('rejects %s', (_label, body) => {
+    expect(() => ErrorResponseSchema.parse(body)).toThrow()
   })
 })

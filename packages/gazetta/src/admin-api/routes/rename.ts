@@ -67,6 +67,7 @@ import { recordWrite } from '../../history-recorder.js'
 import { denyWithoutCapability, requireCapability } from '../middleware/capability.js'
 import { requireEditableTarget } from '../middleware/editable-target.js'
 import { lookupManifest } from '../lookup-manifest.js'
+import { problem, problemFrom } from '../problem.js'
 import type { AuditEnv } from '../middleware/audit.js'
 import type { ItemRef } from '../../dep-sidecars.js'
 import { rebuildArchiveAliases } from '../../archive-aliases.js'
@@ -77,7 +78,6 @@ import {
   type ArchivedNameConflict,
   type NameCollision,
   type RenameResponse,
-  type RenamePartial,
 } from '../schemas/rename.js'
 import type { ComponentManifest, FragmentManifest, PageManifest } from '../../types.js'
 
@@ -120,7 +120,7 @@ export function renameRoutes(resolve: SourceContextResolver) {
 
 async function handleRename(c: Context<AuditEnv>, resolve: SourceContextResolver, handle: ItemHandle) {
   const fromName = c.req.param('name')
-  if (!fromName) return c.json({ error: 'Missing name parameter' }, 400)
+  if (!fromName) return problem(c, 400, 'BAD_REQUEST', 'Missing name parameter')
 
   const source = await resolve(c.req.query('target'))
   const site = await loadSiteFromSource(source)
@@ -130,17 +130,13 @@ async function handleRename(c: Context<AuditEnv>, resolve: SourceContextResolver
   try {
     raw = await c.req.json()
   } catch {
-    return c.json({ error: 'Invalid JSON body' }, 400)
+    return problem(c, 400, 'BAD_REQUEST', 'Invalid JSON body')
   }
   const parsed = RenameRequestSchema.safeParse(raw)
   if (!parsed.success) {
-    return c.json(
-      {
-        error: 'Invalid request body',
-        issues: parsed.error.issues.map(i => ({ path: i.path.join('.'), message: i.message })),
-      },
-      400,
-    )
+    return problem(c, 400, 'BAD_REQUEST', 'Invalid request body', {
+      issues: parsed.error.issues.map(i => ({ path: i.path.join('.'), message: i.message })),
+    })
   }
   const { to: toName, keepAlias } = parsed.data
 
@@ -169,7 +165,7 @@ async function handleRename(c: Context<AuditEnv>, resolve: SourceContextResolver
   // Look up the source manifest.
   const fromManifest = lookupManifest(site, handle.scopeKind, fromName)
   if (!fromManifest) {
-    return c.json({ error: `${handle.label} "${fromName}" not found` }, 404)
+    return problem(c, 404, 'NOT_FOUND', `${handle.label} "${fromName}" not found`)
   }
 
   // Conflict checks (Q3 C1) — distinct 409 codes for the two flavors.
@@ -186,10 +182,10 @@ async function handleRename(c: Context<AuditEnv>, resolve: SourceContextResolver
           ...(toManifest.aliasOf ? { aliasOf: toManifest.aliasOf } : {}),
         },
       }
-      return c.json(body, 409)
+      return problemFrom(c, 409, body)
     }
     const body: NameCollision = { code: 'NAME_COLLISION', toName, conflictKind: 'live' }
-    return c.json(body, 409)
+    return problemFrom(c, 409, body)
   }
 
   const liveRefs =
@@ -197,7 +193,7 @@ async function handleRename(c: Context<AuditEnv>, resolve: SourceContextResolver
       ? findFragmentUsersInSite(site, fromName).map(ref => ({ kind: ref.source, name: ref.name }))
       : []
   if (liveRefs.length > 0 && !force) {
-    return c.json({ code: 'ARCHIVE_HAS_LIVE_REFS' as const, liveRefs }, 409)
+    return problem(c, 409, 'ARCHIVE_HAS_LIVE_REFS', undefined, { liveRefs })
   }
 
   // Track step progress for I1's RENAME_PARTIAL response.
@@ -268,17 +264,11 @@ async function handleRename(c: Context<AuditEnv>, resolve: SourceContextResolver
       'flatten-cascade',
     ]
     const remaining = allSteps.filter(s => !completed.includes(s))
-    const partial: RenamePartial = {
-      code: 'RENAME_PARTIAL',
-      completed,
-      remaining,
-      error: (err as Error).message,
-    }
     // Don't audit partial failures — the audit log records intent +
     // outcome of completed actions. A retry that succeeds will audit
     // normally with the full state. Forensics for the failure window
     // lives in operational logs (per design-logging.md), not audit.
-    return c.json(partial, 500)
+    return problem(c, 500, 'RENAME_PARTIAL', (err as Error).message, { completed, remaining })
   }
 }
 

@@ -63,6 +63,7 @@ import type { AuditProvider } from '../../audit/provider.js'
 import type { AuditEventWire, AuditExternalSinkWire, AuditQueryResponseWire } from '../schemas/audit.js'
 import { AuditActionSchema, AuditOutcomeSchema, AuditScopeKindSchema } from '../schemas/audit.js'
 import { requireCapability } from '../middleware/capability.js'
+import { problem } from '../problem.js'
 
 export interface AuditRoutesOptions {
   /**
@@ -95,14 +96,14 @@ export function auditRoutes(opts: AuditRoutesOptions) {
     if (rawAction !== undefined) {
       const parsed = AuditActionSchema.safeParse(rawAction)
       if (!parsed.success) {
-        return c.json({ error: `Invalid action: "${rawAction}"` }, 400)
+        return problem(c, 400, 'BAD_REQUEST', `Invalid action: "${rawAction}"`)
       }
       filter.action = parsed.data
     }
     if (rawOutcome !== undefined) {
       const parsed = AuditOutcomeSchema.safeParse(rawOutcome)
       if (!parsed.success) {
-        return c.json({ error: `Invalid outcome: "${rawOutcome}"` }, 400)
+        return problem(c, 400, 'BAD_REQUEST', `Invalid outcome: "${rawOutcome}"`)
       }
       filter.outcome = parsed.data
     }
@@ -111,7 +112,7 @@ export function auditRoutes(opts: AuditRoutesOptions) {
       if (rawScopeKind !== undefined) {
         const parsed = AuditScopeKindSchema.safeParse(rawScopeKind)
         if (!parsed.success) {
-          return c.json({ error: `Invalid scopeKind: "${rawScopeKind}"` }, 400)
+          return problem(c, 400, 'BAD_REQUEST', `Invalid scopeKind: "${rawScopeKind}"`)
         }
         filter.scope.kind = parsed.data
       }
@@ -123,7 +124,7 @@ export function auditRoutes(opts: AuditRoutesOptions) {
     if (rawLimit !== undefined) {
       const n = Number(rawLimit)
       if (!Number.isFinite(n) || n <= 0) {
-        return c.json({ error: `Invalid limit: "${rawLimit}"` }, 400)
+        return problem(c, 400, 'BAD_REQUEST', `Invalid limit: "${rawLimit}"`)
       }
       filter.limit = Math.min(Math.floor(n), MAX_LIMIT)
     } else {

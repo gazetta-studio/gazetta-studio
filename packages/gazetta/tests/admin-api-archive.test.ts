@@ -12,6 +12,7 @@
  * `memoryStorage()` + a fresh `createAdminApp`. No module-level state.
  */
 import { beforeEach, describe, expect, it } from 'vitest'
+import { ErrorResponseSchema } from '../src/admin-api/schemas/error.js'
 import { Hono } from 'hono'
 import { createAdminApp } from '../src/admin-api/index.js'
 import { createSourceContext } from '../src/admin-api/source-context.js'
@@ -138,8 +139,8 @@ describe('POST /api/pages/:name/unarchive — Manual Redirect refusal (#1343)', 
     setup({ 'pages/old-products/page.json': redirectManifest })
     const res = await app.request('/api/pages/old-products/unarchive', { method: 'POST' })
     expect(res.status).toBe(409)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('This is a redirect: delete it or change where it points')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toBe('This is a redirect: delete it or change where it points')
     expect(await storage.readFile('pages/old-products/page.json')).toBe(redirectManifest)
   })
 
@@ -185,8 +186,8 @@ describe('POST /api/pages/:name/unarchive — Manual Redirect refusal (#1343)', 
 
     const res = await app.request('/api/pages/old-products/unarchive', { method: 'POST' })
     expect(res.status).toBe(409)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('This is a redirect: delete it or change where it points')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toBe('This is a redirect: delete it or change where it points')
     expect(await storage.readFile('pages/old-products/page.json')).toBe(afterDrop)
   })
 
@@ -307,7 +308,7 @@ describe('DELETE /api/pages/:name/purge', () => {
   it('?force=true still refuses purge of a live page with NOT_ARCHIVED (#1341)', async () => {
     const res = await app.request('/api/pages/home/purge?force=true', { method: 'DELETE' })
     expect(res.status).toBe(409)
-    const body = (await res.json()) as { code: string; error: string }
+    const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('NOT_ARCHIVED')
     expect(await storage.exists('pages/home/page.json')).toBe(true)
   })
@@ -320,10 +321,10 @@ describe('DELETE /api/pages/:name/purge', () => {
   it('refuses purge of a live page with NOT_ARCHIVED (#1341)', async () => {
     const res = await app.request('/api/pages/home/purge', { method: 'DELETE' })
     expect(res.status).toBe(409)
-    const body = (await res.json()) as { code: string; error: string }
+    const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('NOT_ARCHIVED')
     // The admin client's deletePurge surfaces `error` on 409.
-    expect(body.error).toContain('archive it first')
+    expect(body.detail).toContain('archive it first')
     // The refusal wrote nothing - the live page is untouched.
     expect(await storage.exists('pages/home/page.json')).toBe(true)
   })
@@ -518,7 +519,7 @@ describe('Fragment archive lifecycle (parity with pages)', () => {
   it('refuses purge of a live fragment with NOT_ARCHIVED (#1341)', async () => {
     const res = await app.request('/api/fragments/header/purge', { method: 'DELETE' })
     expect(res.status).toBe(409)
-    const body = (await res.json()) as { code: string; error: string }
+    const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('NOT_ARCHIVED')
     expect(await storage.exists('fragments/header/fragment.json')).toBe(true)
   })

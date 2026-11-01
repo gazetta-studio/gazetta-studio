@@ -10,6 +10,7 @@
  * Per rule 26: every test builds a fresh `memoryStorage()` + app.
  */
 import { describe, expect, it } from 'vitest'
+import { ErrorResponseSchema } from '../src/admin-api/schemas/error.js'
 import type { Hono } from 'hono'
 import { createAdminApp } from '../src/admin-api/index.js'
 import { createSourceContext } from '../src/admin-api/source-context.js'
@@ -126,9 +127,9 @@ describe.each(KINDS)('save-handler review gate — $kind', ({ kind, name, url, f
     const res = await put(h, url, changedBody)
 
     expect(res.status).toBe(409)
-    const body = (await res.json()) as { code: string; message: string }
+    const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('EDIT_LOCKED')
-    expect(body.message).toBe('Withdraw submission to edit')
+    expect(body.detail).toBe('Withdraw submission to edit')
     expect(await h.storage.readFile(file)).toBe(before)
     expect((await readReviewSidecar(h.contentRoot, kind, name))?.state).toBe('pending-review')
   })

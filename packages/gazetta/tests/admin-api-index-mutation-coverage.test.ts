@@ -81,6 +81,7 @@ import { join, resolve } from 'node:path'
 import { Hono } from 'hono'
 import { hostname as mockableHostname } from 'node:os'
 import { createAdminApp } from '../src/admin-api/index.js'
+import { ErrorResponseSchema } from '../src/admin-api/schemas/error.js'
 import { createSourceContext } from '../src/admin-api/source-context.js'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
 import { memoryCache } from '../src/cache/factories.js'
@@ -266,8 +267,8 @@ describe('Cluster 2a — auth middleware route prefix `/api/*` (line 219 StringL
     // `/api/*` and `/api/health` returns 200 instead of 401.
     const unauthorized = await app.request('/api/health')
     expect(unauthorized.status).toBe(401)
-    const errorBody = (await unauthorized.json()) as { error: string }
-    expect(errorBody.error).toBe('Unauthorized')
+    const errorBody = ErrorResponseSchema.parse(await unauthorized.json())
+    expect(errorBody).toMatchObject({ code: 'UNAUTHENTICATED', detail: 'Unauthorized' })
 
     // With Authorization header: 200. Confirms the auth gate accepts
     // the bearer token; not strictly needed to kill the mutant but

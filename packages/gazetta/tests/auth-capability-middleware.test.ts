@@ -10,6 +10,7 @@
  * Wildcards work transitively (admin's `*` grants any capability).
  */
 import { describe, expect, it } from 'vitest'
+import { ErrorResponseSchema } from '../src/admin-api/schemas/error.js'
 import { Hono } from 'hono'
 import { noneAuthProvider, type AuthIdentityProvider, type Principal } from '../src/auth/index.js'
 import { principalMiddleware, type PrincipalEnv } from '../src/admin-api/middleware/principal.js'
@@ -51,12 +52,13 @@ describe('requireCapability (Cut 8)', () => {
     const app = buildApp(provider)
     const res = await app.request('/api/pages', { method: 'PUT' })
     expect(res.status).toBe(403)
-    const body = await res.json()
+    expect(res.headers.get('content-type')).toBe('application/problem+json')
+    const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('FORBIDDEN')
     expect(body.missing).toEqual(['edit:pages'])
     expect(body.role).toBe('editor')
-    expect(body.error).toContain('editor')
-    expect(body.error).toContain('edit:pages')
+    expect(body.detail).toContain('editor')
+    expect(body.detail).toContain('edit:pages')
   })
 
   it('returns 401 when principal is anonymous (no upstream auth)', async () => {

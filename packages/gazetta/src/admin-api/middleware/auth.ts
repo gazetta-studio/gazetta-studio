@@ -1,4 +1,5 @@
 import { createMiddleware } from 'hono/factory'
+import { problem } from '../problem.js'
 import { timingSafeCompare } from './timing-safe-compare.js'
 
 export function authMiddleware() {
@@ -9,7 +10,7 @@ export function authMiddleware() {
   return createMiddleware(async (c, next) => {
     const auth = c.req.header('Authorization')
     if (!auth || !timingSafeCompare(auth, expected)) {
-      return c.json({ error: 'Unauthorized' }, 401)
+      return problem(c, 401, 'UNAUTHENTICATED', 'Unauthorized')
     }
     await next()
   })

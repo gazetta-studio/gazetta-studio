@@ -48,6 +48,7 @@
 import { getConnInfo } from '@hono/node-server/conninfo'
 import { createMiddleware } from 'hono/factory'
 import type { Context } from 'hono'
+import { problem } from '../problem.js'
 import {
   AuthenticationError,
   type AuthIdentityProvider,
@@ -151,9 +152,8 @@ export function principalMiddleware(provider: AuthIdentityProvider = noneAuthPro
         // it in a structured body. For external-facing 401s the
         // middleware could mask the message, but this is admin-API
         // only — operators benefit from the diagnostic context.
-        return c.json({ code: 'UNAUTHENTICATED' as const, error: err.message }, 401, {
-          'WWW-Authenticate': 'Bearer realm="gazetta-admin"',
-        })
+        c.header('WWW-Authenticate', 'Bearer realm="gazetta-admin"')
+        return problem(c, 401, 'UNAUTHENTICATED', err.message)
       }
       // Unexpected (non-AuthenticationError) — let Hono's default
       // error handler take over so the operator sees the stack.

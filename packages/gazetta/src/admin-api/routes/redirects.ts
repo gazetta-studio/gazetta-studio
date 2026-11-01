@@ -43,6 +43,7 @@ import { recordWrite } from '../../history-recorder.js'
 import { requireCapability } from '../middleware/capability.js'
 import { requireEditableTarget } from '../middleware/editable-target.js'
 import { lookupManifest } from '../lookup-manifest.js'
+import { problem } from '../problem.js'
 import type { AuditEnv } from '../middleware/audit.js'
 import { rebuildArchiveAliases } from '../../archive-aliases.js'
 import { isManualRedirectArchive, REDIRECT_RESTORE_MESSAGE } from '../../archive-helpers.js'
@@ -112,18 +113,13 @@ async function handleCreateRedirect(
   try {
     raw = await c.req.json()
   } catch {
-    return c.json({ code: 'INVALID', error: 'Invalid JSON body' }, 400)
+    return problem(c, 400, 'INVALID', 'Invalid JSON body')
   }
   const parsed = CreateRedirectRequestSchema.safeParse(raw)
   if (!parsed.success) {
-    return c.json(
-      {
-        code: 'INVALID',
-        error: 'Invalid request body',
-        issues: parsed.error.issues.map(i => ({ path: i.path.join('.'), message: i.message })),
-      },
-      400,
-    )
+    return problem(c, 400, 'INVALID', 'Invalid request body', {
+      issues: parsed.error.issues.map(i => ({ path: i.path.join('.'), message: i.message })),
+    })
   }
   const { from: fromRaw, to } = parsed.data
 
@@ -137,26 +133,23 @@ async function handleCreateRedirect(
   //   - `from: 'blog/:slug'` → normalize → 'blog/[slug]' → same reject
   //   - `from: 'blog/[slug]'` → normalize is identity → wildcard reject
   if (from === 'home') {
-    return c.json(
-      {
-        code: 'INVALID',
-        error:
-          'Redirect from "home" is not supported in v1 — that route is the site root. To redirect the root, configure a target-level rewrite or use a worker-side route.',
-      },
+    return problem(
+      c,
       400,
+      'INVALID',
+      'Redirect from "home" is not supported in v1 — that route is the site root. To redirect the root, configure a target-level rewrite or use a worker-side route.',
     )
   }
   if (containsWildcard(from)) {
-    return c.json(
-      {
-        code: 'INVALID',
-        error: `Wildcard from-routes (e.g. "${from}") are not supported in v1. To redirect dynamic paths, configure the worker route directly.`,
-      },
+    return problem(
+      c,
       400,
+      'INVALID',
+      `Wildcard from-routes (e.g. "${from}") are not supported in v1. To redirect dynamic paths, configure the worker route directly.`,
     )
   }
   if (!isSafeItemName(from) || !isSafeItemName(to)) {
-    return c.json({ code: 'INVALID', error: UNSAFE_ITEM_NAME_MESSAGE }, 400)
+    return problem(c, 400, 'INVALID', UNSAFE_ITEM_NAME_MESSAGE)
   }
 
   const source = await resolve(c.req.query('target'))
@@ -168,12 +161,11 @@ async function handleCreateRedirect(
   // accidental live-page removal.
   const existing = lookupManifest(site, binding.kind, from)
   if (existing && existing.archived !== true) {
-    return c.json(
-      {
-        code: 'LIVE_NAME_CONFLICT',
-        error: `The ${binding.label.toLowerCase()} "${from}" already exists as live content. To redirect this URL, first archive or rename "${from}", then create the redirect.`,
-      },
+    return problem(
+      c,
       409,
+      'LIVE_NAME_CONFLICT',
+      `The ${binding.label.toLowerCase()} "${from}" already exists as live content. To redirect this URL, first archive or rename "${from}", then create the redirect.`,
     )
   }
 
@@ -193,12 +185,11 @@ async function handleCreateRedirect(
   // pointing at a fragment) aren't valid runtime targets.
   const aliasTarget = lookupManifest(site, binding.kind, to)
   if (!aliasTarget || aliasTarget.archived === true) {
-    return c.json(
-      {
-        code: 'ALIAS_TARGET_NOT_FOUND',
-        error: `The ${binding.label.toLowerCase()} "${to}" does not exist as live content. The alias target must be a live ${binding.label.toLowerCase()}.`,
-      },
+    return problem(
+      c,
       409,
+      'ALIAS_TARGET_NOT_FOUND',
+      `The ${binding.label.toLowerCase()} "${to}" does not exist as live content. The alias target must be a live ${binding.label.toLowerCase()}.`,
     )
   }
 
@@ -327,29 +318,25 @@ async function handleArchivedConflict(
   onConflict: string | undefined,
 ): Promise<Response> {
   if (!onConflict) {
-    return c.json(
-      {
-        code: 'ARCHIVED_NAME_CONFLICT',
-        archive: {
-          kind: binding.kind,
-          name: from,
-          ...(existing.archivedAt ? { archivedAt: existing.archivedAt } : {}),
-          ...(existing.archivedBy ? { archivedBy: existing.archivedBy } : {}),
-          ...(existing.aliasOf ? { aliasOf: existing.aliasOf } : {}),
-          // Manual Redirect archives cannot be restored (#1343) — tell
-          // the client so the prompt doesn't offer Restore.
-          ...(isManualRedirectArchive(existing) ? { redirect: true } : {}),
-        },
+    return problem(c, 409, 'ARCHIVED_NAME_CONFLICT', undefined, {
+      archive: {
+        kind: binding.kind,
+        name: from,
+        ...(existing.archivedAt ? { archivedAt: existing.archivedAt } : {}),
+        ...(existing.archivedBy ? { archivedBy: existing.archivedBy } : {}),
+        ...(existing.aliasOf ? { aliasOf: existing.aliasOf } : {}),
+        // Manual Redirect archives cannot be restored (#1343) — tell
+        // the client so the prompt doesn't offer Restore.
+        ...(isManualRedirectArchive(existing) ? { redirect: true } : {}),
       },
-      409,
-    )
+    })
   }
 
   if (onConflict === 'restore') {
     // Restoring a Manual Redirect would strip its manifest to `{}` and
     // lose the redirect (#1343) — refuse; delete or re-point instead.
     if (isManualRedirectArchive(existing)) {
-      return c.json({ error: REDIRECT_RESTORE_MESSAGE }, 409)
+      return problem(c, 409, 'REDIRECT_RESTORE', REDIRECT_RESTORE_MESSAGE)
     }
     await unarchiveExisting(source, binding, from, existing)
     await c.var.audit.record({
@@ -409,12 +396,11 @@ async function handleArchivedConflict(
     return c.json(response, 201)
   }
 
-  return c.json(
-    {
-      code: 'INVALID',
-      error: `Invalid onConflict mode "${onConflict}". Expected one of: restore, replace, moveAside.`,
-    },
+  return problem(
+    c,
     400,
+    'INVALID',
+    `Invalid onConflict mode "${onConflict}". Expected one of: restore, replace, moveAside.`,
   )
 }
 

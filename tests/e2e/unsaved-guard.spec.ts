@@ -164,7 +164,17 @@ test.describe('A failed save in the dialog keeps the edits', () => {
   async function failEverySave(page: import('@playwright/test').Page) {
     await page.route('**/admin/api/pages/**', route =>
       route.request().method() === 'PUT'
-        ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'Disk full' }) })
+        ? route.fulfill({
+            status: 500,
+            contentType: 'application/problem+json',
+            body: JSON.stringify({
+              type: 'about:blank',
+              title: 'Internal Server Error',
+              status: 500,
+              code: 'INTERNAL',
+              detail: 'Disk full',
+            }),
+          })
         : route.continue(),
     )
   }

@@ -1,4 +1,7 @@
 import { Hono } from 'hono'
+import { HTTPException } from 'hono/http-exception'
+import type { ContentfulStatusCode } from 'hono/utils/http-status'
+import { problem } from './problem.js'
 import { join } from 'node:path'
 import { hostname } from 'node:os'
 import { randomBytes } from 'node:crypto'
@@ -487,6 +490,24 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   app.route('/', validationRoutes({ scanner: opts.validationScanner ?? null }))
   app.route('/', healthRoutes())
   app.route('/', meRoutes())
+
+  // Errors as problem+json (design-agent-access.md Q45). Registered after
+  // every route: an unknown API path answers a problem, not the host's
+  // plain-text 404 (a mounted sub-app's notFound handler is never used), and
+  // an unhandled throw answers a problem, not Hono's plain-text 500.
+  app.all('/api/*', c => problem(c, 404, 'NOT_FOUND', `No API route for ${c.req.method} ${c.req.path}`))
+  app.onError((err, c) => {
+    if (err instanceof HTTPException && err.status < 500) {
+      return problem(
+        c,
+        err.status as ContentfulStatusCode,
+        err.status === 404 ? 'NOT_FOUND' : 'BAD_REQUEST',
+        err.message,
+      )
+    }
+    console.error(`  [admin-api] ${c.req.method} ${c.req.path} failed:`, err)
+    return problem(c, 500, 'INTERNAL', 'The admin API hit an unexpected error.')
+  })
 
   // Periodic cache stats log — fires every 5 minutes against the
   // bootstrap source's cache. Runs unobtrusively (timer.unref()

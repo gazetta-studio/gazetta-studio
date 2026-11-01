@@ -21,6 +21,7 @@
 import { describe, expect, it } from 'vitest'
 import { Hono } from 'hono'
 import { historyRoutes } from '../src/admin-api/routes/history.js'
+import { ErrorResponseSchema, type ErrorResponse } from '../src/admin-api/schemas/error.js'
 import { createSourceContext, staticSourceResolver } from '../src/admin-api/source-context.js'
 import { principalMiddleware } from '../src/admin-api/middleware/principal.js'
 import type { AuditEnv } from '../src/admin-api/middleware/audit.js'
@@ -97,6 +98,16 @@ async function json(res: Response): Promise<Record<string, unknown>> {
   return (await res.json()) as Record<string, unknown>
 }
 
+/** Parse an error as a problem body and pin its code (and `detail`, when given). */
+async function expectProblem(res: Response, code: string, detail?: string): Promise<ErrorResponse> {
+  expect(res.headers.get('content-type')).toBe('application/problem+json')
+  const body = ErrorResponseSchema.parse(await res.json())
+  expect(body.status).toBe(res.status)
+  expect(body.code).toBe(code)
+  if (detail !== undefined) expect(body.detail).toBe(detail)
+  return body
+}
+
 describe('target resolution', () => {
   it('lists revisions when targets are only configured (lazy registry init)', async () => {
     const storage = memoryStorage()
@@ -134,14 +145,14 @@ describe('target resolution', () => {
     const { app } = mount({ configs: null })
     const res = await app.request('/api/history?target=staging')
     expect(res.status).toBe(400)
-    expect(await json(res)).toEqual({ error: 'Unknown target: staging' })
+    await expectProblem(res, 'BAD_REQUEST', 'Unknown target: staging')
   })
 
   it('400 "Unknown target" when target configs are empty', async () => {
     const { app } = mount({ configs: {} })
     const res = await app.request('/api/history?target=staging')
     expect(res.status).toBe(400)
-    expect(await json(res)).toEqual({ error: 'Unknown target: staging' })
+    await expectProblem(res, 'BAD_REQUEST', 'Unknown target: staging')
   })
 
   it('400 "Unknown target" when storage exists but the target has no config', async () => {
@@ -149,7 +160,7 @@ describe('target resolution', () => {
     const { app } = mount({ preInit: new Map([['staging', storage]]), configs: {} })
     const res = await app.request('/api/history?target=staging')
     expect(res.status).toBe(400)
-    expect(await json(res)).toEqual({ error: 'Unknown target: staging' })
+    await expectProblem(res, 'BAD_REQUEST', 'Unknown target: staging')
   })
 
   it('400 "Unknown target" when the config exists but no storage was initialised for it', async () => {
@@ -157,7 +168,7 @@ describe('target resolution', () => {
     const { app } = mount({ preInit: new Map(), configs: { staging: config(storage) } })
     const res = await app.request('/api/history?target=staging')
     expect(res.status).toBe(400)
-    expect(await json(res)).toEqual({ error: 'Unknown target: staging' })
+    await expectProblem(res, 'BAD_REQUEST', 'Unknown target: staging')
   })
 
   it('409 when history is disabled for the target', async () => {
@@ -165,7 +176,7 @@ describe('target resolution', () => {
     const { app } = mount({ configs: { staging: config(storage, { history: { enabled: false } }) } })
     const res = await app.request('/api/history?target=staging')
     expect(res.status).toBe(409)
-    expect(await json(res)).toEqual({ error: 'History disabled for target "staging"' })
+    await expectProblem(res, 'CONFLICT', 'History disabled for target "staging"')
   })
 })
 
@@ -175,7 +186,7 @@ describe('GET /api/history', () => {
     for (const url of ['/api/history', '/api/history?target=']) {
       const res = await app.request(url)
       expect(res.status).toBe(400)
-      expect(await json(res)).toEqual({ error: 'Missing "target" query parameter' })
+      await expectProblem(res, 'BAD_REQUEST', 'Missing "target" query parameter')
     }
   })
 
@@ -206,14 +217,14 @@ describe('POST /api/history/undo', () => {
     const { app } = mount({ configs: {} })
     const res = await app.request('/api/history/undo', { method: 'POST' })
     expect(res.status).toBe(400)
-    expect(await json(res)).toEqual({ error: 'Missing "target" query parameter' })
+    await expectProblem(res, 'BAD_REQUEST', 'Missing "target" query parameter')
   })
 
   it('passes resolution errors through', async () => {
     const { app } = mount({ configs: {} })
     const res = await app.request('/api/history/undo?target=staging', { method: 'POST' })
     expect(res.status).toBe(400)
-    expect(await json(res)).toEqual({ error: 'Unknown target: staging' })
+    await expectProblem(res, 'BAD_REQUEST', 'Unknown target: staging')
   })
 
   it('409 when there is no prior revision', async () => {
@@ -222,7 +233,7 @@ describe('POST /api/history/undo', () => {
     const { app, events } = mount({ configs: { staging: config(storage) } })
     const res = await app.request('/api/history/undo?target=staging', { method: 'POST' })
     expect(res.status).toBe(409)
-    expect(await json(res)).toEqual({ error: 'Nothing to undo — no prior revision on this target' })
+    await expectProblem(res, 'CONFLICT', 'Nothing to undo — no prior revision on this target')
     expect(events).toEqual([])
   })
 
@@ -275,10 +286,10 @@ describe('POST /api/history/restore', () => {
     const { app } = mount({ configs: {} })
     const noTarget = await app.request('/api/history/restore?id=rev-1', { method: 'POST' })
     expect(noTarget.status).toBe(400)
-    expect(await json(noTarget)).toEqual({ error: 'Missing "target" query parameter' })
+    await expectProblem(noTarget, 'BAD_REQUEST', 'Missing "target" query parameter')
     const noId = await app.request('/api/history/restore?target=staging', { method: 'POST' })
     expect(noId.status).toBe(400)
-    expect(await json(noId)).toEqual({ error: 'Missing "id" query parameter' })
+    await expectProblem(noId, 'BAD_REQUEST', 'Missing "id" query parameter')
   })
 
   it('passes resolution errors through', async () => {
@@ -286,7 +297,7 @@ describe('POST /api/history/restore', () => {
     const { app } = mount({ configs: { staging: config(storage, { history: { enabled: false } }) } })
     const res = await app.request('/api/history/restore?target=staging&id=rev-1', { method: 'POST' })
     expect(res.status).toBe(409)
-    expect(await json(res)).toEqual({ error: 'History disabled for target "staging"' })
+    await expectProblem(res, 'CONFLICT', 'History disabled for target "staging"')
   })
 
   it('restores the chosen revision and audits it', async () => {
@@ -327,9 +338,9 @@ describe('POST /api/history/restore', () => {
     const { app, events } = mount({ configs: { staging: config(storage) } })
     const res = await app.request('/api/history/restore?target=staging&id=rev-does-not-exist', { method: 'POST' })
     expect(res.status).toBe(404)
-    const body = await json(res)
-    expect(typeof body.error).toBe('string')
-    expect((body.error as string).length).toBeGreaterThan(0)
+    const body = await expectProblem(res, 'NOT_FOUND')
+    expect(typeof body.detail).toBe('string')
+    expect((body.detail as string).length).toBeGreaterThan(0)
     expect(events).toEqual([])
   })
 })

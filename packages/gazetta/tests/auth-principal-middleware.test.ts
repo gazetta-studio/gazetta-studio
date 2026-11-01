@@ -8,6 +8,7 @@
  * driven factory dispatch produces the right provider per trust mode.
  */
 import { describe, expect, it } from 'vitest'
+import { ErrorResponseSchema } from '../src/admin-api/schemas/error.js'
 import { Hono } from 'hono'
 import {
   AuthConfigurationError,
@@ -93,9 +94,10 @@ describe('principalMiddleware (Cut 7)', () => {
     const res = await app.request('/api/whoami')
     expect(res.status).toBe(401)
     expect(res.headers.get('www-authenticate')).toContain('Bearer')
-    const body = await res.json()
+    expect(res.headers.get('content-type')).toBe('application/problem+json')
+    const body = ErrorResponseSchema.parse(await res.json())
     expect(body.code).toBe('UNAUTHENTICATED')
-    expect(body.error).toContain('signature invalid')
+    expect(body.detail).toContain('signature invalid')
   })
 
   it('does NOT swallow non-AuthenticationError throws', async () => {

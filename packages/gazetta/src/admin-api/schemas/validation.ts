@@ -5,6 +5,7 @@
  * for the background scanner's accumulated state.
  */
 import { z } from 'zod'
+import { ErrorResponseSchema } from './error.js'
 
 export const SeveritySchema = z.enum(['error', 'warn', 'info'])
 export type Severity = z.infer<typeof SeveritySchema>
@@ -20,12 +21,12 @@ export const IssueSchema = z.object({
 export type Issue = z.infer<typeof IssueSchema>
 
 /**
- * 409 response body when save-delta validation blocks a write.
+ * 409 problem body when save-delta validation blocks a write.
  *
  * `code` is a stable string for client dispatch; `issues` is the full set
  * found (both `error` and below — the client decides what to render).
  */
-export const ValidationFailedResponseSchema = z.object({
+export const ValidationFailedResponseSchema = ErrorResponseSchema.extend({
   code: z.literal('VALIDATION_FAILED'),
   issues: z.array(IssueSchema),
 })

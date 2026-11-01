@@ -6,6 +6,7 @@ import { createFilesystemProvider } from '../../providers/filesystem.js'
 import type { SourceContextResolver } from '../source-context.js'
 import { loadSiteFromSource } from '../source-context.js'
 import { requireCapability } from '../middleware/capability.js'
+import { problem } from '../problem.js'
 import type { ValidationScanner } from '../../validation/scanner.js'
 import { computeTemplateImpact } from '../../validation/template-impact.js'
 
@@ -82,7 +83,7 @@ export function templateRoutes(
 
       return c.json({ ...(jsonSchema as Record<string, unknown>), hasEditor, editorUrl, fieldsBaseUrl })
     } catch (err) {
-      return c.json({ error: `Failed to load schema for template "${name}": ${(err as Error).message}` }, 500)
+      return problem(c, 500, 'INTERNAL', `Failed to load schema for template "${name}": ${(err as Error).message}`)
     }
   })
 
@@ -109,7 +110,7 @@ export function templateRoutes(
     try {
       site = await loadSiteFromSource(source)
     } catch (err) {
-      return c.json({ error: `Failed to load site: ${(err as Error).message}` }, 500)
+      return problem(c, 500, 'INTERNAL', `Failed to load site: ${(err as Error).message}`)
     }
     const issuesFor = (path: string) => opts.scanner?.issuesFor(path) ?? []
     const impact = computeTemplateImpact(site, name, issuesFor)

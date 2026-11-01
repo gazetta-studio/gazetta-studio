@@ -14,6 +14,7 @@ import { inspectTarget } from '../../runtime/runtime-capabilities.js'
 import { scanTemplates, type TemplateInfo } from '../../templates-scan.js'
 import { createContentRoot } from '../../content-root.js'
 import { requireCapability } from '../middleware/capability.js'
+import { problem, problemFrom } from '../problem.js'
 import { capabilityGrants, type Principal } from '../../auth/index.js'
 import type { AuditEnv } from '../middleware/audit.js'
 import {
@@ -315,7 +316,7 @@ export function publishRoutes(
   app.get('/api/dependents', requireCapability('read:pages'), async c => {
     const item = c.req.query('item')
     if (!item || !item.startsWith('fragments/')) {
-      return c.json({ error: 'Missing or invalid "item" query (must be fragments/<name>)' }, 400)
+      return problem(c, 400, 'BAD_REQUEST', 'Missing or invalid "item" query (must be fragments/<name>)')
     }
     const fragmentName = item.slice('fragments/'.length)
     const targetName = c.req.query('target')
@@ -326,7 +327,7 @@ export function publishRoutes(
       if (!isTargetTheSource) {
         const t = await getTargets()
         const targetStorage = t.get(targetName!)
-        if (!targetStorage) return c.json({ error: `Unknown target: ${targetName}` }, 400)
+        if (!targetStorage) return problem(c, 400, 'BAD_REQUEST', `Unknown target: ${targetName}`)
         const result = await findDependentsFromSidecars(createContentRoot(targetStorage), { fragment: fragmentName })
         return c.json(result)
       }
@@ -334,7 +335,7 @@ export function publishRoutes(
       const result = await findDependentsFromSidecars(source.contentRoot, { fragment: fragmentName })
       return c.json(result)
     } catch (err) {
-      return c.json({ error: (err as Error).message }, 500)
+      return problem(c, 500, 'INTERNAL', (err as Error).message)
     }
   })
 
@@ -622,7 +623,7 @@ export function publishRoutes(
   function productionGateFailure(
     principal: Principal,
     targetNames: ReadonlyArray<string | undefined>,
-  ): { code: 'FORBIDDEN'; missing: string[]; role: string; error: string } | null {
+  ): { code: 'FORBIDDEN'; missing: string[]; role: string; message: string } | null {
     const writesProduction = targetNames.some(name => {
       if (name === undefined) return false
       const config = getTargetConfig(name)
@@ -634,7 +635,7 @@ export function publishRoutes(
       code: 'FORBIDDEN' as const,
       missing: ['publish:production'],
       role: principal.role,
-      error: `Role "${principal.role}" does not have capability "publish:production"`,
+      message: `Role "${principal.role}" does not have capability "publish:production"`,
     }
   }
 
@@ -651,7 +652,7 @@ export function publishRoutes(
         scope: { kind: 'site' },
         metadata: { missingCapabilities: ['publish:production'] },
       })
-      return c.json(productionForbidden, 403)
+      return problemFrom(c, 403, productionForbidden)
     }
 
     // #1196: reject malformed or unknown items before anything reads
@@ -660,12 +661,12 @@ export function publishRoutes(
     const itemError = await validateRequestItems(body.items, p =>
       sourceForValidation.storage.exists(sourceForValidation.contentRoot.path(p)),
     )
-    if (itemError) return c.json({ error: itemError }, 400)
+    if (itemError) return problem(c, 400, 'BAD_REQUEST', itemError)
 
     // #1526: publishing into the editing source copies the site onto
     // itself. Refuse before hooks, the gate or any write.
     const intoSource = body.targets?.find(t => t === sourceForValidation.targetName)
-    if (intoSource) return c.json({ error: `Cannot publish to ${intoSource}: it is the editing source` }, 400)
+    if (intoSource) return problem(c, 400, 'BAD_REQUEST', `Cannot publish to ${intoSource}: it is the editing source`)
 
     // beforePublish hooks per design-hooks.md "Publish lifecycle".
     // Hooks see the requested items + active target; can mutate
@@ -710,7 +711,7 @@ export function publishRoutes(
               hookTimeout: err instanceof HookTimeout ? err.hookName : undefined,
             },
           })
-          return c.json({ code: 'HOOK_CANCELLED' as const, hook: err.hookName, reason: err.message }, 409)
+          return problem(c, 409, 'HOOK_CANCELLED', err.message, { hook: err.hookName, reason: err.message })
         }
         throw err
       }
@@ -734,7 +735,7 @@ export function publishRoutes(
           blockedTargets: blocked.map(b => b.target),
         },
       })
-      return c.json({ code: 'PUBLISH_AUDIT_FAILED' as const, blocked }, 409)
+      return problem(c, 409, 'PUBLISH_AUDIT_FAILED', undefined, { blocked })
     }
 
     // Strict audit mode (#1393, design-audit.md "Strict mode
@@ -751,10 +752,7 @@ export function publishRoutes(
         metadata: { items: finalItems, targets: body.targets, source: body.source },
       })
       if (preResult.failed > 0) {
-        return c.json(
-          { code: 'AUDIT_FAILED' as const, message: 'Audit recording failed; publish refused (strict mode)' },
-          500,
-        )
+        return problem(c, 500, 'AUDIT_FAILED', 'Audit recording failed; publish refused (strict mode)')
       }
     }
 
@@ -776,11 +774,9 @@ export function publishRoutes(
           metadata: { items: finalItems, targets: body.targets, source: body.source },
         })
       }
-      const status = fatal.error.startsWith('Cannot publish') ? 400 : 400
-      return c.json(
-        { error: fatal.error, ...(fatal.invalidTemplates ? { invalidTemplates: fatal.invalidTemplates } : {}) },
-        status,
-      )
+      return fatal.invalidTemplates
+        ? problem(c, 400, 'TEMPLATE_INVALID', fatal.error, { invalidTemplates: fatal.invalidTemplates })
+        : problem(c, 400, 'BAD_REQUEST', fatal.error)
     }
     const allSuccess = results.every(r => r.success)
     // Audit: one event per publish operation. metadata carries the
@@ -827,7 +823,7 @@ export function publishRoutes(
         scope: { kind: 'site' },
         metadata: { missingCapabilities: ['publish:production'] },
       })
-      return c.json(streamProductionForbidden, 403)
+      return problemFrom(c, 403, streamProductionForbidden)
     }
 
     // #1196: reject malformed or unknown items before anything reads
@@ -837,12 +833,12 @@ export function publishRoutes(
     const itemError = await validateRequestItems(body.items, p =>
       sourceForValidation.storage.exists(sourceForValidation.contentRoot.path(p)),
     )
-    if (itemError) return c.json({ error: itemError }, 400)
+    if (itemError) return problem(c, 400, 'BAD_REQUEST', itemError)
 
     // #1526: publishing into the editing source copies the site onto
     // itself. Refuse before hooks, the gate or any write.
     const intoSource = body.targets?.find(t => t === sourceForValidation.targetName)
-    if (intoSource) return c.json({ error: `Cannot publish to ${intoSource}: it is the editing source` }, 400)
+    if (intoSource) return problem(c, 400, 'BAD_REQUEST', `Cannot publish to ${intoSource}: it is the editing source`)
 
     // beforePublish hooks fire BEFORE the SSE stream opens — a
     // cancellation surfaces as a 409 (synchronous) rather than as
@@ -881,7 +877,7 @@ export function publishRoutes(
               hookTimeout: err instanceof HookTimeout ? err.hookName : undefined,
             },
           })
-          return c.json({ code: 'HOOK_CANCELLED' as const, hook: err.hookName, reason: err.message }, 409)
+          return problem(c, 409, 'HOOK_CANCELLED', err.message, { hook: err.hookName, reason: err.message })
         }
         throw err
       }
@@ -904,7 +900,7 @@ export function publishRoutes(
           blockedTargets: blocked.map(b => b.target),
         },
       })
-      return c.json({ code: 'PUBLISH_AUDIT_FAILED' as const, blocked }, 409)
+      return problem(c, 409, 'PUBLISH_AUDIT_FAILED', undefined, { blocked })
     }
 
     // Strict audit mode (#1393): same pre-record as the sync route,
@@ -922,10 +918,7 @@ export function publishRoutes(
         metadata: { items: finalItems, targets: body.targets, source: body.source },
       })
       if (preResult.failed > 0) {
-        return c.json(
-          { code: 'AUDIT_FAILED' as const, message: 'Audit recording failed; publish refused (strict mode)' },
-          500,
-        )
+        return problem(c, 500, 'AUDIT_FAILED', 'Audit recording failed; publish refused (strict mode)')
       }
     }
 
@@ -1005,18 +998,18 @@ export function publishRoutes(
     // `destination` (body) — optional editable target to write INTO; defaults
     // to the resolver's default editable target (the author's current source)
     const body = (await c.req.json()) as { source: string; items?: string[]; destination?: string }
-    if (!body.source) return c.json({ error: 'Missing "source" target name' }, 400)
+    if (!body.source) return problem(c, 400, 'BAD_REQUEST', 'Missing "source" target name')
 
     const t = await getTargets()
     const targetStorage = t.get(body.source)
-    if (!targetStorage) return c.json({ error: `Unknown target: ${body.source}` }, 400)
+    if (!targetStorage) return problem(c, 400, 'BAD_REQUEST', `Unknown target: ${body.source}`)
 
     // Resolve the destination editable target for this fetch.
     let destination: Awaited<ReturnType<SourceContextResolver>>
     try {
       destination = await resolve(body.destination)
     } catch (err) {
-      return c.json({ error: (err as Error).message }, 400)
+      return problem(c, 400, 'BAD_REQUEST', (err as Error).message)
     }
 
     // #1191: gate the RESOLVED destination. An omitted destination
@@ -1035,14 +1028,14 @@ export function publishRoutes(
         scope: { kind: 'site' },
         metadata: { missingCapabilities: ['publish:production'] },
       })
-      return c.json(fetchProductionForbidden, 403)
+      return problemFrom(c, 403, fetchProductionForbidden)
     }
 
     let items: string[]
     if (body.items?.length) {
       // #1196: same boundary validation against the fetch source.
       const itemError = await validateRequestItems(body.items, p => targetStorage.exists(p))
-      if (itemError) return c.json({ error: itemError }, 400)
+      if (itemError) return problem(c, 400, 'BAD_REQUEST', itemError)
       items = body.items
     } else {
       items = []
@@ -1066,11 +1059,11 @@ export function publishRoutes(
           }
         }
       } catch (err) {
-        return c.json({ error: `Failed to list target contents: ${(err as Error).message}` }, 500)
+        return problem(c, 500, 'INTERNAL', `Failed to list target contents: ${(err as Error).message}`)
       }
     }
 
-    if (items.length === 0) return c.json({ error: 'No content found on target' }, 404)
+    if (items.length === 0) return problem(c, 404, 'NOT_FOUND', 'No content found on target')
 
     console.log(`  Fetching ${items.length} items from "${body.source}":`)
     console.log(`    Items: ${items.join(', ')}`)
@@ -1085,7 +1078,7 @@ export function publishRoutes(
     } catch (err) {
       const error = (err as Error).message
       console.error(`    FAILED — ${error}`)
-      return c.json({ error }, 500)
+      return problem(c, 500, 'INTERNAL', error)
     }
   })
 
@@ -1108,7 +1101,7 @@ export function publishRoutes(
   app.post('/api/publish/audit', requireCapability('publish:non-production'), async c => {
     const parsed = PublishAuditRequestSchema.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) {
-      return c.json({ error: 'expected { target: string, items: SavedItem[] }' }, 400)
+      return problem(c, 400, 'BAD_REQUEST', 'expected { target: string, items: SavedItem[] }')
     }
     const { target: targetName, items } = parsed.data
 

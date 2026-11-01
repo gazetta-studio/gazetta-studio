@@ -10,7 +10,8 @@
  * No validation, storage, or orchestration logic in here — the asset
  * domain owns all of that (see `src/assets/`).
  */
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
+import { problem } from '../problem.js'
 import { enumerateOverrideSlices } from '../../assets/asset-paths.js'
 import { deleteAsset } from '../../assets/delete.js'
 import { ingestAsset } from '../../assets/ingest.js'
@@ -54,21 +55,15 @@ export interface AssetRoutesOptions {
  * lowercase ASCII non-locale tokens. Reuses the same validators used
  * for filename parsing.
  */
-function selectorFromQuery(c: { req: { query: (k: string) => string | undefined } }): Selector | null | Response {
+function selectorFromQuery(c: Context): Selector | null | Response {
   const locale = c.req.query('locale')
   const theme = c.req.query('theme')
   if (locale === undefined && theme === undefined) return null
   if (locale !== undefined && !isValidLocale(locale)) {
-    return new Response(JSON.stringify({ code: 'BAD_REQUEST', message: `Invalid locale code: ${locale}` }), {
-      status: 400,
-      headers: { 'content-type': 'application/json' },
-    })
+    return problem(c, 400, 'BAD_REQUEST', `Invalid locale code: ${locale}`)
   }
   if (theme !== undefined && !isValidTheme(theme)) {
-    return new Response(JSON.stringify({ code: 'BAD_REQUEST', message: `Invalid theme code: ${theme}` }), {
-      status: 400,
-      headers: { 'content-type': 'application/json' },
-    })
+    return problem(c, 400, 'BAD_REQUEST', `Invalid theme code: ${theme}`)
   }
   return buildSelector({
     ...(locale !== undefined ? { locale } : {}),
@@ -151,10 +146,10 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
     try {
       body = await c.req.json()
     } catch {
-      return c.json({ code: 'BAD_REQUEST', message: 'Invalid JSON body' }, 400)
+      return problem(c, 400, 'BAD_REQUEST', 'Invalid JSON body')
     }
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
-      return c.json({ code: 'BAD_REQUEST', message: 'Body must be an object' }, 400)
+      return problem(c, 400, 'BAD_REQUEST', 'Body must be an object')
     }
 
     const patch: AssetMetadataPatch = {}
@@ -162,7 +157,7 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
     if ('alt' in raw) {
       const v = raw.alt
       if (v !== null && typeof v !== 'string') {
-        return c.json({ code: 'BAD_REQUEST', message: 'alt must be string or null' }, 400)
+        return problem(c, 400, 'BAD_REQUEST', 'alt must be string or null')
       }
       patch.alt = v
     }
@@ -178,11 +173,11 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
       ) {
         const fp = v as { x: number; y: number }
         if (fp.x < 0 || fp.x > 1 || fp.y < 0 || fp.y > 1) {
-          return c.json({ code: 'BAD_REQUEST', message: 'focalPoint x and y must be in [0, 1]' }, 400)
+          return problem(c, 400, 'BAD_REQUEST', 'focalPoint x and y must be in [0, 1]')
         }
         patch.focalPoint = fp
       } else {
-        return c.json({ code: 'BAD_REQUEST', message: 'focalPoint must be { x: number, y: number } or null' }, 400)
+        return problem(c, 400, 'BAD_REQUEST', 'focalPoint must be { x: number, y: number } or null')
       }
     }
 
@@ -335,7 +330,7 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
     const name = c.req.param('name')
     const localeRaw = c.req.query('locale')
     if (localeRaw !== undefined && !isValidLocale(localeRaw)) {
-      return c.json({ code: 'BAD_REQUEST', message: `Invalid locale code: ${localeRaw}` }, 400)
+      return problem(c, 400, 'BAD_REQUEST', `Invalid locale code: ${localeRaw}`)
     }
     const locale = localeRaw ?? 'en'
 
@@ -344,10 +339,7 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
       // Without the site manifest we can't read `ai:` / `altText:`
       // config. Treat as unconfigured rather than failing — same
       // posture as a missing block.
-      return c.json(
-        { code: 'AI_ADAPTER_UNAVAILABLE', message: 'Site manifest not available; AI alt-text not configured.' },
-        503,
-      )
+      return problem(c, 503, 'AI_ADAPTER_UNAVAILABLE', 'Site manifest not available; AI alt-text not configured.')
     }
 
     const targetConfig = source.targetName ? source.manifest.targets?.[source.targetName] : undefined
@@ -388,11 +380,11 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
           return c.json(result.suggestion, 200)
         }
         case 'unavailable':
-          return c.json({ code: 'AI_ADAPTER_UNAVAILABLE', message: result.message }, 503)
+          return problem(c, 503, 'AI_ADAPTER_UNAVAILABLE', result.message)
         case 'failed':
-          return c.json({ code: 'AI_ADAPTER_FAILED', message: result.message }, 502)
+          return problem(c, 502, 'AI_ADAPTER_FAILED', result.message)
         case 'not-found':
-          return c.json({ code: 'ASSET_MANIFEST_NOT_FOUND', message: result.message }, 404)
+          return problem(c, 404, 'ASSET_MANIFEST_NOT_FOUND', result.message)
       }
     } catch (err) {
       const res = respondWithAssetError(c, err)
@@ -421,14 +413,14 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
     const selectorOrErr = selectorFromQuery(c)
     if (selectorOrErr instanceof Response) return selectorOrErr
     if (selectorOrErr === null) {
-      return c.json({ code: 'BAD_REQUEST', message: 'Selector required (locale and/or theme)' }, 400)
+      return problem(c, 400, 'BAD_REQUEST', 'Selector required (locale and/or theme)')
     }
 
     const source = await resolve(c.req.query('target'))
     const body = await c.req.parseBody()
     const file = body.file
     if (!(file instanceof File)) {
-      return c.json({ code: 'BAD_REQUEST', message: 'Missing or invalid "file" field' }, 400)
+      return problem(c, 400, 'BAD_REQUEST', 'Missing or invalid "file" field')
     }
 
     const targetConfig = source.targetName ? source.manifest?.targets?.[source.targetName] : undefined
@@ -472,7 +464,7 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
     const selectorOrErr = selectorFromQuery(c)
     if (selectorOrErr instanceof Response) return selectorOrErr
     if (selectorOrErr === null) {
-      return c.json({ code: 'BAD_REQUEST', message: 'Selector required (locale and/or theme)' }, 400)
+      return problem(c, 400, 'BAD_REQUEST', 'Selector required (locale and/or theme)')
     }
 
     const source = await resolve(c.req.query('target'))
@@ -505,10 +497,10 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
     const altRaw = body.alt
 
     if (!(file instanceof File)) {
-      return c.json({ code: 'BAD_REQUEST', message: 'Missing or invalid "file" field' }, 400)
+      return problem(c, 400, 'BAD_REQUEST', 'Missing or invalid "file" field')
     }
     if (typeof name !== 'string' || name.length === 0) {
-      return c.json({ code: 'BAD_REQUEST', message: 'Missing or invalid "name" field' }, 400)
+      return problem(c, 400, 'BAD_REQUEST', 'Missing or invalid "name" field')
     }
     // alt: absent → null, empty string → "" (decorative), string → the value
     const alt = typeof altRaw === 'string' ? altRaw : null
@@ -535,7 +527,7 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
     try {
       uploadBytes = new Uint8Array(await file.arrayBuffer())
     } catch (err) {
-      return c.json({ code: 'BAD_REQUEST', message: `Failed to read file bytes: ${(err as Error).message}` }, 400)
+      return problem(c, 400, 'BAD_REQUEST', `Failed to read file bytes: ${(err as Error).message}`)
     }
     let initialAsset: UploadHookAsset = {
       name,
@@ -560,7 +552,7 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
         uploadBytes = mutated.bytes
       } catch (err) {
         if (err instanceof HookCancellation || err instanceof HookTimeout) {
-          return c.json({ code: 'HOOK_CANCELLED' as const, hook: err.hookName, reason: err.message }, 409)
+          return problem(c, 409, 'HOOK_CANCELLED', undefined, { hook: err.hookName, reason: err.message })
         }
         throw err
       }
@@ -579,10 +571,7 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
         scope: { kind: 'asset', name: initialAsset.name },
       })
       if (preResult.failed > 0) {
-        return c.json(
-          { code: 'AUDIT_FAILED' as const, message: 'Audit recording failed; upload refused (strict mode)' },
-          500,
-        )
+        return problem(c, 500, 'AUDIT_FAILED', 'Audit recording failed; upload refused (strict mode)')
       }
     }
 

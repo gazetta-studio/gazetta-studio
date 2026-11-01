@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
+import { ErrorResponseSchema } from '../src/admin-api/schemas/error.js'
 import { Hono } from 'hono'
 import { authMiddleware } from '../src/admin-api/middleware/auth.js'
 
@@ -32,8 +33,10 @@ describe('authMiddleware', () => {
 
     const res = await app.request('/api/test')
     expect(res.status).toBe(401)
-    const body = await res.json()
-    expect(body.error).toBe('Unauthorized')
+    expect(res.headers.get('content-type')).toBe('application/problem+json')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.code).toBe('UNAUTHENTICATED')
+    expect(body.detail).toBe('Unauthorized')
   })
 
   it('rejects requests with wrong token', async () => {

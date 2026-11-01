@@ -9,6 +9,7 @@
  * consumes to drive the resolve modal.
  */
 import { z } from 'zod'
+import { ErrorResponseSchema } from './error.js'
 import { ALIAS_TARGET_MESSAGE, aliasTargetIssue } from '../../runtime/archive-marker.js'
 
 /** An alias target, checked as the archive marker and `_redirects` will carry it. */
@@ -77,11 +78,11 @@ export const PurgeBlockedSchema = z.object({
 })
 export type PurgeBlocked = z.infer<typeof PurgeBlockedSchema>
 
-export const PurgeNotArchivedSchema = z.object({
+export const PurgeNotArchivedSchema = ErrorResponseSchema.extend({
   code: z.literal('NOT_ARCHIVED'),
-  // The admin client's deletePurge surfaces `error` on non-blocked
+  // The admin client's deletePurge surfaces `detail` on non-blocked
   // 409s as the refusal reason.
-  error: z.string(),
+  detail: z.string(),
 })
 export type PurgeNotArchived = z.infer<typeof PurgeNotArchivedSchema>
 

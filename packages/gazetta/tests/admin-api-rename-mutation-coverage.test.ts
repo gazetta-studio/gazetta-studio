@@ -42,11 +42,18 @@
  * `memoryStorage()` + a fresh `createAdminApp`. No module-level state.
  */
 import { beforeEach, describe, expect, it } from 'vitest'
+import { z } from 'zod'
+import { ErrorResponseSchema } from '../src/admin-api/schemas/error.js'
 import type { Hono } from 'hono'
 import { createAdminApp } from '../src/admin-api/index.js'
 import { createSourceContext } from '../src/admin-api/source-context.js'
 import { createHistoryAuditProvider, type AuditEvent } from '../src/audit/index.js'
 import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
+
+// A 400 with the schema's issues as a typed extension member.
+const InvalidBodySchema = ErrorResponseSchema.extend({
+  issues: z.array(z.object({ path: z.string(), message: z.string() })),
+})
 
 let app: Hono
 let storage: MemoryStorage
@@ -99,8 +106,8 @@ describe('Error message labels — pin PAGE_HANDLE.label / FRAGMENT_HANDLE.label
       body: JSON.stringify({ to: 'whatever' }),
     })
     expect(res.status).toBe(404)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('Page "missing" not found')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toBe('Page "missing" not found')
   })
 
   it('POST /api/fragments/missing/rename → 404 body uses "Fragment" label', async () => {
@@ -110,8 +117,8 @@ describe('Error message labels — pin PAGE_HANDLE.label / FRAGMENT_HANDLE.label
       body: JSON.stringify({ to: 'whatever' }),
     })
     expect(res.status).toBe(404)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('Fragment "missing" not found')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toBe('Fragment "missing" not found')
   })
 })
 
@@ -128,8 +135,8 @@ describe('Invalid-body handling — 400 branches', () => {
       body: '{ not json at all }',
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('Invalid JSON body')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toBe('Invalid JSON body')
   })
 
   it('malformed JSON on fragment rename → same 400 shape', async () => {
@@ -139,8 +146,8 @@ describe('Invalid-body handling — 400 branches', () => {
       body: '{ not json at all }',
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toBe('Invalid JSON body')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toBe('Invalid JSON body')
   })
 
   it('body missing required `to` field → 400 with structured issues[]', async () => {
@@ -154,11 +161,8 @@ describe('Invalid-body handling — 400 branches', () => {
       body: JSON.stringify({}),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as {
-      error: string
-      issues: Array<{ path: string; message: string }>
-    }
-    expect(body.error).toBe('Invalid request body')
+    const body = InvalidBodySchema.parse(await res.json())
+    expect(body.detail).toBe('Invalid request body')
     expect(Array.isArray(body.issues)).toBe(true)
     expect(body.issues.length).toBeGreaterThan(0)
     // The Zod error MUST name the missing field.
@@ -174,11 +178,8 @@ describe('Invalid-body handling — 400 branches', () => {
       body: JSON.stringify({ to: 42 }),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as {
-      error: string
-      issues: Array<{ path: string; message: string }>
-    }
-    expect(body.error).toBe('Invalid request body')
+    const body = InvalidBodySchema.parse(await res.json())
+    expect(body.detail).toBe('Invalid request body')
     const toIssue = body.issues.find(i => i.path === 'to')
     expect(toIssue).toBeDefined()
   })
@@ -191,11 +192,8 @@ describe('Invalid-body handling — 400 branches', () => {
       body: JSON.stringify({ to: '' }),
     })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as {
-      error: string
-      issues: Array<{ path: string; message: string }>
-    }
-    expect(body.error).toBe('Invalid request body')
+    const body = InvalidBodySchema.parse(await res.json())
+    expect(body.detail).toBe('Invalid request body')
     const toIssue = body.issues.find(i => i.path === 'to')
     expect(toIssue).toBeDefined()
   })

@@ -26,6 +26,8 @@ import { createContentRoot } from '../../content-root.js'
 import type { SourceContextResolver } from '../source-context.js'
 import { requireCapability } from '../middleware/capability.js'
 import type { AuditEnv } from '../middleware/audit.js'
+import { problem, problemFrom } from '../problem.js'
+import type { ErrorCode } from '../schemas/error.js'
 
 export function historyRoutes(
   resolve: SourceContextResolver,
@@ -75,7 +77,7 @@ export function historyRoutes(
         history: ReturnType<typeof createHistoryProvider>
         contentRoot: ReturnType<typeof createContentRoot>
       }
-    | { kind: 'err'; status: 400 | 409; body: { error: string } }
+    | { kind: 'err'; status: 400 | 409; body: { code: ErrorCode; message: string } }
 
   /**
    * Resolve the target + config + history provider for this request.
@@ -84,16 +86,20 @@ export function historyRoutes(
    */
   async function resolveHistory(targetName: string, projectSiteDir: string): Promise<ResolveResult> {
     if (!targetName) {
-      return { kind: 'err', status: 400, body: { error: 'Missing "target" query parameter' } }
+      return { kind: 'err', status: 400, body: { code: 'BAD_REQUEST', message: 'Missing "target" query parameter' } }
     }
     const t = await getTargets(projectSiteDir)
     const storage = t.get(targetName)
     const config = targetConfigs?.[targetName]
     if (!storage || !config) {
-      return { kind: 'err', status: 400, body: { error: `Unknown target: ${targetName}` } }
+      return { kind: 'err', status: 400, body: { code: 'BAD_REQUEST', message: `Unknown target: ${targetName}` } }
     }
     if (!isHistoryEnabled(config)) {
-      return { kind: 'err', status: 409, body: { error: `History disabled for target "${targetName}"` } }
+      return {
+        kind: 'err',
+        status: 409,
+        body: { code: 'CONFLICT', message: `History disabled for target "${targetName}"` },
+      }
     }
     const history = createHistoryProvider({ storage, retention: getHistoryRetention(config) })
     const contentRoot = createContentRoot(storage)
@@ -103,9 +109,9 @@ export function historyRoutes(
   app.get('/api/history', requireCapability('read:pages'), async c => {
     const source = await resolve(c.req.query('source'))
     const targetName = c.req.query('target')
-    if (!targetName) return c.json({ error: 'Missing "target" query parameter' }, 400)
+    if (!targetName) return problem(c, 400, 'BAD_REQUEST', 'Missing "target" query parameter')
     const resolved = await resolveHistory(targetName, source.projectSiteDir)
-    if (resolved.kind === 'err') return c.json(resolved.body, resolved.status)
+    if (resolved.kind === 'err') return problemFrom(c, resolved.status, resolved.body)
     const limit = Number(c.req.query('limit') ?? '50')
     const revisions = await resolved.history.listRevisions(limit)
     return c.json({ revisions })
@@ -114,9 +120,9 @@ export function historyRoutes(
   app.post('/api/history/undo', requireCapability('restore:history'), async c => {
     const source = await resolve(c.req.query('source'))
     const targetName = c.req.query('target')
-    if (!targetName) return c.json({ error: 'Missing "target" query parameter' }, 400)
+    if (!targetName) return problem(c, 400, 'BAD_REQUEST', 'Missing "target" query parameter')
     const resolved = await resolveHistory(targetName, source.projectSiteDir)
-    if (resolved.kind === 'err') return c.json(resolved.body, resolved.status)
+    if (resolved.kind === 'err') return problemFrom(c, resolved.status, resolved.body)
     const { history, contentRoot } = resolved
 
     // Undo = restore the revision just before head. Needs at least
@@ -124,7 +130,7 @@ export function historyRoutes(
     // a clear 409) otherwise.
     const list = await history.listRevisions(2)
     if (list.length < 2) {
-      return c.json({ error: 'Nothing to undo — no prior revision on this target' }, 409)
+      return problem(c, 409, 'CONFLICT', 'Nothing to undo — no prior revision on this target')
     }
     const restored = await restoreRevision({
       history,
@@ -151,10 +157,10 @@ export function historyRoutes(
     const source = await resolve(c.req.query('source'))
     const targetName = c.req.query('target')
     const revisionId = c.req.query('id')
-    if (!targetName) return c.json({ error: 'Missing "target" query parameter' }, 400)
-    if (!revisionId) return c.json({ error: 'Missing "id" query parameter' }, 400)
+    if (!targetName) return problem(c, 400, 'BAD_REQUEST', 'Missing "target" query parameter')
+    if (!revisionId) return problem(c, 400, 'BAD_REQUEST', 'Missing "id" query parameter')
     const resolved = await resolveHistory(targetName, source.projectSiteDir)
-    if (resolved.kind === 'err') return c.json(resolved.body, resolved.status)
+    if (resolved.kind === 'err') return problemFrom(c, resolved.status, resolved.body)
     const { history, contentRoot } = resolved
 
     try {
@@ -177,7 +183,7 @@ export function historyRoutes(
     } catch (err) {
       // readRevision throws ENOENT-style errors when the id doesn't
       // exist — treat as a 404 so clients can render a helpful message.
-      return c.json({ error: (err as Error).message }, 404)
+      return problem(c, 404, 'NOT_FOUND', (err as Error).message)
     }
   })
 

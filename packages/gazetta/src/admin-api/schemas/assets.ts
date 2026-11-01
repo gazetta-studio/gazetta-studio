@@ -12,6 +12,7 @@
  * class. No parallel client-only copy.
  */
 import { z } from 'zod'
+import { ErrorResponseSchema } from './error.js'
 import { AssetRefSchema } from '../../assets/refs.js'
 
 // Re-export the domain schema + type so admin-api consumers can get
@@ -42,26 +43,26 @@ export {
 } from '../../assets/errors.js'
 
 /**
- * Body of a 409 response on DELETE /api/assets/:name — emitted when the
+ * Problem body of a 409 response on DELETE /api/assets/:name — emitted when the
  * asset is still referenced by at least one page or fragment. `refs` is
  * the exact usage list the server found; the client renders it verbatim.
  */
-export const AssetInUseResponseSchema = z.object({
+export const AssetInUseResponseSchema = ErrorResponseSchema.extend({
   code: z.literal('ASSET_IN_USE'),
-  message: z.string(),
+  detail: z.string(),
   assetName: z.string(),
   refs: z.array(AssetRefSchema),
 })
 export type AssetInUseResponse = z.infer<typeof AssetInUseResponseSchema>
 
 /**
- * Body of a 409 response on POST /api/assets/:name/rename-to/:newName —
+ * Problem body of a 409 response on POST /api/assets/:name/rename-to/:newName —
  * emitted when `newName` already maps to an existing asset. The author
  * either picks a different name or uses replace-and-delete to merge.
  */
-export const AssetNameCollisionResponseSchema = z.object({
+export const AssetNameCollisionResponseSchema = ErrorResponseSchema.extend({
   code: z.literal('ASSET_NAME_COLLISION'),
-  message: z.string(),
+  detail: z.string(),
   newName: z.string(),
 })
 export type AssetNameCollisionResponse = z.infer<typeof AssetNameCollisionResponseSchema>
@@ -73,7 +74,7 @@ export type AssetNameCollisionResponse = z.infer<typeof AssetNameCollisionRespon
  * the alt input. Refusals are NOT errors — the API call succeeded.
  *
  * 503 (no adapter / unsupported MIME) and 502 (adapter call failed)
- * use the generic `{ code, message }` shape — see `AIErrorCode` in
+ * answer the problem+json shape (`ErrorResponseSchema`) — see `AIErrorCode` in
  * `ai/errors.ts` for the code values.
  */
 export const SuggestAltResponseSchema = z.object({

@@ -144,8 +144,14 @@ test.describe('Publish panel', () => {
     await page.route('**/admin/api/compare*', route =>
       route.fulfill({
         status: 500,
-        contentType: 'application/json',
-        body: JSON.stringify({ error: 'Storage unreachable' }),
+        contentType: 'application/problem+json',
+        body: JSON.stringify({
+          type: 'about:blank',
+          title: 'Internal Server Error',
+          status: 500,
+          code: 'INTERNAL',
+          detail: 'Storage unreachable',
+        }),
       }),
     )
     const panel = new PublishPanelPom(page)

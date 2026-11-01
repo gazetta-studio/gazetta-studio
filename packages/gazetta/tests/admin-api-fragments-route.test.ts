@@ -14,6 +14,8 @@
  * Each test builds a fresh `memoryStorage()` + app (rule 26).
  */
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
+import { ErrorResponseSchema } from '../src/admin-api/schemas/error.js'
 import type { Hono } from 'hono'
 import { createAdminApp } from '../src/admin-api/index.js'
 import { createSourceContext } from '../src/admin-api/source-context.js'
@@ -21,6 +23,11 @@ import type { AdminCache, CacheStats, InvalidationEvent } from '../src/cache/typ
 import { HookCancellation, HookRegistry } from '../src/hooks/index.js'
 import { createValidatorRegistry } from '../src/validation/registry.js'
 import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
+
+// A 400 with the schema's issues as a typed extension member.
+const InvalidBodySchema = ErrorResponseSchema.extend({
+  issues: z.array(z.object({ path: z.string(), message: z.string() })),
+})
 
 const SITE_NAME = 'fragments-997'
 const JSON_HEADERS = { 'Content-Type': 'application/json' }
@@ -169,8 +176,8 @@ describe('POST /api/fragments — response bodies', () => {
     const { app } = setup({})
     const res = await post(app, { name: 'x' })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as { error: string; issues: Array<{ path: string; message: string }> }
-    expect(body.error).toBe('Invalid request body')
+    const body = InvalidBodySchema.parse(await res.json())
+    expect(body.detail).toBe('Invalid request body')
     expect(body.issues).toHaveLength(1)
     expect(body.issues[0]?.path).toBe('template')
     expect(typeof body.issues[0]?.message).toBe('string')
@@ -197,7 +204,7 @@ describe('POST /api/fragments — response bodies', () => {
     const { app } = setup(HEADER)
     const res = await post(app, { name: 'header', template: 'header-layout' })
     expect(res.status).toBe(409)
-    expect(await res.json()).toEqual({ error: 'Fragment "header" already exists' })
+    expect(ErrorResponseSchema.parse(await res.json())).toMatchObject({ detail: 'Fragment "header" already exists' })
   })
 
   it('400 on an unknown onConflict mode names the mode', async () => {
@@ -206,7 +213,9 @@ describe('POST /api/fragments — response bodies', () => {
     })
     const res = await post(app, { name: 'header', template: 'header-layout' }, '?onConflict=frobnicate')
     expect(res.status).toBe(400)
-    expect(await res.json()).toEqual({ error: 'Invalid onConflict mode "frobnicate"' })
+    expect(ErrorResponseSchema.parse(await res.json())).toMatchObject({
+      detail: 'Invalid onConflict mode "frobnicate"',
+    })
   })
 })
 
@@ -246,21 +255,25 @@ describe('GET /api/fragments/:name — locale, target, archive fields', () => {
     const { app } = setup(HEADER)
     const res = await app.request('/api/fragments/header?locale=not_a_locale!')
     expect(res.status).toBe(400)
-    expect(await res.json()).toEqual({ error: 'Invalid locale code: "not_a_locale!"' })
+    expect(ErrorResponseSchema.parse(await res.json())).toMatchObject({
+      detail: 'Invalid locale code: "not_a_locale!"',
+    })
   })
 
   it('404 names the locale when neither the fragment nor its variant exists', async () => {
     const { app } = setup(HEADER)
     const res = await app.request('/api/fragments/missing?locale=fr')
     expect(res.status).toBe(404)
-    expect(await res.json()).toEqual({ error: 'Fragment "missing" locale "fr" not found' })
+    expect(ErrorResponseSchema.parse(await res.json())).toMatchObject({
+      detail: 'Fragment "missing" locale "fr" not found',
+    })
   })
 
   it('404 names the fragment when it does not exist', async () => {
     const { app } = setup(HEADER)
     const res = await app.request('/api/fragments/missing')
     expect(res.status).toBe(404)
-    expect(await res.json()).toEqual({ error: 'Fragment "missing" not found' })
+    expect(ErrorResponseSchema.parse(await res.json())).toMatchObject({ detail: 'Fragment "missing" not found' })
   })
 
   it('reads from the target named in ?target=', async () => {
@@ -356,16 +369,16 @@ describe('PUT /api/fragments/:name — response bodies + error mapping', () => {
     const { app } = setup(HEADER)
     const res = await put(app, 'header', { content: {} }, { query: '?locale=not_a_locale!' })
     expect(res.status).toBe(400)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toContain('not_a_locale!')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toContain('not_a_locale!')
   })
 
   it('404 on a missing fragment', async () => {
     const { app } = setup(HEADER)
     const res = await put(app, 'missing', { content: {} })
     expect(res.status).toBe(404)
-    const body = (await res.json()) as { error: string }
-    expect(body.error).toContain('missing')
+    const body = ErrorResponseSchema.parse(await res.json())
+    expect(body.detail).toContain('missing')
   })
 
   it('409 VALIDATION_FAILED carries the issues', async () => {
@@ -392,7 +405,15 @@ describe('PUT /api/fragments/:name — response bodies + error mapping', () => {
     const { app } = setup(HEADER, { hooks })
     const res = await put(app, 'header', { content: { title: 'New' } }, { headers: { 'x-request-id': 'req-9' } })
     expect(res.status).toBe(409)
-    expect(await res.json()).toEqual({ code: 'HOOK_CANCELLED', hook: 'deny', reason: 'nope' })
+    expect(res.headers.get('content-type')).toBe('application/problem+json')
+    expect(ErrorResponseSchema.parse(await res.json())).toEqual({
+      type: 'about:blank',
+      title: 'Conflict',
+      status: 409,
+      code: 'HOOK_CANCELLED',
+      hook: 'deny',
+      reason: 'nope',
+    })
     expect(seen).toEqual(['req-9'])
   })
 })

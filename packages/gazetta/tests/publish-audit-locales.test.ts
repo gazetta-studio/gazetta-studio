@@ -1,5 +1,6 @@
 /** #1329: audit the selected translation's manifest and rendered HTML. */
 import { describe, expect, it } from 'vitest'
+import { ErrorResponseSchema } from '../src/admin-api/schemas/error.js'
 import { createAdminApp } from '../src/admin-api/index.js'
 import { createSourceContext } from '../src/admin-api/source-context.js'
 import { createContentRoot } from '../src/content-root.js'
@@ -342,7 +343,8 @@ describe('publish audit translation HTML', () => {
       body: JSON.stringify({ target: 'staging', items: [item] }),
     })
     expect(audit.status).toBe(400)
-    expect((await audit.json()).error).toBeTypeOf('string')
+    expect(audit.headers.get('content-type')).toBe('application/problem+json')
+    expect(ErrorResponseSchema.parse(await audit.json()).detail).toBeTypeOf('string')
     expect([...target.dump().keys()]).toEqual([])
   })
 
