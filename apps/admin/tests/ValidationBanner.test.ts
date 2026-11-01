@@ -41,6 +41,21 @@ describe('ValidationBanner', () => {
     expect(wrapper.find('[data-testid="validation-banner"]').exists()).toBe(false)
   })
 
+  it('shows a schema issue with its field and component path (design-agent-access.md Q49)', () => {
+    useValidationIssuesStore().set([
+      {
+        validator: 'schema-conformance',
+        severity: 'error',
+        message: 'title: Invalid input: expected string, received undefined',
+        itemPath: 'pages/home/page.json',
+        contentPath: 'hero',
+      },
+    ])
+    const text = mountBanner().text()
+    expect(text).toContain('title: Invalid input')
+    expect(text).toContain('at hero')
+  })
+
   it('renders banner when issues are present', () => {
     const store = useValidationIssuesStore()
     store.set([ASSET_ISSUE])
