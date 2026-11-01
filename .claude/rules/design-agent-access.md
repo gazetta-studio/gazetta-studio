@@ -546,7 +546,7 @@ The `CLAUDE.md` import line and the trade-off: Decided: maintainer, 2026-11-01 (
 
 The binary is `gz`. It's published on npm as `@gazetta/cli` (the `@gazetta` scope is claimed now) and on Homebrew as `gazetta/tap/gz`, and a `gazetta-cli` copy of the binary ships for people who have Gazebo's robotics CLI, which is also called `gz` (in Debian and Ubuntu). The docs mention the clash.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1652)
 
 | Rejected | Why |
 |---|---|
@@ -557,7 +557,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 `gz auth login <url> [--name]` saves a profile per admin URL, as `gh` does for hosts; the first login becomes the default, and `--admin` or `GZ_ADMIN` picks another. With nothing set up, `gz` checks `localhost:3000` and only suggests `gz auth login http://localhost:3000`; it never connects silently.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1652)
 
 | Rejected | Why |
 |---|---|
@@ -568,7 +568,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 `gz` v1: `pages` and `fragments` `list`, `get`, `set` (`path=value`, `@file` or JSON), `edit` (stdin, or `$EDITOR` for people) and `create`; `templates schema`; `validate`; `preview` (prints the URL, Q11); `status` (unpublished changes); `publish`; `assets` `list`, `upload` and `alt`; `auth` and `elevate`; `skill` (Q40). Later: archive, rename, history, undo and rollback, redirects, bulk apply.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1652)
 
 | Rejected | Why |
 |---|---|
@@ -579,7 +579,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 Readable output by default; `--json` on request, with the admin API's error codes. Exit codes: 0 ok, 1 failure, 2 usage, 3 login or elevation needed, 4 conflict (edited by someone else), 5 not found. `gz` never prompts when it isn't run in a terminal, and every prompt has a flag.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1652)
 
 | Rejected | Why |
 |---|---|
@@ -589,7 +589,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 One tag runs goreleaser: binaries on GitHub Releases, the Homebrew tap, an install script (curl and PowerShell) that's enough for content creators without Node, and per-platform npm packages like esbuild's, for developers and the skill's drift test (Q8). `gz` uses the same version number as the `gazetta` package. winget and Scoop come later.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1652)
 
 | Rejected | Why |
 |---|---|
@@ -600,7 +600,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 Content creators have no `node_modules`, so the skill ships inside the binary: `gz skill` prints it and `gz skill install <dir>` writes it where the agent's client reads skills. It works offline and always matches the `gz` version; the agent installs it, as in Q34.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1652)
 
 | Rejected | Why |
 |---|---|
