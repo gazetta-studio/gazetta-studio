@@ -495,7 +495,7 @@ What counts, and when `gz` joins: Decided: maintainer, 2026-11-01 (#1649)
 
 A command (named in the #49 pass, for example `gazetta agents update`) rewrites the files Gazetta owns: `SKILL.md` and the marked `AGENTS.md` section, never the person's other text. `gazetta dev` prints a one-line hint when the installed skill is older than the package.
 
-Amended by Q34 (2026-11-01, #1650): Gazetta no longer writes `SKILL.md`, so the command rewrites only the marked `AGENTS.md` section from the package. The section carries the package version and tells the agent to reinstall the skill from `node_modules/gazetta/agents/` when its installed copy is older; Gazetta never touches files in client folders.
+Amended by Q34 (2026-11-01, #1650): Gazetta no longer writes `SKILL.md`, so the command rewrites only the marked `AGENTS.md` section from the package. The section carries the package version and tells the agent to reinstall the skill from `node_modules/gazetta/agents/` when its installed copy is older; Gazetta never touches files in client folders. Follows from this: `gazetta dev`'s hint compares the `AGENTS.md` section's version with the package, since Gazetta can't see the agent's copy.
 
 Decided: maintainer, 2026-11-01 (#1650)
 
