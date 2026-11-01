@@ -321,7 +321,7 @@ Decided: maintainer, 2026-11-01 (#1630)
 
 A grant keeps the role the person had when they approved the login: the server can't re-read their groups through a service token, while role changes in config apply at once. A grant lasts 30 days; then `gz` asks the person to approve a new code. A person whose role is removed can still edit through the CLI until the grant ends, unless an admin revokes it; elevations check the current role (cut 8, #1692).
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1693)
 
 | Rejected | Why |
 |---|---|
@@ -453,7 +453,7 @@ Decided: maintainer, 2026-11-01 (#1630)
 
 A refused approval is recorded as the approval's own action with a refusal outcome (`login-approve` with `forbidden` or `unauthenticated`), not as a separate action.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1693)
 
 | Rejected | Why |
 |---|---|
