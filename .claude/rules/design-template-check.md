@@ -58,6 +58,14 @@ CI checks content against the base branch's templates and the PR's templates, an
 
 Decided: maintainer, 2026-11-01 (#1666)
 
+The rule covers every check that fails `gazetta validate` (a missing fragment, asset or template, a circular fragment, a schema problem): any such error fails the PR only if the base branch didn't have it, and old ones are listed under "already broken".
+
+Decided: maintainer, 2026-11-01 (#1666)
+
+| Rejected | Why |
+|---|---|
+| Compare only schema problems with the base | Any other error, even one that existed before the PR, fails it, so an old missing fragment blocks every PR until someone fixes it |
+
 | Rejected | Why |
 |---|---|
 | Check only items using a changed template, no base run | A PR touching `hero` fails for an old, unrelated hero problem |
@@ -157,7 +165,7 @@ Decided: maintainer, 2026-11-01 (#1666)
 
 | Rejected | Why |
 |---|---|
-| Skip it with a note and pass | The maintainer chose the stricter rule |
+| Skip it with a note and pass | Its content came from a private target (usually local, in the repo), which the check reads anyway |
 
 A target that moves to public storage then breaks CI until the workflow drops it.
 
@@ -186,7 +194,7 @@ The report, per T1, T2, T4, T6 and T9, grouped by template:
 | Fix line (target content only) | "publish production → local, fix it here" |
 | Already broken (T2) | Listed separately; doesn't fail the PR |
 
-Nothing shows when nothing breaks: the summary says the check passed and how many items it checked.
+Nothing shows when nothing breaks: the summary says only that the check passed (team rule 23).
 
 ## Foundational checks
 
@@ -197,12 +205,12 @@ Nothing shows when nothing breaks: the summary says the check passed and how man
 - **Audit, Review, Hooks, Cache, Offline, Collaboration:** none.
 - **Render:** only with `--render` (T8).
 - **Validation:** `schema-conformance` becomes `error` at `cli` (T7); the base comparison is a new orchestration over the existing validators.
-- **Plugin:** plugin-contributed validators run in `gazetta validate` as today; only `schema-conformance` takes part in the base comparison.
+- **Plugin:** plugin-contributed validators run in `gazetta validate` as today; their errors are compared with the base like the others (T2).
 - **Multi-instance:** a stateless CLI run.
 
 ## Cut sequence
 
-[#1665](https://github.com/gazetta-studio/gazetta-studio/issues/1665) (templates that fail to load) lands before cut 1.
+[#1665](https://github.com/gazetta-studio/gazetta-studio/issues/1665) (templates that fail to load) lands before cut 1. #1664, also named when the order was chosen, was closed as wrong: `gazetta validate` already checks language versions through the background scanner.
 
 | # | What | Depends on | Test tier | Risk |
 |---|---|---|---|---|
@@ -220,7 +228,7 @@ No production users. After cut 1, a site whose content doesn't fit its templates
 
 ## Open questions
 
-1. How the base comparison matches a problem on base with one on head (item, content path and message, or item and field only) when a schema change rewords Zod's message: cut 3 decides and tests it.
+1. Which content the base run parses (the base branch's content, or the PR's), and how the base comparison matches a problem on base with one on head (item, content path and message, or item and field only) when a schema change rewords Zod's message: cut 3 decides and tests it.
 
 ## Future directions
 
