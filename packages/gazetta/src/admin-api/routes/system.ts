@@ -1,9 +1,39 @@
-import { Hono } from 'hono'
+import { createRoute, z } from '@hono/zod-openapi'
 import { streamSSE } from 'hono/streaming'
 import type { CacheStats, InvalidationEvent } from '../../cache/types.js'
-import type { CacheStatsResponse } from '../schemas/system.js'
+import { CacheStatsResponseSchema, type CacheStatsResponse } from '../schemas/system.js'
+import { TargetQuerySchema } from '../schemas/target-query.js'
 import type { SourceContextResolver } from '../source-context.js'
 import { requireCapability } from '../middleware/capability.js'
+import { apiApp, json, problems } from '../openapi.js'
+
+const cacheStats = createRoute({
+  method: 'get',
+  path: '/api/system/cache/stats',
+  summary: "The admin cache's statistics",
+  middleware: [requireCapability('configure:site')] as const,
+  request: { query: TargetQuerySchema },
+  responses: {
+    200: json(CacheStatsResponseSchema, 'A snapshot of the cache'),
+    ...problems({ 401: ['UNAUTHENTICATED'], 403: ['FORBIDDEN'] }),
+  },
+})
+
+const cacheInvalidations = createRoute({
+  method: 'get',
+  path: '/api/system/cache/invalidations',
+  summary: "The admin cache's invalidations, as they happen",
+  middleware: [requireCapability('configure:site')] as const,
+  request: { query: TargetQuerySchema },
+  responses: {
+    200: {
+      description:
+        'Server-sent events: one `ready` event, then an `invalidation` event (JSON `{ prefix, ... }`) per invalidation',
+      content: { 'text/event-stream': { schema: z.string() } },
+    },
+    ...problems({ 401: ['UNAUTHENTICATED'], 403: ['FORBIDDEN'] }),
+  },
+})
 
 /**
  * System routes — operational diagnostics for the admin process.
@@ -25,16 +55,16 @@ import { requireCapability } from '../middleware/capability.js'
  * one for `/api/pages`.
  */
 export function systemRoutes(resolve: SourceContextResolver) {
-  const app = new Hono()
+  const app = apiApp()
 
-  app.get('/api/system/cache/stats', requireCapability('configure:site'), async c => {
-    const source = await resolve(c.req.query('target'))
+  app.openapi(cacheStats, async c => {
+    const source = await resolve(c.req.valid('query').target)
     // `stats()` is optional on the AdminCache contract — providers
     // that don't expose it return a minimum-floor zero snapshot so
     // the response shape stays stable across providers.
     const stats: CacheStats = (await source.cache.stats?.()) ?? { hits: 0, misses: 0, size: 0 }
     const body: CacheStatsResponse = stats
-    return c.json(body)
+    return c.json(body, 200)
   })
 
   /**
@@ -71,8 +101,8 @@ export function systemRoutes(resolve: SourceContextResolver) {
    * instance events via Redis pub/sub and this route forwards them
    * unchanged.
    */
-  app.get('/api/system/cache/invalidations', requireCapability('configure:site'), async c => {
-    const source = await resolve(c.req.query('target'))
+  app.openapi(cacheInvalidations, async c => {
+    const source = await resolve(c.req.valid('query').target)
     return streamSSE(c, async stream => {
       // Buffer events between MemoryCache's synchronous emit and our
       // async stream.writeSSE. If the client is slow to read, events

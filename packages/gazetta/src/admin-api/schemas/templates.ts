@@ -40,3 +40,19 @@ export const TemplateImpactResponseSchema = z.object({
   affectedItemCount: z.number().int().nonnegative(),
 })
 export type TemplateImpactResponse = z.infer<typeof TemplateImpactResponseSchema>
+
+/**
+ * GET /api/templates/:name/schema — the template's content schema as JSON
+ * Schema, with the editor and field locations alongside.
+ */
+export const TemplateSchemaResponseSchema = z.looseObject({
+  hasEditor: z.boolean(),
+  /** Where the custom editor loads from, when the template has one. */
+  editorUrl: z.string().optional(),
+  /** Base URL of the project's custom fields. */
+  fieldsBaseUrl: z.string(),
+})
+export type TemplateSchemaResponse = z.infer<typeof TemplateSchemaResponseSchema>
+
+/** Path of the per-template routes. */
+export const TemplateNameParamSchema = z.object({ name: z.string() })
