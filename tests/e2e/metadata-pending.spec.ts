@@ -78,7 +78,7 @@ test.describe('SEO edits are saved with the page', () => {
       const metadata = { ...manifest.metadata, robots: 'noindex, nofollow', twitterCard: 'summary' }
       writeFileSync(file, JSON.stringify({ ...manifest, metadata }, null, 2))
       await expect
-        .poll(async () => (await (await fetch(`${testSite.baseURL}/admin/api/pages/home`)).json()).metadata)
+        .poll(async () => (await (await fetch(`${testSite.baseURL}/admin/api/v1/pages/home`)).json()).metadata)
         .toEqual(metadata)
 
       await openEditor(page, 'home')

@@ -2,7 +2,7 @@
  * Cut 6 — manual Redirect creation scenario.
  *
  * Surfaces crossed: SiteTree's "+ New redirect" button + CreateRedirectDialog
- * (kind toggle / from-input / to-input / submit) + POST /api/page-redirects +
+ * (kind toggle / from-input / to-input / submit) + POST /api/v1/page-redirects +
  * site-store reload + SiteTree's archive-toggle + greyed archived row with
  * alias suffix. No single feature test exercises the whole chain end-to-end.
  *
@@ -46,7 +46,7 @@ test.describe('Scenario — create a manual redirect, see it greyed in tree', ()
   // editor still open on old-about would refetch its preview and log a 404.
   test.afterEach(async ({ page, request, baseURL }) => {
     await page.goto('about:blank')
-    const res = await request.delete(`${baseURL}/admin/api/pages/old-about/purge`)
+    const res = await request.delete(`${baseURL}/admin/api/v1/pages/old-about/purge`)
     expect([200, 204, 404]).toContain(res.status())
   })
 
@@ -126,7 +126,9 @@ test.describe('Scenario — create a manual redirect, see it greyed in tree', ()
   test('opening a redirect shows the archive banner and no editor (#965)', async ({ page, request, baseURL }) => {
     // A redirect has no template. The editor used to request the schema of
     // template "undefined" and show "Failed to load" under the banner.
-    const res = await request.post(`${baseURL}/admin/api/page-redirects`, { data: { from: 'old-about', to: 'about' } })
+    const res = await request.post(`${baseURL}/admin/api/v1/page-redirects`, {
+      data: { from: 'old-about', to: 'about' },
+    })
     expect(res.status()).toBe(201)
     const schemaRequests: string[] = []
     page.on('request', r => {

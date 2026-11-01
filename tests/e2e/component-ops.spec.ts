@@ -22,7 +22,7 @@ async function saveAndWaitForReload(page: Page): Promise<void> {
     let writeSeen = false
     const onResponse = (response: import('@playwright/test').Response) => {
       const url = new URL(response.url())
-      if (!url.pathname.endsWith('/api/pages/home')) return
+      if (!url.pathname.endsWith('/api/v1/pages/home')) return
       const method = response.request().method()
       if (method === 'PUT') {
         writeSeen = true

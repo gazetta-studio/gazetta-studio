@@ -162,7 +162,7 @@ test.describe('Escape key behavior', () => {
 // failed, so the edits were lost. A failed save must keep them and stay.
 test.describe('A failed save in the dialog keeps the edits', () => {
   async function failEverySave(page: import('@playwright/test').Page) {
-    await page.route('**/admin/api/pages/**', route =>
+    await page.route('**/admin/api/v1/pages/**', route =>
       route.request().method() === 'PUT'
         ? route.fulfill({
             status: 500,
