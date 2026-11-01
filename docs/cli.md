@@ -57,6 +57,10 @@ npx gazetta publish production sites/main
 
 Creates a project in `dir` (default: the current directory), then runs `npm install` in it. It refuses when `dir` already has a `sites/` folder or a `site.config.ts`. If `npm install` fails, the files stay in place, npm's error is shown, and the command exits 1; run `npm install` in the project yourself to finish. The new site depends on a range of the CLI's own version. [Getting started](./getting-started.md) walks through it.
 
+`init` also writes an `AGENTS.md` with a section for coding agents (Claude Code, Codex, Copilot, Cursor). It tells the agent to install the Gazetta skill, which ships in the package at `node_modules/gazetta/agents/gazetta/`, into the folder its client reads skills from. The skill covers editing pages, fragments and translations, writing templates and schemas, and `gazetta validate`. It also lists the commands and admin routes an agent must never run itself (publishing, deploying, undo and rollback, purging, and deleting pages, fragments or assets) and must ask you about instead. Nothing enforces that list: on your own machine, only the agent and your agent client's own settings stop it. If `dir` already has an `AGENTS.md`, `init` adds the section at the end and leaves your text as it is.
+
+An existing project gets the same instructions by copying the section from `node_modules/gazetta/agents/AGENTS.md` (everything between the `gazetta:agents` start and end markers) into its own `AGENTS.md`.
+
 ### `gazetta dev [site]`
 
 Runs the site at `http://localhost:3000/` and the admin at `/admin`, rendering pages from the editing target on each request. It watches templates, content and `site.config.ts`, and reloads the preview when they change; a `site.config.ts` change takes effect without a restart. At start it prints the pages, fragments and a Settings block (project, site, templates, editing target); set `GAZETTA_QUIET=1` to leave the Settings block out. Flags: `--port`, `--host`. Stop it with Ctrl+C.

@@ -19,7 +19,8 @@
   },
   "files": [
     "dist/",
-    "admin-dist/"
+    "admin-dist/",
+    "agents/"
   ],
   "bin": {
     "gazetta": "dist/cli/index.js"
