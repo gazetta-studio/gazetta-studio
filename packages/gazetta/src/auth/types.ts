@@ -104,6 +104,8 @@ export interface Principal {
   channel?: 'browser' | 'token'
   /** The Gazetta token's id (`jti`), for token requests. */
   tokenId?: string
+  /** The grant the token was renewed from, for token requests. */
+  grantId?: string
   /**
    * For token requests, the person's own capabilities, as their browser
    * would have them. A route needing one that tokens can't use

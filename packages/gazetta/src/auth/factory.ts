@@ -175,3 +175,12 @@ export function customRolesFromManifest(rawAuthBlock: unknown): Record<string, R
   const parsed = AuthConfigSchema.safeParse(rawAuthBlock)
   return parsed.success ? flattenRoles(parsed.data.roles) : undefined
 }
+
+/** The configured elevation window in minutes (Q17), 15 when unset. */
+export function elevationMinutesFromManifest(rawAuthBlock: unknown): number {
+  if (rawAuthBlock === undefined) return DEFAULT_ELEVATION_MINUTES
+  const parsed = AuthConfigSchema.safeParse(rawAuthBlock)
+  return (parsed.success ? parsed.data.elevationMinutes : undefined) ?? DEFAULT_ELEVATION_MINUTES
+}
+
+export const DEFAULT_ELEVATION_MINUTES = 15

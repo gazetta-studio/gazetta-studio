@@ -29,5 +29,6 @@ export function principalFromToken(
     browserCapabilities,
     channel: 'token',
     tokenId: token.tokenId,
+    grantId: token.grantId,
   }
 }

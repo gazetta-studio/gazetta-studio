@@ -28,16 +28,11 @@ export function capTokenCapabilities(personCapabilities: ReadonlyArray<string>):
 }
 
 /**
- * Whether a request was refused only because it came with a token: the
- * capability is one tokens can't use, and the person has it.
+ * The withheld capabilities a capability set grants, as concrete names:
+ * what an elevation approved by this person would lift (Q17).
  */
-export function deniedOnlyForToken(
-  principal: { channel?: string; browserCapabilities?: ReadonlyArray<string> },
-  capability: string,
-): boolean {
-  return (
-    principal.channel === 'token' &&
-    isWithheldFromTokens(capability) &&
-    capabilityGrants(principal.browserCapabilities ?? [], capability)
+export function withheldCapabilitiesOf(capabilities: ReadonlyArray<string>): string[] {
+  return [...KNOWN_CAPABILITIES].filter(
+    cap => !cap.endsWith('*') && isWithheldFromTokens(cap) && capabilityGrants(capabilities, cap),
   )
 }

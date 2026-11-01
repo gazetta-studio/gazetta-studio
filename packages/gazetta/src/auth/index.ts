@@ -23,4 +23,10 @@ export { createTailscaleAuthProvider, type TailscaleConfig } from './providers/t
 export { ipMatchesAny, parseRule, parseRules, type ParsedRule } from './ip-match.js'
 export { capabilityGrants, expandRole, KNOWN_CAPABILITIES } from './capabilities.js'
 export { resolveRole, validateCustomRoles, type ResolveRoleArgs, type ResolvedRole } from './role-resolver.js'
-export { buildAuthProvider, customRolesFromManifest, resolveAuthProviderFromManifest } from './factory.js'
+export {
+  buildAuthProvider,
+  customRolesFromManifest,
+  DEFAULT_ELEVATION_MINUTES,
+  elevationMinutesFromManifest,
+  resolveAuthProviderFromManifest,
+} from './factory.js'
