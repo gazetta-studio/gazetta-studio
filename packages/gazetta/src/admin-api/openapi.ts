@@ -11,6 +11,7 @@
 import { OpenAPIHono, type RouteConfig, z } from '@hono/zod-openapi'
 import type { Context, Env, MiddlewareHandler } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
+import { RUN_ID_PATTERN } from '../request-origin.js'
 import { PROBLEM_CONTENT_TYPE, problem } from './problem.js'
 import { type ErrorCode, ErrorResponseSchema } from './schemas/error.js'
 
@@ -146,8 +147,8 @@ export function withRunHeader<D extends { paths?: Record<string, unknown>; compo
           in: 'header',
           required: false,
           description:
-            'The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.',
-          schema: { type: 'string', pattern: '^[A-Za-z0-9._-]{1,64}$' },
+            'The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.',
+          schema: { type: 'string', pattern: RUN_ID_PATTERN.source },
         },
       },
     },

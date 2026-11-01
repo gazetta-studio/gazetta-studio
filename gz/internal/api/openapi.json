@@ -262,10 +262,10 @@
         "name": "Gazetta-Run",
         "in": "header",
         "required": false,
-        "description": "The agent run this request belongs to: 1 to 64 letters, digits, \".\", \"_\" or \"-\". Recorded on the revision and audit event it writes; anything else answers 400.",
+        "description": "The agent run this request belongs to: 1 to 64 letters, digits, \".\", \"_\" or \"-\", other than \".\" and \"..\". Recorded on the revision and audit event it writes; anything else answers 400.",
         "schema": {
           "type": "string",
-          "pattern": "^[A-Za-z0-9._-]{1,64}$"
+          "pattern": "^(?!\\.\\.?$)[A-Za-z0-9._-]{1,64}$"
         }
       }
     }

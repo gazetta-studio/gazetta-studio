@@ -1127,7 +1127,7 @@ type GetApiHealth200JSONResponseBodyOk bool
 type GetApiV1AssetsParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1142,7 +1142,7 @@ type PostApiV1AssetsMultipartBody struct {
 type PostApiV1AssetsParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1159,7 +1159,7 @@ type PostApiV1Assets201JSONResponseBodyManifestVersion float64
 type DeleteApiV1AssetsNameParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1167,7 +1167,7 @@ type DeleteApiV1AssetsNameParams struct {
 type GetApiV1AssetsNameParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1184,7 +1184,7 @@ type PatchApiV1AssetsNameJSONBody struct {
 type PatchApiV1AssetsNameParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1194,7 +1194,7 @@ type DeleteApiV1AssetsNameLocaleBytesParams struct {
 	Locale *string `form:"locale,omitempty" json:"locale,omitempty"`
 	Theme  *string `form:"theme,omitempty" json:"theme,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1209,7 +1209,7 @@ type PostApiV1AssetsNameLocaleBytesParams struct {
 	Locale *string `form:"locale,omitempty" json:"locale,omitempty"`
 	Theme  *string `form:"theme,omitempty" json:"theme,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1220,7 +1220,7 @@ type PostApiV1AssetsNameLocaleBytes201JSONResponseBodyManifestVersion float64
 type PostApiV1AssetsNameRenameToNewNameParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1228,7 +1228,7 @@ type PostApiV1AssetsNameRenameToNewNameParams struct {
 type PostApiV1AssetsNameReplaceWithNewNameParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1237,7 +1237,7 @@ type PostApiV1AssetsNameSuggestAltParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Locale *string `form:"locale,omitempty" json:"locale,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1252,7 +1252,7 @@ type GetApiV1AuditParams struct {
 	Until     *string `form:"until,omitempty" json:"until,omitempty"`
 	Limit     *string `form:"limit,omitempty" json:"limit,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1267,7 +1267,7 @@ type GetApiV1Audit200JSONResponseBodyEventsScopeKind string
 
 // GetApiV1AuthCliSetupParams defines parameters for GetApiV1AuthCliSetup.
 type GetApiV1AuthCliSetupParams struct {
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1278,7 +1278,7 @@ type PostApiV1AuthElevationsJSONBody struct {
 
 // PostApiV1AuthElevationsParams defines parameters for PostApiV1AuthElevations.
 type PostApiV1AuthElevationsParams struct {
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1287,7 +1287,7 @@ type PostApiV1AuthElevationsJSONBodyScope string
 
 // DeleteApiV1AuthElevationsIdParams defines parameters for DeleteApiV1AuthElevationsId.
 type DeleteApiV1AuthElevationsIdParams struct {
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1298,19 +1298,19 @@ type PostApiV1AuthGrantsJSONBody struct {
 
 // PostApiV1AuthGrantsParams defines parameters for PostApiV1AuthGrants.
 type PostApiV1AuthGrantsParams struct {
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // DeleteApiV1AuthGrantsIdParams defines parameters for DeleteApiV1AuthGrantsId.
 type DeleteApiV1AuthGrantsIdParams struct {
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // GetApiV1AuthKeysParams defines parameters for GetApiV1AuthKeys.
 type GetApiV1AuthKeysParams struct {
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1328,13 +1328,13 @@ type PostApiV1AuthLoginsJSONBody struct {
 
 // PostApiV1AuthLoginsParams defines parameters for PostApiV1AuthLogins.
 type PostApiV1AuthLoginsParams struct {
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // GetApiV1AuthLoginsCodeParams defines parameters for GetApiV1AuthLoginsCode.
 type GetApiV1AuthLoginsCodeParams struct {
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1349,7 +1349,7 @@ type GetApiV1AuthLoginsCode200JSONResponseBodyState string
 
 // PostApiV1AuthLoginsCodeApproveParams defines parameters for PostApiV1AuthLoginsCodeApprove.
 type PostApiV1AuthLoginsCodeApproveParams struct {
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1358,7 +1358,7 @@ type PostApiV1AuthLoginsCodeApprove200JSONResponseBodyState string
 
 // PostApiV1AuthLoginsCodeDenyParams defines parameters for PostApiV1AuthLoginsCodeDeny.
 type PostApiV1AuthLoginsCodeDenyParams struct {
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1372,7 +1372,7 @@ type PostApiV1AuthLoginsCodeRedeemJSONBody struct {
 
 // PostApiV1AuthLoginsCodeRedeemParams defines parameters for PostApiV1AuthLoginsCodeRedeem.
 type PostApiV1AuthLoginsCodeRedeemParams struct {
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1418,7 +1418,7 @@ type PostApiV1AuthTokensJSONBody struct {
 
 // PostApiV1AuthTokensParams defines parameters for PostApiV1AuthTokens.
 type PostApiV1AuthTokensParams struct {
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1427,7 +1427,7 @@ type GetApiV1CompareParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Source *string `form:"source,omitempty" json:"source,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1437,7 +1437,7 @@ type GetApiV1DependentsParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Source *string `form:"source,omitempty" json:"source,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1450,7 +1450,7 @@ type PostApiV1FetchJSONBody struct {
 
 // PostApiV1FetchParams defines parameters for PostApiV1Fetch.
 type PostApiV1FetchParams struct {
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1458,7 +1458,7 @@ type PostApiV1FetchParams struct {
 type GetApiV1FieldsParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1473,7 +1473,7 @@ type PostApiV1FragmentRedirectsParams struct {
 	Target     *string `form:"target,omitempty" json:"target,omitempty"`
 	OnConflict *string `form:"onConflict,omitempty" json:"onConflict,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1487,7 +1487,7 @@ type PostApiV1FragmentRedirects201JSONResponseBodyOk bool
 type GetApiV1FragmentsParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1502,7 +1502,7 @@ type PostApiV1FragmentsParams struct {
 	Target     *string `form:"target,omitempty" json:"target,omitempty"`
 	OnConflict *string `form:"onConflict,omitempty" json:"onConflict,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1517,7 +1517,7 @@ type DeleteApiV1FragmentsNameParams struct {
 	Force     *string `form:"force,omitempty" json:"force,omitempty"`
 	Permanent *string `form:"permanent,omitempty" json:"permanent,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1552,7 +1552,7 @@ type GetApiV1FragmentsNameParams struct {
 	Locale     *string `form:"locale,omitempty" json:"locale,omitempty"`
 	XRequestId *string `json:"x-request-id,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1587,7 +1587,7 @@ type PutApiV1FragmentsNameParams struct {
 	XRequestId *string `json:"x-request-id,omitempty"`
 	IfMatch    *string `json:"if-match,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1603,7 +1603,7 @@ type PatchApiV1FragmentsNameAliasJSONBody struct {
 type PatchApiV1FragmentsNameAliasParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1620,7 +1620,7 @@ type PostApiV1FragmentsNameArchiveParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Force  *string `form:"force,omitempty" json:"force,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1632,7 +1632,7 @@ type DeleteApiV1FragmentsNamePurgeParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Force  *string `form:"force,omitempty" json:"force,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1650,7 +1650,7 @@ type PostApiV1FragmentsNameRenameParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Force  *string `form:"force,omitempty" json:"force,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1661,7 +1661,7 @@ type PostApiV1FragmentsNameRename200JSONResponseBodyOk bool
 type PostApiV1FragmentsNameUnarchiveParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1674,7 +1674,7 @@ type GetApiV1HistoryParams struct {
 	Source *string `form:"source,omitempty" json:"source,omitempty"`
 	Limit  *string `form:"limit,omitempty" json:"limit,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1684,7 +1684,7 @@ type PostApiV1HistoryRestoreParams struct {
 	Source *string `form:"source,omitempty" json:"source,omitempty"`
 	Id     *string `form:"id,omitempty" json:"id,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1693,13 +1693,13 @@ type PostApiV1HistoryUndoParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Source *string `form:"source,omitempty" json:"source,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // GetApiV1MeParams defines parameters for GetApiV1Me.
 type GetApiV1MeParams struct {
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1714,7 +1714,7 @@ type PostApiV1PageRedirectsParams struct {
 	Target     *string `form:"target,omitempty" json:"target,omitempty"`
 	OnConflict *string `form:"onConflict,omitempty" json:"onConflict,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1728,7 +1728,7 @@ type PostApiV1PageRedirects201JSONResponseBodyOk bool
 type GetApiV1PagesParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1744,7 +1744,7 @@ type PostApiV1PagesParams struct {
 	Target     *string `form:"target,omitempty" json:"target,omitempty"`
 	OnConflict *string `form:"onConflict,omitempty" json:"onConflict,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1759,7 +1759,7 @@ type DeleteApiV1PagesNameParams struct {
 	Force     *string `form:"force,omitempty" json:"force,omitempty"`
 	Permanent *string `form:"permanent,omitempty" json:"permanent,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1794,7 +1794,7 @@ type GetApiV1PagesNameParams struct {
 	Locale     *string `form:"locale,omitempty" json:"locale,omitempty"`
 	XRequestId *string `json:"x-request-id,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1833,7 +1833,7 @@ type PutApiV1PagesNameParams struct {
 	XRequestId *string `json:"x-request-id,omitempty"`
 	IfMatch    *string `json:"if-match,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1859,7 +1859,7 @@ type PatchApiV1PagesNameAliasJSONBody struct {
 type PatchApiV1PagesNameAliasParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1876,7 +1876,7 @@ type PostApiV1PagesNameArchiveParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Force  *string `form:"force,omitempty" json:"force,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1888,7 +1888,7 @@ type DeleteApiV1PagesNamePurgeParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Force  *string `form:"force,omitempty" json:"force,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1906,7 +1906,7 @@ type PostApiV1PagesNameRenameParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 	Force  *string `form:"force,omitempty" json:"force,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1917,7 +1917,7 @@ type PostApiV1PagesNameRename200JSONResponseBodyOk bool
 type PostApiV1PagesNameUnarchiveParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1935,7 +1935,7 @@ type PostApiV1PublishJSONBody struct {
 type PostApiV1PublishParams struct {
 	XRequestId *string `json:"x-request-id,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1952,7 +1952,7 @@ type PostApiV1PublishAuditJSONBody struct {
 type PostApiV1PublishAuditParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1970,7 +1970,7 @@ type PostApiV1PublishStreamJSONBody struct {
 type PostApiV1PublishStreamParams struct {
 	XRequestId *string `json:"x-request-id,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -1978,7 +1978,7 @@ type PostApiV1PublishStreamParams struct {
 type GetApiV1SiteParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -2001,7 +2001,7 @@ type GetApiV1Site200JSONResponseBody struct {
 type GetApiV1SystemCacheInvalidationsParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -2009,13 +2009,13 @@ type GetApiV1SystemCacheInvalidationsParams struct {
 type GetApiV1SystemCacheStatsParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
 // GetApiV1TargetsParams defines parameters for GetApiV1Targets.
 type GetApiV1TargetsParams struct {
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -2029,7 +2029,7 @@ type GetApiV1Targets200JSONResponseBodyType string
 type GetApiV1TemplatesParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -2037,7 +2037,7 @@ type GetApiV1TemplatesParams struct {
 type GetApiV1TemplatesNameImpactParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -2048,7 +2048,7 @@ type GetApiV1TemplatesNameImpact200JSONResponseBodyItemsKind string
 type GetApiV1TemplatesNameSchemaParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
 
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
@@ -2062,7 +2062,7 @@ type GetApiV1TemplatesNameSchema200JSONResponseBody struct {
 
 // GetApiV1ValidationIssuesParams defines parameters for GetApiV1ValidationIssues.
 type GetApiV1ValidationIssuesParams struct {
-	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-". Recorded on the revision and audit event it writes; anything else answers 400.
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
