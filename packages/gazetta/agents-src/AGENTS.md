@@ -23,6 +23,7 @@ Never run these; ask the person to:
 - `POST /api/v1/assets/:name/replace-with/:newName`
 - `POST /api/v1/auth/logins/:code/approve`
 - `POST /api/v1/auth/logins/:code/deny`
+- `POST /api/v1/auth/grants`
 
 Never approve a publish or review request on the person's behalf.
 <!-- gazetta:agents end -->
