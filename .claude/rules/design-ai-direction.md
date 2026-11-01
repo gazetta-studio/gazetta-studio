@@ -91,7 +91,7 @@ Decided: maintainer, 2026-10-31 (#1620)
 
 `docs/actor-scenarios.md` gains an Operator scenario: review and publish a batch an agent made, per field, reverting one item ([#1619](https://github.com/gazetta-studio/gazetta-studio/issues/1619)). Agents act for one of the four actors, as the person who signed them in, with an edit-only token: they can't publish unless that person elevates (`design-agent-access.md` Q12); they aren't a fifth actor.
 
-Decided: maintainer, 2026-10-31 (#1620); the capability wording corrected by the maintainer the same day, after the first answer rested on a misstated ROADMAP decision. Identity changed by the maintainer on 2026-11-01 (#<PR>): agents act as their person, not as their own principal.
+Decided: maintainer, 2026-10-31 (#1620); the capability wording corrected by the maintainer the same day, after the first answer rested on a misstated ROADMAP decision. Identity changed by the maintainer on 2026-11-01 (#1630): agents act as their person, not as their own principal.
 
 | Rejected | Why |
 |---|---|

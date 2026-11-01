@@ -220,7 +220,7 @@ Open for the #49 pass (product owner's note): which URLs (the preview of a page 
 
 An agent signs in as the person using it; there is no separate agent identity. Any token used outside the browser (the Go CLI, the API, MCP) can edit at most. Publishing or deleting through such a token needs a short elevation the person approves in the admin (for example `gz elevate`, showing a pin to confirm there). Without an elevation, a CLI publish becomes a publish request the person confirms in the admin. Each save records the way it came in (browser or CLI token) and a run id, so an agent's run can be reviewed and undone. Logging in uses the same pin flow (`gz auth login`).
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1630)
 
 | Rejected | Why |
 |---|---|
@@ -230,7 +230,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 This replaces the "own principal" part of `design-ai-direction.md` Q6 and of ROADMAP's starting decision for this pass; "can't publish by default" stays.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1630)
 
 | Rejected | Why |
 |---|---|
@@ -240,7 +240,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 On a hosted admin, the platform's login layer (Cloudflare Access, Easy Auth, ALB, Tailscale) authenticates the person; Gazetta identifies the user from it and issues a Gazetta token. Asked how the CLI's requests get past the login layer, the maintainer answered "we use only login layer".
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1630)
 
 | Rejected | Why |
 |---|---|
