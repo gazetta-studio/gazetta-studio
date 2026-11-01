@@ -766,3 +766,34 @@ Follows from Q1–Q51.
 - ROADMAP's "MCP server design pass" becomes "Agent access design pass" (#49), and "MCP server build" becomes "Agent access build".
 - The skill (#1622) is the first step, in Now; the Deferred row for agent instructions goes.
 - The #49 pass designs: the agent token and elevation flow (Q12–Q30), the remote MCP server's sign-in (Q28), the run review routes (`design-ai-direction.md` Q2), page search, the thin CLI's later commands (Q37), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract (routes, the full error-code list, moving routes to OpenAPI with schema parsing), the v1 cut-off (Q5), the bulk save's item cap, how retention groups a run's revisions (Q51), where the per-run sidecar index lives (a state folder registry entry, not safe on public targets, `design-public-storage.md` Q7), the `AuditEvent` and revision fields in `design-audit.md` and `history.ts` (Q47), the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
+
+## Cut sequence
+
+The build of Q12–Q51. The MCP server, the live view of agents' changes and page search are designed later; they come after the CLI anyway (Q1).
+
+| # | What | Depends on | Test tier | Risk |
+|---|---|---|---|---|
+| 1 | Every route answers errors as problem+json, with every code in the error-code schema; the admin UI handles it (Q45) | — | api-first | Medium |
+| 2 | Schema check at save for the components a save touches (Q49) | — | api-first | Medium |
+| 3 | Routes move to `@hono/zod-openapi`, every body parsed with its schema; the OpenAPI document is generated (Q44, Q5) | 1 | api-first | Medium-high |
+| 4 | `/api/v1` prefix, `GET /api/version`, deprecation headers; the admin UI uses v1 (Q42, Q43) | 3 | api + e2e | Medium |
+| 5 | History revisions record author, channel and run id; audit events get the same fields, with the `design-audit.md` update (Q47) | — | api-first | Low |
+| 6 | Per-run index (a registered state folder, not on public targets); retention counts a run as one entry (Q48, Q51) | 5 | api-first | Medium |
+| 7 | Gazetta tokens: pin login and approve page, grant records, signing key, `Gazetta-Token` header, edit-only enforcement, auth audit events (Q12, Q13, Q16, Q19, Q21, Q25–Q27) | 4 | api-first | High |
+| 8 | Elevation: approve, 15 minutes, production separate, inline elevation on publish, approvals only while elevated (Q17, Q18, Q20, Q29) | 7 | api-first | High |
+| 9 | Login-layer support: Cloudflare service tokens, Entra device code, ALB RS256 with public keys (Q15, Q23) | 7 | integration | Medium-high |
+| 10 | Bulk save `POST /api/v1/saves`, all or nothing (Q46) | 4, 6 | api-first | Medium |
+| 11 | Revert a run item by item, with skip-and-report (Q48, Q50) | 6 | api-first | Medium |
+| 12 | `gz` skeleton: Go module, goreleaser, profiles, `gz auth login`, version check (Q35, Q36, Q39, Q43) | 7 | integration | Medium |
+| 13 | `gz` content commands, output and exit codes, run id (Q37, Q38, Q22) | 10, 12 | integration | Medium |
+| 14 | `gz` publish, elevate, assets and skill; `gz` entries on the never-run list (Q37, Q40, Q41, Q32) | 8, 13 | integration | Medium |
+| 15 | `gazetta agents update` and the `gazetta dev` warning (Q33) | — | integration | Low |
+| 16 | Docs: content creators with `gz`, operators per platform, the API reference | 14 | docs | Low |
+
+cut-planner files them one at a time. The Go cuts (12–14) go to the REVIEW PRS session, since the bots can't check Go yet (Q8), and the release workflow part of cut 12 is a maintainer PR (bots can't push workflow files). Cuts 1, 2, 5 and 15 can start at once.
+
+Decided: maintainer, 2026-11-01 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| All server cuts (1–11) before any `gz` work | Slower to a usable CLI |
