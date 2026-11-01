@@ -713,6 +713,15 @@ Decided: maintainer, 2026-11-01 (#1654)
 | A date header, Stripe and GitHub style (`Gazetta-Version: 2026-11-01`) | The server keeps every past version working, machinery a self-hosted product can't easily carry |
 | No API version; the `gazetta` package version decides | Any breaking change breaks older `gz` |
 
+`GET /api/health` sits outside the prefix too, next to `/api/version`: a client checks it before it knows which major to use, and `gz`'s local admin probe (Q36) and the admin's offline heartbeat call it.
+
+Decided: maintainer, 2026-11-01 (#1699)
+
+| Rejected | Why |
+|---|---|
+| `/api/healthz` | Kubernetes, which made the name common, has deprecated `/healthz` since v1.16 in favour of `/livez` and `/readyz` |
+| `/api/v1/health`, as cut 4 shipped it | A client must already know the major to reach it; it broke `gz`'s local admin probe (#1696) |
+
 ### Q43 — Compatibility follows GitHub's rules, with a 6-month deprecation window
 
 Breaking changes are those on GitHub's list (removed fields, new required inputs, changed types); new error codes and enum values aren't breaking, and `gz` must accept unknown ones. A deprecation lasts at least two minor releases or 6 months, whichever is longer, with `Deprecation` and `Sunset` headers. `GET /api/version` lists the supported majors, and the exact `gazetta` version only to a signed-in caller (Directus exposing its version without sign-in was CVE-2025-53887); `gz` checks it at login.
