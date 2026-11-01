@@ -283,7 +283,7 @@ Decided: maintainer, 2026-11-01 (#1630)
 
 ### Q16 — Short-lived signed tokens plus a grant record
 
-A signed token lasts about 15 minutes and is renewed from one stored grant per `gz auth login`, in a private `.gazetta/auth/` folder on the source (a private target, like the audit events in Q26), registered as not safe on public targets (`design-public-storage.md` Q5, Q7). API calls read no storage; deleting the grant ends access within 15 minutes; the signing key is an environment secret shared by all instances.
+A signed token lasts about 15 minutes and is renewed from one stored grant per `gz auth login`, in a private `.gazetta/auth/` folder; as a new `.gazetta/` folder it isn't written on public targets (`design-public-storage.md` Q5, Q7). API calls read no storage; deleting the grant ends access within 15 minutes; the signing key is an environment secret shared by all instances.
 
 Decided: maintainer, 2026-11-01 (#1630)
 
@@ -418,9 +418,9 @@ Decided: maintainer, 2026-11-01 (#1630)
 | Gazetta acts as the OAuth server now | The `/mcp` endpoint would have to be let through the login layer, against Q13 |
 | A local MCP server only | Chat apps without a local MCP (Claude.ai on the web, ChatGPT) couldn't use it |
 
-### Q29 — Publishing without an elevation starts one and waits
+### Q29 — Publishing without an elevation: wait for one, or create the request
 
-On a target that doesn't need approval, `gz publish` (and delete) without an elevation shows a code and a link, waits up to the code's 10 minutes (Q21) for the person's approval in the admin, then publishes; the elevation then lasts its 15 minutes (Q17). `--no-wait` and CI refuse at once with the message. `gz elevate` stays, for elevating ahead of time. On a target that needs approval, an un-elevated publish creates the request directly, without an elevation: the request already waits for a person's approval. This replaces the first version of Q12, under which every un-elevated CLI publish became a publish request.
+On a target that doesn't need approval, `gz publish` (and delete) without an elevation shows a code and a link, waits up to the code's 10 minutes (Q21) for the person's approval in the admin, then publishes; the elevation then lasts its 15 minutes (Q17). There, `--no-wait` and CI refuse at once with the message. `gz elevate` stays, for elevating ahead of time. On a target that needs approval, an un-elevated publish creates the request directly, without an elevation: the request already waits for a person's approval. This replaces the first version of Q12, under which every un-elevated CLI publish became a publish request.
 
 Decided: maintainer, 2026-11-01 (#1630)
 
