@@ -12,16 +12,18 @@ export const RevisionOperationSchema = z.enum(['save', 'publish', 'rollback'])
 export type RevisionOperation = z.infer<typeof RevisionOperationSchema>
 
 /** Summary of a single revision — server emits this from /history. */
-export const RevisionSummarySchema = z.object({
-  id: z.string(),
-  timestamp: z.string(),
-  operation: RevisionOperationSchema,
-  author: z.string().optional(),
-  source: z.string().optional(),
-  items: z.array(z.string()),
-  message: z.string().optional(),
-  restoredFrom: z.string().optional(),
-})
+export const RevisionSummarySchema = z
+  .object({
+    id: z.string(),
+    timestamp: z.string(),
+    operation: RevisionOperationSchema,
+    author: z.string().optional(),
+    source: z.string().optional(),
+    items: z.array(z.string()),
+    message: z.string().optional(),
+    restoredFrom: z.string().optional(),
+  })
+  .meta({ id: 'RevisionSummary' })
 export type RevisionSummary = z.infer<typeof RevisionSummarySchema>
 
 /** Response body for GET /api/history. */
