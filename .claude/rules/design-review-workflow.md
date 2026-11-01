@@ -479,12 +479,13 @@ State lives in GitHub sub-issue close-state; this table is intent only (no statu
 - Cut 18 depends on 7 and 13 because the review hooks fire in cut 7's review routes and cut 13's approval routes. Cut 21 depends on 17 as well as 13 because it extends cut 17's `/api/reviews?action=` route with `publish-pending`.
 - Cut 17 is the cross-content queue — distinct from cut 14's per-content gate (the UX-grill walk surfaced this split).
 - Cut 20 adds **Agent B visual self-check + PR screenshot embed** (per [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md) "validation stack" + "Screenshots embedded in the PR"): the reviewer screenshots each new/changed story, judges it against the design-doc state table (factoring into APPROVE/REJECT), **and embeds those screenshots in the PR body so the human reviewer sees rendered states inline.** The self-check catches *gross* visual failures (invisible element, overflow, collapsed layout) — advisory bot-loop, **not** a CI gate and **not** pixel-regression (LLM-judges-prose, no baseline; the real visual gate stays human PR review). The PR embed **uploads the screenshots as GitHub Release assets** (`gh release upload`, rolling `bot-screenshots` tag) and embeds them inline via the public `…/releases/download/…` URLs (per [ADR-0016](../../docs/adr/0016-storybook-for-bot-executable-ux-specs.md): token-only, official API, public-served raw bytes that render inline). **The bytes never touch `main`** — which is *why* this beats the feature-branch-commit option (whose commits would merge into `main`'s history under squash/rebase/merge even though the branch is deleted). **Cleanup by reconciliation:** each feature-bot run starts by deleting the assets of cuts whose PR is merged or closed (`gh release delete-asset`); a PR-close trigger would need a workflow file bots can't push (#840), so closed PRs' screenshots linger up to a week. Best-effort with a mandatory fallback: on upload failure the PR opens without images + a note, never blocked; a cleanup failure never blocks the merge. UX cuts 11 + 14 depend on it. Depends only on Cut 10 (needs `build-storybook` working). Revised 2026-10-18: everything runs from bot code, no workflow edit (#535).
+- Cut 19 absorbs the old Cut 15 docs + the consolidation work (retiring the impl doc per [ADR-0015](../../docs/adr/0015-impl-doc-artifact-retires.md)).
 
 Cut 20 follow-ups ([#1230](https://github.com/gazetta-studio/gazetta-studio/issues/1230), after the review of #1225):
 - **A Storybook build the cut broke is a finding.** When the build fails and its error names a file the cut changed, Agent B gets it as a finding and can reject; a build failure that names no changed file stays an infrastructure skip.
 - **Light and dark.** Each story is captured in the light and the dark theme at 1280×800, so the 40-shot cap covers 20 stories.
 - **Stylesheet-only cuts capture a fixed sample.** A cut that changes only stylesheets Storybook's preview imports (`tokens.css`, `base.css`) affects no story file, so the check captures a fixed set of representative stories, one per component, up to the cap.
-- **The reviewer prompt is validated by reading, not replay.** The first UX cut's Agent B transcript is read to confirm it used the screenshots sensibly; replay isn't extended to feature-bot for this.
+- **The reviewer prompt is validated by reading, not replay.** The first UX cut's Agent B transcript is read to confirm it used the screenshots sensibly, and fixes are filed from it; replay isn't extended to feature-bot for this.
 
 Decided: maintainer, 2026-11-01 (#1636)
 
@@ -496,7 +497,6 @@ Decided: maintainer, 2026-11-01 (#1636)
 | Capture every story up to the cap for a stylesheet-only cut | Stories later in the index are never seen |
 | Capture nothing for a stylesheet-only cut | Relies on CI's tests alone |
 | Extend replay to feature-bot's reviewer prompt | More bot tooling before any UX cut has run |
-- Cut 19 absorbs the old Cut 15 docs + the consolidation work (retiring the impl doc per [ADR-0015](../../docs/adr/0015-impl-doc-artifact-retires.md)).
 
 ## Migration
 
