@@ -98,7 +98,7 @@ Decided: maintainer, 2026-10-31 (#1623)
 | A separate skills repo and plugin | A second release to keep in step with the CLI |
 | `AGENTS.md` lines only, until the MCP server ships | Delays the cheapest, most-adopted piece behind the most uncertain one |
 
-Amended by Q34 (2026-11-01, #<PR>): `gazetta init` writes only the `AGENTS.md` section, and the agent installs the skill from the package.
+Amended by Q34 (2026-11-01, #1650): `gazetta init` writes only the `AGENTS.md` section, and the agent installs the skill from the package.
 
 The skill covers both jobs a coding agent does in a Gazetta project: editing content, and writing templates and schemas (the template contract, Zod schemas, `Content<T>`, custom editors), each part with its drift check.
 
@@ -506,7 +506,7 @@ Decided: maintainer, 2026-11-01 (#1649)
 
 No single folder reaches every coding agent (Claude Code reads `.claude/skills/`, Codex `.agents/skills/`, Copilot and Cursor either; checked against their docs 2026-11-01). So `gazetta init` writes only the marked `AGENTS.md` section, which tells the agent to install the Gazetta skill from `node_modules/gazetta/agents/` into its own skills folder. Each agent puts it where its client reads it, the version always matches the installed package, and it works offline. Until Q33's refresh command ships, existing projects copy the `AGENTS.md` section from the package; the docs say how.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1650)
 
 | Rejected | Why |
 |---|---|
