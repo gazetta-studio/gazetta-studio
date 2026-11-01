@@ -23,7 +23,7 @@
 // API is relative to the CMS base path. `import.meta.env.BASE_URL` resolves
 // to `/admin/`, `/cms/`, or `/` depending on how the admin SPA is mounted.
 // The admin uses the newest API major; other unprefixed `/api/...` paths answer 404.
-/** Routes outside the versioned API: `/api/version` and `/api/health` (Q43). */
+/** Routes outside the versioned API: `/api/version` (Q43) and `/api/health` (Q42). */
 export const UNVERSIONED_API_BASE = (import.meta.env.BASE_URL || '/').replace(/\/$/, '') + '/api'
 export const API_BASE = `${UNVERSIONED_API_BASE}/v1`
 

@@ -540,7 +540,7 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   )
   app.route(API_PREFIX, api)
   // Outside the versioned API: preview (Q5), and the version and health
-  // routes, which a client calls before it knows which major to use (Q43).
+  // routes, which a client calls before it knows which major to use (Q42, Q43).
   app.route('/', previewRoutes(resolveSource, templatesDir))
   app.route('/', versionRoutes())
   app.route('/', healthRoutes())
