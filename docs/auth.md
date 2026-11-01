@@ -261,6 +261,44 @@ To change the key, move the old value to `GAZETTA_SIGNING_KEY_PREVIOUS` and set 
 
 Grants and elevations live in the editing target's storage, in `.gazetta/auth/`. They hold who signed in and from which machine, never a usable secret. `gazetta state remove` deletes them. If the editing target's storage is public, sign-in stays off.
 
+### Behind each login layer
+
+The client needs a credential the login layer accepts, and one Gazetta can tell apart from your browser. On its own, that credential names nobody: requests that need an identity answer `401` until they also carry a Gazetta token, and it can never approve a sign-in.
+
+**Cloudflare Access.** The client uses a [service token](https://developers.cloudflare.com/cloudflare-one/identity/service-tokens/) and sends it in the `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers.
+
+1. Create a service token in Zero Trust and add a **Service Auth** rule for it to the admin's Access application. Gazetta accepts any service token your policy allows.
+2. Give each person one, or share one: set `GAZETTA_CF_ACCESS_CLIENT_ID` and `GAZETTA_CF_ACCESS_CLIENT_SECRET` on the admin, and signed-in people see it on the **Sign in a command line** page (below).
+3. Sign in: `gz auth login https://cms.example.com --cf-client-id <id> --cf-client-secret <secret>`, or set `GZ_CF_ACCESS_CLIENT_ID` and `GZ_CF_ACCESS_CLIENT_SECRET`. gz keeps them with the login in your keychain.
+
+**Azure App Service Easy Auth.** gz signs in to Microsoft Entra ID with a device code, as an app registration of its own, and sends the Entra token in `Authorization`; Easy Auth checks it.
+
+1. Register an app for gz: a public client, with **Allow public client flows** on.
+2. In the admin's own app registration, expose a scope that users can consent to (for example `user_impersonation`), or add gz's app under **Authorized client applications**.
+3. In the App Service's authentication settings, under **Client application requirement**, choose **Allow requests from specific client applications** and add gz's client ID. To keep tokens and issuer in step, set `requestedAccessTokenVersion` to `2` on the admin's app registration, or add `api://<admin app ID>` to **Allowed token audiences**.
+4. Tell Gazetta which app is gz, so its requests aren't taken for your browser:
+
+   ```ts
+   admin: { auth: { trust: 'azure-easy-auth', cliClientId: '<gz app client ID>' } }
+   ```
+
+5. Sign in: `gz auth login https://cms.example.com --entra-tenant <tenant> --entra-client-id <gz app client ID> --entra-scope api://<admin app ID>/user_impersonation`. gz shows a Microsoft code to enter, then the Gazetta code to approve.
+
+**AWS ALB.** The ALB checks Gazetta's own token, sent as `Authorization: Bearer`, with a [JWT validation](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/listener-verify-jwt.html) rule on an HTTPS listener. A code can't be approved behind it, so you create a sign-in in the browser and paste it into gz.
+
+1. Point the rule at the admin's public keys, `https://cms.example.com/admin/api/v1/auth/keys` (they must be reachable from the ALB), with the issuer `gazetta`; to check the audience too, add `aud` = `gazetta-admin` as an additional claim. Tokens are RS256 with 2048-bit keys and carry `iss`, `aud`, `exp`, `nbf` and `iat`.
+2. Send requests without a bearer token to your Cognito sign-in rule, and let `POST /admin/api/v1/auth/tokens` through without one: the client renews its token there with its grant.
+3. Open **Sign in a command line**, name the machine, and copy the sign-in. It's shown once and recorded in the audit log like an approved code.
+4. Sign in: `gz auth login https://cms.example.com --paste`, and paste it.
+
+`GAZETTA_TOKEN` can't be used with `trust: 'aws-cognito'`: the admin refuses to start, because both read the `Authorization` header.
+
+**Tailscale.** Nothing more to set up: gz uses the device's own tailnet identity.
+
+### The Sign in a command line page
+
+At `/admin/cli-signin` in your browser, the page shows the `gz auth login` command for this admin, the shared Cloudflare service token if one is set, and behind ALB the form that creates a sign-in to paste. It answers only people signed in to the browser.
+
 ### Where "can only edit" is enforced
 
 The approve page refuses requests that carry a Gazetta token, so a token can't approve a sign-in or an elevation, or extend itself. That holds when the client reaches the admin with a credential of its own, such as a Cloudflare Access service token. On Tailscale the client's requests arrive with the same identity as your browser's, and probably also with `cloudflared access login` (not yet checked), so Gazetta can't tell them apart: there, only the agent's own judgement and your agent's settings stop it from publishing, as on your own machine.

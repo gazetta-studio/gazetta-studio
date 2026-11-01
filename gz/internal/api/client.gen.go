@@ -1209,6 +1209,18 @@ type PostApiV1AuthElevationsJSONBody struct {
 // PostApiV1AuthElevationsJSONBodyScope defines parameters for PostApiV1AuthElevations.
 type PostApiV1AuthElevationsJSONBodyScope string
 
+// PostApiV1AuthGrantsJSONBody defines parameters for PostApiV1AuthGrants.
+type PostApiV1AuthGrantsJSONBody struct {
+	Machine string `json:"machine"`
+}
+
+// GetApiV1AuthKeys200JSONResponseBody_Keys_Item defines parameters for GetApiV1AuthKeys.
+type GetApiV1AuthKeys200JSONResponseBody_Keys_Item struct {
+	Kid                  string                 `json:"kid"`
+	Kty                  string                 `json:"kty"`
+	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
 // PostApiV1AuthLoginsJSONBody defines parameters for PostApiV1AuthLogins.
 type PostApiV1AuthLoginsJSONBody struct {
 	Machine string `json:"machine"`
@@ -1828,6 +1840,9 @@ type PostApiV1AssetsNameLocaleBytesMultipartRequestBody PostApiV1AssetsNameLocal
 // PostApiV1AuthElevationsJSONRequestBody defines body for PostApiV1AuthElevations for application/json ContentType.
 type PostApiV1AuthElevationsJSONRequestBody PostApiV1AuthElevationsJSONBody
 
+// PostApiV1AuthGrantsJSONRequestBody defines body for PostApiV1AuthGrants for application/json ContentType.
+type PostApiV1AuthGrantsJSONRequestBody PostApiV1AuthGrantsJSONBody
+
 // PostApiV1AuthLoginsJSONRequestBody defines body for PostApiV1AuthLogins for application/json ContentType.
 type PostApiV1AuthLoginsJSONRequestBody PostApiV1AuthLoginsJSONBody
 
@@ -2018,6 +2033,85 @@ func (a Problem) MarshalJSON() ([]byte, error) {
 	object["type"], err = json.Marshal(a.Type)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling 'type': %w", err)
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
+// Getter for additional properties for GetApiV1AuthKeys200JSONResponseBody_Keys_Item. Returns the specified
+// element and whether it was found
+func (a GetApiV1AuthKeys200JSONResponseBody_Keys_Item) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for GetApiV1AuthKeys200JSONResponseBody_Keys_Item
+func (a *GetApiV1AuthKeys200JSONResponseBody_Keys_Item) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for GetApiV1AuthKeys200JSONResponseBody_Keys_Item to handle AdditionalProperties
+func (a *GetApiV1AuthKeys200JSONResponseBody_Keys_Item) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["kid"]; found {
+		err = json.Unmarshal(raw, &a.Kid)
+		if err != nil {
+			return fmt.Errorf("error reading 'kid': %w", err)
+		}
+		delete(object, "kid")
+	}
+
+	if raw, found := object["kty"]; found {
+		err = json.Unmarshal(raw, &a.Kty)
+		if err != nil {
+			return fmt.Errorf("error reading 'kty': %w", err)
+		}
+		delete(object, "kty")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for GetApiV1AuthKeys200JSONResponseBody_Keys_Item to handle AdditionalProperties
+func (a GetApiV1AuthKeys200JSONResponseBody_Keys_Item) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	object["kid"], err = json.Marshal(a.Kid)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'kid': %w", err)
+	}
+
+	object["kty"], err = json.Marshal(a.Kty)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'kty': %w", err)
 	}
 
 	for fieldName, field := range a.AdditionalProperties {
@@ -3558,6 +3652,11 @@ type ClientInterface interface {
 	// Corresponds with GET /api/v1/audit (the `GetApiV1Audit` operationId).
 	GetApiV1Audit(ctx context.Context, params *GetApiV1AuditParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetApiV1AuthCliSetup How to sign in a command line here (in the browser)
+	//
+	// Corresponds with GET /api/v1/auth/cli-setup (the `GetApiV1AuthCliSetup` operationId).
+	GetApiV1AuthCliSetup(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PostApiV1AuthElevationsWithBody Ask to publish, delete or restore for a short time (with a token)
 	//
 	// Takes any type of body and a specified content type.
@@ -3577,10 +3676,31 @@ type ClientInterface interface {
 	// Corresponds with DELETE /api/v1/auth/elevations/{id} (the `DeleteApiV1AuthElevationsId` operationId).
 	DeleteApiV1AuthElevationsId(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PostApiV1AuthGrantsWithBody Sign in a command line by pasting a grant (in the browser, behind ALB)
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/auth/grants (the `PostApiV1AuthGrants` operationId).
+	PostApiV1AuthGrantsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostApiV1AuthGrants Sign in a command line by pasting a grant (in the browser, behind ALB)
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/auth/grants (the `PostApiV1AuthGrants` operationId).
+	PostApiV1AuthGrants(ctx context.Context, body PostApiV1AuthGrantsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// DeleteApiV1AuthGrantsId Revoke one of your own grants
 	//
 	// Corresponds with DELETE /api/v1/auth/grants/{id} (the `DeleteApiV1AuthGrantsId` operationId).
 	DeleteApiV1AuthGrantsId(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetApiV1AuthKeys The admin's public signing keys, as a JWKS
+	//
+	// Readable without signing in. Lists the current key and, during rotation, the previous one. ALB's JWT check reads it (design-agent-access.md Q15).
+	//
+	// Corresponds with GET /api/v1/auth/keys (the `GetApiV1AuthKeys` operationId).
+	GetApiV1AuthKeys(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiV1AuthLoginsWithBody Start a CLI login
 	//
@@ -4266,6 +4386,21 @@ func (c *Client) GetApiV1Audit(ctx context.Context, params *GetApiV1AuditParams,
 	return c.Client.Do(req)
 }
 
+// GetApiV1AuthCliSetup How to sign in a command line here (in the browser)
+//
+// Corresponds with GET /api/v1/auth/cli-setup (the `GetApiV1AuthCliSetup` operationId).
+func (c *Client) GetApiV1AuthCliSetup(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetApiV1AuthCliSetupRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // PostApiV1AuthElevationsWithBody Ask to publish, delete or restore for a short time (with a token)
 //
 // Takes any type of body and a specified content type.
@@ -4315,11 +4450,62 @@ func (c *Client) DeleteApiV1AuthElevationsId(ctx context.Context, id string, req
 	return c.Client.Do(req)
 }
 
+// PostApiV1AuthGrantsWithBody Sign in a command line by pasting a grant (in the browser, behind ALB)
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/auth/grants (the `PostApiV1AuthGrants` operationId).
+func (c *Client) PostApiV1AuthGrantsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1AuthGrantsRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostApiV1AuthGrants Sign in a command line by pasting a grant (in the browser, behind ALB)
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/auth/grants (the `PostApiV1AuthGrants` operationId).
+func (c *Client) PostApiV1AuthGrants(ctx context.Context, body PostApiV1AuthGrantsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1AuthGrantsRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // DeleteApiV1AuthGrantsId Revoke one of your own grants
 //
 // Corresponds with DELETE /api/v1/auth/grants/{id} (the `DeleteApiV1AuthGrantsId` operationId).
 func (c *Client) DeleteApiV1AuthGrantsId(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeleteApiV1AuthGrantsIdRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetApiV1AuthKeys The admin's public signing keys, as a JWKS
+//
+// Readable without signing in. Lists the current key and, during rotation, the previous one. ALB's JWT check reads it (design-agent-access.md Q15).
+//
+// Corresponds with GET /api/v1/auth/keys (the `GetApiV1AuthKeys` operationId).
+func (c *Client) GetApiV1AuthKeys(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetApiV1AuthKeysRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -6406,6 +6592,33 @@ func NewGetApiV1AuditRequest(server string, params *GetApiV1AuditParams) (*http.
 	return req, nil
 }
 
+// NewGetApiV1AuthCliSetupRequest constructs an http.Request for the GetApiV1AuthCliSetup method
+func NewGetApiV1AuthCliSetupRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/auth/cli-setup")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewPostApiV1AuthElevationsRequest calls the generic PostApiV1AuthElevations builder with application/json body
 func NewPostApiV1AuthElevationsRequest(server string, body PostApiV1AuthElevationsJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -6480,6 +6693,46 @@ func NewDeleteApiV1AuthElevationsIdRequest(server string, id string) (*http.Requ
 	return req, nil
 }
 
+// NewPostApiV1AuthGrantsRequest calls the generic PostApiV1AuthGrants builder with application/json body
+func NewPostApiV1AuthGrantsRequest(server string, body PostApiV1AuthGrantsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostApiV1AuthGrantsRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostApiV1AuthGrantsRequestWithBody constructs an http.Request for the PostApiV1AuthGrants method, with any body, and a specified content type
+func NewPostApiV1AuthGrantsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/auth/grants")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewDeleteApiV1AuthGrantsIdRequest constructs an http.Request for the DeleteApiV1AuthGrantsId method
 func NewDeleteApiV1AuthGrantsIdRequest(server string, id string) (*http.Request, error) {
 	var err error
@@ -6507,6 +6760,33 @@ func NewDeleteApiV1AuthGrantsIdRequest(server string, id string) (*http.Request,
 	}
 
 	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetApiV1AuthKeysRequest constructs an http.Request for the GetApiV1AuthKeys method
+func NewGetApiV1AuthKeysRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/auth/keys")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -9876,6 +10156,13 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /api/v1/audit (the `GetApiV1Audit` operationId).
 	GetApiV1AuditWithResponse(ctx context.Context, params *GetApiV1AuditParams, reqEditors ...RequestEditorFn) (*GetApiV1AuditResponse, error)
 
+	// GetApiV1AuthCliSetupWithResponse How to sign in a command line here (in the browser)
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/auth/cli-setup (the `GetApiV1AuthCliSetup` operationId).
+	GetApiV1AuthCliSetupWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiV1AuthCliSetupResponse, error)
+
 	// PostApiV1AuthElevationsWithBodyWithResponse Ask to publish, delete or restore for a short time (with a token)
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -9897,12 +10184,35 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with DELETE /api/v1/auth/elevations/{id} (the `DeleteApiV1AuthElevationsId` operationId).
 	DeleteApiV1AuthElevationsIdWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteApiV1AuthElevationsIdResponse, error)
 
+	// PostApiV1AuthGrantsWithBodyWithResponse Sign in a command line by pasting a grant (in the browser, behind ALB)
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/auth/grants (the `PostApiV1AuthGrants` operationId).
+	PostApiV1AuthGrantsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AuthGrantsResponse, error)
+
+	// PostApiV1AuthGrantsWithResponse Sign in a command line by pasting a grant (in the browser, behind ALB)
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/auth/grants (the `PostApiV1AuthGrants` operationId).
+	PostApiV1AuthGrantsWithResponse(ctx context.Context, body PostApiV1AuthGrantsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1AuthGrantsResponse, error)
+
 	// DeleteApiV1AuthGrantsIdWithResponse Revoke one of your own grants
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with DELETE /api/v1/auth/grants/{id} (the `DeleteApiV1AuthGrantsId` operationId).
 	DeleteApiV1AuthGrantsIdWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteApiV1AuthGrantsIdResponse, error)
+
+	// GetApiV1AuthKeysWithResponse The admin's public signing keys, as a JWKS
+	//
+	// Readable without signing in. Lists the current key and, during rotation, the previous one. ALB's JWT check reads it (design-agent-access.md Q15).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/auth/keys (the `GetApiV1AuthKeys` operationId).
+	GetApiV1AuthKeysWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiV1AuthKeysResponse, error)
 
 	// PostApiV1AuthLoginsWithBodyWithResponse Start a CLI login
 	//
@@ -11545,6 +11855,82 @@ func (r GetApiV1AuditResponse) ContentType() string {
 	return ""
 }
 
+type GetApiV1AuthCliSetupResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Cloudflare *struct {
+			ClientId     string `json:"clientId"`
+			ClientSecret string `json:"clientSecret"`
+		} `json:"cloudflare,omitempty"`
+		Paste     bool   `json:"paste"`
+		TrustMode string `json:"trustMode"`
+	}
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Problem
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Problem
+	// ApplicationproblemJSON503 the response for an HTTP 503 `application/problem+json` response
+	ApplicationproblemJSON503 *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetApiV1AuthCliSetupResponse) GetJSON200() *struct {
+	Cloudflare *struct {
+		ClientId     string `json:"clientId"`
+		ClientSecret string `json:"clientSecret"`
+	} `json:"cloudflare,omitempty"`
+	Paste     bool   `json:"paste"`
+	TrustMode string `json:"trustMode"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r GetApiV1AuthCliSetupResponse) GetApplicationproblemJSON401() *Problem {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r GetApiV1AuthCliSetupResponse) GetApplicationproblemJSON403() *Problem {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON503 returns the response for an HTTP 503 `application/problem+json` response
+func (r GetApiV1AuthCliSetupResponse) GetApplicationproblemJSON503() *Problem {
+	return r.ApplicationproblemJSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetApiV1AuthCliSetupResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetApiV1AuthCliSetupResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetApiV1AuthCliSetupResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetApiV1AuthCliSetupResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type PostApiV1AuthElevationsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -11672,6 +12058,81 @@ func (r DeleteApiV1AuthElevationsIdResponse) ContentType() string {
 	return ""
 }
 
+type PostApiV1AuthGrantsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *struct {
+		GrantId     string `json:"grantId"`
+		GrantSecret string `json:"grantSecret"`
+	}
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *Problem
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Problem
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Problem
+	// ApplicationproblemJSON503 the response for an HTTP 503 `application/problem+json` response
+	ApplicationproblemJSON503 *Problem
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r PostApiV1AuthGrantsResponse) GetJSON201() *struct {
+	GrantId     string `json:"grantId"`
+	GrantSecret string `json:"grantSecret"`
+} {
+	return r.JSON201
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r PostApiV1AuthGrantsResponse) GetApplicationproblemJSON400() *Problem {
+	return r.ApplicationproblemJSON400
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r PostApiV1AuthGrantsResponse) GetApplicationproblemJSON401() *Problem {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r PostApiV1AuthGrantsResponse) GetApplicationproblemJSON403() *Problem {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON503 returns the response for an HTTP 503 `application/problem+json` response
+func (r PostApiV1AuthGrantsResponse) GetApplicationproblemJSON503() *Problem {
+	return r.ApplicationproblemJSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r PostApiV1AuthGrantsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostApiV1AuthGrantsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostApiV1AuthGrantsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostApiV1AuthGrantsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type DeleteApiV1AuthGrantsIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -11721,6 +12182,58 @@ func (r DeleteApiV1AuthGrantsIdResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r DeleteApiV1AuthGrantsIdResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetApiV1AuthKeysResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Keys []GetApiV1AuthKeys200JSONResponseBody_Keys_Item `json:"keys"`
+	}
+	// ApplicationproblemJSON503 the response for an HTTP 503 `application/problem+json` response
+	ApplicationproblemJSON503 *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetApiV1AuthKeysResponse) GetJSON200() *struct {
+	Keys []GetApiV1AuthKeys200JSONResponseBody_Keys_Item `json:"keys"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON503 returns the response for an HTTP 503 `application/problem+json` response
+func (r GetApiV1AuthKeysResponse) GetApplicationproblemJSON503() *Problem {
+	return r.ApplicationproblemJSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetApiV1AuthKeysResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetApiV1AuthKeysResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetApiV1AuthKeysResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetApiV1AuthKeysResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -15751,6 +16264,19 @@ func (c *ClientWithResponses) GetApiV1AuditWithResponse(ctx context.Context, par
 	return ParseGetApiV1AuditResponse(rsp)
 }
 
+// GetApiV1AuthCliSetupWithResponse How to sign in a command line here (in the browser)
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/auth/cli-setup (the `GetApiV1AuthCliSetup` operationId).
+func (c *ClientWithResponses) GetApiV1AuthCliSetupWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiV1AuthCliSetupResponse, error) {
+	rsp, err := c.GetApiV1AuthCliSetup(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetApiV1AuthCliSetupResponse(rsp)
+}
+
 // PostApiV1AuthElevationsWithBodyWithResponse Ask to publish, delete or restore for a short time (with a token)
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -15790,6 +16316,32 @@ func (c *ClientWithResponses) DeleteApiV1AuthElevationsIdWithResponse(ctx contex
 	return ParseDeleteApiV1AuthElevationsIdResponse(rsp)
 }
 
+// PostApiV1AuthGrantsWithBodyWithResponse Sign in a command line by pasting a grant (in the browser, behind ALB)
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/auth/grants (the `PostApiV1AuthGrants` operationId).
+func (c *ClientWithResponses) PostApiV1AuthGrantsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AuthGrantsResponse, error) {
+	rsp, err := c.PostApiV1AuthGrantsWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiV1AuthGrantsResponse(rsp)
+}
+
+// PostApiV1AuthGrantsWithResponse Sign in a command line by pasting a grant (in the browser, behind ALB)
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/auth/grants (the `PostApiV1AuthGrants` operationId).
+func (c *ClientWithResponses) PostApiV1AuthGrantsWithResponse(ctx context.Context, body PostApiV1AuthGrantsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1AuthGrantsResponse, error) {
+	rsp, err := c.PostApiV1AuthGrants(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiV1AuthGrantsResponse(rsp)
+}
+
 // DeleteApiV1AuthGrantsIdWithResponse Revoke one of your own grants
 //
 // Returns a wrapper object for the known response body format(s).
@@ -15801,6 +16353,21 @@ func (c *ClientWithResponses) DeleteApiV1AuthGrantsIdWithResponse(ctx context.Co
 		return nil, err
 	}
 	return ParseDeleteApiV1AuthGrantsIdResponse(rsp)
+}
+
+// GetApiV1AuthKeysWithResponse The admin's public signing keys, as a JWKS
+//
+// Readable without signing in. Lists the current key and, during rotation, the previous one. ALB's JWT check reads it (design-agent-access.md Q15).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/auth/keys (the `GetApiV1AuthKeys` operationId).
+func (c *ClientWithResponses) GetApiV1AuthKeysWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiV1AuthKeysResponse, error) {
+	rsp, err := c.GetApiV1AuthKeys(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetApiV1AuthKeysResponse(rsp)
 }
 
 // PostApiV1AuthLoginsWithBodyWithResponse Start a CLI login
@@ -17590,6 +18157,60 @@ func ParseGetApiV1AuditResponse(rsp *http.Response) (*GetApiV1AuditResponse, err
 	return response, nil
 }
 
+// ParseGetApiV1AuthCliSetupResponse parses an HTTP response from a GetApiV1AuthCliSetupWithResponse call
+func ParseGetApiV1AuthCliSetupResponse(rsp *http.Response) (*GetApiV1AuthCliSetupResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetApiV1AuthCliSetupResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Cloudflare *struct {
+				ClientId     string `json:"clientId"`
+				ClientSecret string `json:"clientSecret"`
+			} `json:"cloudflare,omitempty"`
+			Paste     bool   `json:"paste"`
+			TrustMode string `json:"trustMode"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParsePostApiV1AuthElevationsResponse parses an HTTP response from a PostApiV1AuthElevationsWithResponse call
 func ParsePostApiV1AuthElevationsResponse(rsp *http.Response) (*PostApiV1AuthElevationsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -17685,6 +18306,63 @@ func ParseDeleteApiV1AuthElevationsIdResponse(rsp *http.Response) (*DeleteApiV1A
 	return response, nil
 }
 
+// ParsePostApiV1AuthGrantsResponse parses an HTTP response from a PostApiV1AuthGrantsWithResponse call
+func ParsePostApiV1AuthGrantsResponse(rsp *http.Response) (*PostApiV1AuthGrantsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostApiV1AuthGrantsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest struct {
+			GrantId     string `json:"grantId"`
+			GrantSecret string `json:"grantSecret"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseDeleteApiV1AuthGrantsIdResponse parses an HTTP response from a DeleteApiV1AuthGrantsIdWithResponse call
 func ParseDeleteApiV1AuthGrantsIdResponse(rsp *http.Response) (*DeleteApiV1AuthGrantsIdResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -17715,6 +18393,41 @@ func ParseDeleteApiV1AuthGrantsIdResponse(rsp *http.Response) (*DeleteApiV1AuthG
 			return nil, err
 		}
 		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetApiV1AuthKeysResponse parses an HTTP response from a GetApiV1AuthKeysWithResponse call
+func ParseGetApiV1AuthKeysResponse(rsp *http.Response) (*GetApiV1AuthKeysResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetApiV1AuthKeysResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Keys []GetApiV1AuthKeys200JSONResponseBody_Keys_Item `json:"keys"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest Problem

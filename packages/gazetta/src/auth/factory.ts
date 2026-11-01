@@ -111,6 +111,7 @@ export function buildAuthProvider(config: AuthConfig | undefined): AuthIdentityP
       })
     case 'azure-easy-auth':
       return createAzureEasyAuthProvider({
+        cliClientId: config.cliClientId,
         roleMapping: config.roleMapping,
         customRoles: flattenRoles(config.roles),
       })

@@ -148,6 +148,11 @@ export interface CliLoginStore {
    */
   grantFor(grantSecret: string): Promise<{ status: 'ok'; grant: Grant } | { status: 'expired' } | { status: 'invalid' }>
   grantById(grantId: string): Promise<Grant | null>
+  /**
+   * A grant made directly by a signed-in person, for a client that can't
+   * use a code (behind ALB, Q15): the secret is returned once.
+   */
+  createGrant(person: LoginPerson, machine: string): Promise<{ grant: Grant; grantSecret: string }>
   revoke(grantId: string, personId: string): Promise<'revoked' | 'not-found'>
 }
 
@@ -190,6 +195,20 @@ export function createCliLoginStore(storage: StorageProvider, now: () => number 
     }
     await storage.writeFile(loginPath(code), JSON.stringify(decided, null, 2))
     return { status: 'ok', login: decided }
+  }
+
+  async function newGrant(person: LoginPerson, machine: string): Promise<{ grant: Grant; grantSecret: string }> {
+    const grantId = crypto.randomUUID()
+    const secret = newSecret()
+    const grant: Grant = {
+      grantId,
+      person,
+      machine,
+      createdAt: new Date(now()).toISOString(),
+      secretHash: hash(secret),
+    }
+    await storage.writeFile(grantPath(grantId), JSON.stringify(grant, null, 2), { ifNoneMatch: '*' })
+    return { grant, grantSecret: `${grantId}.${secret}` }
   }
 
   async function startCode(
@@ -249,18 +268,10 @@ export function createCliLoginStore(storage: StorageProvider, now: () => number 
         if (err instanceof StorageConditionalFailedError) return { status: 'redeemed' }
         throw err
       }
-      const grantId = crypto.randomUUID()
-      const secret = newSecret()
-      const grant: Grant = {
-        grantId,
-        person: login.approvedBy,
-        machine: login.machine,
-        createdAt: new Date(now()).toISOString(),
-        secretHash: hash(secret),
-      }
-      await storage.writeFile(grantPath(grantId), JSON.stringify(grant, null, 2), { ifNoneMatch: '*' })
-      return { status: 'approved', grant, grantSecret: `${grantId}.${secret}` }
+      return { status: 'approved', ...(await newGrant(login.approvedBy, login.machine)) }
     },
+
+    createGrant: newGrant,
 
     async grantFor(grantSecret) {
       const parts = splitGrantSecret(grantSecret)

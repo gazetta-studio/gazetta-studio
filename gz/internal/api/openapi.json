@@ -6693,6 +6693,205 @@
         }
       }
     },
+    "/api/v1/auth/keys": {
+      "get": {
+        "summary": "The admin's public signing keys, as a JWKS",
+        "description": "Readable without signing in. Lists the current key and, during rotation, the previous one. ALB's JWT check reads it (design-agent-access.md Q15).",
+        "responses": {
+          "200": {
+            "description": "The public keys",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "keys": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kid": {
+                            "type": "string"
+                          },
+                          "kty": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["kid", "kty"],
+                        "additionalProperties": {}
+                      }
+                    }
+                  },
+                  "required": ["keys"]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A service is unavailable: CLI_LOGIN_UNAVAILABLE",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/cli-setup": {
+      "get": {
+        "summary": "How to sign in a command line here (in the browser)",
+        "responses": {
+          "200": {
+            "description": "The sign-in setup",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "trustMode": {
+                      "type": "string"
+                    },
+                    "paste": {
+                      "type": "boolean"
+                    },
+                    "cloudflare": {
+                      "type": "object",
+                      "properties": {
+                        "clientId": {
+                          "type": "string"
+                        },
+                        "clientSecret": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["clientId", "clientSecret"]
+                    }
+                  },
+                  "required": ["trustMode", "paste"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: UNAUTHENTICATED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing a capability: BROWSER_REQUIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A service is unavailable: CLI_LOGIN_UNAVAILABLE",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/grants": {
+      "post": {
+        "summary": "Sign in a command line by pasting a grant (in the browser, behind ALB)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "machine": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": ["machine"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The grant; its secret is shown once",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "grantId": {
+                      "type": "string"
+                    },
+                    "grantSecret": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["grantId", "grantSecret"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is invalid: BAD_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: UNAUTHENTICATED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing a capability: BROWSER_REQUIRED, FORBIDDEN",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A service is unavailable: CLI_LOGIN_UNAVAILABLE",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/grants/{id}": {
       "delete": {
         "summary": "Revoke one of your own grants",

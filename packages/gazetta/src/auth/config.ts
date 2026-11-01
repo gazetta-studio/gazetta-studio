@@ -179,6 +179,12 @@ const cloudflareAccessAuthSchema = z
 const azureEasyAuthSchema = z
   .object({
     trust: z.literal('azure-easy-auth'),
+    /**
+     * Client id of the `gz` app registration (design-agent-access.md Q15).
+     * Requests whose token that app requested are the command line: they
+     * need a Gazetta token for an identity, and can't approve logins.
+     */
+    cliClientId: z.string().min(1).optional(),
     roles: z.record(z.string(), roleSchema).optional(),
     /**
      * How long an approved elevation lasts, in minutes (design-agent-access.md

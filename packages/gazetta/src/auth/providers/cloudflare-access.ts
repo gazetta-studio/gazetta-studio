@@ -99,6 +99,8 @@ export interface CloudflareAccessConfig {
  */
 interface CloudflareAccessClaims extends JWTPayload {
   email?: string
+  /** A service token's client id; set, with an empty `sub`, only for service tokens. */
+  common_name?: string
   identity_nonce?: string
   /** Cloudflare's group claim — populated when team policies use groups. */
   groups?: string[]
@@ -151,7 +153,13 @@ export function createCloudflareAccessAuthProvider(config: CloudflareAccessConfi
         throw new AuthenticationError(`Cloudflare Access JWT verification failed: ${(err as Error).message}`)
       }
 
-      const id = payload.sub ?? payload.identity_nonce
+      // A service token (the CLI's credential, design-agent-access.md Q15,
+      // Q23) carries an empty `sub` and its client id in `common_name`
+      // (https://developers.cloudflare.com/cloudflare-one/identity/authorization-cookie/application-token/).
+      // It names no person: the request needs a Gazetta token for an identity.
+      if (!payload.sub && payload.common_name && !payload.email) return null
+
+      const id = payload.sub || payload.identity_nonce
       if (!id) {
         throw new AuthenticationError('Cloudflare Access JWT has no sub or identity_nonce claim')
       }

@@ -103,6 +103,8 @@ const ROUTES: Record<string, 'never' | 'allowed'> = {
   'POST /api/v1/auth/logins/:code/redeem': 'allowed',
   'POST /api/v1/auth/tokens': 'allowed',
   'DELETE /api/v1/auth/grants/:id': 'allowed',
+  // Creating a sign-in in the browser is approving one (Q19).
+  'POST /api/v1/auth/grants': 'never',
   // Asking for an elevation and ending one are `gz`'s; approving and
   // denying one go through the login approve and deny routes above (Q32).
   'POST /api/v1/auth/elevations': 'allowed',
