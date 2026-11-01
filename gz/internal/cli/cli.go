@@ -3,12 +3,14 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gazetta-studio/gazetta-studio/gz/internal/grant"
@@ -24,8 +26,10 @@ type Env struct {
 	Stderr    io.Writer
 	Getenv    func(string) string
 	ConfigDir string
-	Grants    grant.Store
-	Probe     func(url string) bool
+	// Grants opens the grant store; only commands that read or write a
+	// grant call it, so --version and --help never touch the keychain.
+	Grants func() grant.Store
+	Probe  func(url string) bool
 }
 
 // DefaultEnv is the real process environment.
@@ -38,25 +42,37 @@ func DefaultEnv() (Env, error) {
 		}
 		dir = filepath.Join(base, "gz")
 	}
+	var once sync.Once
+	var store grant.Store
 	return Env{
 		Stdout:    os.Stdout,
 		Stderr:    os.Stderr,
 		Getenv:    os.Getenv,
 		ConfigDir: dir,
-		Grants:    grant.Default(filepath.Join(dir, "grants")),
-		Probe:     probe,
+		Grants: func() grant.Store {
+			once.Do(func() { store = grant.Default(filepath.Join(dir, "grants")) })
+			return store
+		},
+		Probe: probe,
 	}, nil
 }
 
-// probe says whether an admin answers at url, without sending credentials.
+// probe says whether a Gazetta admin answers at url, without sending
+// credentials: its health route answers 200 with {"ok": true}.
 func probe(url string) bool {
 	client := http.Client{Timeout: 500 * time.Millisecond}
 	res, err := client.Get(url + "/admin/api/health")
 	if err != nil {
 		return false
 	}
-	res.Body.Close()
-	return res.StatusCode < 500
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return false
+	}
+	var body struct {
+		OK bool `json:"ok"`
+	}
+	return json.NewDecoder(io.LimitReader(res.Body, 4096)).Decode(&body) == nil && body.OK
 }
 
 type globals struct {
@@ -269,7 +285,14 @@ func authLogout(ctx *context, args []string) error {
 	if err != nil {
 		return err
 	}
+	// The same order as every command: the name given, then --admin, then
+	// GZ_ADMIN, then the default.
 	name := c.Default
+	for _, v := range []string{ctx.env.Getenv("GZ_ADMIN"), ctx.g.admin} {
+		if v != "" {
+			name = v
+		}
+	}
 	if len(args) == 1 {
 		name = args[0]
 	}
@@ -280,7 +303,7 @@ func authLogout(ctx *context, args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := ctx.env.Grants.Delete(p.Name); err != nil {
+	if err := ctx.env.Grants().Delete(p.Name); err != nil {
 		return err
 	}
 	if err := c.Save(path); err != nil {
