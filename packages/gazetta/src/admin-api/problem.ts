@@ -7,9 +7,10 @@
  * extras. `type` is `about:blank`, so `title` is the status phrase
  * (RFC 9457 §4.2.1); `code` is an extension member from `ErrorCodeSchema`.
  */
-import type { Context } from 'hono'
+import type { Context, TypedResponse } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
-import type { ErrorCode } from './schemas/error.js'
+import type { JSONParsed } from 'hono/utils/types'
+import type { ErrorCode, ErrorResponse } from './schemas/error.js'
 
 export const PROBLEM_CONTENT_TYPE = 'application/problem+json'
 
@@ -61,28 +62,35 @@ export function problemBody(
   }
 }
 
+/**
+ * A problem response. Typed as a JSON response too, so `openapi()` handlers
+ * that declare `application/problem+json` responses can return it.
+ */
+export type ProblemResponse<S extends ContentfulStatusCode = ContentfulStatusCode> = Response &
+  TypedResponse<JSONParsed<ErrorResponse>, S, 'json'>
+
 /** Answer an error as `application/problem+json`. */
-export function problem(
+export function problem<S extends ContentfulStatusCode>(
   c: Context,
-  status: ContentfulStatusCode,
+  status: S,
   code: ErrorCode,
   detail?: string,
   extras?: Record<string, unknown>,
-): Response {
+): ProblemResponse<S> {
   return c.body(JSON.stringify(problemBody(status, code, detail, extras)), status, {
     'Content-Type': PROBLEM_CONTENT_TYPE,
-  })
+  }) as unknown as ProblemResponse<S>
 }
 
 /**
  * Answer an error class's `{ code, message, ...extras }` body (the shape
  * `toResponseBody()` returns) as a problem: `message` becomes `detail`.
  */
-export function problemFrom(
+export function problemFrom<S extends ContentfulStatusCode>(
   c: Context,
-  status: ContentfulStatusCode,
+  status: S,
   body: { readonly code: string; readonly message?: string },
-): Response {
+): ProblemResponse<S> {
   const { code, message, ...extras } = body as { code: ErrorCode; message?: string } & Record<string, unknown>
   return problem(c, status, code, message, extras)
 }

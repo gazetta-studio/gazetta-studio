@@ -98,6 +98,7 @@
     "@floating-ui/dom": "^1.8.0",
     "@hello-pangea/dnd": "^18.0.1",
     "@hono/node-server": "^2.1.5",
+    "@hono/zod-openapi": "1.6.3",
     "@rjsf/core": "^6.11.0",
     "@rjsf/utils": "^6.5.2",
     "@rjsf/validator-ajv8": "^6.11.0",
