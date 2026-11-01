@@ -1,6 +1,8 @@
 ---
 name: gazetta
 description: Work in a Gazetta project - edit pages, fragments and translations on the local target, write templates and their Zod schemas, add custom editors and fields, and check the site with gazetta validate. Use for any change under sites/, templates/ or admin/ in a project that depends on the gazetta package.
+metadata:
+  gazetta-version: "{{version}}"
 ---
 
 # Gazetta

@@ -14,7 +14,12 @@ import ts from 'typescript'
 import { afterAll, describe, expect, it } from 'vitest'
 import { createAdminApp } from '../src/admin-api/index.js'
 import { createSourceContext } from '../src/admin-api/source-context.js'
-import { AGENTS_SECTION_START, withAgentsSection } from '../src/cli/agents-section.js'
+import {
+  AGENTS_SECTION_START,
+  CLAUDE_IMPORT_MARKER,
+  withAgentsSection,
+  withClaudeImport,
+} from '../src/cli/agents-section.js'
 import { memoryStorage } from './_helpers/memory-storage.js'
 import { starterTemplatesDir } from './_helpers/starter.js'
 import { tempDir } from './_helpers/temp.js'
@@ -24,6 +29,7 @@ const repoRoot = resolve(packageRoot, '../..')
 const cli = join(packageRoot, 'dist/cli/index.js')
 const skill = readFileSync(join(packageRoot, 'agents/gazetta/SKILL.md'), 'utf-8')
 const section = readFileSync(join(packageRoot, 'agents/AGENTS.md'), 'utf-8')
+const { version } = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf-8')) as { version: string }
 
 /**
  * Every CLI command and every admin route that changes state, sorted by
@@ -241,6 +247,24 @@ describe('AGENTS.md section (Q31, Q34)', () => {
     expect(withAgentsSection('# My notes\n', section)).toBe(`# My notes\n\n${section}`)
     expect(withAgentsSection('# My notes', section)).toBe(`# My notes\n\n${section}`)
     expect(withAgentsSection(`# Mine\n\n${section}`, section)).toBeUndefined()
+    // An older section (another version in its marker) still counts as present.
+    expect(withAgentsSection(section.replaceAll(version, '0.0.1'), section)).toBeUndefined()
+  })
+
+  it('carries the package version in the section and the skill (Q33, Q34)', () => {
+    expect(section.split('\n')[0]).toBe(`${AGENTS_SECTION_START} version=${version} -->`)
+    expect(section).toContain(`Gazetta ${version}`)
+    expect(skill).toContain(`gazetta-version: "${version}"`)
+    expect(section + skill).not.toContain('{{version}}')
+  })
+
+  it('adds the @AGENTS.md import to a CLAUDE.md only when missing', () => {
+    expect(withClaudeImport('# Notes\n')).toBe(`# Notes\n\n${CLAUDE_IMPORT_MARKER}\n@AGENTS.md\n`)
+    expect(withClaudeImport('# Notes\n\n@AGENTS.md\n')).toBeUndefined()
+    expect(withClaudeImport('@./AGENTS.md')).toBeUndefined()
+    expect(withClaudeImport('See @AGENTS.md for more.\n')).toBe(
+      `See @AGENTS.md for more.\n\n${CLAUDE_IMPORT_MARKER}\n@AGENTS.md\n`,
+    )
   })
 
   const dirs: string[] = []
@@ -276,5 +300,13 @@ describe('AGENTS.md section (Q31, Q34)', () => {
   it('appends the section to an existing AGENTS.md without changing its text', async () => {
     const site = await init(dir => writeFile(join(dir, 'AGENTS.md'), '# House rules\n\nUse tabs.\n'))
     expect(await readFile(join(site, 'AGENTS.md'), 'utf-8')).toBe(`# House rules\n\nUse tabs.\n\n${section}`)
+  }, 90000)
+
+  it('adds the import line to an existing CLAUDE.md and creates none otherwise', async () => {
+    const withClaude = await init(dir => writeFile(join(dir, 'CLAUDE.md'), '# Project\n'))
+    expect(await readFile(join(withClaude, 'CLAUDE.md'), 'utf-8')).toBe(
+      `# Project\n\n${CLAUDE_IMPORT_MARKER}\n@AGENTS.md\n`,
+    )
+    expect(existsSync(join(await init(), 'CLAUDE.md'))).toBe(false)
   }, 90000)
 })
