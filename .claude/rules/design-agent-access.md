@@ -695,7 +695,7 @@ Research: [public API on #49](https://github.com/gazetta-studio/gazetta-studio/i
 
 Audit events and history revisions both gain `channel` (`browser`, `token` or `mcp`) and `runId`, filled from the request, never by route handlers. The actor stays the person, plus `tokenId` and whether the token was elevated. History saves also record the author, which they don't today (`manifest-save.ts` calls `recordWrite` without one, read from code 2026-11-01). The field is called `channel` because `source` already means a publish's source target. Run review and undo then work even with audit turned off.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1656)
 
 | Rejected | Why |
 |---|---|
@@ -705,7 +705,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 Each item the run touched goes back to its pre-run version only if nobody changed it since; changed items are skipped and listed, and can be forced after viewing the diff. Each revert is a normal save, so validation, hooks and audit run. A per-run sidecar index (one zero-byte file per item and per revision, no aggregate file) makes finding a run's items one directory listing at the 5,000-page envelope. Today's undo restores the whole tree, which would also revert or delete other people's later saves.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1656)
 
 | Rejected | Why |
 |---|---|
@@ -716,7 +716,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 For every caller, a save is refused (with field paths) when it introduces schema errors; a component the save touches must fully pass its template's schema. Content made invalid by a later template change still saves when an unrelated component is edited, and stays a background warning and a pre-publish error (the save-delta model, `design-validation.md`). Today nothing checks content against the template's schema at save.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1656)
 
 | Rejected | Why |
 |---|---|
@@ -727,7 +727,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 Reverting a run is a set of normal saves, so it needs `edit:pages` or `edit:fragments` for the items it touches, like editing them by hand.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1656)
 
 | Rejected | Why |
 |---|---|
@@ -737,7 +737,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 All revisions of one run count as a single entry toward a target's retention limit (50 by default) and are evicted together, with their blobs, so a run stays undoable as a whole until it ages out. A run has no end marker, so a very long run keeps more than 50 revisions.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1656)
 
 | Rejected | Why |
 |---|---|
