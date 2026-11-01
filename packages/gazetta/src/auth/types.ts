@@ -96,6 +96,21 @@ export interface Principal {
    * reads this directly without re-resolving the role.
    */
   capabilities: ReadonlyArray<string>
+  /**
+   * How the request authenticated: the person's browser through the
+   * login layer, or a Gazetta token (design-agent-access.md Q12, Q47).
+   * Absent means browser.
+   */
+  channel?: 'browser' | 'token'
+  /** The Gazetta token's id (`jti`), for token requests. */
+  tokenId?: string
+  /**
+   * For token requests, the person's own capabilities, as their browser
+   * would have them. A route needing one that tokens can't use
+   * (publish, delete, restore, approve) answers `TOKEN_EDIT_ONLY`
+   * instead of `FORBIDDEN`.
+   */
+  browserCapabilities?: ReadonlyArray<string>
 }
 
 /**

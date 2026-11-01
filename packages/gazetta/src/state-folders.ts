@@ -26,18 +26,21 @@ export const STATE_FOLDERS = {
   'alias-targets': { safeOnPublic: false },
   'deps-of': { safeOnPublic: false },
   'publish-generation': { safeOnPublic: true },
+  // CLI login grants and pending logins (design-agent-access.md Q16).
+  auth: { safeOnPublic: false },
 } as const
 
 export type StateFolder = keyof typeof STATE_FOLDERS
 
 /**
- * Folders holding sensitive state: past versions, actor identities and
- * approvers (design-public-storage.md Q6). A public target that still
+ * Folders holding sensitive state: past versions, actor identities,
+ * approvers and CLI login grants (design-public-storage.md Q6,
+ * design-agent-access.md Q16). A public target that still
  * holds any of them fails validation, and `gazetta state remove`
  * deletes exactly these. The dependency indices aren't safe on public
  * targets either, but they aren't sensitive, so they aren't listed.
  */
-export const SENSITIVE_STATE_FOLDERS = ['history', 'audit', 'review'] as const satisfies readonly StateFolder[]
+export const SENSITIVE_STATE_FOLDERS = ['history', 'audit', 'review', 'auth'] as const satisfies readonly StateFolder[]
 
 export type SensitiveStateFolder = (typeof SENSITIVE_STATE_FOLDERS)[number]
 
