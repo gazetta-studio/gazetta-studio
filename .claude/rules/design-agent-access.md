@@ -476,7 +476,7 @@ Research: [presets on #49](https://github.com/gazetta-studio/gazetta-studio/issu
 
 The skill's "never run, ask the person" list: `gazetta publish`, `deploy`, `undo`, `rollback`, `archive purge` and `state remove`; `gz` publish, delete, elevate and approving requests; and the admin routes behind them (`/api/publish`, `/api/publish/stream`, `/api/fetch`, `/api/history/undo` and `/api/history/restore`, page and fragment purge). A test fails when a new command that changes a target isn't on the list, or when the list names one that doesn't exist.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1649)
 
 | Rejected | Why |
 |---|---|
@@ -486,7 +486,7 @@ Decided: maintainer, 2026-11-01 (#<PR>)
 
 A command (named in the #49 pass, for example `gazetta agents update`) rewrites the files Gazetta owns: `SKILL.md` and the marked `AGENTS.md` section, never the person's other text. `gazetta dev` prints a one-line hint when the installed skill is older than the package.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1649)
 
 | Rejected | Why |
 |---|---|
