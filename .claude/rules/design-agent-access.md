@@ -555,7 +555,7 @@ Decided: maintainer, 2026-11-01 (#1652)
 
 The Homebrew tap is `gazetta-studio/tap/gz`, in the repository `gazetta-studio/homebrew-tap`. Homebrew turns `gazetta/tap/gz` into `github.com/gazetta/homebrew-tap`, which would need a GitHub account called `gazetta`; ours is `gazetta-studio`.
 
-Decided: maintainer, 2026-11-01 (#<PR>)
+Decided: maintainer, 2026-11-01 (#1677)
 
 | Rejected | Why |
 |---|---|
