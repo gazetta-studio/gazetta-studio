@@ -3,6 +3,8 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,12 +33,13 @@ func newHarness(t *testing.T, profiles *profile.Config) *harness {
 		}
 	}
 	h := &harness{stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}, vars: map[string]string{}}
+	grants := grant.NewFile(filepath.Join(dir, "grants"))
 	h.env = Env{
 		Stdout:    h.stdout,
 		Stderr:    h.stderr,
 		Getenv:    func(k string) string { return h.vars[k] },
 		ConfigDir: dir,
-		Grants:    grant.NewFile(filepath.Join(dir, "grants")),
+		Grants:    func() grant.Store { return grants },
 		Probe:     func(string) bool { return false },
 	}
 	return h
@@ -90,7 +93,7 @@ func TestAuthListUseLogout(t *testing.T) {
 	if got["default"] != "local" || len(got["profiles"].([]any)) != 2 {
 		t.Fatalf("list json: %v", got)
 	}
-	if err := h.env.Grants.Set("local", "secret"); err != nil {
+	if err := h.env.Grants().Set("local", "secret"); err != nil {
 		t.Fatal(err)
 	}
 	if code := h.run("auth", "logout", "--json"); code != output.OK {
@@ -99,7 +102,7 @@ func TestAuthListUseLogout(t *testing.T) {
 	if got := h.json(t); got["removed"] != "local" || got["default"] != "work" {
 		t.Fatalf("logout json: %v", got)
 	}
-	if _, err := h.env.Grants.Get("local"); err != grant.ErrNotFound {
+	if _, err := h.env.Grants().Get("local"); err != grant.ErrNotFound {
 		t.Fatalf("grant kept after logout: %v", err)
 	}
 }
@@ -175,5 +178,62 @@ func TestSkillNamesOnlyExistingCommands(t *testing.T) {
 		if !have[c] {
 			t.Errorf("the skill names `gz %s`, which gz doesn't have", c)
 		}
+	}
+}
+
+func TestAuthLogoutHonoursAdminAndEnv(t *testing.T) {
+	h := newHarness(t, twoProfiles())
+	h.vars["GZ_ADMIN"] = "local"
+	if code := h.run("auth", "logout", "--json"); code != output.OK || h.json(t)["removed"] != "local" {
+		t.Fatalf("GZ_ADMIN: %d %q", code, h.stdout.String())
+	}
+	h = newHarness(t, twoProfiles())
+	h.vars["GZ_ADMIN"] = "work"
+	if code := h.run("--admin", "local", "auth", "logout", "--json"); code != output.OK || h.json(t)["removed"] != "local" {
+		t.Fatalf("--admin beats GZ_ADMIN: %d %q", code, h.stdout.String())
+	}
+	h = newHarness(t, twoProfiles())
+	h.vars["GZ_ADMIN"] = "local"
+	if code := h.run("auth", "logout", "work", "--json"); code != output.OK || h.json(t)["removed"] != "work" {
+		t.Fatalf("a named profile beats GZ_ADMIN: %d %q", code, h.stdout.String())
+	}
+}
+
+func TestVersionAndHelpNeverOpenTheGrantStore(t *testing.T) {
+	h := newHarness(t, nil)
+	h.env.Grants = func() grant.Store {
+		t.Fatal("the grant store was opened")
+		return nil
+	}
+	for _, args := range [][]string{{"--version"}, {"--help"}, {"skill"}, {"auth", "list"}} {
+		h.run(args...)
+	}
+}
+
+func TestProbeRecognisesOnlyAGazettaAdmin(t *testing.T) {
+	cases := []struct {
+		name   string
+		status int
+		body   string
+		want   bool
+	}{
+		{"Gazetta health", 200, `{"ok":true,"timestamp":"x"}`, true},
+		{"another server's 404", 404, `not found`, false},
+		{"a 200 that isn't JSON", 200, `<html>`, false},
+		{"JSON without ok", 200, `{"status":"up"}`, false},
+	}
+	for _, c := range cases {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/admin/api/health" {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			w.WriteHeader(c.status)
+			_, _ = w.Write([]byte(c.body))
+		}))
+		if got := probe(srv.URL); got != c.want {
+			t.Errorf("%s: probe = %v", c.name, got)
+		}
+		srv.Close()
 	}
 }
