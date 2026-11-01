@@ -43,7 +43,7 @@ export interface EditorMount {
         accept?: string[]
         currentAssetName?: string | null
       }) => Promise<{ _asset: string } | null>
-      /** Base URL of the admin API (e.g. `/admin/api`) for asset summary fetches */
+      /** Base URL of the admin API (e.g. `/admin/api/v1`) for asset summary fetches */
       assetsApiBase?: string
     },
   ): void

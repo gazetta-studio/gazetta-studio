@@ -10,17 +10,17 @@ Never run these; ask the person to:
 - `gazetta rollback`
 - `gazetta archive purge`
 - `gazetta state remove`
-- `POST /api/publish`
-- `POST /api/publish/stream`
-- `POST /api/fetch`
-- `POST /api/history/undo`
-- `POST /api/history/restore`
-- `DELETE /api/pages/:name`
-- `DELETE /api/pages/:name/purge`
-- `DELETE /api/fragments/:name`
-- `DELETE /api/fragments/:name/purge`
-- `DELETE /api/assets/:name`
-- `POST /api/assets/:name/replace-with/:newName`
+- `POST /api/v1/publish`
+- `POST /api/v1/publish/stream`
+- `POST /api/v1/fetch`
+- `POST /api/v1/history/undo`
+- `POST /api/v1/history/restore`
+- `DELETE /api/v1/pages/:name`
+- `DELETE /api/v1/pages/:name/purge`
+- `DELETE /api/v1/fragments/:name`
+- `DELETE /api/v1/fragments/:name/purge`
+- `DELETE /api/v1/assets/:name`
+- `POST /api/v1/assets/:name/replace-with/:newName`
 
 Never approve a publish or review request on the person's behalf.
 <!-- gazetta:agents end -->
