@@ -764,7 +764,7 @@ Decided: maintainer, 2026-11-01 (#1654)
 
 ### Q46 — The bulk save is all or nothing
 
-`POST /api/v1/saves` takes a run id (Q22) and items, each with its `If-Match`, which is required. Every `If-Match` and the save-time validation are checked across the whole batch before anything is written; then one history revision records the run id, the way it came in and who sent it. Requests have an item cap (around 200, less on cloud storage, to be measured), and history retention keeps a run's revisions together.
+`POST /api/v1/saves` takes a run id (Q22) and items, each with its `If-Match`, which is required. Every `If-Match` and the save-time validation are checked across the whole batch before anything is written; then one history revision records the run id, the way it came in and who sent it. Requests have an item cap (around 200, less on cloud storage, to be measured; measured at 100, below), and history retention keeps a run's revisions together.
 
 Decided: maintainer, 2026-11-01 (#1654)
 
@@ -772,9 +772,9 @@ Decided: maintainer, 2026-11-01 (#1654)
 |---|---|
 | Write what passes and report the rest per item | A half-applied run is harder to review and undo |
 
-The cap is 100 items: a 200-item batch took 5.8 s on a local filesystem, over the 5-second admin budget, and 100 took 2.9 s (measured in #1718). Follows from Q46 ("to be measured").
+The cap is 100 items: a 200-item batch took 5.8 s on a local filesystem, over the 5-second admin budget (team rule 24), and 100 took 2.9 s; a site's first write adds about 1 s, so 150 would exceed it (measured in #1718). Real cloud storage wasn't measured (only the MinIO emulator, which was faster) and may need fewer, as Q46 says. Follows from Q46 ("to be measured").
 
-The bulk save stays although cut 6 counts a run's saves as one history entry and cut 11 reverts a run item by item, so looping single saves is also grouped and undoable. What it adds is all-or-nothing, and one request instead of many to a remote admin. `gz` uses it when one command changes several items, and single saves otherwise.
+The bulk save stays although cut 6 counts a run's saves as one history entry and cut 11 will revert a run item by item (Q48), so looping single saves is also grouped and undoable. What it adds is all-or-nothing, and one request instead of many to a remote admin. `gz` uses it when one command changes several items, and single saves otherwise.
 
 Decided: maintainer, 2026-11-02 (#1720)
 
@@ -867,7 +867,7 @@ Research: [runs on #49](https://github.com/gazetta-studio/gazetta-studio/issues/
 Follows from Q1–Q51.
 - ROADMAP's "MCP server design pass" becomes "Agent access design pass" (#49), and "MCP server build" becomes "Agent access build".
 - The skill (#1622) is the first step, in Now; the Deferred row for agent instructions goes.
-- The #49 pass designs: the agent token and elevation flow (Q12–Q30), the remote MCP server's sign-in (Q28), the run review routes (`design-ai-direction.md` Q2), page search, the thin CLI's later commands (Q37), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract (routes, the full error-code list, moving routes to OpenAPI with schema parsing), the v1 cut-off (Q5), the bulk save's item cap, how retention groups a run's revisions (Q51), where the per-run sidecar index lives (inside history, at `.gazetta/history/runs/`, so it has history's registry entry: not safe on public targets, `design-public-storage.md` Q7; follows from Q48, #1708), the `AuditEvent` and revision fields in `design-audit.md` and `history.ts` (Q47), the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
+- The #49 pass designs: the agent token and elevation flow (Q12–Q30), the remote MCP server's sign-in (Q28), the run review routes (`design-ai-direction.md` Q2), page search, the thin CLI's later commands (Q37), output for people and agents in the `gazetta` CLI, the rendered-content URLs both CLIs return, the public API contract (routes, the full error-code list, moving routes to OpenAPI with schema parsing), the v1 cut-off (Q5), the bulk save's item cap (measured at 100, Q46), how retention groups a run's revisions (Q51), where the per-run sidecar index lives (inside history, at `.gazetta/history/runs/`, so it has history's registry entry: not safe on public targets, `design-public-storage.md` Q7; follows from Q48, #1708), the `AuditEvent` and revision fields in `design-audit.md` and `history.ts` (Q47), the MCP server and its relation to the thin CLI, and the live view (`design-ai-direction.md` Q8).
 
 ## Cut sequence
 
