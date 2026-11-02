@@ -292,11 +292,16 @@ async function persist(
   }
   if (action.kind === 'approve') {
     await writeApproverSidecar(root, kind, name, actorId)
-    if (next.state === 'approved') {
+    // Count the votes as stored, not the snapshot's: two approvals at once
+    // each saw only the other's absence, and the later one must still
+    // reach the threshold.
+    const required = previous?.requiredApprovers ?? 1
+    const votes = await readApprovers(root, kind, name)
+    if (next.state === 'approved' || votes.length >= required) {
       await writeReviewSidecar(root, kind, name, {
         state: 'approved',
         submitter: next.submitter,
-        requiredApprovers: previous?.requiredApprovers,
+        requiredApprovers: required,
         submittedAt: previous?.submittedAt,
         approvedAt: now,
         updatedAt: now,
