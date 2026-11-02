@@ -814,6 +814,15 @@ Decided: maintainer, 2026-11-01 (#1656)
 | Check only the fields the save changed | A touched component with an old invalid field would still save |
 | Check token callers only | Two paths to maintain |
 
+A component just added is touched too. When an author adds one, the admin fills in the fields that have a schema default; a required field without one still blocks the save, and the banner names it, until it's filled. Creating a page isn't affected.
+
+Decided: maintainer, 2026-11-02 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| Refuse until filled, with no defaults filled in | More refusals for templates that set defaults |
+| A component just added with empty content saves; once anything is typed into it, it must pass | The page could be saved half-built, with only a background warning about the empty block; agents would get the same exception |
+
 ### Q50 — Reverting a run needs edit rights
 
 Reverting a run is a set of normal saves, so it needs `edit:pages` or `edit:fragments` for the items it touches, like editing them by hand.
