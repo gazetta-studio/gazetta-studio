@@ -131,10 +131,13 @@ async function group(
       count(issue.severity)
       if (!show(issue.severity)) continue
       const item = indexes[s].get(issue.itemPath)
+      // A render that throws belongs to the template that threw (#1755).
       const template =
         issue.validator === 'schema-conformance' && item
           ? componentTemplate(item.manifest, issue.contentPath)
-          : undefined
+          : issue.validator === 'render'
+            ? issue.subject || undefined
+            : undefined
       const perItem = template
         ? mapAt(
             mapAt(byTemplate, template, () => new Map()),
@@ -162,10 +165,21 @@ async function group(
     map.set(key, [...(map.get(key) ?? []), entry])
   }
 
-  const fix = (kind: 'page' | 'fragment', name: string, target: string | null, template?: string) => {
+  const fix = (
+    kind: 'page' | 'fragment',
+    name: string,
+    target: string | null,
+    template?: string,
+    issues: readonly ReportIssue[] = [],
+  ) => {
     if (!fixes || target === null) return null
     const what = `${kind === 'page' ? `pages/${name}` : `@${name}`} on ${target}`
-    const problem = template ? `doesn't fit the new \`${template}\`` : 'has a problem the PR introduced'
+    const throws = issues.some(i => i.validator === 'render')
+    const problem = !template
+      ? 'has a problem the PR introduced'
+      : throws
+        ? `makes the new \`${template}\` throw`
+        : `doesn't fit the new \`${template}\``
     return `${what} ${problem}: publish ${target} → ${input.editingTarget}, fix it here.`
   }
 
@@ -174,14 +188,17 @@ async function group(
     const items: ReportItem[] = []
     for (const [s, perItem] of [...(byTemplate.get(template) ?? new Map())].sort(([a], [b]) => a - b)) {
       const { site, target } = lists.content[s]
-      const impact = computeTemplateImpact(site, template, path => (perItem.get(path) ?? []) as unknown as Issue[])
+      // Through fragments too: a page that bakes a throwing fragment is listed under its template.
+      const impact = computeTemplateImpact(site, template, path => (perItem.get(path) ?? []) as unknown as Issue[], {
+        throughFragments: true,
+      })
       for (const i of impact.items.filter(i => i.issues.length > 0))
         items.push({
           kind: i.kind,
           name: i.name,
           locale: i.locale ?? null,
           target,
-          fix: fix(i.kind, i.name, target, template),
+          fix: fix(i.kind, i.name, target, template, i.issues as unknown as ReportIssue[]),
           issues: i.issues as unknown as ReportIssue[],
         })
     }

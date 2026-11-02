@@ -177,6 +177,7 @@ async function resolveFragmentRef(fragmentName: string, ctx: ResolveContext): Pr
 
   return {
     template: loaded.render,
+    templateName: fragment.template,
     content: await processAndResolve(fragment.content, loaded.schema, ctx.site, ctx),
     children,
     path: fragment.dir,
@@ -206,6 +207,7 @@ async function resolveInlineComponent(comp: InlineComponent, ctx: ResolveContext
 
   return {
     template: loaded.render,
+    templateName: comp.template,
     content: await processAndResolve(comp.content, loaded.schema, ctx.site, ctx),
     children,
     treePath,
@@ -267,6 +269,7 @@ export async function resolveFragment(
 
   return {
     template: loaded.render,
+    templateName: fragment.template,
     content: await processAndResolve(fragment.content, loaded.schema, site, ctx),
     children,
     path: fragment.dir,
@@ -325,6 +328,7 @@ export async function resolvePage(
 
   return {
     template: loaded.render,
+    templateName: page.template,
     content: await processAndResolve(page.content, loaded.schema, site, ctx),
     children,
     path: page.dir,

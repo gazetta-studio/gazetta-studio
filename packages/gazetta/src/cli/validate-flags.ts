@@ -13,6 +13,7 @@
  *   --json, --format json|github|text  (default: text)
  *   --base <ref>               (default: none — every problem counts)
  *   --targets <a,b>            (default: none — only the repo's content)
+ *   --render                   (default: off — no template runs)
  */
 
 import { parseTargetList } from './validate-targets.js'
@@ -32,6 +33,8 @@ export interface ValidateOptions {
   base?: string
   /** Targets whose stored content is checked too (`design-template-check.md` T5, T10). */
   targets?: string[]
+  /** Also render the content using changed templates, and fail on a throw (`design-template-check.md` T8). */
+  render: boolean
 }
 
 /**
@@ -45,6 +48,7 @@ export function parseValidateFlags(rawArgs: readonly string[]): ValidateOptions 
     warnAsError: true,
     verbose: false,
     format: 'text',
+    render: false,
   }
   const asFormat = (v: string | undefined) => (v === 'text' || v === 'json' || v === 'github' ? v : undefined)
   for (let i = 0; i < rawArgs.length; i++) {
@@ -61,6 +65,8 @@ export function parseValidateFlags(rawArgs: readonly string[]): ValidateOptions 
       opts.warnAsError = false
     } else if (a === '--verbose' || a === '-v') {
       opts.verbose = true
+    } else if (a === '--render') {
+      opts.render = true
     } else if (a === '--json') {
       opts.format = 'json'
     } else if (a === '--format') {

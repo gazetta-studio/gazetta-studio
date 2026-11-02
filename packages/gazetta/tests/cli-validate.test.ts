@@ -483,3 +483,124 @@ describe('gazetta validate (CLI) — --targets (#1754)', () => {
     expect(status).toBe(2)
   })
 })
+
+describe('gazetta validate (CLI) — --render (#1755)', () => {
+  const made: string[] = []
+  const git = (dir: string, ...args: string[]) =>
+    spawnSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', '-c', 'commit.gpgsign=false', ...args], {
+      cwd: dir,
+      encoding: 'utf-8',
+    })
+  /** Make `templates/<name>` throw `message` on every render. */
+  const throwing = (dir: string, name: string, message: string) => {
+    const path = join(dir, 'templates', name, 'index.ts')
+    const source = readFileSync(path, 'utf-8').replace(
+      /^export default template$/m,
+      `const checked: TemplateFunction = params => {\n  throw new Error(${JSON.stringify(message)})\n  return template(params)\n}\nexport default checked`,
+    )
+    writeFileSync(path, source)
+  }
+  /** Make `templates/<name>` record each render in `<dir>/renders.log`. */
+  const recording = (dir: string, name: string) => {
+    const path = join(dir, 'templates', name, 'index.ts')
+    const log = JSON.stringify(join(dir, 'renders.log'))
+    const source = `import { appendFileSync } from 'node:fs'\n${readFileSync(path, 'utf-8')}`.replace(
+      /^export default template$/m,
+      `const recorded: TemplateFunction = params => {\n  appendFileSync(${log}, ${JSON.stringify(`${name}\n`)})\n  return template(params)\n}\nexport default recorded`,
+    )
+    writeFileSync(path, source)
+  }
+  /** A starter copy in its own git repository; `base` changes what the base commit has. */
+  function repo(base: (dir: string) => void = () => {}): string {
+    const dir = resolve(here, '../../../.tmp', `cli-validate-render-${Date.now()}-${made.length}`)
+    made.push(dir)
+    cpSync(starterDir, dir, { recursive: true, filter: src => !src.includes('node_modules') && !src.includes('/dist') })
+    base(dir)
+    git(dir, 'init', '-q')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'base')
+    return dir
+  }
+  function validate(dir: string, args: string[]) {
+    const result = spawnSync('node', [cliEntry, 'validate', 'sites/main', '--json', ...args], {
+      cwd: dir,
+      env: { ...process.env, NO_COLOR: '1' },
+      encoding: 'utf-8',
+    })
+    return { report: result.stdout ? JSON.parse(result.stdout) : null, stderr: result.stderr, status: result.status }
+  }
+  type Report = {
+    templates: {
+      template: string
+      items: { kind: string; name: string; locale: string | null; issues: { validator: string; message: string }[] }[]
+    }[]
+    alreadyBroken?: { templates: Report['templates'] }
+  }
+  const renderItems = (templates: Report['templates'], template: string) =>
+    (templates.find(t => t.template === template)?.items ?? [])
+      .filter(i => i.issues.some(issue => issue.validator === 'render'))
+      .map(i => `${i.kind}:${i.name}${i.locale ? `:${i.locale}` : ''}`)
+
+  afterAll(() => {
+    for (const dir of made) rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('fails on a changed template that throws, naming the item, language, template and error', () => {
+    const dir = repo()
+    throwing(dir, 'hero', 'items is empty')
+    const { report, status } = validate(dir, ['--render', '--base', 'HEAD'])
+    expect(status).toBe(1)
+    const items = renderItems((report as Report).templates, 'hero')
+    expect(items).toContain('page:home')
+    expect(items).toContain('page:home:ja')
+    const home = (report as Report).templates.find(t => t.template === 'hero')!.items.find(i => i.name === 'home')!
+    expect(home.issues.find(i => i.validator === 'render')!.message).toBe(
+      '`hero` throws when rendering: items is empty',
+    )
+  })
+
+  it('renders the pages that use a changed template through a fragment', () => {
+    const dir = repo()
+    throwing(dir, 'logo', 'logo broke')
+    const { report, status } = validate(dir, ['--render', '--base', 'HEAD'])
+    expect(status).toBe(1)
+    const items = renderItems((report as Report).templates, 'logo')
+    // logo is in @header, and every page bakes @header in.
+    expect(items).toEqual(expect.arrayContaining(['fragment:header', 'page:home', 'page:about']))
+  }, 60_000)
+
+  it("doesn't render an unchanged template under --base", () => {
+    const dir = repo(d => {
+      throwing(d, 'banner', 'banner was already broken')
+      recording(d, 'card')
+    })
+    // Change one template so the run has something to render.
+    recording(dir, 'hero')
+    const { report, status } = validate(dir, ['--render', '--base', 'HEAD'])
+    expect(renderItems((report as Report).templates, 'banner')).toEqual([])
+    expect(status).toBe(0)
+    const log = readFileSync(join(dir, 'renders.log'), 'utf-8')
+    expect(log).toContain('hero')
+    expect(log).not.toContain('card')
+  }, 60_000)
+
+  it('runs no template without --render', () => {
+    const dir = repo()
+    recording(dir, 'hero')
+    validate(dir, ['--base', 'HEAD'])
+    expect(existsSync(join(dir, 'renders.log'))).toBe(false)
+    validate(dir, ['--render', '--base', 'HEAD'])
+    expect(existsSync(join(dir, 'renders.log'))).toBe(true)
+  }, 60_000)
+
+  it('lists a throw the base commit also has as already broken', () => {
+    const dir = repo(d => throwing(d, 'hero', 'broken before'))
+    // Reword the throw: hero changes, and still throws.
+    const path = join(dir, 'templates/hero/index.ts')
+    writeFileSync(path, readFileSync(path, 'utf-8').replace('broken before', 'broken differently now'))
+    const { report, status } = validate(dir, ['--render', '--base', 'HEAD'])
+    expect(status).toBe(0)
+    expect(renderItems((report as Report).templates, 'hero')).toEqual([])
+    expect(renderItems((report as Report).alreadyBroken!.templates, 'hero')).toContain('page:home')
+  }, 60_000)
+})

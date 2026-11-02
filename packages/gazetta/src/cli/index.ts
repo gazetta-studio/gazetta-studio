@@ -317,6 +317,10 @@ function printHelp() {
                                     for undo/rollback on production targets
                                     and for state remove)
     --limit <n>                     Max revisions to list (default: 50)
+    --render                        validate: also render the content that uses
+                                    templates changed since --base, and fail when
+                                    a template throws; without --base, every
+                                    template renders (slow on large sites)
 
   Auto-detection:
     Site is auto-detected from sites/ directory. If multiple sites exist,
@@ -1407,7 +1411,24 @@ async function runValidate(siteDir: string, rawArgs: readonly string[] = []) {
     process.exit(1)
   }
 
-  const runInput = { siteDir, projectRoot, templatesDir, includeQuality: opts.includeQuality, targets }
+  // --render: which templates to render content for. With --base, those changed
+  // since the base commit; without it, every template, the slow case (T8).
+  let render: import('./validate-render-check.js').TemplateSelection | undefined
+  if (opts.render) {
+    if (opts.base === undefined) render = 'all'
+    else {
+      const { changedTemplates } = await import('./validate-render-check.js')
+      try {
+        render = changedTemplates(opts.base, templatesDir)
+      } catch {
+        await refuse(
+          `--base ${opts.base}: git can't compare the templates with that commit. Fetch it first (for example \`git fetch origin main\`).`,
+        )
+      }
+    }
+  }
+
+  const runInput = { siteDir, projectRoot, templatesDir, includeQuality: opts.includeQuality, targets, render }
   let head: Awaited<ReturnType<typeof runChecks>>
   try {
     head = await runChecks(runInput)
