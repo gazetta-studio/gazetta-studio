@@ -472,6 +472,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # The sites' configs import `gazetta`, which resolves to the built package.
+      - run: npm run build -w packages/gazetta
       - name: Check content against templates
         env:
           SITE: ${{ matrix.site }}
