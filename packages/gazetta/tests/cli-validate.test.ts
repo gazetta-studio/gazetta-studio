@@ -113,3 +113,28 @@ describe('gazetta validate (CLI) — site-config validators', () => {
     expect(result.status).toBe(1)
   })
 })
+
+describe('gazetta validate (CLI) — a template that fails to load (#1665)', () => {
+  const copyDir = resolve(here, '../../../.tmp', `cli-validate-broken-template-${Date.now()}`)
+
+  afterAll(() => {
+    rmSync(copyDir, { recursive: true, force: true })
+  })
+
+  it('names the template and its error once, and exits 1', { timeout: 90_000 }, () => {
+    cpSync(starterDir, copyDir, { recursive: true, filter: src => !src.includes('node_modules') })
+    writeFileSync(join(copyDir, 'templates/hero/index.ts'), "throw new Error('hero is broken')\n")
+    const result = spawnSync('node', [cliEntry, 'validate', 'sites/main', '--verbose'], {
+      cwd: copyDir,
+      env: { ...process.env, NO_COLOR: '1' },
+      encoding: 'utf-8',
+    })
+    const output = result.stdout + result.stderr
+    const templateLines = output.split('\n').filter(l => l.includes("template hero couldn't be loaded"))
+    expect(templateLines).toHaveLength(1)
+    expect(templateLines[0]).toContain('hero is broken')
+    // Each page using it says why its content isn't checked.
+    expect(output).toContain('Template "hero" couldn\'t be loaded, so this content can\'t be checked')
+    expect(result.status).toBe(1)
+  })
+})

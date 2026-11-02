@@ -1543,8 +1543,16 @@ async function runValidate(siteDir: string, rawArgs: readonly string[] = []) {
     const { loadTemplate } = await import('../template-loader.js')
     const zod = await import('zod')
     for (const tplName of templateNames) {
+      let loaded: Awaited<ReturnType<typeof loadTemplate>>
       try {
-        const loaded = await loadTemplate(projectStorage, templatesDir, tplName)
+        loaded = await loadTemplate(projectStorage, templatesDir, tplName)
+      } catch (err) {
+        // Once per template; the pages using it say they can't be checked (#1665).
+        console.error(`  ${c.red('✗')} template ${tplName} couldn't be loaded ${c.dim(`— ${(err as Error).message}`)}`)
+        errorCount++
+        continue
+      }
+      try {
         const jsonSchema = zod.z.toJSONSchema(loaded.schema as import('zod').ZodType) as Record<string, unknown>
         const props = jsonSchema.properties as Record<string, Record<string, unknown>> | undefined
         if (!props) continue
@@ -1558,7 +1566,7 @@ async function runValidate(siteDir: string, rawArgs: readonly string[] = []) {
           }
         }
       } catch {
-        /* template load errors surface via referenced-template-exists */
+        /* a schema JSON Schema can't express has no field references to check */
       }
     }
   }
