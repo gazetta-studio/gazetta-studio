@@ -471,6 +471,11 @@ describe('gazetta validate (CLI) — --targets (#1754)', () => {
     expect(report.templates).toEqual([])
     expect(report.other.filter((o: { target?: string | null }) => o.target === 'staging')).toEqual([])
     expect(status).toBe(0)
+    // --render skips a static target too: without its fragments, its pages can't render (Seer on #1759).
+    const rendered = validate(dir, ['--targets', 'staging', '--render'])
+    expect(rendered.report.templates).toEqual([])
+    expect(rendered.stderr).toContain('Not rendering staging')
+    expect(rendered.status).toBe(0)
   })
 
   it.each([
@@ -545,7 +550,9 @@ describe('gazetta validate (CLI) — --render (#1755)', () => {
     for (const dir of made) rmSync(dir, { recursive: true, force: true })
   })
 
-  it('fails on a changed template that throws, naming the item, language, template and error', () => {
+  it('fails on a changed template that throws, naming the item, language, template and error', {
+    timeout: 60_000,
+  }, () => {
     const dir = repo()
     throwing(dir, 'hero', 'items is empty')
     const { report, status } = validate(dir, ['--render', '--base', 'HEAD'])

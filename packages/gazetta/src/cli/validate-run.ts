@@ -138,7 +138,14 @@ export async function runChecks(input: RunInput): Promise<RunIssues> {
   // --render: the same items publish would render, per content source (T8).
   if (input.render) {
     const { itemsToRender, renderItems } = await import('./validate-render-check.js')
+    const isStatic = new Set((input.targets ?? []).filter(t => t.static).map(t => t.name))
     for (const source of [repo, ...targets]) {
+      // A static target stores no fragments (they're baked into its pages), so
+      // its pages can't be rendered from it; the repo's render covers its templates.
+      if (source.target !== null && isStatic.has(source.target)) {
+        console.log(`  Not rendering ${source.target}: a static target stores no fragments to render with.`)
+        continue
+      }
       const items = itemsToRender(source.site, input.render)
       const where = source.target === null ? '' : ` on ${source.target}`
       console.log(`  Rendering ${items.length} item${items.length === 1 ? '' : 's'}${where}…`)
