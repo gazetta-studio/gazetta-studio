@@ -27,6 +27,7 @@ import { devNotFound } from './dev-not-found.js'
 import { isInside } from './is-inside.js'
 import { isArchived } from '../archive-helpers.js'
 import { viteCacheDir } from './vite-cache-dir.js'
+import { devRoute } from './dev-routing.js'
 import { isStatePath, STATE_ROOT } from '../state-folders.js'
 
 // ANSI color helpers — no dependency, suppressed when NO_COLOR or CI
@@ -1986,13 +1987,13 @@ async function runDev(siteDir: string, port: number, hostFlag?: string) {
       httpServer.removeAllListeners('request')
 
       const loaderHandler = (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => {
-        const url = req.url ?? ''
-        if (url === '/admin/ping' || url.startsWith('/admin/ping?')) {
+        const route = devRoute(req.url ?? '', false)
+        if (route === 'ping') {
           res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
           res.end(JSON.stringify({ ready: cmsReady }))
           return true
         }
-        if (url === '/admin' || url.startsWith('/admin/') || url.startsWith('/@')) {
+        if (route === 'loader') {
           res.writeHead(503, {
             'Content-Type': 'text/html; charset=utf-8',
             'Cache-Control': 'no-store',
@@ -2086,26 +2087,16 @@ async function runDev(siteDir: string, port: number, hostFlag?: string) {
 
         httpServer.removeAllListeners('request')
         httpServer.on('request', (req, res) => {
-          const url = req.url ?? ''
+          const route = devRoute(req.url ?? '', true)
           // Keep /admin/ping live so the loader page can continue polling —
           // useful if the server hot-reloads and Vite rebinds.
-          if (url === '/admin/ping' || url.startsWith('/admin/ping?')) {
+          if (route === 'ping') {
             res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
             res.end(JSON.stringify({ ready: true }))
             return
           }
-          if (
-            url.startsWith('/admin/api') ||
-            url.startsWith('/admin/preview') ||
-            url === '/admin/theme.css' ||
-            url.startsWith('/admin/theme.css?')
-          ) {
-            honoHandler(req, res)
-          } else if (url.startsWith('/admin') || url.startsWith('/@')) {
-            vite.middlewares(req, res, () => honoHandler(req, res))
-          } else {
-            honoHandler(req, res)
-          }
+          if (route === 'vite') vite.middlewares(req, res, () => honoHandler(req, res))
+          else honoHandler(req, res)
         })
         // Force Vite to scan deps + complete initial optimization BEFORE we
         // mark the CMS ready. Without this, `cmsReady = true` fires the
