@@ -98,6 +98,8 @@ Checks every page and fragment for broken references (templates, fragments, asse
 
 Content that doesn't fit its template's schema (a required field missing, a value of the wrong type) is an error here, so the run fails until the content is fixed. Each issue is listed under its page or fragment with the field, the component and the language version. Site health in the admin shows the same problems as warnings.
 
+To check a template change in a pull request, run it with `--base`: see [Check a template change in CI](./templates.md#check-a-template-change-in-ci) for a workflow to copy.
+
 | Flag | Effect |
 |---|---|
 | `--severity <level>` | What to show and count: `error` (default), `warn` (errors and warnings) or `all` (also info) |
@@ -122,7 +124,7 @@ The JSON report:
 
 Each item has `kind` (`page` or `fragment`), `name`, `locale` (`null` for the default language), `target` (`null` for the repo, or the target's name), `fix` (for a target's item with a new problem, how to fix it) and `issues`. Each issue has `validator`, `severity`, `message`, `component` (the component's path in the item) and `contentPath` (the field in its content, such as `cta`).
 
-Exit code: 1 when there are errors. With `--severity=warn` or `all`, warnings fail the run too, unless `--no-warn-as-error` is set; with the default `--severity=error`, a run with only warnings reports "All good." and exits 0. Site config issues and the template, editor and field checks are shown whatever `--severity` is.
+Exit code: 0 when the run passes, 1 when there are errors, and 2 when `--base` or `--targets` can't be used (a commit git can't find, a target that can't be checked). With `--severity=warn` or `all`, warnings fail the run too, unless `--no-warn-as-error` is set; with the default `--severity=error`, a run with only warnings reports "All good." and exits 0. Site config issues and the template, editor and field checks are shown whatever `--severity` is.
 
 ### `gazetta translate <item> --to <locale> [target]`
 

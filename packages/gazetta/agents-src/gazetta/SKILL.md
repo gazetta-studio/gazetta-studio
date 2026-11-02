@@ -47,6 +47,7 @@ A page manifest:
 - Translations are whole manifests next to the default: `page.fr.json`, `fragment.fr.json`. Each has its own `template`, `content` and `components`. `gazetta translate <item> --to <locale>` creates one as a copy to translate.
 - Run `gazetta dev` and open `http://localhost:3000` to preview; the admin is at `/admin`. New page folders are picked up without a restart.
 - Run `gazetta validate` after editing. It exits non-zero on broken references, unknown templates and invalid manifests; `--include-quality` adds accessibility and HTML checks, `--verbose` prints every issue.
+- After changing a template, run `gazetta validate --base origin/main` (or your branch's base): it fails only on content your change no longer fits, and lists older problems as already broken.
 
 ## Writing templates
 
