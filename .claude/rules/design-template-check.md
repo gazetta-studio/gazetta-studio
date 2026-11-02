@@ -191,7 +191,7 @@ Decided: maintainer, 2026-11-02 (#1752)
 | Same field and same message | A schema change that rewords the message would fail the PR on a field that was broken on `main` already |
 | Same page only | A PR that breaks a second field on a page that was already broken would pass |
 
-Problems without a component and field match the same way, on the place they're reported, and never on their message: other item problems on the item, language and content path; config problems on the config path; template and project-file problems on the template or file and the field. #1751 builds it this way. Follows from the decision above.
+Problems without a component and field match the same way, on the place they're reported: other item problems on the item, language, content path and message; config problems on the config path; template and project-file problems on the template or file and the field. Unlike Zod's, these messages are Gazetta's own fixed text naming the reference (`Asset "logo" referenced but not found`), and a check such as the missing-asset one reports only the component as its content path, so the message is what tells two missing assets in one component apart. If Gazetta rewords one of them, an old problem shows as new for one run. #1751 builds it this way. Follows from the decision above.
 
 The base run checks the base commit's content against the base commit's templates: what `main` had. If it checked the PR's content, a PR that only changes content would show the same problem in both runs and pass, against T2. Follows from T2.
 
