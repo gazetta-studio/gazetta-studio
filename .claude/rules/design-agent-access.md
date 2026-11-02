@@ -776,7 +776,7 @@ The cap is 100 items: a 200-item batch took 5.8 s on a local filesystem, over th
 
 The bulk save stays although cut 6 counts a run's saves as one history entry and cut 11 reverts a run item by item, so looping single saves is also grouped and undoable. What it adds is all-or-nothing, and one request instead of many to a remote admin. `gz` uses it when one command changes several items, and single saves otherwise.
 
-Decided: maintainer, 2026-11-02 (#<PR>)
+Decided: maintainer, 2026-11-02 (#1720)
 
 | Rejected | Why |
 |---|---|
