@@ -18,7 +18,10 @@ import { manifestComponents } from '../types.js'
  *
  * In the background scan and `gazetta validate` it's a warning for every
  * component: typically content that bypassed the admin (direct file
- * edits, git pulls, schema changes mid-flight).
+ * edits, git pulls, schema changes mid-flight). A template that exists but
+ * won't load is an error, once per item that uses it (#1665): the item's
+ * content can't be checked. `gazetta validate` also names the template
+ * itself once.
  *
  * Walks the manifest + recursive inline components. Each component is parsed
  * against its declared template's schema. Failures emit one issue per zod
@@ -71,33 +74,40 @@ async function checkManifest(
   templatesDir: string,
 ): Promise<Issue[]> {
   const issues: Issue[] = []
+  const ctx: ItemContext = { itemPath, storage, templatesDir, unloadable: new Set() }
   // The manifest itself has a template + content; parse those, then descend.
   if (manifest.template && manifest.content !== undefined) {
-    issues.push(...(await checkOne(itemPath, manifest.template, manifest.content, '', storage, templatesDir)))
+    issues.push(...(await checkOne(ctx, manifest.template, manifest.content, '')))
   }
   for (const child of manifestComponents(manifest)) {
-    await collectFromEntry(child, '', issues, itemPath, storage, templatesDir)
+    await collectFromEntry(child, '', issues, ctx)
   }
   return issues
+}
+
+/** One item's walk: each template that won't load is reported once for the item. */
+interface ItemContext {
+  itemPath: string
+  storage: StorageProvider
+  templatesDir: string
+  unloadable: Set<string>
 }
 
 async function collectFromEntry(
   entry: ComponentEntry,
   parentPath: string,
   out: Issue[],
-  itemPath: string,
-  storage: StorageProvider,
-  templatesDir: string,
+  ctx: ItemContext,
 ): Promise<void> {
   if (typeof entry === 'string') return // fragment ref — schema checked when fragment is scanned
   const inline = entry as InlineComponent
   const path = parentPath ? `${parentPath}/${inline.name}` : inline.name
   if (inline.template && inline.content !== undefined) {
-    out.push(...(await checkOne(itemPath, inline.template, inline.content, path, storage, templatesDir)))
+    out.push(...(await checkOne(ctx, inline.template, inline.content, path)))
   }
   if (inline.components) {
     for (const child of inline.components) {
-      await collectFromEntry(child, path, out, itemPath, storage, templatesDir)
+      await collectFromEntry(child, path, out, ctx)
     }
   }
 }
@@ -139,16 +149,26 @@ function unloadable(itemPath: string, templateName: string, contentPath: string,
 }
 
 async function checkOne(
-  itemPath: string,
+  ctx: ItemContext,
   templateName: string,
   content: unknown,
   contentPath: string,
-  storage: StorageProvider,
-  templatesDir: string,
 ): Promise<Issue[]> {
-  const tpl = await safeLoadTemplate(storage, templatesDir, templateName)
-  if (!tpl) return [] // template missing — referenced-template-exists handles this
-  return parseIssues(itemPath, tpl.schema as z.ZodTypeAny, content, contentPath, 'warn')
+  if (ctx.unloadable.has(templateName)) return []
+  // A missing template is referenced-template-exists's to report.
+  if (!(await findTemplateFile(ctx.templatesDir, templateName))) return []
+  let schema: unknown
+  try {
+    schema = (await loadTemplate(ctx.storage, ctx.templatesDir, templateName)).schema
+  } catch (err) {
+    ctx.unloadable.add(templateName)
+    return [unloadable(ctx.itemPath, templateName, '', (err as Error).message)]
+  }
+  if (typeof (schema as { safeParse?: unknown })?.safeParse !== 'function') {
+    ctx.unloadable.add(templateName)
+    return [unloadable(ctx.itemPath, templateName, '', 'its schema is not a Zod schema')]
+  }
+  return parseIssues(ctx.itemPath, schema as z.ZodTypeAny, content, contentPath, 'warn')
 }
 
 function parseIssues(
@@ -167,16 +187,4 @@ function parseIssues(
     itemPath,
     contentPath: contentPath || undefined,
   }))
-}
-
-async function safeLoadTemplate(
-  storage: StorageProvider,
-  templatesDir: string,
-  templateName: string,
-): Promise<{ render: unknown; schema: unknown } | null> {
-  try {
-    return await loadTemplate(storage, templatesDir, templateName)
-  } catch {
-    return null
-  }
 }

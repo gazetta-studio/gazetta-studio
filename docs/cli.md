@@ -94,7 +94,7 @@ Runs the deploy adapter set as the target's `deploy:` field, for example the Clo
 
 ### `gazetta validate [site]`
 
-Checks every page and fragment for broken references (templates, fragments, assets), content that doesn't match its template's schema, and site config problems, plus custom editors without a template and fields a schema names that don't exist in `admin/fields/`.
+Checks every page and fragment for broken references (templates, fragments, assets), content that doesn't match its template's schema, and site config problems, plus custom editors without a template and fields a schema names that don't exist in `admin/fields/`. A template that exists but fails to load (a syntax error, a failing import, no `schema` export) is an error, named once with its load error; each page and fragment using it also gets an error saying its content can't be checked.
 
 | Flag | Effect |
 |---|---|
@@ -103,7 +103,7 @@ Checks every page and fragment for broken references (templates, fragments, asse
 | `--no-warn-as-error` | Don't fail the run on warnings (with `--severity=warn` or `all`) |
 | `--verbose`, `-v` | Show each issue, not just a mark per item |
 
-Exit code: 1 when there are errors. With `--severity=warn` or `all`, warnings fail the run too, unless `--no-warn-as-error` is set; with the default `--severity=error`, a run with only warnings reports "All good." and exits 0. Site config issues and the editor and field checks are shown whatever `--severity` is.
+Exit code: 1 when there are errors. With `--severity=warn` or `all`, warnings fail the run too, unless `--no-warn-as-error` is set; with the default `--severity=error`, a run with only warnings reports "All good." and exits 0. Site config issues and the template, editor and field checks are shown whatever `--severity` is.
 
 ### `gazetta translate <item> --to <locale> [target]`
 
