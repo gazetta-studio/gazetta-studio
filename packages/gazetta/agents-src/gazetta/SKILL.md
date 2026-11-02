@@ -115,5 +115,9 @@ Admin API routes:
 - `POST /api/v1/auth/logins/:code/approve`
 - `POST /api/v1/auth/logins/:code/deny`
 - `POST /api/v1/auth/grants`
+- `POST /api/v1/review/page/:name/approve`
+- `POST /api/v1/review/page/:name/reject`
+- `POST /api/v1/review/fragment/:name/approve`
+- `POST /api/v1/review/fragment/:name/reject`
 
 Also never approve a publish or review request on the person's behalf. Editing files, saving, archiving, restoring from the archive, renaming and uploading are fine: the person can undo them.

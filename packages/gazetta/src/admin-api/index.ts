@@ -74,6 +74,7 @@ import { versionRoutes } from './routes/version.js'
 import { archiveRoutes } from './routes/archive.js'
 import { renameRoutes } from './routes/rename.js'
 import { redirectRoutes } from './routes/redirects.js'
+import { reviewRoutes } from './routes/review.js'
 import { warnOnCapabilityGaps } from '../runtime/capability-gap-warnings.js'
 import { isArchived } from '../archive-helpers.js'
 import { HookRegistry, type HookContribution } from '../hooks/index.js'
@@ -523,6 +524,7 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   // greedy `pages` / `fragments` matchers — same first-match-wins
   // consideration as archive + rename above.
   api.route('/', redirectRoutes(resolveSource))
+  api.route('/', reviewRoutes(resolveSource, { auditProviders }))
   api.route(
     '/',
     saveRoutes(resolveSource, validators, templatesDir, {

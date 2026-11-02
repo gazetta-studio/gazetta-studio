@@ -190,6 +190,34 @@ export async function removeApproverSidecar(
 }
 
 /**
+ * Zero-byte marker for an item waiting for review,
+ * `.gazetta/review/pending/{kind}/{encoded name}` (design-review-workflow.md
+ * "Settled by the plan review" item 9). Submit writes it; approve
+ * (threshold met), reject and withdraw remove it. The pending-review queue
+ * lists the folder, one directory listing at the 5,000-page envelope.
+ */
+export function reviewPendingPath(contentRoot: ContentRoot, kind: ReviewStateKind, name: string): string {
+  return contentRoot.path(stateFolderPath('review', 'pending', kind, encodeRefName(name)))
+}
+
+export async function writePendingMarker(contentRoot: ContentRoot, kind: ReviewStateKind, name: string): Promise<void> {
+  await contentRoot.storage.mkdir(contentRoot.path(stateFolderPath('review', 'pending', kind))).catch(() => {
+    // Dir already exists - fine.
+  })
+  await contentRoot.storage.writeFile(reviewPendingPath(contentRoot, kind, name), '')
+}
+
+export async function removePendingMarker(
+  contentRoot: ContentRoot,
+  kind: ReviewStateKind,
+  name: string,
+): Promise<void> {
+  await contentRoot.storage.rm(reviewPendingPath(contentRoot, kind, name)).catch(() => {
+    // Not pending - fine.
+  })
+}
+
+/**
  * Tear down the entire review sidecar tree for one item — state
  * file + all approver sidecars + the item directory. Used when
  * review state resets to `draft` and no history of the submission
@@ -199,4 +227,6 @@ export async function clearReviewSidecar(contentRoot: ContentRoot, kind: ReviewS
   await contentRoot.storage.rm(reviewItemDir(contentRoot, kind, name)).catch(() => {
     // Nothing to remove — fine.
   })
+  // Back to draft: no longer waiting for review.
+  await removePendingMarker(contentRoot, kind, name)
 }
