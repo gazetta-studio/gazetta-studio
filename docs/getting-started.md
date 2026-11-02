@@ -73,6 +73,7 @@ The admin still shows your edit. Undo changed staging, not `local`, so your work
 - Replace a form or add a field widget: [Customize the editor](./customize-editor.md).
 - Add more targets and storage: [Targets](./targets.md).
 - Learn the rest of publishing, history and the command line: [Publishing](./publishing.md) and [CLI reference](./cli.md).
+- Edit content from a terminal, or let an AI agent do it: [gz](./gz.md).
 
 ## If something goes wrong
 

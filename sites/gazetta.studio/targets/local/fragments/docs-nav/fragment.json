@@ -85,6 +85,14 @@
             "href": "/docs/cli"
           },
           {
+            "label": "gz",
+            "href": "/docs/gz"
+          },
+          {
+            "label": "Admin API",
+            "href": "/docs/api"
+          },
+          {
             "label": "Auth",
             "href": "/docs/auth"
           },

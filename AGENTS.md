@@ -34,6 +34,8 @@ These are the instructions for any coding agent working in this repository. Clau
 - `docs/getting-started.md` — Onboarding tutorial
 - `docs/publishing.md` - Publishing from the admin and CLI, sync status, history and undo limitations
 - `docs/cli.md` - Command-line reference (every command and flag, site and target auto-detection, ports and `--host`, CI behaviour, exit codes)
+- `docs/gz.md` - `gz` for content creators and their agents (install, sign in, edit, check, publish, runs, exit codes, what agents leave to people)
+- `docs/api.md` - Admin API conventions (versions, problem+json errors, headers, bulk save, run revert); the routes are in the OpenAPI document
 - `docs/template-assets.md` — Template developer guide for asset references
 - `docs/content-assets.md` — Content author guide for the asset library
 - `docs/migration.md` — Migrating templates from `z.string()` URLs to `embeddedAsset()` references
