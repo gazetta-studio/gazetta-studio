@@ -174,9 +174,9 @@ function field(issue: ReportIssue): string {
   return [issue.component, issue.contentPath].filter(Boolean).join(' › ')
 }
 
-/** A table cell: no line breaks, `|` escaped. */
-function cell(s: string): string {
-  return s.replace(/\r?\n/g, ' ').replace(/\|/g, '\\|')
+/** A table cell: no line breaks; `\\` and `|` escaped, backslash first. */
+export function cell(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/\r?\n/g, ' ').replace(/\|/g, '\\|')
 }
 
 function worstOf(severities: readonly Severity[]): Severity | undefined {

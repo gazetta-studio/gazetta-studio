@@ -1460,18 +1460,20 @@ async function runValidate(siteDir: string, rawArgs: readonly string[] = []) {
     warnAsError: opts.warnAsError,
   })
   restoreLog()
+  let out: string
   if (opts.format === 'json') {
-    process.stdout.write(renderJson(report))
+    out = renderJson(report)
   } else if (opts.format === 'github') {
     const { summary, annotations } = renderGithub(report)
     const summaryFile = process.env.GITHUB_STEP_SUMMARY
     if (summaryFile) appendFileSync(summaryFile, summary)
-    else process.stdout.write(summary)
-    for (const line of annotations) process.stdout.write(`${line}\n`)
+    out = (summaryFile ? '' : summary) + annotations.map(line => `${line}\n`).join('')
   } else {
-    process.stdout.write(renderText(report, site, { verbose: opts.verbose, show }, c))
-    process.stdout.write('\n')
+    out = `${renderText(report, site, { verbose: opts.verbose, show }, c)}\n`
   }
+  // Exit only once stdout has flushed: a piped report larger than the pipe
+  // buffer would otherwise be cut off (Seer on #1749).
+  await new Promise<void>(done => process.stdout.write(out, () => done()))
   if (!report.ok) process.exit(1)
 }
 
