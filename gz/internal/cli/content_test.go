@@ -139,12 +139,20 @@ func TestSetFromAFolderUsesWholeManifests(t *testing.T) {
 	}
 	write("home.json", "Folder home")
 	write("about.fr.json", "À propos")
+	if err := os.Mkdir(filepath.Join(dir, "v1.2"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	write("v1.2/notes.json", "Notes")
+	a.Items["page:v1.2/notes:"] = &fakeadmin.Item{Manifest: map[string]any{"template": "page-default"}, Version: 1}
 	h.must(t, "pages", "set", "--from", dir)
+	if a.Items["page:v1.2/notes:"] == nil {
+		t.Fatalf("a folder's dot split the name: %v", a.Saves)
+	}
 	if heroTitle(a, "home") != "Folder home" {
 		t.Fatalf("home %v", a.Items["page:home:"].Manifest)
 	}
 	fr := a.Items["page:about:fr"]
-	if fr == nil || len(a.Saves) != 2 || !a.Saves[0].Bulk {
+	if fr == nil || len(a.Saves) != 3 || !a.Saves[0].Bulk {
 		t.Fatalf("fr %v saves %+v", fr, a.Saves)
 	}
 }
