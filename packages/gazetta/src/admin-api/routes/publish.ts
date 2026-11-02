@@ -247,6 +247,12 @@ export function publishRoutes(
    * `assets/hero`. Hooks see kind + name + path; if the prefix
    * doesn't match, default to 'asset' (covers loose path forms).
    */
+  /** `pages/home:fr` → `pages/home`: an asset removal keeps back every language of an item. */
+  function itemBase(itemPath: string): string {
+    const colon = itemPath.indexOf(':')
+    return colon === -1 ? itemPath : itemPath.slice(0, colon)
+  }
+
   function toPublishItem(itemPath: string): PublishItem {
     if (itemPath.startsWith('pages/')) {
       return { kind: 'page', name: itemPath.slice('pages/'.length), path: itemPath }
@@ -941,10 +947,10 @@ export function publishRoutes(
         const skipped = new Map((r.notPublished ?? []).map(n => [n.item, n.reason]))
         const hookResult: PublishHookResult = {
           target: r.target,
-          itemsPublished: r.success ? finalPublishItems.filter(item => !skipped.has(item.path)) : [],
+          itemsPublished: r.success ? finalPublishItems.filter(item => !skipped.has(itemBase(item.path))) : [],
           itemsFailed: r.success
             ? finalPublishItems.flatMap(item =>
-                skipped.has(item.path) ? [{ item, reason: skipped.get(item.path)! }] : [],
+                skipped.has(itemBase(item.path)) ? [{ item, reason: skipped.get(itemBase(item.path))! }] : [],
               )
             : finalPublishItems.map(item => ({ item, reason: r.error ?? 'unknown' })),
         }
@@ -1116,10 +1122,10 @@ export function publishRoutes(
           const skipped = new Map((r.notPublished ?? []).map(n => [n.item, n.reason]))
           const hookResult: PublishHookResult = {
             target: r.target,
-            itemsPublished: r.success ? finalPublishItems.filter(item => !skipped.has(item.path)) : [],
+            itemsPublished: r.success ? finalPublishItems.filter(item => !skipped.has(itemBase(item.path))) : [],
             itemsFailed: r.success
               ? finalPublishItems.flatMap(item =>
-                  skipped.has(item.path) ? [{ item, reason: skipped.get(item.path)! }] : [],
+                  skipped.has(itemBase(item.path)) ? [{ item, reason: skipped.get(itemBase(item.path))! }] : [],
                 )
               : finalPublishItems.map(item => ({ item, reason: r.error ?? 'unknown' })),
           }
