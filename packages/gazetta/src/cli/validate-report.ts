@@ -104,7 +104,15 @@ export async function buildValidateReport(input: BuildReportInput): Promise<Vali
   const ok = shown === 0 || !(counts.error > 0 || (input.warnAsError && counts.warn > 0))
   const report: ValidateReport = { ok, counts, templates: fresh.templates, other: fresh.other }
   if (input.alreadyBroken) {
-    const already = await group(input, input.alreadyBroken, false)
+    // Old problems follow `--severity`, config and project problems too: a
+    // passing check's summary says only that it passed (T4, team rule 23, #1763).
+    const shows = (issue: { severity: Severity }) => input.show(issue.severity)
+    const old = input.alreadyBroken
+    const already = await group(
+      input,
+      { ...old, configIssues: old.configIssues.filter(shows), projectIssues: old.projectIssues.filter(shows) },
+      false,
+    )
     report.alreadyBroken = { templates: already.templates, other: already.other }
   }
   return report
