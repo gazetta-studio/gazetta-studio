@@ -184,6 +184,16 @@ describe('review transitions', () => {
     expect(await markerExists(h, 'page', 'home')).toBe(false)
   })
 
+  it('an archived item answers 409 ARCHIVED and takes no review', async () => {
+    const h = setup()
+    expect((await h.app.request('/api/v1/pages/home/archive', { method: 'POST' })).status).toBe(200)
+    const res = await post(h, 'page', 'home', 'submit')
+    expect(res.status).toBe(409)
+    expect(((await res.json()) as { code: string }).code).toBe('ARCHIVED')
+    expect(await readReviewSidecar(h.contentRoot, 'page', 'home')).toBeNull()
+    expect(await markerExists(h, 'page', 'home')).toBe(false)
+  })
+
   it('a missing item answers 404', async () => {
     const h = setup()
     const res = await post(h, 'page', 'nope', 'submit')

@@ -86,7 +86,7 @@ const TRANSITION_PROBLEMS = {
   401: ['UNAUTHENTICATED'],
   403: ['FORBIDDEN', 'NOT_SUBMITTER', 'TARGET_NOT_EDITABLE'],
   404: ['NOT_FOUND'],
-  409: ['INVALID_TRANSITION', 'ALREADY_VOTED', 'REVIEW_DISABLED'],
+  409: ['INVALID_TRANSITION', 'ALREADY_VOTED', 'REVIEW_DISABLED', 'ARCHIVED'],
   415: ['BAD_REQUEST'],
   500: ['AUDIT_FAILED'],
 } as const satisfies Record<number, readonly ErrorCode[]>
@@ -182,7 +182,7 @@ export function reviewRoutes(resolve: SourceContextResolver, opts: ReviewRoutesO
   return app
 }
 
-type Found = { source: SourceContext } | { response: ProblemResponse<400 | 404> }
+type Found = { source: SourceContext; archived: boolean } | { response: ProblemResponse<400 | 404> }
 
 /** The item must exist on the source; its name must be encodable as a sidecar path. */
 async function findItem(
@@ -198,11 +198,12 @@ async function findItem(
   }
   const source = await resolve(target)
   const site = await loadSiteFromSource(source)
-  if (!lookupManifest(site, kind, name)) {
+  const manifest = lookupManifest(site, kind, name)
+  if (!manifest) {
     const label = kind === 'page' ? 'Page' : 'Fragment'
     return { response: problem(c, 404, 'NOT_FOUND', `${label} "${name}" not found`) }
   }
-  return { source }
+  return { source, archived: manifest.archived === true }
 }
 
 async function handleTransition(
@@ -215,6 +216,15 @@ async function handleTransition(
 ) {
   const found = await findItem(c, resolve, kind, name, target)
   if ('response' in found) return found.response
+  // Archiving withdraws a review and an archived item is read-only
+  // (design-soft-delete.md Q9), so it takes no review until restored.
+  if (found.archived)
+    return problem(
+      c,
+      409,
+      'ARCHIVED',
+      `${kind === 'page' ? 'Page' : 'Fragment'} "${name}" is archived; restore it first`,
+    )
   const { source } = found
   const root = source.contentRoot
 
