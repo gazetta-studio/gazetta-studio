@@ -1,6 +1,6 @@
 /** #1748: GitHub output — a job summary per template and an annotation on its entry file. */
 import { describe, expect, it } from 'vitest'
-import { escapeData, escapeProperty, renderGithub } from '../src/cli/validate-render.js'
+import { cell, escapeData, escapeProperty, renderGithub } from '../src/cli/validate-render.js'
 import type { ValidateReport } from '../src/cli/validate-report.js'
 
 const issue = (message: string, severity: 'error' | 'warn' = 'error') => ({
@@ -70,5 +70,9 @@ describe('renderGithub', () => {
   it('escapes workflow command data and properties', () => {
     expect(escapeData('50%\r\nnext')).toBe('50%25%0D%0Anext')
     expect(escapeProperty('a:b,c%')).toBe('a%3Ab%2Cc%25')
+  })
+
+  it('escapes a backslash before a pipe in a table cell (CodeQL on #1749)', () => {
+    expect(cell('a\\|b\nc')).toBe('a\\\\\\|b c')
   })
 })

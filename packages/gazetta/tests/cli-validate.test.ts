@@ -239,3 +239,40 @@ describe('gazetta validate (CLI) — --json and --format github (#1748)', () => 
     expect(status).toBe(0)
   })
 })
+
+describe('gazetta validate (CLI) — a large --json report through a pipe (Seer on #1749)', () => {
+  const dir = resolve(here, '../../../.tmp', `cli-validate-large-${Date.now()}`)
+
+  beforeAll(() => {
+    cpSync(starterDir, dir, { recursive: true, filter: src => !src.includes('node_modules') })
+    // 300 pages whose hero lacks its title: a report well over a 64 KB pipe buffer.
+    for (let i = 0; i < 300; i++) {
+      const page = join(dir, 'sites/main/targets/local/pages', `broken-${i}`)
+      mkdirSync(page, { recursive: true })
+      writeFileSync(
+        join(page, 'page.json'),
+        JSON.stringify({
+          template: 'page-default',
+          route: `/broken-${i}`,
+          components: [{ name: 'hero', template: 'hero', content: {} }],
+        }),
+      )
+    }
+  })
+  afterAll(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('prints the whole document before exiting 1', { timeout: 60_000 }, () => {
+    const result = spawnSync('node', [cliEntry, 'validate', 'sites/main', '--json'], {
+      cwd: dir,
+      env: { ...process.env, NO_COLOR: '1' },
+      encoding: 'utf-8',
+      maxBuffer: 64 * 1024 * 1024,
+    })
+    expect(result.stdout.length).toBeGreaterThan(64 * 1024)
+    const report = JSON.parse(result.stdout)
+    expect(report.templates.find((t: { template: string }) => t.template === 'hero').items).toHaveLength(300)
+    expect(result.status).toBe(1)
+  })
+})
