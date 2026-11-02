@@ -251,3 +251,96 @@ describe('the server gate and the render read one snapshot (#1632)', () => {
     expect(await target.readFile('index.html')).toContain('Audited')
   })
 })
+
+describe('afterPublish hooks get the items an asset removal kept back (#1632)', () => {
+  const page = (title: string) =>
+    JSON.stringify({ template: 'page-default', route: '/', content: { image: { _asset: 'sky' } }, metadata: { title } })
+
+  // Removes the asset's bytes while the gate audits, after the snapshot was taken.
+  function removeAssetDuringGate(storage: MemoryStorage): Validator {
+    return {
+      source: 'gazetta',
+      name: 'test-remove-asset-during-gate',
+      stages: ['pre-publish'] as const,
+      defaultSeverity: () => 'error',
+      async validate(input) {
+        if (input.scope.kind !== 'pre-publish') return []
+        await storage.rm('assets/sky-aaaaaaaa.png')
+        return []
+      },
+    }
+  }
+
+  it.each(['/api/v1/publish', '/api/v1/publish/stream'] as const)(
+    '%s reports a translation as failed, not published',
+    async route => {
+      const { starterTemplatesDir } = await import('./_helpers/starter.js')
+      const { HookRegistry } = await import('../src/hooks/index.js')
+      const source = memoryStorage()
+      const target = memoryStorage()
+      source.seed({
+        'pages/home/page.json': page('Home'),
+        'pages/home/page.fr.json': page('Accueil'),
+        'assets/sky.asset.json': JSON.stringify({
+          version: 1,
+          name: 'sky',
+          kind: 'embedded',
+          source: 'internal',
+          mime: 'image/png',
+          size: 3,
+          hash: 'aaaaaaaa',
+          width: null,
+          height: null,
+          variants: [],
+          tags: [],
+          alt: 'Sky',
+          uploadedAt: '2026-11-01T00:00:00.000Z',
+          uploadedBy: '',
+        }),
+        'assets/sky-aaaaaaaa.png': 'png',
+      })
+      const results: { published: string[]; failed: string[] }[] = []
+      const hooks = new HookRegistry()
+      hooks.register(
+        'afterPublish',
+        async (_target, result) => {
+          results.push({
+            published: result.itemsPublished.map(i => i.path),
+            failed: result.itemsFailed.map(f => f.item.path),
+          })
+        },
+        { name: 'record' },
+      )
+      hooks.seal()
+      const targetConfigs = {
+        local: { storage: source, type: 'esi' as const, environment: 'local' as const, editable: true },
+        staging: { storage: target, type: 'esi' as const, environment: 'staging' as const, publicStorage: false },
+      }
+      const app = createAdminApp({
+        source: createSourceContext({
+          storage: source,
+          siteDir: '',
+          projectSiteDir: '/test-project',
+          manifest: { name: 'test-site', targets: targetConfigs, locales: { default: 'en', supported: ['en', 'fr'] } },
+        }),
+        siteDir: '/test-project',
+        templatesDir: starterTemplatesDir,
+        targets: new Map([
+          ['local', source],
+          ['staging', target],
+        ]),
+        targetConfigs,
+        disableCacheStatsLogger: true,
+        hooks,
+        validators: createValidatorRegistry([removeAssetDuringGate(source)]),
+      })
+      const res = await app.request(route, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: ['pages/home:fr'], targets: ['staging'] }),
+      })
+      expect(await res.text()).not.toContain('"success":false')
+      expect(results).toEqual([{ published: [], failed: ['pages/home:fr'] }])
+    },
+  )
+})
