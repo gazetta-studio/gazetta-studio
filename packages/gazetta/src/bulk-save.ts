@@ -10,8 +10,10 @@
  * reference a fragment the same batch creates.
  *
  * A storage failure after the checks passed stops the batch. What was
- * written is recorded as the revision and reported; nothing is rolled
- * back (design-media.md, "Multi-write contract").
+ * written is recorded as the revision, gets its after-write steps (audit
+ * included) and is reported; nothing is rolled back (design-media.md,
+ * "Multi-write contract"). A revision that can't be recorded is reported
+ * the same way.
  */
 import { dirname } from 'node:path'
 import {
@@ -142,27 +144,43 @@ export async function bulkSave(input: BulkSaveInput): Promise<BulkSaveResult> {
   if (history) await ensureHistoryBaseline({ history, contentRoot: input.source.contentRoot })
 
   const etags: string[] = []
+  let failed: { index: number; message: string } | undefined
   for (const [i, save] of saves.entries()) {
     try {
       etags.push(await writeSave(save, checked[i]!))
     } catch (err) {
       if (strict) for (const unwritten of saves.slice(i)) await recordWriteFailed(unwritten)
-      const revision = history && i > 0 ? await record(input, saves.slice(0, i), checked) : undefined
-      return {
-        ok: false,
-        code: 'WRITE_FAILED',
-        message: (err as Error).message,
-        ...(revision ? { revisionId: revision } : {}),
-        written: refs.slice(0, i),
-        unwritten: refs.slice(i),
-      }
+      failed = { index: i, message: (err as Error).message }
+      break
     }
   }
-  const revisionId = history ? await record(input, saves, checked) : undefined
+  const written = failed ? failed.index : saves.length
 
-  for (const [i, save] of saves.entries()) {
+  // The revision records what was written. If recording it fails, the
+  // items are still written: their after-write steps run (audit, hooks)
+  // and the failure is reported like a partial write.
+  let revisionId: string | undefined
+  if (history && written > 0) {
+    try {
+      revisionId = await record(input, saves.slice(0, written), checked)
+    } catch (err) {
+      failed ??= { index: written, message: `history couldn't be recorded: ${(err as Error).message}` }
+    }
+  }
+  for (const [i, save] of saves.slice(0, written).entries()) {
     await finishSave(save, checked[i]!, etags[i]!, { recordAudit: !strict })
   }
+  if (failed) {
+    return {
+      ok: false,
+      code: 'WRITE_FAILED',
+      message: failed.message,
+      ...(revisionId ? { revisionId } : {}),
+      written: refs.slice(0, written),
+      unwritten: refs.slice(written),
+    }
+  }
+
   return {
     ok: true,
     ...(revisionId ? { revisionId } : {}),
