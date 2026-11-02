@@ -2,7 +2,7 @@
 
 A check a pull request runs when it changes a template: CI parses the content that uses the changed template against the new schema, fails when the change breaks content, and reports what breaks, grouped by template. Resolves [#1660](https://github.com/gazetta-studio/gazetta-studio/issues/1660).
 
-**Status**: design pass complete (2026-11-01), grilled T1–T12. Implementation not started.
+**Status**: design pass complete (2026-11-01), grilled T1–T12; T13 decided 2026-11-02. Cuts 1 and 2 landed (#1746, #1749); cut 3 is #1750.
 
 **Companion docs:**
 - Discovery research: [#1660](https://github.com/gazetta-studio/gazetta-studio/issues/1660) (discovery-prep-bot comment, 2026-11-01)
@@ -180,6 +180,19 @@ Decided: maintainer, 2026-11-01 (#1666)
 | PR mode (`--base`) first | Its first version only reports in the terminal |
 | One cut for the check, then docs and CI | One large review, and nothing usable until all of it lands |
 
+### T13 — An old problem matches on everything but its message
+
+The base run parses the base commit's content against the base commit's templates: what `main` had. Follows from T2.
+
+A problem on the PR counts as one the base already had when the base has one from the same check, on the same item, language, component and field, whatever its message says. Problems outside a component's content match on their content path instead, and config problems on the config path. So a template change that only rewords Zod's message for a field that was already broken doesn't fail the PR. Cut 3 built it this way (#1751).
+
+Decided: maintainer, 2026-11-02 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| Same field and same message | A schema change that rewords the message would fail the PR on a field that was broken on `main` already |
+| Same page only | A PR that breaks a second field on a page that was already broken would pass |
+
 ## UX check
 
 Template developers are the main actor (TD3); operators own the workflow (T10); content authors see nothing new.
@@ -216,7 +229,7 @@ Nothing shows when nothing breaks: the summary says only that the check passed (
 |---|---|---|---|---|
 | 1 | `gazetta validate` counts `schema-conformance` problems as errors, so it fails on them; changelog line (T7) | #1665 | integration | Low |
 | 2 | `--json` and the GitHub output mode: job summary and annotations, grouped by template (T4, T6) | 1, #1667 | integration | Medium |
-| 3 | `--base <ref>`: base templates loaded from a git worktree, with the template cache (keyed by template name today, `template-loader.ts`) kept apart for base and head; fail only on new problems, list old ones, including the config and project-structure checks `gazetta validate` runs outside the validators (T2) | 2 | integration | Medium-high |
+| 3 | `--base <ref>`: the base commit's project folder extracted with `git archive`, with the template cache (keyed by template name today, `template-loader.ts`) kept apart for base and head; fail only on new problems, list old ones, including the config and project-structure checks `gazetta validate` runs outside the validators (T2) | 2 | integration | Medium-high |
 | 4 | `--targets`: read named targets' manifests; fail on public or unreadable ones; the fix line for target content (T5, T9–T11) | 3 | integration | Medium |
 | 5 | `--render`: render content using a changed template, fail on a throw (T8) | 3 | integration | Medium |
 | 6 | Docs: the workflow snippet, in `docs/cli.md` and `docs/templates.md` | 4, 5 | docs | Low |
@@ -228,7 +241,7 @@ No production users. After cut 1, a site whose content doesn't fit its templates
 
 ## Open questions
 
-1. Which content the base run parses (the base branch's content, or the PR's), and how the base comparison matches a problem on base with one on head (item, content path and message, or item and field only) when a schema change rewords Zod's message: cut 3 decides and tests it.
+None. The first, which content the base run parses and how problems are matched, is settled by T13.
 
 ## Future directions
 
