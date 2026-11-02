@@ -106,9 +106,19 @@
           "description": "Every gazetta command and flag, site and target auto-detection, ports, CI behaviour and exit codes."
         },
         {
+          "file": "gz.md",
+          "label": "gz",
+          "description": "Edit, check, publish and undo content from the command line, for content creators and their AI agents."
+        },
+        {
+          "file": "api.md",
+          "label": "Admin API",
+          "description": "Versions, errors, headers and the OpenAPI document for the admin's HTTP API."
+        },
+        {
           "file": "auth.md",
           "label": "Auth",
-          "description": "Upstream identity plus role-based capability gates for the admin."
+          "description": "Upstream identity plus role-based capability gates for the admin, and signing in from the command line."
         },
         {
           "file": "audit.md",

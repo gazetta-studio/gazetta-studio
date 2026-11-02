@@ -146,6 +146,8 @@ npm run build            # build all packages
 ## Documentation
 
 - **[Getting Started](https://github.com/gazetta-studio/gazetta-studio/blob/main/docs/getting-started.md)** — a tutorial: create a site, edit it in the admin, publish it to a second target and undo the publish
+- **[gz](https://github.com/gazetta-studio/gazetta-studio/blob/main/docs/gz.md)** — edit, check and publish content from the command line, for content creators and their AI agents
+- **[Admin API](https://github.com/gazetta-studio/gazetta-studio/blob/main/docs/api.md)** — the HTTP API the admin, gz and your scripts use, with its OpenAPI document
 - **[CONTEXT.md](https://github.com/gazetta-studio/gazetta-studio/blob/main/CONTEXT.md)** — the project's vocabulary: pages, fragments, targets and the rest
 - **Design docs** — `.claude/rules/design-*.md`, one per feature, with the decisions behind it
 
