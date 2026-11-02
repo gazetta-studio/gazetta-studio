@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { resolve, join, dirname, relative } from 'node:path'
-import { watch, existsSync, readFileSync, realpathSync } from 'node:fs'
+import { appendFileSync, watch, existsSync, readFileSync, realpathSync } from 'node:fs'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
@@ -9,7 +9,6 @@ import { streamSSE } from 'hono/streaming'
 import { loadSite } from '../site-loader.js'
 import { resolvePage } from '../resolver.js'
 import { renderPage } from '../renderer.js'
-import { createFilesystemProvider } from '../providers/filesystem.js'
 import { invalidateTemplate, invalidateAllTemplates } from '../template-loader.js'
 import { REQUIRED_NODE_RANGE } from '../node-floor.js'
 import { isTemplateEventRecent, TEMPLATE_RECENT_CHANGE_WINDOW_MS } from './dev-template-watcher.js'
@@ -1372,6 +1371,8 @@ async function runValidate(siteDir: string, rawArgs: readonly string[] = []) {
   const projectRoot = detectProjectRoot(siteDir)
   const templatesDir = join(projectRoot, 'templates')
   const opts = parseValidateFlags(rawArgs)
+  // JSON and GitHub output own stdout; everything else the run prints goes to stderr.
+  const restoreLog = opts.format === 'text' ? () => {} : logToStderr()
 
   console.log()
   console.log(`  ${c.bgGreen(c.bold(' gazetta '))} ${c.green('validate')} ${c.dim(siteDir)}`)
@@ -1436,175 +1437,51 @@ async function runValidate(siteDir: string, rawArgs: readonly string[] = []) {
   }
   // The CLI is the gate: some issues count higher here than in Site health (T7).
   const { withCliSeverity } = await import('./validate-severity.js')
-  const allIssues = [...scanner.allIssues().map(withCliSeverity), ...configIssues]
+  const itemIssues = scanner.allIssues().map(withCliSeverity)
 
-  // 4. Per-item summary. Pages first, then fragments — matches the existing
-  //    output ordering for unsurprising diff vs. the prior implementation.
-  let errorCount = 0
-  let warnCount = 0
-  let infoCount = 0
-  type IssueOf<T> = T extends ReadonlyArray<infer U> ? U : never
-  const issuesByPath = new Map<string, Array<IssueOf<typeof allIssues>>>()
-  for (const issue of allIssues) {
-    const list = issuesByPath.get(issue.itemPath) ?? []
-    list.push(issue)
-    issuesByPath.set(issue.itemPath, list)
-    if (issue.severity === 'error') errorCount++
-    else if (issue.severity === 'warn') warnCount++
-    else infoCount++
+  // 4. Project-structure checks (templates that don't load, missing custom
+  //    fields, orphaned editors): project layout, not content.
+  const { checkProject } = await import('./project-checks.js')
+  const projectIssues = await checkProject(projectRoot, templatesDir)
+
+  // 5. One report, rendered as text, JSON or GitHub output (T4).
+  const { buildValidateReport } = await import('./validate-report.js')
+  const { renderGithub, renderJson, renderText } = await import('./validate-render.js')
+  const show = (severity: 'error' | 'warn' | 'info') =>
+    opts.severity === 'all' || severity === 'error' || (opts.severity === 'warn' && severity === 'warn')
+  const report = await buildValidateReport({
+    site,
+    projectRoot,
+    templatesDir,
+    itemIssues,
+    configIssues,
+    projectIssues,
+    show,
+    warnAsError: opts.warnAsError,
+  })
+  restoreLog()
+  if (opts.format === 'json') {
+    process.stdout.write(renderJson(report))
+  } else if (opts.format === 'github') {
+    const { summary, annotations } = renderGithub(report)
+    const summaryFile = process.env.GITHUB_STEP_SUMMARY
+    if (summaryFile) appendFileSync(summaryFile, summary)
+    else process.stdout.write(summary)
+    for (const line of annotations) process.stdout.write(`${line}\n`)
+  } else {
+    process.stdout.write(renderText(report, site, { verbose: opts.verbose, show }, c))
+    process.stdout.write('\n')
   }
-
-  function summaryGlyph(issues: readonly { severity: string }[]): { glyph: string; color: (s: string) => string } {
-    if (issues.some(i => i.severity === 'error')) return { glyph: '✗', color: c.red }
-    if (issues.some(i => i.severity === 'warn')) return { glyph: '⚠', color: c.yellow }
-    if (issues.length > 0) return { glyph: 'ⓘ', color: c.cyan }
-    return { glyph: '✓', color: c.green }
-  }
-
-  function shouldShow(severity: 'error' | 'warn' | 'info'): boolean {
-    if (opts.severity === 'all') return true
-    if (opts.severity === 'warn') return severity !== 'info'
-    return severity === 'error'
-  }
-
-  // Config issues are about the site's setup, so like the project-structure
-  // checks below they show whatever `--severity` is; info never fails.
-  for (const issue of configIssues) {
-    console.log(`  ${severityIcon(issue.severity)} ${issue.message}`)
-  }
-
-  // One row per page or fragment, covering its language versions too. Each
-  // issue is listed under it, errors always (so CI logs name the page, field
-  // and language), the rest with --verbose.
-  function printItem(label: string, dir: string, file: 'page' | 'fragment', locales: Iterable<string>, count: number) {
-    const versions = [{ path: `${dir}/${file}.json`, locale: undefined as string | undefined }]
-    for (const locale of locales) versions.push({ path: `${dir}/${file}.${locale}.json`, locale })
-    const visible = versions.flatMap(v =>
-      (issuesByPath.get(v.path) ?? []).filter(i => shouldShow(i.severity)).map(issue => ({ issue, locale: v.locale })),
-    )
-    const { glyph, color } = summaryGlyph(visible.map(v => v.issue))
-    console.log(`  ${color(glyph)} ${label} ${c.dim(`(${count} components)`)}`)
-    for (const { issue, locale } of visible) {
-      if (!opts.verbose && issue.severity !== 'error') continue
-      const where = [issue.contentPath, locale && `language ${locale}`].filter(Boolean).join(', ')
-      console.log(`      ${severityIcon(issue.severity)} ${issue.message}${where ? c.dim(` (${where})`) : ''}`)
-    }
-  }
-
-  for (const [pageName, page] of site.pages) {
-    const locales = site.pageLocales.get(pageName)?.locales.keys() ?? []
-    printItem(pageName, page.dir, 'page', locales, page.components?.length ?? 0)
-  }
-
-  for (const [fragName, frag] of site.fragments) {
-    const locales = site.fragmentLocales.get(fragName)?.locales.keys() ?? []
-    printItem(`@${fragName}`, frag.dir, 'fragment', locales, frag.components?.length ?? 0)
-  }
-
-  // 5. Project-structure checks (orphaned editors, missing custom fields).
-  //    These are project-layout concerns rather than per-item content rules,
-  //    so they don't fit the Validator interface — kept inline here.
-  const adminDir = join(projectRoot, 'admin')
-  const projectStorage = createFilesystemProvider()
-  let templateNames: string[] = []
-  try {
-    const entries = await projectStorage.readDir(templatesDir)
-    templateNames = entries.filter(e => e.isDirectory).map(e => e.name)
-  } catch {
-    /* templates dir missing — site already errored above */
-  }
-
-  // 5a. Orphaned editors: editor file exists but no matching template.
-  //     Always shown regardless of --severity since these are structural
-  //     issues operators need to know about even at the strictest filter.
-  const editorsDir = join(adminDir, 'editors')
-  if (existsSync(editorsDir)) {
-    const fs = await import('node:fs')
-    const editorFiles = fs.readdirSync(editorsDir).filter(f => f.endsWith('.ts') || f.endsWith('.tsx'))
-    for (const file of editorFiles) {
-      const editorName = file.replace(/\.(ts|tsx)$/, '')
-      if (!templateNames.includes(editorName)) {
-        console.log(
-          `  ${c.yellow('⚠')} orphaned editor: ${c.dim(`admin/editors/${file}`)} ${c.dim('— no matching template')}`,
-        )
-        warnCount++
-      }
-    }
-  }
-
-  // 5b. Missing custom fields: schema references field: 'name' but no
-  //     admin/fields/name.{ts,tsx}. Hard error — render fails without it.
-  const fieldsDir = join(adminDir, 'fields')
-  const fieldFiles = existsSync(fieldsDir)
-    ? (await import('node:fs'))
-        .readdirSync(fieldsDir)
-        .filter(f => f.endsWith('.ts') || f.endsWith('.tsx'))
-        .map(f => f.replace(/\.(ts|tsx)$/, ''))
-    : []
-  if (templateNames.length > 0) {
-    const { loadTemplate } = await import('../template-loader.js')
-    const zod = await import('zod')
-    const { findTemplateFile } = await import('../template-loader.js')
-    for (const tplName of templateNames) {
-      // Not a template: shared helpers (`_shared/`) or a folder without an index file, as the scanner skips them.
-      if (tplName.startsWith('_') || !(await findTemplateFile(templatesDir, tplName))) continue
-      let loaded: Awaited<ReturnType<typeof loadTemplate>>
-      try {
-        loaded = await loadTemplate(projectStorage, templatesDir, tplName)
-      } catch (err) {
-        // Once per template; the pages using it say they can't be checked (#1665).
-        console.error(`  ${c.red('✗')} template ${tplName} couldn't be loaded ${c.dim(`— ${(err as Error).message}`)}`)
-        errorCount++
-        continue
-      }
-      try {
-        const jsonSchema = zod.z.toJSONSchema(loaded.schema as import('zod').ZodType) as Record<string, unknown>
-        const props = jsonSchema.properties as Record<string, Record<string, unknown>> | undefined
-        if (!props) continue
-        for (const [propName, prop] of Object.entries(props)) {
-          const fieldRef = prop.field as string | undefined
-          if (fieldRef && !fieldFiles.includes(fieldRef)) {
-            console.error(
-              `  ${c.red('✗')} template ${tplName}.${propName} references field "${fieldRef}" ${c.dim('— not found in admin/fields/')}`,
-            )
-            errorCount++
-          }
-        }
-      } catch {
-        /* a schema JSON Schema can't express has no field references to check */
-      }
-    }
-  }
-
-  // 6. Footer + exit code.
-  console.log()
-  const totalShown =
-    opts.severity === 'all'
-      ? errorCount + warnCount + infoCount
-      : opts.severity === 'warn'
-        ? errorCount + warnCount
-        : errorCount
-  if (totalShown === 0) {
-    console.log(`  ${c.green('All good.')}\n`)
-    return
-  }
-
-  const parts: string[] = []
-  if (errorCount > 0) parts.push(`${errorCount} error${errorCount > 1 ? 's' : ''}`)
-  if (warnCount > 0 && opts.severity !== 'error') parts.push(`${warnCount} warning${warnCount > 1 ? 's' : ''}`)
-  if (infoCount > 0 && opts.severity === 'all') parts.push(`${infoCount} info`)
-  const summary = parts.join(', ')
-  console.log(`  ${summary}.\n`)
-
-  // Exit non-zero if errors OR (warns AND warn-as-error is on).
-  const fail = errorCount > 0 || (opts.warnAsError && warnCount > 0)
-  if (fail) process.exit(1)
+  if (!report.ok) process.exit(1)
 }
 
-function severityIcon(severity: 'error' | 'warn' | 'info'): string {
-  if (severity === 'error') return c.red('✗')
-  if (severity === 'warn') return c.yellow('⚠')
-  return c.cyan('ⓘ')
+/** Send `console.log` to stderr until the returned function is called. */
+function logToStderr(): () => void {
+  const original = console.log
+  console.log = (...args: unknown[]) => console.error(...args)
+  return () => {
+    console.log = original
+  }
 }
 
 function renderErrorOverlay(err: Error): string {

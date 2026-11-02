@@ -1257,6 +1257,7 @@ type BulkSaveResponseOk bool
 // Issue defines model for Issue.
 type Issue struct {
 	ContentPath  *string       `json:"contentPath,omitempty"`
+	Field        *string       `json:"field,omitempty"`
 	ItemPath     string        `json:"itemPath"`
 	Message      string        `json:"message"`
 	Severity     IssueSeverity `json:"severity"`

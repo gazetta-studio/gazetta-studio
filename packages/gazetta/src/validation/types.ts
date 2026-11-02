@@ -27,6 +27,8 @@ export interface Issue {
   itemPath: string
   /** Content-tree path within the manifest, when applicable. */
   contentPath?: string
+  /** The field within that component's content the issue is about (`cta`, `items.0.title`), when known. */
+  field?: string
   /**
    * Optional structured suppression hint — `Issue.suppressible: true`
    * means a future "ignore this issue" mechanism would apply.
