@@ -22,7 +22,7 @@
  *     carrying templates) extends the recursive walk without
  *     touching the lookup function.
  */
-import type { Site } from '../site-loader.js'
+import { allFragmentEntries, allPageEntries, type Site } from '../site-loader.js'
 import type { ComponentEntry, FragmentManifest, InlineComponent, PageManifest } from '../types.js'
 import { manifestComponents } from './types.js'
 import type { Issue } from './types.js'
@@ -32,6 +32,8 @@ interface TemplateImpactItem {
   kind: 'page' | 'fragment'
   /** Item name (e.g., 'home' or 'header'). */
   name: string
+  /** The language version this row is, when it isn't the default file (#1667). */
+  locale?: string
   /** Manifest path matching the scanner's itemPath shape. */
   itemPath: string
   /** Issues from the scanner store for this item. May be empty (clean). */
@@ -61,20 +63,23 @@ export function computeTemplateImpact(
   const items: TemplateImpactItem[] = []
   const seen = new Set<string>()
 
-  for (const [name, page] of site.pages) {
-    if (!usesTemplate(page, templateName)) continue
-    const itemPath = `${page.dir}/page.json`
-    if (seen.has(itemPath)) continue
+  // Each language version is its own item, as the scanner checks it (#1667).
+  const add = (
+    kind: 'page' | 'fragment',
+    name: string,
+    manifest: PageManifest | FragmentManifest,
+    dir: string,
+    locale?: string,
+  ) => {
+    if (!usesTemplate(manifest, templateName)) return
+    const itemPath = `${dir}/${kind}${locale ? `.${locale}` : ''}.json`
+    if (seen.has(itemPath)) return
     seen.add(itemPath)
-    items.push({ kind: 'page', name, itemPath, issues: issuesFor(itemPath) })
+    items.push({ kind, name, ...(locale ? { locale } : {}), itemPath, issues: issuesFor(itemPath) })
   }
-  for (const [name, fragment] of site.fragments) {
-    if (!usesTemplate(fragment, templateName)) continue
-    const itemPath = `${fragment.dir}/fragment.json`
-    if (seen.has(itemPath)) continue
-    seen.add(itemPath)
-    items.push({ kind: 'fragment', name, itemPath, issues: issuesFor(itemPath) })
-  }
+  for (const entry of allPageEntries(site)) add('page', entry.name, entry.page, entry.page.dir, entry.locale)
+  for (const entry of allFragmentEntries(site))
+    add('fragment', entry.name, entry.fragment, entry.fragment.dir, entry.locale)
 
   const affectedItemCount = items.reduce((n, item) => (item.issues.length > 0 ? n + 1 : n), 0)
   return { template: templateName, items, affectedItemCount }

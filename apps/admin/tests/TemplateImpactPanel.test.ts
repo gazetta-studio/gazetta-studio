@@ -136,6 +136,23 @@ describe('TemplateImpactPanel', () => {
     expect(router.currentRoute.value.path).toBe('/pages/home')
   })
 
+  it('a language version shows its language and opens it (#1667)', async () => {
+    const { wrapper, router } = await mountPanel({
+      template: 'hero',
+      items: [
+        { kind: 'page', name: 'home', itemPath: 'pages/home/page.json', issues: [] },
+        { kind: 'page', name: 'home', locale: 'fr', itemPath: 'pages/home/page.fr.json', issues: [] },
+      ],
+      affectedItemCount: 0,
+    })
+    expect(wrapper.find('[data-testid="template-impact-row-page-home-fr"]').text()).toContain('fr')
+    await wrapper.find('[data-testid="template-impact-edit-page-home-fr"]').trigger('click')
+    await router.isReady()
+    await new Promise(r => setTimeout(r, 0))
+    expect(router.currentRoute.value.path).toBe('/pages/home')
+    expect(router.currentRoute.value.query).toEqual({ locale: 'fr' })
+  })
+
   it('clicking Edit on a fragment navigates to /fragments/{name}', async () => {
     const { wrapper, router } = await mountPanel({
       template: 'header-layout',

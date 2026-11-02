@@ -17900,6 +17900,7 @@ type GetApiV1TemplatesNameImpactResponse struct {
 			Issues   []Issue                                                 `json:"issues"`
 			ItemPath string                                                  `json:"itemPath"`
 			Kind     GetApiV1TemplatesNameImpact200JSONResponseBodyItemsKind `json:"kind"`
+			Locale   *string                                                 `json:"locale,omitempty"`
 			Name     string                                                  `json:"name"`
 		} `json:"items"`
 		Template string `json:"template"`
@@ -17919,6 +17920,7 @@ func (r GetApiV1TemplatesNameImpactResponse) GetJSON200() *struct {
 		Issues   []Issue                                                 `json:"issues"`
 		ItemPath string                                                  `json:"itemPath"`
 		Kind     GetApiV1TemplatesNameImpact200JSONResponseBodyItemsKind `json:"kind"`
+		Locale   *string                                                 `json:"locale,omitempty"`
 		Name     string                                                  `json:"name"`
 	} `json:"items"`
 	Template string `json:"template"`
@@ -23509,6 +23511,7 @@ func ParseGetApiV1TemplatesNameImpactResponse(rsp *http.Response) (*GetApiV1Temp
 				Issues   []Issue                                                 `json:"issues"`
 				ItemPath string                                                  `json:"itemPath"`
 				Kind     GetApiV1TemplatesNameImpact200JSONResponseBodyItemsKind `json:"kind"`
+				Locale   *string                                                 `json:"locale,omitempty"`
 				Name     string                                                  `json:"name"`
 			} `json:"items"`
 			Template string `json:"template"`

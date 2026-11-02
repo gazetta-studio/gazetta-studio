@@ -109,11 +109,13 @@ function severityLabel(worst: DisplayRow['worst']): string {
 }
 
 function navigateToItem(item: TemplateImpactItem) {
-  if (item.kind === 'page') {
-    router.push({ path: `/pages/${item.name}` })
-  } else {
-    router.push({ path: `/fragments/${item.name}` })
-  }
+  const query = item.locale ? { locale: item.locale } : undefined
+  router.push({ path: `/${item.kind === 'page' ? 'pages' : 'fragments'}/${item.name}`, query })
+}
+
+/** Test id suffix: `page-home`, or `page-home-fr` for a language version. */
+function rowId(item: TemplateImpactItem): string {
+  return `${item.kind}-${item.name}${item.locale ? `-${item.locale}` : ''}`
 }
 </script>
 
@@ -147,7 +149,7 @@ function navigateToItem(item: TemplateImpactItem) {
           v-for="row in rows"
           :key="row.item.itemPath"
           :class="['impact-row', `severity-${row.worst ?? 'clean'}`]"
-          :data-testid="`template-impact-row-${row.item.kind}-${row.item.name}`">
+          :data-testid="`template-impact-row-${rowId(row.item)}`">
           <span
             :class="['impact-icon', `severity-${row.worst ?? 'clean'}`]"
             role="img"
@@ -159,6 +161,7 @@ function navigateToItem(item: TemplateImpactItem) {
             <div class="row-head">
               <span class="row-kind">{{ row.item.kind === 'page' ? 'Page' : 'Fragment' }}</span>
               <span class="row-name">{{ row.item.name }}</span>
+              <span v-if="row.item.locale" class="row-locale">{{ row.item.locale }}</span>
               <span v-if="row.item.issues.length > 0" class="row-issue-count">
                 {{ row.item.issues.length }} {{ row.item.issues.length === 1 ? 'issue' : 'issues' }}
               </span>
@@ -174,7 +177,7 @@ function navigateToItem(item: TemplateImpactItem) {
           <button
             type="button"
             class="row-edit"
-            :data-testid="`template-impact-edit-${row.item.kind}-${row.item.name}`"
+            :data-testid="`template-impact-edit-${rowId(row.item)}`"
             @click="navigateToItem(row.item)">
             Edit
           </button>
@@ -291,6 +294,13 @@ function navigateToItem(item: TemplateImpactItem) {
 }
 .row-name {
   font-weight: 600;
+}
+.row-locale {
+  padding: 0 0.3rem;
+  border-radius: var(--radius-xs);
+  background: var(--color-bg-chip);
+  color: var(--color-muted);
+  font-size: 0.75rem;
 }
 .row-issue-count {
   margin-inline-start: auto;

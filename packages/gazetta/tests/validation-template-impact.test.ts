@@ -166,4 +166,28 @@ describe('computeTemplateImpact', () => {
     expect(result.items).toHaveLength(3)
     expect(result.affectedItemCount).toBe(2) // a + b
   })
+
+  it('lists each language version as its own row with its own issues (#1667)', () => {
+    const page = (title: string): PageManifest & { dir: string } => ({
+      template: 'page-default',
+      route: '/',
+      dir: 'pages/home',
+      components: [{ name: 'hero', template: 'hero', content: { title } }],
+    })
+    const site = buildSite({ pages: { home: page('Hello') } })
+    site.pageLocales.set('home', { locales: new Map([['fr', page('Bonjour')]]) } as never)
+    const frIssue: Issue = {
+      validator: 'schema-conformance',
+      severity: 'warn',
+      message: 'cta: Required',
+      itemPath: 'pages/home/page.fr.json',
+    }
+    const result = computeTemplateImpact(site, 'hero', path => (path === frIssue.itemPath ? [frIssue] : []))
+    expect(result.items.map(i => [i.itemPath, i.locale])).toEqual([
+      ['pages/home/page.json', undefined],
+      ['pages/home/page.fr.json', 'fr'],
+    ])
+    expect(result.items[1].issues).toEqual([frIssue])
+    expect(result.affectedItemCount).toBe(1)
+  })
 })
