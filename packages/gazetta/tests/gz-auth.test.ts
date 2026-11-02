@@ -230,7 +230,8 @@ describe.runIf(runIt)('gz auth against gazetta dev', () => {
     expect(items.find(i => i.item === 'pages.home')?.changed).toBe(true)
     expect(items.find(i => i.item === 'pages.about')?.changed).toBe(false)
     const reverted = gzRun(['runs', 'revert', 't1', '--json'])
-    ok(reverted, 'runs revert')
+    // Exit 4: an item was skipped because someone edited it since (Q38).
+    expect(reverted.code, reverted.stderr + devTail()).toBe(4)
     const outcome = JSON.parse(reverted.stdout) as { items: Array<{ item: string; status: string }> }
     expect(outcome.items.find(i => i.item === 'pages.home')?.status).toBe('skipped-changed')
     expect(outcome.items.find(i => i.item === 'pages.about')?.status).toBe('reverted')

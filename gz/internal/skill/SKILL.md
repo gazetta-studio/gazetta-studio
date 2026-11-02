@@ -25,7 +25,7 @@ The person you work for decides what goes live. You edit and check content; publ
 
 Set `GZ_RUN` once per task, to a short id of your own (letters, digits, `.`, `_`, `-`): `export GZ_RUN=fix-footer-links`. Every save then joins that run, so the person can review your task's changes together and undo them as one. Without it, each `gz` command is its own run; `--run <id>` sets it for one command.
 
-To undo a run, `gz runs show <run-id>` lists its items and what reverting would do, and `gz runs revert <run-id>` puts each item back to its version before the run and archives what the run created. Items someone changed since are skipped; name them with `--force <item>,...` only after the person agrees. The revert is a run of its own, so it can be reverted too.
+To undo a run, `gz runs show <run-id>` lists its items and what reverting would do, and `gz runs revert <run-id>` puts each item back to its version before the run and archives what the run created. Items someone changed since are skipped; name them with `--force <item>,...` only after the person agrees. It exits 4 when an item was skipped because someone changed it, 1 when another item was skipped, and 0 only when everything was reverted or archived. The revert is a run of its own, so it can be reverted too.
 
 ## Editing content
 

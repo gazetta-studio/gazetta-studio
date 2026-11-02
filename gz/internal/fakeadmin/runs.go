@@ -12,6 +12,8 @@ type Runs struct {
 	Items map[string][]map[string]any
 	// Reverts lists each revert: the run id, its own run id, and the forced items.
 	Reverts []Revert
+	// Fail makes a revert skip that item as failed.
+	Fail string
 }
 
 // Revert is one revert the fake answered.
@@ -58,6 +60,8 @@ func (a *Admin) serveRuns(w http.ResponseWriter, r *http.Request, path string) b
 			switch {
 			case it["changed"] == true && !contains(body.Force, it["item"].(string)):
 				status = "skipped-changed"
+			case it["item"] == a.Runs.Fail:
+				status = "skipped-failed"
 			case it["created"] == true:
 				status = "archived"
 			}
