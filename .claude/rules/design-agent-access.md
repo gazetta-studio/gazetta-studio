@@ -772,6 +772,16 @@ Decided: maintainer, 2026-11-01 (#1654)
 |---|---|
 | Write what passes and report the rest per item | A half-applied run is harder to review and undo |
 
+The cap is 100 items: a 200-item batch took 5.8 s on a local filesystem, over the 5-second admin budget, and 100 took 2.9 s (measured in #1718). Follows from Q46 ("to be measured").
+
+The bulk save stays although cut 6 counts a run's saves as one history entry and cut 11 reverts a run item by item, so looping single saves is also grouped and undoable. What it adds is all-or-nothing, and one request instead of many to a remote admin. `gz` uses it when one command changes several items, and single saves otherwise.
+
+Decided: maintainer, 2026-11-02 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| Drop it; `gz` loops single saves with the run id | A failure partway leaves the earlier saves, and the agent or person reverts the run (cut 11) |
+
 Research: [public API on #49](https://github.com/gazetta-studio/gazetta-studio/issues/49#issuecomment-6558530260) (versioning elsewhere, routes without schema parsing, the three error shapes, OpenAPI libraries, the bulk save).
 
 ### Q47 — Audit events and history revisions record the channel and the run
