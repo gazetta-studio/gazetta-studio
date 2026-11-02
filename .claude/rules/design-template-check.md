@@ -180,11 +180,9 @@ Decided: maintainer, 2026-11-01 (#1666)
 | PR mode (`--base`) first | Its first version only reports in the terminal |
 | One cut for the check, then docs and CI | One large review, and nothing usable until all of it lands |
 
-### T13 — An old problem matches on everything but its message
+### T13 — An old problem matches whatever its message says
 
-The base run parses the base commit's content against the base commit's templates: what `main` had. Follows from T2.
-
-A problem on the PR counts as one the base already had when the base has one from the same check, on the same item, language, component and field, whatever its message says. Problems outside a component's content match on their content path instead, and config problems on the config path. So a template change that only rewords Zod's message for a field that was already broken doesn't fail the PR. Cut 3 built it this way (#1751).
+A problem on the PR counts as one the base already had when the base has one from the same check, on the same item, language, component and field, whatever its message says. So a template change that only rewords Zod's message for a field that was already broken doesn't fail the PR.
 
 Decided: maintainer, 2026-11-02 (#1752)
 
@@ -192,6 +190,10 @@ Decided: maintainer, 2026-11-02 (#1752)
 |---|---|
 | Same field and same message | A schema change that rewords the message would fail the PR on a field that was broken on `main` already |
 | Same page only | A PR that breaks a second field on a page that was already broken would pass |
+
+Problems without a component and field match the same way, on the place they're reported, and never on their message: other item problems on the item, language and content path; config problems on the config path; template and project-file problems on the template or file and the field. #1751 builds it this way. Follows from the decision above.
+
+The base run checks the base commit's content against the base commit's templates: what `main` had. If it checked the PR's content, a PR that only changes content would show the same problem in both runs and pass, against T2. Follows from T2.
 
 ## UX check
 
