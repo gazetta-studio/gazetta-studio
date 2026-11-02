@@ -56,21 +56,28 @@ Add `--json` to any command for machine-readable output; errors then come on std
 
 `gz` never prompts when it isn't run in a terminal.
 
-## Never do these; ask the person
+## Never run these; ask the person
 
-These publish, delete content, or rewrite a target's history. Don't call them through the admin's API; tell the person what you would do and why, and let them do it.
+These publish, delete content, or rewrite a target's history. Don't run them or call them through the admin's API; tell the person what you would do and why, and let them do it.
+
+Commands:
+- `gz publish`
+- `gz elevate`
 
 Admin API routes:
-- `POST /api/publish`
-- `POST /api/publish/stream`
-- `POST /api/fetch`
-- `POST /api/history/undo`
-- `POST /api/history/restore`
-- `DELETE /api/pages/:name`
-- `DELETE /api/pages/:name/purge`
-- `DELETE /api/fragments/:name`
-- `DELETE /api/fragments/:name/purge`
-- `DELETE /api/assets/:name`
-- `POST /api/assets/:name/replace-with/:newName`
+- `POST /api/v1/publish`
+- `POST /api/v1/publish/stream`
+- `POST /api/v1/fetch`
+- `POST /api/v1/history/undo`
+- `POST /api/v1/history/restore`
+- `DELETE /api/v1/pages/:name`
+- `DELETE /api/v1/pages/:name/purge`
+- `DELETE /api/v1/fragments/:name`
+- `DELETE /api/v1/fragments/:name/purge`
+- `DELETE /api/v1/assets/:name`
+- `POST /api/v1/assets/:name/replace-with/:newName`
+- `POST /api/v1/auth/logins/:code/approve`
+- `POST /api/v1/auth/logins/:code/deny`
+- `POST /api/v1/auth/grants`
 
-Also never approve a publish or review request on the person's behalf.
+Also never approve or deny a login, elevation, publish or review request on the person's behalf. Saving, creating, uploading assets and setting alt text are fine: the person can undo them.

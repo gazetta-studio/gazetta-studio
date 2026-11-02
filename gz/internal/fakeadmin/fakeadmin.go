@@ -41,6 +41,9 @@ type Admin struct {
 	Items  map[string]*Item
 	Saves  []Save
 	Issues []map[string]any
+
+	// Elevation, after SeedPublish: elevations, publishes and assets.
+	Elevation *Elevations
 }
 
 const grantID = "g-1"
@@ -136,7 +139,7 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request) {
 		a.Revoked[grantID] = true
 		w.WriteHeader(http.StatusNoContent)
 	default:
-		if !a.serveContent(w, r, path) {
+		if !a.servePublish(w, r, path) && !a.serveContent(w, r, path) {
 			problem(w, 404, "NOT_FOUND")
 		}
 	}

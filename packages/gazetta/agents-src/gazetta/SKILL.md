@@ -96,6 +96,8 @@ Commands:
 - `gazetta rollback`
 - `gazetta archive purge`
 - `gazetta state remove`
+- `gz publish`
+- `gz elevate`
 
 Admin API routes:
 - `POST /api/v1/publish`

@@ -163,6 +163,9 @@ function listed(text: string, pattern: RegExp): string[] {
 const neverRunPart = (text: string) => text.slice(text.indexOf('ever run these'))
 const commandEntries = (text: string) => listed(neverRunPart(text), /^gazetta /).map(entry => entry.slice(8))
 const routeEntries = (text: string) => listed(neverRunPart(text), /^[A-Z]+ \//)
+const gzEntries = (text: string) => listed(neverRunPart(text), /^gz /)
+/** The skill embedded in gz (design-agent-access.md Q40); gz's own test sorts its commands. */
+const gzSkill = readFileSync(join(repoRoot, 'gz/internal/skill/SKILL.md'), 'utf-8')
 
 // These run the built CLI or the TypeScript compiler: seconds each on loaded CI runners.
 describe('the never-run list (Q32)', { timeout: 60_000 }, () => {
@@ -176,6 +179,14 @@ describe('the never-run list (Q32)', { timeout: 60_000 }, () => {
     expect(adminRoutes()).toEqual(Object.keys(ROUTES).sort())
     expect(routeEntries(skill)).toEqual(never(ROUTES))
     expect(routeEntries(section)).toEqual(never(ROUTES))
+    expect(routeEntries(gzSkill)).toEqual(never(ROUTES))
+  })
+
+  it("lists the same gz commands as gz's own skill", () => {
+    // gz's cli_test checks gz's skill against gz's command list (#1725).
+    expect(gzEntries(gzSkill)).toEqual(['gz elevate', 'gz publish'])
+    expect(gzEntries(skill)).toEqual(gzEntries(gzSkill))
+    expect(gzEntries(section)).toEqual(gzEntries(gzSkill))
   })
 })
 

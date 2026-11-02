@@ -60,6 +60,7 @@ func (ctx *context) service() (*content.Service, error) {
 	if err != nil {
 		return nil, err
 	}
+	ctx.prof = p
 	run := ctx.flags["--run"]
 	if run == "" {
 		run = ctx.env.Getenv("GZ_RUN")

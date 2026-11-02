@@ -20,6 +20,8 @@ type Problem struct {
 	Issues []Issue `json:"issues,omitempty"`
 	// Items are a bulk save's failing items (BATCH_REFUSED).
 	Items []ItemProblem `json:"items,omitempty"`
+	// Scope is the elevation an ELEVATION_REQUIRED refusal needs (Q17).
+	Scope string `json:"scope,omitempty"`
 }
 
 // Issue is one validation failure: a field path and its message.

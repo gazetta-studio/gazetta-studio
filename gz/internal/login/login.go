@@ -105,52 +105,84 @@ func (f *Flow) run(ctx context.Context) (Result, error) {
 	if f.Terminal && f.Open != nil {
 		_ = f.Open(s.ApproveUrl)
 	}
-	expires, err := time.Parse(time.RFC3339, s.ExpiresAt)
+	got, err := Await(ctx, Poll{
+		Client: f.Client, AdminURL: f.AdminURL, Code: s.Code, PollSecret: s.PollSecret, ExpiresAt: s.ExpiresAt,
+		What: "login", Sleep: f.Sleep, Now: f.Now, Period: f.PollPeriod,
+	})
 	if err != nil {
-		return Result{}, output.Errorf(output.Failure, "%s answered an expiry gz can't read: %q", f.AdminURL, s.ExpiresAt)
+		return Result{}, err
+	}
+	if got.Status != "approved" {
+		return Result{}, output.Errorf(output.Failure, "%s answered an unexpected login state %q", f.AdminURL, got.Status)
+	}
+	return Result{GrantID: got.GrantID, GrantSecret: got.GrantSecret}, nil
+}
+
+// Poll is a started code to wait on: a login, or an elevation (Q17), which
+// the admin answers through the same redeem route.
+type Poll struct {
+	Client                      *api.ClientWithResponses
+	AdminURL                    string
+	Code, PollSecret, ExpiresAt string
+	What                        string // "login" or "elevation", for messages
+	Sleep                       func(ctx context.Context, d time.Duration) error
+	Now                         func() time.Time
+	Period                      time.Duration
+}
+
+// Redeemed is what an approved code answered.
+type Redeemed struct {
+	Status      string `json:"status"` // "approved" (a login) or "elevated"
+	GrantID     string `json:"grantId"`
+	GrantSecret string `json:"grantSecret"`
+	ElevationID string `json:"elevationId"`
+	EndsAt      string `json:"endsAt"`
+}
+
+// Await polls until the person approves or denies the code, or it expires.
+// Denied and expired exit 3 (Q38).
+func Await(ctx context.Context, p Poll) (Redeemed, error) {
+	expires, err := time.Parse(time.RFC3339, p.ExpiresAt)
+	if err != nil {
+		return Redeemed{}, output.Errorf(output.Failure, "%s answered an expiry gz can't read: %q", p.AdminURL, p.ExpiresAt)
 	}
 	for {
-		if !f.Now().Before(expires) {
-			return Result{}, expired()
+		if !p.Now().Before(expires) {
+			return Redeemed{}, expiredCode(p.What)
 		}
-		if err := f.Sleep(ctx, f.PollPeriod); err != nil {
-			return Result{}, cancelled(err)
+		if err := p.Sleep(ctx, p.Period); err != nil {
+			return Redeemed{}, cancelled(err)
 		}
-		r, err := f.Client.PostApiV1AuthLoginsCodeRedeemWithResponse(ctx, s.Code, nil, api.PostApiV1AuthLoginsCodeRedeemJSONRequestBody{PollSecret: s.PollSecret})
+		r, err := p.Client.PostApiV1AuthLoginsCodeRedeemWithResponse(ctx, p.Code, nil, api.PostApiV1AuthLoginsCodeRedeemJSONRequestBody{PollSecret: p.PollSecret})
 		if err != nil {
-			return Result{}, output.Errorf(output.Failure, "can't reach %s: %v", f.AdminURL, err)
+			return Redeemed{}, output.Errorf(output.Failure, "can't reach %s: %v", p.AdminURL, err)
 		}
 		if r.StatusCode() != http.StatusOK {
-			p := session.ProblemOf(r.HTTPResponse, r.Body)
-			switch p.Code {
+			prob := session.ProblemOf(r.HTTPResponse, r.Body)
+			switch prob.Code {
 			case "LOGIN_DENIED":
-				return Result{}, output.Errorf(output.NeedsLogin, "the login was denied in the admin")
+				return Redeemed{}, output.Errorf(output.NeedsLogin, "the %s was denied in the admin", p.What)
 			case "LOGIN_EXPIRED":
-				return Result{}, expired()
+				return Redeemed{}, expiredCode(p.What)
 			}
-			return Result{}, p.Error()
+			return Redeemed{}, prob.Error()
 		}
-		var body struct {
-			Status      string `json:"status"`
-			GrantID     string `json:"grantId"`
-			GrantSecret string `json:"grantSecret"`
+		var got Redeemed
+		if err := json.Unmarshal(r.Body, &got); err != nil {
+			return Redeemed{}, output.Errorf(output.Failure, "%s answered a %s gz can't read", p.AdminURL, p.What)
 		}
-		if err := json.Unmarshal(r.Body, &body); err != nil {
-			return Result{}, output.Errorf(output.Failure, "%s answered a login gz can't read", f.AdminURL)
-		}
-		switch body.Status {
-		case "pending":
-			continue
-		case "approved":
-			return Result{GrantID: body.GrantID, GrantSecret: body.GrantSecret}, nil
-		default:
-			return Result{}, output.Errorf(output.Failure, "%s answered an unexpected login state %q", f.AdminURL, body.Status)
+		if got.Status != "pending" {
+			return got, nil
 		}
 	}
 }
 
-func expired() error {
-	return output.Errorf(output.NeedsLogin, "the code expired before it was approved").WithHint("Run gz auth login again.")
+func expiredCode(what string) error {
+	hint := "Run gz auth login again."
+	if what != "login" {
+		hint = "Run the command again for a new code."
+	}
+	return output.Errorf(output.NeedsLogin, "the code expired before it was approved").WithHint(hint)
 }
 
 func cancelled(err error) error {

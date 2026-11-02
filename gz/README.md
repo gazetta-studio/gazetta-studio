@@ -12,8 +12,8 @@ goreleaser release --snapshot --clean --skip=publish   # build every platform in
 ```
 
 - `cmd/gz`: the binary.
-- `internal/cli`: commands, global flags (`--admin`, `--json`, `--version`), help. `content.go` holds the content commands (`pages`, `fragments`, `templates schema`, `validate`, `preview`, `status`; Q37) and picks the run id: `--run`, then `GZ_RUN`, then one per command (Q22).
-- `internal/content`: the content service the commands call: read, save (one item with the single save, several with the bulk save, #1720), create, preview, compare. Every request carries the run id.
+- `internal/cli`: commands, global flags (`--admin`, `--json`, `--version`), help. `content.go` holds the content commands (`pages`, `fragments`, `templates schema`, `validate`, `preview`, `status`; Q37) and picks the run id: `--run`, then `GZ_RUN`, then one per command (Q22). `publish.go` holds `publish`, `elevate` and `assets` (Q29, Q37).
+- `internal/content`: the content service the commands call: read, save (one item with the single save, several with the bulk save, #1720), create, preview, compare, publish, assets. Every request carries the run id.
 - `internal/manifestpath`: `gz pages set`'s `path=value` syntax, httpie-style (`=` string, `:=` JSON, `@file`), with components addressed by name.
 - `internal/output`: text or JSON output and the exit codes (Q38).
 - `internal/profile`: login profiles and which admin a command uses (Q36).
@@ -21,6 +21,8 @@ goreleaser release --snapshot --clean --skip=publish   # build every platform in
 - `internal/session`: signed-in requests (Q15, Q16): a token source renews short-lived Gazetta tokens from the stored grant, and request decorators add each login layer's credentials (a Cloudflare service token, an Entra token, or the Gazetta token as a bearer behind ALB), chosen per profile. Problem responses map to exit codes here.
 - `internal/entra`: the Microsoft Entra device-code sign-in behind Azure Easy Auth (Q15).
 - `internal/login`: `gz auth login`: the API version check (Q43) and the code-and-approve flow (Q21).
+- `internal/elevation`: asking for an elevation and waiting for the person's approval, through the same code flow (Q12, Q17, Q29), and ending one.
+- `internal/state`: what gz remembers besides profiles, in `state.json`: the folders it installed the skill into, the day it last warned about an outdated copy (Q41), and the elevations it started.
 - `internal/fakeadmin`: an in-memory admin for the tests.
 - `internal/grant`: where a profile's login is stored: the OS keychain via `github.com/zalando/go-keyring`, or a 0600 file where there's none (Q24).
 - `internal/skill`: the agent skill embedded in the binary (Q40, Q41).
