@@ -58,6 +58,7 @@ import { createContentRoot, type ContentRoot } from './content-root.js'
 import { publishFragment, resolveFragmentRenderMode } from './fragments/publish.js'
 import { fragmentHashLookup } from './fragment-hashes.js'
 import { hashManifest } from './hash.js'
+import { siteAssetHashes } from './asset-hashes.js'
 import type { HistoryProvider } from './history.js'
 import { recordWrite, type WrittenItem } from './history-recorder.js'
 import { localeFilename } from './locale.js'
@@ -173,7 +174,8 @@ export interface PublishRunInput {
    * Per-target manifest hashes for incremental publish. A caller that
    * supplies them must hash like `compareTargets`: `hashManifest(item,
    * { templateHashes, fragmentHashes: fragmentHashLookup(site, …)(locale),
-   * topLevelFragmentsComposedAtRequest })` (see fragment-hashes.ts).
+   * topLevelFragmentsComposedAtRequest, assetHashes: await siteAssetHashes(site) })`
+   * (see fragment-hashes.ts, asset-hashes.ts).
    * Optional — when absent and `templateInfos` is supplied, orchestrator
    * computes the same per-item hashes inline.
    */
@@ -308,8 +310,10 @@ export async function publishRun(input: PublishRunInput): Promise<PublishRunResu
   // Compute hash maps once: templateHashes for all items; fragment hashes
   // per locale, covering every fragment an item bakes in (#1090).
   const templateHashes = input.templateInfos ? templateHashesFrom([...input.templateInfos]) : new Map<string, string>()
+  // Items change when an asset they use changes (#1334).
+  const assetHashes = input.templateInfos ? await siteAssetHashes(input.site) : undefined
   const fragmentHashes = input.templateInfos
-    ? fragmentHashLookup(input.site, templateHashes)
+    ? fragmentHashLookup(input.site, templateHashes, assetHashes)
     : () => new Map<string, string>()
 
   // Defaults for per-target side-effects (Q5 spine steps 10-12).
@@ -486,6 +490,7 @@ export async function publishRun(input: PublishRunInput): Promise<PublishRunResu
             templateHashes,
             fragmentHashes: fragmentHashes(ref.locale),
             topLevelFragmentsComposedAtRequest: ref.kind === 'page' && targetType !== 'static',
+            assetHashes,
           })
         }
       }

@@ -14,7 +14,11 @@ import type { FragmentManifest } from './types.js'
 
 export type FragmentHashLookup = (locale?: string) => Map<string, string>
 
-export function fragmentHashLookup(site: Site, templateHashes: Map<string, string>): FragmentHashLookup {
+export function fragmentHashLookup(
+  site: Site,
+  templateHashes: Map<string, string>,
+  assetHashes?: Map<string, string>,
+): FragmentHashLookup {
   const resolvedLocales = resolveSiteLocales(site.manifest) ?? undefined
   const byLocale = new Map<string, Map<string, string>>()
   return (locale?: string) => {
@@ -31,7 +35,7 @@ export function fragmentHashLookup(site: Site, templateHashes: Map<string, strin
         return lookup(name)
       }
     }
-    const hashes = composeFragmentHashes(site.fragments.keys(), resolve, templateHashes)
+    const hashes = composeFragmentHashes(site.fragments.keys(), resolve, templateHashes, assetHashes)
     byLocale.set(key, hashes)
     return hashes
   }

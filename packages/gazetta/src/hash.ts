@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { collectAssetRefs } from './assets/scan-manifest-for-asset.js'
 import type { ComponentEntry, FragmentManifest, PageManifest } from './types.js'
 
 const SIDECAR_RE = /^\.([0-9a-f]{8})\.hash(?:\.([a-z]{2}(?:-[a-z]+)?))?$/
@@ -150,6 +151,12 @@ export interface HashManifestOptions {
    * request. References nested inside its inline components are still baked.
    */
   topLevelFragmentsComposedAtRequest?: boolean
+  /**
+   * Hashes of the assets the item uses, from `siteAssetHashes` (#1334). The
+   * item's own references count (its content and inline components); a baked
+   * fragment's count through that fragment's hash. Omit to leave assets out.
+   */
+  assetHashes?: Map<string, string>
   /** Defaults to `RENDER_FORMAT_VERSION`; tests override it. */
   renderFormatVersion?: number
 }
@@ -189,6 +196,11 @@ export function hashManifest(manifest: PageManifest | FragmentManifest, opts: Ha
     normalized.archived = true
     normalized.aliasOf = manifest.aliasOf ?? null
   }
+  // Only items that use an asset carry the field, so their hashes alone change.
+  if (opts.assetHashes) {
+    const refs = [...collectAssetRefs(manifest)].sort()
+    if (refs.length > 0) normalized.assets = refs.map(name => [name, opts.assetHashes!.get(name) ?? null])
+  }
   const metadata = 'metadata' in manifest ? manifest.metadata : undefined
   if (metadata && Object.keys(metadata).length > 0) normalized.metadata = metadata
   const json = JSON.stringify(normalized, sortedReplacer)
@@ -220,6 +232,7 @@ export function composeFragmentHashes(
   names: Iterable<string>,
   lookup: (name: string) => FragmentManifest | null | undefined,
   templateHashes: Map<string, string>,
+  assetHashes?: Map<string, string>,
 ): Map<string, string> {
   const composed = new Map<string, string>()
   const visiting = new Set<string>()
@@ -230,7 +243,7 @@ export function composeFragmentHashes(
     visiting.add(name)
     for (const ref of fragmentRefs(frag.components)) visit(ref)
     visiting.delete(name)
-    composed.set(name, hashManifest(frag, { templateHashes, fragmentHashes: composed }))
+    composed.set(name, hashManifest(frag, { templateHashes, fragmentHashes: composed, assetHashes }))
   }
   for (const name of names) visit(name)
   return composed

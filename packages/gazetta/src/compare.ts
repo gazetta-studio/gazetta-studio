@@ -3,6 +3,7 @@ import { memoryCache } from './cache/factories.js'
 import { forSite } from './cache/per-site.js'
 import { loadSite } from './site-loader.js'
 import { fragmentHashLookup } from './fragment-hashes.js'
+import { siteAssetHashes } from './asset-hashes.js'
 import { hashManifest } from './hash.js'
 import { scanTemplates, templateHashesFrom, type TemplateInfo } from './templates-scan.js'
 import { listSidecars } from './sidecars.js'
@@ -116,7 +117,9 @@ export async function compareTargets(opts: CompareOptions): Promise<CompareResul
   //     meaningful and introduced a real correctness hole.
   // Each item bakes the fragments it references, resolved for its own
   // locale (and through archive aliases) the way rendering resolves them.
-  const fragmentHashes = fragmentHashLookup(site, templateHashes)
+  // Items change when an asset they use changes (#1334).
+  const assetHashes = await siteAssetHashes(site)
+  const fragmentHashes = fragmentHashLookup(site, templateHashes, assetHashes)
 
   const local = new Map<string, string>()
   const pageNoindex = new Map<string, boolean>()
@@ -126,6 +129,7 @@ export async function compareTargets(opts: CompareOptions): Promise<CompareResul
     templateHashes,
     fragmentHashes: fragmentHashes(locale),
     topLevelFragmentsComposedAtRequest: opts.type !== 'static',
+    assetHashes,
   })
   for (const [name, page] of site.pages) {
     local.set(`pages/${name}`, hashManifest(page, pageHashOpts()))
@@ -146,14 +150,17 @@ export async function compareTargets(opts: CompareOptions): Promise<CompareResul
   // them from local so they don't appear as perpetually "added".
   if (opts.type !== 'static') {
     for (const [name, frag] of site.fragments) {
-      local.set(`fragments/${name}`, hashManifest(frag, { templateHashes, fragmentHashes: fragmentHashes() }))
+      local.set(
+        `fragments/${name}`,
+        hashManifest(frag, { templateHashes, fragmentHashes: fragmentHashes(), assetHashes }),
+      )
     }
     // Per-locale fragment items
     for (const [name, localeEntry] of site.fragmentLocales) {
       for (const [locale, localeFrag] of localeEntry.locales) {
         local.set(
           `fragments/${name}:${locale}`,
-          hashManifest(localeFrag, { templateHashes, fragmentHashes: fragmentHashes(locale) }),
+          hashManifest(localeFrag, { templateHashes, fragmentHashes: fragmentHashes(locale), assetHashes }),
         )
       }
     }
