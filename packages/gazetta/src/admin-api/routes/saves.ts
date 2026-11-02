@@ -83,10 +83,8 @@ export function saveRoutes(
     const keys = items.map(i => `${i.kind}:${i.name}:${i.locale?.toLowerCase() ?? ''}`)
     const duplicate = keys.find((k, i) => keys.indexOf(k) !== i)
     if (duplicate) return problem(c, 400, 'BAD_REQUEST', `An item appears twice: ${duplicate}`)
-    const create = items.find(i => i.ifNoneMatch && (i.locale || typeof i.manifest.template !== 'string'))
-    if (create) {
-      return problem(c, 400, 'BAD_REQUEST', `Creating ${create.name} needs a template and no locale`)
-    }
+    const create = items.find(i => i.ifNoneMatch && typeof i.manifest.template !== 'string')
+    if (create) return problem(c, 400, 'BAD_REQUEST', `Creating ${create.name} needs a template`)
 
     // Each kind's own capability, as the single save asks (Q12).
     for (const kind of new Set(items.map(i => i.kind))) {

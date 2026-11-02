@@ -92,6 +92,13 @@ export interface Site {
   cache: AdminCache
 }
 
+/** The route of a page's language version: the page's route under the language's prefix. */
+export function localeVariantRoute(siteManifest: SiteManifest, route: string, locale: string): string {
+  const siteLocales = resolveSiteLocales(siteManifest)
+  const routePrefix = siteLocales ? localeRoutePrefix(locale, siteLocales) : `/${locale}`
+  return `${routePrefix}${route === '/' ? '' : route}` || '/'
+}
+
 interface DiscoverPagesResult {
   pages: Map<string, PageManifest & { dir: string }>
   pageLocales: Map<string, LocalizedEntry<PageManifest & { dir: string }>>
@@ -135,10 +142,7 @@ async function discoverPages(
           if (!locale) continue
           try {
             const localeManifest = await parsePageManifest(storage, join(dir, f.name))
-            const siteLocales = resolveSiteLocales(siteManifest)
-            const routePrefix = siteLocales ? localeRoutePrefix(locale, siteLocales) : `/${locale}`
-            const localeRoute = `${routePrefix}${route === '/' ? '' : route}` || '/'
-            locales.set(locale, { ...localeManifest, route: localeRoute, dir })
+            locales.set(locale, { ...localeManifest, route: localeVariantRoute(siteManifest, route, locale), dir })
           } catch (err) {
             console.warn(`  Warning: skipping page "${name}" locale "${locale}": ${(err as Error).message}`)
           }

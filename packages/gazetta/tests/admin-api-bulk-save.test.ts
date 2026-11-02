@@ -45,7 +45,12 @@ function setup(opts: { hooks?: HookRegistry; storage?: ReturnType<typeof memoryS
     allowAnyOrigin: true,
     roleMapping: { claim: 'groups', map: { admins: 'admin' }, defaultRole: 'editor' },
   }
-  const manifest: SiteManifest = { name: 'site', targets: targetConfigs, admin: { auth } }
+  const manifest: SiteManifest = {
+    name: 'site',
+    locales: { default: 'en', supported: ['en', 'fr'] },
+    targets: targetConfigs,
+    admin: { auth },
+  }
   const app = createAdminApp({
     source: createSourceContext({ storage: local, siteDir: '', projectSiteDir: '/p', manifest, targetName: 'local' }),
     siteDir: '/p',
@@ -269,5 +274,28 @@ describe('POST /api/v1/saves', () => {
     expect(res.status).toBe(200)
     const revisions = await createHistoryProvider({ storage: local }).listRevisions()
     expect(revisions.map(r => r.items)).toEqual([['pages/home/page.json'], expect.any(Array)])
+  })
+
+  it('creates language versions of pages that exist, and refuses one whose page is missing or exists', async () => {
+    const { app, local } = setup()
+    const fr = (name: string) => ({ kind: 'page', name, locale: 'fr', manifest: page(`${name} fr`), ifNoneMatch: '*' })
+    const res = await saves(app, [fr('home'), fr('about')])
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { items: Array<{ name: string; locale: string; etag: string }> }
+    expect(body.items.map(i => [i.name, i.locale])).toEqual([
+      ['home', 'fr'],
+      ['about', 'fr'],
+    ])
+    expect(JSON.parse(await local.readFile('pages/home/page.fr.json'))).toMatchObject({ template: 'page-default' })
+    // The save-version chains: it's what reading the new version answers.
+    expect(body.items[0]!.etag).toBe(await etagOf(app, '/api/v1/pages/home?locale=fr'))
+    expect(await titleOf(local, 'home')).toBe('Home')
+
+    const again = await saves(app, [fr('home'), fr('missing')])
+    expect(again.status).toBe(409)
+    expect(((await again.json()) as Refused).items).toMatchObject([
+      { name: 'home', code: 'LIVE_CONFLICT' },
+      { name: 'missing', code: 'NOT_FOUND' },
+    ])
   })
 })

@@ -55,8 +55,9 @@ export interface SaveFragmentInput {
   /** Optional save-etag for concurrency check. */
   readonly ifMatch?: string
   /**
-   * Create the fragment instead of updating it (the bulk save, #1714): it
-   * must not exist, `body` is its whole manifest, and no locale is given.
+   * Create the fragment instead of updating it (the bulk save, #1714): `body`
+   * is its whole manifest and nothing may exist at its path. With a locale,
+   * it creates that language version of a fragment that exists.
    */
   readonly create?: boolean
   /** Loaded site (caller does `loadSiteFromSource(source)` once). */
@@ -122,9 +123,25 @@ export async function prepareFragmentSave(input: SaveFragmentInput): Promise<Pre
   }
 
   if (input.create) {
-    if (locale) throw new Error('A create has no locale')
-    if (input.site.fragments.has(input.name)) {
-      return { ok: false, code: 'EXISTS', message: `Fragment "${input.name}" already exists` }
+    // A new fragment, or a new language version of one that exists (#1714).
+    const defaultFragment = input.site.fragments.get(input.name)
+    let manifestPath: string
+    if (locale) {
+      if (!defaultFragment) throw new FragmentNotFoundError(input.name)
+      if (defaultFragment.archived === true)
+        return { ok: false, code: 'ARCHIVED', message: 'Archived. Restore to edit.' }
+      manifestPath = join(defaultFragment.dir, `fragment.${locale}.json`)
+    } else {
+      if (defaultFragment) return { ok: false, code: 'EXISTS', message: `Fragment "${input.name}" already exists` }
+      manifestPath = input.source.contentRoot.path('fragments', input.name, 'fragment.json')
+    }
+    // The stored file decides, also for a language the site's config doesn't list.
+    if (await input.source.storage.exists(manifestPath)) {
+      return {
+        ok: false,
+        code: 'EXISTS',
+        message: `Fragment "${input.name}"${locale ? ` (${locale})` : ''} already exists`,
+      }
     }
     const manifest: Record<string, unknown> = {
       ...input.body,
@@ -136,10 +153,11 @@ export async function prepareFragmentSave(input: SaveFragmentInput): Promise<Pre
         ...shared(input),
         kind: 'fragment',
         name: input.name,
+        locale,
         manifest,
         before: null,
         create: true,
-        manifestPath: input.source.contentRoot.path('fragments', input.name, 'fragment.json'),
+        manifestPath,
         cacheInvalidatePrefixes: ['fragments:', 'pages:'],
         etagExtras: {},
         scannerCause: { kind: 'fragment', name: input.name },
