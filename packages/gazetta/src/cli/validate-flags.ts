@@ -18,6 +18,29 @@
 
 import { parseTargetList } from './validate-targets.js'
 
+/**
+ * Every flag `gazetta validate` takes, for `--help`. A test checks this list
+ * against the parser and against `docs/cli.md`'s validate table (#1760).
+ */
+export const VALIDATE_FLAGS: readonly { flag: string; value?: string; help: string }[] = [
+  { flag: '--severity', value: '<error|warn|all>', help: 'What to show and count (default: error)' },
+  { flag: '--include-quality', help: 'Also run the accessibility, HTML validity and broken-link checks' },
+  { flag: '--no-warn-as-error', help: "Don't fail the run on warnings" },
+  { flag: '--verbose', help: 'Also list warnings and info under each item (also -v)' },
+  { flag: '--base', value: '<ref>', help: "Fail only on problems the commit <ref> didn't have" },
+  { flag: '--targets', value: '<a,b>', help: 'Also check the content stored on the named targets' },
+  {
+    flag: '--render',
+    help: 'Also render the content using templates changed since --base; without --base, every template (slow)',
+  },
+  { flag: '--json', help: 'Print the report as JSON on stdout (same as --format json)' },
+  {
+    flag: '--format',
+    value: '<text|json|github>',
+    help: 'How to print the report; github writes a job summary and annotations',
+  },
+]
+
 export interface ValidateOptions {
   /** Output filter — which severities to display + count toward exit code. */
   severity: 'error' | 'warn' | 'all'

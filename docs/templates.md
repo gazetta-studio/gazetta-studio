@@ -122,3 +122,68 @@ ${children.map(c => c.css).join('\n')}`,
 
 export default template
 ```
+
+## Check a template change in CI
+
+When you change a template's schema, content already written for it may stop fitting: a field becomes required, or a type changes. Run `gazetta validate` with `--base` in a pull request, and the pull request fails when existing content no longer fits the changed template. The report lists each page and fragment that breaks, with the field and the language version.
+
+Only what the pull request breaks fails it. Problems the base branch already had, such as an old broken link, are listed separately as "already broken" and don't fail the run. A problem counts as the same when it's on the same item, language, component and field, and about the same thing, even if its message reads differently.
+
+To make a breaking change on purpose, update the affected content in the same pull request: the report lists it, and the check turns green once it fits. There's no setting that lets broken content through.
+
+**Content on targets.** Content edited on a target, such as a hotfix on production, isn't in the repository. Name the targets that hold content with `--targets production,staging`, and give the job the read credentials `gazetta publish` uses for them. A target named this way that can't be read stops the run; none is skipped. Public targets can't be named, because they hold no manifests. On a static target, missing fragments aren't checked and `--render` doesn't render it: its fragments are baked into its pages, so it stores none. Each problem on a target says how to fix it: publish that target's content back to your editing target, fix it in the pull request, and publish again.
+
+**Templates that might throw.** The check reads content against schemas and doesn't run templates. Add `--render` to also render every page and fragment, in every language, that uses a template changed in the pull request, and fail when a template throws. Without `--base`, `--render` renders the whole site, which is slow on a large one.
+
+A workflow to copy into `.github/workflows/template-check.yml`:
+
+```yaml
+name: Template check
+on:
+  pull_request:
+    paths:
+      - 'templates/**'
+      - 'sites/**'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # --base reads the base commit
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx gazetta validate --base "origin/$BASE_REF" --format github
+        env:
+          BASE_REF: ${{ github.base_ref }}
+```
+
+`sites/**` covers each site's content and its `site.config.ts`. To check targets' content and render changed templates too, change the last step, with the environment variables your targets' storage reads:
+
+```yaml
+      - run: npx gazetta validate --base "origin/$BASE_REF" --targets production --render --format github
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+```
+
+With `--format github`, the job summary has a table per template with problems, and each broken template gets an annotation on its entry file in the pull request's diff:
+
+> ### `hero` (`templates/hero/index.tsx`)
+>
+> | Item | Language | Field | Message |
+> |---|---|---|---|
+> | pages/home | default | hero › cta | cta: Required |
+> | pages/home | fr | hero › cta | cta: Required |
+> | pages/promo on production | default | hero › cta | cta: Required |
+>
+> - pages/promo on production doesn't fit the new `hero`: publish production → local, fix it here.
+
+All the flags are in the [command-line reference](./cli.md#gazetta-validate-site).

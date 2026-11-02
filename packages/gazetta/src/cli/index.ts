@@ -17,7 +17,7 @@ import type { SiteManifest } from '../types.js'
 import type { Issue } from '../validation/types.js'
 import { getEnvironment, getType, isEditable } from '../types.js'
 import { buildHooksRegistry, createAdminApp } from '../admin-api/index.js'
-import { parseValidateFlags } from './validate-flags.js'
+import { parseValidateFlags, VALIDATE_FLAGS } from './validate-flags.js'
 import { logDefaultedPublicTargets } from '../validation/validators/public-storage-config.js'
 import { parseArgs } from './args.js'
 import {
@@ -317,10 +317,9 @@ function printHelp() {
                                     for undo/rollback on production targets
                                     and for state remove)
     --limit <n>                     Max revisions to list (default: 50)
-    --render                        validate: also render the content that uses
-                                    templates changed since --base, and fail when
-                                    a template throws; without --base, every
-                                    template renders (slow on large sites)
+
+  Validate options:
+${VALIDATE_FLAGS.map(f => `    ${`${f.flag}${f.value ? ` ${f.value}` : ''}`.padEnd(32)}${f.help}`).join('\n')}
 
   Auto-detection:
     Site is auto-detected from sites/ directory. If multiple sites exist,
