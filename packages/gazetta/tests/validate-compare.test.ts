@@ -53,7 +53,7 @@ describe('compareRuns', () => {
     const missing = (root: string, contentPath?: string): Issue => ({
       validator: 'referenced-fragment-exists',
       severity: 'error',
-      message: `@old not found (${root})`,
+      message: '@old not found',
       itemPath: `${root}/pages/home/page.json`,
       contentPath,
     })
@@ -67,6 +67,22 @@ describe('compareRuns', () => {
       run('base', { itemIssues: [missing('base')] }),
     )
     expect(moved.fresh.itemIssues).toHaveLength(1)
+  })
+
+  it('tells two missing assets in one component apart (Seer on #1751)', () => {
+    const asset = (root: string, name: string): Issue => ({
+      validator: 'referenced-asset-exists',
+      severity: 'error',
+      message: `Asset "${name}" referenced but not found in the asset library.`,
+      itemPath: `${root}/pages/home/page.json`,
+      contentPath: 'hero',
+    })
+    const result = compareRuns(
+      run('head', { itemIssues: [asset('head', 'icon'), asset('head', 'logo')] }),
+      run('base', { itemIssues: [asset('base', 'icon')] }),
+    )
+    expect(result.alreadyBroken.itemIssues.map(i => i.message)).toEqual([asset('x', 'icon').message])
+    expect(result.fresh.itemIssues.map(i => i.message)).toEqual([asset('x', 'logo').message])
   })
 
   it('counts two head issues matching one base issue as already broken', () => {
