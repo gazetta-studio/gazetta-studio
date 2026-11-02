@@ -130,7 +130,15 @@ export function withRunHeader<D extends { paths?: Record<string, unknown>; compo
     }
     const ops = { ...(item as Record<string, { parameters?: unknown[] }>) }
     for (const m of methods) {
-      if (ops[m]) ops[m] = { ...ops[m], parameters: [...(ops[m].parameters ?? []), ref] }
+      const op = ops[m]
+      if (!op) continue
+      // A route that requires the header (the bulk save) declares it itself.
+      const declares = (op.parameters ?? []).some(
+        p =>
+          (p as { in?: string; name?: string }).in === 'header' &&
+          (p as { name?: string }).name?.toLowerCase() === 'gazetta-run',
+      )
+      if (!declares) ops[m] = { ...op, parameters: [...(op.parameters ?? []), ref] }
     }
     paths[path] = ops
   }
