@@ -13,7 +13,7 @@
  * Slow: one Go build and one long-lived dev server.
  */
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
-import { cp, readdir, readFile, rm } from 'node:fs/promises'
+import { cp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { tempDir } from './_helpers/temp.js'
@@ -97,26 +97,29 @@ describe.runIf(runIt)('gz auth against gazetta dev', () => {
     }
   }
 
-  /** `gz auth login`, approving the code over HTTP as the browser would. */
-  async function login(): Promise<{ stdout: string }> {
-    const login = spawn(gz, ['auth', 'login', admin, '--name', 'dev', '--json'], { env: env() })
+  /** Runs gz until it shows a code, approves the code over HTTP as the browser would, and waits for gz. */
+  async function approved(args: string[]): Promise<{ stdout: string; stderr: string }> {
+    const run = spawn(gz, args, { env: env() })
     let stdout = ''
     let stderr = ''
-    login.stdout.on('data', d => (stdout += d))
+    run.stdout.on('data', d => (stdout += d))
     const code = await new Promise<string>((resolveCode, reject) => {
-      login.stderr.on('data', d => {
+      run.stderr.on('data', d => {
         stderr += d
         const m = /Your code: ([A-Z0-9]{4}-[A-Z0-9]{4})/.exec(stderr)
         if (m) resolveCode(m[1])
       })
-      login.once('close', () => reject(new Error(`gz exited before showing a code: ${stderr}${devTail()}`)))
+      run.once('close', () => reject(new Error(`gz exited before showing a code: ${stderr}${devTail()}`)))
     })
     const approve = await fetch(`${admin}/admin/api/v1/auth/logins/${code}/approve`, { method: 'POST' })
     expect(approve.status, devTail()).toBe(200)
-    const exit = await new Promise<number | null>(r => login.once('close', r))
+    const exit = await new Promise<number | null>(r => run.once('close', r))
     expect(exit, stderr + devTail()).toBe(0)
-    return { stdout }
+    return { stdout, stderr }
   }
+
+  /** `gz auth login`, approved over HTTP. */
+  const login = () => approved(['auth', 'login', admin, '--name', 'dev', '--json'])
 
   it('logs in, shows the login renewing, and logs out so it no longer renews', async () => {
     const { stdout } = await login()
@@ -211,5 +214,39 @@ describe.runIf(runIt)('gz auth against gazetta dev', () => {
     ok(schema, 'schema')
     expect(JSON.parse(schema.stdout).properties).toHaveProperty('title')
     expect([0, 1]).toContain(gzRun(['validate', '--json']).code)
+  }, 120_000)
+
+  it('publishes after an elevation, and uploads an asset', async () => {
+    await login()
+    const ok = (r: ReturnType<typeof gzRun>, what: string) => expect(r.code, `${what}: ${r.stderr}${devTail()}`).toBe(0)
+
+    // The token can't publish until the person approves an elevation (Q12, Q29).
+    const first = await approved(['publish', 'home', '--to', 'staging'])
+    expect(first.stderr).toContain('non-production elevation')
+    expect(first.stdout).toContain('Published 1 items to staging')
+    // Within the elevation's 15 minutes, no new code (Q17).
+    const second = gzRun(['publish', 'about', '--to', 'staging'])
+    ok(second, 'second publish')
+    expect(second.stderr).not.toContain('Your code')
+    ok(gzRun(['elevate', '--end']), 'elevate --end')
+    const after = gzRun(['publish', 'about', '--to', 'staging', '--no-wait'])
+    expect(after.code, after.stderr).toBe(3)
+
+    const png = join(work, 'dot.png')
+    await writeFile(
+      png,
+      Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        'base64',
+      ),
+    )
+    ok(gzRun(['assets', 'upload', png, '--name', 'gz-dot', '--alt', 'A dot']), 'upload')
+    ok(gzRun(['assets', 'alt', 'gz-dot', 'A single dot']), 'alt')
+    const list = gzRun(['assets', 'list', '--json'])
+    ok(list, 'list')
+    const dot = (JSON.parse(list.stdout).assets as { name: string; alt: string | null }[]).find(
+      a => a.name === 'gz-dot',
+    )
+    expect(dot?.alt).toBe('A single dot')
   }, 120_000)
 })

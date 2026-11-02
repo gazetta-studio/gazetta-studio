@@ -10,6 +10,8 @@ Never run these; ask the person to:
 - `gazetta rollback`
 - `gazetta archive purge`
 - `gazetta state remove`
+- `gz publish`
+- `gz elevate`
 - `POST /api/v1/publish`
 - `POST /api/v1/publish/stream`
 - `POST /api/v1/fetch`

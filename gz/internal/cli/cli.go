@@ -22,6 +22,7 @@ import (
 	"github.com/gazetta-studio/gazetta-studio/gz/internal/profile"
 	"github.com/gazetta-studio/gazetta-studio/gz/internal/session"
 	"github.com/gazetta-studio/gazetta-studio/gz/internal/skill"
+	"github.com/gazetta-studio/gazetta-studio/gz/internal/state"
 	"github.com/gazetta-studio/gazetta-studio/gz/internal/version"
 )
 
@@ -158,6 +159,8 @@ type context struct {
 	out   output.Printer
 	g     globals
 	flags map[string]string
+	// prof is the profile service() selected.
+	prof profile.Profile
 }
 
 // Commands lists every command gz has, by name.
@@ -184,6 +187,7 @@ func init() {
 		{"version", "gz version", "Print the gz version", 0, 0, showVersion, nil, nil},
 	}
 	commands = append(commands, contentCommands()...)
+	commands = append(commands, publishCommands()...)
 }
 
 // Run runs gz with args and returns the exit code.
@@ -222,10 +226,41 @@ func Run(args []string, env Env) int {
 	if len(cmdArgs) < cmd.minArgs || len(cmdArgs) > cmd.maxArgs {
 		return out.Fail(output.Errorf(output.Usage, "usage: %s", cmd.usage))
 	}
+	if !g.json && !strings.HasPrefix(cmd.name, "skill") && cmd.name != "version" {
+		warnOutdatedSkill(env)
+	}
 	if err := cmd.run(ctx, cmdArgs); err != nil {
 		return out.Fail(err)
 	}
 	return output.OK
+}
+
+// warnOutdatedSkill prints, at most once a day, one line for each recorded
+// copy of the skill older than this gz (Q41). Copies gz didn't install
+// aren't tracked, and gz never touches the copies itself.
+func warnOutdatedSkill(env Env) {
+	path := state.Path(env.ConfigDir)
+	st, err := state.Load(path)
+	if err != nil || len(st.Skills) == 0 {
+		return
+	}
+	today := env.Now().Format("2006-01-02")
+	if st.SkillWarned == today {
+		return
+	}
+	warned := false
+	for _, dir := range st.Skills {
+		v, ok := skill.InstalledVersion(dir)
+		if !ok || v == version.String() {
+			continue
+		}
+		fmt.Fprintf(env.Stderr, "gz: the gz skill in %s is from gz %s; refresh it with: gz skill install %s\n", dir, v, dir)
+		warned = true
+	}
+	if warned {
+		st.SkillWarned = today
+		_ = st.Save(path)
+	}
 }
 
 // parseGlobals pulls the global flags out of args, wherever they are.
@@ -305,7 +340,7 @@ func lookup(args []string) (*command, []string) {
 }
 
 func printHelp(w io.Writer) {
-	fmt.Fprintf(w, "gz %s: edit a Gazetta site through its admin.\n\nCommands:\n", version.String())
+	fmt.Fprintf(w, "gz %s: edit a Gazetta site through its admin.\n\nUsing an AI agent? Run gz skill install <your agent's skills folder>.\n\nCommands:\n", version.String())
 	for _, c := range commands {
 		fmt.Fprintf(w, "  %-26s %s\n", c.usage, c.summary)
 	}
@@ -317,8 +352,6 @@ in an array, use an index or a component's name:
 
 Runs: GZ_RUN=<id> (or --run) puts a task's saves in one run; without it,
 each command is its own run.
-
-Using an AI agent? Run gz skill install <your agent's skills folder>.
 
 Flags:
   --admin <name|url>  Use this admin instead of the default (or set GZ_ADMIN)
@@ -385,6 +418,20 @@ func skillPrint(ctx *context, _ []string) error {
 func skillInstall(ctx *context, args []string) error {
 	path, err := skill.Install(args[0], version.String())
 	if err != nil {
+		return err
+	}
+	// Recorded so gz can say when this copy falls behind the binary (Q41).
+	dir, err := filepath.Abs(args[0])
+	if err != nil {
+		return err
+	}
+	statePath := state.Path(ctx.env.ConfigDir)
+	st, err := state.Load(statePath)
+	if err != nil {
+		return err
+	}
+	st.AddSkill(dir)
+	if err := st.Save(statePath); err != nil {
 		return err
 	}
 	return ctx.out.Result("Installed the gz skill at "+path, map[string]any{"path": path, "version": version.String()})

@@ -11,8 +11,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strings"
 
 	"github.com/gazetta-studio/gazetta-studio/gz/internal/api"
@@ -365,4 +367,104 @@ func (s *Service) PreviewURL(path string) string {
 		}
 	}
 	return path
+}
+
+// Published is one destination's publish result.
+type Published struct {
+	Target      string `json:"target"`
+	Success     bool   `json:"success"`
+	Error       string `json:"error,omitempty"`
+	CopiedFiles int    `json:"copiedFiles"`
+}
+
+// Publish publishes items (`pages/home`, `fragments/header`, `pages/home:fr`)
+// to targets. A refusal comes back as the problem, so the caller can start
+// the elevation it names (Q29).
+func (s *Service) Publish(ctx context.Context, items, targets []string) ([]Published, *session.Problem, error) {
+	body, err := json.Marshal(map[string]any{"items": items, "targets": targets})
+	if err != nil {
+		return nil, nil, err
+	}
+	r, err := s.API.PostApiV1PublishWithBodyWithResponse(ctx, &api.PostApiV1PublishParams{}, "application/json", bytes.NewReader(body), s.run)
+	if err != nil {
+		return nil, nil, err
+	}
+	// 207: some destinations failed; each result says which.
+	if r.StatusCode() != http.StatusOK && r.StatusCode() != http.StatusMultiStatus {
+		p := session.ProblemOf(r.HTTPResponse, r.Body)
+		return nil, &p, nil
+	}
+	var out struct {
+		Results []Published `json:"results"`
+	}
+	return out.Results, nil, json.Unmarshal(r.Body, &out)
+}
+
+// Asset is one asset in the library.
+type Asset struct {
+	Name string  `json:"name"`
+	Kind string  `json:"kind"`
+	Mime string  `json:"mime"`
+	Size int64   `json:"size"`
+	Alt  *string `json:"alt"`
+}
+
+// Assets lists the asset library.
+func (s *Service) Assets(ctx context.Context) ([]Asset, error) {
+	r, err := s.API.GetApiV1AssetsWithResponse(ctx, &api.GetApiV1AssetsParams{}, s.run)
+	if err != nil {
+		return nil, err
+	}
+	if err := fail(r.HTTPResponse, r.Body); err != nil {
+		return nil, err
+	}
+	var assets []Asset
+	return assets, json.Unmarshal(r.Body, &assets)
+}
+
+// Upload uploads a file as asset name; alt nil leaves it unset, "" marks it
+// decorative. It returns the name the admin saved it under.
+func (s *Service) Upload(ctx context.Context, filename string, data []byte, name string, alt *string) (string, error) {
+	var buf bytes.Buffer
+	form := multipart.NewWriter(&buf)
+	part, err := form.CreateFormFile("file", filepath.Base(filename))
+	if err != nil {
+		return "", err
+	}
+	if _, err := part.Write(data); err != nil {
+		return "", err
+	}
+	_ = form.WriteField("name", name)
+	if alt != nil {
+		_ = form.WriteField("alt", *alt)
+	}
+	if err := form.Close(); err != nil {
+		return "", err
+	}
+	r, err := s.API.PostApiV1AssetsWithBodyWithResponse(ctx, &api.PostApiV1AssetsParams{}, form.FormDataContentType(), &buf, s.run)
+	if err != nil {
+		return "", err
+	}
+	if err := fail(r.HTTPResponse, r.Body); err != nil {
+		return "", err
+	}
+	var out struct {
+		Manifest struct {
+			Name string `json:"name"`
+		} `json:"manifest"`
+	}
+	if err := json.Unmarshal(r.Body, &out); err != nil {
+		return "", err
+	}
+	return out.Manifest.Name, nil
+}
+
+// SetAlt sets an asset's alt text; "" marks it decorative.
+func (s *Service) SetAlt(ctx context.Context, name, alt string) error {
+	body, _ := json.Marshal(map[string]string{"alt": alt})
+	r, err := s.API.PatchApiV1AssetsNameWithBodyWithResponse(ctx, name, &api.PatchApiV1AssetsNameParams{}, "application/json", bytes.NewReader(body), s.run)
+	if err != nil {
+		return err
+	}
+	return fail(r.HTTPResponse, r.Body)
 }
