@@ -30,7 +30,9 @@ func TestRunsShowSaysWhatARevertWouldDo(t *testing.T) {
 func TestRunsRevertSkipsChangedItemsUnlessForced(t *testing.T) {
 	h, a := signedIn(t)
 	a.SeedRuns()
-	h.must(t, "runs", "revert", "r1", "--run", "undo-1")
+	if code := h.run("runs", "revert", "r1", "--run", "undo-1"); code != output.Conflict {
+		t.Fatalf("a skipped-changed item: exit %d", code)
+	}
 	if !strings.Contains(h.stdout.String(), "pages.about  skipped-changed") || !strings.Contains(h.stdout.String(), "1 of 3 items skipped. This revert is run undo-1.") {
 		t.Fatalf("stdout %q", h.stdout.String())
 	}
@@ -42,6 +44,11 @@ func TestRunsRevertSkipsChangedItemsUnlessForced(t *testing.T) {
 	if !strings.Contains(h.stdout.String(), "pages.about  reverted") {
 		t.Fatalf("stdout %q", h.stdout.String())
 	}
+	a.Runs.Fail = "pages.promo"
+	if code := h.run("runs", "revert", "r1", "--force", "pages.about"); code != output.Failure {
+		t.Fatalf("another skipped item: exit %d", code)
+	}
+	a.Runs.Fail = ""
 	if code := h.run("runs", "revert", "r1", "--run", "r1"); code != output.Usage {
 		t.Fatalf("same run: exit %d", code)
 	}

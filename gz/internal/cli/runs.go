@@ -70,7 +70,7 @@ func runsRevert(ctx *context, args []string) error {
 		return err
 	}
 	var b strings.Builder
-	skipped := 0
+	skipped, changed := 0, false
 	for _, it := range items {
 		line := it.Status
 		if it.Reason != "" {
@@ -78,9 +78,21 @@ func runsRevert(ctx *context, args []string) error {
 		}
 		if strings.HasPrefix(it.Status, "skipped") {
 			skipped++
+			changed = changed || it.Status == "skipped-changed"
 		}
 		fmt.Fprintf(&b, "  %s  %s\n", it.Item, line)
 	}
 	fmt.Fprintf(&b, "Reverted run %s; %d of %d items skipped. This revert is run %s.", args[0], skipped, len(items), revertRun)
-	return ctx.out.Result(b.String(), map[string]any{"runId": args[0], "revertRun": revertRun, "items": items})
+	if err := ctx.out.Result(b.String(), map[string]any{"runId": args[0], "revertRun": revertRun, "items": items}); err != nil {
+		return err
+	}
+	// A partial revert isn't a success (Q38): 4 when someone else edited an
+	// item since the run, 1 when any other item was skipped.
+	switch {
+	case changed:
+		return &output.Error{Exit: output.Conflict, Reported: true}
+	case skipped > 0:
+		return &output.Error{Exit: output.Failure, Reported: true}
+	}
+	return nil
 }

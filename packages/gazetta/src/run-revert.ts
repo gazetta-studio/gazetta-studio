@@ -141,7 +141,7 @@ function decide(item: PlannedItem, forced: ReadonlySet<string>): RevertOutcome |
   if (item.created && item.locale) {
     return {
       status: 'skipped-failed',
-      reason: 'The run added this language version; archiving works on the whole item, so remove it in the admin',
+      reason: 'Language version created by this run: remove it by hand',
     }
   }
   if (item.created && item.current === null) return { status: 'reverted' }
