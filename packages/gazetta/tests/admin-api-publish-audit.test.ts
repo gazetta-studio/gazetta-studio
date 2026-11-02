@@ -184,7 +184,8 @@ describe('Validation Cut 4 — POST /api/v1/publish gate', () => {
   })
 })
 
-describe('the server gate and the render read one snapshot (#1632)', () => {
+// These publish through the starter's templates: well under a second alone, over 5 s on a loaded CI runner.
+describe('the server gate and the render read one snapshot (#1632)', { timeout: 30_000 }, () => {
   const original = JSON.stringify({ template: 'page-default', route: '/', content: {}, metadata: { title: 'Audited' } })
   const changed = JSON.stringify({
     template: 'page-default',
@@ -252,7 +253,7 @@ describe('the server gate and the render read one snapshot (#1632)', () => {
   })
 })
 
-describe('afterPublish hooks get the items an asset removal kept back (#1632)', () => {
+describe('afterPublish hooks get the items an asset removal kept back (#1632)', { timeout: 30_000 }, () => {
   const page = (title: string) =>
     JSON.stringify({ template: 'page-default', route: '/', content: { image: { _asset: 'sky' } }, metadata: { title } })
 
