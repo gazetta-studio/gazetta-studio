@@ -220,6 +220,9 @@ describe('a token edits but cannot publish, delete, purge or restore without an 
       const inBrowser = await app.request(path, init)
       if (inBrowser.status === 403) expect(await problemCode(inBrowser)).not.toBe('ELEVATION_REQUIRED')
     },
+    // The browser's publish renders with the starter's templates: under a
+    // second alone, over 5 s on a loaded CI runner.
+    30_000,
   )
 
   it('saves a page with a token', async () => {
