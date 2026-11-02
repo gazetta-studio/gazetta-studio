@@ -339,6 +339,14 @@ Decided: maintainer, 2026-11-01 (#1630)
 | 2 hours, extended by each use (GitHub sudo mode) | An agent publishing every few minutes keeps it open indefinitely |
 | One action | That's the publish request that already exists, with no elevation at all |
 
+A production elevation also covers non-production publishing for its window, so publishing to production through `gz` needs one approval: every publish needs the non-production publish right, and production also needs the production one. A non-production elevation still doesn't cover production.
+
+Decided: maintainer, 2026-11-02 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| Two approvals, as built (cut 8): a non-production code, then a production code | The maintainer chose one approval |
+
 ### Q18 — Tokens approve or reject publish requests only while elevated
 
 A CLI, API or MCP token can approve or reject a publish request (when its person holds `publish:approve`) only while elevated. Follows from this and `design-review-workflow.md` lock 10: on a target that allows self-approval (`allowSelfPublishApproval`, default `true`), an elevated agent can approve a request it opened; `allowSelfPublishApproval: false` stops it.
@@ -812,6 +820,17 @@ Decided: maintainer, 2026-11-01 (#1656)
 | Rejected | Why |
 |---|---|
 | All or nothing: check every item first and revert nothing if any would fail | One broken item would block undoing the rest |
+
+A page or fragment the run created, which had no earlier version, is archived by the undo, so it stops being live; it can be restored from the archive or purged. Archiving needs no elevation for tokens (Q32). If anything else still uses it, it's skipped and listed instead, like an item that changed.
+
+Decided: maintainer, 2026-11-02 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| Skip and list them as "created by this run" | Someone archives or deletes them by hand in a separate step |
+| Delete them | Needs delete rights and, through `gz`, an elevation, so undoing a run that created pages would wait for approval |
+
+Archiving still needs the person's `archive:pages` or `archive:fragments` (#1706), which Q50's edit rights don't include, so an item the person can't archive is skipped and listed too. Follows from Q32 and Q50.
 
 ### Q49 — Save rejects the schema problems it introduces, for a whole touched component
 
