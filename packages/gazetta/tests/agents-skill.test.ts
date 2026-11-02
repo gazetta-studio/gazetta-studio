@@ -58,6 +58,8 @@ const COMMANDS: Record<string, 'never' | 'allowed'> = {
   'archive restore': 'allowed',
   'archive rename': 'allowed',
   'state remove': 'never',
+  // Rewrites only Gazetta's own section of AGENTS.md (Q33).
+  'agents update': 'allowed',
   help: 'allowed',
 }
 

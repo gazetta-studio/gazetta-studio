@@ -20,6 +20,7 @@ Every `gazetta` command, its arguments and flags, and how the CLI picks a site a
 | `gazetta rollback <rev> [target] [site]` | Restore a chosen revision |
 | `gazetta assets <list\|info\|reindex> ...` | Inspect assets and rebuild dependency indices |
 | `gazetta archive <list\|purge\|restore\|rename> ...` | Archive operations on pages and fragments |
+| `gazetta agents update` | Refresh Gazetta's section of `AGENTS.md` from the installed package |
 | `gazetta help` | Print the built-in help |
 
 Any other command prints "Unknown command" and the help, and exits 1. The CLI looks for the site first, so where it finds none, or several, you get that error or question instead.
@@ -59,11 +60,11 @@ Creates a project in `dir` (default: the current directory), then runs `npm inst
 
 `init` also writes an `AGENTS.md` with a section for coding agents (Claude Code, Codex, Copilot, Cursor). It tells the agent to install the Gazetta skill, which ships in the package at `node_modules/gazetta/agents/gazetta/`, into the folder its client reads skills from. The skill covers editing pages, fragments and translations, writing templates and schemas, and `gazetta validate`. It also lists the commands and admin routes an agent must never run itself (publishing, deploying, undo and rollback, purging, and deleting pages, fragments or assets) and must ask you about instead. Nothing enforces that list: on your own machine, only the agent and your agent client's own settings stop it. If `dir` already has an `AGENTS.md`, `init` adds the section at the end and leaves your text as it is. If it has a `CLAUDE.md`, `init` adds an `@AGENTS.md` import line to it, because Claude Code reads `AGENTS.md` only when a project has no `CLAUDE.md`.
 
-The section and the skill carry the Gazetta version they came with; the section tells the agent to reinstall the skill when its installed copy is older. An existing project gets the instructions by copying the section from `node_modules/gazetta/agents/AGENTS.md` (everything between the `gazetta:agents` start and end markers) into its own `AGENTS.md`, replacing an older copy of the section, and by adding `@AGENTS.md` on a line of its own to `CLAUDE.md` if it has one.
+The section and the skill carry the Gazetta version they came with; the section tells the agent to reinstall the skill when its installed copy is older. An existing project gets them, or a newer copy after upgrading Gazetta, with [`gazetta agents update`](#gazetta-agents-update).
 
 ### `gazetta dev [site]`
 
-Runs the site at `http://localhost:3000/` and the admin at `/admin`, rendering pages from the editing target on each request. It watches templates, content and `site.config.ts`, and reloads the preview when they change; a `site.config.ts` change (content, locales, targets) takes effect without a restart. Two cases still need a restart: changes to `admin.hooks`, `admin.validators` or `admin.routes`, and a target's storage once the admin has published through it, because publish providers are created once and reused (#1446). At start it prints the pages, fragments and a Settings block (project, site, templates, editing target); set `GAZETTA_QUIET=1` to leave the Settings block out. Flags: `--port`, `--host`. Stop it with Ctrl+C.
+Runs the site at `http://localhost:3000/` and the admin at `/admin`, rendering pages from the editing target on each request. It watches templates, content and `site.config.ts`, and reloads the preview when they change; a `site.config.ts` change (content, locales, targets) takes effect without a restart. Two cases still need a restart: changes to `admin.hooks`, `admin.validators` or `admin.routes`, and a target's storage once the admin has published through it, because publish providers are created once and reused (#1446). At start it prints the pages, fragments and a Settings block, plus a line suggesting `gazetta agents update` when your `AGENTS.md` has an older Gazetta section, or none (project, site, templates, editing target); set `GAZETTA_QUIET=1` to leave the Settings block out. Flags: `--port`, `--host`. Stop it with Ctrl+C.
 
 ### `gazetta publish [target] [site]`
 
@@ -149,6 +150,10 @@ gazetta archive rename <oldname> <newname> [--kind=...] [--no-keep-alias] [--for
 
 Lists, permanently deletes and restores archived pages and fragments, and renames a live one, on an editable target, the same operations as the admin. `rename` keeps a redirect from the old name; `--no-keep-alias` drops it, and `--keep-alias` restores the default after an earlier `--no-keep-alias`. `--kind` is only needed when a page and a fragment share the name. See [Soft delete](./soft-delete.md#cli).
 
+### `gazetta agents update`
+
+Refreshes the Gazetta section of the project's `AGENTS.md` from the installed package: only the text between the `gazetta:agents` start and end markers changes, and your own text around it stays as it is. Without a section, it adds one at the end; without an `AGENTS.md`, it creates one. If the project has a `CLAUDE.md` without an `@AGENTS.md` line, it adds one. It writes nothing in your agent client's folders: ask your agent to reinstall the skill from `node_modules/gazetta/agents/`. It prints what changed, or that the section is already current, and exits 0. Run it inside the project; outside one (no `package.json` depending on `gazetta`) it exits 2.
+
 ## In CI
 
 The CLI treats any non-empty `CI` environment variable (GitHub Actions and most CI systems set `CI=true`) as non-interactive:
@@ -169,5 +174,6 @@ Outside CI, every command except `init` loads `.env` and then `.env.local`, firs
 |---|---|
 | `0` | Success, or you cancelled a question (choosing a site or target, confirming an undo) |
 | `1` | Anything failed: an unknown command or target, a missing site, a failed publish item or target, validation errors, a port in use, a failed deploy |
+| `2` | `gazetta agents update` was run outside a project, or with other arguments |
 
 `dev`, `serve` and `admin` keep running until you stop them with Ctrl+C.
