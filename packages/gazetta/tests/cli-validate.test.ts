@@ -45,34 +45,13 @@ describe('gazetta validate (CLI)', () => {
   // Every test here spawns the built CLI; the default 5s vitest timeout is
   // too tight under CI parallelism (~2s local, up to ~12s observed on loaded
   // runners), so all of them use the quality test's 30s override.
-  it('runs against starter and reports each page + fragment', { timeout: 30_000 }, () => {
+  it('runs against starter, reports each page + fragment, and passes', { timeout: 30_000 }, () => {
     const { stdout, status } = run(['sites/main', '--severity', 'error'])
     expect(stdout).toMatch(/site\.config\.ts/)
     expect(stdout).toMatch(/home/)
     expect(stdout).toMatch(/@header/)
-    // Starter currently has a schema-conformance warning on the 404 page;
-    // with default --severity error, that warning is hidden + exit code 1
-    // because warnAsError is true. Allow either depending on starter state.
-    expect([0, 1]).toContain(status)
-  })
-
-  it('--severity all surfaces the schema-conformance warning on 404', { timeout: 30_000 }, () => {
-    const { stdout } = run(['sites/main', '--severity', 'all', '--verbose'])
-    // The starter's `404` page lacks a `heading` field; schema-conformance
-    // surfaces this. If the starter is later cleaned up, drop this test
-    // or pick a different fixture.
-    expect(stdout).toMatch(/heading/)
-  })
-
-  it('--no-warn-as-error returns exit 0 even when warns present', { timeout: 30_000 }, () => {
-    const { status } = run(['sites/main', '--severity', 'all', '--no-warn-as-error'])
+    expect(stdout).toContain('All good.')
     expect(status).toBe(0)
-  })
-
-  it('--verbose prints full Issue messages', { timeout: 30_000 }, () => {
-    const { stdout } = run(['sites/main', '--severity', 'all', '--verbose'])
-    // Verbose surfaces individual issue lines indented under the item.
-    expect(stdout).toMatch(/Invalid input|expected string|received undefined/)
   })
 
   it('--include-quality runs without crashing (a11y + html-validity engaged)', { timeout: 30_000 }, () => {
@@ -143,4 +122,42 @@ describe('gazetta validate (CLI) — a template that fails to load (#1665)', () 
     expect(output).toContain('Template "hero" couldn\'t be loaded, so this content can\'t be checked')
     expect(result.status).toBe(1)
   })
+})
+
+describe('gazetta validate (CLI) — content that does not fit its template (#1745, T7)', () => {
+  const copyDir = resolve(here, '../../../.tmp', `cli-validate-schema-${Date.now()}`)
+
+  beforeAll(() => {
+    cpSync(starterDir, copyDir, { recursive: true, filter: src => !src.includes('node_modules') })
+    // The French home page's hero loses its required title.
+    const fr = join(copyDir, 'sites/main/targets/local/pages/home/page.fr.json')
+    const page = JSON.parse(readFileSync(fr, 'utf-8'))
+    delete page.components.find((c: { template?: string }) => c.template === 'hero').content.title
+    writeFileSync(fr, JSON.stringify(page, null, 2))
+  })
+  afterAll(() => {
+    rmSync(copyDir, { recursive: true, force: true })
+  })
+
+  function runCopy(args: string[]) {
+    const result = spawnSync('node', [cliEntry, 'validate', 'sites/main', ...args], {
+      cwd: copyDir,
+      env: { ...process.env, NO_COLOR: '1' },
+      encoding: 'utf-8',
+    })
+    return { output: result.stdout + result.stderr, status: result.status }
+  }
+
+  it.each([[[]], [['--no-warn-as-error']], [['--severity=all', '--no-warn-as-error']]])(
+    'fails and names the page, field and language with %j',
+    { timeout: 30_000 },
+    args => {
+      const { output, status } = runCopy(args)
+      const line = output.split('\n').find(l => l.includes('title:'))
+      expect(line, output).toMatch(/✗ title: .*\(hero, language fr\)/)
+      expect(output).toMatch(/✗ home /)
+      expect(output).toContain('1 error')
+      expect(status).toBe(1)
+    },
+  )
 })

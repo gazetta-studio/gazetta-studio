@@ -9,6 +9,7 @@
       "name": "message",
       "template": "text-block",
       "content": {
+        "heading": "Page not found",
         "body": "<p>The page you're looking for doesn't exist. <a href='/'>Go home</a>.</p>"
       }
     },
