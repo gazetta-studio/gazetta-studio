@@ -830,7 +830,7 @@ Decided: maintainer, 2026-11-02 (#1728)
 | Skip and list them as "created by this run" | Someone archives or deletes them by hand in a separate step |
 | Delete them | Needs delete rights and, through `gz`, an elevation, so undoing a run that created pages would wait for approval |
 
-Archiving still needs the person's `archive:pages` or `archive:fragments` (#1706), which Q50's edit rights don't include, so an item the person can't archive is skipped and listed too. Follows from Q32 and Q50.
+Archiving still needs the person's `archive:pages` or `archive:fragments` (#1706), which Q50's edit rights don't include, so an item the person can't archive is skipped and listed too. Follows from Q32, Q48 and Q50.
 
 ### Q49 — Save rejects the schema problems it introduces, for a whole touched component
 
@@ -854,7 +854,7 @@ Decided: maintainer, 2026-11-02 (#1712)
 
 ### Q50 — Reverting a run needs edit rights
 
-Reverting a run is a set of normal saves, so it needs `edit:pages` or `edit:fragments` for the items it touches, like editing them by hand.
+Reverting a run is a set of normal saves, so it needs `edit:pages` or `edit:fragments` for the items it touches, like editing them by hand. Archiving items the run created also needs `archive:pages` or `archive:fragments` (Q48, #1728).
 
 Decided: maintainer, 2026-11-01 (#1656)
 
