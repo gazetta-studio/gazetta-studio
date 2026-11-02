@@ -68,17 +68,24 @@ function walk(schema: JsonSchema | undefined | null, path: string, out: string[]
 }
 
 /**
- * Read the value at a JSON-pointer-style path within `value`. Returns the
- * raw JS object/array/primitive. For array paths (`gallery[]`), returns the
- * array; the caller iterates elements.
+ * Read the values at a walker path within `value`. For array paths
+ * (`gallery[].image`), returns one value per element.
  *
  * Symmetric with `findAltRequiredPaths` — paths produced by the walker are
  * resolvable here.
  */
 export function readAtPath(value: unknown, path: string): unknown[] {
-  if (path === '<root>') return value === undefined ? [] : [value]
-  const segments = parsePath(path)
-  return resolve(value, segments)
+  return readEntriesAtPath(value, path).map(e => e.value)
+}
+
+/**
+ * Like `readAtPath`, with each value's own path: the walker path with each
+ * `[]` given its index (`gallery[1].image`), so two values in one array
+ * field can be told apart (#1756).
+ */
+export function readEntriesAtPath(value: unknown, path: string): { value: unknown; path: string }[] {
+  if (path === '<root>') return value === undefined ? [] : [{ value, path }]
+  return resolve(value, parsePath(path), 0, '')
 }
 
 function parsePath(path: string): Array<{ kind: 'key'; name: string } | { kind: 'array' }> {
@@ -102,18 +109,21 @@ function parsePath(path: string): Array<{ kind: 'key'; name: string } | { kind: 
   return out
 }
 
-function resolve(value: unknown, segments: ReturnType<typeof parsePath>, depth = 0): unknown[] {
+function resolve(
+  value: unknown,
+  segments: ReturnType<typeof parsePath>,
+  depth: number,
+  at: string,
+): { value: unknown; path: string }[] {
   if (depth === segments.length) {
-    return value === undefined || value === null ? [] : [value]
+    return value === undefined || value === null ? [] : [{ value, path: at }]
   }
   const seg = segments[depth]
   if (seg.kind === 'array') {
     if (!Array.isArray(value)) return []
-    const out: unknown[] = []
-    for (const item of value) out.push(...resolve(item, segments, depth + 1))
-    return out
+    return value.flatMap((item, i) => resolve(item, segments, depth + 1, `${at}[${i}]`))
   }
   if (typeof value !== 'object' || value === null) return []
   const next = (value as Record<string, unknown>)[seg.name]
-  return resolve(next, segments, depth + 1)
+  return resolve(next, segments, depth + 1, at ? `${at}.${seg.name}` : seg.name)
 }

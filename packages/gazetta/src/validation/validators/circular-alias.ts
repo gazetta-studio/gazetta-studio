@@ -65,6 +65,7 @@ export const circularAlias: Validator = {
           severity: 'error',
           message: `Alias cycle: ${chain.path.join(' → ')}. Aliases must not form chains (Q3 G1 invariant).`,
           itemPath: scope.item.itemPath,
+          subject: 'cycle',
         },
       ]
     }
@@ -75,6 +76,7 @@ export const circularAlias: Validator = {
         severity: 'error',
         message: `Alias chain: ${chain.path.join(' → ')}. Aliases must point at live items (Q3 G1 invariant — no chaining).`,
         itemPath: scope.item.itemPath,
+        subject: 'chain',
       },
     ]
   },

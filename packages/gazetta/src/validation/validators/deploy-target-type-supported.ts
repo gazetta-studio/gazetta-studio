@@ -59,6 +59,7 @@ export const deployTargetTypeSupported: Validator = {
           `Target "${name}" has type: "${targetType}" but deploy adapter "${deploy.name}" supports only [${deploy.supports.map(s => `"${s}"`).join(', ')}]. ` +
           `Either switch to a compatible adapter or change target type.`,
         itemPath: `site.config.ts:targets.${name}.deploy`,
+        subject: 'type-unsupported',
       })
     }
 

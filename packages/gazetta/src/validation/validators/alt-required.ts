@@ -26,7 +26,7 @@ import { z } from 'zod'
 import { loadTemplate } from '../../template-loader.js'
 import type { FragmentManifest, PageManifest, StorageProvider } from '../../types.js'
 import type { Issue, Validator, ValidatorInput } from '../types.js'
-import { findAltRequiredPaths, readAtPath } from '../alt-required-walker.js'
+import { findAltRequiredPaths, readEntriesAtPath } from '../alt-required-walker.js'
 
 interface AssetRef {
   _asset?: string
@@ -62,9 +62,8 @@ export const altRequired: Validator = {
 
     const issues: Issue[] = []
     for (const path of requiredPaths) {
-      const refs = readAtPath(manifest.content, path)
-      for (const raw of refs) {
-        const ref = raw as AssetRef | null | undefined
+      for (const entry of readEntriesAtPath(manifest.content, path)) {
+        const ref = entry.value as AssetRef | null | undefined
         if (!ref || typeof ref !== 'object' || !ref._asset) continue
         if (typeof ref.alt === 'string' && ref.alt.length > 0) continue // per-ref override satisfies
         // Per-ref alt is empty string ('') means decorative — also valid.
@@ -75,10 +74,13 @@ export const altRequired: Validator = {
           validator: 'altRequired',
           severity: 'error',
           message:
-            `Asset "${ref._asset}" referenced at "${path}" requires alt text. ` +
+            `Asset "${ref._asset}" referenced at "${entry.path}" requires alt text. ` +
             `Set alt on the reference, or set the asset's default alt.`,
           itemPath: scope.item.itemPath,
-          contentPath: path,
+          // The reference's own path and asset, so `--base` tells two
+          // references in one array field apart (#1756).
+          contentPath: entry.path,
+          subject: ref._asset,
         })
       }
     }

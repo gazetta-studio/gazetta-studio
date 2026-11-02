@@ -67,6 +67,8 @@ export const brokenLinks: Validator = {
             severity: 'warn',
             message: `${ref}: ${reason}`,
             itemPath: item.itemPath,
+            // The link as written, so `--base` tells two broken links on one page apart (#1756).
+            subject: ref,
           })
         }
       }
