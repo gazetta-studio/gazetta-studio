@@ -29,7 +29,10 @@ type Elevations struct {
 	// Published lists each publish that went through: items, then targets.
 	Published [][]string
 	// FailTarget makes publishing to that target fail (207).
+	// Refuse makes publish answer ELEVATION_REQUIRED for this scope even
+	// when it's covered, as a revoked role would.
 	FailTarget string
+	Refuse     string
 	// Assets is what GET /api/v1/assets answers; uploads and alt edits change it.
 	Assets []map[string]any
 }
@@ -94,8 +97,15 @@ func (a *Admin) servePublish(w http.ResponseWriter, r *http.Request, path string
 	case r.Method == "POST" && path == "/api/v1/publish":
 		var body struct{ Items, Targets []string }
 		_ = json.NewDecoder(r.Body).Decode(&body)
+		// As the real route does: non-production rights for every publish
+		// (the route's middleware), then production for production targets.
+		scopes := []string{"non-production"}
 		for _, t := range body.Targets {
-			scope := e.Targets[t]
+			if e.Targets[t] == "production" {
+				scopes = append(scopes, "production")
+			}
+		}
+		for _, scope := range scopes {
 			if !e.covers(scope) {
 				w.Header().Set("Content-Type", "application/problem+json")
 				w.WriteHeader(403)
@@ -161,6 +171,9 @@ func (a *Admin) servePublish(w http.ResponseWriter, r *http.Request, path string
 }
 
 func (e *Elevations) covers(scope string) bool {
+	if scope == e.Refuse {
+		return false
+	}
 	for _, s := range e.Active {
 		if s == scope {
 			return true

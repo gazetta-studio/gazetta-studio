@@ -99,10 +99,13 @@ describe.runIf(runIt)('gz auth against gazetta dev', () => {
 
   /** Runs gz until it shows a code, approves the code over HTTP as the browser would, and waits for gz. */
   async function approved(args: string[]): Promise<{ stdout: string; stderr: string }> {
-    const run = spawn(gz, args, { env: env() })
+    // CI=true would make gz print the code and exit instead of waiting (Q29).
+    const run = spawn(gz, args, { env: { ...env(), CI: '' } })
     let stdout = ''
     let stderr = ''
     run.stdout.on('data', d => (stdout += d))
+    // Listen for the exit now: gz may exit before the code is approved.
+    const exited = new Promise<number | null>(r => run.once('close', r))
     const code = await new Promise<string>((resolveCode, reject) => {
       run.stderr.on('data', d => {
         stderr += d
@@ -113,8 +116,7 @@ describe.runIf(runIt)('gz auth against gazetta dev', () => {
     })
     const approve = await fetch(`${admin}/admin/api/v1/auth/logins/${code}/approve`, { method: 'POST' })
     expect(approve.status, devTail()).toBe(200)
-    const exit = await new Promise<number | null>(r => run.once('close', r))
-    expect(exit, stderr + devTail()).toBe(0)
+    expect(await exited, stderr + devTail()).toBe(0)
     return { stdout, stderr }
   }
 
