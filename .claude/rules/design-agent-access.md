@@ -341,7 +341,7 @@ Decided: maintainer, 2026-11-01 (#1630)
 
 A production elevation also covers non-production publishing for its window, so publishing to production through `gz` needs one approval: every publish needs the non-production publish right, and production also needs the production one. A non-production elevation still doesn't cover production.
 
-Decided: maintainer, 2026-11-02 (#<PR>)
+Decided: maintainer, 2026-11-02 (#1728)
 
 | Rejected | Why |
 |---|---|
@@ -823,7 +823,7 @@ Decided: maintainer, 2026-11-01 (#1656)
 
 A page or fragment the run created, which had no earlier version, is archived by the undo, so it stops being live; it can be restored from the archive or purged. Archiving needs no elevation for tokens (Q32). If anything else still uses it, it's skipped and listed instead, like an item that changed.
 
-Decided: maintainer, 2026-11-02 (#<PR>)
+Decided: maintainer, 2026-11-02 (#1728)
 
 | Rejected | Why |
 |---|---|
