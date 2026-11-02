@@ -158,4 +158,39 @@ describe('save checks the components it touches', () => {
     expect(issues).toHaveLength(1)
     expect(issues[0]!.message).toContain('Template "broken-save-schema" couldn\'t be loaded')
   })
+
+  // #1715: a component without `content` counts as `{}`, so leaving it out
+  // doesn't skip the check.
+  it.each([
+    ['the browser', async () => alice],
+    ['a token', signIn],
+  ])('a new component without content answers 409 naming its required field, through %s', async (_who, who) => {
+    const { app } = setup()
+    const res = await save(
+      app,
+      [hero('hero', { title: 'Hello' }), hero('intro', {}), { name: 'cta', template: 'hero' }],
+      await who(app),
+    )
+    expect(res.status).toBe(409)
+    const issues = await schemaIssues(res)
+    expect(issues.map(i => i.contentPath)).toEqual(['cta'])
+    expect(issues[0]!.message).toMatch(/^title: /)
+  })
+
+  it('removing the content of an existing component touches it, and it is checked', async () => {
+    const { app } = setup()
+    const res = await save(app, [{ name: 'hero', template: 'hero' }, hero('intro', {})], alice)
+    expect(res.status).toBe(409)
+    expect((await schemaIssues(res)).map(i => i.contentPath)).toEqual(['hero'])
+  })
+
+  it('a component without content saves when its template has no required fields', async () => {
+    const { app } = setup()
+    const res = await save(
+      app,
+      [hero('hero', { title: 'Hello' }), hero('intro', {}), { name: 'box', template: 'page-default' }],
+      alice,
+    )
+    expect(res.status).toBe(200)
+  })
 })

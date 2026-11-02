@@ -8,7 +8,9 @@
  * stored manifest has the same template and content: it's new, its
  * template changed, or its content changed. Moving a component among
  * its siblings keeps its path, so it isn't touched. Fragment references
- * have no content of their own and are never touched.
+ * have no content of their own and are never touched. A component with
+ * a template and no `content` counts as content `{}` (#1715): leaving
+ * content out doesn't skip the check.
  */
 import { isDeepStrictEqual } from 'node:util'
 import type { ComponentEntry, FragmentManifest, InlineComponent, PageManifest } from '../types.js'
@@ -22,20 +24,16 @@ export interface TouchedComponent {
 
 type Manifest = Pick<PageManifest | FragmentManifest, 'template' | 'content' | 'components'>
 
-/** Components with a template and content, by name path, in manifest order. */
+/** Components with a template, by name path, in manifest order. */
 function componentsOf(manifest: Manifest | null): TouchedComponent[] {
   const out: TouchedComponent[] = []
   if (!manifest) return out
-  if (manifest.template && manifest.content !== undefined) {
-    out.push({ path: '', template: manifest.template, content: manifest.content })
-  }
+  if (manifest.template) out.push({ path: '', template: manifest.template, content: manifest.content ?? {} })
   const walk = (entry: ComponentEntry, parent: string) => {
     if (typeof entry === 'string') return
     const inline = entry as InlineComponent
     const path = parent ? `${parent}/${inline.name}` : inline.name
-    if (inline.template && inline.content !== undefined) {
-      out.push({ path, template: inline.template, content: inline.content })
-    }
+    if (inline.template) out.push({ path, template: inline.template, content: inline.content ?? {} })
     for (const child of inline.components ?? []) walk(child, path)
   }
   for (const entry of manifest.components ?? []) walk(entry, '')

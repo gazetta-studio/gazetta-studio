@@ -772,7 +772,7 @@ describe('PUT /api/v1/pages/:name', () => {
       body: JSON.stringify({
         components: [
           { name: 'a', template: 'banner', content: { heading: 'Hi', text: '', buttonText: '', buttonUrl: '' } },
-          { name: 'b', template: 'counter' },
+          { name: 'b', template: 'counter', content: { label: 'Count' } },
         ],
       }),
     })
@@ -798,7 +798,7 @@ describe('PUT /api/v1/pages/:name', () => {
       body: JSON.stringify({
         components: [
           { name: 'a', template: 'banner', content: { heading: 'A', text: '', buttonText: '', buttonUrl: '' } },
-          { name: 'b', template: 'counter' },
+          { name: 'b', template: 'counter', content: { label: 'Count' } },
         ],
       }),
     })
@@ -813,7 +813,7 @@ describe('PUT /api/v1/pages/:name', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         components: [
-          { id: bId, name: 'b', template: 'counter' },
+          { id: bId, name: 'b', template: 'counter', content: { label: 'Count' } },
           {
             id: aId,
             name: 'a',
@@ -840,7 +840,7 @@ describe('PUT /api/v1/pages/:name', () => {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        components: ['@header', { name: 'body', template: 'counter' }, '@footer'],
+        components: ['@header', { name: 'body', template: 'counter', content: { label: 'Count' } }, '@footer'],
       }),
     })
     expect(res.status).toBe(200)
@@ -1202,8 +1202,8 @@ describe('PUT /api/v1/fragments/:name component IDs', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         components: [
-          { name: 'a', template: 'counter' },
-          { id: 'preserved', name: 'b', template: 'counter' },
+          { name: 'a', template: 'counter', content: { label: 'Count' } },
+          { id: 'preserved', name: 'b', template: 'counter', content: { label: 'Count' } },
         ],
       }),
     })
