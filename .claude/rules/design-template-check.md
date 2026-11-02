@@ -2,7 +2,7 @@
 
 A check a pull request runs when it changes a template: CI parses the content that uses the changed template against the new schema, fails when the change breaks content, and reports what breaks, grouped by template. Resolves [#1660](https://github.com/gazetta-studio/gazetta-studio/issues/1660).
 
-**Status**: design pass complete (2026-11-01), grilled T1–T12; T13 decided 2026-11-02. Cuts 1 and 2 landed (#1746, #1749); cut 3 is #1750.
+**Status**: design pass complete (2026-11-01), grilled T1–T12; T13 decided 2026-11-02. Cuts 1–3 landed (#1746, #1749, #1751).
 
 **Companion docs:**
 - Discovery research: [#1660](https://github.com/gazetta-studio/gazetta-studio/issues/1660) (discovery-prep-bot comment, 2026-11-01)
@@ -191,7 +191,7 @@ Decided: maintainer, 2026-11-02 (#1752)
 | Same field and same message | A schema change that rewords the message would fail the PR on a field that was broken on `main` already |
 | Same page only | A PR that breaks a second field on a page that was already broken would pass |
 
-Problems without a component and field match on where they're reported, and never on their message: other item problems on the item, language, content path and the problem's subject; config problems on the config path; template and project-file problems on the template or file and the field. The subject is a stable name for what the problem is about: the missing asset, fragment or template for reference checks, and the rule for quality checks (html-validate's rule, axe's rule id). So two missing images in one component stay apart, and an HTML warning whose line moves after a template edit still counts as already broken. Two problems of the same quality rule on one page count as one. #1751 builds it this way.
+Problems without a component and field match on where they're reported and on the problem's subject, never on its message: other item problems on the item, language, content path and subject; config problems on the config path and subject; template and project-file problems on the template or file and the field. The subject is a stable name for what the problem is about: the missing asset, fragment or template for reference checks, the rule for html-validate and axe, the link for broken links, the asset for missing alt text, and a fixed code per config problem. So two missing images in one component stay apart, and an HTML warning whose line moves after a template edit still counts as already broken. Two problems of the same quality rule on one page count as one. #1751 built it for reference and quality checks; #1756 adds broken links, alt text and config problems.
 
 Decided: maintainer, 2026-11-02 (#1752)
 
