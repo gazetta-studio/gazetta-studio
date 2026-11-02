@@ -213,6 +213,8 @@ API routes live under `/api/v1` (under `/admin/api/v1` when the admin is mounted
 | `POST/PATCH /api/v1/assets*` | `edit:assets` |
 | `DELETE /api/v1/assets/:name` | `delete:assets` |
 | `POST /api/v1/history/{undo,restore}` | `restore:history` |
+| `GET /api/v1/runs/:runId` | `read:pages` |
+| `POST /api/v1/runs/:runId/revert` | `edit:pages` / `edit:fragments` for the items it puts back; items the run created are archived only with `archive:pages` / `archive:fragments`, and listed as skipped otherwise. A token needs no elevation. |
 | `POST /api/v1/publish*`, `/api/v1/fetch` | `publish:non-production`; publishing to, or fetching into, a target whose `environment` is `production` also needs `publish:production` |
 | `GET /api/v1/system/cache/*` | `configure:site` |
 | `GET /api/health` | (no gate; intentionally public) |

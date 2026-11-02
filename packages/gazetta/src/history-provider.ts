@@ -420,6 +420,7 @@ export function createHistoryProvider(opts: CreateHistoryProviderOptions): Histo
     readRevision,
     readBlob,
     deleteRevision,
+    runs,
   }
 }
 

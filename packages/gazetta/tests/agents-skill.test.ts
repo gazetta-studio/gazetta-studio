@@ -72,6 +72,8 @@ const ROUTES: Record<string, 'never' | 'allowed'> = {
   'PUT /api/v1/pages/:name': 'allowed',
   // The bulk save writes many items as one save (Q46); a save is an edit.
   'POST /api/v1/saves': 'allowed',
+  // Reverting a run is a set of saves and archives, and is itself undoable (#1730).
+  'POST /api/v1/runs/:runId/revert': 'allowed',
   'DELETE /api/v1/pages/:name': 'never',
   'DELETE /api/v1/pages/:name/purge': 'never',
   'POST /api/v1/pages/:name/archive': 'allowed',

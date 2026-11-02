@@ -254,6 +254,7 @@ func TestNeverRunListsExactlyTheCommandsThatChangeTargets(t *testing.T) {
 		"fragments list": "allowed", "fragments get": "allowed", "fragments set": "allowed", "fragments edit": "allowed", "fragments create": "allowed",
 		"templates schema": "allowed", "validate": "allowed", "preview": "allowed", "status": "allowed",
 		"assets list": "allowed", "assets upload": "allowed", "assets alt": "allowed",
+		"runs show": "allowed", "runs revert": "allowed",
 		"publish": "never", "elevate": "never",
 	}
 	var have, never []string

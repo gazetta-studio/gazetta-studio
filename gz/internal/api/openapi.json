@@ -189,6 +189,106 @@
         },
         "required": ["kind", "name", "manifest"]
       },
+      "RunResponse": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "item": {
+                  "type": "string",
+                  "description": "The run index's name: `pages.home`, `fragments.header:fr`, `assets.hero`."
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": ["page", "fragment", "asset"]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "locale": {
+                  "type": "string"
+                },
+                "created": {
+                  "type": "boolean",
+                  "description": "The run created it: a revert archives it."
+                },
+                "changed": {
+                  "type": "boolean",
+                  "description": "Someone changed it since the run: a revert skips it unless forced."
+                },
+                "restorable": {
+                  "type": "boolean",
+                  "description": "History still holds its version from before the run, so a revert can put it back."
+                }
+              },
+              "required": ["item", "kind", "name", "created", "changed", "restorable"]
+            }
+          }
+        },
+        "required": ["runId", "items"]
+      },
+      "RevertRunResponse": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "description": "The run that was reverted."
+          },
+          "revertRun": {
+            "type": "string",
+            "description": "The run the revert's own writes belong to; reverting it undoes the revert."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "item": {
+                  "type": "string",
+                  "description": "The run index's name: `pages.home`, `fragments.header:fr`, `assets.hero`."
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": ["page", "fragment", "asset"]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "locale": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["reverted", "archived", "skipped-changed", "skipped-in-use", "skipped-failed"]
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": ["item", "kind", "name", "status"]
+            }
+          }
+        },
+        "required": ["runId", "revertRun", "items"]
+      },
+      "RevertRunRequest": {
+        "type": "object",
+        "properties": {
+          "force": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Items (`pages.about`) to revert although they changed since the run."
+          }
+        }
+      },
       "Issue": {
         "type": "object",
         "properties": {
@@ -2051,6 +2151,187 @@
           },
           "500": {
             "description": "Unexpected error: AUDIT_FAILED, STORAGE_WRITE_FAILED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{runId}": {
+      "get": {
+        "summary": "An agent run's items, and what reverting it would do",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^(?!\\.\\.?$)[A-Za-z0-9._-]{1,64}$",
+              "description": "The run id the run's writes carried in Gazetta-Run."
+            },
+            "required": true,
+            "description": "The run id the run's writes carried in Gazetta-Run.",
+            "name": "runId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "target",
+            "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The run's items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: UNAUTHENTICATED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing a capability: FORBIDDEN",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{runId}/revert": {
+      "post": {
+        "summary": "Revert an agent run item by item",
+        "description": "Puts each item the run changed back to its version before the run, through the single save, and archives the items it created. Items changed since the run are skipped unless named in force; items whose save or archive fails are skipped with the reason. The revert's writes form a run of their own (Gazetta-Run, or one named after the reverted run).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^(?!\\.\\.?$)[A-Za-z0-9._-]{1,64}$",
+              "description": "The run id the run's writes carried in Gazetta-Run."
+            },
+            "required": true,
+            "description": "The run id the run's writes carried in Gazetta-Run.",
+            "name": "runId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "target",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "x-request-id",
+            "in": "header"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevertRunRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What happened to each item",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevertRunResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is invalid: BAD_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: UNAUTHENTICATED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing a capability: FORBIDDEN, TARGET_NOT_EDITABLE, TOKEN_EDIT_ONLY",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type: BAD_REQUEST",
             "content": {
               "application/problem+json": {
                 "schema": {
