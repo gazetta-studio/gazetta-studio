@@ -347,6 +347,14 @@ Decided: maintainer, 2026-11-02 (#1728)
 |---|---|
 | Two approvals, as built (cut 8): a non-production code, then a production code | The maintainer chose one approval |
 
+The production elevation lifts every gated action on every target for its window, not only publishing: publish, delete and purge, history restore, and approving requests on other targets too. The approve page says so ("publish to production, and publish, delete and restore on other targets").
+
+Decided: maintainer, 2026-11-02 (#1728)
+
+| Rejected | Why |
+|---|---|
+| Only publishing: delete, purge, restore and approving on other targets still need a non-production elevation | A more complex rule, and a second code when an agent publishes and then deletes on staging |
+
 ### Q18 — Tokens approve or reject publish requests only while elevated
 
 A CLI, API or MCP token can approve or reject a publish request (when its person holds `publish:approve`) only while elevated. Follows from this and `design-review-workflow.md` lock 10: on a target that allows self-approval (`allowSelfPublishApproval`, default `true`), an elevated agent can approve a request it opened; `allowSelfPublishApproval: false` stops it.
