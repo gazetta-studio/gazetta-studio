@@ -816,7 +816,7 @@ Decided: maintainer, 2026-11-01 (#1656)
 
 A component just added is touched too. When an author adds one, the admin fills in the fields that have a schema default; a required field without one still blocks the save, and the banner names it, until it's filled. Creating a page isn't affected.
 
-Decided: maintainer, 2026-11-02 (#<PR>)
+Decided: maintainer, 2026-11-02 (#1712)
 
 | Rejected | Why |
 |---|---|
