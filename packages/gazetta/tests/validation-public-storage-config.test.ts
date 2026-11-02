@@ -61,6 +61,18 @@ describe('public-storage-config', () => {
     expect(defaultValidatorRegistry().forStage('cli')).toContain(publicStorageConfig)
   })
 
+  it('gives each problem on a target its own subject (#1756)', async () => {
+    const issues = await run({
+      production: { storage: cloud(), publicStorage: true, history: { enabled: true }, editable: true },
+      staging: { storage: cloud() },
+    })
+    expect(issues.map(i => [i.itemPath, i.subject])).toEqual([
+      ['site.config.ts:targets.production', 'history-enabled'],
+      ['site.config.ts:targets.production', 'editable'],
+      ['site.config.ts:targets.staging', 'defaulted-public'],
+    ])
+  })
+
   it('errors on a public target with history enabled explicitly', async () => {
     const issues = await run({ production: { storage: cloud(), publicStorage: true, history: { enabled: true } } })
     expect(issues).toHaveLength(1)

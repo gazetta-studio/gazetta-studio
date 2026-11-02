@@ -120,4 +120,22 @@ describe('altRequired validator', () => {
     const issues = await altRequired.validate(baseInput(page, storage))
     expect(issues).toEqual([])
   })
+
+  it('reports each reference in an array field with its own path and asset (#1756)', async () => {
+    const page: PageManifest = {
+      template: 'gallery',
+      content: {
+        slides: [
+          { image: { _asset: 'one' } },
+          { image: { _asset: 'two', alt: 'Two' } },
+          { image: { _asset: 'three' } },
+        ],
+      },
+    }
+    const issues = await altRequired.validate(baseInput(page, memoryStorage()))
+    expect(issues.map(i => [i.contentPath, i.subject])).toEqual([
+      ['slides[0].image', 'one'],
+      ['slides[2].image', 'three'],
+    ])
+  })
 })

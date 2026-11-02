@@ -43,6 +43,7 @@ export const dynamicRouteConflict: Validator = {
           severity: 'error',
           message: `Route "${newRoute}" conflicts with existing page "${otherName}" (route "${other.route}").`,
           itemPath: scope.item.itemPath,
+          subject: otherName,
         })
       }
     }

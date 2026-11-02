@@ -170,4 +170,94 @@ describe('compareRuns', () => {
     )
     expect(items(onTarget.alreadyBroken)).toHaveLength(1)
   })
+
+  // #1756: problems that can repeat in one place carry a subject.
+  it('reports a second broken link on a page as new', () => {
+    const link = (root: string, href: string): Issue => ({
+      validator: 'broken-links',
+      severity: 'warn',
+      message: `${href}: no page has this route`,
+      itemPath: `${root}/pages/home/page.json`,
+      subject: href,
+    })
+    const result = compareRuns(
+      run('head', { itemIssues: [link('head', '/old'), link('head', '/new')] }),
+      run('base', { itemIssues: [link('base', '/old')] }),
+    )
+    expect(items(result.alreadyBroken).map(i => i.subject)).toEqual(['/old'])
+    expect(items(result.fresh).map(i => i.subject)).toEqual(['/new'])
+  })
+
+  it('matches two references missing alt in one array field separately', () => {
+    const alt = (root: string, index: number, asset: string): Issue => ({
+      validator: 'altRequired',
+      severity: 'error',
+      message: `Asset "${asset}" requires alt text.`,
+      itemPath: `${root}/pages/home/page.json`,
+      contentPath: `slides[${index}].image`,
+      subject: asset,
+    })
+    const result = compareRuns(
+      run('head', { itemIssues: [alt('head', 0, 'one'), alt('head', 1, 'two')] }),
+      run('base', { itemIssues: [alt('base', 0, 'one')] }),
+    )
+    expect(items(result.alreadyBroken).map(i => i.subject)).toEqual(['one'])
+    expect(items(result.fresh).map(i => i.subject)).toEqual(['two'])
+  })
+
+  it('reports a second config problem on one target as new', () => {
+    const problem = (subject: string): Issue => ({
+      validator: 'public-storage-config',
+      severity: 'error',
+      message: subject,
+      itemPath: 'site.config.ts:targets.production',
+      subject,
+    })
+    const result = compareRuns(
+      run('head', { configIssues: [problem('history-enabled'), problem('editable')] }),
+      run('base', { configIssues: [problem('history-enabled')] }),
+    )
+    expect(result.alreadyBroken.configIssues.map(i => i.subject)).toEqual(['history-enabled'])
+    expect(result.fresh.configIssues.map(i => i.subject)).toEqual(['editable'])
+  })
+})
+
+/**
+ * Every validator, and whether its issues carry a subject. A validator that
+ * can report two different problems in one place (item and contentPath, or
+ * config path) must set one, or `--base` takes a new problem there for an
+ * old one (#1756). A new validator fails this test until it's listed.
+ */
+const SUBJECTS: Record<string, string> = {
+  'referenced-asset-exists': 'subject: the asset',
+  'referenced-fragment-exists': 'subject: the fragment',
+  'referenced-template-exists': 'subject: the template',
+  'referenced-archived-without-alias': 'subject: the archived item',
+  'schema-conformance': 'field (matched on field, not subject)',
+  'html-validity': 'subject: the rule',
+  accessibility: 'subject: the rule',
+  'broken-links': 'subject: the link',
+  altRequired: 'subject: the asset; contentPath has the array index',
+  'dynamic-route-conflict': 'subject: the other page',
+  'circular-alias': 'subject: cycle or chain',
+  'public-storage-config': 'subject: one code per problem',
+  'deploy-target-type-supported': 'subject: one code',
+  'target-deploy-coverage': 'subject: one code',
+  'circular-fragment': 'none: one cycle per fragment',
+  'dangling-alias': 'none: one per archived item',
+  'aliasOf-points-to-archived': 'none: one per archived item',
+  'archive-not-supported-on-target': 'none: one per archived item',
+  'orphaned-locale-file': 'none: one per language file',
+  'unused-fragment': 'none: one per fragment',
+}
+
+describe('validator subjects (#1756)', () => {
+  it('lists every registered validator', async () => {
+    const { defaultValidatorRegistry } = await import('../src/validation/default-registry.js')
+    const names = defaultValidatorRegistry()
+      .all()
+      .map(v => v.name)
+      .sort()
+    expect(names).toEqual(Object.keys(SUBJECTS).sort())
+  })
 })

@@ -16,7 +16,7 @@
  * |-------------------------------|------------------------------------------------------|----------------------------------------------------------------|
  * | Schema problem                | validator, item (kind, name, language), component, field | `schema-conformance` page `home` `fr`, `hero`, `title`     |
  * | Other problem on an item      | validator, item, contentPath, subject                | `referenced-asset-exists` page `about`, `hero`, `logo`; `html-validity` page `home`, `attr-quotes` |
- * | Site config                   | validator, config path                               | `target-deploy-coverage` `site.config.ts:targets.production`   |
+ * | Site config                   | validator, config path, subject                      | `public-storage-config` `site.config.ts:targets.production` `editable` |
  * | Template or project file      | validator, template or file, field                   | `custom-field-exists` `hero` `color`; `orphaned-editor` `admin/editors/x.tsx` |
  *
  * Two head issues with one base issue's key are both already broken.
@@ -81,7 +81,7 @@ export function itemKey(issue: Issue, items: ReturnType<typeof itemIndex>, targe
 }
 
 export function configKey(issue: Issue): string {
-  return `config|${issue.validator}|${issue.itemPath}`
+  return `config|${issue.validator}|${issue.itemPath}|${issue.subject ?? ''}`
 }
 
 export function projectKey(issue: ProjectIssue): string {

@@ -77,6 +77,7 @@ export const targetDeployCoverage: Validator = {
           `Container deployments use platform-native tooling (flyctl, gcloud, etc.) — ` +
           `see docs/container-deployment.md for recipes.`,
         itemPath: `site.config.ts:targets.${name}`,
+        subject: 'no-deploy',
       })
     }
 

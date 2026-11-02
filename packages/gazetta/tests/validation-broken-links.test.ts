@@ -188,4 +188,18 @@ describe('broken-links validator', () => {
     })
     expect(issues).toEqual([])
   })
+
+  it('names each broken link as written in its subject (#1756)', async () => {
+    const site = buildSite({ home: '/' })
+    const html = `<a href="/gone?x=1#top">a</a> <img src="/missing.png">`
+    const issues = await brokenLinks.validate({
+      stage: 'background',
+      site,
+      contentRoot: stubRoot,
+      storage: stubStorage,
+      scope: { kind: 'background', item, manifest: { template: 't', content: {} } },
+      renderedOutput: renderedAs(html),
+    })
+    expect(issues.map(i => i.subject)).toEqual(['/gone?x=1#top', '/missing.png'])
+  })
 })

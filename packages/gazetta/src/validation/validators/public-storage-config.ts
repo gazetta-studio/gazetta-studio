@@ -79,11 +79,13 @@ export const publicStorageConfig: Validator = {
 
     const targets = (site.manifest.targets ?? {}) as Record<string, TargetConfig>
     const issues: Issue[] = []
-    const issue = (name: string, severity: Issue['severity'], message: string): Issue => ({
+    // `subject` names the problem, so `--base` tells two problems on one target apart (#1756).
+    const issue = (name: string, subject: string, severity: Issue['severity'], message: string): Issue => ({
       validator: 'public-storage-config',
       severity,
       message,
       itemPath: `site.config.ts:targets.${name}`,
+      subject,
     })
 
     for (const [name, target] of Object.entries(targets)) {
@@ -92,6 +94,7 @@ export const publicStorageConfig: Validator = {
         issues.push(
           issue(
             name,
+            'history-enabled',
             'error',
             `\`${name}\` keeps history, but its storage is public, so the history would be downloadable. ` +
               `Remove \`history: { enabled: true }\` or set \`publicStorage: false\`.`,
@@ -100,7 +103,12 @@ export const publicStorageConfig: Validator = {
       }
       if (target.editable === true) {
         issues.push(
-          issue(name, 'error', `\`${name}\` is editable, so its storage must be private (\`publicStorage: false\`).`),
+          issue(
+            name,
+            'editable',
+            'error',
+            `\`${name}\` is editable, so its storage must be private (\`publicStorage: false\`).`,
+          ),
         )
       }
       const held = await sensitiveStateOf(target)
@@ -108,6 +116,7 @@ export const publicStorageConfig: Validator = {
         issues.push(
           issue(
             name,
+            'sensitive-state-unreadable',
             'error',
             `Couldn't check \`${name}\`'s storage for history, audit, review or CLI sign-ins: ${held.error}`,
           ),
@@ -116,6 +125,7 @@ export const publicStorageConfig: Validator = {
         issues.push(
           issue(
             name,
+            'sensitive-state',
             'error',
             `\`${name}\` is public but still holds ${formatFolderList(held.folders)}; ` +
               `run \`gazetta state remove ${name}\`.`,
@@ -125,7 +135,7 @@ export const publicStorageConfig: Validator = {
     }
 
     for (const name of defaultedPublicTargets(targets)) {
-      issues.push(issue(name, 'info', defaultedPublicMessage(name)))
+      issues.push(issue(name, 'defaulted-public', 'info', defaultedPublicMessage(name)))
     }
 
     return issues
