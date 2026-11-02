@@ -336,6 +336,54 @@ func (e ProblemType) Valid() bool {
 	}
 }
 
+// Defines values for RevertRunResponseItemsKind.
+const (
+	RevertRunResponseItemsKindAsset    RevertRunResponseItemsKind = "asset"
+	RevertRunResponseItemsKindFragment RevertRunResponseItemsKind = "fragment"
+	RevertRunResponseItemsKindPage     RevertRunResponseItemsKind = "page"
+)
+
+// Valid indicates whether the value is a known member of the RevertRunResponseItemsKind enum.
+func (e RevertRunResponseItemsKind) Valid() bool {
+	switch e {
+	case RevertRunResponseItemsKindAsset:
+		return true
+	case RevertRunResponseItemsKindFragment:
+		return true
+	case RevertRunResponseItemsKindPage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RevertRunResponseItemsStatus.
+const (
+	Archived       RevertRunResponseItemsStatus = "archived"
+	Reverted       RevertRunResponseItemsStatus = "reverted"
+	SkippedChanged RevertRunResponseItemsStatus = "skipped-changed"
+	SkippedFailed  RevertRunResponseItemsStatus = "skipped-failed"
+	SkippedInUse   RevertRunResponseItemsStatus = "skipped-in-use"
+)
+
+// Valid indicates whether the value is a known member of the RevertRunResponseItemsStatus enum.
+func (e RevertRunResponseItemsStatus) Valid() bool {
+	switch e {
+	case Archived:
+		return true
+	case Reverted:
+		return true
+	case SkippedChanged:
+		return true
+	case SkippedFailed:
+		return true
+	case SkippedInUse:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RevisionSummaryChannel.
 const (
 	Browser RevisionSummaryChannel = "browser"
@@ -372,6 +420,27 @@ func (e RevisionSummaryOperation) Valid() bool {
 	case RevisionSummaryOperationRollback:
 		return true
 	case RevisionSummaryOperationSave:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RunResponseItemsKind.
+const (
+	RunResponseItemsKindAsset    RunResponseItemsKind = "asset"
+	RunResponseItemsKindFragment RunResponseItemsKind = "fragment"
+	RunResponseItemsKindPage     RunResponseItemsKind = "page"
+)
+
+// Valid indicates whether the value is a known member of the RunResponseItemsKind enum.
+func (e RunResponseItemsKind) Valid() bool {
+	switch e {
+	case RunResponseItemsKindAsset:
+		return true
+	case RunResponseItemsKindFragment:
+		return true
+	case RunResponseItemsKindPage:
 		return true
 	default:
 		return false
@@ -1215,6 +1284,37 @@ type ProblemCode string
 // ProblemType defines model for Problem.Type.
 type ProblemType string
 
+// RevertRunRequest defines model for RevertRunRequest.
+type RevertRunRequest struct {
+	// Force Items (`pages.about`) to revert although they changed since the run.
+	Force *[]string `json:"force,omitempty"`
+}
+
+// RevertRunResponse defines model for RevertRunResponse.
+type RevertRunResponse struct {
+	Items []struct {
+		// Item The run index's name: `pages.home`, `fragments.header:fr`, `assets.hero`.
+		Item   string                       `json:"item"`
+		Kind   RevertRunResponseItemsKind   `json:"kind"`
+		Locale *string                      `json:"locale,omitempty"`
+		Name   string                       `json:"name"`
+		Reason *string                      `json:"reason,omitempty"`
+		Status RevertRunResponseItemsStatus `json:"status"`
+	} `json:"items"`
+
+	// RevertRun The run the revert's own writes belong to; reverting it undoes the revert.
+	RevertRun string `json:"revertRun"`
+
+	// RunId The run that was reverted.
+	RunId string `json:"runId"`
+}
+
+// RevertRunResponseItemsKind defines model for RevertRunResponse.Items.Kind.
+type RevertRunResponseItemsKind string
+
+// RevertRunResponseItemsStatus defines model for RevertRunResponse.Items.Status.
+type RevertRunResponseItemsStatus string
+
 // RevisionSummary defines model for RevisionSummary.
 type RevisionSummary struct {
 	Author       *string                  `json:"author,omitempty"`
@@ -1236,6 +1336,30 @@ type RevisionSummaryChannel string
 
 // RevisionSummaryOperation defines model for RevisionSummary.Operation.
 type RevisionSummaryOperation string
+
+// RunResponse defines model for RunResponse.
+type RunResponse struct {
+	Items []struct {
+		// Changed Someone changed it since the run: a revert skips it unless forced.
+		Changed bool `json:"changed"`
+
+		// Created The run created it: a revert archives it.
+		Created bool `json:"created"`
+
+		// Item The run index's name: `pages.home`, `fragments.header:fr`, `assets.hero`.
+		Item   string               `json:"item"`
+		Kind   RunResponseItemsKind `json:"kind"`
+		Locale *string              `json:"locale,omitempty"`
+		Name   string               `json:"name"`
+
+		// Restorable History still holds its version from before the run, so a revert can put it back.
+		Restorable bool `json:"restorable"`
+	} `json:"items"`
+	RunId string `json:"runId"`
+}
+
+// RunResponseItemsKind defines model for RunResponse.Items.Kind.
+type RunResponseItemsKind string
 
 // GazettaRun defines model for GazettaRun.
 type GazettaRun = string
@@ -2094,6 +2218,23 @@ type PostApiV1PublishStreamParams struct {
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
+// GetApiV1RunsRunIdParams defines parameters for GetApiV1RunsRunId.
+type GetApiV1RunsRunIdParams struct {
+	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
+// PostApiV1RunsRunIdRevertParams defines parameters for PostApiV1RunsRunIdRevert.
+type PostApiV1RunsRunIdRevertParams struct {
+	Target     *string `form:"target,omitempty" json:"target,omitempty"`
+	XRequestId *string `json:"x-request-id,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
 // PostApiV1SavesParams defines parameters for PostApiV1Saves.
 type PostApiV1SavesParams struct {
 	Target     *string `form:"target,omitempty" json:"target,omitempty"`
@@ -2305,6 +2446,9 @@ type PostApiV1PublishAuditJSONRequestBody PostApiV1PublishAuditJSONBody
 
 // PostApiV1PublishStreamJSONRequestBody defines body for PostApiV1PublishStream for application/json ContentType.
 type PostApiV1PublishStreamJSONRequestBody PostApiV1PublishStreamJSONBody
+
+// PostApiV1RunsRunIdRevertJSONRequestBody defines body for PostApiV1RunsRunIdRevert for application/json ContentType.
+type PostApiV1RunsRunIdRevertJSONRequestBody = RevertRunRequest
 
 // PostApiV1SavesJSONRequestBody defines body for PostApiV1Saves for application/json ContentType.
 type PostApiV1SavesJSONRequestBody = BulkSaveRequest
@@ -4489,6 +4633,29 @@ type ClientInterface interface {
 	// Corresponds with POST /api/v1/publish/stream (the `PostApiV1PublishStream` operationId).
 	PostApiV1PublishStream(ctx context.Context, params *PostApiV1PublishStreamParams, body PostApiV1PublishStreamJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetApiV1RunsRunId An agent run's items, and what reverting it would do
+	//
+	// Corresponds with GET /api/v1/runs/{runId} (the `GetApiV1RunsRunId` operationId).
+	GetApiV1RunsRunId(ctx context.Context, runId string, params *GetApiV1RunsRunIdParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostApiV1RunsRunIdRevertWithBody Revert an agent run item by item
+	//
+	// Puts each item the run changed back to its version before the run, through the single save, and archives the items it created. Items changed since the run are skipped unless named in force; items whose save or archive fails are skipped with the reason. The revert's writes form a run of their own (Gazetta-Run, or one named after the reverted run).
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/runs/{runId}/revert (the `PostApiV1RunsRunIdRevert` operationId).
+	PostApiV1RunsRunIdRevertWithBody(ctx context.Context, runId string, params *PostApiV1RunsRunIdRevertParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostApiV1RunsRunIdRevert Revert an agent run item by item
+	//
+	// Puts each item the run changed back to its version before the run, through the single save, and archives the items it created. Items changed since the run are skipped unless named in force; items whose save or archive fails are skipped with the reason. The revert's writes form a run of their own (Gazetta-Run, or one named after the reverted run).
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/runs/{runId}/revert (the `PostApiV1RunsRunIdRevert` operationId).
+	PostApiV1RunsRunIdRevert(ctx context.Context, runId string, params *PostApiV1RunsRunIdRevertParams, body PostApiV1RunsRunIdRevertJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PostApiV1SavesWithBody Save several pages and fragments at once, all or nothing
 	//
 	// Every item is checked (its save-version, the save checks and beforeSave hooks) before anything is written. If one fails, nothing is written and the problem lists every failing item. Otherwise all items are written and recorded as one history revision in the run named by Gazetta-Run, which this route requires.
@@ -5911,6 +6078,59 @@ func (c *Client) PostApiV1PublishStreamWithBody(ctx context.Context, params *Pos
 // Corresponds with POST /api/v1/publish/stream (the `PostApiV1PublishStream` operationId).
 func (c *Client) PostApiV1PublishStream(ctx context.Context, params *PostApiV1PublishStreamParams, body PostApiV1PublishStreamJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostApiV1PublishStreamRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetApiV1RunsRunId An agent run's items, and what reverting it would do
+//
+// Corresponds with GET /api/v1/runs/{runId} (the `GetApiV1RunsRunId` operationId).
+func (c *Client) GetApiV1RunsRunId(ctx context.Context, runId string, params *GetApiV1RunsRunIdParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetApiV1RunsRunIdRequest(c.Server, runId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostApiV1RunsRunIdRevertWithBody Revert an agent run item by item
+//
+// Puts each item the run changed back to its version before the run, through the single save, and archives the items it created. Items changed since the run are skipped unless named in force; items whose save or archive fails are skipped with the reason. The revert's writes form a run of their own (Gazetta-Run, or one named after the reverted run).
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/runs/{runId}/revert (the `PostApiV1RunsRunIdRevert` operationId).
+func (c *Client) PostApiV1RunsRunIdRevertWithBody(ctx context.Context, runId string, params *PostApiV1RunsRunIdRevertParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1RunsRunIdRevertRequestWithBody(c.Server, runId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostApiV1RunsRunIdRevert Revert an agent run item by item
+//
+// Puts each item the run changed back to its version before the run, through the single save, and archives the items it created. Items changed since the run are skipped unless named in force; items whose save or archive fails are skipped with the reason. The revert's writes form a run of their own (Gazetta-Run, or one named after the reverted run).
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/runs/{runId}/revert (the `PostApiV1RunsRunIdRevert` operationId).
+func (c *Client) PostApiV1RunsRunIdRevert(ctx context.Context, runId string, params *PostApiV1RunsRunIdRevertParams, body PostApiV1RunsRunIdRevertJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1RunsRunIdRevertRequest(c.Server, runId, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -10742,6 +10962,182 @@ func NewPostApiV1PublishStreamRequestWithBody(server string, params *PostApiV1Pu
 	return req, nil
 }
 
+// NewGetApiV1RunsRunIdRequest constructs an http.Request for the GetApiV1RunsRunId method
+func NewGetApiV1RunsRunIdRequest(server string, runId string, params *GetApiV1RunsRunIdParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "runId", runId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/runs/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Target != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "target", *params.Target, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewPostApiV1RunsRunIdRevertRequest calls the generic PostApiV1RunsRunIdRevert builder with application/json body
+func NewPostApiV1RunsRunIdRevertRequest(server string, runId string, params *PostApiV1RunsRunIdRevertParams, body PostApiV1RunsRunIdRevertJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostApiV1RunsRunIdRevertRequestWithBody(server, runId, params, "application/json", bodyReader)
+}
+
+// NewPostApiV1RunsRunIdRevertRequestWithBody constructs an http.Request for the PostApiV1RunsRunIdRevert method, with any body, and a specified content type
+func NewPostApiV1RunsRunIdRevertRequestWithBody(server string, runId string, params *PostApiV1RunsRunIdRevertParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "runId", runId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/runs/%s/revert", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Target != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "target", *params.Target, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XRequestId != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-request-id", *params.XRequestId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("x-request-id", headerParam0)
+		}
+
+		if params.GazettaRun != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam1)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewPostApiV1SavesRequest calls the generic PostApiV1Saves builder with application/json body
 func NewPostApiV1SavesRequest(server string, params *PostApiV1SavesParams, body PostApiV1SavesJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -12119,6 +12515,31 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/v1/publish/stream (the `PostApiV1PublishStream` operationId).
 	PostApiV1PublishStreamWithResponse(ctx context.Context, params *PostApiV1PublishStreamParams, body PostApiV1PublishStreamJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1PublishStreamResponse, error)
+
+	// GetApiV1RunsRunIdWithResponse An agent run's items, and what reverting it would do
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/runs/{runId} (the `GetApiV1RunsRunId` operationId).
+	GetApiV1RunsRunIdWithResponse(ctx context.Context, runId string, params *GetApiV1RunsRunIdParams, reqEditors ...RequestEditorFn) (*GetApiV1RunsRunIdResponse, error)
+
+	// PostApiV1RunsRunIdRevertWithBodyWithResponse Revert an agent run item by item
+	//
+	// Puts each item the run changed back to its version before the run, through the single save, and archives the items it created. Items changed since the run are skipped unless named in force; items whose save or archive fails are skipped with the reason. The revert's writes form a run of their own (Gazetta-Run, or one named after the reverted run).
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/runs/{runId}/revert (the `PostApiV1RunsRunIdRevert` operationId).
+	PostApiV1RunsRunIdRevertWithBodyWithResponse(ctx context.Context, runId string, params *PostApiV1RunsRunIdRevertParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1RunsRunIdRevertResponse, error)
+
+	// PostApiV1RunsRunIdRevertWithResponse Revert an agent run item by item
+	//
+	// Puts each item the run changed back to its version before the run, through the single save, and archives the items it created. Items changed since the run are skipped unless named in force; items whose save or archive fails are skipped with the reason. The revert's writes form a run of their own (Gazetta-Run, or one named after the reverted run).
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/runs/{runId}/revert (the `PostApiV1RunsRunIdRevert` operationId).
+	PostApiV1RunsRunIdRevertWithResponse(ctx context.Context, runId string, params *PostApiV1RunsRunIdRevertParams, body PostApiV1RunsRunIdRevertJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1RunsRunIdRevertResponse, error)
 
 	// PostApiV1SavesWithBodyWithResponse Save several pages and fragments at once, all or nothing
 	//
@@ -16914,6 +17335,144 @@ func (r PostApiV1PublishStreamResponse) ContentType() string {
 	return ""
 }
 
+type GetApiV1RunsRunIdResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *RunResponse
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Problem
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Problem
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetApiV1RunsRunIdResponse) GetJSON200() *RunResponse {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r GetApiV1RunsRunIdResponse) GetApplicationproblemJSON401() *Problem {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r GetApiV1RunsRunIdResponse) GetApplicationproblemJSON403() *Problem {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r GetApiV1RunsRunIdResponse) GetApplicationproblemJSON404() *Problem {
+	return r.ApplicationproblemJSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r GetApiV1RunsRunIdResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetApiV1RunsRunIdResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetApiV1RunsRunIdResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetApiV1RunsRunIdResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostApiV1RunsRunIdRevertResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *RevertRunResponse
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *Problem
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Problem
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Problem
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Problem
+	// ApplicationproblemJSON415 the response for an HTTP 415 `application/problem+json` response
+	ApplicationproblemJSON415 *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PostApiV1RunsRunIdRevertResponse) GetJSON200() *RevertRunResponse {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r PostApiV1RunsRunIdRevertResponse) GetApplicationproblemJSON400() *Problem {
+	return r.ApplicationproblemJSON400
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r PostApiV1RunsRunIdRevertResponse) GetApplicationproblemJSON401() *Problem {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r PostApiV1RunsRunIdRevertResponse) GetApplicationproblemJSON403() *Problem {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r PostApiV1RunsRunIdRevertResponse) GetApplicationproblemJSON404() *Problem {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON415 returns the response for an HTTP 415 `application/problem+json` response
+func (r PostApiV1RunsRunIdRevertResponse) GetApplicationproblemJSON415() *Problem {
+	return r.ApplicationproblemJSON415
+}
+
+// GetBody returns the raw response body bytes
+func (r PostApiV1RunsRunIdRevertResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostApiV1RunsRunIdRevertResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostApiV1RunsRunIdRevertResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostApiV1RunsRunIdRevertResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type PostApiV1SavesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -18742,6 +19301,49 @@ func (c *ClientWithResponses) PostApiV1PublishStreamWithResponse(ctx context.Con
 		return nil, err
 	}
 	return ParsePostApiV1PublishStreamResponse(rsp)
+}
+
+// GetApiV1RunsRunIdWithResponse An agent run's items, and what reverting it would do
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/runs/{runId} (the `GetApiV1RunsRunId` operationId).
+func (c *ClientWithResponses) GetApiV1RunsRunIdWithResponse(ctx context.Context, runId string, params *GetApiV1RunsRunIdParams, reqEditors ...RequestEditorFn) (*GetApiV1RunsRunIdResponse, error) {
+	rsp, err := c.GetApiV1RunsRunId(ctx, runId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetApiV1RunsRunIdResponse(rsp)
+}
+
+// PostApiV1RunsRunIdRevertWithBodyWithResponse Revert an agent run item by item
+//
+// Puts each item the run changed back to its version before the run, through the single save, and archives the items it created. Items changed since the run are skipped unless named in force; items whose save or archive fails are skipped with the reason. The revert's writes form a run of their own (Gazetta-Run, or one named after the reverted run).
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/runs/{runId}/revert (the `PostApiV1RunsRunIdRevert` operationId).
+func (c *ClientWithResponses) PostApiV1RunsRunIdRevertWithBodyWithResponse(ctx context.Context, runId string, params *PostApiV1RunsRunIdRevertParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1RunsRunIdRevertResponse, error) {
+	rsp, err := c.PostApiV1RunsRunIdRevertWithBody(ctx, runId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiV1RunsRunIdRevertResponse(rsp)
+}
+
+// PostApiV1RunsRunIdRevertWithResponse Revert an agent run item by item
+//
+// Puts each item the run changed back to its version before the run, through the single save, and archives the items it created. Items changed since the run are skipped unless named in force; items whose save or archive fails are skipped with the reason. The revert's writes form a run of their own (Gazetta-Run, or one named after the reverted run).
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/runs/{runId}/revert (the `PostApiV1RunsRunIdRevert` operationId).
+func (c *ClientWithResponses) PostApiV1RunsRunIdRevertWithResponse(ctx context.Context, runId string, params *PostApiV1RunsRunIdRevertParams, body PostApiV1RunsRunIdRevertJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1RunsRunIdRevertResponse, error) {
+	rsp, err := c.PostApiV1RunsRunIdRevert(ctx, runId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiV1RunsRunIdRevertResponse(rsp)
 }
 
 // PostApiV1SavesWithBodyWithResponse Save several pages and fragments at once, all or nothing
@@ -22478,6 +23080,114 @@ func ParsePostApiV1PublishStreamResponse(rsp *http.Response) (*PostApiV1PublishS
 			return nil, err
 		}
 		response.ApplicationproblemJSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetApiV1RunsRunIdResponse parses an HTTP response from a GetApiV1RunsRunIdWithResponse call
+func ParseGetApiV1RunsRunIdResponse(rsp *http.Response) (*GetApiV1RunsRunIdResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetApiV1RunsRunIdResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest RunResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostApiV1RunsRunIdRevertResponse parses an HTTP response from a PostApiV1RunsRunIdRevertWithResponse call
+func ParsePostApiV1RunsRunIdRevertResponse(rsp *http.Response) (*PostApiV1RunsRunIdRevertResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostApiV1RunsRunIdRevertResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest RevertRunResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON415 = &dest
 
 	}
 

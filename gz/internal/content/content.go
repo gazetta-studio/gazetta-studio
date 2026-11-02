@@ -468,3 +468,64 @@ func (s *Service) SetAlt(ctx context.Context, name, alt string) error {
 	}
 	return fail(r.HTTPResponse, r.Body)
 }
+
+// RunItem is one item of an agent run, and what a revert would do with it.
+type RunItem struct {
+	Item       string `json:"item"`
+	Kind       string `json:"kind"`
+	Name       string `json:"name"`
+	Locale     string `json:"locale,omitempty"`
+	Created    bool   `json:"created"`
+	Changed    bool   `json:"changed"`
+	Restorable bool   `json:"restorable"`
+}
+
+// RunItems lists an agent run's items (design-agent-access.md Q48).
+func (s *Service) RunItems(ctx context.Context, runID string) ([]RunItem, error) {
+	r, err := s.API.GetApiV1RunsRunIdWithResponse(ctx, runID, &api.GetApiV1RunsRunIdParams{}, s.run)
+	if err != nil {
+		return nil, err
+	}
+	if err := fail(r.HTTPResponse, r.Body); err != nil {
+		return nil, err
+	}
+	var out struct {
+		Items []RunItem `json:"items"`
+	}
+	return out.Items, json.Unmarshal(r.Body, &out)
+}
+
+// Reverted is what a revert did with one item.
+type Reverted struct {
+	Item   string `json:"item"`
+	Kind   string `json:"kind"`
+	Name   string `json:"name"`
+	Locale string `json:"locale,omitempty"`
+	Status string `json:"status"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// Revert reverts an agent run item by item; force names items to revert
+// although they changed since. It returns the revert's own run id.
+func (s *Service) Revert(ctx context.Context, runID string, force []string) ([]Reverted, string, error) {
+	req := map[string]any{}
+	if len(force) > 0 {
+		req["force"] = force
+	}
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, "", err
+	}
+	r, err := s.API.PostApiV1RunsRunIdRevertWithBodyWithResponse(ctx, runID, &api.PostApiV1RunsRunIdRevertParams{}, "application/json", bytes.NewReader(body), s.run)
+	if err != nil {
+		return nil, "", err
+	}
+	if err := fail(r.HTTPResponse, r.Body); err != nil {
+		return nil, "", err
+	}
+	var out struct {
+		RevertRun string     `json:"revertRun"`
+		Items     []Reverted `json:"items"`
+	}
+	return out.Items, out.RevertRun, json.Unmarshal(r.Body, &out)
+}

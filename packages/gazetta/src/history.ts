@@ -150,6 +150,9 @@ export interface HistoryProvider {
    */
   readBlob(hash: string): Promise<Uint8Array>
 
+  /** The per-run index under this history (design-agent-access.md Q48); absent on providers without one. */
+  readonly runs?: import('./history-runs.js').RunIndex
+
   /**
    * Delete a revision and its manifest. Orphaned blobs are garbage-
    * collected by the implementation (lazy or immediate, adapter's choice).

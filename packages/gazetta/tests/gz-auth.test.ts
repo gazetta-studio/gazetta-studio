@@ -222,6 +222,20 @@ describe.runIf(runIt)('gz auth against gazetta dev', () => {
     ok(schema, 'schema')
     expect(JSON.parse(schema.stdout).properties).toHaveProperty('title')
     expect([0, 1]).toContain(gzRun(['validate', '--json']).code)
+
+    // Undo run t1 (#1730): home changed since (the edit above), about didn't.
+    const shown = gzRun(['runs', 'show', 't1', '--json'])
+    ok(shown, 'runs show')
+    const items = JSON.parse(shown.stdout).items as Array<{ item: string; changed: boolean }>
+    expect(items.find(i => i.item === 'pages.home')?.changed).toBe(true)
+    expect(items.find(i => i.item === 'pages.about')?.changed).toBe(false)
+    const reverted = gzRun(['runs', 'revert', 't1', '--json'])
+    ok(reverted, 'runs revert')
+    const outcome = JSON.parse(reverted.stdout) as { items: Array<{ item: string; status: string }> }
+    expect(outcome.items.find(i => i.item === 'pages.home')?.status).toBe('skipped-changed')
+    expect(outcome.items.find(i => i.item === 'pages.about')?.status).toBe('reverted')
+    const about = JSON.parse(gzRun(['pages', 'get', 'about', '--json']).stdout) as typeof home
+    expect(JSON.stringify(about.manifest)).not.toContain('Both')
   }, 120_000)
 
   it('publishes after an elevation, and uploads an asset', async () => {

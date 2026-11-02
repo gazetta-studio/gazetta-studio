@@ -188,6 +188,7 @@ func init() {
 	}
 	commands = append(commands, contentCommands()...)
 	commands = append(commands, publishCommands()...)
+	commands = append(commands, runCommands()...)
 }
 
 // Run runs gz with args and returns the exit code.

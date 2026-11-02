@@ -12,7 +12,7 @@ goreleaser release --snapshot --clean --skip=publish   # build every platform in
 ```
 
 - `cmd/gz`: the binary.
-- `internal/cli`: commands, global flags (`--admin`, `--json`, `--version`), help. `content.go` holds the content commands (`pages`, `fragments`, `templates schema`, `validate`, `preview`, `status`; Q37) and picks the run id: `--run`, then `GZ_RUN`, then one per command (Q22). `publish.go` holds `publish`, `elevate` and `assets` (Q29, Q37).
+- `internal/cli`: commands, global flags (`--admin`, `--json`, `--version`), help. `content.go` holds the content commands (`pages`, `fragments`, `templates schema`, `validate`, `preview`, `status`; Q37) and picks the run id: `--run`, then `GZ_RUN`, then one per command (Q22). `publish.go` holds `publish`, `elevate` and `assets` (Q29, Q37); `runs.go` holds `runs show` and `runs revert` (Q48).
 - `internal/content`: the content service the commands call: read, save (one item with the single save, several with the bulk save, #1720), create, preview, compare, publish, assets. Every request carries the run id.
 - `internal/manifestpath`: `gz pages set`'s `path=value` syntax, httpie-style (`=` string, `:=` JSON, `@file`), with components addressed by name.
 - `internal/output`: text or JSON output and the exit codes (Q38).
