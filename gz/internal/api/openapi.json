@@ -308,6 +308,9 @@
           "contentPath": {
             "type": "string"
           },
+          "field": {
+            "type": "string"
+          },
           "suppressible": {
             "type": "boolean"
           }

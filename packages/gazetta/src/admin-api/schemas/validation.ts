@@ -17,6 +17,8 @@ export const IssueSchema = z
     message: z.string(),
     itemPath: z.string(),
     contentPath: z.string().optional(),
+    /** The field within that component's content the issue is about (`cta`, `items.0.title`), when known. */
+    field: z.string().optional(),
     suppressible: z.boolean().optional(),
   })
   .meta({ id: 'Issue' })

@@ -100,10 +100,23 @@ Content that doesn't fit its template's schema (a required field missing, a valu
 
 | Flag | Effect |
 |---|---|
-| `--severity=<level>` | What to show and count: `error` (default), `warn` (errors and warnings) or `all` (also info). Write it with `=`: `--severity warn` would be read as a site named `warn` |
+| `--severity <level>` | What to show and count: `error` (default), `warn` (errors and warnings) or `all` (also info) |
 | `--include-quality` | Also render each page and run the accessibility, HTML validity and broken-link checks. Slower |
 | `--no-warn-as-error` | Don't fail the run on warnings (with `--severity=warn` or `all`) |
 | `--verbose`, `-v` | Also list each warning and info item; errors are always listed |
+| `--json` | Print the report as one JSON document on stdout, and everything else on stderr. Same as `--format json` |
+| `--format github` | For GitHub Actions: append a job summary (a table per template) to the file `GITHUB_STEP_SUMMARY` names, or print it when that's unset, and print one annotation per broken template on its entry file |
+
+The JSON report:
+
+| Field | What it holds |
+|---|---|
+| `ok` | Whether the run passes, as the exit code says |
+| `counts` | `error`, `warn` and `info`: every issue found, whether `--severity` lists it or not |
+| `templates` | One entry per template with problems, by name: `template`, `file` (its entry file, such as `templates/hero/index.tsx`), `issues` (problems with the template itself) and `items` |
+| `other` | Problems that belong to no template, such as a missing fragment, a site config issue or an orphaned editor, by item or file |
+
+Each item has `kind` (`page` or `fragment`), `name`, `locale` (`null` for the default language) and `issues`. Each issue has `validator`, `severity`, `message`, `component` (the component's path in the item) and `contentPath` (the field in its content, such as `cta`).
 
 Exit code: 1 when there are errors. With `--severity=warn` or `all`, warnings fail the run too, unless `--no-warn-as-error` is set; with the default `--severity=error`, a run with only warnings reports "All good." and exits 0. Site config issues and the template, editor and field checks are shown whatever `--severity` is.
 

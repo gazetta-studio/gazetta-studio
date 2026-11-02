@@ -161,3 +161,81 @@ describe('gazetta validate (CLI) — content that does not fit its template (#17
     },
   )
 })
+
+describe('gazetta validate (CLI) — --json and --format github (#1748)', () => {
+  const brokenDir = resolve(here, '../../../.tmp', `cli-validate-report-${Date.now()}`)
+  const cleanDir = resolve(here, '../../../.tmp', `cli-validate-report-clean-${Date.now()}`)
+  const pages = (dir: string) => join(dir, 'sites/main/targets/local/pages')
+
+  beforeAll(() => {
+    for (const dir of [brokenDir, cleanDir])
+      cpSync(starterDir, dir, { recursive: true, filter: src => !src.includes('node_modules') })
+    const edit = (path: string, change: (json: any) => void) => {
+      const json = JSON.parse(readFileSync(path, 'utf-8'))
+      change(json)
+      writeFileSync(path, JSON.stringify(json, null, 2))
+    }
+    const noTitle = { name: 'hero', template: 'hero', content: { subtitle: 'x' } }
+    // Two pages (one in French) and one fragment break hero; about also names a missing fragment.
+    edit(join(pages(brokenDir), 'home/page.fr.json'), p => {
+      p.components.find((c: { template?: string }) => c.template === 'hero').content = { subtitle: 'x' }
+    })
+    edit(join(pages(brokenDir), 'about/page.json'), p => p.components.push(noTitle, '@missing'))
+    const promo = join(brokenDir, 'sites/main/targets/local/fragments/promo')
+    mkdirSync(promo, { recursive: true })
+    writeFileSync(join(promo, 'fragment.json'), JSON.stringify({ template: 'hero', content: {} }))
+    // A broken language file makes the site load with a warning.
+    writeFileSync(join(pages(brokenDir), 'about/page.de.json'), '{ not json')
+  })
+  afterAll(() => {
+    rmSync(brokenDir, { recursive: true, force: true })
+    rmSync(cleanDir, { recursive: true, force: true })
+  })
+
+  function runIn(dir: string, args: string[], env: Record<string, string> = {}) {
+    const result = spawnSync('node', [cliEntry, 'validate', 'sites/main', ...args], {
+      cwd: dir,
+      env: { ...process.env, NO_COLOR: '1', GITHUB_STEP_SUMMARY: '', ...env },
+      encoding: 'utf-8',
+    })
+    return { stdout: result.stdout, stderr: result.stderr, status: result.status }
+  }
+
+  it('--json prints one document that groups the hero problems and lists the missing fragment', {
+    timeout: 30_000,
+  }, async () => {
+    const { ValidateReportSchema } = await import('../src/cli/validate-report.js')
+    const { stdout, status } = runIn(brokenDir, ['--json'])
+    const report = ValidateReportSchema.parse(JSON.parse(stdout))
+    expect(report.ok).toBe(false)
+    const hero = report.templates.find(t => t.template === 'hero')!
+    expect(hero.file).toBe('templates/hero/index.ts')
+    expect(hero.items.map(i => [i.kind, i.name, i.locale])).toEqual([
+      ['page', 'about', null],
+      ['page', 'home', 'fr'],
+      ['fragment', 'promo', null],
+    ])
+    expect(hero.items[0].issues[0]).toMatchObject({ component: 'hero', contentPath: 'title' })
+    expect(report.other).toContainEqual(expect.objectContaining({ kind: 'page', name: 'about' }))
+    expect(status).toBe(1)
+  })
+
+  it('--format github writes a summary per template and one annotation on hero', { timeout: 30_000 }, () => {
+    const summaryFile = join(brokenDir, 'summary.md')
+    const { stdout, status } = runIn(brokenDir, ['--format', 'github'], { GITHUB_STEP_SUMMARY: summaryFile })
+    const summary = readFileSync(summaryFile, 'utf-8')
+    expect(summary).toContain('### `hero` (`templates/hero/index.ts`)')
+    expect(summary).toContain('| pages/home | fr | hero › title |')
+    expect(summary).toContain('### Other problems')
+    const annotations = stdout.split('\n').filter(l => l.startsWith('::'))
+    expect(annotations).toHaveLength(1)
+    expect(annotations[0]).toMatch(/^::error file=templates\/hero\/index\.ts,title=hero doesn't fit 3 items::/)
+    expect(status).toBe(1)
+  })
+
+  it('--format github on a clean site is one line and no annotation', { timeout: 30_000 }, () => {
+    const { stdout, status } = runIn(cleanDir, ['--format=github'])
+    expect(stdout).toBe('**Template check passed.**\n')
+    expect(status).toBe(0)
+  })
+})

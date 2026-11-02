@@ -162,11 +162,11 @@ async function checkOne(
     schema = (await loadTemplate(ctx.storage, ctx.templatesDir, templateName)).schema
   } catch (err) {
     ctx.unloadable.add(templateName)
-    return [unloadable(ctx.itemPath, templateName, '', (err as Error).message)]
+    return [unloadable(ctx.itemPath, templateName, contentPath, (err as Error).message)]
   }
   if (typeof (schema as { safeParse?: unknown })?.safeParse !== 'function') {
     ctx.unloadable.add(templateName)
-    return [unloadable(ctx.itemPath, templateName, '', 'its schema is not a Zod schema')]
+    return [unloadable(ctx.itemPath, templateName, contentPath, 'its schema is not a Zod schema')]
   }
   return parseIssues(ctx.itemPath, schema as z.ZodTypeAny, content, contentPath, 'warn')
 }
@@ -186,5 +186,6 @@ function parseIssues(
     message: `${issue.path.length ? issue.path.join('.') : '<root>'}: ${issue.message}`,
     itemPath,
     contentPath: contentPath || undefined,
+    ...(issue.path.length ? { field: issue.path.join('.') } : {}),
   }))
 }

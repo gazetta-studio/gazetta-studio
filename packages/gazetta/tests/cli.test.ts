@@ -10,6 +10,10 @@ import { parseArgs } from '../src/cli/args.js'
 // Since the CLI is a script with side effects, we test the pure functions
 
 describe('parseArgs', () => {
+  it("doesn't read the values of --format and --severity as a site (#1748)", () => {
+    expect(parseArgs(['--format', 'github', '--severity', 'warn', 'sites/main']).positional).toEqual(['sites/main'])
+  })
+
   it('defaults to empty positional', () => {
     const { positional, port } = parseArgs([])
     expect(positional).toEqual([])

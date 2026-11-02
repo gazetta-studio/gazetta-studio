@@ -18,6 +18,7 @@ describe('parseValidateFlags', () => {
       includeQuality: false,
       warnAsError: true,
       verbose: false,
+      format: 'text',
     })
   })
 
@@ -58,11 +59,22 @@ describe('parseValidateFlags', () => {
       includeQuality: true,
       warnAsError: false,
       verbose: true,
+      format: 'text',
     })
   })
 
   it('ignores unknown args', () => {
     const opts = parseValidateFlags(['--unknown', 'value', '--include-quality'])
     expect(opts.includeQuality).toBe(true)
+  })
+
+  it.each([
+    [['--json'], 'json'],
+    [['--format', 'github'], 'github'],
+    [['--format=json'], 'json'],
+    [['--format', 'nonsense'], 'text'],
+    [[], 'text'],
+  ])('reads the output format from %j (#1748)', (args, format) => {
+    expect(parseValidateFlags(args).format).toBe(format)
   })
 })
