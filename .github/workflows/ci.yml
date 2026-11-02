@@ -449,6 +449,40 @@ jobs:
           path: test-results/
           retention-days: 7
 
+  # The template check (design-template-check.md) on the starter and
+  # gazetta.studio. On a pull request, only problems the PR introduced
+  # fail it (--base); on main, any problem does. --render renders the
+  # pages that use a changed template. No secrets: gazetta.studio's R2
+  # values are placeholders, as in test-shard, and no target is read.
+  template-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        site: [examples/starter, sites/gazetta.studio]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # --base reads the base commit's project folder.
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check content against templates
+        env:
+          SITE: ${{ matrix.site }}
+          BASE_REF: ${{ github.base_ref }}
+          R2_ACCESS_KEY_ID: ci-placeholder
+          R2_SECRET_ACCESS_KEY: ci-placeholder
+        run: |
+          base=()
+          if [ -n "$BASE_REF" ]; then base=(--base "origin/$BASE_REF"); fi
+          npx tsx packages/gazetta/src/cli/index.ts validate "$SITE" "${base[@]}" --render --format github
+
   # The gz command line (gz/, design-agent-access.md Q8): Go, outside the
   # npm workspaces.
   gz:
