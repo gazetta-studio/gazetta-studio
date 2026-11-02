@@ -226,7 +226,10 @@ export async function preparePageSave(input: SavePageInput): Promise<PreparedSav
   if (input.body.cache !== undefined) manifest.cache = input.body.cache
   else if (page.cache) manifest.cache = page.cache
   // Locale variants store their route for preview resolution
-  if (locale && page.route) manifest.route = page.route
+  // A first language version has no route of its own yet: it gets the one
+  // the site loader will give it, not the default page's (#1719).
+  const route = locale && !localeVariant ? localeVariantRoute(input.site.manifest, page.route, locale) : page.route
+  if (locale && route) manifest.route = route
 
   // Filename + path composition. Default → `page.json`; locale
   // variant → `page.{locale}.json`. Both live in the default page's
@@ -251,7 +254,8 @@ export async function preparePageSave(input: SavePageInput): Promise<PreparedSav
       ifMatch: input.ifMatch,
       site: input.site,
       cacheInvalidatePrefixes: ['pages:'],
-      etagExtras: { route: page.route },
+      etagExtras: { route },
+      beforeEtagExtras: { route: page.route },
       source: input.source,
       audit: input.audit,
       principal: input.principal,
