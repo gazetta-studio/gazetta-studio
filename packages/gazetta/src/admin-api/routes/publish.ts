@@ -748,6 +748,21 @@ export function publishRoutes(
     return (await denyWithoutCapability(c, 'publish:production')) as ProblemResponse<403> | null
   }
 
+  // A token publishing to production is checked for `publish:production`
+  // before the routes' `publish:non-production` baseline, so its refusal
+  // names the production scope and one production elevation (which also
+  // covers non-production, #1729) answers both checks. Only refusals end
+  // the request here; the body read is cached for the route's validator.
+  for (const path of ['/publish', '/publish/stream']) {
+    app.use(path, async (c, next) => {
+      if (c.req.method !== 'POST' || c.get('principal')?.channel !== 'token') return next()
+      const body = (await c.req.json().catch(() => null)) as { targets?: unknown } | null
+      const targets = Array.isArray(body?.targets) ? body.targets.filter((t): t is string => typeof t === 'string') : []
+      const denied = await productionGate(c as unknown as Context<AuditEnv>, targets)
+      return denied ?? next()
+    })
+  }
+
   app.openapi(postPublish, async c => {
     const body = c.req.valid('json')
 

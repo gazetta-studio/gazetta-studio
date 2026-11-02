@@ -38,6 +38,15 @@ export function elevationScopeFor(capability: string, targetEnvironment: string 
   return targetEnvironment === 'production' ? 'production' : 'non-production'
 }
 
+/**
+ * Whether an elevation of `held` scope covers a check for `needed`. A
+ * production elevation also covers non-production (Q17, #1729), so a
+ * production publish, which the route checks for both, needs one approval.
+ */
+export function covered(held: ElevationScope, needed: ElevationScope): boolean {
+  return held === needed || held === 'production'
+}
+
 /** An elevation id names its grant: `<grantId>.<uuid>`. */
 function grantOf(elevationId: string): string | null {
   const dot = elevationId.indexOf('.')
@@ -102,7 +111,7 @@ export function createElevationStore(storage: StorageProvider, now: () => number
         const elevation = await read(entry.name.slice(0, -'.json'.length))
         if (
           elevation &&
-          elevation.scope === scope &&
+          covered(elevation.scope, scope) &&
           Date.parse(elevation.endsAt) > now() &&
           capabilityGrants(elevation.capabilities, capability)
         ) {

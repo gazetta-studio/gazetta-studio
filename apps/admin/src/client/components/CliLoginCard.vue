@@ -32,7 +32,7 @@ const heading = computed(() => {
   if (s.kind !== 'pending') return ''
   if (s.login.kind !== 'elevation') return 'Approve a sign-in from the command line'
   return s.login.scope === 'production'
-    ? `Allow ${s.login.machine} to publish to production for a short time`
+    ? `Allow ${s.login.machine} to publish to production, and to publish, delete and restore on other targets, for a short time`
     : `Allow ${s.login.machine} to publish, delete and restore on non-production targets for a short time`
 })
 

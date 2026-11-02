@@ -51,10 +51,12 @@ func TestPublishToProductionAsksForAProductionElevation(t *testing.T) {
 	}
 }
 
-func TestPublishToProductionAsksForBothElevationsInTurn(t *testing.T) {
+// A production publish is refused for the production scope, and a
+// production elevation covers the non-production check too (#1729).
+func TestPublishToProductionAsksForOneCode(t *testing.T) {
 	h, a := publishing(t)
 	h.must(t, "publish", "home", "--to", "production")
-	if !slices.Equal(a.Elevation.Started, []string{"non-production", "production"}) || len(a.Elevation.Published) != 1 {
+	if !slices.Equal(a.Elevation.Started, []string{"production"}) || len(a.Elevation.Published) != 1 {
 		t.Fatalf("started %v published %v", a.Elevation.Started, a.Elevation.Published)
 	}
 }
@@ -134,14 +136,14 @@ func TestElevateAheadOfTimeAndEnd(t *testing.T) {
 	if !slices.Equal(a.Elevation.Started, []string{"production"}) || !strings.Contains(h.stdout.String(), "Elevated for production targets") {
 		t.Fatalf("started %v stdout %q", a.Elevation.Started, h.stdout.String())
 	}
-	// The route also checks non-production rights, so the publish asks for
-	// that one too, and not again for production.
+	// A production elevation covers the non-production check too (#1729).
 	h.must(t, "publish", "home", "--to", "production")
-	if !slices.Equal(a.Elevation.Started, []string{"production", "non-production"}) {
+	h.must(t, "publish", "home", "--to", "staging")
+	if !slices.Equal(a.Elevation.Started, []string{"production"}) {
 		t.Fatalf("started %v", a.Elevation.Started)
 	}
 	h.must(t, "elevate", "--end")
-	if !slices.Equal(a.Elevation.Ended, []string{"el-1", "el-2"}) && !slices.Equal(a.Elevation.Ended, []string{"el-2", "el-1"}) || len(a.Elevation.Active) != 0 {
+	if !slices.Equal(a.Elevation.Ended, []string{"el-1"}) || len(a.Elevation.Active) != 0 {
 		t.Fatalf("ended %v active %v", a.Elevation.Ended, a.Elevation.Active)
 	}
 	st, _ := state.Load(state.Path(h.env.ConfigDir))
