@@ -1,6 +1,6 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterAll, afterEach } from 'vitest'
 import { resolve, join, dirname } from 'node:path'
-import { existsSync } from 'node:fs'
+import { cpSync, existsSync, rmSync } from 'node:fs'
 import { mkdir, rm, writeFile, readdir } from 'node:fs/promises'
 import { REQUIRED_NODE_RANGE } from '../src/node-floor.js'
 import { tempDir } from './_helpers/temp.js'
@@ -294,8 +294,22 @@ describe('runBuild', () => {
   })
 })
 
+/**
+ * A copy of the starter for tests that change it. Editing the starter in
+ * place broke any test copying it at the same moment (#1766).
+ */
+function starterCopy(name: string): string {
+  const dir = tempDir(`${name}-${Date.now()}`)
+  cpSync(resolve(import.meta.dirname, '../../../examples/starter'), dir, {
+    recursive: true,
+    filter: src => !src.includes('node_modules') && !src.includes('/dist'),
+  })
+  return dir
+}
+
 describe('runValidate', () => {
-  const starterDir = resolve(import.meta.dirname, '../../../examples/starter')
+  const starterDir = starterCopy('cli-run-validate')
+  afterAll(() => rmSync(starterDir, { recursive: true, force: true }))
 
   it('passes on valid project', { timeout: 30000 }, async () => {
     const { execSync } = await import('node:child_process')
@@ -354,7 +368,8 @@ describe('runValidate', () => {
 })
 
 describe('translate', () => {
-  const starterDir = resolve(import.meta.dirname, '../../../examples/starter')
+  const starterDir = starterCopy('cli-translate')
+  afterAll(() => rmSync(starterDir, { recursive: true, force: true }))
   const targetDir = join(starterDir, 'sites/main/targets/local')
 
   it('copies page.json to page.de.json', { timeout: 60000 }, async () => {
