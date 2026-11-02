@@ -167,8 +167,7 @@
             "enum": ["page", "fragment"]
           },
           "name": {
-            "type": "string",
-            "minLength": 1
+            "type": "string"
           },
           "locale": {
             "type": "string"
