@@ -78,7 +78,13 @@ describe('renderGithub', () => {
 
   it('puts already-broken problems in a collapsed block, without annotating them (#1750)', () => {
     const alreadyBroken = { templates: failing.templates, other: [] }
-    const passing: ValidateReport = { ok: true, counts: { error: 0, warn: 0, info: 0 }, templates: [], other: [], alreadyBroken }
+    const passing: ValidateReport = {
+      ok: true,
+      counts: { error: 0, warn: 0, info: 0 },
+      templates: [],
+      other: [],
+      alreadyBroken,
+    }
     const { summary, annotations } = renderGithub(passing)
     expect(summary).toMatch(/^\*\*Template check passed\.\*\*/)
     expect(summary).toContain('<details><summary>Already broken (not caused by this change)</summary>')
@@ -87,4 +93,3 @@ describe('renderGithub', () => {
     expect(annotations).toEqual([])
   })
 })
-
