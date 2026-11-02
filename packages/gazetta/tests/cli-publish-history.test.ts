@@ -72,12 +72,24 @@ describe('gazetta publish - history recording (#1079)', { timeout: 180000 }, () 
     expect(await readFile(targetPage, 'utf8')).toBe(before)
 
     // Change the source page so the second publish has something to record.
-    const edited = before.replace(/"title"\s*:\s*"[^"]*"/, '"title": "Edited by #1079 test"')
+    // `unlisted` is a field the site loader drops: the copy and the revision
+    // still carry it, because both come from the snapshot's raw text (#1632).
+    const edited = before
+      .replace(/"title"\s*:\s*"[^"]*"/, '"title": "Edited by #1079 test"')
+      .replace(/^\{/, '{"unlisted": {"keep": true}, ')
     expect(edited).not.toBe(before)
     await (await import('node:fs/promises')).writeFile(sourcePage, edited)
     res = await runCli(projectDir, ['publish', 'staging', 'sites/main', '--force'])
     expect(res.code).toBe(0)
     expect(await readFile(targetPage, 'utf8')).toBe(edited)
+    const { createHistoryProvider } = await import('../src/history-provider.js')
+    const { createFilesystemProvider } = await import('../src/providers/filesystem.js')
+    const history = createHistoryProvider({
+      storage: createFilesystemProvider(resolve(projectDir, 'sites/main/dist/staging')),
+    })
+    const [latest] = (await history.listRevisions()).filter(r => r.operation === 'publish')
+    const blob = (await history.readRevision(latest!.id)).snapshot['pages/home/page.json']
+    expect(new TextDecoder().decode(await history.readBlob(blob!))).toBe(edited)
 
     // History lists publish revisions - before the fix there were none.
     res = await runCli(projectDir, ['history', 'staging', 'sites/main'])

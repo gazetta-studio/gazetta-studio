@@ -28,6 +28,8 @@ export interface PublishAssetsInput {
   readonly targetRoot: ContentRoot
   /** Items being published — e.g., `['pages/home', 'fragments/header']`. */
   readonly itemNames: readonly string[]
+  /** Assets not to copy: their files were removed during the publish (#1632). */
+  readonly skipAssets?: ReadonlySet<string>
 }
 
 export type PublishAssetsResult =
@@ -59,7 +61,11 @@ export async function publishAssets(input: PublishAssetsInput): Promise<PublishA
     targetAssets: input.targetRoot.path('assets'),
   }
 
-  const perAsset = await mapLimit(plan.assets, name => copyOneAsset(ctx, name))
+  const skip = input.skipAssets ?? new Set<string>()
+  const perAsset = await mapLimit(
+    plan.assets.filter(name => !skip.has(name)),
+    name => copyOneAsset(ctx, name),
+  )
   let copiedAssets = 0
   let copiedFiles = 0
   for (const r of perAsset) {

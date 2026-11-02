@@ -8,6 +8,8 @@ export interface PublishResult {
   success: boolean
   error?: string
   copiedFiles: number
+  /** Items not published because an asset they use lost its files during the publish (#1632). */
+  notPublished?: { item: string; assets: string[]; reason: string }[]
 }
 
 /**

@@ -104,6 +104,26 @@ describe('publishAssets', () => {
     expect(targetManifest.variants).toHaveLength(manifest.variants.length)
   })
 
+  it('leaves out the assets it is told to skip, whose files went during the publish (#1632)', async () => {
+    const sourceStorage = createFilesystemProvider(sourceDir)
+    const targetStorage = createFilesystemProvider(targetDir)
+    const { manifest: hero } = await seedSourceAsset('hero', await jpeg(1000, 500))
+    await seedSourceAsset('logo', await jpeg(200, 100))
+    await seedSourcePage('home', { hero: { _asset: 'hero' }, logo: { _asset: 'logo' } })
+    await rm(join(sourceDir, `assets/hero-${hero.hash}.jpg`))
+
+    const result = await publishAssets({
+      sourceRoot: createContentRoot(sourceStorage),
+      targetRoot: createContentRoot(targetStorage),
+      itemNames: ['pages/home'],
+      skipAssets: new Set(['hero']),
+    })
+
+    expect(result.ok).toBe(true)
+    expect(existsSync(join(targetDir, 'assets/hero.asset.json'))).toBe(false)
+    expect(existsSync(join(targetDir, 'assets/logo.asset.json'))).toBe(true)
+  })
+
   it('passes with no work when itemNames have no asset refs', async () => {
     const sourceStorage = createFilesystemProvider(sourceDir)
     const targetStorage = createFilesystemProvider(targetDir)
