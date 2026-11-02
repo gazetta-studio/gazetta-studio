@@ -34,6 +34,7 @@ import { access, readFile } from 'node:fs/promises'
 import type { AdminCache } from './cache/types.js'
 import { fragmentHashLookup } from './fragment-hashes.js'
 import { hashManifest } from './hash.js'
+import { computeAssetHashes, itemAssetRefs } from './asset-hashes.js'
 import { renderPage } from './renderer.js'
 import { resolvePage } from './resolver.js'
 import type { FragmentManifest, PageManifest } from './types.js'
@@ -67,8 +68,10 @@ export async function renderPageForAnalysis(
   if (!page) return null
 
   const templateHashes = await computeTemplateHashes(site, templatesDir)
-  const fragmentHashes = fragmentHashLookup(site, templateHashes)(locale)
-  const contentHash = hashManifest(page, { templateHashes, fragmentHashes })
+  // Only the assets this page can bake in, not the whole site's (one page per call).
+  const assetHashes = await computeAssetHashes(site.contentRoot, itemAssetRefs(site, page))
+  const fragmentHashes = fragmentHashLookup(site, templateHashes, assetHashes)(locale)
+  const contentHash = hashManifest(page, { templateHashes, fragmentHashes, assetHashes })
   const key = cacheKey('page', pageName, locale, theme, contentHash)
 
   const cached = await cache.get<RenderedOutput>(key)

@@ -63,6 +63,8 @@ These are two different comparisons:
 - **Top-bar sync chips** show each non-active target relative to the active target. A chip shows **N behind** (the changed-item count), **in sync** or **not yet published**. The count includes added, modified and destination-only items. Clicking a target chip opens Publish with that destination selected. With four or more targets, environment groups can collapse several chips; expand a group to choose a member.
 - **Amber dots in the site tree** mark pages and fragments with unpublished changes against one automatically chosen target. The admin tries targets by environment: production, then staging, then local. It skips targets never published to when a previously published comparison is available. If every comparison is a first publish, items show the not-yet-published state instead. Hover a dot to see the comparison target.
 
+An item counts as changed when its content, its template, a fragment it includes or an asset it shows changes: editing an image's alt text or focal point, or adding a language version of it, marks the pages and fragments that use the image, as an edit to their own content would.
+
 A dot disappears when that item matches the chosen target. Comparisons refresh after saves and publishes. The dots are not separate counts for every destination, so use the chips or Publish panel to inspect a particular target.
 
 ## History, undo and rollback

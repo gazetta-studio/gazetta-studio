@@ -137,6 +137,15 @@ references with hashed forms so the hash catches upstream changes:
 - A page's `metadata`, when it has at least one field. It renders into the
   page's `<head>`, so a metadata-only edit is a change. A page without
   metadata hashes the same as one with `{}`.
+- The assets the item references (`_asset`), each with a hash
+  from all of its manifest files: the default and every language and theme
+  version (`asset-hashes.ts`). Editing an asset (alt, focal point, a language
+  version) republishes every page and fragment that uses it; a page that
+  bakes a fragment gets the fragment's assets through the fragment's hash.
+  Items without asset references hash as before. Compare reads the manifests
+  of the referenced assets: 5,000 pages and 20,000 assets compare in about
+  0.5 s on a filesystem source (#1334).
+  Decided: maintainer, 2026-10-24 (#1334)
 - The render-format version, `RENDER_FORMAT_VERSION` in `hash.ts`. Raise it
   whenever publish output changes for unchanged content (a new tag, a changed
   layout): every hash changes, so the next publish rewrites every page and
