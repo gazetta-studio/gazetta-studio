@@ -238,8 +238,8 @@ To end a sign-in, revoke its grant: `DELETE /api/v1/auth/grants/:id`. The client
 To publish, delete or restore, the client asks for an elevation, and you approve it in your browser the same way as a sign-in.
 
 1. With its token, the client calls `POST /api/v1/auth/elevations` with a scope, `non-production` (every target whose `environment` isn't `production`) or `production`, and shows you a code and a link.
-2. The page says what you're allowing, for example "Allow laptop to publish to production for a short time", with the machine, IP address and start time. Approve it only if you started it yourself. Only the person the client signed in as can approve it, and only if their role still has the capabilities it would use.
-3. For the next 15 minutes, that sign-in's tokens can do what your role can do in the admin, on targets in the scope. The window is fixed: using it doesn't extend it. A production publish needs a production elevation even while a non-production one is active.
+2. The page says what you're allowing, for example "Allow laptop to publish to production, and to publish, delete and restore on other targets, for a short time", with the machine, IP address and start time. Approve it only if you started it yourself. Only the person the client signed in as can approve it, and only if their role still has the capabilities it would use.
+3. For the next 15 minutes, that sign-in's tokens can do what your role can do in the admin, on targets in the scope. The window is fixed: using it doesn't extend it. A production elevation covers the other targets too, so publishing to production takes one approval; a non-production elevation doesn't cover production.
 
 The page shows when the elevation ends, with **End now**. The client can also end it with `DELETE /api/v1/auth/elevations/:id`. Ending one takes effect at once on every instance of the admin.
 

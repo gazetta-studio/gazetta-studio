@@ -130,6 +130,22 @@ describe('an elevation', () => {
     expect((await publishTo(app, token, 'production')).status).not.toBe(403)
   })
 
+  it('of production scope alone publishes to production and to staging (#1729)', async () => {
+    const app = appOn()
+    const { token } = await signIn(app)
+    // The refusal names production, so the client asks for one elevation.
+    const refused = await publishTo(app, token, 'production')
+    expect(await refused.json()).toMatchObject({ code: 'ELEVATION_REQUIRED', scope: 'production' })
+    for (const path of ['/api/v1/publish', '/api/v1/publish/stream']) {
+      const res = await app.request(path, post({ items: ['pages/home'], targets: ['staging', 'production'] }, token))
+      expect(await res.json()).toMatchObject({ code: 'ELEVATION_REQUIRED', scope: 'production' })
+    }
+    await elevate(app, token, 'production')
+    const prod = await publishTo(app, token, 'production')
+    expect(prod.status, JSON.stringify(await prod.clone().json())).toBe(200)
+    expect((await publishTo(app, token, 'staging')).status).toBe(200)
+  })
+
   it('shows on the approve page as an elevation', async () => {
     const app = appOn()
     const { token } = await signIn(app)

@@ -153,7 +153,9 @@ describe('CliLoginView for an elevation', () => {
     fetchMock.mockResolvedValueOnce(json(elevation))
     const w = await render()
     expect(w.find(byId('cli-login')).attributes('data-kind')).toBe('elevation')
-    expect(w.find('h1').text()).toBe('Allow alice-macbook to publish to production for a short time')
+    expect(w.find('h1').text()).toBe(
+      'Allow alice-macbook to publish to production, and to publish, delete and restore on other targets, for a short time',
+    )
     expect(w.find(byId('cli-login-machine')).text()).toBe('alice-macbook')
     expect(w.find(byId('cli-login-warning')).text()).toBe(
       'Only approve a code you started yourself. Approving lets that machine publish as you until it ends.',

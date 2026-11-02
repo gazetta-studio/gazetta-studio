@@ -52,6 +52,12 @@ describe.runIf(runIt)('gz auth against gazetta dev', () => {
       stdio: 'inherit',
     })
     await cp(resolve(repoRoot, 'examples/starter'), project, { recursive: true })
+    // Production on a folder instead of the Azurite emulator, so the test can publish there.
+    const configPath = join(project, 'sites/main/site.config.ts')
+    const config = await readFile(configPath, 'utf8')
+    const azure = /storage: azureBlobStorage\(\{[^}]*\}\)/
+    if (!azure.test(config)) throw new Error("the starter's production target changed; update this test")
+    await writeFile(configPath, config.replace(azure, "storage: filesystemStorage({ path: './dist/production' })"))
     dev = spawn(tsxBin, [cliPath, 'dev', '--host', '127.0.0.1', '-p', String(port)], {
       cwd: project,
       env: { ...process.env, CI: 'true' },
@@ -231,6 +237,13 @@ describe.runIf(runIt)('gz auth against gazetta dev', () => {
     ok(second, 'second publish')
     expect(second.stderr).not.toContain('Your code')
     ok(gzRun(['elevate', '--end']), 'elevate --end')
+
+    // One code for production: its elevation covers the non-production check too (#1729).
+    const production = await approved(['publish', 'home', '--to', 'production'])
+    expect(production.stdout).toContain('Published 1 items to production')
+    expect(production.stderr.match(/Your code:/g)).toHaveLength(1)
+    expect(production.stderr).toContain('production elevation')
+    ok(gzRun(['elevate', '--end']), 'elevate --end after production')
     const after = gzRun(['publish', 'about', '--to', 'staging', '--no-wait'])
     expect(after.code, after.stderr).toBe(3)
 

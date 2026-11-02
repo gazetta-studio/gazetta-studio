@@ -97,12 +97,12 @@ func (a *Admin) servePublish(w http.ResponseWriter, r *http.Request, path string
 	case r.Method == "POST" && path == "/api/v1/publish":
 		var body struct{ Items, Targets []string }
 		_ = json.NewDecoder(r.Body).Decode(&body)
-		// As the real route does: non-production rights for every publish
-		// (the route's middleware), then production for production targets.
+		// As the real route does: production rights first when a target is
+		// production (#1729), then non-production rights for every publish.
 		scopes := []string{"non-production"}
 		for _, t := range body.Targets {
 			if e.Targets[t] == "production" {
-				scopes = append(scopes, "production")
+				scopes = []string{"production", "non-production"}
 			}
 		}
 		for _, scope := range scopes {
@@ -175,7 +175,8 @@ func (e *Elevations) covers(scope string) bool {
 		return false
 	}
 	for _, s := range e.Active {
-		if s == scope {
+		// A production elevation also covers non-production (#1729).
+		if s == scope || s == "production" {
 			return true
 		}
 	}

@@ -46,15 +46,23 @@ describe('elevation records', () => {
     expect(await store.covers('g2', 'non-production', 'delete:pages')).toBe(false)
   })
 
+  it('cover non-production too when they are production (#1729)', async () => {
+    const store = createElevationStore(memoryStorage())
+    await store.create({ ...base, scope: 'production' })
+    expect(await store.covers('g1', 'production', 'delete:pages')).toBe(true)
+    expect(await store.covers('g1', 'non-production', 'delete:pages')).toBe(true)
+    expect(await store.covers('g1', 'non-production', 'restore:history')).toBe(false)
+  })
+
   it('end at once, one or all of a grant', async () => {
     const store = createElevationStore(memoryStorage())
-    const one = await store.create({ ...base, scope: 'non-production' })
-    await store.create({ ...base, scope: 'production' })
-    await store.end(one.elevationId)
-    expect(await store.covers('g1', 'non-production', 'delete:pages')).toBe(false)
-    expect(await store.covers('g1', 'production', 'delete:pages')).toBe(true)
-    await store.endAll('g1')
+    await store.create({ ...base, scope: 'non-production' })
+    const production = await store.create({ ...base, scope: 'production' })
+    await store.end(production.elevationId)
     expect(await store.covers('g1', 'production', 'delete:pages')).toBe(false)
+    expect(await store.covers('g1', 'non-production', 'delete:pages')).toBe(true)
+    await store.endAll('g1')
+    expect(await store.covers('g1', 'non-production', 'delete:pages')).toBe(false)
   })
   it('end quietly on filesystem storage when there is nothing to remove', async () => {
     // Revoking a grant that never elevated must not throw (filesystem rm does on a missing path).
