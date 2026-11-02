@@ -42,7 +42,9 @@ const revert = createRoute({
   summary: 'Revert an agent run item by item',
   description:
     "Puts each item the run changed back to its version before the run, through the single save, and archives the items it created. Items changed since the run are skipped unless named in force; items whose save or archive fails are skipped with the reason. The revert's writes form a run of their own (Gazetta-Run, or one named after the reverted run).",
-  middleware: [jsonBody({ optional: true })] as const,
+  // Anyone reverting must be able to read the run; anonymous callers are
+  // answered 401 before anything about the run is read.
+  middleware: [requireCapability('read:pages'), jsonBody({ optional: true })] as const,
   request: {
     params: RunParamSchema,
     query: TargetQuerySchema,

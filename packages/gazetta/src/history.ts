@@ -45,6 +45,12 @@ export interface Revision {
   message?: string
   /** For rollback/restore: the revision id this one restored from. */
   restoredFrom?: string
+  /**
+   * Paths this write created: nothing was there before it. Absent on
+   * revisions written before #1730, and on writes that created nothing.
+   * Reverting a run archives these instead of restoring a prior version.
+   */
+  created?: string[]
   /** How the write came in (Q47): `browser`, `token`, or `mcp`. Absent on revisions written outside the admin. */
   channel?: 'browser' | 'token' | 'mcp'
   /** The agent run the write belongs to (Q22). */
@@ -94,6 +100,8 @@ export interface RevisionInput {
   message?: string
   /** For rollback/restore: the revision id this one restored from. */
   restoredFrom?: string
+  /** Paths this write created, recorded as `Revision.created`. */
+  created?: readonly string[]
   /** Where the write came from (Q47); see `request-origin.ts`. */
   origin?: OriginFields
   /**
