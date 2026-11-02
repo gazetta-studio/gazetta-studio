@@ -96,12 +96,14 @@ Runs the deploy adapter set as the target's `deploy:` field, for example the Clo
 
 Checks every page and fragment for broken references (templates, fragments, assets), content that doesn't match its template's schema, and site config problems, plus custom editors without a template and fields a schema names that don't exist in `admin/fields/`. A template that exists but fails to load (a syntax error, a failing import, no `schema` export) is an error, named once with its load error; each page and fragment using it also gets an error saying its content can't be checked.
 
+Content that doesn't fit its template's schema (a required field missing, a value of the wrong type) is an error here, so the run fails until the content is fixed. Each issue is listed under its page or fragment with the field, the component and the language version. Site health in the admin shows the same problems as warnings.
+
 | Flag | Effect |
 |---|---|
 | `--severity=<level>` | What to show and count: `error` (default), `warn` (errors and warnings) or `all` (also info). Write it with `=`: `--severity warn` would be read as a site named `warn` |
 | `--include-quality` | Also render each page and run the accessibility, HTML validity and broken-link checks. Slower |
 | `--no-warn-as-error` | Don't fail the run on warnings (with `--severity=warn` or `all`) |
-| `--verbose`, `-v` | Show each issue, not just a mark per item |
+| `--verbose`, `-v` | Also list each warning and info item; errors are always listed |
 
 Exit code: 1 when there are errors. With `--severity=warn` or `all`, warnings fail the run too, unless `--no-warn-as-error` is set; with the default `--severity=error`, a run with only warnings reports "All good." and exits 0. Site config issues and the template, editor and field checks are shown whatever `--severity` is.
 

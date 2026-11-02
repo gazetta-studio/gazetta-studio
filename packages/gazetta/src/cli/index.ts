@@ -1434,7 +1434,9 @@ async function runValidate(siteDir: string, rawArgs: readonly string[] = []) {
       })),
     )
   }
-  const allIssues = [...scanner.allIssues(), ...configIssues]
+  // The CLI is the gate: some issues count higher here than in Site health (T7).
+  const { withCliSeverity } = await import('./validate-severity.js')
+  const allIssues = [...scanner.allIssues().map(withCliSeverity), ...configIssues]
 
   // 4. Per-item summary. Pages first, then fragments — matches the existing
   //    output ordering for unsurprising diff vs. the prior implementation.
@@ -1471,32 +1473,32 @@ async function runValidate(siteDir: string, rawArgs: readonly string[] = []) {
     console.log(`  ${severityIcon(issue.severity)} ${issue.message}`)
   }
 
-  for (const [pageName, page] of site.pages) {
-    const path = `${page.dir}/page.json`
-    const issues = issuesByPath.get(path) ?? []
-    const visible = issues.filter(i => shouldShow(i.severity))
-    const { glyph, color } = summaryGlyph(visible)
-    const componentCount = page.components?.length ?? 0
-    console.log(`  ${color(glyph)} ${pageName} ${c.dim(`(${componentCount} components)`)}`)
-    if (opts.verbose) {
-      for (const issue of visible) {
-        console.log(`      ${severityIcon(issue.severity)} ${issue.message}`)
-      }
+  // One row per page or fragment, covering its language versions too. Each
+  // issue is listed under it, errors always (so CI logs name the page, field
+  // and language), the rest with --verbose.
+  function printItem(label: string, dir: string, file: 'page' | 'fragment', locales: Iterable<string>, count: number) {
+    const versions = [{ path: `${dir}/${file}.json`, locale: undefined as string | undefined }]
+    for (const locale of locales) versions.push({ path: `${dir}/${file}.${locale}.json`, locale })
+    const visible = versions.flatMap(v =>
+      (issuesByPath.get(v.path) ?? []).filter(i => shouldShow(i.severity)).map(issue => ({ issue, locale: v.locale })),
+    )
+    const { glyph, color } = summaryGlyph(visible.map(v => v.issue))
+    console.log(`  ${color(glyph)} ${label} ${c.dim(`(${count} components)`)}`)
+    for (const { issue, locale } of visible) {
+      if (!opts.verbose && issue.severity !== 'error') continue
+      const where = [issue.contentPath, locale && `language ${locale}`].filter(Boolean).join(', ')
+      console.log(`      ${severityIcon(issue.severity)} ${issue.message}${where ? c.dim(` (${where})`) : ''}`)
     }
   }
 
+  for (const [pageName, page] of site.pages) {
+    const locales = site.pageLocales.get(pageName)?.locales.keys() ?? []
+    printItem(pageName, page.dir, 'page', locales, page.components?.length ?? 0)
+  }
+
   for (const [fragName, frag] of site.fragments) {
-    const path = `${frag.dir}/fragment.json`
-    const issues = issuesByPath.get(path) ?? []
-    const visible = issues.filter(i => shouldShow(i.severity))
-    const { glyph, color } = summaryGlyph(visible)
-    const childCount = frag.components?.length ?? 0
-    console.log(`  ${color(glyph)} @${fragName} ${c.dim(`(${childCount} components)`)}`)
-    if (opts.verbose) {
-      for (const issue of visible) {
-        console.log(`      ${severityIcon(issue.severity)} ${issue.message}`)
-      }
-    }
+    const locales = site.fragmentLocales.get(fragName)?.locales.keys() ?? []
+    printItem(`@${fragName}`, frag.dir, 'fragment', locales, frag.components?.length ?? 0)
   }
 
   // 5. Project-structure checks (orphaned editors, missing custom fields).
