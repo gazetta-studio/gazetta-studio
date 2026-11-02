@@ -21,7 +21,13 @@ import { buildHooksRegistry, createAdminApp } from '../admin-api/index.js'
 import { parseValidateFlags } from './validate-flags.js'
 import { logDefaultedPublicTargets } from '../validation/validators/public-storage-config.js'
 import { parseArgs } from './args.js'
-import { agentsSectionHint, readAgentsSection, withAgentsSection, withClaudeImport } from './agents-section.js'
+import {
+  agentsSectionHint,
+  claudeImportApplies,
+  readAgentsSection,
+  withAgentsSection,
+  withClaudeImport,
+} from './agents-section.js'
 import { describeAgentsUpdate, findGazettaProject, updateAgents } from './agents-update.js'
 import { authTrustOf, exitOnListenError, resolveListenHost, SERVER_COMMANDS } from './listen-host.js'
 import { devNotFound } from './dev-not-found.js'
@@ -667,7 +673,9 @@ export default template
   )
   if (agentsContent !== undefined) await writeFile(agentsPath, agentsContent)
   const claudePath = join(target, 'CLAUDE.md')
-  const claudeContent = existsSync(claudePath) ? withClaudeImport(readFileSync(claudePath, 'utf-8')) : undefined
+  const claudeContent = claudeImportApplies(claudePath, agentsPath)
+    ? withClaudeImport(readFileSync(claudePath, 'utf-8'))
+    : undefined
   if (claudeContent !== undefined) await writeFile(claudePath, claudeContent)
 
   const { intro, outro, note, spinner } = await import('@clack/prompts')

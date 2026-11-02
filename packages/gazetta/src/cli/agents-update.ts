@@ -7,7 +7,7 @@
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import { readAgentsSection, replaceAgentsSection, withClaudeImport } from './agents-section.js'
+import { claudeImportApplies, readAgentsSection, replaceAgentsSection, withClaudeImport } from './agents-section.js'
 
 /**
  * The nearest folder at or above `from` whose package.json depends on
@@ -46,7 +46,9 @@ export function updateAgents(project: string, packageRoot: string): AgentsUpdate
   if (update.change !== 'current') writeFileSync(agentsPath, update.content)
 
   const claudePath = join(project, 'CLAUDE.md')
-  const claude = existsSync(claudePath) ? withClaudeImport(readFileSync(claudePath, 'utf-8')) : undefined
+  const claude = claudeImportApplies(claudePath, agentsPath)
+    ? withClaudeImport(readFileSync(claudePath, 'utf-8'))
+    : undefined
   if (claude !== undefined) writeFileSync(claudePath, claude)
 
   return {

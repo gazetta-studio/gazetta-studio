@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 
 /** Starts the section Gazetta owns in a project's AGENTS.md (the marker carries the version). */
@@ -97,4 +97,14 @@ export function agentsSectionHint(agentsMd: string | undefined, packageVersion: 
       ? 'no Gazetta agent section'
       : `Gazetta's agent section from ${version ?? 'an unknown version'}`
   return `AGENTS.md has ${had}; run \`gazetta agents update\`.`
+}
+
+/**
+ * Whether CLAUDE.md needs the `@AGENTS.md` import at all: not when there's
+ * no CLAUDE.md, and not when it is AGENTS.md itself (a symlink), where the
+ * import would land in AGENTS.md as a line importing itself.
+ */
+export function claudeImportApplies(claudePath: string, agentsPath: string): boolean {
+  if (!existsSync(claudePath)) return false
+  return !existsSync(agentsPath) || realpathSync(claudePath) !== realpathSync(agentsPath)
 }
