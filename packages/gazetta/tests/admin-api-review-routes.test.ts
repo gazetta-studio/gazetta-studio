@@ -172,6 +172,18 @@ describe('review transitions', () => {
     expect(await markerExists(h, 'page', 'home')).toBe(false)
   })
 
+  it('two approvals at the same moment still reach the threshold', async () => {
+    const h = setup({ review: { enabled: true, requiredApprovers: 2 }, auth: FORWARDED })
+    await post(h, 'page', 'home', 'submit', { headers: as('alice@example.com', 'admins') })
+    const [a, b] = await Promise.all([
+      post(h, 'page', 'home', 'approve', { headers: as('bob@example.com', 'admins') }),
+      post(h, 'page', 'home', 'approve', { headers: as('carol@example.com', 'admins') }),
+    ])
+    expect([a.status, b.status]).toEqual([200, 200])
+    expect((await readReviewSidecar(h.contentRoot, 'page', 'home'))?.state).toBe('approved')
+    expect(await markerExists(h, 'page', 'home')).toBe(false)
+  })
+
   it('a missing item answers 404', async () => {
     const h = setup()
     const res = await post(h, 'page', 'nope', 'submit')
