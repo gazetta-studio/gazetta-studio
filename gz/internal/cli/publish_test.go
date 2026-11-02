@@ -51,6 +51,25 @@ func TestPublishToProductionAsksForAProductionElevation(t *testing.T) {
 	}
 }
 
+func TestPublishToProductionAsksForBothElevationsInTurn(t *testing.T) {
+	h, a := publishing(t)
+	h.must(t, "publish", "home", "--to", "production")
+	if !slices.Equal(a.Elevation.Started, []string{"non-production", "production"}) || len(a.Elevation.Published) != 1 {
+		t.Fatalf("started %v published %v", a.Elevation.Started, a.Elevation.Published)
+	}
+}
+
+func TestPublishReportsARefusalAfterTheElevation(t *testing.T) {
+	h, a := publishing(t)
+	a.Elevation.Refuse = "non-production"
+	if code := h.run("publish", "home", "--to", "staging"); code != output.NeedsLogin {
+		t.Fatalf("exit %d stderr %q", code, h.stderr.String())
+	}
+	if len(a.Elevation.Started) != 1 || len(a.Elevation.Published) != 0 {
+		t.Fatalf("asked again: started %v", a.Elevation.Started)
+	}
+}
+
 func TestPublishWithoutWaitingExitsThree(t *testing.T) {
 	for name, set := range map[string]func(h *harness) []string{
 		"--no-wait": func(h *harness) []string { return []string{"--no-wait"} },
@@ -115,12 +134,14 @@ func TestElevateAheadOfTimeAndEnd(t *testing.T) {
 	if !slices.Equal(a.Elevation.Started, []string{"production"}) || !strings.Contains(h.stdout.String(), "Elevated for production targets") {
 		t.Fatalf("started %v stdout %q", a.Elevation.Started, h.stdout.String())
 	}
+	// The route also checks non-production rights, so the publish asks for
+	// that one too, and not again for production.
 	h.must(t, "publish", "home", "--to", "production")
-	if len(a.Elevation.Started) != 1 {
-		t.Fatalf("asked again: %v", a.Elevation.Started)
+	if !slices.Equal(a.Elevation.Started, []string{"production", "non-production"}) {
+		t.Fatalf("started %v", a.Elevation.Started)
 	}
 	h.must(t, "elevate", "--end")
-	if !slices.Equal(a.Elevation.Ended, []string{"el-1"}) || len(a.Elevation.Active) != 0 {
+	if !slices.Equal(a.Elevation.Ended, []string{"el-1", "el-2"}) && !slices.Equal(a.Elevation.Ended, []string{"el-2", "el-1"}) || len(a.Elevation.Active) != 0 {
 		t.Fatalf("ended %v active %v", a.Elevation.Ended, a.Elevation.Active)
 	}
 	st, _ := state.Load(state.Path(h.env.ConfigDir))

@@ -92,11 +92,17 @@ func publish(ctx *context, args []string) error {
 	if err != nil {
 		return err
 	}
-	if refused != nil && refused.Code == "ELEVATION_REQUIRED" {
-		// On a target that needs approval, a publish without an elevation
-		// will create a publish request instead (Q20, Q29), once review
-		// workflow cuts 12-13 make the gate real; that path goes here.
-		if _, err := ctx.elevate(s, scopeOf(refused)); err != nil {
+	// Publishing to production asks for two elevations in turn: the route
+	// checks non-production rights first, then production (Q17). A scope
+	// refused again after its elevation is reported, not asked twice.
+	// On a target that needs approval, a publish without an elevation will
+	// create a publish request instead (Q20, Q29), once review workflow
+	// cuts 12-13 make the gate real; that path goes here.
+	asked := map[string]bool{}
+	for refused != nil && refused.Code == "ELEVATION_REQUIRED" && !asked[scopeOf(refused)] {
+		scope := scopeOf(refused)
+		asked[scope] = true
+		if _, err := ctx.elevate(s, scope); err != nil {
 			return err
 		}
 		results, refused, err = s.Publish(ctx.env.Ctx, items, []string{to})
