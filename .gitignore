@@ -39,6 +39,8 @@ reports/
 # Per-instance JSONL files (events-{instance}.jsonl). Same anchoring as
 # history; never committed.
 **/targets/**/.gazetta/audit/
+# `gazetta validate --base` extracts the base commit's project here while it runs (#1750).
+**/.gazetta/tmp/
 
 # Rendered output from `gazetta publish` to filesystem targets. The
 # editable source of truth (page.json, fragment.json, site.config.ts) stays

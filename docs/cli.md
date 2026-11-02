@@ -104,6 +104,7 @@ Content that doesn't fit its template's schema (a required field missing, a valu
 | `--include-quality` | Also render each page and run the accessibility, HTML validity and broken-link checks. Slower |
 | `--no-warn-as-error` | Don't fail the run on warnings (with `--severity=warn` or `all`) |
 | `--verbose`, `-v` | Also list each warning and info item; errors are always listed |
+| `--base <ref>` | Fail only on problems the commit `<ref>` (for example `origin/main`) didn't have. Its content is checked against its own templates, and the problems it already had are listed apart as "already broken". A problem counts as already broken when it's on the same item, language, component and field, even if the message reads differently. `<ref>` must be a commit git can find; exit code 2 otherwise |
 | `--json` | Print the report as one JSON document on stdout, and everything else on stderr. Same as `--format json` |
 | `--format github` | For GitHub Actions: append a job summary (a table per template) to the file `GITHUB_STEP_SUMMARY` names, or print it when that's unset, and print one annotation per broken template on its entry file |
 
@@ -115,6 +116,7 @@ The JSON report:
 | `counts` | `error`, `warn` and `info`: every issue found, whether `--severity` lists it or not |
 | `templates` | One entry per template with problems, by name: `template`, `file` (its entry file, such as `templates/hero/index.tsx`), `issues` (problems with the template itself) and `items` |
 | `other` | Problems that belong to no template, such as a missing fragment, a site config issue or an orphaned editor, by item or file |
+| `alreadyBroken` | With `--base`: the problems `<ref>` already had, as `templates` and `other`. They don't count toward `ok` or `counts` |
 
 Each item has `kind` (`page` or `fragment`), `name`, `locale` (`null` for the default language) and `issues`. Each issue has `validator`, `severity`, `message`, `component` (the component's path in the item) and `contentPath` (the field in its content, such as `cta`).
 

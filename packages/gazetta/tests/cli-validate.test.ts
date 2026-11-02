@@ -16,7 +16,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { spawnSync } from 'node:child_process'
 import { resolve, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const cliEntry = resolve(here, '../dist/cli/index.js')
@@ -274,5 +274,110 @@ describe('gazetta validate (CLI) — a large --json report through a pipe (Seer 
     const report = JSON.parse(result.stdout)
     expect(report.templates.find((t: { template: string }) => t.template === 'hero').items).toHaveLength(300)
     expect(result.status).toBe(1)
+  })
+})
+
+describe('gazetta validate (CLI) — --base (#1750)', () => {
+  const made: string[] = []
+  const pagesOf = (dir: string) => join(dir, 'sites/main/targets/local/pages')
+  const git = (dir: string, ...args: string[]) =>
+    spawnSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', '-c', 'commit.gpgsign=false', ...args], {
+      cwd: dir,
+      encoding: 'utf-8',
+    })
+  const heroPage = (dir: string, name: string) => {
+    mkdirSync(join(pagesOf(dir), name), { recursive: true })
+    writeFileSync(
+      join(pagesOf(dir), name, 'page.json'),
+      JSON.stringify({
+        template: 'page-default',
+        route: `/${name}`,
+        components: [{ name: 'hero', template: 'hero', content: {} }],
+      }),
+    )
+  }
+  const addRef = (dir: string, page: string, ref: string) => {
+    const path = join(pagesOf(dir), page, 'page.json')
+    const json = JSON.parse(readFileSync(path, 'utf-8'))
+    json.components.push(ref)
+    writeFileSync(path, JSON.stringify(json))
+  }
+
+  /** A starter copy in its own git repository; `base` changes what the base commit has. */
+  function repo(base: (dir: string) => void = () => {}): string {
+    const dir = resolve(here, '../../../.tmp', `cli-validate-base-${Date.now()}-${made.length}`)
+    made.push(dir)
+    cpSync(starterDir, dir, { recursive: true, filter: src => !src.includes('node_modules') && !src.includes('/dist') })
+    base(dir)
+    git(dir, 'init', '-q')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'base')
+    return dir
+  }
+  function validate(dir: string, args: string[]) {
+    const result = spawnSync('node', [cliEntry, 'validate', 'sites/main', '--json', ...args], {
+      cwd: dir,
+      env: { ...process.env, NO_COLOR: '1' },
+      encoding: 'utf-8',
+    })
+    return { report: result.stdout ? JSON.parse(result.stdout) : null, stderr: result.stderr, status: result.status }
+  }
+  const names = (templates: { template: string; items: { name: string; locale: string | null }[] }[]) =>
+    templates.flatMap(t => t.items.map(i => `${t.template}:${i.name}${i.locale ? `:${i.locale}` : ''}`))
+  const leftovers = (dir: string) => {
+    const tmp = join(dir, '.gazetta/tmp')
+    return existsSync(tmp) ? readdirSync(tmp) : []
+  }
+
+  afterAll(() => {
+    for (const dir of made) rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('fails on two newly broken pages and lists the one main already had, even with the message reworded', {
+    timeout: 60_000,
+  }, () => {
+    const dir = repo(d => heroPage(d, 'old'))
+    heroPage(dir, 'new-a')
+    heroPage(dir, 'new-b')
+    // A schema change that only rewords the message for the field `old` already broke.
+    const hero = join(dir, 'templates/hero/index.ts')
+    writeFileSync(
+      hero,
+      readFileSync(hero, 'utf-8').replace('title: z.string()', "title: z.string({ error: 'A title is required' })"),
+    )
+    const { report, status } = validate(dir, ['--base', 'HEAD'])
+    expect(names(report.templates).sort()).toEqual(['hero:new-a', 'hero:new-b'])
+    expect(names(report.alreadyBroken.templates)).toEqual(['hero:old'])
+    expect(report.alreadyBroken.templates[0].items[0].issues[0].message).toContain('A title is required')
+    expect(report.counts.error).toBe(2)
+    expect(status).toBe(1)
+    expect(leftovers(dir)).toEqual([])
+  })
+
+  it('passes when nothing changed, listing what main already had', { timeout: 60_000 }, () => {
+    const dir = repo(d => heroPage(d, 'old'))
+    const { report, status } = validate(dir, ['--base', 'HEAD'])
+    expect(report.ok).toBe(true)
+    expect(report.templates).toEqual([])
+    expect(names(report.alreadyBroken.templates)).toEqual(['hero:old'])
+    expect(status).toBe(0)
+  })
+
+  it('fails on a new missing fragment, and passes when it only keeps an old one', { timeout: 60_000 }, () => {
+    const kept = repo(d => addRef(d, 'about', '@gone'))
+    expect(validate(kept, ['--base', 'HEAD']).status).toBe(0)
+    const added = repo()
+    addRef(added, 'about', '@gone')
+    const { report, status } = validate(added, ['--base', 'HEAD'])
+    expect(report.other).toContainEqual(expect.objectContaining({ kind: 'page', name: 'about' }))
+    expect(status).toBe(1)
+  })
+
+  it("exits 2 for a ref git can't find, and leaves nothing behind", { timeout: 60_000 }, () => {
+    const dir = repo()
+    const { stderr, status } = validate(dir, ['--base', 'nope'])
+    expect(stderr).toContain("--base nope: git can't find that commit")
+    expect(status).toBe(2)
+    expect(leftovers(dir)).toEqual([])
   })
 })

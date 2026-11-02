@@ -75,4 +75,16 @@ describe('renderGithub', () => {
   it('escapes a backslash before a pipe in a table cell (CodeQL on #1749)', () => {
     expect(cell('a\\|b\nc')).toBe('a\\\\\\|b c')
   })
+
+  it('puts already-broken problems in a collapsed block, without annotating them (#1750)', () => {
+    const alreadyBroken = { templates: failing.templates, other: [] }
+    const passing: ValidateReport = { ok: true, counts: { error: 0, warn: 0, info: 0 }, templates: [], other: [], alreadyBroken }
+    const { summary, annotations } = renderGithub(passing)
+    expect(summary).toMatch(/^\*\*Template check passed\.\*\*/)
+    expect(summary).toContain('<details><summary>Already broken (not caused by this change)</summary>')
+    expect(summary).toContain('#### `hero`')
+    expect(summary).toContain('| pages/about | default | hero › title | title: Required |')
+    expect(annotations).toEqual([])
+  })
 })
+

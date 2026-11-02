@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { access } from 'node:fs/promises'
 import { createJiti } from 'jiti'
@@ -9,7 +9,13 @@ interface LoadedTemplate {
   schema: unknown
 }
 
-const cache = new Map<string, LoadedTemplate>()
+/**
+ * Loaded templates by name, then by their templates folder, so two folders'
+ * same-named templates stay apart (`gazetta validate --base` loads the base
+ * commit's templates next to the working tree's, #1750). Invalidating a name
+ * drops it from every folder.
+ */
+const cache = new Map<string, Map<string, LoadedTemplate>>()
 /** Tracks which templates have been imported — reloads use jiti to bypass Node's module cache */
 const importedPaths = new Set<string>()
 
@@ -52,7 +58,8 @@ export async function loadTemplate(
   templatesDir: string,
   templateName: string,
 ): Promise<LoadedTemplate> {
-  const cached = cache.get(templateName)
+  const dirKey = resolve(templatesDir)
+  const cached = cache.get(templateName)?.get(dirKey)
   if (cached) return cached
 
   const templatePath = await findTemplateFile(templatesDir, templateName)
@@ -90,7 +97,9 @@ export async function loadTemplate(
     schema: mod.schema,
   }
 
-  cache.set(templateName, loaded)
+  const perDir = cache.get(templateName) ?? new Map<string, LoadedTemplate>()
+  perDir.set(dirKey, loaded)
+  cache.set(templateName, perDir)
   return loaded
 }
 
