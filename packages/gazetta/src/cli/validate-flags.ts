@@ -12,7 +12,10 @@
  *   --verbose / -v             (default: off — errors only under each item)
  *   --json, --format json|github|text  (default: text)
  *   --base <ref>               (default: none — every problem counts)
+ *   --targets <a,b>            (default: none — only the repo's content)
  */
+
+import { parseTargetList } from './validate-targets.js'
 
 export interface ValidateOptions {
   /** Output filter — which severities to display + count toward exit code. */
@@ -27,6 +30,8 @@ export interface ValidateOptions {
   format: 'text' | 'json' | 'github'
   /** A git ref to compare with: only problems it didn't have count (`design-template-check.md` T2). */
   base?: string
+  /** Targets whose stored content is checked too (`design-template-check.md` T5, T10). */
+  targets?: string[]
 }
 
 /**
@@ -60,6 +65,10 @@ export function parseValidateFlags(rawArgs: readonly string[]): ValidateOptions 
       opts.format = 'json'
     } else if (a === '--format') {
       opts.format = asFormat(rawArgs[++i]) ?? opts.format
+    } else if (a === '--targets') {
+      opts.targets = parseTargetList(rawArgs[++i] ?? '')
+    } else if (a.startsWith('--targets=')) {
+      opts.targets = parseTargetList(a.slice('--targets='.length))
     } else if (a === '--base') {
       opts.base = rawArgs[++i]
     } else if (a.startsWith('--base=')) {

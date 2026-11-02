@@ -39,32 +39,37 @@ const schemaIssue = (itemPath: string): Issue => ({
   field: 'title',
 })
 
-async function build(extra: Partial<Parameters<typeof buildValidateReport>[0]> = {}) {
+async function build(extra: Record<string, unknown> = {}) {
   const projectRoot = mkdtempSync(join(tmpdir(), 'report-'))
   mkdirSync(join(projectRoot, 'templates/hero'), { recursive: true })
   writeFileSync(join(projectRoot, 'templates/hero/index.ts'), '')
+  const { itemIssues, configIssues, projectIssues, ...rest } = extra as Record<string, unknown>
   return buildValidateReport({
-    site: site(),
     projectRoot,
     templatesDir: join(projectRoot, 'templates'),
-    itemIssues: [
-      schemaIssue('fragments/promo/fragment.json'),
-      schemaIssue('pages/home/page.fr.json'),
-      schemaIssue('pages/about/page.json'),
-      {
-        validator: 'referenced-fragment-exists',
-        severity: 'error',
-        message: 'Fragment @missing not found',
-        itemPath: 'pages/about/page.json',
-      },
-    ],
-    configIssues: [],
-    projectIssues: [],
+    editingTarget: 'local',
     show: () => true,
     warnAsError: true,
-    ...extra,
+    ...rest,
+    lists: {
+      content: [{ target: null, site: site(), itemIssues: (itemIssues as Issue[] | undefined) ?? defaultItemIssues }],
+      configIssues: (configIssues as Issue[] | undefined) ?? [],
+      projectIssues: (projectIssues as never[] | undefined) ?? [],
+    },
   })
 }
+
+const defaultItemIssues: Issue[] = [
+  schemaIssue('fragments/promo/fragment.json'),
+  schemaIssue('pages/home/page.fr.json'),
+  schemaIssue('pages/about/page.json'),
+  {
+    validator: 'referenced-fragment-exists',
+    severity: 'error',
+    message: 'Fragment @missing not found',
+    itemPath: 'pages/about/page.json',
+  },
+]
 
 describe('buildValidateReport', () => {
   it('groups two pages and a fragment under the template they break, French included', async () => {

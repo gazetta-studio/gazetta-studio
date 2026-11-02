@@ -1382,18 +1382,44 @@ async function runValidate(siteDir: string, rawArgs: readonly string[] = []) {
     : existsSync(join(siteDir, 'site.config.js'))
       ? 'site.config.js'
       : 'site.config.mjs'
-  const { runChecks, SiteLoadError } = await import('./validate-run.js')
-  const runInput = { siteDir, projectRoot, templatesDir, includeQuality: opts.includeQuality }
+  const { runChecks, SiteLoadError, TargetReadError } = await import('./validate-run.js')
+  const refuse = async (message: string): Promise<never> => {
+    restoreLog()
+    console.error(`  ${c.red('✗')} ${message}`)
+    process.exit(2)
+  }
+
+  // --targets: every name is resolved and read before any check runs; none is skipped (T10, T11).
+  const { buildSourceContext } = await import('./bootstrap.js')
+  let editingTarget = 'local'
+  let targets: import('./validate-run.js').TargetSource[] = []
+  try {
+    const built = await buildSourceContext({ projectSiteDir: siteDir })
+    editingTarget = built.source.targetName ?? editingTarget
+    if (opts.targets) {
+      const { resolveTargets } = await import('./validate-targets.js')
+      targets = await resolveTargets(opts.targets, built.targetConfigs)
+    }
+  } catch (err) {
+    const { TargetRefusal } = await import('./validate-targets.js')
+    if (err instanceof TargetRefusal) await refuse(err.message)
+    console.error(`  ${c.red('✗')} ${configLabel} ${c.dim(`— ${(err as Error).message}`)}`)
+    process.exit(1)
+  }
+
+  const runInput = { siteDir, projectRoot, templatesDir, includeQuality: opts.includeQuality, targets }
   let head: Awaited<ReturnType<typeof runChecks>>
   try {
     head = await runChecks(runInput)
-    console.log(`  ${c.green('✓')} ${configLabel} ${c.dim(`— ${head.site.manifest.name}`)}`)
+    console.log(`  ${c.green('✓')} ${configLabel} ${c.dim(`— ${head.content[0].site.manifest.name}`)}`)
+    for (const t of targets) console.log(`  ${c.green('✓')} target ${t.name}`)
   } catch (err) {
+    if (err instanceof TargetReadError) await refuse(err.message)
     if (!(err instanceof SiteLoadError)) throw err
-    console.error(`  ${c.red('✗')} ${configLabel} ${c.dim(`— ${err.message}`)}`)
+    console.error(`  ${c.red('✗')} ${configLabel} ${c.dim(`— ${(err as Error).message}`)}`)
     process.exit(1)
   }
-  const site = head.site
+  const site = head.content[0].site
 
   // 2. With --base, the same checks on the base commit; only problems it
   //    didn't have count (T2).
@@ -1416,7 +1442,7 @@ async function runValidate(siteDir: string, rawArgs: readonly string[] = []) {
       console.log(`  ${c.green('✓')} base ${c.dim(`— ${opts.base} (${checkout.sha.slice(0, 12)})`)}`)
       ;({ fresh: lists, alreadyBroken } = compareRuns(head, base))
     } catch (err) {
-      if (err instanceof BaseRefError) failure = err.message
+      if (err instanceof BaseRefError || err instanceof TargetReadError) failure = err.message
       else if (err instanceof SiteLoadError)
         failure = `--base ${opts.base}: the base commit's site couldn't be loaded: ${err.message}`
       else throw err
@@ -1436,11 +1462,11 @@ async function runValidate(siteDir: string, rawArgs: readonly string[] = []) {
   const show = (severity: 'error' | 'warn' | 'info') =>
     opts.severity === 'all' || severity === 'error' || (opts.severity === 'warn' && severity === 'warn')
   const report = await buildValidateReport({
-    site,
     projectRoot,
     templatesDir,
-    ...lists,
+    lists,
     alreadyBroken,
+    editingTarget,
     show,
     warnAsError: opts.warnAsError,
   })

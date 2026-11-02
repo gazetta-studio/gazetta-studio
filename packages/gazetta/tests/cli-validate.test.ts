@@ -381,3 +381,105 @@ describe('gazetta validate (CLI) — --base (#1750)', () => {
     expect(leftovers(dir)).toEqual([])
   })
 })
+
+describe('gazetta validate (CLI) — --targets (#1754)', () => {
+  const made: string[] = []
+  const deny = "async () => { throw new Error('access denied') }"
+  const extraTargets =
+    "    pub: { storage: filesystemStorage({ path: './dist/pub' }) },\n" +
+    `    denied: { storage: { readFile: ${deny}, writeFile: ${deny}, readDir: ${deny}, exists: ${deny}, mkdir: ${deny}, rm: ${deny} }, publicStorage: false },\n`
+  const git = (dir: string, ...args: string[]) =>
+    spawnSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', '-c', 'commit.gpgsign=false', ...args], {
+      cwd: dir,
+      encoding: 'utf-8',
+    })
+
+  /** A starter copy whose staging target holds a page `promo` with a hero lacking its title. */
+  function project(): string {
+    const dir = resolve(here, '../../../.tmp', `cli-validate-targets-${Date.now()}-${made.length}`)
+    made.push(dir)
+    cpSync(starterDir, dir, { recursive: true, filter: src => !src.includes('node_modules') && !src.includes('/dist') })
+    const config = join(dir, 'sites/main/site.config.ts')
+    writeFileSync(config, readFileSync(config, 'utf-8').replace('    staging: {\n', `${extraTargets}    staging: {\n`))
+    const promo = join(dir, 'sites/main/dist/staging/pages/promo')
+    mkdirSync(promo, { recursive: true })
+    writeFileSync(
+      join(promo, 'page.json'),
+      JSON.stringify({
+        template: 'page-default',
+        route: '/promo',
+        components: [{ name: 'hero', template: 'hero', content: {} }],
+      }),
+    )
+    return dir
+  }
+  function validate(dir: string, args: string[]) {
+    const result = spawnSync('node', [cliEntry, 'validate', 'sites/main', '--json', ...args], {
+      cwd: dir,
+      env: { ...process.env, NO_COLOR: '1' },
+      encoding: 'utf-8',
+    })
+    return { report: result.stdout ? JSON.parse(result.stdout) : null, stderr: result.stderr, status: result.status }
+  }
+
+  afterAll(() => {
+    for (const dir of made) rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('fails on a target page that breaks hero, naming the target and the fix', { timeout: 60_000 }, () => {
+    const { report, status } = validate(project(), ['--targets', 'staging'])
+    const hero = report.templates.find((t: { template: string }) => t.template === 'hero')
+    expect(hero.items).toEqual([
+      expect.objectContaining({
+        kind: 'page',
+        name: 'promo',
+        locale: null,
+        target: 'staging',
+        fix: "pages/promo on staging doesn't fit the new `hero`: publish staging → local, fix it here.",
+        issues: [expect.objectContaining({ component: 'hero', contentPath: 'title' })],
+      }),
+    ])
+    expect(status).toBe(1)
+  })
+
+  it('lists a target page already broken under the base templates, and passes', { timeout: 60_000 }, () => {
+    const dir = project()
+    git(dir, 'init', '-q')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'base')
+    const { report, status } = validate(dir, ['--targets', 'staging', '--base', 'HEAD'])
+    expect(report.templates).toEqual([])
+    expect(report.alreadyBroken.templates[0].items).toEqual([
+      expect.objectContaining({ name: 'promo', target: 'staging', fix: null }),
+    ])
+    expect(status).toBe(0)
+  })
+
+  it('passes on a freshly published static target, whose fragments are baked into its pages', {
+    timeout: 120_000,
+  }, () => {
+    const dir = project()
+    rmSync(join(dir, 'sites/main/dist/staging'), { recursive: true, force: true })
+    const published = spawnSync('node', [cliEntry, 'publish', 'staging', 'sites/main', '--force'], {
+      cwd: dir,
+      env: { ...process.env, NO_COLOR: '1', CI: 'true' },
+      encoding: 'utf-8',
+    })
+    expect(published.status, published.stdout + published.stderr).toBe(0)
+    expect(existsSync(join(dir, 'sites/main/dist/staging/fragments'))).toBe(false)
+    const { report, status } = validate(dir, ['--targets', 'staging'])
+    expect(report.templates).toEqual([])
+    expect(report.other.filter((o: { target?: string | null }) => o.target === 'staging')).toEqual([])
+    expect(status).toBe(0)
+  })
+
+  it.each([
+    ['nope', 'No target named `nope`. Targets: local, pub, denied, staging, esi-test, production.'],
+    ['pub', '`pub` is public storage, which holds no manifests. Remove it from `--targets`.'],
+    ['denied', "Couldn't read target `denied`: access denied"],
+  ])('refuses --targets %s with exit 2', { timeout: 60_000 }, (name, message) => {
+    const { stderr, status } = validate(project(), ['--targets', name])
+    expect(stderr).toContain(message)
+    expect(status).toBe(2)
+  })
+})

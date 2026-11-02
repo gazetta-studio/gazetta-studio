@@ -105,6 +105,7 @@ Content that doesn't fit its template's schema (a required field missing, a valu
 | `--no-warn-as-error` | Don't fail the run on warnings (with `--severity=warn` or `all`) |
 | `--verbose`, `-v` | Also list each warning and info item; errors are always listed |
 | `--base <ref>` | Fail only on problems the commit `<ref>` (for example `origin/main`) didn't have. Its content is checked against its own templates, and the problems it already had are listed apart as "already broken". A problem counts as already broken when it's on the same item, language, component and field, even if the message reads differently. `<ref>` must be a commit git can find; exit code 2 otherwise |
+| `--targets <a,b>` | Also check the content stored on the named targets, with the working tree's templates (and, with `--base`, the base commit's). Each problem there says how to fix it: publish the target's content back to the editing target, fix it in the PR, and publish again. CI needs each target's read credentials, the same ones `gazetta publish` uses. On a static target, missing fragments aren't checked: its fragments are baked into its pages at publish, so it stores none, and the repo's own check covers them. A name that isn't a target, a public target (it holds no manifests) or a target that can't be read stops the run with exit code 2; no target is skipped |
 | `--json` | Print the report as one JSON document on stdout, and everything else on stderr. Same as `--format json` |
 | `--format github` | For GitHub Actions: append a job summary (a table per template) to the file `GITHUB_STEP_SUMMARY` names, or print it when that's unset, and print one annotation per broken template on its entry file |
 
@@ -118,7 +119,7 @@ The JSON report:
 | `other` | Problems that belong to no template, such as a missing fragment, a site config issue or an orphaned editor, by item or file |
 | `alreadyBroken` | With `--base`: the problems `<ref>` already had, as `templates` and `other`. They don't count toward `ok` or `counts` |
 
-Each item has `kind` (`page` or `fragment`), `name`, `locale` (`null` for the default language) and `issues`. Each issue has `validator`, `severity`, `message`, `component` (the component's path in the item) and `contentPath` (the field in its content, such as `cta`).
+Each item has `kind` (`page` or `fragment`), `name`, `locale` (`null` for the default language), `target` (`null` for the repo, or the target's name), `fix` (for a target's item with a new problem, how to fix it) and `issues`. Each issue has `validator`, `severity`, `message`, `component` (the component's path in the item) and `contentPath` (the field in its content, such as `cta`).
 
 Exit code: 1 when there are errors. With `--severity=warn` or `all`, warnings fail the run too, unless `--no-warn-as-error` is set; with the default `--severity=error`, a run with only warnings reports "All good." and exits 0. Site config issues and the template, editor and field checks are shown whatever `--severity` is.
 
