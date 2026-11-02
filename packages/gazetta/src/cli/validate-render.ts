@@ -5,7 +5,7 @@
  * nothing to it.
  */
 import type { Site } from '../site-loader.js'
-import type { ReportIssue, ValidateReport } from './validate-report.js'
+import type { ReportIssue, ReportItem, ValidateReport } from './validate-report.js'
 
 type Severity = ReportIssue['severity']
 type Paint = (s: string) => string
@@ -44,8 +44,12 @@ export function renderText(
     const key = `${kind}:${name}`
     byItem.set(key, [...(byItem.get(key) ?? []), ...issues.map(issue => ({ issue, locale }))])
   }
-  for (const t of report.templates) for (const i of t.items) add(i.kind, i.name, i.locale, i.issues)
-  for (const o of report.other) if (o.kind === 'page' || o.kind === 'fragment') add(o.kind, o.name, o.locale, o.issues)
+  // The repo's items get a row each below; targets' items are listed after them (#1754).
+  const targetItems: ReportItem[] = []
+  const place = (item: ReportItem) =>
+    item.target === null ? add(item.kind, item.name, item.locale, item.issues) : targetItems.push(item)
+  for (const t of report.templates) for (const i of t.items) place(i)
+  for (const o of report.other) if (o.kind === 'page' || o.kind === 'fragment') place(o)
 
   const row = (kind: string, name: string, label: string, count: number) => {
     const issues = byItem.get(`${kind}:${name}`) ?? []
@@ -60,6 +64,17 @@ export function renderText(
   }
   for (const [name, page] of site.pages) row('page', name, name, page.components?.length ?? 0)
   for (const [name, frag] of site.fragments) row('fragment', name, `@${name}`, frag.components?.length ?? 0)
+
+  for (const item of targetItems) {
+    const shown = item.issues.filter(i => verbose || i.severity === 'error')
+    if (shown.length === 0) continue
+    lines.push(`  ${icon(worstOf(item.issues.map(i => i.severity)) ?? 'info')} ${placeLabel(item)}`)
+    for (const issue of shown) {
+      const where = [issue.component, item.locale && `language ${item.locale}`].filter(Boolean).join(', ')
+      lines.push(`      ${icon(issue.severity)} ${issue.message}${where ? c.dim(` (${where})`) : ''}`)
+    }
+    if (item.fix) lines.push(`      ${c.dim(item.fix)}`)
+  }
 
   for (const t of report.templates) {
     for (const issue of t.issues) lines.push(`  ${icon(issue.severity)} ${issue.message}`)
@@ -140,9 +155,12 @@ function tables(templates: ValidateReport['templates'], other: ValidateReport['o
       for (const item of t.items)
         for (const issue of item.issues)
           out.push(
-            `| ${cell(itemLabel(item.kind, item.name))} | ${item.locale ?? 'default'} | ${cell(field(issue))} | ${cell(issue.message)} |`,
+            `| ${cell(placeLabel(item))} | ${item.locale ?? 'default'} | ${cell(field(issue))} | ${cell(issue.message)} |`,
           )
       out.push('')
+      const fixes = [...new Set(t.items.flatMap(i => (i.fix ? [i.fix] : [])))]
+      for (const fix of fixes) out.push(`- ${cell(fix)}`)
+      if (fixes.length > 0) out.push('')
     }
   }
   if (other.length > 0) {
@@ -150,9 +168,12 @@ function tables(templates: ValidateReport['templates'], other: ValidateReport['o
     for (const o of other)
       for (const issue of o.issues)
         out.push(
-          `| ${cell(itemLabel(o.kind, o.name))} | ${o.locale ?? (o.kind === 'page' || o.kind === 'fragment' ? 'default' : '')} | ${cell(issue.message)} |`,
+          `| ${cell(o.kind === 'page' || o.kind === 'fragment' ? placeLabel(o) : o.name)} | ${o.locale ?? (o.kind === 'page' || o.kind === 'fragment' ? 'default' : '')} | ${cell(issue.message)} |`,
         )
     out.push('')
+    const fixes = [...new Set(other.flatMap(o => ('fix' in o && o.fix ? [o.fix] : [])))]
+    for (const fix of fixes) out.push(`- ${cell(fix)}`)
+    if (fixes.length > 0) out.push('')
   }
   return out
 }
@@ -160,14 +181,14 @@ function tables(templates: ValidateReport['templates'], other: ValidateReport['o
 /** Every already-broken issue with a label for where it is: a template, an item, the config or a file. */
 function flatten(groups: ValidateReport['alreadyBroken']): { where: string; issue: ReportIssue }[] {
   if (!groups) return []
-  const label = (kind: string, name: string, locale: string | null) =>
-    `${itemLabel(kind, name)}${locale ? ` (${locale})` : ''}`
+  const label = (o: { kind: string; name: string; locale: string | null; target?: string | null }) =>
+    `${itemLabel(o.kind, o.name)}${o.locale ? ` (${o.locale})` : ''}${o.target ? ` on ${o.target}` : ''}`
   return [
     ...groups.templates.flatMap(t => [
       ...t.issues.map(issue => ({ where: `template ${t.template}`, issue })),
-      ...t.items.flatMap(i => i.issues.map(issue => ({ where: label(i.kind, i.name, i.locale), issue }))),
+      ...t.items.flatMap(i => i.issues.map(issue => ({ where: label(i), issue }))),
     ]),
-    ...groups.other.flatMap(o => o.issues.map(issue => ({ where: label(o.kind, o.name, o.locale), issue }))),
+    ...groups.other.flatMap(o => o.issues.map(issue => ({ where: label(o), issue }))),
   ]
 }
 
@@ -180,7 +201,7 @@ function annotation(
   ownIssues: readonly ReportIssue[],
   items: ValidateReport['templates'][number]['items'],
 ): string {
-  const names = items.map(i => `${itemLabel(i.kind, i.name)}${i.locale ? ` (${i.locale})` : ''}`)
+  const names = items.map(i => `${placeLabel(i)}${i.locale ? ` (${i.locale})` : ''}`)
   const title =
     items.length > 0
       ? `${template} doesn't fit ${items.length} item${items.length > 1 ? 's' : ''}`
@@ -210,6 +231,11 @@ export function escapeProperty(s: string): string {
 }
 
 // ---- shared ----------------------------------------------------------------
+
+/** `pages/promo`, or `pages/promo on production` for a target's item. */
+function placeLabel(item: Pick<ReportItem, 'kind' | 'name' | 'target'>): string {
+  return `${itemLabel(item.kind, item.name)}${item.target ? ` on ${item.target}` : ''}`
+}
 
 function itemLabel(kind: string, name: string): string {
   if (kind === 'page') return `pages/${name}`

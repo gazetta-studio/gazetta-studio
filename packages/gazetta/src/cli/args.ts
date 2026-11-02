@@ -33,7 +33,13 @@ export function parseArgs(input: string[]): ParsedArgs {
       yes = true
     } else if (input[i] === '--limit') {
       limit = parseInt(input[++i], 10)
-    } else if (input[i] === '--to' || input[i] === '--format' || input[i] === '--severity' || input[i] === '--base') {
+    } else if (
+      input[i] === '--to' ||
+      input[i] === '--format' ||
+      input[i] === '--severity' ||
+      input[i] === '--base' ||
+      input[i] === '--targets'
+    ) {
       i++ // consume the value: translate and validate read these from raw args
     } else if (input[i].startsWith('--to=')) {
       // consumed by translate command directly

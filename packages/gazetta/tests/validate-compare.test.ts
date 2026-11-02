@@ -17,13 +17,15 @@ function site(root: string): Site {
     manifest: { name: 't', targets: {} },
   } as unknown as Site
 }
-const run = (root: string, lists: Partial<Omit<RunIssues, 'site'>>): RunIssues => ({
-  site: site(root),
-  itemIssues: [],
-  configIssues: [],
-  projectIssues: [],
-  ...lists,
+const run = (
+  root: string,
+  lists: { itemIssues?: Issue[]; configIssues?: Issue[]; projectIssues?: ProjectIssue[]; target?: string | null },
+): RunIssues => ({
+  content: [{ target: lists.target ?? null, site: site(root), itemIssues: lists.itemIssues ?? [] }],
+  configIssues: lists.configIssues ?? [],
+  projectIssues: lists.projectIssues ?? [],
 })
+const items = (lists: RunIssues) => lists.content.flatMap(c => c.itemIssues)
 const schema = (root: string, over: Partial<Issue> = {}): Issue => ({
   validator: 'schema-conformance',
   severity: 'error',
@@ -46,7 +48,7 @@ describe('compareRuns', () => {
       run('head', { itemIssues: [schema('head', headOver)] }),
       run('base', { itemIssues: [schema('base', baseOver)] }),
     )
-    expect(result[expected === 'new' ? 'fresh' : 'alreadyBroken'].itemIssues).toHaveLength(1)
+    expect(items(result[expected === 'new' ? 'fresh' : 'alreadyBroken'])).toHaveLength(1)
   })
 
   it('matches other item issues by validator, item and contentPath', () => {
@@ -61,12 +63,12 @@ describe('compareRuns', () => {
       run('head', { itemIssues: [missing('head')] }),
       run('base', { itemIssues: [missing('base')] }),
     )
-    expect(kept.alreadyBroken.itemIssues).toHaveLength(1)
+    expect(kept.alreadyBroken.content.flatMap(c => c.itemIssues)).toHaveLength(1)
     const moved = compareRuns(
       run('head', { itemIssues: [missing('head', 'cols')] }),
       run('base', { itemIssues: [missing('base')] }),
     )
-    expect(moved.fresh.itemIssues).toHaveLength(1)
+    expect(moved.fresh.content.flatMap(c => c.itemIssues)).toHaveLength(1)
   })
 
   it('tells two missing assets in one component apart (Seer on #1751)', () => {
@@ -82,8 +84,10 @@ describe('compareRuns', () => {
       run('head', { itemIssues: [asset('head', 'icon'), asset('head', 'logo')] }),
       run('base', { itemIssues: [asset('base', 'icon')] }),
     )
-    expect(result.alreadyBroken.itemIssues.map(i => i.message)).toEqual([asset('x', 'icon').message])
-    expect(result.fresh.itemIssues.map(i => i.message)).toEqual([asset('x', 'logo').message])
+    expect(result.alreadyBroken.content.flatMap(c => c.itemIssues).map(i => i.message)).toEqual([
+      asset('x', 'icon').message,
+    ])
+    expect(result.fresh.content.flatMap(c => c.itemIssues).map(i => i.message)).toEqual([asset('x', 'logo').message])
   })
 
   const html = (root: string, line: number, rule = 'attr-quotes'): Issue => ({
@@ -99,8 +103,8 @@ describe('compareRuns', () => {
       run('head', { itemIssues: [html('head', 40)] }),
       run('base', { itemIssues: [html('base', 12)] }),
     )
-    expect(result.alreadyBroken.itemIssues).toHaveLength(1)
-    expect(result.fresh.itemIssues).toHaveLength(0)
+    expect(result.alreadyBroken.content.flatMap(c => c.itemIssues)).toHaveLength(1)
+    expect(result.fresh.content.flatMap(c => c.itemIssues)).toHaveLength(0)
   })
 
   it('counts the same quality rule twice on a page as one problem', () => {
@@ -108,8 +112,8 @@ describe('compareRuns', () => {
       run('head', { itemIssues: [html('head', 12), html('head', 30), html('head', 50, 'no-dup-id')] }),
       run('base', { itemIssues: [html('base', 12)] }),
     )
-    expect(result.alreadyBroken.itemIssues).toHaveLength(2)
-    expect(result.fresh.itemIssues.map(i => i.subject)).toEqual(['no-dup-id'])
+    expect(result.alreadyBroken.content.flatMap(c => c.itemIssues)).toHaveLength(2)
+    expect(result.fresh.content.flatMap(c => c.itemIssues).map(i => i.subject)).toEqual(['no-dup-id'])
   })
 
   it('counts two head issues matching one base issue as already broken', () => {
@@ -117,8 +121,8 @@ describe('compareRuns', () => {
       run('head', { itemIssues: [schema('head'), schema('head', { message: 'title: other wording' })] }),
       run('base', { itemIssues: [schema('base')] }),
     )
-    expect(result.alreadyBroken.itemIssues).toHaveLength(2)
-    expect(result.fresh.itemIssues).toHaveLength(0)
+    expect(result.alreadyBroken.content.flatMap(c => c.itemIssues)).toHaveLength(2)
+    expect(result.fresh.content.flatMap(c => c.itemIssues)).toHaveLength(0)
   })
 
   it('matches config issues by validator and config path', () => {
@@ -152,5 +156,18 @@ describe('compareRuns', () => {
     )
     expect(result.alreadyBroken.projectIssues.map(i => i.field)).toEqual(['color'])
     expect(result.fresh.projectIssues.map(i => i.field)).toEqual(['icon'])
+  })
+
+  it('matches the same page on the repo and on a target separately (#1754)', () => {
+    const result = compareRuns(
+      run('head', { itemIssues: [schema('head')], target: 'production' }),
+      run('base', { itemIssues: [schema('base')] }),
+    )
+    expect(items(result.fresh)).toHaveLength(1)
+    const onTarget = compareRuns(
+      run('head', { itemIssues: [schema('head')], target: 'production' }),
+      run('base', { itemIssues: [schema('base')], target: 'production' }),
+    )
+    expect(items(onTarget.alreadyBroken)).toHaveLength(1)
   })
 })

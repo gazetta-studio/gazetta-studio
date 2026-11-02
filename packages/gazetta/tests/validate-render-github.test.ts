@@ -20,8 +20,8 @@ const failing: ValidateReport = {
       file: 'templates/hero/index.ts',
       issues: [],
       items: [
-        { kind: 'page', name: 'about', locale: null, issues: [issue('title: Required')] },
-        { kind: 'page', name: 'home', locale: 'fr', issues: [issue('title: a|b')] },
+        { kind: 'page', name: 'about', locale: null, target: null, fix: null, issues: [issue('title: Required')] },
+        { kind: 'page', name: 'home', locale: 'fr', target: null, fix: null, issues: [issue('title: a|b')] },
       ],
     },
   ],

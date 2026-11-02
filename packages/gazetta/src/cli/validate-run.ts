@@ -1,12 +1,18 @@
 /**
- * One run of `gazetta validate`'s checks on one project folder: the site's
- * validators (through the scanner, as the admin's background scan runs
- * them), the config validators, and the project checks. Returns the issues;
+ * One run of `gazetta validate`'s checks: the site's validators (through the
+ * scanner, as the admin's background scan runs them) on each content source,
+ * the config validators and the project checks. Returns the issues;
  * reporting them is the report's job. `--base` runs it twice: on the
  * working tree and on the base commit (#1750).
+ *
+ * A content source is the repo's editing target, or a target named with
+ * `--targets` (#1754). Targets get the content checks only, with the run's
+ * templates; config and project checks run once, on the repo.
  */
+import { createContentRoot, type ContentRoot } from '../content-root.js'
 import { loadSite, type Site } from '../site-loader.js'
-import type { Issue } from '../validation/types.js'
+import type { SiteManifest, StorageProvider } from '../types.js'
+import type { Issue, Validator } from '../validation/types.js'
 import { checkProject, type ProjectIssue } from './project-checks.js'
 import { withCliSeverity } from './validate-severity.js'
 
@@ -18,12 +24,29 @@ export interface RunInput {
   projectRoot: string
   templatesDir: string
   includeQuality: boolean
+  /** Targets whose stored content is checked too, with this run's templates. */
+  targets?: readonly TargetSource[]
 }
 
-export interface RunIssues {
+/** A target's stored content, ready to check. */
+export interface TargetSource {
+  name: string
+  storage: StorageProvider
+  /** A static target bakes fragments into its pages, so it stores none to check. */
+  static: boolean
+}
+
+/** One content source's issues: the repo (`target: null`) or a named target. */
+export interface ContentIssues {
+  target: string | null
   site: Site
   /** The scan's issues, each on an item, after the CLI's severity mapping. */
   itemIssues: Issue[]
+}
+
+export interface RunIssues {
+  /** The repo first, then each target in the order named. */
+  content: ContentIssues[]
   /** Issues about the site's config, on no item. */
   configIssues: Issue[]
   projectIssues: ProjectIssue[]
@@ -31,6 +54,9 @@ export interface RunIssues {
 
 /** Thrown when the site's config or content can't be loaded at all. */
 export class SiteLoadError extends Error {}
+
+/** Thrown when a target's content can't be read; `gazetta validate` exits 2 (T10). */
+export class TargetReadError extends Error {}
 
 export async function runChecks(input: RunInput): Promise<RunIssues> {
   const { buildSourceContext } = await import('./bootstrap.js')
@@ -49,29 +75,52 @@ export async function runChecks(input: RunInput): Promise<RunIssues> {
   }
 
   const { defaultValidatorRegistry } = await import('../validation/default-registry.js')
-  const { createValidatorRegistry } = await import('../validation/registry.js')
-  const fullRegistry = defaultValidatorRegistry()
-  const registry = input.includeQuality
-    ? fullRegistry
-    : createValidatorRegistry(fullRegistry.all().filter(v => !QUALITY_VALIDATORS.has(v.name)))
+  const all = defaultValidatorRegistry().all()
+  const repoValidators = input.includeQuality ? all : all.filter(v => !QUALITY_VALIDATORS.has(v.name))
 
-  const { createValidationScanner } = await import('../validation/scanner.js')
-  const { createMemoryCache } = await import('../cache/memory.js')
-  const scanner = createValidationScanner({
-    storage: source.storage,
-    contentRoot: source.contentRoot,
-    registry,
-    cache: createMemoryCache(),
-    siteOptions: { templatesDir: input.templatesDir, manifest: site.manifest },
-    loadSiteImpl: async () => site,
-  })
-  await scanner.scanAll()
+  const repo: ContentIssues = {
+    target: null,
+    site,
+    itemIssues: await scan(site, source.storage, source.contentRoot, input.templatesDir, repoValidators),
+  }
+
+  // Targets: the content checks only, schema and references (T5). A static
+  // target stores no fragments (they're baked into its pages at publish), so
+  // its fragment reference checks would only report what isn't meant to be
+  // there; the repo's own check covers the fragments.
+  const contentValidators = all.filter(v => v.name === 'schema-conformance' || v.name.startsWith('referenced-'))
+  const FRAGMENT_CHECKS = new Set(['referenced-fragment-exists', 'referenced-archived-without-alias'])
+  const targets: ContentIssues[] = []
+  for (const target of input.targets ?? []) {
+    const contentRoot = createContentRoot(target.storage, '')
+    let targetSite: Site
+    try {
+      targetSite = await loadSite({
+        contentRoot,
+        templatesDir: input.templatesDir,
+        manifest: site.manifest as SiteManifest,
+      })
+    } catch (err) {
+      throw new TargetReadError(`Couldn't read target \`${target.name}\`: ${(err as Error).message}`)
+    }
+    targets.push({
+      target: target.name,
+      site: targetSite,
+      itemIssues: await scan(
+        targetSite,
+        target.storage,
+        contentRoot,
+        input.templatesDir,
+        target.static ? contentValidators.filter(v => !FRAGMENT_CHECKS.has(v.name)) : contentValidators,
+      ),
+    })
+  }
 
   // Site-config validators (targets, deploy adapters) check the whole config
   // once rather than per item, so the scanner never runs them.
   const configIssues: Issue[] = []
-  for (const validator of registry.forStage('cli')) {
-    if (validator.stages.includes('background')) continue
+  for (const validator of repoValidators) {
+    if (!validator.stages.includes('cli') || validator.stages.includes('background')) continue
     configIssues.push(
       ...(await validator.validate({
         stage: 'cli',
@@ -84,10 +133,31 @@ export async function runChecks(input: RunInput): Promise<RunIssues> {
   }
 
   return {
-    site,
-    // The CLI is the gate: some issues count higher here than in Site health (T7).
-    itemIssues: scanner.allIssues().map(withCliSeverity),
+    content: [repo, ...targets],
     configIssues,
     projectIssues: await checkProject(input.projectRoot, input.templatesDir),
   }
+}
+
+async function scan(
+  site: Site,
+  storage: StorageProvider,
+  contentRoot: ContentRoot,
+  templatesDir: string,
+  validators: readonly Validator[],
+): Promise<Issue[]> {
+  const { createValidatorRegistry } = await import('../validation/registry.js')
+  const { createValidationScanner } = await import('../validation/scanner.js')
+  const { createMemoryCache } = await import('../cache/memory.js')
+  const scanner = createValidationScanner({
+    storage,
+    contentRoot,
+    registry: createValidatorRegistry([...validators]),
+    cache: createMemoryCache(),
+    siteOptions: { templatesDir, manifest: site.manifest },
+    loadSiteImpl: async () => site,
+  })
+  await scanner.scanAll()
+  // The CLI is the gate: some issues count higher here than in Site health (T7).
+  return scanner.allIssues().map(withCliSeverity)
 }

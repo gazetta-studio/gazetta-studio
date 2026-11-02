@@ -16,6 +16,7 @@ import { computeTemplateImpact } from '../validation/template-impact.js'
 import type { Issue } from '../validation/types.js'
 import type { ComponentEntry, FragmentManifest, InlineComponent, PageManifest } from '../types.js'
 import type { ProjectIssue } from './project-checks.js'
+import type { IssueLists } from './validate-compare.js'
 
 const SeveritySchema = z.enum(['error', 'warn', 'info'])
 
@@ -36,6 +37,10 @@ export const ReportItemSchema = z.object({
   name: z.string(),
   /** The language version; null for the default one. */
   locale: z.string().nullable(),
+  /** Where the item lives: null for the repo, or the target named with `--targets` (#1754). */
+  target: z.string().nullable(),
+  /** For a target item with a new problem, how to fix it: bring the content into the PR (T9). */
+  fix: z.string().nullable(),
   issues: z.array(ReportIssueSchema),
 })
 
@@ -77,71 +82,69 @@ export type ReportItem = z.infer<typeof ReportItemSchema>
 type Severity = z.infer<typeof SeveritySchema>
 
 export interface BuildReportInput {
-  site: Site
   projectRoot: string
   templatesDir: string
-  /** The scan's issues, each on an item (`pages/home/page.fr.json`), after the CLI's severity mapping. */
-  itemIssues: readonly Issue[]
-  /** Issues about the site's config, on no item. */
-  configIssues: readonly Issue[]
-  projectIssues: readonly ProjectIssue[]
+  /** The repo's issues, and each target's, by content source; plus config and project problems. */
+  lists: IssueLists
   /** Which severities `--severity` shows. */
   show: (severity: Severity) => boolean
   /** Whether warnings fail the run (`--no-warn-as-error` turns it off). */
   warnAsError: boolean
   /** With `--base`: the problems the base commit already had, listed apart and not counted. */
   alreadyBroken?: IssueLists
+  /** The editing target's name, for the fix line on target items (`publish production → local`). */
+  editingTarget: string
 }
 
 export async function buildValidateReport(input: BuildReportInput): Promise<ValidateReport> {
-  const fresh = await group(input, input)
+  const fresh = await group(input, input.lists, true)
   // A run passes when nothing `--severity` shows is counted, or when nothing counted fails it.
   const { counts } = fresh
   const shown = counts.error + (input.show('warn') ? counts.warn : 0) + (input.show('info') ? counts.info : 0)
   const ok = shown === 0 || !(counts.error > 0 || (input.warnAsError && counts.warn > 0))
   const report: ValidateReport = { ok, counts, templates: fresh.templates, other: fresh.other }
   if (input.alreadyBroken) {
-    const already = await group(input, input.alreadyBroken)
+    const already = await group(input, input.alreadyBroken, false)
     report.alreadyBroken = { templates: already.templates, other: already.other }
   }
   return report
 }
 
-interface IssueLists {
-  itemIssues: readonly Issue[]
-  configIssues: readonly Issue[]
-  projectIssues: readonly ProjectIssue[]
-}
-
-/** Group one set of issues by template and item, and count them. */
+/** Group one set of issues by template and item, and count them; `fixes` adds the fix line to target items. */
 async function group(
   input: BuildReportInput,
   lists: IssueLists,
+  fixes: boolean,
 ): Promise<Pick<ValidateReport, 'counts' | 'templates' | 'other'>> {
-  const { site, show } = input
-  const items = itemIndex(site)
-
-  // Schema problems belong to the template of the component they're in.
-  const byTemplate = new Map<string, Map<string, ReportIssue[]>>()
-  const otherByItem = new Map<string, ReportIssue[]>()
+  const { show } = input
   const counts = { error: 0, warn: 0, info: 0 }
   // Every issue counts; `--severity` hides content issues from the lists, while
   // config and project problems are always listed, as in text output.
   const count = (severity: Severity) => counts[severity]++
-  for (const issue of lists.itemIssues) {
-    count(issue.severity)
-    if (!show(issue.severity)) continue
-    const item = items.get(issue.itemPath)
-    const template =
-      issue.validator === 'schema-conformance' && item ? componentTemplate(item.manifest, issue.contentPath) : undefined
-    if (template) {
-      const perItem = byTemplate.get(template) ?? new Map<string, ReportIssue[]>()
+
+  // Schema problems belong to the template of the component they're in, per content source.
+  const byTemplate = new Map<string, Map<number, Map<string, ReportIssue[]>>>()
+  const otherBySource = lists.content.map(() => new Map<string, ReportIssue[]>())
+  const indexes = lists.content.map(source => itemIndex(source.site))
+  lists.content.forEach((source, s) => {
+    for (const issue of source.itemIssues) {
+      count(issue.severity)
+      if (!show(issue.severity)) continue
+      const item = indexes[s].get(issue.itemPath)
+      const template =
+        issue.validator === 'schema-conformance' && item
+          ? componentTemplate(item.manifest, issue.contentPath)
+          : undefined
+      const perItem = template
+        ? mapAt(
+            mapAt(byTemplate, template, () => new Map()),
+            s,
+            () => new Map(),
+          )
+        : otherBySource[s]
       perItem.set(issue.itemPath, [...(perItem.get(issue.itemPath) ?? []), reportIssue(issue)])
-      byTemplate.set(template, perItem)
-    } else {
-      otherByItem.set(issue.itemPath, [...(otherByItem.get(issue.itemPath) ?? []), reportIssue(issue)])
     }
-  }
+  })
 
   const templateLevel = new Map<string, ReportIssue[]>()
   const fileLevel = new Map<string, ReportIssue[]>()
@@ -159,23 +162,35 @@ async function group(
     map.set(key, [...(map.get(key) ?? []), entry])
   }
 
+  const fix = (kind: 'page' | 'fragment', name: string, target: string | null, template?: string) => {
+    if (!fixes || target === null) return null
+    const what = `${kind === 'page' ? `pages/${name}` : `@${name}`} on ${target}`
+    const problem = template ? `doesn't fit the new \`${template}\`` : 'has a problem the PR introduced'
+    return `${what} ${problem}: publish ${target} → ${input.editingTarget}, fix it here.`
+  }
+
   const templates: ValidateReport['templates'] = []
   for (const template of [...new Set([...byTemplate.keys(), ...templateLevel.keys()])].sort()) {
-    const perItem = byTemplate.get(template) ?? new Map()
-    const impact = computeTemplateImpact(site, template, path => (perItem.get(path) ?? []) as unknown as Issue[])
+    const items: ReportItem[] = []
+    for (const [s, perItem] of [...(byTemplate.get(template) ?? new Map())].sort(([a], [b]) => a - b)) {
+      const { site, target } = lists.content[s]
+      const impact = computeTemplateImpact(site, template, path => (perItem.get(path) ?? []) as unknown as Issue[])
+      for (const i of impact.items.filter(i => i.issues.length > 0))
+        items.push({
+          kind: i.kind,
+          name: i.name,
+          locale: i.locale ?? null,
+          target,
+          fix: fix(i.kind, i.name, target, template),
+          issues: i.issues as unknown as ReportIssue[],
+        })
+    }
     const file = await findTemplateFile(input.templatesDir, template)
     templates.push({
       template,
       file: file ? relative(input.projectRoot, file) : null,
       issues: templateLevel.get(template) ?? [],
-      items: impact.items
-        .filter(i => i.issues.length > 0)
-        .map(i => ({
-          kind: i.kind,
-          name: i.name,
-          locale: i.locale ?? null,
-          issues: i.issues as unknown as ReportIssue[],
-        })),
+      items,
     })
   }
 
@@ -184,12 +199,30 @@ async function group(
   const config = lists.configIssues.map(reportIssue)
   if (config.length > 0) other.push({ kind: 'site', name: 'site.config', locale: null, issues: config })
   for (const [path, issues] of fileLevel) other.push({ kind: 'file', name: path, locale: null, issues })
-  for (const [path, item] of items) {
-    const issues = otherByItem.get(path)
-    if (issues) other.push({ kind: item.kind, name: item.name, locale: item.locale ?? null, issues })
-  }
+  lists.content.forEach(({ target }, s) => {
+    for (const [path, item] of indexes[s]) {
+      const issues = otherBySource[s].get(path)
+      if (issues)
+        other.push({
+          kind: item.kind,
+          name: item.name,
+          locale: item.locale ?? null,
+          target,
+          fix: fix(item.kind, item.name, target),
+          issues,
+        })
+    }
+  })
 
   return { counts, templates, other }
+}
+
+function mapAt<K, V>(map: Map<K, V>, key: K, make: () => V): V {
+  const found = map.get(key)
+  if (found !== undefined) return found
+  const made = make()
+  map.set(key, made)
+  return made
 }
 
 function reportIssue(issue: Issue): ReportIssue {

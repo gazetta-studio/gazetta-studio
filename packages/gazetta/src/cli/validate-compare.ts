@@ -21,14 +21,16 @@
  *
  * Two head issues with one base issue's key are both already broken.
  * Items are matched by kind, name and language, not by file path: the base
- * commit's files live in another folder.
+ * commit's files live in another folder. With `--targets`, the place (the
+ * repo or a target's name) is part of an item's key (#1754).
  */
 import type { Issue } from '../validation/types.js'
 import type { ProjectIssue } from './project-checks.js'
 import { itemIndex } from './validate-report.js'
 import type { RunIssues } from './validate-run.js'
 
-export type IssueLists = Omit<RunIssues, 'site'>
+/** A run's issues, by content source (the repo, then each target) plus config and project problems. */
+export type IssueLists = RunIssues
 
 export interface Comparison {
   /** Problems the base commit didn't have: they count and fail the run. */
@@ -39,34 +41,43 @@ export interface Comparison {
 
 export function compareRuns(head: RunIssues, base: RunIssues): Comparison {
   const baseKeys = new Set(keys(base))
-  const headItems = itemIndex(head.site)
-  const fresh: IssueLists = { itemIssues: [], configIssues: [], projectIssues: [] }
-  const alreadyBroken: IssueLists = { itemIssues: [], configIssues: [], projectIssues: [] }
-  const sort = <K extends keyof IssueLists>(list: K, issue: IssueLists[K][number], key: string) =>
-    ((baseKeys.has(key) ? alreadyBroken : fresh)[list] as IssueLists[K][number][]).push(issue)
-  for (const issue of head.itemIssues) sort('itemIssues', issue, itemKey(issue, headItems))
-  for (const issue of head.configIssues) sort('configIssues', issue, configKey(issue))
-  for (const issue of head.projectIssues) sort('projectIssues', issue, projectKey(issue))
+  const fresh: IssueLists = { content: [], configIssues: [], projectIssues: [] }
+  const alreadyBroken: IssueLists = { content: [], configIssues: [], projectIssues: [] }
+  for (const source of head.content) {
+    const items = itemIndex(source.site)
+    const split = { fresh: [] as Issue[], already: [] as Issue[] }
+    for (const issue of source.itemIssues)
+      (baseKeys.has(itemKey(issue, items, source.target)) ? split.already : split.fresh).push(issue)
+    fresh.content.push({ ...source, itemIssues: split.fresh })
+    alreadyBroken.content.push({ ...source, itemIssues: split.already })
+  }
+  for (const issue of head.configIssues)
+    (baseKeys.has(configKey(issue)) ? alreadyBroken : fresh).configIssues.push(issue)
+  for (const issue of head.projectIssues)
+    (baseKeys.has(projectKey(issue)) ? alreadyBroken : fresh).projectIssues.push(issue)
   return { fresh, alreadyBroken }
 }
 
 function keys(run: RunIssues): string[] {
-  const items = itemIndex(run.site)
   return [
-    ...run.itemIssues.map(i => itemKey(i, items)),
+    ...run.content.flatMap(source => {
+      const items = itemIndex(source.site)
+      return source.itemIssues.map(i => itemKey(i, items, source.target))
+    }),
     ...run.configIssues.map(configKey),
     ...run.projectIssues.map(projectKey),
   ]
 }
 
-export function itemKey(issue: Issue, items: ReturnType<typeof itemIndex>): string {
+/** An item problem's key; `target` is null for the repo, so the same page on two places is matched separately. */
+export function itemKey(issue: Issue, items: ReturnType<typeof itemIndex>, target: string | null = null): string {
   const item = items.get(issue.itemPath)
   const id = item ? `${item.kind}:${item.name}:${item.locale ?? ''}` : `path:${issue.itemPath}`
   const where =
     issue.validator === 'schema-conformance'
       ? `${issue.contentPath ?? ''}|${issue.field ?? ''}`
       : `${issue.contentPath ?? ''}|${issue.subject ?? ''}`
-  return `item|${issue.validator}|${id}|${where}`
+  return `item|${target ?? ''}|${issue.validator}|${id}|${where}`
 }
 
 export function configKey(issue: Issue): string {
