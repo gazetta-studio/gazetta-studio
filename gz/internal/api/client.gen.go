@@ -132,6 +132,7 @@ const (
 	AIADAPTERUNAVAILABLE         ProblemCode = "AI_ADAPTER_UNAVAILABLE"
 	AIINVALIDRESPONSE            ProblemCode = "AI_INVALID_RESPONSE"
 	ALIASTARGETNOTFOUND          ProblemCode = "ALIAS_TARGET_NOT_FOUND"
+	ALREADYVOTED                 ProblemCode = "ALREADY_VOTED"
 	ARCHIVED                     ProblemCode = "ARCHIVED"
 	ARCHIVEDCONFLICT             ProblemCode = "ARCHIVED_CONFLICT"
 	ARCHIVEDNAMECONFLICT         ProblemCode = "ARCHIVED_NAME_CONFLICT"
@@ -157,6 +158,7 @@ const (
 	BATCHTOOLARGE                ProblemCode = "BATCH_TOO_LARGE"
 	BROWSERREQUIRED              ProblemCode = "BROWSER_REQUIRED"
 	CLILOGINUNAVAILABLE          ProblemCode = "CLI_LOGIN_UNAVAILABLE"
+	COMMENTREQUIRED              ProblemCode = "COMMENT_REQUIRED"
 	CONFLICT                     ProblemCode = "CONFLICT"
 	DELETEBLOCKED                ProblemCode = "DELETE_BLOCKED"
 	EDITLOCKED                   ProblemCode = "EDIT_LOCKED"
@@ -168,6 +170,7 @@ const (
 	INTERNAL                     ProblemCode = "INTERNAL"
 	INVALID                      ProblemCode = "INVALID"
 	INVALIDCONFLICTMODE          ProblemCode = "INVALID_CONFLICT_MODE"
+	INVALIDTRANSITION            ProblemCode = "INVALID_TRANSITION"
 	LIVECONFLICT                 ProblemCode = "LIVE_CONFLICT"
 	LIVENAMECONFLICT             ProblemCode = "LIVE_NAME_CONFLICT"
 	LOGINDENIED                  ProblemCode = "LOGIN_DENIED"
@@ -176,10 +179,12 @@ const (
 	NAMECOLLISION                ProblemCode = "NAME_COLLISION"
 	NOTARCHIVED                  ProblemCode = "NOT_ARCHIVED"
 	NOTFOUND                     ProblemCode = "NOT_FOUND"
+	NOTSUBMITTER                 ProblemCode = "NOT_SUBMITTER"
 	PUBLISHAUDITFAILED           ProblemCode = "PUBLISH_AUDIT_FAILED"
 	REDIRECTRESTORE              ProblemCode = "REDIRECT_RESTORE"
 	RENAMEPARTIAL                ProblemCode = "RENAME_PARTIAL"
 	RENDERFAILED                 ProblemCode = "RENDER_FAILED"
+	REVIEWDISABLED               ProblemCode = "REVIEW_DISABLED"
 	STALE                        ProblemCode = "STALE"
 	STORAGEWRITEFAILED           ProblemCode = "STORAGE_WRITE_FAILED"
 	TARGETNOTEDITABLE            ProblemCode = "TARGET_NOT_EDITABLE"
@@ -201,6 +206,8 @@ func (e ProblemCode) Valid() bool {
 	case AIINVALIDRESPONSE:
 		return true
 	case ALIASTARGETNOTFOUND:
+		return true
+	case ALREADYVOTED:
 		return true
 	case ARCHIVED:
 		return true
@@ -252,6 +259,8 @@ func (e ProblemCode) Valid() bool {
 		return true
 	case CLILOGINUNAVAILABLE:
 		return true
+	case COMMENTREQUIRED:
+		return true
 	case CONFLICT:
 		return true
 	case DELETEBLOCKED:
@@ -274,6 +283,8 @@ func (e ProblemCode) Valid() bool {
 		return true
 	case INVALIDCONFLICTMODE:
 		return true
+	case INVALIDTRANSITION:
+		return true
 	case LIVECONFLICT:
 		return true
 	case LIVENAMECONFLICT:
@@ -290,6 +301,8 @@ func (e ProblemCode) Valid() bool {
 		return true
 	case NOTFOUND:
 		return true
+	case NOTSUBMITTER:
+		return true
 	case PUBLISHAUDITFAILED:
 		return true
 	case REDIRECTRESTORE:
@@ -297,6 +310,8 @@ func (e ProblemCode) Valid() bool {
 	case RENAMEPARTIAL:
 		return true
 	case RENDERFAILED:
+		return true
+	case REVIEWDISABLED:
 		return true
 	case STALE:
 		return true
@@ -530,6 +545,7 @@ func (e PostApiV1AssetsNameLocaleBytes201JSONResponseBodyManifestVersion) Valid(
 
 // Defines values for GetApiV1Audit200JSONResponseBodyEventsAction.
 const (
+	GetApiV1Audit200JSONResponseBodyEventsActionAiSuggestAlt     GetApiV1Audit200JSONResponseBodyEventsAction = "ai-suggest-alt"
 	GetApiV1Audit200JSONResponseBodyEventsActionArchive          GetApiV1Audit200JSONResponseBodyEventsAction = "archive"
 	GetApiV1Audit200JSONResponseBodyEventsActionConfigureRoles   GetApiV1Audit200JSONResponseBodyEventsAction = "configure-roles"
 	GetApiV1Audit200JSONResponseBodyEventsActionCreateRedirect   GetApiV1Audit200JSONResponseBodyEventsAction = "create-redirect"
@@ -545,6 +561,10 @@ const (
 	GetApiV1Audit200JSONResponseBodyEventsActionPurge            GetApiV1Audit200JSONResponseBodyEventsAction = "purge"
 	GetApiV1Audit200JSONResponseBodyEventsActionRename           GetApiV1Audit200JSONResponseBodyEventsAction = "rename"
 	GetApiV1Audit200JSONResponseBodyEventsActionRestore          GetApiV1Audit200JSONResponseBodyEventsAction = "restore"
+	GetApiV1Audit200JSONResponseBodyEventsActionReviewApprove    GetApiV1Audit200JSONResponseBodyEventsAction = "review-approve"
+	GetApiV1Audit200JSONResponseBodyEventsActionReviewReject     GetApiV1Audit200JSONResponseBodyEventsAction = "review-reject"
+	GetApiV1Audit200JSONResponseBodyEventsActionReviewSubmit     GetApiV1Audit200JSONResponseBodyEventsAction = "review-submit"
+	GetApiV1Audit200JSONResponseBodyEventsActionReviewWithdraw   GetApiV1Audit200JSONResponseBodyEventsAction = "review-withdraw"
 	GetApiV1Audit200JSONResponseBodyEventsActionSave             GetApiV1Audit200JSONResponseBodyEventsAction = "save"
 	GetApiV1Audit200JSONResponseBodyEventsActionUnarchive        GetApiV1Audit200JSONResponseBodyEventsAction = "unarchive"
 )
@@ -552,6 +572,8 @@ const (
 // Valid indicates whether the value is a known member of the GetApiV1Audit200JSONResponseBodyEventsAction enum.
 func (e GetApiV1Audit200JSONResponseBodyEventsAction) Valid() bool {
 	switch e {
+	case GetApiV1Audit200JSONResponseBodyEventsActionAiSuggestAlt:
+		return true
 	case GetApiV1Audit200JSONResponseBodyEventsActionArchive:
 		return true
 	case GetApiV1Audit200JSONResponseBodyEventsActionConfigureRoles:
@@ -582,6 +604,14 @@ func (e GetApiV1Audit200JSONResponseBodyEventsAction) Valid() bool {
 		return true
 	case GetApiV1Audit200JSONResponseBodyEventsActionRestore:
 		return true
+	case GetApiV1Audit200JSONResponseBodyEventsActionReviewApprove:
+		return true
+	case GetApiV1Audit200JSONResponseBodyEventsActionReviewReject:
+		return true
+	case GetApiV1Audit200JSONResponseBodyEventsActionReviewSubmit:
+		return true
+	case GetApiV1Audit200JSONResponseBodyEventsActionReviewWithdraw:
+		return true
 	case GetApiV1Audit200JSONResponseBodyEventsActionSave:
 		return true
 	case GetApiV1Audit200JSONResponseBodyEventsActionUnarchive:
@@ -593,28 +623,28 @@ func (e GetApiV1Audit200JSONResponseBodyEventsAction) Valid() bool {
 
 // Defines values for GetApiV1Audit200JSONResponseBodyEventsOutcome.
 const (
-	Forbidden        GetApiV1Audit200JSONResponseBodyEventsOutcome = "forbidden"
-	HookCancelled    GetApiV1Audit200JSONResponseBodyEventsOutcome = "hook-cancelled"
-	Success          GetApiV1Audit200JSONResponseBodyEventsOutcome = "success"
-	Timeout          GetApiV1Audit200JSONResponseBodyEventsOutcome = "timeout"
-	Unauthenticated  GetApiV1Audit200JSONResponseBodyEventsOutcome = "unauthenticated"
-	ValidationFailed GetApiV1Audit200JSONResponseBodyEventsOutcome = "validation-failed"
+	GetApiV1Audit200JSONResponseBodyEventsOutcomeForbidden        GetApiV1Audit200JSONResponseBodyEventsOutcome = "forbidden"
+	GetApiV1Audit200JSONResponseBodyEventsOutcomeHookCancelled    GetApiV1Audit200JSONResponseBodyEventsOutcome = "hook-cancelled"
+	GetApiV1Audit200JSONResponseBodyEventsOutcomeSuccess          GetApiV1Audit200JSONResponseBodyEventsOutcome = "success"
+	GetApiV1Audit200JSONResponseBodyEventsOutcomeTimeout          GetApiV1Audit200JSONResponseBodyEventsOutcome = "timeout"
+	GetApiV1Audit200JSONResponseBodyEventsOutcomeUnauthenticated  GetApiV1Audit200JSONResponseBodyEventsOutcome = "unauthenticated"
+	GetApiV1Audit200JSONResponseBodyEventsOutcomeValidationFailed GetApiV1Audit200JSONResponseBodyEventsOutcome = "validation-failed"
 )
 
 // Valid indicates whether the value is a known member of the GetApiV1Audit200JSONResponseBodyEventsOutcome enum.
 func (e GetApiV1Audit200JSONResponseBodyEventsOutcome) Valid() bool {
 	switch e {
-	case Forbidden:
+	case GetApiV1Audit200JSONResponseBodyEventsOutcomeForbidden:
 		return true
-	case HookCancelled:
+	case GetApiV1Audit200JSONResponseBodyEventsOutcomeHookCancelled:
 		return true
-	case Success:
+	case GetApiV1Audit200JSONResponseBodyEventsOutcomeSuccess:
 		return true
-	case Timeout:
+	case GetApiV1Audit200JSONResponseBodyEventsOutcomeTimeout:
 		return true
-	case Unauthenticated:
+	case GetApiV1Audit200JSONResponseBodyEventsOutcomeUnauthenticated:
 		return true
-	case ValidationFailed:
+	case GetApiV1Audit200JSONResponseBodyEventsOutcomeValidationFailed:
 		return true
 	default:
 		return false
@@ -1119,6 +1149,660 @@ func (e PostApiV1PublishAuditJSONBodyItemsKind) Valid() bool {
 	case PostApiV1PublishAuditJSONBodyItemsKindFragment:
 		return true
 	case PostApiV1PublishAuditJSONBodyItemsKindPage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction.
+const (
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionAiSuggestAlt     GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "ai-suggest-alt"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionArchive          GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "archive"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionConfigureRoles   GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "configure-roles"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionCreateRedirect   GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "create-redirect"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionDelete           GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "delete"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionElevationApprove GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "elevation-approve"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionElevationDeny    GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "elevation-deny"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionElevationEnd     GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "elevation-end"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionGrantRevoke      GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "grant-revoke"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionHookFired        GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "hook-fired"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionLoginApprove     GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "login-approve"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionLoginDeny        GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "login-deny"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionPublish          GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "publish"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionPurge            GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "purge"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionRename           GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "rename"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionRestore          GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "restore"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionReviewApprove    GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "review-approve"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionReviewReject     GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "review-reject"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionReviewSubmit     GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "review-submit"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionReviewWithdraw   GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "review-withdraw"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionSave             GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "save"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionUnarchive        GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "unarchive"
+)
+
+// Valid indicates whether the value is a known member of the GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction enum.
+func (e GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction) Valid() bool {
+	switch e {
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionAiSuggestAlt:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionArchive:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionConfigureRoles:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionCreateRedirect:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionDelete:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionElevationApprove:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionElevationDeny:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionElevationEnd:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionGrantRevoke:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionHookFired:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionLoginApprove:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionLoginDeny:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionPublish:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionPurge:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionRename:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionRestore:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionReviewApprove:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionReviewReject:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionReviewSubmit:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionReviewWithdraw:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionSave:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionUnarchive:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcome.
+const (
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcomeForbidden        GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcome = "forbidden"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcomeHookCancelled    GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcome = "hook-cancelled"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcomeSuccess          GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcome = "success"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcomeTimeout          GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcome = "timeout"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcomeUnauthenticated  GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcome = "unauthenticated"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcomeValidationFailed GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcome = "validation-failed"
+)
+
+// Valid indicates whether the value is a known member of the GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcome enum.
+func (e GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcome) Valid() bool {
+	switch e {
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcomeForbidden:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcomeHookCancelled:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcomeSuccess:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcomeTimeout:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcomeUnauthenticated:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcomeValidationFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetApiV1ReviewFragmentName200JSONResponseBodyHistoryScopeKind.
+const (
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryScopeKindAsset    GetApiV1ReviewFragmentName200JSONResponseBodyHistoryScopeKind = "asset"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryScopeKindFragment GetApiV1ReviewFragmentName200JSONResponseBodyHistoryScopeKind = "fragment"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryScopeKindPage     GetApiV1ReviewFragmentName200JSONResponseBodyHistoryScopeKind = "page"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryScopeKindSite     GetApiV1ReviewFragmentName200JSONResponseBodyHistoryScopeKind = "site"
+)
+
+// Valid indicates whether the value is a known member of the GetApiV1ReviewFragmentName200JSONResponseBodyHistoryScopeKind enum.
+func (e GetApiV1ReviewFragmentName200JSONResponseBodyHistoryScopeKind) Valid() bool {
+	switch e {
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryScopeKindAsset:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryScopeKindFragment:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryScopeKindPage:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryScopeKindSite:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetApiV1ReviewFragmentName200JSONResponseBodyKind.
+const (
+	GetApiV1ReviewFragmentName200JSONResponseBodyKindFragment GetApiV1ReviewFragmentName200JSONResponseBodyKind = "fragment"
+	GetApiV1ReviewFragmentName200JSONResponseBodyKindPage     GetApiV1ReviewFragmentName200JSONResponseBodyKind = "page"
+)
+
+// Valid indicates whether the value is a known member of the GetApiV1ReviewFragmentName200JSONResponseBodyKind enum.
+func (e GetApiV1ReviewFragmentName200JSONResponseBodyKind) Valid() bool {
+	switch e {
+	case GetApiV1ReviewFragmentName200JSONResponseBodyKindFragment:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyKindPage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetApiV1ReviewFragmentName200JSONResponseBodyState.
+const (
+	GetApiV1ReviewFragmentName200JSONResponseBodyStateApproved      GetApiV1ReviewFragmentName200JSONResponseBodyState = "approved"
+	GetApiV1ReviewFragmentName200JSONResponseBodyStateDraft         GetApiV1ReviewFragmentName200JSONResponseBodyState = "draft"
+	GetApiV1ReviewFragmentName200JSONResponseBodyStatePendingReview GetApiV1ReviewFragmentName200JSONResponseBodyState = "pending-review"
+)
+
+// Valid indicates whether the value is a known member of the GetApiV1ReviewFragmentName200JSONResponseBodyState enum.
+func (e GetApiV1ReviewFragmentName200JSONResponseBodyState) Valid() bool {
+	switch e {
+	case GetApiV1ReviewFragmentName200JSONResponseBodyStateApproved:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyStateDraft:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyStatePendingReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiV1ReviewFragmentNameApprove200JSONResponseBodyKind.
+const (
+	PostApiV1ReviewFragmentNameApprove200JSONResponseBodyKindFragment PostApiV1ReviewFragmentNameApprove200JSONResponseBodyKind = "fragment"
+	PostApiV1ReviewFragmentNameApprove200JSONResponseBodyKindPage     PostApiV1ReviewFragmentNameApprove200JSONResponseBodyKind = "page"
+)
+
+// Valid indicates whether the value is a known member of the PostApiV1ReviewFragmentNameApprove200JSONResponseBodyKind enum.
+func (e PostApiV1ReviewFragmentNameApprove200JSONResponseBodyKind) Valid() bool {
+	switch e {
+	case PostApiV1ReviewFragmentNameApprove200JSONResponseBodyKindFragment:
+		return true
+	case PostApiV1ReviewFragmentNameApprove200JSONResponseBodyKindPage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiV1ReviewFragmentNameApprove200JSONResponseBodyState.
+const (
+	PostApiV1ReviewFragmentNameApprove200JSONResponseBodyStateApproved      PostApiV1ReviewFragmentNameApprove200JSONResponseBodyState = "approved"
+	PostApiV1ReviewFragmentNameApprove200JSONResponseBodyStateDraft         PostApiV1ReviewFragmentNameApprove200JSONResponseBodyState = "draft"
+	PostApiV1ReviewFragmentNameApprove200JSONResponseBodyStatePendingReview PostApiV1ReviewFragmentNameApprove200JSONResponseBodyState = "pending-review"
+)
+
+// Valid indicates whether the value is a known member of the PostApiV1ReviewFragmentNameApprove200JSONResponseBodyState enum.
+func (e PostApiV1ReviewFragmentNameApprove200JSONResponseBodyState) Valid() bool {
+	switch e {
+	case PostApiV1ReviewFragmentNameApprove200JSONResponseBodyStateApproved:
+		return true
+	case PostApiV1ReviewFragmentNameApprove200JSONResponseBodyStateDraft:
+		return true
+	case PostApiV1ReviewFragmentNameApprove200JSONResponseBodyStatePendingReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiV1ReviewFragmentNameReject200JSONResponseBodyKind.
+const (
+	PostApiV1ReviewFragmentNameReject200JSONResponseBodyKindFragment PostApiV1ReviewFragmentNameReject200JSONResponseBodyKind = "fragment"
+	PostApiV1ReviewFragmentNameReject200JSONResponseBodyKindPage     PostApiV1ReviewFragmentNameReject200JSONResponseBodyKind = "page"
+)
+
+// Valid indicates whether the value is a known member of the PostApiV1ReviewFragmentNameReject200JSONResponseBodyKind enum.
+func (e PostApiV1ReviewFragmentNameReject200JSONResponseBodyKind) Valid() bool {
+	switch e {
+	case PostApiV1ReviewFragmentNameReject200JSONResponseBodyKindFragment:
+		return true
+	case PostApiV1ReviewFragmentNameReject200JSONResponseBodyKindPage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiV1ReviewFragmentNameReject200JSONResponseBodyState.
+const (
+	PostApiV1ReviewFragmentNameReject200JSONResponseBodyStateApproved      PostApiV1ReviewFragmentNameReject200JSONResponseBodyState = "approved"
+	PostApiV1ReviewFragmentNameReject200JSONResponseBodyStateDraft         PostApiV1ReviewFragmentNameReject200JSONResponseBodyState = "draft"
+	PostApiV1ReviewFragmentNameReject200JSONResponseBodyStatePendingReview PostApiV1ReviewFragmentNameReject200JSONResponseBodyState = "pending-review"
+)
+
+// Valid indicates whether the value is a known member of the PostApiV1ReviewFragmentNameReject200JSONResponseBodyState enum.
+func (e PostApiV1ReviewFragmentNameReject200JSONResponseBodyState) Valid() bool {
+	switch e {
+	case PostApiV1ReviewFragmentNameReject200JSONResponseBodyStateApproved:
+		return true
+	case PostApiV1ReviewFragmentNameReject200JSONResponseBodyStateDraft:
+		return true
+	case PostApiV1ReviewFragmentNameReject200JSONResponseBodyStatePendingReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyKind.
+const (
+	PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyKindFragment PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyKind = "fragment"
+	PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyKindPage     PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyKind = "page"
+)
+
+// Valid indicates whether the value is a known member of the PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyKind enum.
+func (e PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyKind) Valid() bool {
+	switch e {
+	case PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyKindFragment:
+		return true
+	case PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyKindPage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyState.
+const (
+	PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyStateApproved      PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyState = "approved"
+	PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyStateDraft         PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyState = "draft"
+	PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyStatePendingReview PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyState = "pending-review"
+)
+
+// Valid indicates whether the value is a known member of the PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyState enum.
+func (e PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyState) Valid() bool {
+	switch e {
+	case PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyStateApproved:
+		return true
+	case PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyStateDraft:
+		return true
+	case PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyStatePendingReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyKind.
+const (
+	PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyKindFragment PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyKind = "fragment"
+	PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyKindPage     PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyKind = "page"
+)
+
+// Valid indicates whether the value is a known member of the PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyKind enum.
+func (e PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyKind) Valid() bool {
+	switch e {
+	case PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyKindFragment:
+		return true
+	case PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyKindPage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyState.
+const (
+	PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyStateApproved      PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyState = "approved"
+	PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyStateDraft         PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyState = "draft"
+	PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyStatePendingReview PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyState = "pending-review"
+)
+
+// Valid indicates whether the value is a known member of the PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyState enum.
+func (e PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyState) Valid() bool {
+	switch e {
+	case PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyStateApproved:
+		return true
+	case PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyStateDraft:
+		return true
+	case PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyStatePendingReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetApiV1ReviewPageName200JSONResponseBodyHistoryAction.
+const (
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionAiSuggestAlt     GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "ai-suggest-alt"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionArchive          GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "archive"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionConfigureRoles   GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "configure-roles"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionCreateRedirect   GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "create-redirect"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionDelete           GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "delete"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionElevationApprove GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "elevation-approve"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionElevationDeny    GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "elevation-deny"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionElevationEnd     GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "elevation-end"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionGrantRevoke      GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "grant-revoke"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionHookFired        GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "hook-fired"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionLoginApprove     GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "login-approve"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionLoginDeny        GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "login-deny"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionPublish          GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "publish"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionPurge            GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "purge"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionRename           GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "rename"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionRestore          GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "restore"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionReviewApprove    GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "review-approve"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionReviewReject     GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "review-reject"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionReviewSubmit     GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "review-submit"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionReviewWithdraw   GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "review-withdraw"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionSave             GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "save"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionUnarchive        GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "unarchive"
+)
+
+// Valid indicates whether the value is a known member of the GetApiV1ReviewPageName200JSONResponseBodyHistoryAction enum.
+func (e GetApiV1ReviewPageName200JSONResponseBodyHistoryAction) Valid() bool {
+	switch e {
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionAiSuggestAlt:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionArchive:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionConfigureRoles:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionCreateRedirect:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionDelete:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionElevationApprove:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionElevationDeny:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionElevationEnd:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionGrantRevoke:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionHookFired:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionLoginApprove:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionLoginDeny:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionPublish:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionPurge:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionRename:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionRestore:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionReviewApprove:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionReviewReject:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionReviewSubmit:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionReviewWithdraw:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionSave:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionUnarchive:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcome.
+const (
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcomeForbidden        GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcome = "forbidden"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcomeHookCancelled    GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcome = "hook-cancelled"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcomeSuccess          GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcome = "success"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcomeTimeout          GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcome = "timeout"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcomeUnauthenticated  GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcome = "unauthenticated"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcomeValidationFailed GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcome = "validation-failed"
+)
+
+// Valid indicates whether the value is a known member of the GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcome enum.
+func (e GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcome) Valid() bool {
+	switch e {
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcomeForbidden:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcomeHookCancelled:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcomeSuccess:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcomeTimeout:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcomeUnauthenticated:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcomeValidationFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetApiV1ReviewPageName200JSONResponseBodyHistoryScopeKind.
+const (
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryScopeKindAsset    GetApiV1ReviewPageName200JSONResponseBodyHistoryScopeKind = "asset"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryScopeKindFragment GetApiV1ReviewPageName200JSONResponseBodyHistoryScopeKind = "fragment"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryScopeKindPage     GetApiV1ReviewPageName200JSONResponseBodyHistoryScopeKind = "page"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryScopeKindSite     GetApiV1ReviewPageName200JSONResponseBodyHistoryScopeKind = "site"
+)
+
+// Valid indicates whether the value is a known member of the GetApiV1ReviewPageName200JSONResponseBodyHistoryScopeKind enum.
+func (e GetApiV1ReviewPageName200JSONResponseBodyHistoryScopeKind) Valid() bool {
+	switch e {
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryScopeKindAsset:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryScopeKindFragment:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryScopeKindPage:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryScopeKindSite:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetApiV1ReviewPageName200JSONResponseBodyKind.
+const (
+	GetApiV1ReviewPageName200JSONResponseBodyKindFragment GetApiV1ReviewPageName200JSONResponseBodyKind = "fragment"
+	GetApiV1ReviewPageName200JSONResponseBodyKindPage     GetApiV1ReviewPageName200JSONResponseBodyKind = "page"
+)
+
+// Valid indicates whether the value is a known member of the GetApiV1ReviewPageName200JSONResponseBodyKind enum.
+func (e GetApiV1ReviewPageName200JSONResponseBodyKind) Valid() bool {
+	switch e {
+	case GetApiV1ReviewPageName200JSONResponseBodyKindFragment:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyKindPage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetApiV1ReviewPageName200JSONResponseBodyState.
+const (
+	GetApiV1ReviewPageName200JSONResponseBodyStateApproved      GetApiV1ReviewPageName200JSONResponseBodyState = "approved"
+	GetApiV1ReviewPageName200JSONResponseBodyStateDraft         GetApiV1ReviewPageName200JSONResponseBodyState = "draft"
+	GetApiV1ReviewPageName200JSONResponseBodyStatePendingReview GetApiV1ReviewPageName200JSONResponseBodyState = "pending-review"
+)
+
+// Valid indicates whether the value is a known member of the GetApiV1ReviewPageName200JSONResponseBodyState enum.
+func (e GetApiV1ReviewPageName200JSONResponseBodyState) Valid() bool {
+	switch e {
+	case GetApiV1ReviewPageName200JSONResponseBodyStateApproved:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyStateDraft:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyStatePendingReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiV1ReviewPageNameApprove200JSONResponseBodyKind.
+const (
+	PostApiV1ReviewPageNameApprove200JSONResponseBodyKindFragment PostApiV1ReviewPageNameApprove200JSONResponseBodyKind = "fragment"
+	PostApiV1ReviewPageNameApprove200JSONResponseBodyKindPage     PostApiV1ReviewPageNameApprove200JSONResponseBodyKind = "page"
+)
+
+// Valid indicates whether the value is a known member of the PostApiV1ReviewPageNameApprove200JSONResponseBodyKind enum.
+func (e PostApiV1ReviewPageNameApprove200JSONResponseBodyKind) Valid() bool {
+	switch e {
+	case PostApiV1ReviewPageNameApprove200JSONResponseBodyKindFragment:
+		return true
+	case PostApiV1ReviewPageNameApprove200JSONResponseBodyKindPage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiV1ReviewPageNameApprove200JSONResponseBodyState.
+const (
+	PostApiV1ReviewPageNameApprove200JSONResponseBodyStateApproved      PostApiV1ReviewPageNameApprove200JSONResponseBodyState = "approved"
+	PostApiV1ReviewPageNameApprove200JSONResponseBodyStateDraft         PostApiV1ReviewPageNameApprove200JSONResponseBodyState = "draft"
+	PostApiV1ReviewPageNameApprove200JSONResponseBodyStatePendingReview PostApiV1ReviewPageNameApprove200JSONResponseBodyState = "pending-review"
+)
+
+// Valid indicates whether the value is a known member of the PostApiV1ReviewPageNameApprove200JSONResponseBodyState enum.
+func (e PostApiV1ReviewPageNameApprove200JSONResponseBodyState) Valid() bool {
+	switch e {
+	case PostApiV1ReviewPageNameApprove200JSONResponseBodyStateApproved:
+		return true
+	case PostApiV1ReviewPageNameApprove200JSONResponseBodyStateDraft:
+		return true
+	case PostApiV1ReviewPageNameApprove200JSONResponseBodyStatePendingReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiV1ReviewPageNameReject200JSONResponseBodyKind.
+const (
+	PostApiV1ReviewPageNameReject200JSONResponseBodyKindFragment PostApiV1ReviewPageNameReject200JSONResponseBodyKind = "fragment"
+	PostApiV1ReviewPageNameReject200JSONResponseBodyKindPage     PostApiV1ReviewPageNameReject200JSONResponseBodyKind = "page"
+)
+
+// Valid indicates whether the value is a known member of the PostApiV1ReviewPageNameReject200JSONResponseBodyKind enum.
+func (e PostApiV1ReviewPageNameReject200JSONResponseBodyKind) Valid() bool {
+	switch e {
+	case PostApiV1ReviewPageNameReject200JSONResponseBodyKindFragment:
+		return true
+	case PostApiV1ReviewPageNameReject200JSONResponseBodyKindPage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiV1ReviewPageNameReject200JSONResponseBodyState.
+const (
+	PostApiV1ReviewPageNameReject200JSONResponseBodyStateApproved      PostApiV1ReviewPageNameReject200JSONResponseBodyState = "approved"
+	PostApiV1ReviewPageNameReject200JSONResponseBodyStateDraft         PostApiV1ReviewPageNameReject200JSONResponseBodyState = "draft"
+	PostApiV1ReviewPageNameReject200JSONResponseBodyStatePendingReview PostApiV1ReviewPageNameReject200JSONResponseBodyState = "pending-review"
+)
+
+// Valid indicates whether the value is a known member of the PostApiV1ReviewPageNameReject200JSONResponseBodyState enum.
+func (e PostApiV1ReviewPageNameReject200JSONResponseBodyState) Valid() bool {
+	switch e {
+	case PostApiV1ReviewPageNameReject200JSONResponseBodyStateApproved:
+		return true
+	case PostApiV1ReviewPageNameReject200JSONResponseBodyStateDraft:
+		return true
+	case PostApiV1ReviewPageNameReject200JSONResponseBodyStatePendingReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiV1ReviewPageNameSubmit200JSONResponseBodyKind.
+const (
+	PostApiV1ReviewPageNameSubmit200JSONResponseBodyKindFragment PostApiV1ReviewPageNameSubmit200JSONResponseBodyKind = "fragment"
+	PostApiV1ReviewPageNameSubmit200JSONResponseBodyKindPage     PostApiV1ReviewPageNameSubmit200JSONResponseBodyKind = "page"
+)
+
+// Valid indicates whether the value is a known member of the PostApiV1ReviewPageNameSubmit200JSONResponseBodyKind enum.
+func (e PostApiV1ReviewPageNameSubmit200JSONResponseBodyKind) Valid() bool {
+	switch e {
+	case PostApiV1ReviewPageNameSubmit200JSONResponseBodyKindFragment:
+		return true
+	case PostApiV1ReviewPageNameSubmit200JSONResponseBodyKindPage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiV1ReviewPageNameSubmit200JSONResponseBodyState.
+const (
+	PostApiV1ReviewPageNameSubmit200JSONResponseBodyStateApproved      PostApiV1ReviewPageNameSubmit200JSONResponseBodyState = "approved"
+	PostApiV1ReviewPageNameSubmit200JSONResponseBodyStateDraft         PostApiV1ReviewPageNameSubmit200JSONResponseBodyState = "draft"
+	PostApiV1ReviewPageNameSubmit200JSONResponseBodyStatePendingReview PostApiV1ReviewPageNameSubmit200JSONResponseBodyState = "pending-review"
+)
+
+// Valid indicates whether the value is a known member of the PostApiV1ReviewPageNameSubmit200JSONResponseBodyState enum.
+func (e PostApiV1ReviewPageNameSubmit200JSONResponseBodyState) Valid() bool {
+	switch e {
+	case PostApiV1ReviewPageNameSubmit200JSONResponseBodyStateApproved:
+		return true
+	case PostApiV1ReviewPageNameSubmit200JSONResponseBodyStateDraft:
+		return true
+	case PostApiV1ReviewPageNameSubmit200JSONResponseBodyStatePendingReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiV1ReviewPageNameWithdraw200JSONResponseBodyKind.
+const (
+	PostApiV1ReviewPageNameWithdraw200JSONResponseBodyKindFragment PostApiV1ReviewPageNameWithdraw200JSONResponseBodyKind = "fragment"
+	PostApiV1ReviewPageNameWithdraw200JSONResponseBodyKindPage     PostApiV1ReviewPageNameWithdraw200JSONResponseBodyKind = "page"
+)
+
+// Valid indicates whether the value is a known member of the PostApiV1ReviewPageNameWithdraw200JSONResponseBodyKind enum.
+func (e PostApiV1ReviewPageNameWithdraw200JSONResponseBodyKind) Valid() bool {
+	switch e {
+	case PostApiV1ReviewPageNameWithdraw200JSONResponseBodyKindFragment:
+		return true
+	case PostApiV1ReviewPageNameWithdraw200JSONResponseBodyKindPage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiV1ReviewPageNameWithdraw200JSONResponseBodyState.
+const (
+	PostApiV1ReviewPageNameWithdraw200JSONResponseBodyStateApproved      PostApiV1ReviewPageNameWithdraw200JSONResponseBodyState = "approved"
+	PostApiV1ReviewPageNameWithdraw200JSONResponseBodyStateDraft         PostApiV1ReviewPageNameWithdraw200JSONResponseBodyState = "draft"
+	PostApiV1ReviewPageNameWithdraw200JSONResponseBodyStatePendingReview PostApiV1ReviewPageNameWithdraw200JSONResponseBodyState = "pending-review"
+)
+
+// Valid indicates whether the value is a known member of the PostApiV1ReviewPageNameWithdraw200JSONResponseBodyState enum.
+func (e PostApiV1ReviewPageNameWithdraw200JSONResponseBodyState) Valid() bool {
+	switch e {
+	case PostApiV1ReviewPageNameWithdraw200JSONResponseBodyStateApproved:
+		return true
+	case PostApiV1ReviewPageNameWithdraw200JSONResponseBodyStateDraft:
+		return true
+	case PostApiV1ReviewPageNameWithdraw200JSONResponseBodyStatePendingReview:
 		return true
 	default:
 		return false
@@ -2220,6 +2904,174 @@ type PostApiV1PublishStreamParams struct {
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
+// GetApiV1ReviewFragmentNameParams defines parameters for GetApiV1ReviewFragmentName.
+type GetApiV1ReviewFragmentNameParams struct {
+	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
+// GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction defines parameters for GetApiV1ReviewFragmentName.
+type GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction string
+
+// GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcome defines parameters for GetApiV1ReviewFragmentName.
+type GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcome string
+
+// GetApiV1ReviewFragmentName200JSONResponseBodyHistoryScopeKind defines parameters for GetApiV1ReviewFragmentName.
+type GetApiV1ReviewFragmentName200JSONResponseBodyHistoryScopeKind string
+
+// GetApiV1ReviewFragmentName200JSONResponseBodyKind defines parameters for GetApiV1ReviewFragmentName.
+type GetApiV1ReviewFragmentName200JSONResponseBodyKind string
+
+// GetApiV1ReviewFragmentName200JSONResponseBodyState defines parameters for GetApiV1ReviewFragmentName.
+type GetApiV1ReviewFragmentName200JSONResponseBodyState string
+
+// PostApiV1ReviewFragmentNameApproveParams defines parameters for PostApiV1ReviewFragmentNameApprove.
+type PostApiV1ReviewFragmentNameApproveParams struct {
+	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
+// PostApiV1ReviewFragmentNameApprove200JSONResponseBodyKind defines parameters for PostApiV1ReviewFragmentNameApprove.
+type PostApiV1ReviewFragmentNameApprove200JSONResponseBodyKind string
+
+// PostApiV1ReviewFragmentNameApprove200JSONResponseBodyState defines parameters for PostApiV1ReviewFragmentNameApprove.
+type PostApiV1ReviewFragmentNameApprove200JSONResponseBodyState string
+
+// PostApiV1ReviewFragmentNameRejectJSONBody defines parameters for PostApiV1ReviewFragmentNameReject.
+type PostApiV1ReviewFragmentNameRejectJSONBody struct {
+	Comment *string `json:"comment,omitempty"`
+}
+
+// PostApiV1ReviewFragmentNameRejectParams defines parameters for PostApiV1ReviewFragmentNameReject.
+type PostApiV1ReviewFragmentNameRejectParams struct {
+	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
+// PostApiV1ReviewFragmentNameReject200JSONResponseBodyKind defines parameters for PostApiV1ReviewFragmentNameReject.
+type PostApiV1ReviewFragmentNameReject200JSONResponseBodyKind string
+
+// PostApiV1ReviewFragmentNameReject200JSONResponseBodyState defines parameters for PostApiV1ReviewFragmentNameReject.
+type PostApiV1ReviewFragmentNameReject200JSONResponseBodyState string
+
+// PostApiV1ReviewFragmentNameSubmitParams defines parameters for PostApiV1ReviewFragmentNameSubmit.
+type PostApiV1ReviewFragmentNameSubmitParams struct {
+	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
+// PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyKind defines parameters for PostApiV1ReviewFragmentNameSubmit.
+type PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyKind string
+
+// PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyState defines parameters for PostApiV1ReviewFragmentNameSubmit.
+type PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyState string
+
+// PostApiV1ReviewFragmentNameWithdrawParams defines parameters for PostApiV1ReviewFragmentNameWithdraw.
+type PostApiV1ReviewFragmentNameWithdrawParams struct {
+	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
+// PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyKind defines parameters for PostApiV1ReviewFragmentNameWithdraw.
+type PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyKind string
+
+// PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyState defines parameters for PostApiV1ReviewFragmentNameWithdraw.
+type PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyState string
+
+// GetApiV1ReviewPageNameParams defines parameters for GetApiV1ReviewPageName.
+type GetApiV1ReviewPageNameParams struct {
+	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
+// GetApiV1ReviewPageName200JSONResponseBodyHistoryAction defines parameters for GetApiV1ReviewPageName.
+type GetApiV1ReviewPageName200JSONResponseBodyHistoryAction string
+
+// GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcome defines parameters for GetApiV1ReviewPageName.
+type GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcome string
+
+// GetApiV1ReviewPageName200JSONResponseBodyHistoryScopeKind defines parameters for GetApiV1ReviewPageName.
+type GetApiV1ReviewPageName200JSONResponseBodyHistoryScopeKind string
+
+// GetApiV1ReviewPageName200JSONResponseBodyKind defines parameters for GetApiV1ReviewPageName.
+type GetApiV1ReviewPageName200JSONResponseBodyKind string
+
+// GetApiV1ReviewPageName200JSONResponseBodyState defines parameters for GetApiV1ReviewPageName.
+type GetApiV1ReviewPageName200JSONResponseBodyState string
+
+// PostApiV1ReviewPageNameApproveParams defines parameters for PostApiV1ReviewPageNameApprove.
+type PostApiV1ReviewPageNameApproveParams struct {
+	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
+// PostApiV1ReviewPageNameApprove200JSONResponseBodyKind defines parameters for PostApiV1ReviewPageNameApprove.
+type PostApiV1ReviewPageNameApprove200JSONResponseBodyKind string
+
+// PostApiV1ReviewPageNameApprove200JSONResponseBodyState defines parameters for PostApiV1ReviewPageNameApprove.
+type PostApiV1ReviewPageNameApprove200JSONResponseBodyState string
+
+// PostApiV1ReviewPageNameRejectJSONBody defines parameters for PostApiV1ReviewPageNameReject.
+type PostApiV1ReviewPageNameRejectJSONBody struct {
+	Comment *string `json:"comment,omitempty"`
+}
+
+// PostApiV1ReviewPageNameRejectParams defines parameters for PostApiV1ReviewPageNameReject.
+type PostApiV1ReviewPageNameRejectParams struct {
+	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
+// PostApiV1ReviewPageNameReject200JSONResponseBodyKind defines parameters for PostApiV1ReviewPageNameReject.
+type PostApiV1ReviewPageNameReject200JSONResponseBodyKind string
+
+// PostApiV1ReviewPageNameReject200JSONResponseBodyState defines parameters for PostApiV1ReviewPageNameReject.
+type PostApiV1ReviewPageNameReject200JSONResponseBodyState string
+
+// PostApiV1ReviewPageNameSubmitParams defines parameters for PostApiV1ReviewPageNameSubmit.
+type PostApiV1ReviewPageNameSubmitParams struct {
+	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
+// PostApiV1ReviewPageNameSubmit200JSONResponseBodyKind defines parameters for PostApiV1ReviewPageNameSubmit.
+type PostApiV1ReviewPageNameSubmit200JSONResponseBodyKind string
+
+// PostApiV1ReviewPageNameSubmit200JSONResponseBodyState defines parameters for PostApiV1ReviewPageNameSubmit.
+type PostApiV1ReviewPageNameSubmit200JSONResponseBodyState string
+
+// PostApiV1ReviewPageNameWithdrawParams defines parameters for PostApiV1ReviewPageNameWithdraw.
+type PostApiV1ReviewPageNameWithdrawParams struct {
+	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
+// PostApiV1ReviewPageNameWithdraw200JSONResponseBodyKind defines parameters for PostApiV1ReviewPageNameWithdraw.
+type PostApiV1ReviewPageNameWithdraw200JSONResponseBodyKind string
+
+// PostApiV1ReviewPageNameWithdraw200JSONResponseBodyState defines parameters for PostApiV1ReviewPageNameWithdraw.
+type PostApiV1ReviewPageNameWithdraw200JSONResponseBodyState string
+
 // GetApiV1RunsRunIdParams defines parameters for GetApiV1RunsRunId.
 type GetApiV1RunsRunIdParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
@@ -2448,6 +3300,12 @@ type PostApiV1PublishAuditJSONRequestBody PostApiV1PublishAuditJSONBody
 
 // PostApiV1PublishStreamJSONRequestBody defines body for PostApiV1PublishStream for application/json ContentType.
 type PostApiV1PublishStreamJSONRequestBody PostApiV1PublishStreamJSONBody
+
+// PostApiV1ReviewFragmentNameRejectJSONRequestBody defines body for PostApiV1ReviewFragmentNameReject for application/json ContentType.
+type PostApiV1ReviewFragmentNameRejectJSONRequestBody PostApiV1ReviewFragmentNameRejectJSONBody
+
+// PostApiV1ReviewPageNameRejectJSONRequestBody defines body for PostApiV1ReviewPageNameReject for application/json ContentType.
+type PostApiV1ReviewPageNameRejectJSONRequestBody PostApiV1ReviewPageNameRejectJSONBody
 
 // PostApiV1RunsRunIdRevertJSONRequestBody defines body for PostApiV1RunsRunIdRevert for application/json ContentType.
 type PostApiV1RunsRunIdRevertJSONRequestBody = RevertRunRequest
@@ -4635,6 +5493,74 @@ type ClientInterface interface {
 	// Corresponds with POST /api/v1/publish/stream (the `PostApiV1PublishStream` operationId).
 	PostApiV1PublishStream(ctx context.Context, params *PostApiV1PublishStreamParams, body PostApiV1PublishStreamJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetApiV1ReviewFragmentName A fragment's review state, approvers and review history
+	//
+	// Corresponds with GET /api/v1/review/fragment/{name} (the `GetApiV1ReviewFragmentName` operationId).
+	GetApiV1ReviewFragmentName(ctx context.Context, name string, params *GetApiV1ReviewFragmentNameParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostApiV1ReviewFragmentNameApprove Approve a fragment's review
+	//
+	// Corresponds with POST /api/v1/review/fragment/{name}/approve (the `PostApiV1ReviewFragmentNameApprove` operationId).
+	PostApiV1ReviewFragmentNameApprove(ctx context.Context, name string, params *PostApiV1ReviewFragmentNameApproveParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostApiV1ReviewFragmentNameRejectWithBody Reject a fragment's review, with a comment
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/review/fragment/{name}/reject (the `PostApiV1ReviewFragmentNameReject` operationId).
+	PostApiV1ReviewFragmentNameRejectWithBody(ctx context.Context, name string, params *PostApiV1ReviewFragmentNameRejectParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostApiV1ReviewFragmentNameReject Reject a fragment's review, with a comment
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/review/fragment/{name}/reject (the `PostApiV1ReviewFragmentNameReject` operationId).
+	PostApiV1ReviewFragmentNameReject(ctx context.Context, name string, params *PostApiV1ReviewFragmentNameRejectParams, body PostApiV1ReviewFragmentNameRejectJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostApiV1ReviewFragmentNameSubmit Submit a fragment's review
+	//
+	// Corresponds with POST /api/v1/review/fragment/{name}/submit (the `PostApiV1ReviewFragmentNameSubmit` operationId).
+	PostApiV1ReviewFragmentNameSubmit(ctx context.Context, name string, params *PostApiV1ReviewFragmentNameSubmitParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostApiV1ReviewFragmentNameWithdraw Withdraw a fragment's review
+	//
+	// Corresponds with POST /api/v1/review/fragment/{name}/withdraw (the `PostApiV1ReviewFragmentNameWithdraw` operationId).
+	PostApiV1ReviewFragmentNameWithdraw(ctx context.Context, name string, params *PostApiV1ReviewFragmentNameWithdrawParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetApiV1ReviewPageName A page's review state, approvers and review history
+	//
+	// Corresponds with GET /api/v1/review/page/{name} (the `GetApiV1ReviewPageName` operationId).
+	GetApiV1ReviewPageName(ctx context.Context, name string, params *GetApiV1ReviewPageNameParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostApiV1ReviewPageNameApprove Approve a page's review
+	//
+	// Corresponds with POST /api/v1/review/page/{name}/approve (the `PostApiV1ReviewPageNameApprove` operationId).
+	PostApiV1ReviewPageNameApprove(ctx context.Context, name string, params *PostApiV1ReviewPageNameApproveParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostApiV1ReviewPageNameRejectWithBody Reject a page's review, with a comment
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/review/page/{name}/reject (the `PostApiV1ReviewPageNameReject` operationId).
+	PostApiV1ReviewPageNameRejectWithBody(ctx context.Context, name string, params *PostApiV1ReviewPageNameRejectParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostApiV1ReviewPageNameReject Reject a page's review, with a comment
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/review/page/{name}/reject (the `PostApiV1ReviewPageNameReject` operationId).
+	PostApiV1ReviewPageNameReject(ctx context.Context, name string, params *PostApiV1ReviewPageNameRejectParams, body PostApiV1ReviewPageNameRejectJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostApiV1ReviewPageNameSubmit Submit a page's review
+	//
+	// Corresponds with POST /api/v1/review/page/{name}/submit (the `PostApiV1ReviewPageNameSubmit` operationId).
+	PostApiV1ReviewPageNameSubmit(ctx context.Context, name string, params *PostApiV1ReviewPageNameSubmitParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostApiV1ReviewPageNameWithdraw Withdraw a page's review
+	//
+	// Corresponds with POST /api/v1/review/page/{name}/withdraw (the `PostApiV1ReviewPageNameWithdraw` operationId).
+	PostApiV1ReviewPageNameWithdraw(ctx context.Context, name string, params *PostApiV1ReviewPageNameWithdrawParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetApiV1RunsRunId An agent run's items, and what reverting it would do
 	//
 	// Corresponds with GET /api/v1/runs/{runId} (the `GetApiV1RunsRunId` operationId).
@@ -6080,6 +7006,194 @@ func (c *Client) PostApiV1PublishStreamWithBody(ctx context.Context, params *Pos
 // Corresponds with POST /api/v1/publish/stream (the `PostApiV1PublishStream` operationId).
 func (c *Client) PostApiV1PublishStream(ctx context.Context, params *PostApiV1PublishStreamParams, body PostApiV1PublishStreamJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostApiV1PublishStreamRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetApiV1ReviewFragmentName A fragment's review state, approvers and review history
+//
+// Corresponds with GET /api/v1/review/fragment/{name} (the `GetApiV1ReviewFragmentName` operationId).
+func (c *Client) GetApiV1ReviewFragmentName(ctx context.Context, name string, params *GetApiV1ReviewFragmentNameParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetApiV1ReviewFragmentNameRequest(c.Server, name, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostApiV1ReviewFragmentNameApprove Approve a fragment's review
+//
+// Corresponds with POST /api/v1/review/fragment/{name}/approve (the `PostApiV1ReviewFragmentNameApprove` operationId).
+func (c *Client) PostApiV1ReviewFragmentNameApprove(ctx context.Context, name string, params *PostApiV1ReviewFragmentNameApproveParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1ReviewFragmentNameApproveRequest(c.Server, name, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostApiV1ReviewFragmentNameRejectWithBody Reject a fragment's review, with a comment
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/review/fragment/{name}/reject (the `PostApiV1ReviewFragmentNameReject` operationId).
+func (c *Client) PostApiV1ReviewFragmentNameRejectWithBody(ctx context.Context, name string, params *PostApiV1ReviewFragmentNameRejectParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1ReviewFragmentNameRejectRequestWithBody(c.Server, name, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostApiV1ReviewFragmentNameReject Reject a fragment's review, with a comment
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/review/fragment/{name}/reject (the `PostApiV1ReviewFragmentNameReject` operationId).
+func (c *Client) PostApiV1ReviewFragmentNameReject(ctx context.Context, name string, params *PostApiV1ReviewFragmentNameRejectParams, body PostApiV1ReviewFragmentNameRejectJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1ReviewFragmentNameRejectRequest(c.Server, name, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostApiV1ReviewFragmentNameSubmit Submit a fragment's review
+//
+// Corresponds with POST /api/v1/review/fragment/{name}/submit (the `PostApiV1ReviewFragmentNameSubmit` operationId).
+func (c *Client) PostApiV1ReviewFragmentNameSubmit(ctx context.Context, name string, params *PostApiV1ReviewFragmentNameSubmitParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1ReviewFragmentNameSubmitRequest(c.Server, name, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostApiV1ReviewFragmentNameWithdraw Withdraw a fragment's review
+//
+// Corresponds with POST /api/v1/review/fragment/{name}/withdraw (the `PostApiV1ReviewFragmentNameWithdraw` operationId).
+func (c *Client) PostApiV1ReviewFragmentNameWithdraw(ctx context.Context, name string, params *PostApiV1ReviewFragmentNameWithdrawParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1ReviewFragmentNameWithdrawRequest(c.Server, name, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetApiV1ReviewPageName A page's review state, approvers and review history
+//
+// Corresponds with GET /api/v1/review/page/{name} (the `GetApiV1ReviewPageName` operationId).
+func (c *Client) GetApiV1ReviewPageName(ctx context.Context, name string, params *GetApiV1ReviewPageNameParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetApiV1ReviewPageNameRequest(c.Server, name, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostApiV1ReviewPageNameApprove Approve a page's review
+//
+// Corresponds with POST /api/v1/review/page/{name}/approve (the `PostApiV1ReviewPageNameApprove` operationId).
+func (c *Client) PostApiV1ReviewPageNameApprove(ctx context.Context, name string, params *PostApiV1ReviewPageNameApproveParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1ReviewPageNameApproveRequest(c.Server, name, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostApiV1ReviewPageNameRejectWithBody Reject a page's review, with a comment
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/review/page/{name}/reject (the `PostApiV1ReviewPageNameReject` operationId).
+func (c *Client) PostApiV1ReviewPageNameRejectWithBody(ctx context.Context, name string, params *PostApiV1ReviewPageNameRejectParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1ReviewPageNameRejectRequestWithBody(c.Server, name, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostApiV1ReviewPageNameReject Reject a page's review, with a comment
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/review/page/{name}/reject (the `PostApiV1ReviewPageNameReject` operationId).
+func (c *Client) PostApiV1ReviewPageNameReject(ctx context.Context, name string, params *PostApiV1ReviewPageNameRejectParams, body PostApiV1ReviewPageNameRejectJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1ReviewPageNameRejectRequest(c.Server, name, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostApiV1ReviewPageNameSubmit Submit a page's review
+//
+// Corresponds with POST /api/v1/review/page/{name}/submit (the `PostApiV1ReviewPageNameSubmit` operationId).
+func (c *Client) PostApiV1ReviewPageNameSubmit(ctx context.Context, name string, params *PostApiV1ReviewPageNameSubmitParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1ReviewPageNameSubmitRequest(c.Server, name, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostApiV1ReviewPageNameWithdraw Withdraw a page's review
+//
+// Corresponds with POST /api/v1/review/page/{name}/withdraw (the `PostApiV1ReviewPageNameWithdraw` operationId).
+func (c *Client) PostApiV1ReviewPageNameWithdraw(ctx context.Context, name string, params *PostApiV1ReviewPageNameWithdrawParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1ReviewPageNameWithdrawRequest(c.Server, name, params)
 	if err != nil {
 		return nil, err
 	}
@@ -10964,6 +12078,792 @@ func NewPostApiV1PublishStreamRequestWithBody(server string, params *PostApiV1Pu
 	return req, nil
 }
 
+// NewGetApiV1ReviewFragmentNameRequest constructs an http.Request for the GetApiV1ReviewFragmentName method
+func NewGetApiV1ReviewFragmentNameRequest(server string, name string, params *GetApiV1ReviewFragmentNameParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/review/fragment/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Target != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "target", *params.Target, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewPostApiV1ReviewFragmentNameApproveRequest constructs an http.Request for the PostApiV1ReviewFragmentNameApprove method
+func NewPostApiV1ReviewFragmentNameApproveRequest(server string, name string, params *PostApiV1ReviewFragmentNameApproveParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/review/fragment/%s/approve", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Target != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "target", *params.Target, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewPostApiV1ReviewFragmentNameRejectRequest calls the generic PostApiV1ReviewFragmentNameReject builder with application/json body
+func NewPostApiV1ReviewFragmentNameRejectRequest(server string, name string, params *PostApiV1ReviewFragmentNameRejectParams, body PostApiV1ReviewFragmentNameRejectJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostApiV1ReviewFragmentNameRejectRequestWithBody(server, name, params, "application/json", bodyReader)
+}
+
+// NewPostApiV1ReviewFragmentNameRejectRequestWithBody constructs an http.Request for the PostApiV1ReviewFragmentNameReject method, with any body, and a specified content type
+func NewPostApiV1ReviewFragmentNameRejectRequestWithBody(server string, name string, params *PostApiV1ReviewFragmentNameRejectParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/review/fragment/%s/reject", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Target != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "target", *params.Target, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewPostApiV1ReviewFragmentNameSubmitRequest constructs an http.Request for the PostApiV1ReviewFragmentNameSubmit method
+func NewPostApiV1ReviewFragmentNameSubmitRequest(server string, name string, params *PostApiV1ReviewFragmentNameSubmitParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/review/fragment/%s/submit", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Target != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "target", *params.Target, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewPostApiV1ReviewFragmentNameWithdrawRequest constructs an http.Request for the PostApiV1ReviewFragmentNameWithdraw method
+func NewPostApiV1ReviewFragmentNameWithdrawRequest(server string, name string, params *PostApiV1ReviewFragmentNameWithdrawParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/review/fragment/%s/withdraw", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Target != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "target", *params.Target, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewGetApiV1ReviewPageNameRequest constructs an http.Request for the GetApiV1ReviewPageName method
+func NewGetApiV1ReviewPageNameRequest(server string, name string, params *GetApiV1ReviewPageNameParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/review/page/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Target != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "target", *params.Target, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewPostApiV1ReviewPageNameApproveRequest constructs an http.Request for the PostApiV1ReviewPageNameApprove method
+func NewPostApiV1ReviewPageNameApproveRequest(server string, name string, params *PostApiV1ReviewPageNameApproveParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/review/page/%s/approve", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Target != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "target", *params.Target, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewPostApiV1ReviewPageNameRejectRequest calls the generic PostApiV1ReviewPageNameReject builder with application/json body
+func NewPostApiV1ReviewPageNameRejectRequest(server string, name string, params *PostApiV1ReviewPageNameRejectParams, body PostApiV1ReviewPageNameRejectJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostApiV1ReviewPageNameRejectRequestWithBody(server, name, params, "application/json", bodyReader)
+}
+
+// NewPostApiV1ReviewPageNameRejectRequestWithBody constructs an http.Request for the PostApiV1ReviewPageNameReject method, with any body, and a specified content type
+func NewPostApiV1ReviewPageNameRejectRequestWithBody(server string, name string, params *PostApiV1ReviewPageNameRejectParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/review/page/%s/reject", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Target != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "target", *params.Target, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewPostApiV1ReviewPageNameSubmitRequest constructs an http.Request for the PostApiV1ReviewPageNameSubmit method
+func NewPostApiV1ReviewPageNameSubmitRequest(server string, name string, params *PostApiV1ReviewPageNameSubmitParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/review/page/%s/submit", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Target != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "target", *params.Target, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewPostApiV1ReviewPageNameWithdrawRequest constructs an http.Request for the PostApiV1ReviewPageNameWithdraw method
+func NewPostApiV1ReviewPageNameWithdrawRequest(server string, name string, params *PostApiV1ReviewPageNameWithdrawParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/review/page/%s/withdraw", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Target != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "target", *params.Target, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewGetApiV1RunsRunIdRequest constructs an http.Request for the GetApiV1RunsRunId method
 func NewGetApiV1RunsRunIdRequest(server string, runId string, params *GetApiV1RunsRunIdParams) (*http.Request, error) {
 	var err error
@@ -12517,6 +14417,90 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/v1/publish/stream (the `PostApiV1PublishStream` operationId).
 	PostApiV1PublishStreamWithResponse(ctx context.Context, params *PostApiV1PublishStreamParams, body PostApiV1PublishStreamJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1PublishStreamResponse, error)
+
+	// GetApiV1ReviewFragmentNameWithResponse A fragment's review state, approvers and review history
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/review/fragment/{name} (the `GetApiV1ReviewFragmentName` operationId).
+	GetApiV1ReviewFragmentNameWithResponse(ctx context.Context, name string, params *GetApiV1ReviewFragmentNameParams, reqEditors ...RequestEditorFn) (*GetApiV1ReviewFragmentNameResponse, error)
+
+	// PostApiV1ReviewFragmentNameApproveWithResponse Approve a fragment's review
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/review/fragment/{name}/approve (the `PostApiV1ReviewFragmentNameApprove` operationId).
+	PostApiV1ReviewFragmentNameApproveWithResponse(ctx context.Context, name string, params *PostApiV1ReviewFragmentNameApproveParams, reqEditors ...RequestEditorFn) (*PostApiV1ReviewFragmentNameApproveResponse, error)
+
+	// PostApiV1ReviewFragmentNameRejectWithBodyWithResponse Reject a fragment's review, with a comment
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/review/fragment/{name}/reject (the `PostApiV1ReviewFragmentNameReject` operationId).
+	PostApiV1ReviewFragmentNameRejectWithBodyWithResponse(ctx context.Context, name string, params *PostApiV1ReviewFragmentNameRejectParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1ReviewFragmentNameRejectResponse, error)
+
+	// PostApiV1ReviewFragmentNameRejectWithResponse Reject a fragment's review, with a comment
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/review/fragment/{name}/reject (the `PostApiV1ReviewFragmentNameReject` operationId).
+	PostApiV1ReviewFragmentNameRejectWithResponse(ctx context.Context, name string, params *PostApiV1ReviewFragmentNameRejectParams, body PostApiV1ReviewFragmentNameRejectJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1ReviewFragmentNameRejectResponse, error)
+
+	// PostApiV1ReviewFragmentNameSubmitWithResponse Submit a fragment's review
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/review/fragment/{name}/submit (the `PostApiV1ReviewFragmentNameSubmit` operationId).
+	PostApiV1ReviewFragmentNameSubmitWithResponse(ctx context.Context, name string, params *PostApiV1ReviewFragmentNameSubmitParams, reqEditors ...RequestEditorFn) (*PostApiV1ReviewFragmentNameSubmitResponse, error)
+
+	// PostApiV1ReviewFragmentNameWithdrawWithResponse Withdraw a fragment's review
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/review/fragment/{name}/withdraw (the `PostApiV1ReviewFragmentNameWithdraw` operationId).
+	PostApiV1ReviewFragmentNameWithdrawWithResponse(ctx context.Context, name string, params *PostApiV1ReviewFragmentNameWithdrawParams, reqEditors ...RequestEditorFn) (*PostApiV1ReviewFragmentNameWithdrawResponse, error)
+
+	// GetApiV1ReviewPageNameWithResponse A page's review state, approvers and review history
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/review/page/{name} (the `GetApiV1ReviewPageName` operationId).
+	GetApiV1ReviewPageNameWithResponse(ctx context.Context, name string, params *GetApiV1ReviewPageNameParams, reqEditors ...RequestEditorFn) (*GetApiV1ReviewPageNameResponse, error)
+
+	// PostApiV1ReviewPageNameApproveWithResponse Approve a page's review
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/review/page/{name}/approve (the `PostApiV1ReviewPageNameApprove` operationId).
+	PostApiV1ReviewPageNameApproveWithResponse(ctx context.Context, name string, params *PostApiV1ReviewPageNameApproveParams, reqEditors ...RequestEditorFn) (*PostApiV1ReviewPageNameApproveResponse, error)
+
+	// PostApiV1ReviewPageNameRejectWithBodyWithResponse Reject a page's review, with a comment
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/review/page/{name}/reject (the `PostApiV1ReviewPageNameReject` operationId).
+	PostApiV1ReviewPageNameRejectWithBodyWithResponse(ctx context.Context, name string, params *PostApiV1ReviewPageNameRejectParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1ReviewPageNameRejectResponse, error)
+
+	// PostApiV1ReviewPageNameRejectWithResponse Reject a page's review, with a comment
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/review/page/{name}/reject (the `PostApiV1ReviewPageNameReject` operationId).
+	PostApiV1ReviewPageNameRejectWithResponse(ctx context.Context, name string, params *PostApiV1ReviewPageNameRejectParams, body PostApiV1ReviewPageNameRejectJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1ReviewPageNameRejectResponse, error)
+
+	// PostApiV1ReviewPageNameSubmitWithResponse Submit a page's review
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/review/page/{name}/submit (the `PostApiV1ReviewPageNameSubmit` operationId).
+	PostApiV1ReviewPageNameSubmitWithResponse(ctx context.Context, name string, params *PostApiV1ReviewPageNameSubmitParams, reqEditors ...RequestEditorFn) (*PostApiV1ReviewPageNameSubmitResponse, error)
+
+	// PostApiV1ReviewPageNameWithdrawWithResponse Withdraw a page's review
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/review/page/{name}/withdraw (the `PostApiV1ReviewPageNameWithdraw` operationId).
+	PostApiV1ReviewPageNameWithdrawWithResponse(ctx context.Context, name string, params *PostApiV1ReviewPageNameWithdrawParams, reqEditors ...RequestEditorFn) (*PostApiV1ReviewPageNameWithdrawResponse, error)
 
 	// GetApiV1RunsRunIdWithResponse An agent run's items, and what reverting it would do
 	//
@@ -17357,6 +19341,1116 @@ func (r PostApiV1PublishStreamResponse) ContentType() string {
 	return ""
 }
 
+type GetApiV1ReviewFragmentNameResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		ApprovedAt *string  `json:"approvedAt,omitempty"`
+		Approvers  []string `json:"approvers"`
+		History    []struct {
+			Action GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction `json:"action"`
+			Actor  struct {
+				Email     *string `json:"email,omitempty"`
+				Id        string  `json:"id"`
+				Role      string  `json:"role"`
+				TrustMode string  `json:"trustMode"`
+			} `json:"actor"`
+			Metadata *map[string]interface{}                                     `json:"metadata,omitempty"`
+			Outcome  GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcome `json:"outcome"`
+			Scope    struct {
+				Kind GetApiV1ReviewFragmentName200JSONResponseBodyHistoryScopeKind `json:"kind"`
+				Name *string                                                       `json:"name,omitempty"`
+			} `json:"scope"`
+			SourceIp  *string `json:"sourceIp,omitempty"`
+			Timestamp string  `json:"timestamp"`
+			UserAgent *string `json:"userAgent,omitempty"`
+		} `json:"history"`
+		Kind              GetApiV1ReviewFragmentName200JSONResponseBodyKind  `json:"kind"`
+		Name              string                                             `json:"name"`
+		RequiredApprovers *int                                               `json:"requiredApprovers,omitempty"`
+		State             GetApiV1ReviewFragmentName200JSONResponseBodyState `json:"state"`
+		SubmittedAt       *string                                            `json:"submittedAt,omitempty"`
+		Submitter         *string                                            `json:"submitter,omitempty"`
+	}
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *Problem
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Problem
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Problem
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetApiV1ReviewFragmentNameResponse) GetJSON200() *struct {
+	ApprovedAt *string  `json:"approvedAt,omitempty"`
+	Approvers  []string `json:"approvers"`
+	History    []struct {
+		Action GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction `json:"action"`
+		Actor  struct {
+			Email     *string `json:"email,omitempty"`
+			Id        string  `json:"id"`
+			Role      string  `json:"role"`
+			TrustMode string  `json:"trustMode"`
+		} `json:"actor"`
+		Metadata *map[string]interface{}                                     `json:"metadata,omitempty"`
+		Outcome  GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcome `json:"outcome"`
+		Scope    struct {
+			Kind GetApiV1ReviewFragmentName200JSONResponseBodyHistoryScopeKind `json:"kind"`
+			Name *string                                                       `json:"name,omitempty"`
+		} `json:"scope"`
+		SourceIp  *string `json:"sourceIp,omitempty"`
+		Timestamp string  `json:"timestamp"`
+		UserAgent *string `json:"userAgent,omitempty"`
+	} `json:"history"`
+	Kind              GetApiV1ReviewFragmentName200JSONResponseBodyKind  `json:"kind"`
+	Name              string                                             `json:"name"`
+	RequiredApprovers *int                                               `json:"requiredApprovers,omitempty"`
+	State             GetApiV1ReviewFragmentName200JSONResponseBodyState `json:"state"`
+	SubmittedAt       *string                                            `json:"submittedAt,omitempty"`
+	Submitter         *string                                            `json:"submitter,omitempty"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r GetApiV1ReviewFragmentNameResponse) GetApplicationproblemJSON400() *Problem {
+	return r.ApplicationproblemJSON400
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r GetApiV1ReviewFragmentNameResponse) GetApplicationproblemJSON401() *Problem {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r GetApiV1ReviewFragmentNameResponse) GetApplicationproblemJSON403() *Problem {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r GetApiV1ReviewFragmentNameResponse) GetApplicationproblemJSON404() *Problem {
+	return r.ApplicationproblemJSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r GetApiV1ReviewFragmentNameResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetApiV1ReviewFragmentNameResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetApiV1ReviewFragmentNameResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetApiV1ReviewFragmentNameResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostApiV1ReviewFragmentNameApproveResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		ApprovedAt        *string                                                    `json:"approvedAt,omitempty"`
+		Approvers         []string                                                   `json:"approvers"`
+		Kind              PostApiV1ReviewFragmentNameApprove200JSONResponseBodyKind  `json:"kind"`
+		Name              string                                                     `json:"name"`
+		RequiredApprovers *int                                                       `json:"requiredApprovers,omitempty"`
+		State             PostApiV1ReviewFragmentNameApprove200JSONResponseBodyState `json:"state"`
+		SubmittedAt       *string                                                    `json:"submittedAt,omitempty"`
+		Submitter         *string                                                    `json:"submitter,omitempty"`
+	}
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *Problem
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Problem
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Problem
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Problem
+	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
+	ApplicationproblemJSON409 *Problem
+	// ApplicationproblemJSON415 the response for an HTTP 415 `application/problem+json` response
+	ApplicationproblemJSON415 *Problem
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PostApiV1ReviewFragmentNameApproveResponse) GetJSON200() *struct {
+	ApprovedAt        *string                                                    `json:"approvedAt,omitempty"`
+	Approvers         []string                                                   `json:"approvers"`
+	Kind              PostApiV1ReviewFragmentNameApprove200JSONResponseBodyKind  `json:"kind"`
+	Name              string                                                     `json:"name"`
+	RequiredApprovers *int                                                       `json:"requiredApprovers,omitempty"`
+	State             PostApiV1ReviewFragmentNameApprove200JSONResponseBodyState `json:"state"`
+	SubmittedAt       *string                                                    `json:"submittedAt,omitempty"`
+	Submitter         *string                                                    `json:"submitter,omitempty"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameApproveResponse) GetApplicationproblemJSON400() *Problem {
+	return r.ApplicationproblemJSON400
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameApproveResponse) GetApplicationproblemJSON401() *Problem {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameApproveResponse) GetApplicationproblemJSON403() *Problem {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameApproveResponse) GetApplicationproblemJSON404() *Problem {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameApproveResponse) GetApplicationproblemJSON409() *Problem {
+	return r.ApplicationproblemJSON409
+}
+
+// GetApplicationproblemJSON415 returns the response for an HTTP 415 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameApproveResponse) GetApplicationproblemJSON415() *Problem {
+	return r.ApplicationproblemJSON415
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameApproveResponse) GetApplicationproblemJSON500() *Problem {
+	return r.ApplicationproblemJSON500
+}
+
+// GetBody returns the raw response body bytes
+func (r PostApiV1ReviewFragmentNameApproveResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostApiV1ReviewFragmentNameApproveResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostApiV1ReviewFragmentNameApproveResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostApiV1ReviewFragmentNameApproveResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostApiV1ReviewFragmentNameRejectResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		ApprovedAt        *string                                                   `json:"approvedAt,omitempty"`
+		Approvers         []string                                                  `json:"approvers"`
+		Kind              PostApiV1ReviewFragmentNameReject200JSONResponseBodyKind  `json:"kind"`
+		Name              string                                                    `json:"name"`
+		RequiredApprovers *int                                                      `json:"requiredApprovers,omitempty"`
+		State             PostApiV1ReviewFragmentNameReject200JSONResponseBodyState `json:"state"`
+		SubmittedAt       *string                                                   `json:"submittedAt,omitempty"`
+		Submitter         *string                                                   `json:"submitter,omitempty"`
+	}
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *Problem
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Problem
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Problem
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Problem
+	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
+	ApplicationproblemJSON409 *Problem
+	// ApplicationproblemJSON415 the response for an HTTP 415 `application/problem+json` response
+	ApplicationproblemJSON415 *Problem
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PostApiV1ReviewFragmentNameRejectResponse) GetJSON200() *struct {
+	ApprovedAt        *string                                                   `json:"approvedAt,omitempty"`
+	Approvers         []string                                                  `json:"approvers"`
+	Kind              PostApiV1ReviewFragmentNameReject200JSONResponseBodyKind  `json:"kind"`
+	Name              string                                                    `json:"name"`
+	RequiredApprovers *int                                                      `json:"requiredApprovers,omitempty"`
+	State             PostApiV1ReviewFragmentNameReject200JSONResponseBodyState `json:"state"`
+	SubmittedAt       *string                                                   `json:"submittedAt,omitempty"`
+	Submitter         *string                                                   `json:"submitter,omitempty"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameRejectResponse) GetApplicationproblemJSON400() *Problem {
+	return r.ApplicationproblemJSON400
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameRejectResponse) GetApplicationproblemJSON401() *Problem {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameRejectResponse) GetApplicationproblemJSON403() *Problem {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameRejectResponse) GetApplicationproblemJSON404() *Problem {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameRejectResponse) GetApplicationproblemJSON409() *Problem {
+	return r.ApplicationproblemJSON409
+}
+
+// GetApplicationproblemJSON415 returns the response for an HTTP 415 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameRejectResponse) GetApplicationproblemJSON415() *Problem {
+	return r.ApplicationproblemJSON415
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameRejectResponse) GetApplicationproblemJSON500() *Problem {
+	return r.ApplicationproblemJSON500
+}
+
+// GetBody returns the raw response body bytes
+func (r PostApiV1ReviewFragmentNameRejectResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostApiV1ReviewFragmentNameRejectResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostApiV1ReviewFragmentNameRejectResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostApiV1ReviewFragmentNameRejectResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostApiV1ReviewFragmentNameSubmitResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		ApprovedAt        *string                                                   `json:"approvedAt,omitempty"`
+		Approvers         []string                                                  `json:"approvers"`
+		Kind              PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyKind  `json:"kind"`
+		Name              string                                                    `json:"name"`
+		RequiredApprovers *int                                                      `json:"requiredApprovers,omitempty"`
+		State             PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyState `json:"state"`
+		SubmittedAt       *string                                                   `json:"submittedAt,omitempty"`
+		Submitter         *string                                                   `json:"submitter,omitempty"`
+	}
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *Problem
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Problem
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Problem
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Problem
+	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
+	ApplicationproblemJSON409 *Problem
+	// ApplicationproblemJSON415 the response for an HTTP 415 `application/problem+json` response
+	ApplicationproblemJSON415 *Problem
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PostApiV1ReviewFragmentNameSubmitResponse) GetJSON200() *struct {
+	ApprovedAt        *string                                                   `json:"approvedAt,omitempty"`
+	Approvers         []string                                                  `json:"approvers"`
+	Kind              PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyKind  `json:"kind"`
+	Name              string                                                    `json:"name"`
+	RequiredApprovers *int                                                      `json:"requiredApprovers,omitempty"`
+	State             PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyState `json:"state"`
+	SubmittedAt       *string                                                   `json:"submittedAt,omitempty"`
+	Submitter         *string                                                   `json:"submitter,omitempty"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameSubmitResponse) GetApplicationproblemJSON400() *Problem {
+	return r.ApplicationproblemJSON400
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameSubmitResponse) GetApplicationproblemJSON401() *Problem {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameSubmitResponse) GetApplicationproblemJSON403() *Problem {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameSubmitResponse) GetApplicationproblemJSON404() *Problem {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameSubmitResponse) GetApplicationproblemJSON409() *Problem {
+	return r.ApplicationproblemJSON409
+}
+
+// GetApplicationproblemJSON415 returns the response for an HTTP 415 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameSubmitResponse) GetApplicationproblemJSON415() *Problem {
+	return r.ApplicationproblemJSON415
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameSubmitResponse) GetApplicationproblemJSON500() *Problem {
+	return r.ApplicationproblemJSON500
+}
+
+// GetBody returns the raw response body bytes
+func (r PostApiV1ReviewFragmentNameSubmitResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostApiV1ReviewFragmentNameSubmitResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostApiV1ReviewFragmentNameSubmitResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostApiV1ReviewFragmentNameSubmitResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostApiV1ReviewFragmentNameWithdrawResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		ApprovedAt        *string                                                     `json:"approvedAt,omitempty"`
+		Approvers         []string                                                    `json:"approvers"`
+		Kind              PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyKind  `json:"kind"`
+		Name              string                                                      `json:"name"`
+		RequiredApprovers *int                                                        `json:"requiredApprovers,omitempty"`
+		State             PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyState `json:"state"`
+		SubmittedAt       *string                                                     `json:"submittedAt,omitempty"`
+		Submitter         *string                                                     `json:"submitter,omitempty"`
+	}
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *Problem
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Problem
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Problem
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Problem
+	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
+	ApplicationproblemJSON409 *Problem
+	// ApplicationproblemJSON415 the response for an HTTP 415 `application/problem+json` response
+	ApplicationproblemJSON415 *Problem
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PostApiV1ReviewFragmentNameWithdrawResponse) GetJSON200() *struct {
+	ApprovedAt        *string                                                     `json:"approvedAt,omitempty"`
+	Approvers         []string                                                    `json:"approvers"`
+	Kind              PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyKind  `json:"kind"`
+	Name              string                                                      `json:"name"`
+	RequiredApprovers *int                                                        `json:"requiredApprovers,omitempty"`
+	State             PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyState `json:"state"`
+	SubmittedAt       *string                                                     `json:"submittedAt,omitempty"`
+	Submitter         *string                                                     `json:"submitter,omitempty"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameWithdrawResponse) GetApplicationproblemJSON400() *Problem {
+	return r.ApplicationproblemJSON400
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameWithdrawResponse) GetApplicationproblemJSON401() *Problem {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameWithdrawResponse) GetApplicationproblemJSON403() *Problem {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameWithdrawResponse) GetApplicationproblemJSON404() *Problem {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameWithdrawResponse) GetApplicationproblemJSON409() *Problem {
+	return r.ApplicationproblemJSON409
+}
+
+// GetApplicationproblemJSON415 returns the response for an HTTP 415 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameWithdrawResponse) GetApplicationproblemJSON415() *Problem {
+	return r.ApplicationproblemJSON415
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r PostApiV1ReviewFragmentNameWithdrawResponse) GetApplicationproblemJSON500() *Problem {
+	return r.ApplicationproblemJSON500
+}
+
+// GetBody returns the raw response body bytes
+func (r PostApiV1ReviewFragmentNameWithdrawResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostApiV1ReviewFragmentNameWithdrawResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostApiV1ReviewFragmentNameWithdrawResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostApiV1ReviewFragmentNameWithdrawResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetApiV1ReviewPageNameResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		ApprovedAt *string  `json:"approvedAt,omitempty"`
+		Approvers  []string `json:"approvers"`
+		History    []struct {
+			Action GetApiV1ReviewPageName200JSONResponseBodyHistoryAction `json:"action"`
+			Actor  struct {
+				Email     *string `json:"email,omitempty"`
+				Id        string  `json:"id"`
+				Role      string  `json:"role"`
+				TrustMode string  `json:"trustMode"`
+			} `json:"actor"`
+			Metadata *map[string]interface{}                                 `json:"metadata,omitempty"`
+			Outcome  GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcome `json:"outcome"`
+			Scope    struct {
+				Kind GetApiV1ReviewPageName200JSONResponseBodyHistoryScopeKind `json:"kind"`
+				Name *string                                                   `json:"name,omitempty"`
+			} `json:"scope"`
+			SourceIp  *string `json:"sourceIp,omitempty"`
+			Timestamp string  `json:"timestamp"`
+			UserAgent *string `json:"userAgent,omitempty"`
+		} `json:"history"`
+		Kind              GetApiV1ReviewPageName200JSONResponseBodyKind  `json:"kind"`
+		Name              string                                         `json:"name"`
+		RequiredApprovers *int                                           `json:"requiredApprovers,omitempty"`
+		State             GetApiV1ReviewPageName200JSONResponseBodyState `json:"state"`
+		SubmittedAt       *string                                        `json:"submittedAt,omitempty"`
+		Submitter         *string                                        `json:"submitter,omitempty"`
+	}
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *Problem
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Problem
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Problem
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetApiV1ReviewPageNameResponse) GetJSON200() *struct {
+	ApprovedAt *string  `json:"approvedAt,omitempty"`
+	Approvers  []string `json:"approvers"`
+	History    []struct {
+		Action GetApiV1ReviewPageName200JSONResponseBodyHistoryAction `json:"action"`
+		Actor  struct {
+			Email     *string `json:"email,omitempty"`
+			Id        string  `json:"id"`
+			Role      string  `json:"role"`
+			TrustMode string  `json:"trustMode"`
+		} `json:"actor"`
+		Metadata *map[string]interface{}                                 `json:"metadata,omitempty"`
+		Outcome  GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcome `json:"outcome"`
+		Scope    struct {
+			Kind GetApiV1ReviewPageName200JSONResponseBodyHistoryScopeKind `json:"kind"`
+			Name *string                                                   `json:"name,omitempty"`
+		} `json:"scope"`
+		SourceIp  *string `json:"sourceIp,omitempty"`
+		Timestamp string  `json:"timestamp"`
+		UserAgent *string `json:"userAgent,omitempty"`
+	} `json:"history"`
+	Kind              GetApiV1ReviewPageName200JSONResponseBodyKind  `json:"kind"`
+	Name              string                                         `json:"name"`
+	RequiredApprovers *int                                           `json:"requiredApprovers,omitempty"`
+	State             GetApiV1ReviewPageName200JSONResponseBodyState `json:"state"`
+	SubmittedAt       *string                                        `json:"submittedAt,omitempty"`
+	Submitter         *string                                        `json:"submitter,omitempty"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r GetApiV1ReviewPageNameResponse) GetApplicationproblemJSON400() *Problem {
+	return r.ApplicationproblemJSON400
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r GetApiV1ReviewPageNameResponse) GetApplicationproblemJSON401() *Problem {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r GetApiV1ReviewPageNameResponse) GetApplicationproblemJSON403() *Problem {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r GetApiV1ReviewPageNameResponse) GetApplicationproblemJSON404() *Problem {
+	return r.ApplicationproblemJSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r GetApiV1ReviewPageNameResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetApiV1ReviewPageNameResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetApiV1ReviewPageNameResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetApiV1ReviewPageNameResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostApiV1ReviewPageNameApproveResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		ApprovedAt        *string                                                `json:"approvedAt,omitempty"`
+		Approvers         []string                                               `json:"approvers"`
+		Kind              PostApiV1ReviewPageNameApprove200JSONResponseBodyKind  `json:"kind"`
+		Name              string                                                 `json:"name"`
+		RequiredApprovers *int                                                   `json:"requiredApprovers,omitempty"`
+		State             PostApiV1ReviewPageNameApprove200JSONResponseBodyState `json:"state"`
+		SubmittedAt       *string                                                `json:"submittedAt,omitempty"`
+		Submitter         *string                                                `json:"submitter,omitempty"`
+	}
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *Problem
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Problem
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Problem
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Problem
+	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
+	ApplicationproblemJSON409 *Problem
+	// ApplicationproblemJSON415 the response for an HTTP 415 `application/problem+json` response
+	ApplicationproblemJSON415 *Problem
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PostApiV1ReviewPageNameApproveResponse) GetJSON200() *struct {
+	ApprovedAt        *string                                                `json:"approvedAt,omitempty"`
+	Approvers         []string                                               `json:"approvers"`
+	Kind              PostApiV1ReviewPageNameApprove200JSONResponseBodyKind  `json:"kind"`
+	Name              string                                                 `json:"name"`
+	RequiredApprovers *int                                                   `json:"requiredApprovers,omitempty"`
+	State             PostApiV1ReviewPageNameApprove200JSONResponseBodyState `json:"state"`
+	SubmittedAt       *string                                                `json:"submittedAt,omitempty"`
+	Submitter         *string                                                `json:"submitter,omitempty"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r PostApiV1ReviewPageNameApproveResponse) GetApplicationproblemJSON400() *Problem {
+	return r.ApplicationproblemJSON400
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r PostApiV1ReviewPageNameApproveResponse) GetApplicationproblemJSON401() *Problem {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r PostApiV1ReviewPageNameApproveResponse) GetApplicationproblemJSON403() *Problem {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r PostApiV1ReviewPageNameApproveResponse) GetApplicationproblemJSON404() *Problem {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
+func (r PostApiV1ReviewPageNameApproveResponse) GetApplicationproblemJSON409() *Problem {
+	return r.ApplicationproblemJSON409
+}
+
+// GetApplicationproblemJSON415 returns the response for an HTTP 415 `application/problem+json` response
+func (r PostApiV1ReviewPageNameApproveResponse) GetApplicationproblemJSON415() *Problem {
+	return r.ApplicationproblemJSON415
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r PostApiV1ReviewPageNameApproveResponse) GetApplicationproblemJSON500() *Problem {
+	return r.ApplicationproblemJSON500
+}
+
+// GetBody returns the raw response body bytes
+func (r PostApiV1ReviewPageNameApproveResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostApiV1ReviewPageNameApproveResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostApiV1ReviewPageNameApproveResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostApiV1ReviewPageNameApproveResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostApiV1ReviewPageNameRejectResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		ApprovedAt        *string                                               `json:"approvedAt,omitempty"`
+		Approvers         []string                                              `json:"approvers"`
+		Kind              PostApiV1ReviewPageNameReject200JSONResponseBodyKind  `json:"kind"`
+		Name              string                                                `json:"name"`
+		RequiredApprovers *int                                                  `json:"requiredApprovers,omitempty"`
+		State             PostApiV1ReviewPageNameReject200JSONResponseBodyState `json:"state"`
+		SubmittedAt       *string                                               `json:"submittedAt,omitempty"`
+		Submitter         *string                                               `json:"submitter,omitempty"`
+	}
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *Problem
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Problem
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Problem
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Problem
+	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
+	ApplicationproblemJSON409 *Problem
+	// ApplicationproblemJSON415 the response for an HTTP 415 `application/problem+json` response
+	ApplicationproblemJSON415 *Problem
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PostApiV1ReviewPageNameRejectResponse) GetJSON200() *struct {
+	ApprovedAt        *string                                               `json:"approvedAt,omitempty"`
+	Approvers         []string                                              `json:"approvers"`
+	Kind              PostApiV1ReviewPageNameReject200JSONResponseBodyKind  `json:"kind"`
+	Name              string                                                `json:"name"`
+	RequiredApprovers *int                                                  `json:"requiredApprovers,omitempty"`
+	State             PostApiV1ReviewPageNameReject200JSONResponseBodyState `json:"state"`
+	SubmittedAt       *string                                               `json:"submittedAt,omitempty"`
+	Submitter         *string                                               `json:"submitter,omitempty"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r PostApiV1ReviewPageNameRejectResponse) GetApplicationproblemJSON400() *Problem {
+	return r.ApplicationproblemJSON400
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r PostApiV1ReviewPageNameRejectResponse) GetApplicationproblemJSON401() *Problem {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r PostApiV1ReviewPageNameRejectResponse) GetApplicationproblemJSON403() *Problem {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r PostApiV1ReviewPageNameRejectResponse) GetApplicationproblemJSON404() *Problem {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
+func (r PostApiV1ReviewPageNameRejectResponse) GetApplicationproblemJSON409() *Problem {
+	return r.ApplicationproblemJSON409
+}
+
+// GetApplicationproblemJSON415 returns the response for an HTTP 415 `application/problem+json` response
+func (r PostApiV1ReviewPageNameRejectResponse) GetApplicationproblemJSON415() *Problem {
+	return r.ApplicationproblemJSON415
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r PostApiV1ReviewPageNameRejectResponse) GetApplicationproblemJSON500() *Problem {
+	return r.ApplicationproblemJSON500
+}
+
+// GetBody returns the raw response body bytes
+func (r PostApiV1ReviewPageNameRejectResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostApiV1ReviewPageNameRejectResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostApiV1ReviewPageNameRejectResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostApiV1ReviewPageNameRejectResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostApiV1ReviewPageNameSubmitResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		ApprovedAt        *string                                               `json:"approvedAt,omitempty"`
+		Approvers         []string                                              `json:"approvers"`
+		Kind              PostApiV1ReviewPageNameSubmit200JSONResponseBodyKind  `json:"kind"`
+		Name              string                                                `json:"name"`
+		RequiredApprovers *int                                                  `json:"requiredApprovers,omitempty"`
+		State             PostApiV1ReviewPageNameSubmit200JSONResponseBodyState `json:"state"`
+		SubmittedAt       *string                                               `json:"submittedAt,omitempty"`
+		Submitter         *string                                               `json:"submitter,omitempty"`
+	}
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *Problem
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Problem
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Problem
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Problem
+	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
+	ApplicationproblemJSON409 *Problem
+	// ApplicationproblemJSON415 the response for an HTTP 415 `application/problem+json` response
+	ApplicationproblemJSON415 *Problem
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PostApiV1ReviewPageNameSubmitResponse) GetJSON200() *struct {
+	ApprovedAt        *string                                               `json:"approvedAt,omitempty"`
+	Approvers         []string                                              `json:"approvers"`
+	Kind              PostApiV1ReviewPageNameSubmit200JSONResponseBodyKind  `json:"kind"`
+	Name              string                                                `json:"name"`
+	RequiredApprovers *int                                                  `json:"requiredApprovers,omitempty"`
+	State             PostApiV1ReviewPageNameSubmit200JSONResponseBodyState `json:"state"`
+	SubmittedAt       *string                                               `json:"submittedAt,omitempty"`
+	Submitter         *string                                               `json:"submitter,omitempty"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r PostApiV1ReviewPageNameSubmitResponse) GetApplicationproblemJSON400() *Problem {
+	return r.ApplicationproblemJSON400
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r PostApiV1ReviewPageNameSubmitResponse) GetApplicationproblemJSON401() *Problem {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r PostApiV1ReviewPageNameSubmitResponse) GetApplicationproblemJSON403() *Problem {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r PostApiV1ReviewPageNameSubmitResponse) GetApplicationproblemJSON404() *Problem {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
+func (r PostApiV1ReviewPageNameSubmitResponse) GetApplicationproblemJSON409() *Problem {
+	return r.ApplicationproblemJSON409
+}
+
+// GetApplicationproblemJSON415 returns the response for an HTTP 415 `application/problem+json` response
+func (r PostApiV1ReviewPageNameSubmitResponse) GetApplicationproblemJSON415() *Problem {
+	return r.ApplicationproblemJSON415
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r PostApiV1ReviewPageNameSubmitResponse) GetApplicationproblemJSON500() *Problem {
+	return r.ApplicationproblemJSON500
+}
+
+// GetBody returns the raw response body bytes
+func (r PostApiV1ReviewPageNameSubmitResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostApiV1ReviewPageNameSubmitResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostApiV1ReviewPageNameSubmitResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostApiV1ReviewPageNameSubmitResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostApiV1ReviewPageNameWithdrawResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		ApprovedAt        *string                                                 `json:"approvedAt,omitempty"`
+		Approvers         []string                                                `json:"approvers"`
+		Kind              PostApiV1ReviewPageNameWithdraw200JSONResponseBodyKind  `json:"kind"`
+		Name              string                                                  `json:"name"`
+		RequiredApprovers *int                                                    `json:"requiredApprovers,omitempty"`
+		State             PostApiV1ReviewPageNameWithdraw200JSONResponseBodyState `json:"state"`
+		SubmittedAt       *string                                                 `json:"submittedAt,omitempty"`
+		Submitter         *string                                                 `json:"submitter,omitempty"`
+	}
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *Problem
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Problem
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Problem
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Problem
+	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
+	ApplicationproblemJSON409 *Problem
+	// ApplicationproblemJSON415 the response for an HTTP 415 `application/problem+json` response
+	ApplicationproblemJSON415 *Problem
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PostApiV1ReviewPageNameWithdrawResponse) GetJSON200() *struct {
+	ApprovedAt        *string                                                 `json:"approvedAt,omitempty"`
+	Approvers         []string                                                `json:"approvers"`
+	Kind              PostApiV1ReviewPageNameWithdraw200JSONResponseBodyKind  `json:"kind"`
+	Name              string                                                  `json:"name"`
+	RequiredApprovers *int                                                    `json:"requiredApprovers,omitempty"`
+	State             PostApiV1ReviewPageNameWithdraw200JSONResponseBodyState `json:"state"`
+	SubmittedAt       *string                                                 `json:"submittedAt,omitempty"`
+	Submitter         *string                                                 `json:"submitter,omitempty"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r PostApiV1ReviewPageNameWithdrawResponse) GetApplicationproblemJSON400() *Problem {
+	return r.ApplicationproblemJSON400
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r PostApiV1ReviewPageNameWithdrawResponse) GetApplicationproblemJSON401() *Problem {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r PostApiV1ReviewPageNameWithdrawResponse) GetApplicationproblemJSON403() *Problem {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r PostApiV1ReviewPageNameWithdrawResponse) GetApplicationproblemJSON404() *Problem {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
+func (r PostApiV1ReviewPageNameWithdrawResponse) GetApplicationproblemJSON409() *Problem {
+	return r.ApplicationproblemJSON409
+}
+
+// GetApplicationproblemJSON415 returns the response for an HTTP 415 `application/problem+json` response
+func (r PostApiV1ReviewPageNameWithdrawResponse) GetApplicationproblemJSON415() *Problem {
+	return r.ApplicationproblemJSON415
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r PostApiV1ReviewPageNameWithdrawResponse) GetApplicationproblemJSON500() *Problem {
+	return r.ApplicationproblemJSON500
+}
+
+// GetBody returns the raw response body bytes
+func (r PostApiV1ReviewPageNameWithdrawResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostApiV1ReviewPageNameWithdrawResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostApiV1ReviewPageNameWithdrawResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostApiV1ReviewPageNameWithdrawResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetApiV1RunsRunIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -19325,6 +22419,162 @@ func (c *ClientWithResponses) PostApiV1PublishStreamWithResponse(ctx context.Con
 		return nil, err
 	}
 	return ParsePostApiV1PublishStreamResponse(rsp)
+}
+
+// GetApiV1ReviewFragmentNameWithResponse A fragment's review state, approvers and review history
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/review/fragment/{name} (the `GetApiV1ReviewFragmentName` operationId).
+func (c *ClientWithResponses) GetApiV1ReviewFragmentNameWithResponse(ctx context.Context, name string, params *GetApiV1ReviewFragmentNameParams, reqEditors ...RequestEditorFn) (*GetApiV1ReviewFragmentNameResponse, error) {
+	rsp, err := c.GetApiV1ReviewFragmentName(ctx, name, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetApiV1ReviewFragmentNameResponse(rsp)
+}
+
+// PostApiV1ReviewFragmentNameApproveWithResponse Approve a fragment's review
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/review/fragment/{name}/approve (the `PostApiV1ReviewFragmentNameApprove` operationId).
+func (c *ClientWithResponses) PostApiV1ReviewFragmentNameApproveWithResponse(ctx context.Context, name string, params *PostApiV1ReviewFragmentNameApproveParams, reqEditors ...RequestEditorFn) (*PostApiV1ReviewFragmentNameApproveResponse, error) {
+	rsp, err := c.PostApiV1ReviewFragmentNameApprove(ctx, name, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiV1ReviewFragmentNameApproveResponse(rsp)
+}
+
+// PostApiV1ReviewFragmentNameRejectWithBodyWithResponse Reject a fragment's review, with a comment
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/review/fragment/{name}/reject (the `PostApiV1ReviewFragmentNameReject` operationId).
+func (c *ClientWithResponses) PostApiV1ReviewFragmentNameRejectWithBodyWithResponse(ctx context.Context, name string, params *PostApiV1ReviewFragmentNameRejectParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1ReviewFragmentNameRejectResponse, error) {
+	rsp, err := c.PostApiV1ReviewFragmentNameRejectWithBody(ctx, name, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiV1ReviewFragmentNameRejectResponse(rsp)
+}
+
+// PostApiV1ReviewFragmentNameRejectWithResponse Reject a fragment's review, with a comment
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/review/fragment/{name}/reject (the `PostApiV1ReviewFragmentNameReject` operationId).
+func (c *ClientWithResponses) PostApiV1ReviewFragmentNameRejectWithResponse(ctx context.Context, name string, params *PostApiV1ReviewFragmentNameRejectParams, body PostApiV1ReviewFragmentNameRejectJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1ReviewFragmentNameRejectResponse, error) {
+	rsp, err := c.PostApiV1ReviewFragmentNameReject(ctx, name, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiV1ReviewFragmentNameRejectResponse(rsp)
+}
+
+// PostApiV1ReviewFragmentNameSubmitWithResponse Submit a fragment's review
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/review/fragment/{name}/submit (the `PostApiV1ReviewFragmentNameSubmit` operationId).
+func (c *ClientWithResponses) PostApiV1ReviewFragmentNameSubmitWithResponse(ctx context.Context, name string, params *PostApiV1ReviewFragmentNameSubmitParams, reqEditors ...RequestEditorFn) (*PostApiV1ReviewFragmentNameSubmitResponse, error) {
+	rsp, err := c.PostApiV1ReviewFragmentNameSubmit(ctx, name, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiV1ReviewFragmentNameSubmitResponse(rsp)
+}
+
+// PostApiV1ReviewFragmentNameWithdrawWithResponse Withdraw a fragment's review
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/review/fragment/{name}/withdraw (the `PostApiV1ReviewFragmentNameWithdraw` operationId).
+func (c *ClientWithResponses) PostApiV1ReviewFragmentNameWithdrawWithResponse(ctx context.Context, name string, params *PostApiV1ReviewFragmentNameWithdrawParams, reqEditors ...RequestEditorFn) (*PostApiV1ReviewFragmentNameWithdrawResponse, error) {
+	rsp, err := c.PostApiV1ReviewFragmentNameWithdraw(ctx, name, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiV1ReviewFragmentNameWithdrawResponse(rsp)
+}
+
+// GetApiV1ReviewPageNameWithResponse A page's review state, approvers and review history
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/review/page/{name} (the `GetApiV1ReviewPageName` operationId).
+func (c *ClientWithResponses) GetApiV1ReviewPageNameWithResponse(ctx context.Context, name string, params *GetApiV1ReviewPageNameParams, reqEditors ...RequestEditorFn) (*GetApiV1ReviewPageNameResponse, error) {
+	rsp, err := c.GetApiV1ReviewPageName(ctx, name, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetApiV1ReviewPageNameResponse(rsp)
+}
+
+// PostApiV1ReviewPageNameApproveWithResponse Approve a page's review
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/review/page/{name}/approve (the `PostApiV1ReviewPageNameApprove` operationId).
+func (c *ClientWithResponses) PostApiV1ReviewPageNameApproveWithResponse(ctx context.Context, name string, params *PostApiV1ReviewPageNameApproveParams, reqEditors ...RequestEditorFn) (*PostApiV1ReviewPageNameApproveResponse, error) {
+	rsp, err := c.PostApiV1ReviewPageNameApprove(ctx, name, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiV1ReviewPageNameApproveResponse(rsp)
+}
+
+// PostApiV1ReviewPageNameRejectWithBodyWithResponse Reject a page's review, with a comment
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/review/page/{name}/reject (the `PostApiV1ReviewPageNameReject` operationId).
+func (c *ClientWithResponses) PostApiV1ReviewPageNameRejectWithBodyWithResponse(ctx context.Context, name string, params *PostApiV1ReviewPageNameRejectParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1ReviewPageNameRejectResponse, error) {
+	rsp, err := c.PostApiV1ReviewPageNameRejectWithBody(ctx, name, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiV1ReviewPageNameRejectResponse(rsp)
+}
+
+// PostApiV1ReviewPageNameRejectWithResponse Reject a page's review, with a comment
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/review/page/{name}/reject (the `PostApiV1ReviewPageNameReject` operationId).
+func (c *ClientWithResponses) PostApiV1ReviewPageNameRejectWithResponse(ctx context.Context, name string, params *PostApiV1ReviewPageNameRejectParams, body PostApiV1ReviewPageNameRejectJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1ReviewPageNameRejectResponse, error) {
+	rsp, err := c.PostApiV1ReviewPageNameReject(ctx, name, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiV1ReviewPageNameRejectResponse(rsp)
+}
+
+// PostApiV1ReviewPageNameSubmitWithResponse Submit a page's review
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/review/page/{name}/submit (the `PostApiV1ReviewPageNameSubmit` operationId).
+func (c *ClientWithResponses) PostApiV1ReviewPageNameSubmitWithResponse(ctx context.Context, name string, params *PostApiV1ReviewPageNameSubmitParams, reqEditors ...RequestEditorFn) (*PostApiV1ReviewPageNameSubmitResponse, error) {
+	rsp, err := c.PostApiV1ReviewPageNameSubmit(ctx, name, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiV1ReviewPageNameSubmitResponse(rsp)
+}
+
+// PostApiV1ReviewPageNameWithdrawWithResponse Withdraw a page's review
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/review/page/{name}/withdraw (the `PostApiV1ReviewPageNameWithdraw` operationId).
+func (c *ClientWithResponses) PostApiV1ReviewPageNameWithdrawWithResponse(ctx context.Context, name string, params *PostApiV1ReviewPageNameWithdrawParams, reqEditors ...RequestEditorFn) (*PostApiV1ReviewPageNameWithdrawResponse, error) {
+	rsp, err := c.PostApiV1ReviewPageNameWithdraw(ctx, name, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiV1ReviewPageNameWithdrawResponse(rsp)
 }
 
 // GetApiV1RunsRunIdWithResponse An agent run's items, and what reverting it would do
@@ -23093,6 +26343,840 @@ func ParsePostApiV1PublishStreamResponse(rsp *http.Response) (*PostApiV1PublishS
 			return nil, err
 		}
 		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetApiV1ReviewFragmentNameResponse parses an HTTP response from a GetApiV1ReviewFragmentNameWithResponse call
+func ParseGetApiV1ReviewFragmentNameResponse(rsp *http.Response) (*GetApiV1ReviewFragmentNameResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetApiV1ReviewFragmentNameResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			ApprovedAt *string  `json:"approvedAt,omitempty"`
+			Approvers  []string `json:"approvers"`
+			History    []struct {
+				Action GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction `json:"action"`
+				Actor  struct {
+					Email     *string `json:"email,omitempty"`
+					Id        string  `json:"id"`
+					Role      string  `json:"role"`
+					TrustMode string  `json:"trustMode"`
+				} `json:"actor"`
+				Metadata *map[string]interface{}                                     `json:"metadata,omitempty"`
+				Outcome  GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcome `json:"outcome"`
+				Scope    struct {
+					Kind GetApiV1ReviewFragmentName200JSONResponseBodyHistoryScopeKind `json:"kind"`
+					Name *string                                                       `json:"name,omitempty"`
+				} `json:"scope"`
+				SourceIp  *string `json:"sourceIp,omitempty"`
+				Timestamp string  `json:"timestamp"`
+				UserAgent *string `json:"userAgent,omitempty"`
+			} `json:"history"`
+			Kind              GetApiV1ReviewFragmentName200JSONResponseBodyKind  `json:"kind"`
+			Name              string                                             `json:"name"`
+			RequiredApprovers *int                                               `json:"requiredApprovers,omitempty"`
+			State             GetApiV1ReviewFragmentName200JSONResponseBodyState `json:"state"`
+			SubmittedAt       *string                                            `json:"submittedAt,omitempty"`
+			Submitter         *string                                            `json:"submitter,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostApiV1ReviewFragmentNameApproveResponse parses an HTTP response from a PostApiV1ReviewFragmentNameApproveWithResponse call
+func ParsePostApiV1ReviewFragmentNameApproveResponse(rsp *http.Response) (*PostApiV1ReviewFragmentNameApproveResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostApiV1ReviewFragmentNameApproveResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			ApprovedAt        *string                                                    `json:"approvedAt,omitempty"`
+			Approvers         []string                                                   `json:"approvers"`
+			Kind              PostApiV1ReviewFragmentNameApprove200JSONResponseBodyKind  `json:"kind"`
+			Name              string                                                     `json:"name"`
+			RequiredApprovers *int                                                       `json:"requiredApprovers,omitempty"`
+			State             PostApiV1ReviewFragmentNameApprove200JSONResponseBodyState `json:"state"`
+			SubmittedAt       *string                                                    `json:"submittedAt,omitempty"`
+			Submitter         *string                                                    `json:"submitter,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostApiV1ReviewFragmentNameRejectResponse parses an HTTP response from a PostApiV1ReviewFragmentNameRejectWithResponse call
+func ParsePostApiV1ReviewFragmentNameRejectResponse(rsp *http.Response) (*PostApiV1ReviewFragmentNameRejectResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostApiV1ReviewFragmentNameRejectResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			ApprovedAt        *string                                                   `json:"approvedAt,omitempty"`
+			Approvers         []string                                                  `json:"approvers"`
+			Kind              PostApiV1ReviewFragmentNameReject200JSONResponseBodyKind  `json:"kind"`
+			Name              string                                                    `json:"name"`
+			RequiredApprovers *int                                                      `json:"requiredApprovers,omitempty"`
+			State             PostApiV1ReviewFragmentNameReject200JSONResponseBodyState `json:"state"`
+			SubmittedAt       *string                                                   `json:"submittedAt,omitempty"`
+			Submitter         *string                                                   `json:"submitter,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostApiV1ReviewFragmentNameSubmitResponse parses an HTTP response from a PostApiV1ReviewFragmentNameSubmitWithResponse call
+func ParsePostApiV1ReviewFragmentNameSubmitResponse(rsp *http.Response) (*PostApiV1ReviewFragmentNameSubmitResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostApiV1ReviewFragmentNameSubmitResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			ApprovedAt        *string                                                   `json:"approvedAt,omitempty"`
+			Approvers         []string                                                  `json:"approvers"`
+			Kind              PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyKind  `json:"kind"`
+			Name              string                                                    `json:"name"`
+			RequiredApprovers *int                                                      `json:"requiredApprovers,omitempty"`
+			State             PostApiV1ReviewFragmentNameSubmit200JSONResponseBodyState `json:"state"`
+			SubmittedAt       *string                                                   `json:"submittedAt,omitempty"`
+			Submitter         *string                                                   `json:"submitter,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostApiV1ReviewFragmentNameWithdrawResponse parses an HTTP response from a PostApiV1ReviewFragmentNameWithdrawWithResponse call
+func ParsePostApiV1ReviewFragmentNameWithdrawResponse(rsp *http.Response) (*PostApiV1ReviewFragmentNameWithdrawResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostApiV1ReviewFragmentNameWithdrawResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			ApprovedAt        *string                                                     `json:"approvedAt,omitempty"`
+			Approvers         []string                                                    `json:"approvers"`
+			Kind              PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyKind  `json:"kind"`
+			Name              string                                                      `json:"name"`
+			RequiredApprovers *int                                                        `json:"requiredApprovers,omitempty"`
+			State             PostApiV1ReviewFragmentNameWithdraw200JSONResponseBodyState `json:"state"`
+			SubmittedAt       *string                                                     `json:"submittedAt,omitempty"`
+			Submitter         *string                                                     `json:"submitter,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetApiV1ReviewPageNameResponse parses an HTTP response from a GetApiV1ReviewPageNameWithResponse call
+func ParseGetApiV1ReviewPageNameResponse(rsp *http.Response) (*GetApiV1ReviewPageNameResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetApiV1ReviewPageNameResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			ApprovedAt *string  `json:"approvedAt,omitempty"`
+			Approvers  []string `json:"approvers"`
+			History    []struct {
+				Action GetApiV1ReviewPageName200JSONResponseBodyHistoryAction `json:"action"`
+				Actor  struct {
+					Email     *string `json:"email,omitempty"`
+					Id        string  `json:"id"`
+					Role      string  `json:"role"`
+					TrustMode string  `json:"trustMode"`
+				} `json:"actor"`
+				Metadata *map[string]interface{}                                 `json:"metadata,omitempty"`
+				Outcome  GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcome `json:"outcome"`
+				Scope    struct {
+					Kind GetApiV1ReviewPageName200JSONResponseBodyHistoryScopeKind `json:"kind"`
+					Name *string                                                   `json:"name,omitempty"`
+				} `json:"scope"`
+				SourceIp  *string `json:"sourceIp,omitempty"`
+				Timestamp string  `json:"timestamp"`
+				UserAgent *string `json:"userAgent,omitempty"`
+			} `json:"history"`
+			Kind              GetApiV1ReviewPageName200JSONResponseBodyKind  `json:"kind"`
+			Name              string                                         `json:"name"`
+			RequiredApprovers *int                                           `json:"requiredApprovers,omitempty"`
+			State             GetApiV1ReviewPageName200JSONResponseBodyState `json:"state"`
+			SubmittedAt       *string                                        `json:"submittedAt,omitempty"`
+			Submitter         *string                                        `json:"submitter,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostApiV1ReviewPageNameApproveResponse parses an HTTP response from a PostApiV1ReviewPageNameApproveWithResponse call
+func ParsePostApiV1ReviewPageNameApproveResponse(rsp *http.Response) (*PostApiV1ReviewPageNameApproveResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostApiV1ReviewPageNameApproveResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			ApprovedAt        *string                                                `json:"approvedAt,omitempty"`
+			Approvers         []string                                               `json:"approvers"`
+			Kind              PostApiV1ReviewPageNameApprove200JSONResponseBodyKind  `json:"kind"`
+			Name              string                                                 `json:"name"`
+			RequiredApprovers *int                                                   `json:"requiredApprovers,omitempty"`
+			State             PostApiV1ReviewPageNameApprove200JSONResponseBodyState `json:"state"`
+			SubmittedAt       *string                                                `json:"submittedAt,omitempty"`
+			Submitter         *string                                                `json:"submitter,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostApiV1ReviewPageNameRejectResponse parses an HTTP response from a PostApiV1ReviewPageNameRejectWithResponse call
+func ParsePostApiV1ReviewPageNameRejectResponse(rsp *http.Response) (*PostApiV1ReviewPageNameRejectResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostApiV1ReviewPageNameRejectResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			ApprovedAt        *string                                               `json:"approvedAt,omitempty"`
+			Approvers         []string                                              `json:"approvers"`
+			Kind              PostApiV1ReviewPageNameReject200JSONResponseBodyKind  `json:"kind"`
+			Name              string                                                `json:"name"`
+			RequiredApprovers *int                                                  `json:"requiredApprovers,omitempty"`
+			State             PostApiV1ReviewPageNameReject200JSONResponseBodyState `json:"state"`
+			SubmittedAt       *string                                               `json:"submittedAt,omitempty"`
+			Submitter         *string                                               `json:"submitter,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostApiV1ReviewPageNameSubmitResponse parses an HTTP response from a PostApiV1ReviewPageNameSubmitWithResponse call
+func ParsePostApiV1ReviewPageNameSubmitResponse(rsp *http.Response) (*PostApiV1ReviewPageNameSubmitResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostApiV1ReviewPageNameSubmitResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			ApprovedAt        *string                                               `json:"approvedAt,omitempty"`
+			Approvers         []string                                              `json:"approvers"`
+			Kind              PostApiV1ReviewPageNameSubmit200JSONResponseBodyKind  `json:"kind"`
+			Name              string                                                `json:"name"`
+			RequiredApprovers *int                                                  `json:"requiredApprovers,omitempty"`
+			State             PostApiV1ReviewPageNameSubmit200JSONResponseBodyState `json:"state"`
+			SubmittedAt       *string                                               `json:"submittedAt,omitempty"`
+			Submitter         *string                                               `json:"submitter,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostApiV1ReviewPageNameWithdrawResponse parses an HTTP response from a PostApiV1ReviewPageNameWithdrawWithResponse call
+func ParsePostApiV1ReviewPageNameWithdrawResponse(rsp *http.Response) (*PostApiV1ReviewPageNameWithdrawResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostApiV1ReviewPageNameWithdrawResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			ApprovedAt        *string                                                 `json:"approvedAt,omitempty"`
+			Approvers         []string                                                `json:"approvers"`
+			Kind              PostApiV1ReviewPageNameWithdraw200JSONResponseBodyKind  `json:"kind"`
+			Name              string                                                  `json:"name"`
+			RequiredApprovers *int                                                    `json:"requiredApprovers,omitempty"`
+			State             PostApiV1ReviewPageNameWithdraw200JSONResponseBodyState `json:"state"`
+			SubmittedAt       *string                                                 `json:"submittedAt,omitempty"`
+			Submitter         *string                                                 `json:"submitter,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
 		var dest Problem

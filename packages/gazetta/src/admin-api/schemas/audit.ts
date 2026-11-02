@@ -18,6 +18,7 @@
  * silently flowing through as `unknown`).
  */
 import { z } from 'zod'
+import type { AuditAction } from '../../audit/types.js'
 
 export const AuditActionSchema = z.enum([
   'save',
@@ -31,6 +32,13 @@ export const AuditActionSchema = z.enum([
   'unarchive',
   'purge',
   'rename',
+  // Review workflow per design-review-workflow.md "Audit event shape".
+  'review-submit',
+  'review-approve',
+  'review-reject',
+  'review-withdraw',
+  // AI alt-text suggestions per design-ai.md.
+  'ai-suggest-alt',
   // Redirect UI extension per design-redirect-ui.md Q7 lock.
   // Closed-enum-additive — `metadata.aliasOf` carries the alias target.
   'create-redirect',
@@ -43,6 +51,11 @@ export const AuditActionSchema = z.enum([
   'elevation-end',
 ])
 export type AuditActionWire = z.infer<typeof AuditActionSchema>
+// The wire enum lists every action the audit log records, and no others.
+type Assert<T extends true> = T
+export type _AuditActionsMatch = Assert<
+  [Exclude<AuditAction, AuditActionWire>, Exclude<AuditActionWire, AuditAction>] extends [never, never] ? true : false
+>
 
 export const AuditOutcomeSchema = z.enum([
   'success',

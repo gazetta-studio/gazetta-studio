@@ -26,6 +26,10 @@ Never run these; ask the person to:
 - `POST /api/v1/auth/logins/:code/approve`
 - `POST /api/v1/auth/logins/:code/deny`
 - `POST /api/v1/auth/grants`
+- `POST /api/v1/review/page/:name/approve`
+- `POST /api/v1/review/page/:name/reject`
+- `POST /api/v1/review/fragment/:name/approve`
+- `POST /api/v1/review/fragment/:name/reject`
 
 Never approve a publish or review request on the person's behalf.
 <!-- gazetta:agents end -->

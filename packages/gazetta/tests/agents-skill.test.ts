@@ -115,6 +115,16 @@ const ROUTES: Record<string, 'never' | 'allowed'> = {
   // denying one go through the login approve and deny routes above (Q32).
   'POST /api/v1/auth/elevations': 'allowed',
   'DELETE /api/v1/auth/elevations/:id': 'allowed',
+  // Submitting and withdrawing are the person's own review steps an agent
+  // may take; approving and rejecting are deciding on a request (Q32).
+  'POST /api/v1/review/page/:name/submit': 'allowed',
+  'POST /api/v1/review/page/:name/withdraw': 'allowed',
+  'POST /api/v1/review/page/:name/approve': 'never',
+  'POST /api/v1/review/page/:name/reject': 'never',
+  'POST /api/v1/review/fragment/:name/submit': 'allowed',
+  'POST /api/v1/review/fragment/:name/withdraw': 'allowed',
+  'POST /api/v1/review/fragment/:name/approve': 'never',
+  'POST /api/v1/review/fragment/:name/reject': 'never',
   'POST /preview/*': 'allowed',
 }
 

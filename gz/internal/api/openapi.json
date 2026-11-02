@@ -37,10 +37,11 @@
               "AI_ADAPTER_UNAVAILABLE",
               "AI_INVALID_RESPONSE",
               "ALIAS_TARGET_NOT_FOUND",
-              "ARCHIVE_HAS_LIVE_REFS",
+              "ALREADY_VOTED",
               "ARCHIVED",
               "ARCHIVED_CONFLICT",
               "ARCHIVED_NAME_CONFLICT",
+              "ARCHIVE_HAS_LIVE_REFS",
               "ASSET_IN_USE",
               "ASSET_KIND_MISMATCH",
               "ASSET_MANIFEST_CORRUPT",
@@ -62,6 +63,7 @@
               "BATCH_TOO_LARGE",
               "BROWSER_REQUIRED",
               "CLI_LOGIN_UNAVAILABLE",
+              "COMMENT_REQUIRED",
               "CONFLICT",
               "DELETE_BLOCKED",
               "EDIT_LOCKED",
@@ -73,6 +75,7 @@
               "INTERNAL",
               "INVALID",
               "INVALID_CONFLICT_MODE",
+              "INVALID_TRANSITION",
               "LIVE_CONFLICT",
               "LIVE_NAME_CONFLICT",
               "LOGIN_DENIED",
@@ -81,10 +84,12 @@
               "NAME_COLLISION",
               "NOT_ARCHIVED",
               "NOT_FOUND",
+              "NOT_SUBMITTER",
               "PUBLISH_AUDIT_FAILED",
               "REDIRECT_RESTORE",
               "RENAME_PARTIAL",
               "RENDER_FAILED",
+              "REVIEW_DISABLED",
               "STALE",
               "STORAGE_WRITE_FAILED",
               "TARGET_NOT_EDITABLE",
@@ -2030,6 +2035,1558 @@
           },
           "415": {
             "description": "Unsupported media type: BAD_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/review/page/{name}/submit": {
+      "post": {
+        "summary": "Submit a page's review",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "name",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "target",
+            "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The review state after the transition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": ["page", "fragment"]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": ["draft", "pending-review", "approved"]
+                    },
+                    "submitter": {
+                      "type": "string"
+                    },
+                    "requiredApprovers": {
+                      "type": "integer"
+                    },
+                    "approvers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "submittedAt": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["kind", "name", "state", "approvers"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is invalid: BAD_REQUEST, COMMENT_REQUIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: UNAUTHENTICATED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing a capability: FORBIDDEN, NOT_SUBMITTER, TARGET_NOT_EDITABLE",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicts with the current state: INVALID_TRANSITION, ALREADY_VOTED, REVIEW_DISABLED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type: BAD_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error: AUDIT_FAILED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/review/page/{name}/approve": {
+      "post": {
+        "summary": "Approve a page's review",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "name",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "target",
+            "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The review state after the transition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": ["page", "fragment"]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": ["draft", "pending-review", "approved"]
+                    },
+                    "submitter": {
+                      "type": "string"
+                    },
+                    "requiredApprovers": {
+                      "type": "integer"
+                    },
+                    "approvers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "submittedAt": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["kind", "name", "state", "approvers"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is invalid: BAD_REQUEST, COMMENT_REQUIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: UNAUTHENTICATED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing a capability: FORBIDDEN, NOT_SUBMITTER, TARGET_NOT_EDITABLE",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicts with the current state: INVALID_TRANSITION, ALREADY_VOTED, REVIEW_DISABLED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type: BAD_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error: AUDIT_FAILED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/review/page/{name}/withdraw": {
+      "post": {
+        "summary": "Withdraw a page's review",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "name",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "target",
+            "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The review state after the transition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": ["page", "fragment"]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": ["draft", "pending-review", "approved"]
+                    },
+                    "submitter": {
+                      "type": "string"
+                    },
+                    "requiredApprovers": {
+                      "type": "integer"
+                    },
+                    "approvers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "submittedAt": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["kind", "name", "state", "approvers"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is invalid: BAD_REQUEST, COMMENT_REQUIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: UNAUTHENTICATED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing a capability: FORBIDDEN, NOT_SUBMITTER, TARGET_NOT_EDITABLE",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicts with the current state: INVALID_TRANSITION, ALREADY_VOTED, REVIEW_DISABLED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type: BAD_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error: AUDIT_FAILED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/review/page/{name}/reject": {
+      "post": {
+        "summary": "Reject a page's review, with a comment",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "name",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "target",
+            "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "comment": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The review state after the transition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": ["page", "fragment"]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": ["draft", "pending-review", "approved"]
+                    },
+                    "submitter": {
+                      "type": "string"
+                    },
+                    "requiredApprovers": {
+                      "type": "integer"
+                    },
+                    "approvers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "submittedAt": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["kind", "name", "state", "approvers"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is invalid: BAD_REQUEST, COMMENT_REQUIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: UNAUTHENTICATED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing a capability: FORBIDDEN, NOT_SUBMITTER, TARGET_NOT_EDITABLE",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicts with the current state: INVALID_TRANSITION, ALREADY_VOTED, REVIEW_DISABLED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type: BAD_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error: AUDIT_FAILED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/review/page/{name}": {
+      "get": {
+        "summary": "A page's review state, approvers and review history",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "name",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "target",
+            "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "State, approvers and review events, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": ["page", "fragment"]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": ["draft", "pending-review", "approved"]
+                    },
+                    "submitter": {
+                      "type": "string"
+                    },
+                    "requiredApprovers": {
+                      "type": "integer"
+                    },
+                    "approvers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "submittedAt": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "type": "string"
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "timestamp": {
+                            "type": "string"
+                          },
+                          "actor": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "email": {
+                                "type": "string"
+                              },
+                              "role": {
+                                "type": "string"
+                              },
+                              "trustMode": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["id", "role", "trustMode"]
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "save",
+                              "publish",
+                              "delete",
+                              "restore",
+                              "configure-roles",
+                              "hook-fired",
+                              "archive",
+                              "unarchive",
+                              "purge",
+                              "rename",
+                              "review-submit",
+                              "review-approve",
+                              "review-reject",
+                              "review-withdraw",
+                              "ai-suggest-alt",
+                              "create-redirect",
+                              "login-approve",
+                              "login-deny",
+                              "grant-revoke",
+                              "elevation-approve",
+                              "elevation-deny",
+                              "elevation-end"
+                            ]
+                          },
+                          "outcome": {
+                            "type": "string",
+                            "enum": [
+                              "success",
+                              "forbidden",
+                              "validation-failed",
+                              "unauthenticated",
+                              "hook-cancelled",
+                              "timeout"
+                            ]
+                          },
+                          "scope": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": ["page", "fragment", "asset", "site"]
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["kind"]
+                          },
+                          "sourceIp": {
+                            "type": "string"
+                          },
+                          "userAgent": {
+                            "type": "string"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          }
+                        },
+                        "required": ["timestamp", "actor", "action", "outcome", "scope"]
+                      }
+                    }
+                  },
+                  "required": ["kind", "name", "state", "approvers", "history"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is invalid: BAD_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: UNAUTHENTICATED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing a capability: FORBIDDEN",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/review/fragment/{name}/submit": {
+      "post": {
+        "summary": "Submit a fragment's review",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "name",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "target",
+            "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The review state after the transition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": ["page", "fragment"]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": ["draft", "pending-review", "approved"]
+                    },
+                    "submitter": {
+                      "type": "string"
+                    },
+                    "requiredApprovers": {
+                      "type": "integer"
+                    },
+                    "approvers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "submittedAt": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["kind", "name", "state", "approvers"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is invalid: BAD_REQUEST, COMMENT_REQUIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: UNAUTHENTICATED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing a capability: FORBIDDEN, NOT_SUBMITTER, TARGET_NOT_EDITABLE",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicts with the current state: INVALID_TRANSITION, ALREADY_VOTED, REVIEW_DISABLED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type: BAD_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error: AUDIT_FAILED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/review/fragment/{name}/approve": {
+      "post": {
+        "summary": "Approve a fragment's review",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "name",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "target",
+            "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The review state after the transition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": ["page", "fragment"]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": ["draft", "pending-review", "approved"]
+                    },
+                    "submitter": {
+                      "type": "string"
+                    },
+                    "requiredApprovers": {
+                      "type": "integer"
+                    },
+                    "approvers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "submittedAt": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["kind", "name", "state", "approvers"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is invalid: BAD_REQUEST, COMMENT_REQUIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: UNAUTHENTICATED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing a capability: FORBIDDEN, NOT_SUBMITTER, TARGET_NOT_EDITABLE",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicts with the current state: INVALID_TRANSITION, ALREADY_VOTED, REVIEW_DISABLED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type: BAD_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error: AUDIT_FAILED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/review/fragment/{name}/withdraw": {
+      "post": {
+        "summary": "Withdraw a fragment's review",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "name",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "target",
+            "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The review state after the transition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": ["page", "fragment"]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": ["draft", "pending-review", "approved"]
+                    },
+                    "submitter": {
+                      "type": "string"
+                    },
+                    "requiredApprovers": {
+                      "type": "integer"
+                    },
+                    "approvers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "submittedAt": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["kind", "name", "state", "approvers"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is invalid: BAD_REQUEST, COMMENT_REQUIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: UNAUTHENTICATED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing a capability: FORBIDDEN, NOT_SUBMITTER, TARGET_NOT_EDITABLE",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicts with the current state: INVALID_TRANSITION, ALREADY_VOTED, REVIEW_DISABLED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type: BAD_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error: AUDIT_FAILED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/review/fragment/{name}/reject": {
+      "post": {
+        "summary": "Reject a fragment's review, with a comment",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "name",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "target",
+            "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "comment": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The review state after the transition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": ["page", "fragment"]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": ["draft", "pending-review", "approved"]
+                    },
+                    "submitter": {
+                      "type": "string"
+                    },
+                    "requiredApprovers": {
+                      "type": "integer"
+                    },
+                    "approvers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "submittedAt": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["kind", "name", "state", "approvers"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is invalid: BAD_REQUEST, COMMENT_REQUIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: UNAUTHENTICATED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing a capability: FORBIDDEN, NOT_SUBMITTER, TARGET_NOT_EDITABLE",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicts with the current state: INVALID_TRANSITION, ALREADY_VOTED, REVIEW_DISABLED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type: BAD_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error: AUDIT_FAILED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/review/fragment/{name}": {
+      "get": {
+        "summary": "A fragment's review state, approvers and review history",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "name",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "target",
+            "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "State, approvers and review events, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": ["page", "fragment"]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": ["draft", "pending-review", "approved"]
+                    },
+                    "submitter": {
+                      "type": "string"
+                    },
+                    "requiredApprovers": {
+                      "type": "integer"
+                    },
+                    "approvers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "submittedAt": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "type": "string"
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "timestamp": {
+                            "type": "string"
+                          },
+                          "actor": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "email": {
+                                "type": "string"
+                              },
+                              "role": {
+                                "type": "string"
+                              },
+                              "trustMode": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["id", "role", "trustMode"]
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "save",
+                              "publish",
+                              "delete",
+                              "restore",
+                              "configure-roles",
+                              "hook-fired",
+                              "archive",
+                              "unarchive",
+                              "purge",
+                              "rename",
+                              "review-submit",
+                              "review-approve",
+                              "review-reject",
+                              "review-withdraw",
+                              "ai-suggest-alt",
+                              "create-redirect",
+                              "login-approve",
+                              "login-deny",
+                              "grant-revoke",
+                              "elevation-approve",
+                              "elevation-deny",
+                              "elevation-end"
+                            ]
+                          },
+                          "outcome": {
+                            "type": "string",
+                            "enum": [
+                              "success",
+                              "forbidden",
+                              "validation-failed",
+                              "unauthenticated",
+                              "hook-cancelled",
+                              "timeout"
+                            ]
+                          },
+                          "scope": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": ["page", "fragment", "asset", "site"]
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["kind"]
+                          },
+                          "sourceIp": {
+                            "type": "string"
+                          },
+                          "userAgent": {
+                            "type": "string"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          }
+                        },
+                        "required": ["timestamp", "actor", "action", "outcome", "scope"]
+                      }
+                    }
+                  },
+                  "required": ["kind", "name", "state", "approvers", "history"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is invalid: BAD_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: UNAUTHENTICATED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing a capability: FORBIDDEN",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6626,6 +8183,11 @@
                               "unarchive",
                               "purge",
                               "rename",
+                              "review-submit",
+                              "review-approve",
+                              "review-reject",
+                              "review-withdraw",
+                              "ai-suggest-alt",
                               "create-redirect",
                               "login-approve",
                               "login-deny",

@@ -143,7 +143,7 @@ Roles are predefined capability sets. Each authenticated user gets exactly one r
 | Role | Capabilities |
 |---|---|
 | `admin` | `*` (everything) |
-| `editor` | `read:*` + `edit:*` + `publish:non-production` |
+| `editor` | `read:*` + `edit:*` + `publish:non-production` + `review:submit` |
 | `viewer` | `read:*` |
 
 Editor explicitly does NOT have `publish:production` or `delete:*` or `configure:site`.
@@ -159,6 +159,7 @@ Editor explicitly does NOT have `publish:production` or `delete:*` or `configure
 | Publish | `publish:non-production`, `publish:production` |
 | Configure | `configure:site`, `configure:targets` |
 | History | `restore:history` |
+| Review | `review:submit`, `review:approve` |
 | Wildcards | `read:*`, `edit:*`, `delete:*`, `publish:*`, `*` |
 
 ### Custom roles
@@ -213,6 +214,9 @@ API routes live under `/api/v1` (under `/admin/api/v1` when the admin is mounted
 | `POST/PATCH /api/v1/assets*` | `edit:assets` |
 | `DELETE /api/v1/assets/:name` | `delete:assets` |
 | `POST /api/v1/history/{undo,restore}` | `restore:history` |
+| `GET /api/v1/review/{page,fragment}/:name` | `read:pages` / `read:fragments` |
+| `POST /api/v1/review/{page,fragment}/:name/{submit,withdraw}` | `review:submit` |
+| `POST /api/v1/review/{page,fragment}/:name/{approve,reject}` | `review:approve` |
 | `GET /api/v1/runs/:runId` | `read:pages` |
 | `POST /api/v1/runs/:runId/revert` | `edit:pages` / `edit:fragments` for the items it puts back; items the run created are archived only with `archive:pages` / `archive:fragments`, and listed as skipped otherwise. A token needs no elevation. |
 | `POST /api/v1/publish*`, `/api/v1/fetch` | `publish:non-production`; publishing to, or fetching into, a target whose `environment` is `production` also needs `publish:production` |
