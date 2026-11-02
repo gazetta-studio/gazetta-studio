@@ -313,6 +313,13 @@ export interface SaveManifestInput {
    * pass an empty object.
    */
   readonly etagExtras: Record<string, unknown>
+  /**
+   * The extras for the stored version, when they differ from the new
+   * one's. A page's first language version is checked against the
+   * default page (route `/`) but saved under its own route (`/fr`),
+   * so the save-version it answers is the one reading it returns (#1719).
+   */
+  readonly beforeEtagExtras?: Record<string, unknown>
 
   // ----- target wiring (from SourceContext) -----
 
@@ -446,13 +453,13 @@ export async function checkSave(input: SaveManifestInput): Promise<CheckedSave |
   if (input.ifMatch && input.before) {
     const currentEtag = await computeSaveEtag({
       ...input.before,
-      ...input.etagExtras,
+      ...(input.beforeEtagExtras ?? input.etagExtras),
     })
     if (currentEtag !== input.ifMatch) {
       return {
         ok: false,
         code: 'STALE',
-        current: { ...input.before, ...input.etagExtras },
+        current: { ...input.before, ...(input.beforeEtagExtras ?? input.etagExtras) },
         currentEtag,
       }
     }
@@ -685,7 +692,9 @@ export async function finishSave(
   // fragment hashes and would revoke approval on unrelated dependency
   // changes (design-review-workflow.md "Locked invariants").
   if (reviewPolicy && reviewState?.state === 'approved') {
-    const beforeEtag = input.before ? await computeSaveEtag({ ...input.before, ...input.etagExtras }) : null
+    const beforeEtag = input.before
+      ? await computeSaveEtag({ ...input.before, ...(input.beforeEtagExtras ?? input.etagExtras) })
+      : null
     await invalidateApproval(reviewItem, reviewState, beforeEtag !== newEtag, input.principal, reviewPolicy)
   }
 
