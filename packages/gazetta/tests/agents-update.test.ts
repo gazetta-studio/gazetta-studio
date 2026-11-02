@@ -2,7 +2,7 @@
  * `gazetta agents update` and the `gazetta dev` hint (design-agent-access.md
  * Q33, Q34, #1735): the section functions and the update core.
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { rm } from 'node:fs/promises'
@@ -113,6 +113,14 @@ describe('updateAgents', () => {
     mkdirSync(bare)
     writeFileSync(join(bare, 'package.json'), JSON.stringify({ devDependencies: { gazetta: '*' } }))
     expect(updateAgents(bare, pkgRoot())).toMatchObject({ change: 'added', claudeImportAdded: false })
+  })
+
+  it('adds no import when CLAUDE.md is a symlink to AGENTS.md (Seer, #1737)', () => {
+    dir = tempDir(`agents-update-${Date.now()}-${Math.random()}`)
+    const site = project({ 'AGENTS.md': before + section('0.7.0') })
+    symlinkSync('AGENTS.md', join(site, 'CLAUDE.md'))
+    expect(updateAgents(site, pkgRoot())).toMatchObject({ change: 'updated', claudeImportAdded: false })
+    expect(readFileSync(join(site, 'AGENTS.md'), 'utf-8')).not.toContain('@AGENTS.md')
   })
 
   it('finds the project from a folder inside it, and none outside one', () => {
