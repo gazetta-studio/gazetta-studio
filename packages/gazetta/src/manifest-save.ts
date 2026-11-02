@@ -180,6 +180,15 @@ export type SaveResult =
   | SaveAuditFailed
 
 /**
+ * A save assembled by its per-kind wrapper (`preparePageSave`,
+ * `prepareFragmentSave`) and ready for the pipeline, or refused before
+ * it: the item is archived, or a create names an item that exists.
+ */
+export type PreparedSave =
+  | { readonly ok: true; readonly save: SaveManifestInput }
+  | { readonly ok: false; readonly code: 'ARCHIVED' | 'EXISTS'; readonly message: string }
+
+/**
  * Audit recorder shape the pipeline calls. Matches the existing
  * `c.var.audit.record` surface from admin-api/middleware/audit.ts
  * — the pipeline doesn't construct events differently from routes.
@@ -279,6 +288,11 @@ export interface SaveManifestInput {
   /** Optional save-etag for concurrency check (per design-offline.md Q3). */
   readonly ifMatch?: string
   /**
+   * The item is new: `before` is null and the manifest is written only
+   * if nothing is at `manifestPath` yet (the bulk save's creates).
+   */
+  readonly create?: boolean
+  /**
    * Loaded `Site` (the same instance that resolved `before`). Save-delta
    * validation needs it to walk template + fragment + asset refs.
    */
@@ -355,6 +369,76 @@ export interface SaveManifestInput {
  *  13. scanner.rescan                (fire-and-forget)
  */
 export async function saveManifestCore(input: SaveManifestInput): Promise<SaveResult> {
+  const checked = await checkSave(input)
+  if (!checked.ok) return checked
+
+  // Step 4.5 — strict audit pre-write record (#1393, design-audit.md
+  // "Strict mode opt-in"). With `strict: true` the operator requires
+  // "audit recording confirmed successful" before the write proceeds:
+  // record the event now, and a failed recording refuses the save
+  // before anything (history revision, manifest, sidecars, cache)
+  // changes. The post-write success record (step 10) is skipped when
+  // this ran. Runs after validation + hooks so a refused save never
+  // stacks an audit refusal on top of a validation or hook outcome.
+  const strictPreRecord = input.audit.strict === true
+  if (strictPreRecord && !(await recordStrictPreWrite(input))) return { ok: false, code: 'AUDIT_FAILED' }
+
+  // Steps 5-9 — the write phase. Under strict mode the whole phase
+  // is one try/catch: the pre-write record already claims the save,
+  // so ANY failure here (history revision, manifest, sidecars,
+  // cache, etag) gets a second 'write-failed' event to keep the log
+  // honest (#1393), not just the manifest write.
+  let newEtag: string
+  try {
+    // Step 5 — history. Record BEFORE the disk write per the
+    // recordWrite first-call invariant (pages.ts:442-456). Baseline
+    // scan reads current disk state (pre-save); recordWrite overlays
+    // the incoming delta to build the snapshot.
+    if (input.source.history) {
+      await recordWrite({
+        history: input.source.history,
+        contentRoot: input.source.contentRoot,
+        operation: 'save',
+        items: [savedItem(input, checked)],
+      })
+    }
+    newEtag = await writeSave(input, checked)
+  } catch (err) {
+    if (strictPreRecord) await recordWriteFailed(input)
+    throw err
+  }
+
+  await finishSave(input, checked, newEtag, { recordAudit: !strictPreRecord })
+  return { ok: true, etag: newEtag }
+}
+
+/**
+ * A save that passed every check, ready to write: the manifest after
+ * `beforeSave` hooks, serialized, plus what the later steps reuse.
+ */
+export interface CheckedSave {
+  readonly ok: true
+  readonly finalManifest: Record<string, unknown>
+  readonly serialized: string
+  readonly hookCtx: ReturnType<typeof buildHookContext> | null
+  readonly hookScope: { kind: SaveManifestKind; name: string; locale: string | undefined }
+  readonly review: {
+    readonly policy: ReturnType<typeof resolveSaveReviewPolicy>
+    readonly state: Awaited<ReturnType<typeof readSaveReviewState>> | null
+    readonly item: { contentRoot: ContentRoot; kind: SaveManifestKind; name: string }
+  }
+}
+
+/** The checks a save can fail before anything is written. */
+export type SaveCheckFailure = Exclude<SaveResult, SaveOk | { code: 'AUDIT_FAILED' }>
+
+/**
+ * Steps 1-4: everything that can refuse a save before it writes (the
+ * save-version check, the review lock, save-delta validation and
+ * `beforeSave` hooks). Records the refusal's audit event. Writes
+ * nothing, so a bulk save can check every item before writing any.
+ */
+export async function checkSave(input: SaveManifestInput): Promise<CheckedSave | SaveCheckFailure> {
   // Step 1 — etag precheck. Mirrors pages.ts:312-339. The current
   // on-disk etag is computed from the in-memory `before` manifest
   // plus the per-kind extras (Page passes route; Fragment passes
@@ -476,105 +560,109 @@ export async function saveManifestCore(input: SaveManifestInput): Promise<SaveRe
   // ran, finalManifest === input.manifest so the same serialization
   // is recomputed once — cost is negligible vs the conditional.
   const serialized = JSON.stringify(finalManifest, null, 2) + '\n'
+  return {
+    ok: true,
+    finalManifest,
+    serialized,
+    hookCtx,
+    hookScope,
+    review: { policy: reviewPolicy, state: reviewState, item: reviewItem },
+  }
+}
 
-  // Step 4.5 — strict audit pre-write record (#1393, design-audit.md
-  // "Strict mode opt-in"). With `strict: true` the operator requires
-  // "audit recording confirmed successful" before the write proceeds:
-  // record the event now, and a failed recording refuses the save
-  // before anything (history revision, manifest, sidecars, cache)
-  // changes. The post-write success record (step 10) is skipped when
-  // this ran. Runs after validation + hooks so a refused save never
-  // stacks an audit refusal on top of a validation or hook outcome.
-  const strictPreRecord = input.audit.strict === true
-  if (strictPreRecord) {
-    const preResult = await input.audit.record({
-      action: 'save',
-      outcome: 'success',
-      scope: { kind: input.kind, name: input.name },
-      metadata: input.locale ? { locale: input.locale } : undefined,
-    })
-    if (preResult.failed > 0) {
-      return { ok: false, code: 'AUDIT_FAILED' }
-    }
+/** The history entry for a checked save: its path and the content it writes. */
+export function savedItem(input: SaveManifestInput, checked: CheckedSave): { path: string; content: string } {
+  return { path: input.source.contentRoot.relative(input.manifestPath), content: checked.serialized }
+}
+
+/** Strict mode's success record before the write; false when recording failed. */
+export async function recordStrictPreWrite(input: SaveManifestInput): Promise<boolean> {
+  const result = await input.audit.record({
+    action: 'save',
+    outcome: 'success',
+    scope: { kind: input.kind, name: input.name },
+    metadata: input.locale ? { locale: input.locale } : undefined,
+  })
+  return result.failed === 0
+}
+
+/** Strict mode's second event when a write the pre-write record claimed failed. */
+export async function recordWriteFailed(input: SaveManifestInput): Promise<void> {
+  await input.audit.record({
+    action: 'save',
+    outcome: 'write-failed',
+    scope: { kind: input.kind, name: input.name },
+    metadata: input.locale ? { locale: input.locale } : undefined,
+  })
+}
+
+/**
+ * Steps 6-9: write the manifest, its sidecars and cache, and return the
+ * new save-version. History is the caller's: one revision per single
+ * save, one per batch. A create writes only if nothing is at the path
+ * yet, checked and written in one step.
+ */
+export async function writeSave(input: SaveManifestInput, checked: CheckedSave): Promise<string> {
+  const finalManifest = checked.finalManifest
+  // Step 6 — storage write.
+  if (input.create) {
+    await input.source.storage.mkdir(input.manifestPath.slice(0, input.manifestPath.lastIndexOf('/')))
+    await input.source.storage.writeFile(input.manifestPath, checked.serialized, { ifNoneMatch: '*' })
+  } else {
+    await input.source.storage.writeFile(input.manifestPath, checked.serialized)
   }
 
-  // Steps 5-9 — the write phase. Under strict mode the whole phase
-  // is one try/catch: the pre-write record already claims the save,
-  // so ANY failure here (history revision, manifest, sidecars,
-  // cache, etag) gets a second 'write-failed' event to keep the log
-  // honest (#1393), not just the manifest write.
-  let echoShape: Record<string, unknown>
-  let newEtag: string
-  try {
-    // Step 5 — history. Record BEFORE the disk write per the
-    // recordWrite first-call invariant (pages.ts:442-456). Baseline
-    // scan reads current disk state (pre-save); recordWrite overlays
-    // the incoming delta to build the snapshot.
-    if (input.source.history) {
-      await recordWrite({
-        history: input.source.history,
-        contentRoot: input.source.contentRoot,
-        operation: 'save',
-        items: [
-          {
-            path: input.source.contentRoot.relative(input.manifestPath),
-            content: serialized,
-          },
-        ],
-      })
-    }
+  // Step 7 — sidecars in parallel. Three Usage Sidecar relations
+  // (per `sidecars.md`): asset-refs, fragment-deps, archive-aliases.
+  // Future asset-soft-delete adds a fourth here in one place.
+  const item: ItemRef = input.locale
+    ? {
+        source: input.kind === 'page' ? 'page' : 'fragment',
+        name: input.name,
+        locale: input.locale,
+      }
+    : { source: input.kind === 'page' ? 'page' : 'fragment', name: input.name }
+  await Promise.all([
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rebuildAssetRefs(input.source.contentRoot, item, input.before as any, finalManifest),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rebuildFragmentDeps(input.source.contentRoot, item, input.before as any, finalManifest),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rebuildArchiveAliases(input.source.contentRoot, item, input.before as any, finalManifest),
+  ])
 
-    // Step 6 — storage write.
-    await input.source.storage.writeFile(input.manifestPath, serialized)
+  // Step 8 — cache invalidate. Per-kind prefixes from caller. Page
+  // Saves pass ['pages:']; Fragment Saves pass ['fragments:',
+  // 'pages:'] because Fragment References compose into Page
+  // summaries.
+  await Promise.all(input.cacheInvalidatePrefixes.map(p => input.source.cache.invalidatePrefix(p)))
 
-    // Step 7 — sidecars in parallel. Three Usage Sidecar relations
-    // (per `sidecars.md`): asset-refs, fragment-deps, archive-aliases.
-    // Future asset-soft-delete adds a fourth here in one place.
-    const item: ItemRef = input.locale
-      ? {
-          source: input.kind === 'page' ? 'page' : 'fragment',
-          name: input.name,
-          locale: input.locale,
-        }
-      : { source: input.kind === 'page' ? 'page' : 'fragment', name: input.name }
-    await Promise.all([
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      rebuildAssetRefs(input.source.contentRoot, item, input.before as any, finalManifest),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      rebuildFragmentDeps(input.source.contentRoot, item, input.before as any, finalManifest),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      rebuildArchiveAliases(input.source.contentRoot, item, input.before as any, finalManifest),
-    ])
+  // Step 9 — recompute save-etag for the new on-disk content. Echo
+  // shape MUST match what the next GET produces — extras (route)
+  // are folded in here so offline replay projection chains work
+  // (design-offline.md Q3).
+  return computeSaveEtag({ ...finalManifest, ...input.etagExtras })
+}
 
-    // Step 8 — cache invalidate. Per-kind prefixes from caller. Page
-    // Saves pass ['pages:']; Fragment Saves pass ['fragments:',
-    // 'pages:'] because Fragment References compose into Page
-    // summaries.
-    await Promise.all(input.cacheInvalidatePrefixes.map(p => input.source.cache.invalidatePrefix(p)))
-
-    // Step 9 — recompute save-etag for the new on-disk content. Echo
-    // shape MUST match what the next GET produces — extras (route)
-    // are folded in here so offline replay projection chains work
-    // (design-offline.md Q3).
-    echoShape = { ...finalManifest, ...input.etagExtras }
-    newEtag = await computeSaveEtag(echoShape)
-  } catch (err) {
-    if (strictPreRecord) {
-      await input.audit.record({
-        action: 'save',
-        outcome: 'write-failed',
-        scope: { kind: input.kind, name: input.name },
-        metadata: input.locale ? { locale: input.locale } : undefined,
-      })
-    }
-    throw err
-  }
-
+/**
+ * Steps 10-13 after a write: the success audit event (unless strict
+ * mode recorded it before the write), `afterSave` hooks, review
+ * cascades and the background scanner.
+ */
+export async function finishSave(
+  input: SaveManifestInput,
+  checked: CheckedSave,
+  newEtag: string,
+  opts: { recordAudit: boolean },
+): Promise<void> {
+  const { finalManifest, hookCtx, hookScope } = checked
+  const hooks = input.hooks
+  const { policy: reviewPolicy, state: reviewState, item: reviewItem } = checked.review
   // Step 10 — audit success. Records actor + scope + locale (when
   // locale variant). Strict-mode operators check the result.failed
   // count; fail-open default ignores. Recorder never throws.
   // Skipped when strict mode already recorded at step 4.5 (#1393).
-  if (!strictPreRecord) {
+  if (opts.recordAudit) {
     await input.audit.record({
       action: 'save',
       outcome: 'success',
@@ -612,6 +700,4 @@ export async function saveManifestCore(input: SaveManifestInput): Promise<SaveRe
     }
     void input.scanner.rescan(cause)
   }
-
-  return { ok: true, etag: newEtag }
 }

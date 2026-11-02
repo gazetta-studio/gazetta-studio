@@ -27,9 +27,11 @@
 
 import { join } from 'node:path'
 import { ensureComponentIds } from '../component-ids.js'
+import { deriveRoute } from '../runtime/derive-route.js'
 import { isValidLocale } from '../locale.js'
 import {
   saveManifestCore,
+  type PreparedSave,
   type SaveAuditRecorder,
   type SaveResult,
   type SavePrincipal,
@@ -56,6 +58,11 @@ export interface SavePageInput {
   readonly body: Partial<PageManifest> & Record<string, unknown>
   /** Optional save-etag for concurrency check. */
   readonly ifMatch?: string
+  /**
+   * Create the page instead of updating it (the bulk save, #1714): it
+   * must not exist, `body` is its whole manifest, and no locale is given.
+   */
+  readonly create?: boolean
   /** Loaded site (caller does `loadSiteFromSource(source)` once). */
   readonly site: Site
   /** Source wiring (cache, history, storage, contentRoot, manifest, targetName). */
@@ -112,6 +119,19 @@ export class InvalidLocaleError extends Error {
  *   - Setting the `ETag` response header on success from `result.etag`
  */
 export async function savePage(input: SavePageInput): Promise<SaveResult> {
+  const prepared = await preparePageSave(input)
+  if (prepared.ok) return saveManifestCore(prepared.save)
+  // Only a create can answer EXISTS, and savePage is never given one.
+  if (prepared.code === 'EXISTS') throw new Error(prepared.message)
+  return { ok: false, code: 'ARCHIVED', message: prepared.message }
+}
+
+/**
+ * Resolve and assemble a page save without running it, so the bulk save
+ * can check every item before writing any (#1714). Throws
+ * `PageNotFoundError` / `InvalidLocaleError` like `savePage`.
+ */
+export async function preparePageSave(input: SavePageInput): Promise<PreparedSave> {
   // Locale validation — surface invalid codes as a typed error so
   // routes can project to 400 without parsing the message. Mirrors
   // pages.ts:292-294.
@@ -124,6 +144,31 @@ export async function savePage(input: SavePageInput): Promise<SaveResult> {
   // Resolve the page to update — locale variant or default. Mirrors
   // pages.ts:300-304. The default page MUST exist (creates go through
   // a separate `createPage` entry point — Cut 5).
+  if (input.create) {
+    if (locale) throw new Error('A create has no locale')
+    if (input.site.pages.has(input.name)) {
+      return { ok: false, code: 'EXISTS', message: `Page "${input.name}" already exists` }
+    }
+    const manifest: Record<string, unknown> = {
+      ...input.body,
+      components: ensureComponentIds(input.body.components ?? []),
+    }
+    return {
+      ok: true,
+      save: {
+        ...shared(input),
+        kind: 'page',
+        name: input.name,
+        manifest,
+        before: null,
+        create: true,
+        manifestPath: input.source.contentRoot.path('pages', input.name, 'page.json'),
+        cacheInvalidatePrefixes: ['pages:'],
+        etagExtras: { route: deriveRoute(input.name) },
+      },
+    }
+  }
+
   const defaultPage = input.site.pages.get(input.name)
   if (!defaultPage) throw new PageNotFoundError(input.name)
 
@@ -172,17 +217,36 @@ export async function savePage(input: SavePageInput): Promise<SaveResult> {
   //     dirty fragments)
   //   - etagExtras: { route } — folder-derived, not stored in the
   //     file but part of the etag projection chain
-  return saveManifestCore({
-    kind: 'page',
-    name: input.name,
-    locale,
-    manifest,
-    before: page as unknown as Record<string, unknown>,
-    manifestPath,
+  return {
+    ok: true,
+    save: {
+      kind: 'page',
+      name: input.name,
+      locale,
+      manifest,
+      before: page as unknown as Record<string, unknown>,
+      manifestPath,
+      ifMatch: input.ifMatch,
+      site: input.site,
+      cacheInvalidatePrefixes: ['pages:'],
+      etagExtras: { route: page.route },
+      source: input.source,
+      audit: input.audit,
+      principal: input.principal,
+      hookAuditEmit: input.hookAuditEmit,
+      validators: input.validators,
+      hooks: input.hooks,
+      scanner: input.scanner,
+      requestId: input.requestId,
+    },
+  }
+}
+
+/** The request and admin wiring every page save passes through unchanged. */
+function shared(input: SavePageInput) {
+  return {
     ifMatch: input.ifMatch,
     site: input.site,
-    cacheInvalidatePrefixes: ['pages:'],
-    etagExtras: { route: page.route },
     source: input.source,
     audit: input.audit,
     principal: input.principal,
@@ -191,5 +255,5 @@ export async function savePage(input: SavePageInput): Promise<SaveResult> {
     hooks: input.hooks,
     scanner: input.scanner,
     requestId: input.requestId,
-  })
+  }
 }

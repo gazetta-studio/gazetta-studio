@@ -39,6 +39,72 @@ func (e AssetSummaryKind) Valid() bool {
 	}
 }
 
+// Defines values for BulkSaveItemIfNoneMatch.
+const (
+	Asterisk BulkSaveItemIfNoneMatch = "*"
+)
+
+// Valid indicates whether the value is a known member of the BulkSaveItemIfNoneMatch enum.
+func (e BulkSaveItemIfNoneMatch) Valid() bool {
+	switch e {
+	case Asterisk:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BulkSaveItemKind.
+const (
+	BulkSaveItemKindFragment BulkSaveItemKind = "fragment"
+	BulkSaveItemKindPage     BulkSaveItemKind = "page"
+)
+
+// Valid indicates whether the value is a known member of the BulkSaveItemKind enum.
+func (e BulkSaveItemKind) Valid() bool {
+	switch e {
+	case BulkSaveItemKindFragment:
+		return true
+	case BulkSaveItemKindPage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BulkSaveResponseItemsKind.
+const (
+	BulkSaveResponseItemsKindFragment BulkSaveResponseItemsKind = "fragment"
+	BulkSaveResponseItemsKindPage     BulkSaveResponseItemsKind = "page"
+)
+
+// Valid indicates whether the value is a known member of the BulkSaveResponseItemsKind enum.
+func (e BulkSaveResponseItemsKind) Valid() bool {
+	switch e {
+	case BulkSaveResponseItemsKindFragment:
+		return true
+	case BulkSaveResponseItemsKindPage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BulkSaveResponseOk.
+const (
+	BulkSaveResponseOkTrue BulkSaveResponseOk = true
+)
+
+// Valid indicates whether the value is a known member of the BulkSaveResponseOk enum.
+func (e BulkSaveResponseOk) Valid() bool {
+	switch e {
+	case BulkSaveResponseOkTrue:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for IssueSeverity.
 const (
 	Error IssueSeverity = "error"
@@ -87,6 +153,8 @@ const (
 	ASSETVARIANTGENERATIONFAILED ProblemCode = "ASSET_VARIANT_GENERATION_FAILED"
 	AUDITFAILED                  ProblemCode = "AUDIT_FAILED"
 	BADREQUEST                   ProblemCode = "BAD_REQUEST"
+	BATCHREFUSED                 ProblemCode = "BATCH_REFUSED"
+	BATCHTOOLARGE                ProblemCode = "BATCH_TOO_LARGE"
 	BROWSERREQUIRED              ProblemCode = "BROWSER_REQUIRED"
 	CLILOGINUNAVAILABLE          ProblemCode = "CLI_LOGIN_UNAVAILABLE"
 	CONFLICT                     ProblemCode = "CONFLICT"
@@ -175,6 +243,10 @@ func (e ProblemCode) Valid() bool {
 	case AUDITFAILED:
 		return true
 	case BADREQUEST:
+		return true
+	case BATCHREFUSED:
+		return true
+	case BATCHTOOLARGE:
 		return true
 	case BROWSERREQUIRED:
 		return true
@@ -1064,6 +1136,54 @@ type AssetSummary struct {
 
 // AssetSummaryKind defines model for AssetSummary.Kind.
 type AssetSummaryKind string
+
+// BulkSaveItem defines model for BulkSaveItem.
+type BulkSaveItem struct {
+	// IfMatch The save-version you last read. Every existing item needs one.
+	IfMatch *string `json:"ifMatch,omitempty"`
+
+	// IfNoneMatch Create the item instead: it saves only if nothing exists under its name.
+	IfNoneMatch *BulkSaveItemIfNoneMatch `json:"ifNoneMatch,omitempty"`
+	Kind        BulkSaveItemKind         `json:"kind"`
+	Locale      *string                  `json:"locale,omitempty"`
+
+	// Manifest The item's manifest. For an update, fields it leaves out keep their stored values.
+	Manifest map[string]interface{} `json:"manifest"`
+	Name     string                 `json:"name"`
+}
+
+// BulkSaveItemIfNoneMatch Create the item instead: it saves only if nothing exists under its name.
+type BulkSaveItemIfNoneMatch string
+
+// BulkSaveItemKind defines model for BulkSaveItem.Kind.
+type BulkSaveItemKind string
+
+// BulkSaveRequest defines model for BulkSaveRequest.
+type BulkSaveRequest struct {
+	Items []BulkSaveItem `json:"items"`
+}
+
+// BulkSaveResponse defines model for BulkSaveResponse.
+type BulkSaveResponse struct {
+	Items []struct {
+		// Etag The new save-version, to send as ifMatch next time.
+		Etag   string                    `json:"etag"`
+		Index  int                       `json:"index"`
+		Kind   BulkSaveResponseItemsKind `json:"kind"`
+		Locale *string                   `json:"locale,omitempty"`
+		Name   string                    `json:"name"`
+	} `json:"items"`
+	Ok BulkSaveResponseOk `json:"ok"`
+
+	// Revision The history revision recording the batch; absent without history.
+	Revision *string `json:"revision,omitempty"`
+}
+
+// BulkSaveResponseItemsKind defines model for BulkSaveResponse.Items.Kind.
+type BulkSaveResponseItemsKind string
+
+// BulkSaveResponseOk defines model for BulkSaveResponse.Ok.
+type BulkSaveResponseOk bool
 
 // Issue defines model for Issue.
 type Issue struct {
@@ -1974,6 +2094,15 @@ type PostApiV1PublishStreamParams struct {
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
+// PostApiV1SavesParams defines parameters for PostApiV1Saves.
+type PostApiV1SavesParams struct {
+	Target     *string `form:"target,omitempty" json:"target,omitempty"`
+	XRequestId *string `json:"x-request-id,omitempty"`
+
+	// GazettaRun The agent run these saves belong to (required here).
+	GazettaRun string `json:"gazetta-run"`
+}
+
 // GetApiV1SiteParams defines parameters for GetApiV1Site.
 type GetApiV1SiteParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
@@ -2176,6 +2305,9 @@ type PostApiV1PublishAuditJSONRequestBody PostApiV1PublishAuditJSONBody
 
 // PostApiV1PublishStreamJSONRequestBody defines body for PostApiV1PublishStream for application/json ContentType.
 type PostApiV1PublishStreamJSONRequestBody PostApiV1PublishStreamJSONBody
+
+// PostApiV1SavesJSONRequestBody defines body for PostApiV1Saves for application/json ContentType.
+type PostApiV1SavesJSONRequestBody = BulkSaveRequest
 
 // PostPreviewJSONRequestBody defines body for PostPreview for application/json ContentType.
 type PostPreviewJSONRequestBody PostPreviewJSONBody
@@ -4357,6 +4489,24 @@ type ClientInterface interface {
 	// Corresponds with POST /api/v1/publish/stream (the `PostApiV1PublishStream` operationId).
 	PostApiV1PublishStream(ctx context.Context, params *PostApiV1PublishStreamParams, body PostApiV1PublishStreamJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PostApiV1SavesWithBody Save several pages and fragments at once, all or nothing
+	//
+	// Every item is checked (its save-version, the save checks and beforeSave hooks) before anything is written. If one fails, nothing is written and the problem lists every failing item. Otherwise all items are written and recorded as one history revision in the run named by Gazetta-Run, which this route requires.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/saves (the `PostApiV1Saves` operationId).
+	PostApiV1SavesWithBody(ctx context.Context, params *PostApiV1SavesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostApiV1Saves Save several pages and fragments at once, all or nothing
+	//
+	// Every item is checked (its save-version, the save checks and beforeSave hooks) before anything is written. If one fails, nothing is written and the problem lists every failing item. Otherwise all items are written and recorded as one history revision in the run named by Gazetta-Run, which this route requires.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/saves (the `PostApiV1Saves` operationId).
+	PostApiV1Saves(ctx context.Context, params *PostApiV1SavesParams, body PostApiV1SavesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetApiV1Site The site's manifest
 	//
 	// Corresponds with GET /api/v1/site (the `GetApiV1Site` operationId).
@@ -5761,6 +5911,44 @@ func (c *Client) PostApiV1PublishStreamWithBody(ctx context.Context, params *Pos
 // Corresponds with POST /api/v1/publish/stream (the `PostApiV1PublishStream` operationId).
 func (c *Client) PostApiV1PublishStream(ctx context.Context, params *PostApiV1PublishStreamParams, body PostApiV1PublishStreamJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostApiV1PublishStreamRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostApiV1SavesWithBody Save several pages and fragments at once, all or nothing
+//
+// Every item is checked (its save-version, the save checks and beforeSave hooks) before anything is written. If one fails, nothing is written and the problem lists every failing item. Otherwise all items are written and recorded as one history revision in the run named by Gazetta-Run, which this route requires.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/saves (the `PostApiV1Saves` operationId).
+func (c *Client) PostApiV1SavesWithBody(ctx context.Context, params *PostApiV1SavesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1SavesRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostApiV1Saves Save several pages and fragments at once, all or nothing
+//
+// Every item is checked (its save-version, the save checks and beforeSave hooks) before anything is written. If one fails, nothing is written and the problem lists every failing item. Otherwise all items are written and recorded as one history revision in the run named by Gazetta-Run, which this route requires.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/saves (the `PostApiV1Saves` operationId).
+func (c *Client) PostApiV1Saves(ctx context.Context, params *PostApiV1SavesParams, body PostApiV1SavesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1SavesRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -10554,6 +10742,97 @@ func NewPostApiV1PublishStreamRequestWithBody(server string, params *PostApiV1Pu
 	return req, nil
 }
 
+// NewPostApiV1SavesRequest calls the generic PostApiV1Saves builder with application/json body
+func NewPostApiV1SavesRequest(server string, params *PostApiV1SavesParams, body PostApiV1SavesJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostApiV1SavesRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewPostApiV1SavesRequestWithBody constructs an http.Request for the PostApiV1Saves method, with any body, and a specified content type
+func NewPostApiV1SavesRequestWithBody(server string, params *PostApiV1SavesParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/saves")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Target != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "target", *params.Target, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.XRequestId != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-request-id", *params.XRequestId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("x-request-id", headerParam0)
+		}
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "gazetta-run", params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("gazetta-run", headerParam1)
+
+	}
+
+	return req, nil
+}
+
 // NewGetApiV1SiteRequest constructs an http.Request for the GetApiV1Site method
 func NewGetApiV1SiteRequest(server string, params *GetApiV1SiteParams) (*http.Request, error) {
 	var err error
@@ -11840,6 +12119,24 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/v1/publish/stream (the `PostApiV1PublishStream` operationId).
 	PostApiV1PublishStreamWithResponse(ctx context.Context, params *PostApiV1PublishStreamParams, body PostApiV1PublishStreamJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1PublishStreamResponse, error)
+
+	// PostApiV1SavesWithBodyWithResponse Save several pages and fragments at once, all or nothing
+	//
+	// Every item is checked (its save-version, the save checks and beforeSave hooks) before anything is written. If one fails, nothing is written and the problem lists every failing item. Otherwise all items are written and recorded as one history revision in the run named by Gazetta-Run, which this route requires.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/saves (the `PostApiV1Saves` operationId).
+	PostApiV1SavesWithBodyWithResponse(ctx context.Context, params *PostApiV1SavesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1SavesResponse, error)
+
+	// PostApiV1SavesWithResponse Save several pages and fragments at once, all or nothing
+	//
+	// Every item is checked (its save-version, the save checks and beforeSave hooks) before anything is written. If one fails, nothing is written and the problem lists every failing item. Otherwise all items are written and recorded as one history revision in the run named by Gazetta-Run, which this route requires.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/saves (the `PostApiV1Saves` operationId).
+	PostApiV1SavesWithResponse(ctx context.Context, params *PostApiV1SavesParams, body PostApiV1SavesJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1SavesResponse, error)
 
 	// GetApiV1SiteWithResponse The site's manifest
 	//
@@ -16617,6 +16914,96 @@ func (r PostApiV1PublishStreamResponse) ContentType() string {
 	return ""
 }
 
+type PostApiV1SavesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *BulkSaveResponse
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *Problem
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Problem
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Problem
+	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
+	ApplicationproblemJSON409 *Problem
+	// ApplicationproblemJSON413 the response for an HTTP 413 `application/problem+json` response
+	ApplicationproblemJSON413 *Problem
+	// ApplicationproblemJSON415 the response for an HTTP 415 `application/problem+json` response
+	ApplicationproblemJSON415 *Problem
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PostApiV1SavesResponse) GetJSON200() *BulkSaveResponse {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r PostApiV1SavesResponse) GetApplicationproblemJSON400() *Problem {
+	return r.ApplicationproblemJSON400
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r PostApiV1SavesResponse) GetApplicationproblemJSON401() *Problem {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r PostApiV1SavesResponse) GetApplicationproblemJSON403() *Problem {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
+func (r PostApiV1SavesResponse) GetApplicationproblemJSON409() *Problem {
+	return r.ApplicationproblemJSON409
+}
+
+// GetApplicationproblemJSON413 returns the response for an HTTP 413 `application/problem+json` response
+func (r PostApiV1SavesResponse) GetApplicationproblemJSON413() *Problem {
+	return r.ApplicationproblemJSON413
+}
+
+// GetApplicationproblemJSON415 returns the response for an HTTP 415 `application/problem+json` response
+func (r PostApiV1SavesResponse) GetApplicationproblemJSON415() *Problem {
+	return r.ApplicationproblemJSON415
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r PostApiV1SavesResponse) GetApplicationproblemJSON500() *Problem {
+	return r.ApplicationproblemJSON500
+}
+
+// GetBody returns the raw response body bytes
+func (r PostApiV1SavesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostApiV1SavesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostApiV1SavesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostApiV1SavesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetApiV1SiteResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -18355,6 +18742,36 @@ func (c *ClientWithResponses) PostApiV1PublishStreamWithResponse(ctx context.Con
 		return nil, err
 	}
 	return ParsePostApiV1PublishStreamResponse(rsp)
+}
+
+// PostApiV1SavesWithBodyWithResponse Save several pages and fragments at once, all or nothing
+//
+// Every item is checked (its save-version, the save checks and beforeSave hooks) before anything is written. If one fails, nothing is written and the problem lists every failing item. Otherwise all items are written and recorded as one history revision in the run named by Gazetta-Run, which this route requires.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/saves (the `PostApiV1Saves` operationId).
+func (c *ClientWithResponses) PostApiV1SavesWithBodyWithResponse(ctx context.Context, params *PostApiV1SavesParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1SavesResponse, error) {
+	rsp, err := c.PostApiV1SavesWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiV1SavesResponse(rsp)
+}
+
+// PostApiV1SavesWithResponse Save several pages and fragments at once, all or nothing
+//
+// Every item is checked (its save-version, the save checks and beforeSave hooks) before anything is written. If one fails, nothing is written and the problem lists every failing item. Otherwise all items are written and recorded as one history revision in the run named by Gazetta-Run, which this route requires.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/saves (the `PostApiV1Saves` operationId).
+func (c *ClientWithResponses) PostApiV1SavesWithResponse(ctx context.Context, params *PostApiV1SavesParams, body PostApiV1SavesJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiV1SavesResponse, error) {
+	rsp, err := c.PostApiV1Saves(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiV1SavesResponse(rsp)
 }
 
 // GetApiV1SiteWithResponse The site's manifest
@@ -22047,6 +22464,81 @@ func ParsePostApiV1PublishStreamResponse(rsp *http.Response) (*PostApiV1PublishS
 			return nil, err
 		}
 		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON415 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostApiV1SavesResponse parses an HTTP response from a PostApiV1SavesWithResponse call
+func ParsePostApiV1SavesResponse(rsp *http.Response) (*PostApiV1SavesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostApiV1SavesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest BulkSaveResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON413 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
 		var dest Problem

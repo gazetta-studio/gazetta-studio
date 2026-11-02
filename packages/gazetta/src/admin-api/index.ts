@@ -54,6 +54,7 @@ import {
 import { runAuditPrune } from './audit-prune-runner.js'
 import { siteRoutes } from './routes/site.js'
 import { pageRoutes } from './routes/pages.js'
+import { saveRoutes } from './routes/saves.js'
 import { fragmentRoutes } from './routes/fragments.js'
 import { defaultValidatorRegistry } from '../validation/default-registry.js'
 import { templateRoutes } from './routes/templates.js'
@@ -521,6 +522,13 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   // greedy `pages` / `fragments` matchers — same first-match-wins
   // consideration as archive + rename above.
   api.route('/', redirectRoutes(resolveSource))
+  api.route(
+    '/',
+    saveRoutes(resolveSource, validators, templatesDir, {
+      hooks: opts.hooks,
+      scanner: opts.validationScanner ?? null,
+    }),
+  )
   api.route(
     '/',
     pageRoutes(resolveSource, validators, templatesDir, {

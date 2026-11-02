@@ -58,6 +58,8 @@
               "ASSET_VARIANT_GENERATION_FAILED",
               "AUDIT_FAILED",
               "BAD_REQUEST",
+              "BATCH_REFUSED",
+              "BATCH_TOO_LARGE",
               "BROWSER_REQUIRED",
               "CLI_LOGIN_UNAVAILABLE",
               "CONFLICT",
@@ -103,6 +105,90 @@
         },
         "required": ["type", "title", "status", "code"],
         "additionalProperties": {}
+      },
+      "BulkSaveResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [true]
+          },
+          "revision": {
+            "type": "string",
+            "description": "The history revision recording the batch; absent without history."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": ["page", "fragment"]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "locale": {
+                  "type": "string"
+                },
+                "etag": {
+                  "type": "string",
+                  "description": "The new save-version, to send as ifMatch next time."
+                }
+              },
+              "required": ["index", "kind", "name", "etag"]
+            }
+          }
+        },
+        "required": ["ok", "items"]
+      },
+      "BulkSaveRequest": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BulkSaveItem"
+            },
+            "minItems": 1
+          }
+        },
+        "required": ["items"]
+      },
+      "BulkSaveItem": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["page", "fragment"]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "locale": {
+            "type": "string"
+          },
+          "manifest": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "The item's manifest. For an update, fields it leaves out keep their stored values."
+          },
+          "ifMatch": {
+            "type": "string",
+            "description": "The save-version you last read. Every existing item needs one."
+          },
+          "ifNoneMatch": {
+            "type": "string",
+            "enum": ["*"],
+            "description": "Create the item instead: it saves only if nothing exists under its name."
+          }
+        },
+        "required": ["kind", "name", "manifest"]
       },
       "Issue": {
         "type": "object",
@@ -1839,6 +1925,133 @@
           },
           "415": {
             "description": "Unsupported media type: BAD_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/saves": {
+      "post": {
+        "summary": "Save several pages and fragments at once, all or nothing",
+        "description": "Every item is checked (its save-version, the save checks and beforeSave hooks) before anything is written. If one fails, nothing is written and the problem lists every failing item. Otherwise all items are written and recorded as one history revision in the run named by Gazetta-Run, which this route requires.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "target",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "x-request-id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^(?!\\.\\.?$)[A-Za-z0-9._-]{1,64}$",
+              "description": "The agent run these saves belong to (required here)."
+            },
+            "required": true,
+            "description": "The agent run these saves belong to (required here).",
+            "name": "gazetta-run",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkSaveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Every item saved; one revision records them",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkSaveResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is invalid: BAD_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: UNAUTHENTICATED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing a capability: FORBIDDEN, TARGET_NOT_EDITABLE, TOKEN_EDIT_ONLY",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicts with the current state: BATCH_REFUSED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Too large: BATCH_TOO_LARGE",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type: BAD_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error: AUDIT_FAILED, STORAGE_WRITE_FAILED",
             "content": {
               "application/problem+json": {
                 "schema": {

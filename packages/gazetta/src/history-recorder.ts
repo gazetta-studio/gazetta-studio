@@ -114,22 +114,7 @@ export interface RecordWriteOptions {
 export async function recordWrite(opts: RecordWriteOptions) {
   const scanLocations = opts.scanLocations ?? DEFAULT_SCAN_LOCATIONS
   const scanRootFiles = opts.scanRootFiles ?? DEFAULT_SCAN_ROOT_FILES
-
-  // On the very first write, record a baseline revision capturing the
-  // pre-write state — so "undo my first save" has something to revert
-  // to (the tree as it was before the CMS touched it). Subsequent
-  // writes overlay deltas onto the previous revision. Without this,
-  // the first revision would be post-save state and undo would have no earlier
-  // revision to restore.
-  const existing = await opts.history.listRevisions(1)
-  if (existing.length === 0) {
-    const baseline = await scanContentTree(opts.contentRoot, scanLocations, scanRootFiles)
-    await opts.history.recordRevision({
-      operation: 'save',
-      message: 'Initial baseline',
-      items: baseline,
-    })
-  }
+  await ensureHistoryBaseline(opts)
 
   const prevItems = await loadPreviousSnapshot(opts.history, opts.contentRoot, scanLocations, scanRootFiles)
   const nextItems = new Map<string, BlobContent>(prevItems)
@@ -151,6 +136,32 @@ export async function recordWrite(opts: RecordWriteOptions) {
     changed: opts.items.map(it => it.path),
   }
   return opts.history.recordRevision(input)
+}
+
+/**
+ * On the very first write, record a baseline revision capturing the
+ * pre-write state — so "undo my first save" has something to revert
+ * to (the tree as it was before the CMS touched it). Subsequent
+ * writes overlay deltas onto the previous revision. Without this, the
+ * first revision would be post-save state and undo would have no
+ * earlier revision to restore. A caller that records its revision
+ * after writing (the bulk save) calls this before the first write.
+ */
+export async function ensureHistoryBaseline(
+  opts: Pick<RecordWriteOptions, 'history' | 'contentRoot' | 'scanLocations' | 'scanRootFiles'>,
+): Promise<void> {
+  const existing = await opts.history.listRevisions(1)
+  if (existing.length > 0) return
+  const baseline = await scanContentTree(
+    opts.contentRoot,
+    opts.scanLocations ?? DEFAULT_SCAN_LOCATIONS,
+    opts.scanRootFiles ?? DEFAULT_SCAN_ROOT_FILES,
+  )
+  await opts.history.recordRevision({
+    operation: 'save',
+    message: 'Initial baseline',
+    items: baseline,
+  })
 }
 
 /**

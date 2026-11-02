@@ -70,6 +70,8 @@ const ROUTES: Record<string, 'never' | 'allowed'> = {
   'POST /api/v1/history/restore': 'never',
   'POST /api/v1/pages': 'allowed',
   'PUT /api/v1/pages/:name': 'allowed',
+  // The bulk save writes many items as one save (Q46); a save is an edit.
+  'POST /api/v1/saves': 'allowed',
   'DELETE /api/v1/pages/:name': 'never',
   'DELETE /api/v1/pages/:name/purge': 'never',
   'POST /api/v1/pages/:name/archive': 'allowed',

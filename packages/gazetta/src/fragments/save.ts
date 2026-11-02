@@ -28,6 +28,7 @@ import { ensureComponentIds } from '../component-ids.js'
 import { isValidLocale } from '../locale.js'
 import {
   saveManifestCore,
+  type PreparedSave,
   type SaveAuditRecorder,
   type SavePrincipal,
   type SaveResult,
@@ -53,6 +54,11 @@ export interface SaveFragmentInput {
   readonly body: Partial<FragmentManifest> & Record<string, unknown>
   /** Optional save-etag for concurrency check. */
   readonly ifMatch?: string
+  /**
+   * Create the fragment instead of updating it (the bulk save, #1714): it
+   * must not exist, `body` is its whole manifest, and no locale is given.
+   */
+  readonly create?: boolean
   /** Loaded site (caller does `loadSiteFromSource(source)` once). */
   readonly site: Site
   /** Source wiring (cache, history, storage, contentRoot, manifest, targetName). */
@@ -96,10 +102,49 @@ export class InvalidLocaleError extends Error {
  * preconditions; returns `SaveResult` for save outcomes.
  */
 export async function saveFragment(input: SaveFragmentInput): Promise<SaveResult> {
+  const prepared = await prepareFragmentSave(input)
+  if (prepared.ok) return saveManifestCore(prepared.save)
+  // Only a create can answer EXISTS, and saveFragment is never given one.
+  if (prepared.code === 'EXISTS') throw new Error(prepared.message)
+  return { ok: false, code: 'ARCHIVED', message: prepared.message }
+}
+
+/**
+ * Resolve and assemble a fragment save without running it, so the bulk save
+ * can check every item before writing any (#1714). Throws
+ * `FragmentNotFoundError` / `InvalidLocaleError` like `saveFragment`.
+ */
+export async function prepareFragmentSave(input: SaveFragmentInput): Promise<PreparedSave> {
   let locale: string | undefined
   if (input.locale !== undefined) {
     if (!isValidLocale(input.locale)) throw new InvalidLocaleError(input.locale)
     locale = input.locale.toLowerCase()
+  }
+
+  if (input.create) {
+    if (locale) throw new Error('A create has no locale')
+    if (input.site.fragments.has(input.name)) {
+      return { ok: false, code: 'EXISTS', message: `Fragment "${input.name}" already exists` }
+    }
+    const manifest: Record<string, unknown> = {
+      ...input.body,
+      components: ensureComponentIds(input.body.components ?? []),
+    }
+    return {
+      ok: true,
+      save: {
+        ...shared(input),
+        kind: 'fragment',
+        name: input.name,
+        manifest,
+        before: null,
+        create: true,
+        manifestPath: input.source.contentRoot.path('fragments', input.name, 'fragment.json'),
+        cacheInvalidatePrefixes: ['fragments:', 'pages:'],
+        etagExtras: {},
+        scannerCause: { kind: 'fragment', name: input.name },
+      },
+    }
   }
 
   const defaultFragment = input.site.fragments.get(input.name)
@@ -124,22 +169,46 @@ export async function saveFragment(input: SaveFragmentInput): Promise<SaveResult
   const filename = locale ? `fragment.${locale}.json` : 'fragment.json'
   const manifestPath = join(defaultFragment.dir, filename)
 
-  return saveManifestCore({
-    kind: 'fragment',
-    name: input.name,
-    locale,
-    manifest,
-    before: fragment as unknown as Record<string, unknown>,
-    manifestPath,
+  return {
+    ok: true,
+    save: {
+      kind: 'fragment',
+      name: input.name,
+      locale,
+      manifest,
+      before: fragment as unknown as Record<string, unknown>,
+      manifestPath,
+      ifMatch: input.ifMatch,
+      site: input.site,
+      // Fragment Saves invalidate `pages:` too because Fragment
+      // References compose into Page summaries (Page summaries reflect
+      // resolved fragment content). Order matches what fragments.ts
+      // PUT did before the cutover.
+      cacheInvalidatePrefixes: ['fragments:', 'pages:'],
+      // No route or metadata to fold in — etag is pure manifest.
+      etagExtras: {},
+      source: input.source,
+      audit: input.audit,
+      principal: input.principal,
+      hookAuditEmit: input.hookAuditEmit,
+      validators: input.validators,
+      hooks: input.hooks,
+      scanner: input.scanner,
+      // Scanner cause: Fragment Saves walk transitive dependents via
+      // findDependentsFromSidecars (a fragment edit can affect every
+      // page that references @{name}). The 'fragment' RescanCause
+      // variant tells the scanner to expand the dependency set.
+      scannerCause: { kind: 'fragment', name: input.name },
+      requestId: input.requestId,
+    },
+  }
+}
+
+/** The request and admin wiring every fragment save passes through unchanged. */
+function shared(input: SaveFragmentInput) {
+  return {
     ifMatch: input.ifMatch,
     site: input.site,
-    // Fragment Saves invalidate `pages:` too because Fragment
-    // References compose into Page summaries (Page summaries reflect
-    // resolved fragment content). Order matches what fragments.ts
-    // PUT did before the cutover.
-    cacheInvalidatePrefixes: ['fragments:', 'pages:'],
-    // No route or metadata to fold in — etag is pure manifest.
-    etagExtras: {},
     source: input.source,
     audit: input.audit,
     principal: input.principal,
@@ -147,11 +216,6 @@ export async function saveFragment(input: SaveFragmentInput): Promise<SaveResult
     validators: input.validators,
     hooks: input.hooks,
     scanner: input.scanner,
-    // Scanner cause: Fragment Saves walk transitive dependents via
-    // findDependentsFromSidecars (a fragment edit can affect every
-    // page that references @{name}). The 'fragment' RescanCause
-    // variant tells the scanner to expand the dependency set.
-    scannerCause: { kind: 'fragment', name: input.name },
     requestId: input.requestId,
-  })
+  }
 }
