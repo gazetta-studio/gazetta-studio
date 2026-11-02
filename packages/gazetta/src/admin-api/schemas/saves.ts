@@ -2,11 +2,12 @@
  * `POST /api/v1/saves`, the bulk save (design-agent-access.md Q46, #1714).
  */
 import { z } from '@hono/zod-openapi'
+import { isSafeItemName, UNSAFE_ITEM_NAME_MESSAGE } from '../../item-name.js'
 
 export const BulkSaveItemSchema = z
   .object({
     kind: z.enum(['page', 'fragment']),
-    name: z.string().min(1),
+    name: z.string().refine(isSafeItemName, UNSAFE_ITEM_NAME_MESSAGE),
     locale: z.string().optional(),
     manifest: z
       .record(z.string(), z.unknown())

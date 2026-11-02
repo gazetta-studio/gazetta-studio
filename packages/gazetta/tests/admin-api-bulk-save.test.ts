@@ -298,4 +298,38 @@ describe('POST /api/v1/saves', () => {
       { name: 'missing', code: 'NOT_FOUND' },
     ])
   })
+
+  it('refuses a create with an unsafe name, as a single create does', async () => {
+    const { app } = setup()
+    const res = await saves(app, [{ kind: 'page', name: '../escape', manifest: page('x'), ifNoneMatch: '*' }])
+    expect(res.status).toBe(400)
+  })
+
+  it("written items keep their audit events when the revision can't be recorded", async () => {
+    const storage = memoryStorage()
+    const { app } = setup({ storage })
+    const items = await threeEdits(app)
+    // Let the baseline through, then fail the batch's revision.
+    const writeFile = storage.writeFile.bind(storage)
+    let baselineDone = false
+    storage.writeFile = async (path, content, opts) => {
+      if (path.startsWith('.gazetta/history/revisions/')) {
+        if (baselineDone) throw new Error('history unavailable')
+        baselineDone = true
+      }
+      return writeFile(path, content, opts)
+    }
+    const res = await saves(app, items)
+    expect(res.status).toBe(500)
+    const body = (await res.json()) as { written: Array<{ name: string }>; unwritten: unknown[]; detail: string }
+    expect(body.written.map(i => i.name)).toEqual(['home', 'about', 'contact'])
+    expect(body.unwritten).toEqual([])
+    expect(body.detail).toContain("history couldn't be recorded")
+    const saveEvents = [...storage.dump()]
+      .filter(([k]) => k.startsWith('.gazetta/audit/'))
+      .flatMap(([, v]) => Buffer.from(v).toString().split('\n').filter(Boolean))
+      .map(line => JSON.parse(line) as { action: string; outcome: string })
+      .filter(e => e.action === 'save' && e.outcome === 'success')
+    expect(saveEvents).toHaveLength(3)
+  })
 })
