@@ -186,7 +186,7 @@ The base run parses the base commit's content against the base commit's template
 
 A problem on the PR counts as one the base already had when the base has one from the same check, on the same item, language, component and field, whatever its message says. Problems outside a component's content match on their content path instead, and config problems on the config path. So a template change that only rewords Zod's message for a field that was already broken doesn't fail the PR. Cut 3 built it this way (#1751).
 
-Decided: maintainer, 2026-11-02 (#<PR>)
+Decided: maintainer, 2026-11-02 (#1752)
 
 | Rejected | Why |
 |---|---|
