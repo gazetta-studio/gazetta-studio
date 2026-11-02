@@ -3,14 +3,17 @@
  * commit already had (design-template-check.md T2, Open question 1, #1750).
  *
  * A head issue is already broken when a base issue has the same key; every
- * other head issue is new, and only new issues fail the run. The key is
- * everything but the message, because a schema change can reword Zod's
- * message for a field that was already broken:
+ * other head issue is new, and only new issues fail the run. A schema
+ * problem's key leaves out the message, because a schema change can reword
+ * Zod's message for a field that was already broken. Other item problems keep
+ * it: Gazetta writes those messages from a fixed text that names what's
+ * referenced, and their path stops at the component, so two missing assets in
+ * one component would otherwise share a key (Seer on #1751):
  *
  * | Issue                         | Key                                                  | Example                                                        |
  * |-------------------------------|------------------------------------------------------|----------------------------------------------------------------|
  * | Schema problem                | validator, item (kind, name, language), component, field | `schema-conformance` page `home` `fr`, `hero`, `title`     |
- * | Other problem on an item      | validator, item, contentPath                         | `referenced-fragment-exists` page `about`, no contentPath      |
+ * | Other problem on an item      | validator, item, contentPath, message                | `referenced-asset-exists` page `about`, `hero`, `Asset "logo" …` |
  * | Site config                   | validator, config path                               | `target-deploy-coverage` `site.config.ts:targets.production`   |
  * | Template or project file      | validator, template or file, field                   | `custom-field-exists` `hero` `color`; `orphaned-editor` `admin/editors/x.tsx` |
  *
@@ -60,7 +63,7 @@ export function itemKey(issue: Issue, items: ReturnType<typeof itemIndex>): stri
   const where =
     issue.validator === 'schema-conformance'
       ? `${issue.contentPath ?? ''}|${issue.field ?? ''}`
-      : `${issue.contentPath ?? ''}`
+      : `${issue.contentPath ?? ''}|${issue.message}`
   return `item|${issue.validator}|${id}|${where}`
 }
 
