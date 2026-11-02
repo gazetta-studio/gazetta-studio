@@ -68,6 +68,13 @@ describe('touchedComponents', () => {
     expect(paths(stored, page(['@header', c('hero', { title: 'A' }), c('intro', { title: 'B' })]))).toEqual([])
   })
 
+  it('a component without content counts as content {} (#1715)', () => {
+    const noContent = { name: 'cta', template: 'hero' }
+    expect(paths(stored, page([c('hero', { title: 'A' }), c('intro', { title: 'B' }), noContent]))).toEqual(['cta'])
+    expect(touchedComponents(null, page([noContent]))[1]).toMatchObject({ path: 'cta', content: {} })
+    expect(paths(page([c('cta', {})]), page([noContent]))).toEqual([])
+  })
+
   it('a new item touches every component', () => {
     expect(paths(null, stored)).toEqual(['', 'hero', 'intro'])
   })
