@@ -69,6 +69,8 @@ In Gazetta's stateless model, **the local target IS the draft**. `editable: true
 
 Save commits to the local target — incomplete is fine. Publish commits to a non-local target — that's the operator's "ship it" moment. Gating quality there matches existing semantics; gating it at save would force the author into commitment they didn't intend.
 
+One exception: a component the save touches must pass its template's schema, so a component just added saves once its required fields are filled (`design-agent-access.md` Q49, #1712).
+
 This also means: configured strictness lives at the publish gate. Operators with strict workflows enable quality gates at publish; operators with loose workflows don't. The save handler stays uniform.
 
 ## The Validator abstraction
