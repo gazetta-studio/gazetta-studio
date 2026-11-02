@@ -43,6 +43,7 @@ export const referencedTemplateExists: Validator = {
           message: `Template "${ref.name}" referenced but not found in templates/.`,
           itemPath: scope.item.itemPath,
           contentPath: ref.path || undefined,
+          subject: ref.name,
         })
       }
     }

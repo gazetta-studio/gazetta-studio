@@ -86,6 +86,7 @@ export const accessibility: Validator = {
             severity: 'warn',
             message: `${v.id}: ${v.help} — ${node.target.join(' > ')} (${v.helpUrl})`,
             itemPath: item.itemPath,
+            subject: v.id,
           })
         }
       }

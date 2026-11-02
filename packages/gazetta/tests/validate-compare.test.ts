@@ -76,6 +76,7 @@ describe('compareRuns', () => {
       message: `Asset "${name}" referenced but not found in the asset library.`,
       itemPath: `${root}/pages/home/page.json`,
       contentPath: 'hero',
+      subject: name,
     })
     const result = compareRuns(
       run('head', { itemIssues: [asset('head', 'icon'), asset('head', 'logo')] }),
@@ -83,6 +84,32 @@ describe('compareRuns', () => {
     )
     expect(result.alreadyBroken.itemIssues.map(i => i.message)).toEqual([asset('x', 'icon').message])
     expect(result.fresh.itemIssues.map(i => i.message)).toEqual([asset('x', 'logo').message])
+  })
+
+  const html = (root: string, line: number, rule = 'attr-quotes'): Issue => ({
+    validator: 'html-validity',
+    severity: 'warn',
+    message: `${rule}: Attribute value must be quoted (line ${line}, col 3)`,
+    itemPath: `${root}/pages/home/page.json`,
+    subject: rule,
+  })
+
+  it('keeps an html-validity warning already broken when its line moves', () => {
+    const result = compareRuns(
+      run('head', { itemIssues: [html('head', 40)] }),
+      run('base', { itemIssues: [html('base', 12)] }),
+    )
+    expect(result.alreadyBroken.itemIssues).toHaveLength(1)
+    expect(result.fresh.itemIssues).toHaveLength(0)
+  })
+
+  it('counts the same quality rule twice on a page as one problem', () => {
+    const result = compareRuns(
+      run('head', { itemIssues: [html('head', 12), html('head', 30), html('head', 50, 'no-dup-id')] }),
+      run('base', { itemIssues: [html('base', 12)] }),
+    )
+    expect(result.alreadyBroken.itemIssues).toHaveLength(2)
+    expect(result.fresh.itemIssues.map(i => i.subject)).toEqual(['no-dup-id'])
   })
 
   it('counts two head issues matching one base issue as already broken', () => {

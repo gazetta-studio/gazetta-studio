@@ -76,6 +76,7 @@ export const referencedArchivedWithoutAlias: Validator = {
         message: `References "@${ref.name}" which is archived without an alias. The fragment will fail to render until the archive gets an aliasOf or the reference is removed.`,
         itemPath: scope.item.itemPath,
         contentPath: ref.path,
+        subject: ref.name,
       })
     }
     return issues

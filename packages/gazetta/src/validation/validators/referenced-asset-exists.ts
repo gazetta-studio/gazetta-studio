@@ -41,6 +41,7 @@ export const referencedAssetExists: Validator = {
           message: `Asset "${ref.name}" referenced but not found in the asset library.`,
           itemPath: scope.item.itemPath,
           contentPath: ref.path || undefined,
+          subject: ref.name,
         })
       }
     }

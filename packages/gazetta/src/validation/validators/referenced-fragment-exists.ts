@@ -32,6 +32,7 @@ export const referencedFragmentExists: Validator = {
           message: `Fragment "@${ref.name}" referenced but not found in fragments/.`,
           itemPath: scope.item.itemPath,
           contentPath: ref.path,
+          subject: ref.name,
         })
       }
     }
