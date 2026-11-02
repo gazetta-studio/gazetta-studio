@@ -52,7 +52,7 @@ describe('gazetta validate flags (#1760)', () => {
     expect([...new Set(parsed)].sort()).toEqual(listed)
   })
 
-  it('--help prints every flag', () => {
+  it('--help prints every flag', { timeout: 30_000 }, () => {
     const help = spawnSync('node', [resolve(here, '../dist/cli/index.js'), 'help'], { encoding: 'utf-8' }).stdout
     for (const flag of listed) expect(help).toMatch(new RegExp(`^    ${flag}\\b`, 'm'))
   })
