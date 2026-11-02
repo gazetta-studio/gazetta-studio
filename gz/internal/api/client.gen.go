@@ -1142,7 +1142,7 @@ type BulkSaveItem struct {
 	// IfMatch The save-version you last read. Every existing item needs one.
 	IfMatch *string `json:"ifMatch,omitempty"`
 
-	// IfNoneMatch Create the item instead: it saves only if nothing exists under its name.
+	// IfNoneMatch Create the item instead: it saves only if nothing exists under its name. With a locale, it creates that language version of an item that exists.
 	IfNoneMatch *BulkSaveItemIfNoneMatch `json:"ifNoneMatch,omitempty"`
 	Kind        BulkSaveItemKind         `json:"kind"`
 	Locale      *string                  `json:"locale,omitempty"`
@@ -1152,7 +1152,7 @@ type BulkSaveItem struct {
 	Name     string                 `json:"name"`
 }
 
-// BulkSaveItemIfNoneMatch Create the item instead: it saves only if nothing exists under its name.
+// BulkSaveItemIfNoneMatch Create the item instead: it saves only if nothing exists under its name. With a locale, it creates that language version of an item that exists.
 type BulkSaveItemIfNoneMatch string
 
 // BulkSaveItemKind defines model for BulkSaveItem.Kind.

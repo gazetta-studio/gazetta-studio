@@ -185,7 +185,7 @@
           "ifNoneMatch": {
             "type": "string",
             "enum": ["*"],
-            "description": "Create the item instead: it saves only if nothing exists under its name."
+            "description": "Create the item instead: it saves only if nothing exists under its name. With a locale, it creates that language version of an item that exists."
           }
         },
         "required": ["kind", "name", "manifest"]
