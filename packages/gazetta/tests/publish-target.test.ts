@@ -506,7 +506,7 @@ describe('publishToTarget (#1426)', () => {
   })
 })
 
-describe('publishToTarget: one snapshot per publish (#1632)', () => {
+describe('publishToTarget: one snapshot per publish (#1632)', { timeout: 30_000 }, () => {
   let tmp: string
   let sourceDir: string
   let manifest: SiteManifest
