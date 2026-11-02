@@ -311,6 +311,9 @@
           "field": {
             "type": "string"
           },
+          "subject": {
+            "type": "string"
+          },
           "suppressible": {
             "type": "boolean"
           }

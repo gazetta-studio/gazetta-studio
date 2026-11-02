@@ -30,6 +30,12 @@ export interface Issue {
   /** The field within that component's content the issue is about (`cta`, `items.0.title`), when known. */
   field?: string
   /**
+   * A stable name for what the issue is about, when the message alone names
+   * it: the missing reference (`hero`, `@promo`) or the quality rule
+   * (`attr-quotes`, `image-alt`). `gazetta validate --base` matches on it.
+   */
+  subject?: string
+  /**
    * Optional structured suppression hint — `Issue.suppressible: true`
    * means a future "ignore this issue" mechanism would apply.
    */

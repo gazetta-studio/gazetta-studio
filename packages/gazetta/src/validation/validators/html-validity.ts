@@ -81,6 +81,7 @@ export const htmlValidity: Validator = {
             severity: msg.severity === 2 ? 'warn' : 'info',
             message: `${msg.ruleId}: ${msg.message} (line ${msg.line}, col ${msg.column})`,
             itemPath: item.itemPath,
+            subject: msg.ruleId,
           })
         }
       }

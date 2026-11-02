@@ -1261,6 +1261,7 @@ type Issue struct {
 	ItemPath     string        `json:"itemPath"`
 	Message      string        `json:"message"`
 	Severity     IssueSeverity `json:"severity"`
+	Subject      *string       `json:"subject,omitempty"`
 	Suppressible *bool         `json:"suppressible,omitempty"`
 	Validator    string        `json:"validator"`
 }
