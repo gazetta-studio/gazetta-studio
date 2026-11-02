@@ -9,6 +9,8 @@ describe('devRoute (#1716)', () => {
     ['/admin/theme.css?v=1', 'hono', 'hono'],
     ['/admin/ping', 'ping', 'ping'],
     ['/admin', 'loader', 'vite'],
+    ['/admin?x=1', 'loader', 'vite'],
+    ['/adminx', 'hono', 'hono'],
     ['/admin/pages/home', 'loader', 'vite'],
     ['/@vite/client', 'loader', 'vite'],
     ['/', 'hono', 'hono'],

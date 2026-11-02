@@ -22,6 +22,6 @@ export function servedByHono(url: string): boolean {
 export function devRoute(url: string, cmsReady: boolean): DevRoute {
   if (url === '/admin/ping' || url.startsWith('/admin/ping?')) return 'ping'
   if (servedByHono(url)) return 'hono'
-  if (url === '/admin' || url.startsWith('/admin/') || url.startsWith('/@')) return cmsReady ? 'vite' : 'loader'
+  if (/^\/admin(?:[/?]|$)/.test(url) || url.startsWith('/@')) return cmsReady ? 'vite' : 'loader'
   return 'hono'
 }
