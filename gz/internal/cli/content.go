@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	pathpkg "path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -272,8 +273,11 @@ func readChanges(from, locale string) ([]change, error) {
 			return err
 		}
 		rel, _ := filepath.Rel(from, path)
-		base := strings.TrimSuffix(filepath.ToSlash(rel), ".json")
-		name, loc, _ := strings.Cut(base, ".")
+		// Only the file name carries the language (`about.fr.json`); a
+		// folder's own dots stay in the item name.
+		dir, file := pathpkg.Split(strings.TrimSuffix(filepath.ToSlash(rel), ".json"))
+		name, loc, _ := strings.Cut(file, ".")
+		name = dir + name
 		if loc == "" {
 			loc = locale
 		}
