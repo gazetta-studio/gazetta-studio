@@ -81,7 +81,8 @@ export function renderText(
   }
 
   // With --base: what the base commit already had, listed apart; it doesn't count.
-  const already = flatten(report.alreadyBroken).filter(e => verbose || e.issue.severity === 'error')
+  // The report holds only what `--severity` shows (#1763).
+  const already = flatten(report.alreadyBroken)
   if (already.length > 0) {
     lines.push('', `  ${c.dim('Already broken (not caused by this change):')}`)
     for (const { where, issue } of already)

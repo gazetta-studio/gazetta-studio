@@ -382,6 +382,61 @@ describe('gazetta validate (CLI) — --base (#1750)', () => {
   })
 })
 
+describe('gazetta validate (CLI) — already broken follows --severity (#1763)', () => {
+  const made: string[] = []
+  const git = (dir: string, ...args: string[]) =>
+    spawnSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=t', '-c', 'commit.gpgsign=false', ...args], {
+      cwd: dir,
+      encoding: 'utf-8',
+    })
+  // The starter's `esi-test` target has no deploy adapter: an info-level config problem on base and head.
+  function repo(): string {
+    const dir = resolve(here, '../../../.tmp', `cli-validate-severity-${Date.now()}-${made.length}`)
+    made.push(dir)
+    cpSync(starterDir, dir, { recursive: true, filter: src => !src.includes('node_modules') && !src.includes('/dist') })
+    git(dir, 'init', '-q')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'base')
+    return dir
+  }
+  const validate = (dir: string, args: string[]) =>
+    spawnSync('node', [cliEntry, 'validate', 'sites/main', '--base', 'HEAD', ...args], {
+      cwd: dir,
+      env: { ...process.env, NO_COLOR: '1', GITHUB_STEP_SUMMARY: '' },
+      encoding: 'utf-8',
+    })
+  const info = 'Target "esi-test" has type'
+  const alreadyMessages = (stdout: string): string[] => {
+    const report = JSON.parse(stdout)
+    return (report.alreadyBroken?.other ?? []).flatMap((o: { issues: { message: string }[] }) =>
+      o.issues.map(i => i.message),
+    )
+  }
+
+  afterAll(() => {
+    for (const dir of made) rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('leaves an old info problem out by default, in text, GitHub and JSON output', { timeout: 60_000 }, () => {
+    const dir = repo()
+    const text = validate(dir, [])
+    expect(text.status).toBe(0)
+    expect(text.stdout).not.toContain('Already broken')
+    const github = validate(dir, ['--format', 'github'])
+    expect(github.stdout.trim()).toBe('**Template check passed.**')
+    expect(alreadyMessages(validate(dir, ['--json']).stdout).some(m => m.startsWith(info))).toBe(false)
+  })
+
+  it('lists it with --severity all', { timeout: 60_000 }, () => {
+    const dir = repo()
+    expect(validate(dir, ['--severity', 'all']).stdout).toContain(info)
+    expect(validate(dir, ['--severity', 'all', '--format', 'github']).stdout).toContain(info)
+    expect(alreadyMessages(validate(dir, ['--severity', 'all', '--json']).stdout).some(m => m.startsWith(info))).toBe(
+      true,
+    )
+  })
+})
+
 describe('gazetta validate (CLI) — --targets (#1754)', () => {
   const made: string[] = []
   const deny = "async () => { throw new Error('access denied') }"
