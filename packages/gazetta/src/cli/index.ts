@@ -1542,7 +1542,10 @@ async function runValidate(siteDir: string, rawArgs: readonly string[] = []) {
   if (templateNames.length > 0) {
     const { loadTemplate } = await import('../template-loader.js')
     const zod = await import('zod')
+    const { findTemplateFile } = await import('../template-loader.js')
     for (const tplName of templateNames) {
+      // Not a template: shared helpers (`_shared/`) or a folder without an index file, as the scanner skips them.
+      if (tplName.startsWith('_') || !(await findTemplateFile(templatesDir, tplName))) continue
       let loaded: Awaited<ReturnType<typeof loadTemplate>>
       try {
         loaded = await loadTemplate(projectStorage, templatesDir, tplName)

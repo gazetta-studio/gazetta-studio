@@ -16,7 +16,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { spawnSync } from 'node:child_process'
 import { resolve, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const cliEntry = resolve(here, '../dist/cli/index.js')
@@ -124,6 +124,11 @@ describe('gazetta validate (CLI) — a template that fails to load (#1665)', () 
   it('names the template and its error once, and exits 1', { timeout: 90_000 }, () => {
     cpSync(starterDir, copyDir, { recursive: true, filter: src => !src.includes('node_modules') })
     writeFileSync(join(copyDir, 'templates/hero/index.ts'), "throw new Error('hero is broken')\n")
+    // Folders that aren't templates are left alone (Seer on #1743).
+    mkdirSync(join(copyDir, 'templates/_shared'), { recursive: true })
+    writeFileSync(join(copyDir, 'templates/_shared/util.ts'), 'export const x = 1\n')
+    mkdirSync(join(copyDir, 'templates/notes'), { recursive: true })
+    writeFileSync(join(copyDir, 'templates/notes/README.md'), 'Not a template\n')
     const result = spawnSync('node', [cliEntry, 'validate', 'sites/main', '--verbose'], {
       cwd: copyDir,
       env: { ...process.env, NO_COLOR: '1' },
@@ -133,6 +138,7 @@ describe('gazetta validate (CLI) — a template that fails to load (#1665)', () 
     const templateLines = output.split('\n').filter(l => l.includes("template hero couldn't be loaded"))
     expect(templateLines).toHaveLength(1)
     expect(templateLines[0]).toContain('hero is broken')
+    expect(output).not.toMatch(/template (_shared|notes) couldn't be loaded/)
     // Each page using it says why its content isn't checked.
     expect(output).toContain('Template "hero" couldn\'t be loaded, so this content can\'t be checked')
     expect(result.status).toBe(1)
