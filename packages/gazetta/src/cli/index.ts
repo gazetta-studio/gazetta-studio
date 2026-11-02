@@ -21,7 +21,8 @@ import { buildHooksRegistry, createAdminApp } from '../admin-api/index.js'
 import { parseValidateFlags } from './validate-flags.js'
 import { logDefaultedPublicTargets } from '../validation/validators/public-storage-config.js'
 import { parseArgs } from './args.js'
-import { readAgentsSection, withAgentsSection, withClaudeImport } from './agents-section.js'
+import { agentsSectionHint, readAgentsSection, withAgentsSection, withClaudeImport } from './agents-section.js'
+import { describeAgentsUpdate, findGazettaProject, updateAgents } from './agents-update.js'
 import { authTrustOf, exitOnListenError, resolveListenHost, SERVER_COMMANDS } from './listen-host.js'
 import { devNotFound } from './dev-not-found.js'
 import { isInside } from './is-inside.js'
@@ -160,6 +161,13 @@ const LOADER_HTML = `<!doctype html>
  * Walks up from siteDir looking for a parent that contains templates/.
  * Falls back to siteDir for flat projects (templates/ inside site dir).
  */
+/** Gazetta's own package.json, from the built or the source CLI; undefined if neither is found. */
+function findOwnPackageJson(): string | undefined {
+  return ['../../package.json', '../package.json']
+    .map(candidate => resolve(import.meta.dirname, candidate))
+    .find(candidate => existsSync(candidate))
+}
+
 function detectProjectRoot(siteDir: string): string {
   // If siteDir itself has templates/, it's a flat project
   if (existsSync(join(siteDir, 'templates'))) return siteDir
@@ -293,6 +301,7 @@ function printHelp() {
                                     Rename a live item; keeps the redirect by default
     gazetta state remove <target> [site]
                                     Delete history, audit, review and CLI sign-ins from a target's storage
+    gazetta agents update           Refresh Gazetta's section of AGENTS.md from the installed package
     gazetta help                    Show this help message
 
   Options:
@@ -435,9 +444,7 @@ async function runInit(dir: string) {
   // npm's caret on 0.x allows only patch updates, so a breaking minor never
   // arrives unchosen while fixes still do. A prerelease CLI pins the site to
   // the prerelease itself.
-  const ownPackageJson = ['../../package.json', '../package.json']
-    .map(candidate => resolve(import.meta.dirname, candidate))
-    .find(candidate => existsSync(candidate))
+  const ownPackageJson = findOwnPackageJson()
   if (!ownPackageJson) {
     console.error(`\n  Error: could not locate gazetta's own package.json to determine the dependency range\n`)
     process.exit(1)
@@ -1940,6 +1947,8 @@ async function runDev(siteDir: string, port: number, hostFlag?: string) {
       `  ${c.dim('┃')} Pages    ${[...site.pages.entries()].map(([n, p]) => `${c.dim(p.route)} ${c.dim('→')} ${n}`).join(c.dim(', '))}`,
     )
     console.log(`  ${c.dim('┃')} Frags    ${c.dim([...site.fragments.keys()].join(', ') || '(none)')}`)
+    const agentsHint = agentsHintFor(projectRoot)
+    if (agentsHint) console.log(`\n  ${c.yellow('!')} ${agentsHint}`)
 
     // ---- Settings banner ----
     // Prints resolved configuration at startup so path / target / site
@@ -2501,6 +2510,45 @@ function findCmsStaticDir(): string | null {
   return null
 }
 
+/** The `gazetta dev` line about an outdated AGENTS.md section (Q33), or null. */
+function agentsHintFor(projectRoot: string): string | null {
+  const project = findGazettaProject(projectRoot) ?? projectRoot
+  const agentsPath = join(project, 'AGENTS.md')
+  const ownPackageJson = findOwnPackageJson()
+  if (!existsSync(agentsPath) || !ownPackageJson) return null
+  const { version } = JSON.parse(readFileSync(ownPackageJson, 'utf-8')) as { version: string }
+  return agentsSectionHint(readFileSync(agentsPath, 'utf-8'), version)
+}
+
+/** `gazetta agents update` (design-agent-access.md Q33). */
+function runAgents(positional: string[]) {
+  if (positional[0] !== 'update' || positional.length > 1) {
+    console.error(`\n  Usage: gazetta agents update\n`)
+    process.exit(2)
+  }
+  const project = findGazettaProject(process.cwd())
+  if (!project) {
+    console.error(
+      `\n  ${c.red('Error:')} no Gazetta project here: no package.json above this folder depends on gazetta\n`,
+    )
+    process.exit(2)
+  }
+  const ownPackageJson = findOwnPackageJson()
+  if (!ownPackageJson) {
+    console.error(`\n  ${c.red('Error:')} could not locate gazetta's own package.json\n`)
+    process.exit(1)
+  }
+  const { version } = JSON.parse(readFileSync(ownPackageJson, 'utf-8')) as { version: string }
+  let result
+  try {
+    result = updateAgents(project, dirname(ownPackageJson))
+  } catch (err) {
+    console.error(`\n  ${c.red('Error:')} ${(err as Error).message}\n`)
+    process.exit(1)
+  }
+  for (const line of describeAgentsUpdate(result, version)) console.log(`  ${line}`)
+}
+
 async function main() {
   if (!command || command === 'help' || command === '--help' || command === '-h') {
     printHelp()
@@ -2527,6 +2575,11 @@ async function main() {
 
   if (command === 'init') {
     await runInit(parsed.positional[0] ?? '.')
+    return
+  }
+
+  if (command === 'agents') {
+    runAgents(parsed.positional)
     return
   }
 
