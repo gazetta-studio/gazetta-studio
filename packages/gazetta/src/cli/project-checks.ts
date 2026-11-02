@@ -18,7 +18,8 @@ export interface ProjectIssue {
   /** The template the issue is about, when it is about one. */
   template?: string
   /** The project file the issue is about, relative to the project root, when it isn't a template. */
-  path?: string
+  path?: string /** The schema field the issue is about (a missing custom field's property). */
+  field?: string
 }
 
 /** Folders under `templates/` that are templates: as the scanner, not `_shared/` or a folder without an index file. */
@@ -86,6 +87,7 @@ export async function checkProject(projectRoot: string, templatesDir: string): P
           severity: 'error',
           message: `template ${template}.${prop} references field "${field}" — not found in admin/fields/`,
           template,
+          field: prop,
         })
       }
     }

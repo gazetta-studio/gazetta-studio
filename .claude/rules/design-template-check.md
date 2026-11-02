@@ -230,6 +230,8 @@ No production users. After cut 1, a site whose content doesn't fit its templates
 
 1. Which content the base run parses (the base branch's content, or the PR's), and how the base comparison matches a problem on base with one on head (item, content path and message, or item and field only) when a schema change rewords Zod's message: cut 3 decides and tests it.
 
+   Resolved by cut 3 (#1750): the base run checks the base commit's content against the base commit's templates. A head problem is already broken when a base problem matches it on everything but the message: validator, item (kind, name, language), component and field for schema problems; validator, item and content path for other item problems; validator and config path for config problems. Two head problems matching one base problem are both already broken.
+
 ## Future directions
 
 - Fix suggestions and migrations, with [#1169](https://github.com/gazetta-studio/gazetta-studio/issues/1169).

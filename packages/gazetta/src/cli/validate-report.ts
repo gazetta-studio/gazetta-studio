@@ -59,11 +59,16 @@ export const ReportOtherSchema = z.discriminatedUnion('kind', [
 export const ValidateReportSchema = z.object({
   /** Whether the run passes; matches the exit code. */
   ok: z.boolean(),
-  /** Every issue the run found, shown or not (`--severity` hides some from the lists). */
+  /** Every new issue the run found, shown or not (`--severity` hides some from the lists); with `--base`, already broken ones aren't counted. */
   counts: z.object({ error: z.number().int(), warn: z.number().int(), info: z.number().int() }),
   /** One entry per template with problems, in name order. */
   templates: z.array(ReportTemplateSchema),
   other: z.array(ReportOtherSchema),
+  /**
+   * With `--base`: problems the base commit already had, grouped the same
+   * way. They're listed but don't count toward `ok` or `counts`.
+   */
+  alreadyBroken: z.object({ templates: z.array(ReportTemplateSchema), other: z.array(ReportOtherSchema) }).optional(),
 })
 
 export type ValidateReport = z.infer<typeof ValidateReportSchema>
@@ -84,9 +89,35 @@ export interface BuildReportInput {
   show: (severity: Severity) => boolean
   /** Whether warnings fail the run (`--no-warn-as-error` turns it off). */
   warnAsError: boolean
+  /** With `--base`: the problems the base commit already had, listed apart and not counted. */
+  alreadyBroken?: IssueLists
 }
 
 export async function buildValidateReport(input: BuildReportInput): Promise<ValidateReport> {
+  const fresh = await group(input, input)
+  // A run passes when nothing `--severity` shows is counted, or when nothing counted fails it.
+  const { counts } = fresh
+  const shown = counts.error + (input.show('warn') ? counts.warn : 0) + (input.show('info') ? counts.info : 0)
+  const ok = shown === 0 || !(counts.error > 0 || (input.warnAsError && counts.warn > 0))
+  const report: ValidateReport = { ok, counts, templates: fresh.templates, other: fresh.other }
+  if (input.alreadyBroken) {
+    const already = await group(input, input.alreadyBroken)
+    report.alreadyBroken = { templates: already.templates, other: already.other }
+  }
+  return report
+}
+
+interface IssueLists {
+  itemIssues: readonly Issue[]
+  configIssues: readonly Issue[]
+  projectIssues: readonly ProjectIssue[]
+}
+
+/** Group one set of issues by template and item, and count them. */
+async function group(
+  input: BuildReportInput,
+  lists: IssueLists,
+): Promise<Pick<ValidateReport, 'counts' | 'templates' | 'other'>> {
   const { site, show } = input
   const items = itemIndex(site)
 
@@ -97,7 +128,7 @@ export async function buildValidateReport(input: BuildReportInput): Promise<Vali
   // Every issue counts; `--severity` hides content issues from the lists, while
   // config and project problems are always listed, as in text output.
   const count = (severity: Severity) => counts[severity]++
-  for (const issue of input.itemIssues) {
+  for (const issue of lists.itemIssues) {
     count(issue.severity)
     if (!show(issue.severity)) continue
     const item = items.get(issue.itemPath)
@@ -114,7 +145,7 @@ export async function buildValidateReport(input: BuildReportInput): Promise<Vali
 
   const templateLevel = new Map<string, ReportIssue[]>()
   const fileLevel = new Map<string, ReportIssue[]>()
-  for (const issue of input.projectIssues) {
+  for (const issue of lists.projectIssues) {
     count(issue.severity)
     const entry = {
       validator: issue.validator,
@@ -149,8 +180,8 @@ export async function buildValidateReport(input: BuildReportInput): Promise<Vali
   }
 
   const other: ValidateReport['other'] = []
-  for (const issue of input.configIssues) count(issue.severity)
-  const config = input.configIssues.map(reportIssue)
+  for (const issue of lists.configIssues) count(issue.severity)
+  const config = lists.configIssues.map(reportIssue)
   if (config.length > 0) other.push({ kind: 'site', name: 'site.config', locale: null, issues: config })
   for (const [path, issues] of fileLevel) other.push({ kind: 'file', name: path, locale: null, issues })
   for (const [path, item] of items) {
@@ -158,10 +189,7 @@ export async function buildValidateReport(input: BuildReportInput): Promise<Vali
     if (issues) other.push({ kind: item.kind, name: item.name, locale: item.locale ?? null, issues })
   }
 
-  // A run passes when nothing `--severity` shows is counted, or when nothing counted fails it.
-  const shown = counts.error + (show('warn') ? counts.warn : 0) + (show('info') ? counts.info : 0)
-  const ok = shown === 0 || !(counts.error > 0 || (input.warnAsError && counts.warn > 0))
-  return { ok, counts, templates, other }
+  return { counts, templates, other }
 }
 
 function reportIssue(issue: Issue): ReportIssue {
@@ -182,7 +210,7 @@ interface IndexedItem {
 }
 
 /** Every page and fragment version by the item path the scanner reports, pages first, default language first. */
-function itemIndex(site: Site): Map<string, IndexedItem> {
+export function itemIndex(site: Site): Map<string, IndexedItem> {
   const out = new Map<string, IndexedItem>()
   const path = (dir: string, file: string, locale?: string) => `${dir}/${file}${locale ? `.${locale}` : ''}.json`
   for (const e of allPageEntries(site))

@@ -65,6 +65,16 @@ export function renderText(
     for (const issue of t.issues) lines.push(`  ${icon(issue.severity)} ${issue.message}`)
   }
 
+  // With --base: what the base commit already had, listed apart; it doesn't count.
+  const already = flatten(report.alreadyBroken).filter(e => verbose || e.issue.severity === 'error')
+  if (already.length > 0) {
+    lines.push('', `  ${c.dim('Already broken (not caused by this change):')}`)
+    for (const { where, issue } of already)
+      lines.push(
+        `    ${icon(issue.severity)} ${where}: ${issue.message}${issue.component ? c.dim(` (${issue.component})`) : ''}`,
+      )
+  }
+
   lines.push('')
   const parts: string[] = []
   // As before: errors always count, warnings and info only when `--severity` shows them.
@@ -91,15 +101,38 @@ export function renderJson(report: ValidateReport): string {
  * and one annotation per template with problems, on its entry file.
  */
 export function renderGithub(report: ValidateReport): { summary: string; annotations: string[] } {
+  // Only new problems are annotated; already broken ones sit in the summary's collapsed block.
   const annotations = report.templates.flatMap(t => {
     const worst = worstOf([...t.issues, ...t.items.flatMap(i => i.issues)].map(i => i.severity))
     return worst === 'error' || worst === 'warn' ? [annotation(worst, t.template, t.file, t.issues, t.items)] : []
   })
-  if (report.ok) return { summary: '**Template check passed.**\n', annotations }
+  const already = report.alreadyBroken
+  const alreadyBlock =
+    already && (already.templates.length > 0 || already.other.length > 0)
+      ? [
+          '<details><summary>Already broken (not caused by this change)</summary>',
+          '',
+          ...tables(already.templates, already.other, '####'),
+          '</details>',
+          '',
+        ]
+      : []
+  if (report.ok) return { summary: ['**Template check passed.**', '', ...alreadyBlock].join('\n'), annotations }
 
-  const out: string[] = [`## Template check: ${countsLine(report)}`, '']
-  for (const t of report.templates) {
-    out.push(`### \`${t.template}\`${t.file ? ` (\`${t.file}\`)` : ''}`, '')
+  const out = [
+    `## Template check: ${countsLine(report)}`,
+    '',
+    ...tables(report.templates, report.other, '###'),
+    ...alreadyBlock,
+  ]
+  return { summary: `${out.join('\n')}\n`, annotations }
+}
+
+/** A table per template, then the other problems. */
+function tables(templates: ValidateReport['templates'], other: ValidateReport['other'], heading: string): string[] {
+  const out: string[] = []
+  for (const t of templates) {
+    out.push(`${heading} \`${t.template}\`${t.file ? ` (\`${t.file}\`)` : ''}`, '')
     for (const issue of t.issues) out.push(`- ${cell(issue.message)}`)
     if (t.issues.length > 0) out.push('')
     if (t.items.length > 0) {
@@ -112,16 +145,30 @@ export function renderGithub(report: ValidateReport): { summary: string; annotat
       out.push('')
     }
   }
-  if (report.other.length > 0) {
-    out.push('### Other problems', '', '| Where | Language | Message |', '|---|---|---|')
-    for (const o of report.other)
+  if (other.length > 0) {
+    out.push(`${heading} Other problems`, '', '| Where | Language | Message |', '|---|---|---|')
+    for (const o of other)
       for (const issue of o.issues)
         out.push(
           `| ${cell(itemLabel(o.kind, o.name))} | ${o.locale ?? (o.kind === 'page' || o.kind === 'fragment' ? 'default' : '')} | ${cell(issue.message)} |`,
         )
     out.push('')
   }
-  return { summary: `${out.join('\n')}\n`, annotations }
+  return out
+}
+
+/** Every already-broken issue with a label for where it is: a template, an item, the config or a file. */
+function flatten(groups: ValidateReport['alreadyBroken']): { where: string; issue: ReportIssue }[] {
+  if (!groups) return []
+  const label = (kind: string, name: string, locale: string | null) =>
+    `${itemLabel(kind, name)}${locale ? ` (${locale})` : ''}`
+  return [
+    ...groups.templates.flatMap(t => [
+      ...t.issues.map(issue => ({ where: `template ${t.template}`, issue })),
+      ...t.items.flatMap(i => i.issues.map(issue => ({ where: label(i.kind, i.name, i.locale), issue }))),
+    ]),
+    ...groups.other.flatMap(o => o.issues.map(issue => ({ where: label(o.kind, o.name, o.locale), issue }))),
+  ]
 }
 
 const MAX_NAMED = 5

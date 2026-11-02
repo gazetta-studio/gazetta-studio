@@ -1365,8 +1365,6 @@ async function runDeploy(siteDir: string, targetName?: string) {
   )
 }
 
-const QUALITY_VALIDATORS = new Set(['accessibility', 'html-validity', 'broken-links'])
-
 async function runValidate(siteDir: string, rawArgs: readonly string[] = []) {
   const projectRoot = detectProjectRoot(siteDir)
   const templatesDir = join(projectRoot, 'templates')
@@ -1378,71 +1376,59 @@ async function runValidate(siteDir: string, rawArgs: readonly string[] = []) {
   console.log(`  ${c.bgGreen(c.bold(' gazetta '))} ${c.green('validate')} ${c.dim(siteDir)}`)
   console.log()
 
-  // 1. Load site
+  // 1. The checks on the working tree.
   const configLabel = existsSync(join(siteDir, 'site.config.ts'))
     ? 'site.config.ts'
     : existsSync(join(siteDir, 'site.config.js'))
       ? 'site.config.js'
       : 'site.config.mjs'
-  const { buildSourceContext } = await import('./bootstrap.js')
-  let site: Awaited<ReturnType<typeof loadSite>>
-  let source: Awaited<ReturnType<typeof buildSourceContext>>['source']
+  const { runChecks, SiteLoadError } = await import('./validate-run.js')
+  const runInput = { siteDir, projectRoot, templatesDir, includeQuality: opts.includeQuality }
+  let head: Awaited<ReturnType<typeof runChecks>>
   try {
-    const built = await buildSourceContext({ projectSiteDir: siteDir })
-    source = built.source
-    site = await loadSite({ contentRoot: source.contentRoot, templatesDir, manifest: built.manifest })
-    console.log(`  ${c.green('✓')} ${configLabel} ${c.dim(`— ${site.manifest.name}`)}`)
+    head = await runChecks(runInput)
+    console.log(`  ${c.green('✓')} ${configLabel} ${c.dim(`— ${head.site.manifest.name}`)}`)
   } catch (err) {
-    console.error(`  ${c.red('✗')} ${configLabel} ${c.dim(`— ${(err as Error).message}`)}`)
+    if (!(err instanceof SiteLoadError)) throw err
+    console.error(`  ${c.red('✗')} ${configLabel} ${c.dim(`— ${err.message}`)}`)
     process.exit(1)
   }
+  const site = head.site
 
-  // 2. Build the registry. Skip quality validators (a11y, html-validity)
-  //    unless `--include-quality` — they trigger rendering and add seconds
-  //    per page; default keeps the CLI snappy for CI ref-existence gating.
-  const { defaultValidatorRegistry } = await import('../validation/default-registry.js')
-  const { createValidatorRegistry } = await import('../validation/registry.js')
-  const fullRegistry = defaultValidatorRegistry()
-  const filtered = opts.includeQuality
-    ? fullRegistry
-    : createValidatorRegistry(fullRegistry.all().filter(v => !QUALITY_VALIDATORS.has(v.name)))
-
-  // 3. Run via the scanner — same orchestrator as the admin background scan,
-  //    so the CLI exercises identical code paths.
-  const { createValidationScanner } = await import('../validation/scanner.js')
-  const { createMemoryCache } = await import('../cache/memory.js')
-  const scanner = createValidationScanner({
-    storage: source.storage,
-    contentRoot: source.contentRoot,
-    registry: filtered,
-    cache: createMemoryCache(),
-    siteOptions: { templatesDir, manifest: site.manifest },
-    loadSiteImpl: async () => site,
-  })
-  await scanner.scanAll()
-  // Site-config validators (targets, deploy adapters) check the whole config
-  // once rather than per item, so the scanner never runs them.
-  const configIssues: Issue[] = []
-  for (const validator of filtered.forStage('cli')) {
-    if (validator.stages.includes('background')) continue
-    configIssues.push(
-      ...(await validator.validate({
-        stage: 'cli',
-        site,
-        contentRoot: source.contentRoot,
-        storage: source.storage,
-        scope: { kind: 'cli' },
-      })),
-    )
+  // 2. With --base, the same checks on the base commit; only problems it
+  //    didn't have count (T2).
+  let lists: import('./validate-compare.js').IssueLists = head
+  let alreadyBroken: import('./validate-compare.js').IssueLists | undefined
+  if (opts.base !== undefined) {
+    const { checkoutBase, BaseRefError } = await import('./base-checkout.js')
+    const { compareRuns } = await import('./validate-compare.js')
+    let failure: string | undefined
+    let checkout: ReturnType<typeof checkoutBase> | undefined
+    try {
+      checkout = checkoutBase(opts.base, projectRoot, siteDir)
+      process.once('exit', checkout.remove)
+      const base = await runChecks({
+        ...runInput,
+        siteDir: checkout.siteDir,
+        projectRoot: checkout.projectRoot,
+        templatesDir: join(checkout.projectRoot, 'templates'),
+      })
+      console.log(`  ${c.green('✓')} base ${c.dim(`— ${opts.base} (${checkout.sha.slice(0, 12)})`)}`)
+      ;({ fresh: lists, alreadyBroken } = compareRuns(head, base))
+    } catch (err) {
+      if (err instanceof BaseRefError) failure = err.message
+      else if (err instanceof SiteLoadError)
+        failure = `--base ${opts.base}: the base commit's site couldn't be loaded: ${err.message}`
+      else throw err
+    } finally {
+      checkout?.remove()
+    }
+    if (failure) {
+      restoreLog()
+      console.error(`  ${c.red('✗')} ${failure}`)
+      process.exit(2)
+    }
   }
-  // The CLI is the gate: some issues count higher here than in Site health (T7).
-  const { withCliSeverity } = await import('./validate-severity.js')
-  const itemIssues = scanner.allIssues().map(withCliSeverity)
-
-  // 4. Project-structure checks (templates that don't load, missing custom
-  //    fields, orphaned editors): project layout, not content.
-  const { checkProject } = await import('./project-checks.js')
-  const projectIssues = await checkProject(projectRoot, templatesDir)
 
   // 5. One report, rendered as text, JSON or GitHub output (T4).
   const { buildValidateReport } = await import('./validate-report.js')
@@ -1453,9 +1439,8 @@ async function runValidate(siteDir: string, rawArgs: readonly string[] = []) {
     site,
     projectRoot,
     templatesDir,
-    itemIssues,
-    configIssues,
-    projectIssues,
+    ...lists,
+    alreadyBroken,
     show,
     warnAsError: opts.warnAsError,
   })

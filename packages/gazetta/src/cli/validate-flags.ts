@@ -11,6 +11,7 @@
  *   --no-warn-as-error         (default: on — warns fail the run)
  *   --verbose / -v             (default: off — errors only under each item)
  *   --json, --format json|github|text  (default: text)
+ *   --base <ref>               (default: none — every problem counts)
  */
 
 export interface ValidateOptions {
@@ -24,6 +25,8 @@ export interface ValidateOptions {
   verbose: boolean
   /** How the report is printed: text for a terminal, one JSON document, or a GitHub job summary and annotations. */
   format: 'text' | 'json' | 'github'
+  /** A git ref to compare with: only problems it didn't have count (`design-template-check.md` T2). */
+  base?: string
 }
 
 /**
@@ -57,6 +60,10 @@ export function parseValidateFlags(rawArgs: readonly string[]): ValidateOptions 
       opts.format = 'json'
     } else if (a === '--format') {
       opts.format = asFormat(rawArgs[++i]) ?? opts.format
+    } else if (a === '--base') {
+      opts.base = rawArgs[++i]
+    } else if (a.startsWith('--base=')) {
+      opts.base = a.slice('--base='.length)
     } else if (a.startsWith('--format=')) {
       opts.format = asFormat(a.slice('--format='.length)) ?? opts.format
     }
