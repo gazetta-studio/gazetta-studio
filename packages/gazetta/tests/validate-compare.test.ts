@@ -205,6 +205,22 @@ describe('compareRuns', () => {
     expect(items(result.fresh).map(i => i.subject)).toEqual(['two'])
   })
 
+  it('keeps a missing alt already broken when its item moves in the array (Seer on #1758)', () => {
+    const alt = (root: string, index: number, asset: string): Issue => ({
+      validator: 'altRequired',
+      severity: 'error',
+      message: `Asset "${asset}" requires alt text.`,
+      itemPath: `${root}/pages/home/page.json`,
+      contentPath: `slides[${index}].image`,
+      subject: asset,
+    })
+    const result = compareRuns(
+      run('head', { itemIssues: [alt('head', 1, 'one')] }),
+      run('base', { itemIssues: [alt('base', 0, 'one')] }),
+    )
+    expect(items(result.alreadyBroken).map(i => i.subject)).toEqual(['one'])
+  })
+
   it('reports a second config problem on one target as new', () => {
     const problem = (subject: string): Issue => ({
       validator: 'public-storage-config',

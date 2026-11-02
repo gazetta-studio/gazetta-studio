@@ -73,10 +73,15 @@ function keys(run: RunIssues): string[] {
 export function itemKey(issue: Issue, items: ReturnType<typeof itemIndex>, target: string | null = null): string {
   const item = items.get(issue.itemPath)
   const id = item ? `${item.kind}:${item.name}:${item.locale ?? ''}` : `path:${issue.itemPath}`
+  // An alt problem's path carries the array index, which moves when items are
+  // reordered; its asset tells two references apart, so the index is left out
+  // of the key (Seer on #1758).
+  const contentPath =
+    issue.validator === 'altRequired' ? (issue.contentPath ?? '').replace(/\[\d+\]/g, '[]') : (issue.contentPath ?? '')
   const where =
     issue.validator === 'schema-conformance'
-      ? `${issue.contentPath ?? ''}|${issue.field ?? ''}`
-      : `${issue.contentPath ?? ''}|${issue.subject ?? ''}`
+      ? `${contentPath}|${issue.field ?? ''}`
+      : `${contentPath}|${issue.subject ?? ''}`
   return `item|${target ?? ''}|${issue.validator}|${id}|${where}`
 }
 
