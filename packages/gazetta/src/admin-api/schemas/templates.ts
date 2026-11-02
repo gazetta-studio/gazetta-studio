@@ -28,6 +28,8 @@ export type TemplateSummary = z.infer<typeof TemplateSummarySchema>
 export const TemplateImpactItemSchema = z.object({
   kind: z.enum(['page', 'fragment']),
   name: z.string(),
+  /** The language version this row is, when it isn't the default file. */
+  locale: z.string().optional(),
   itemPath: z.string(),
   issues: z.array(IssueSchema),
 })
