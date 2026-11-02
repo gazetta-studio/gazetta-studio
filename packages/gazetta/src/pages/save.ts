@@ -38,7 +38,7 @@ import {
   type SaveSourceWiring,
 } from '../manifest-save.js'
 import type { PageManifest } from '../types.js'
-import type { Site } from '../site-loader.js'
+import { localeVariantRoute, type Site } from '../site-loader.js'
 import type { ValidatorRegistry } from '../validation/registry.js'
 import type { ValidationScanner } from '../validation/scanner.js'
 import type { HookFiringEmitter, HookRegistry } from '../hooks/index.js'
@@ -59,8 +59,9 @@ export interface SavePageInput {
   /** Optional save-etag for concurrency check. */
   readonly ifMatch?: string
   /**
-   * Create the page instead of updating it (the bulk save, #1714): it
-   * must not exist, `body` is its whole manifest, and no locale is given.
+   * Create the page instead of updating it (the bulk save, #1714): `body`
+   * is its whole manifest and nothing may exist at its path. With a locale,
+   * it creates that language version of a page that exists.
    */
   readonly create?: boolean
   /** Loaded site (caller does `loadSiteFromSource(source)` once). */
@@ -145,26 +146,47 @@ export async function preparePageSave(input: SavePageInput): Promise<PreparedSav
   // pages.ts:300-304. The default page MUST exist (creates go through
   // a separate `createPage` entry point — Cut 5).
   if (input.create) {
-    if (locale) throw new Error('A create has no locale')
-    if (input.site.pages.has(input.name)) {
-      return { ok: false, code: 'EXISTS', message: `Page "${input.name}" already exists` }
+    // A new page, or a new language version of one that exists (#1714).
+    const defaultPage = input.site.pages.get(input.name)
+    let manifestPath: string
+    let route: string | undefined
+    if (locale) {
+      if (!defaultPage) throw new PageNotFoundError(input.name)
+      if (defaultPage.archived === true) return { ok: false, code: 'ARCHIVED', message: 'Archived. Restore to edit.' }
+      manifestPath = join(defaultPage.dir, `page.${locale}.json`)
+      route = localeVariantRoute(input.site.manifest, defaultPage.route, locale)
+    } else {
+      if (defaultPage) return { ok: false, code: 'EXISTS', message: `Page "${input.name}" already exists` }
+      manifestPath = input.source.contentRoot.path('pages', input.name, 'page.json')
+      route = deriveRoute(input.name)
+    }
+    // The stored file decides, also for a language the site's config doesn't list.
+    if (await input.source.storage.exists(manifestPath)) {
+      return {
+        ok: false,
+        code: 'EXISTS',
+        message: `Page "${input.name}"${locale ? ` (${locale})` : ''} already exists`,
+      }
     }
     const manifest: Record<string, unknown> = {
       ...input.body,
       components: ensureComponentIds(input.body.components ?? []),
     }
+    // Language versions store their route, as an update does.
+    if (locale && route) manifest.route = route
     return {
       ok: true,
       save: {
         ...shared(input),
         kind: 'page',
         name: input.name,
+        locale,
         manifest,
         before: null,
         create: true,
-        manifestPath: input.source.contentRoot.path('pages', input.name, 'page.json'),
+        manifestPath,
         cacheInvalidatePrefixes: ['pages:'],
-        etagExtras: { route: deriveRoute(input.name) },
+        etagExtras: route === undefined ? {} : { route },
       },
     }
   }

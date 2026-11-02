@@ -15,7 +15,9 @@ export const BulkSaveItemSchema = z
     ifNoneMatch: z
       .literal('*')
       .optional()
-      .describe('Create the item instead: it saves only if nothing exists under its name.'),
+      .describe(
+        'Create the item instead: it saves only if nothing exists under its name. With a locale, it creates that language version of an item that exists.',
+      ),
   })
   .refine(item => (item.ifMatch === undefined) !== (item.ifNoneMatch === undefined), {
     message: 'Give each item either ifMatch or ifNoneMatch: "*"',
