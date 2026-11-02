@@ -30,6 +30,7 @@ import { rebuildFragmentDeps } from '../fragment-deps.js'
 import { isManualRedirectArchive } from '../archive-helpers.js'
 import type { FragmentManifest } from '../types.js'
 import type { SaveAuditRecorder, SavePrincipal } from '../manifest-save.js'
+import { recordSave } from '../history-recorder.js'
 
 /** Inputs to `createFragment`. Body is already Zod-validated by the route. */
 export interface CreateFragmentInput {
@@ -164,7 +165,9 @@ export async function createFragment(input: CreateFragmentInput): Promise<Create
   // Fresh create — no existing manifest.
   await storage.mkdir(fragDir)
   const manifest = { template, components: [] as unknown[] }
-  await storage.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+  const serialized = `${JSON.stringify(manifest, null, 2)}\n`
+  await recordSave(source, [{ path: source.contentRoot.relative(manifestPath), content: serialized, created: true }])
+  await storage.writeFile(manifestPath, serialized)
 
   const item: ItemRef = { source: 'fragment', name }
   await Promise.all([

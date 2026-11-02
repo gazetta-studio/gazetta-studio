@@ -37,6 +37,7 @@ import { isManualRedirectArchive } from '../archive-helpers.js'
 import { resetReviewStateForItem } from './routes/archive-review.js'
 import type { ItemRef } from '../dep-sidecars.js'
 import type { SourceContext } from './source-context.js'
+import { recordSave } from '../history-recorder.js'
 
 export type ArchivedNameConflictMode = 'restore' | 'replace' | 'moveAside'
 const ARCHIVED_NAME_CONFLICT_MODES: ReadonlySet<ArchivedNameConflictMode> = new Set(['restore', 'replace', 'moveAside'])
@@ -91,7 +92,9 @@ async function runRestore(opts: ResolveOptions): Promise<ArchivedNameConflictRes
   const filename = filenameFor(opts.kind)
   const path = join(opts.existing.dir, filename)
   const restored = stripArchiveFields(opts.existing)
-  await opts.source.storage.writeFile(path, JSON.stringify(restored, null, 2) + '\n')
+  const serialized = JSON.stringify(restored, null, 2) + '\n'
+  await recordSave(opts.source, [{ path: opts.source.contentRoot.relative(path), content: serialized }])
+  await opts.source.storage.writeFile(path, serialized)
 
   // Tear down the archive-aliases sidecar — `extract` on a live
   // manifest returns the empty set, so the diff cleans up.
@@ -122,7 +125,20 @@ async function runReplace(opts: ResolveOptions): Promise<ArchivedNameConflictRes
   const aliasingArchives = findArchivesAliasingInSite(await loadSiteFromSource(opts.source), opts.name)
 
   // Step 2 — purge the existing archive entirely (manifest dir + sidecars).
+  // History records the new manifest replacing the archive's, before
+  // anything changes (#1734).
   const itemRef: ItemRef = { source: opts.kind, name: opts.name }
+  const filename = filenameFor(opts.kind)
+  const newDir = opts.source.contentRoot.path(`${opts.kind}s`, opts.name)
+  const newManifest = {
+    template: opts.newTemplate,
+    content: opts.newContent ?? { title: opts.name },
+    components: [],
+  }
+  const serialized = JSON.stringify(newManifest, null, 2) + '\n'
+  await recordSave(opts.source, [
+    { path: opts.source.contentRoot.relative(join(newDir, filename)), content: serialized },
+  ])
   await opts.source.storage.rm(opts.existing.dir)
   await Promise.all([
     rebuildArchiveAliases(opts.source.contentRoot, itemRef, opts.existing, null),
@@ -131,15 +147,8 @@ async function runReplace(opts: ResolveOptions): Promise<ArchivedNameConflictRes
   ])
 
   // Step 3 — create the new live manifest.
-  const filename = filenameFor(opts.kind)
-  const newDir = opts.source.contentRoot.path(`${opts.kind}s`, opts.name)
   await opts.source.storage.mkdir(newDir)
-  const newManifest = {
-    template: opts.newTemplate,
-    content: opts.newContent ?? { title: opts.name },
-    components: [],
-  }
-  await opts.source.storage.writeFile(join(newDir, filename), JSON.stringify(newManifest, null, 2) + '\n')
+  await opts.source.storage.writeFile(join(newDir, filename), serialized)
   // Initialize dep-sidecars for the new live manifest.
   await Promise.all([
     rebuildAssetRefs(opts.source.contentRoot, itemRef, null, newManifest),
@@ -191,7 +200,21 @@ async function runMoveAside(opts: ResolveOptions): Promise<ArchivedNameConflictR
   await opts.source.storage.mkdir(newDir)
   // Carry the existing archive shape forward; only the name changes.
   const carried: ComponentManifest = stripDirAndDerived(opts.existing)
-  await opts.source.storage.writeFile(join(newDir, filename), JSON.stringify(carried, null, 2) + '\n')
+  const carriedText = JSON.stringify(carried, null, 2) + '\n'
+  // One revision before anything moves: the archive created at its aside
+  // name, the new page replacing it at the original name (#1734).
+  const liveDir = opts.source.contentRoot.path(`${opts.kind}s`, opts.name)
+  const liveManifest = {
+    template: opts.newTemplate,
+    content: opts.newContent ?? { title: opts.name },
+    components: [],
+  }
+  const liveText = JSON.stringify(liveManifest, null, 2) + '\n'
+  await recordSave(opts.source, [
+    { path: opts.source.contentRoot.relative(join(newDir, filename)), content: carriedText, created: true },
+    { path: opts.source.contentRoot.relative(join(liveDir, filename)), content: liveText },
+  ])
+  await opts.source.storage.writeFile(join(newDir, filename), carriedText)
   await opts.source.storage.rm(oldDir)
 
   // Step 3 — sidecars: tear down the OLD archive's sidecars, write the
@@ -223,14 +246,8 @@ async function runMoveAside(opts: ResolveOptions): Promise<ArchivedNameConflictR
   }
 
   // Step 5 — create the new live manifest at the original name.
-  const liveDir = opts.source.contentRoot.path(`${opts.kind}s`, opts.name)
   await opts.source.storage.mkdir(liveDir)
-  const liveManifest = {
-    template: opts.newTemplate,
-    content: opts.newContent ?? { title: opts.name },
-    components: [],
-  }
-  await opts.source.storage.writeFile(join(liveDir, filename), JSON.stringify(liveManifest, null, 2) + '\n')
+  await opts.source.storage.writeFile(join(liveDir, filename), liveText)
   const liveRef: ItemRef = { source: opts.kind, name: opts.name }
   await Promise.all([
     rebuildAssetRefs(opts.source.contentRoot, liveRef, null, liveManifest),

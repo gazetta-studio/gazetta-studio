@@ -41,6 +41,7 @@ import { isManualRedirectArchive } from '../archive-helpers.js'
 import { loadSiteFromSource } from '../admin-api/source-context.js'
 import type { PageManifest } from '../types.js'
 import type { SaveAuditRecorder, SavePrincipal } from '../manifest-save.js'
+import { recordSave } from '../history-recorder.js'
 
 /**
  * Inputs to `createPage`. The body's already been Zod-validated by
@@ -208,7 +209,9 @@ export async function createPage(input: CreatePageInput): Promise<CreatePageResu
     content: content ?? { title: name },
     components: [] as unknown[],
   }
-  await storage.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+  const serialized = `${JSON.stringify(manifest, null, 2)}\n`
+  await recordSave(source, [{ path: source.contentRoot.relative(manifestPath), content: serialized, created: true }])
+  await storage.writeFile(manifestPath, serialized)
 
   // Sidecar wiring — fresh manifest has empty components[] so the
   // diff against null is mostly a no-op today; wires the dep tracking
