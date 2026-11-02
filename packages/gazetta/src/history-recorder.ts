@@ -311,3 +311,17 @@ async function scanManifestsInto(
     await scanManifestsInto(storage, sub, relSub, manifestName, items, subEntries)
   }
 }
+
+/**
+ * Records a save-operation revision when the target keeps history: the
+ * create routes, redirects and archived-name resolutions (#1734). Call
+ * it before writing, as the save core does, so the first revision's
+ * baseline scans the tree as it was.
+ */
+export async function recordSave(
+  source: { readonly history?: HistoryProvider; readonly contentRoot: ContentRoot },
+  items: WrittenItem[],
+): Promise<void> {
+  if (!source.history) return
+  await recordWrite({ history: source.history, contentRoot: source.contentRoot, operation: 'save', items })
+}

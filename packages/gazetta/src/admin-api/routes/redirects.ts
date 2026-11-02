@@ -39,7 +39,7 @@ import { join } from 'node:path'
 
 import type { SourceContextResolver, SourceContext } from '../source-context.js'
 import { loadSiteFromSource } from '../source-context.js'
-import { recordWrite } from '../../history-recorder.js'
+import { recordSave, recordWrite } from '../../history-recorder.js'
 import { requireCapability } from '../middleware/capability.js'
 import { requireEditableTarget } from '../middleware/editable-target.js'
 import { lookupManifest } from '../lookup-manifest.js'
@@ -303,14 +303,8 @@ async function writeRedirectManifest(
   }
   const serialized = JSON.stringify(manifest, null, 2) + '\n'
 
-  if (source.history) {
-    await recordWrite({
-      history: source.history,
-      contentRoot: source.contentRoot,
-      operation: 'save',
-      items: [{ path: source.contentRoot.relative(manifestPath), content: serialized }],
-    })
-  }
+  // A redirect is a new item at its old name: a revert archives it (#1734).
+  await recordSave(source, [{ path: source.contentRoot.relative(manifestPath), content: serialized, created: true }])
   await source.storage.writeFile(manifestPath, serialized)
 
   // Per-edge sidecar at .gazetta/alias-targets/{to}/{kind}.{from}. Builds
