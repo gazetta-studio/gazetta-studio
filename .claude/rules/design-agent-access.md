@@ -814,14 +814,14 @@ Decided: maintainer, 2026-11-01 (#1656)
 | Check only the fields the save changed | A touched component with an old invalid field would still save |
 | Check token callers only | Two paths to maintain |
 
-A component just added is touched too. When an author adds one, the admin fills in the fields that have a schema default; a required field without one still blocks the save, and the banner names it, until it's filled. Creating a page isn't affected.
+A component just added is touched too, so saving before its required fields are filled is refused, and the banner names them. Agents and the browser follow the same rule, and an empty required field never reaches a target. Creating a page isn't affected.
 
 Decided: maintainer, 2026-11-02 (#1712)
 
 | Rejected | Why |
 |---|---|
-| Refuse until filled, with no defaults filled in | More refusals for templates that set defaults |
 | A component just added with empty content saves; once anything is typed into it, it must pass | The page could be saved half-built, with only a background warning about the empty block; agents would get the same exception |
+| Prefill schema defaults when adding, then refuse | The maintainer chose to refuse until filled, as recommended |
 
 ### Q50 — Reverting a run needs edit rights
 
