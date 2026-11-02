@@ -38,7 +38,8 @@ describe.runIf(runIt)('gz auth against gazetta dev', () => {
   const project = join(work, 'project')
   const config = join(work, 'gz-config')
   const gz = join(work, process.platform === 'win32' ? 'gz.exe' : 'gz')
-  const port = 5000 + Math.floor(Math.random() * 100)
+  // Clear of the other CLI tests' ranges (4700–5099, 5200–5299): on Linux a shared port fails one server (#1716).
+  const port = 5400 + Math.floor(Math.random() * 100)
   const admin = `http://127.0.0.1:${port}`
   let dev: ChildProcess | undefined
   // The dev server's output, attached to failures so a slow or failed start shows why.
@@ -65,12 +66,28 @@ describe.runIf(runIt)('gz auth against gazetta dev', () => {
     })
     dev.stdout?.on('data', d => (devLog += d))
     dev.stderr?.on('data', d => (devLog += d))
-    const deadline = Date.now() + 60_000
+    // Record each attempt, so a timeout says whether the server refused,
+    // hung, or answered with an error (#1716).
+    const started = Date.now()
+    const deadline = started + 60_000
+    const attempts = new Map<string, number>()
+    let last = ''
     for (;;) {
+      let outcome: string
       try {
-        if ((await fetch(`${admin}/admin/api/health`)).ok) break
-      } catch {}
-      if (Date.now() > deadline) throw new Error(`gazetta dev did not start${devTail()}`)
+        const res = await fetch(`${admin}/admin/api/health`, { signal: AbortSignal.timeout(5000) })
+        if (res.ok) break
+        outcome = `HTTP ${res.status}`
+      } catch (err) {
+        const e = err as Error & { cause?: { code?: string } }
+        outcome = e.cause?.code ?? e.name
+      }
+      attempts.set(outcome, (attempts.get(outcome) ?? 0) + 1)
+      last = `${outcome} at ${((Date.now() - started) / 1000).toFixed(1)} s`
+      if (Date.now() > deadline) {
+        const summary = [...attempts].map(([o, n]) => `${o} ×${n}`).join(', ')
+        throw new Error(`gazetta dev did not start: health attempts ${summary}; last ${last}${devTail()}`)
+      }
       await new Promise(r => setTimeout(r, 400))
     }
   }, 180_000)
