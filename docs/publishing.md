@@ -4,6 +4,10 @@ Publish copies content from an editing source to one or more destinations and re
 
 Publishing a page or fragment copies its own files, including translations and ordinary subfolders. Nested pages and fragments are separate items: publishing `pages/about` does not copy `pages/about/team` when that folder has its own manifest. Select the nested item too when you want to publish it.
 
+A publish uses the content as it was when the publish started: the audit, the history record, the copied manifests and the rendered pages all come from that one copy. A save made while a publish runs goes out with the next publish, and until then the item shows as an unpublished change.
+
+If an image or file a page uses is replaced, renamed or deleted while a publish runs, that page (and, on a `static` destination, any page that includes a fragment using it) isn't published this time: the destination keeps its previous version, and the result names the page and the asset. Everything else in the publish goes ahead. Publish again to send it.
+
 Configure storage, target `type`, environments and history in [Targets](./targets.md). For putting the site online, see [Cloudflare](./cloudflare.md) or [Self-hosted](./self-hosted.md).
 
 ## Publish from the admin

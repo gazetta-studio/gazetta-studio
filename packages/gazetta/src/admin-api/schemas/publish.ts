@@ -20,6 +20,11 @@ export const PublishResultSchema = z.object({
   success: z.boolean(),
   error: z.string().optional(),
   copiedFiles: z.number(),
+  /**
+   * Items not published to this target because an asset they use lost its
+   * files during the publish (#1632). They go out with the next publish.
+   */
+  notPublished: z.array(z.object({ item: z.string(), assets: z.array(z.string()), reason: z.string() })).optional(),
 })
 export type PublishResult = z.infer<typeof PublishResultSchema>
 

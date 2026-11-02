@@ -9,10 +9,11 @@
  * publish generation and the CDN purge. Purge scope is the caller's
  * explicit option.
  */
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { publishToTarget, type PurgeOutcome } from '../src/publish-target.js'
+import { createPublishSnapshot, type PublishSnapshot } from '../src/publish-snapshot.js'
 import { createContentRoot } from '../src/content-root.js'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
 import { createHistoryProvider } from '../src/history-provider.js'
@@ -73,6 +74,7 @@ describe('publishToTarget (#1426)', () => {
   let manifest: SiteManifest
   let templateInfos: TemplateInfo[]
   let sourceRoot: ReturnType<typeof createContentRoot>
+  let snapshot: PublishSnapshot
   let innerTarget: MemoryStorage
   let events: string[]
   let targetStorage: StorageProvider
@@ -96,9 +98,8 @@ describe('publishToTarget (#1426)', () => {
       targetName: 'staging',
       targetStorage,
       targetConfig,
-      sourceRoot,
+      snapshot,
       sourceName: 'local',
-      site,
       siteManifest: manifest,
       items: [`pages/${pageName()}`],
       itemRefs: [{ kind: 'page', name: pageName() }],
@@ -110,13 +111,10 @@ describe('publishToTarget (#1426)', () => {
     purgeCalls.length = 0
     forceEmptySitemap = false
     events = []
-    site = await loadSite({
-      contentRoot: createContentRoot(createFilesystemProvider(starterTargetDir), ''),
-      templatesDir: starterTemplatesDir,
-      manifest: await starterManifest(),
-    })
     manifest = await starterManifest()
     sourceRoot = createContentRoot(createFilesystemProvider(starterTargetDir), '')
+    snapshot = await createPublishSnapshot({ contentRoot: sourceRoot, manifest, templatesDir: starterTemplatesDir })
+    site = snapshot.site
     templateInfos = await scanTemplates(starterTemplatesDir, starterProjectRoot)
     tmp = await mkdtemp('.tmp-publish-target-')
     innerTarget = memoryStorage()
@@ -194,9 +192,8 @@ describe('publishToTarget (#1426)', () => {
       targetName: 'staging',
       targetStorage,
       targetConfig: stagingConfig({ cache: { purge: PURGE_CONFIG } }),
-      sourceRoot,
+      snapshot,
       sourceName: 'local',
-      site,
       siteManifest: manifest,
       items: ['pages/about'],
       itemRefs: [
@@ -230,7 +227,7 @@ describe('publishToTarget (#1426)', () => {
       JSON.stringify({ template: 'page-default', content: {} }),
     )
     const twoPageRoot = createContentRoot(createFilesystemProvider(siteRoot), '')
-    const twoPageSite = await loadSite({
+    const twoPageSnapshot = await createPublishSnapshot({
       contentRoot: twoPageRoot,
       templatesDir: starterTemplatesDir,
       manifest: await starterManifest(),
@@ -239,9 +236,8 @@ describe('publishToTarget (#1426)', () => {
       targetName: 'staging',
       targetStorage,
       targetConfig: stagingConfig(),
-      sourceRoot: twoPageRoot,
+      snapshot: twoPageSnapshot,
       sourceName: 'local',
-      site: twoPageSite,
       siteManifest: manifest,
       items: ['pages/one'],
       itemRefs: [{ kind: 'page', name: 'one' }],
@@ -259,9 +255,8 @@ describe('publishToTarget (#1426)', () => {
       targetName: 'staging',
       targetStorage,
       targetConfig: stagingConfig(),
-      sourceRoot: twoPageRoot,
+      snapshot: twoPageSnapshot,
       sourceName: 'local',
-      site: twoPageSite,
       siteManifest: manifest,
       items: ['pages/two'],
       itemRefs: [{ kind: 'page', name: 'two' }],
@@ -289,9 +284,8 @@ describe('publishToTarget (#1426)', () => {
       targetName: 'staging',
       targetStorage: failing,
       targetConfig: { type: 'static', environment: 'staging', siteUrl: 'https://example.com' } as TargetConfig,
-      sourceRoot,
+      snapshot,
       sourceName: 'local',
-      site,
       siteManifest: manifest,
       items: [`pages/${pageName()}`],
       itemRefs: [{ kind: 'page', name: pageName() }],
@@ -319,9 +313,8 @@ describe('publishToTarget (#1426)', () => {
         siteUrl: 'https://example.com',
         cache: { purge: PURGE_CONFIG },
       } as TargetConfig,
-      sourceRoot,
+      snapshot,
       sourceName: 'local',
-      site,
       siteManifest: manifest,
       items: [`pages/${pageName()}`],
       itemRefs: [{ kind: 'page', name: pageName() }],
@@ -345,9 +338,8 @@ describe('publishToTarget (#1426)', () => {
       targetName: 'staging',
       targetStorage,
       targetConfig: stagingConfig(),
-      sourceRoot,
+      snapshot,
       sourceName: 'local',
-      site,
       siteManifest: manifest,
       items: [`pages/${localized}`],
       itemRefs: [{ kind: 'page', name: localized }],
@@ -378,9 +370,8 @@ describe('publishToTarget (#1426)', () => {
         targetName: 'staging',
         targetStorage: opts.storage ?? targetStorage,
         targetConfig: opts.config ?? stagingConfig({ cache: { purge: PURGE_CONFIG } }),
-        sourceRoot,
+        snapshot,
         sourceName: 'local',
-        site,
         siteManifest: manifest,
         items: opts.items ?? [`pages/${pageName()}`],
         itemRefs: (opts.items ?? [`pages/${pageName()}`]).map(i => ({ kind: 'page' as const, name: i.slice(6) })),
@@ -478,9 +469,8 @@ describe('publishToTarget (#1426)', () => {
         targetName: 'staging',
         targetStorage,
         targetConfig: stagingConfig(),
-        sourceRoot,
+        snapshot,
         sourceName: 'local',
-        site,
         siteManifest: manifest,
         items: [],
         itemRefs: [],
@@ -498,9 +488,8 @@ describe('publishToTarget (#1426)', () => {
         targetName: 'staging',
         targetStorage,
         targetConfig: stagingConfig(),
-        sourceRoot,
+        snapshot,
         sourceName: 'local',
-        site,
         siteManifest: manifest,
         items: [`pages/${pageName()}`],
         itemRefs: [{ kind: 'page', name: pageName() }],
@@ -514,5 +503,172 @@ describe('publishToTarget (#1426)', () => {
       ])
       expect(await innerTarget.exists(`pages/${pageName()}/page.json`)).toBe(true)
     })
+  })
+})
+
+describe('publishToTarget: one snapshot per publish (#1632)', () => {
+  let tmp: string
+  let sourceDir: string
+  let manifest: SiteManifest
+  let templateInfos: TemplateInfo[]
+  let target: MemoryStorage
+
+  beforeEach(async () => {
+    tmp = await mkdtemp('.tmp-publish-snapshot-')
+    sourceDir = join(tmp, 'local')
+    await cp(starterTargetDir, sourceDir, { recursive: true })
+    manifest = await starterManifest()
+    templateInfos = await scanTemplates(starterTemplatesDir, starterProjectRoot)
+    target = memoryStorage()
+  })
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+  })
+
+  const take = () =>
+    createPublishSnapshot({
+      contentRoot: createContentRoot(createFilesystemProvider(sourceDir), ''),
+      manifest,
+      templatesDir: starterTemplatesDir,
+    })
+  const publish = (
+    snapshot: PublishSnapshot,
+    names: string[],
+    type: 'esi' | 'static' = 'static',
+    fragments: string[] = [],
+  ) =>
+    publishToTarget({
+      // The starter's `staging` is static and its `esi-test` composes at request time.
+      targetName: type === 'static' ? 'staging' : 'esi-test',
+      targetStorage: target,
+      targetConfig: {
+        ...manifest.targets![type === 'static' ? 'staging' : 'esi-test'],
+        storage: target,
+        publicStorage: false,
+      } as TargetConfig,
+      snapshot,
+      sourceName: 'local',
+      siteManifest: manifest,
+      items: [...names.map(n => `pages/${n}`), ...fragments.map(f => `fragments/${f}`)],
+      itemRefs: [
+        ...names.map(name => ({ kind: 'page' as const, name })),
+        ...fragments.map(name => ({ kind: 'fragment' as const, name })),
+      ],
+      templateInfos,
+      purgeScope: 'all',
+    })
+  const revisionText = async (path: string) => {
+    const history = createHistoryProvider({ storage: target })
+    const [rev] = (await history.listRevisions()).filter(r => r.operation === 'publish')
+    const snap = (await history.readRevision(rev!.id)).snapshot
+    return snap[path] ? new TextDecoder().decode(await history.readBlob(snap[path])) : undefined
+  }
+  const aboutPath = () => join(sourceDir, 'pages/about/page.json')
+
+  it("doesn't publish a save that lands after the snapshot", async () => {
+    const before = await readFile(aboutPath(), 'utf8')
+    const snapshot = await take()
+    const edited = JSON.parse(before)
+    edited.metadata = { ...edited.metadata, title: 'Saved during the publish' }
+    await writeFile(aboutPath(), JSON.stringify(edited))
+
+    const result = await publish(snapshot, ['about'])
+    expect(result.run?.failed).not.toBe(true)
+    expect(await target.readFile('pages/about/page.json')).toBe(before)
+    expect(await revisionText('pages/about/page.json')).toBe(before)
+    expect(await target.readFile('about/index.html')).not.toContain('Saved during the publish')
+
+    // The newer save shows as an unpublished change.
+    const { compareTargets } = await import('../src/compare.js')
+    const cmp = await compareTargets({
+      sourceRoot: createContentRoot(createFilesystemProvider(sourceDir), ''),
+      target,
+      templatesDir: starterTemplatesDir,
+      projectRoot: starterProjectRoot,
+      type: 'static',
+      scanTemplates: async () => templateInfos,
+      manifest,
+    })
+    expect(cmp.modified).toContain('pages/about')
+  })
+
+  it('copies the snapshot’s raw text, fields the loader drops included', async () => {
+    const raw = JSON.stringify({ ...JSON.parse(await readFile(aboutPath(), 'utf8')), unlisted: { keep: true } })
+    await writeFile(aboutPath(), raw)
+    const snapshot = await take()
+    await publish(snapshot, ['about'])
+    expect(await target.readFile('pages/about/page.json')).toBe(raw)
+    expect(await revisionText('pages/about/page.json')).toBe(raw)
+    expect(await target.readFile('pages/about/page.fr.json')).toBe(
+      await readFile(join(sourceDir, 'pages/about/page.fr.json'), 'utf8'),
+    )
+  })
+
+  it('copies asset manifests as the snapshot holds them', async () => {
+    const assetManifest = join(sourceDir, 'assets/test-pattern.asset.json')
+    const snapshotText = await readFile(assetManifest, 'utf8')
+    const snapshot = await take()
+    await writeFile(assetManifest, JSON.stringify({ ...JSON.parse(snapshotText), alt: 'Edited during the publish' }))
+    await publish(snapshot, ['asset-demo'])
+    expect(await target.readFile('assets/test-pattern.asset.json')).toBe(snapshotText)
+  })
+
+  it('leaves out the pages using an asset whose files went during the publish, and publishes the rest', async () => {
+    const snapshot = await take()
+    await rm(join(sourceDir, 'assets/test-pattern-2092f9b7.jpg'))
+    const result = await publish(snapshot, ['asset-demo', 'about'])
+    expect(result.run?.failed).not.toBe(true)
+    expect(result.notPublished).toEqual([{ kind: 'page', name: 'asset-demo', assets: ['test-pattern'] }])
+    expect(await target.exists('pages/asset-demo/page.json')).toBe(false)
+    expect(await target.exists('asset-demo/index.html')).toBe(false)
+    expect(await revisionText('pages/asset-demo/page.json')).toBeUndefined()
+    expect(await target.exists('pages/about/page.json')).toBe(true)
+    expect(await target.exists('assets/test-pattern-2092f9b7.jpg')).toBe(false)
+  })
+
+  it('keeps the previous version of a page left out that way', async () => {
+    await publish(await take(), ['asset-demo'])
+    const published = await target.readFile('pages/asset-demo/page.json')
+    const html = await target.readFile('asset-demo/index.html')
+    const demo = join(sourceDir, 'pages/asset-demo/page.json')
+    await writeFile(demo, JSON.stringify({ ...JSON.parse(await readFile(demo, 'utf8')), metadata: { title: 'New' } }))
+    const snapshot = await take()
+    await rm(join(sourceDir, 'assets/test-pattern-2092f9b7.jpg'))
+    const result = await publish(snapshot, ['asset-demo'])
+    expect(result.notPublished.map(n => n.name)).toEqual(['asset-demo'])
+    expect(await target.readFile('pages/asset-demo/page.json')).toBe(published)
+    expect(await target.readFile('asset-demo/index.html')).toBe(html)
+  })
+
+  it('on a static target, also leaves out a page that bakes a fragment using that asset', async () => {
+    await mkdir(join(sourceDir, 'fragments/promo'), { recursive: true })
+    await writeFile(
+      join(sourceDir, 'fragments/promo/fragment.json'),
+      JSON.stringify({
+        template: 'asset-hero',
+        content: { image: { _asset: 'test-pattern' }, headline: 'Promo' },
+      }),
+    )
+    const about = JSON.parse(await readFile(aboutPath(), 'utf8'))
+    about.components = [...(about.components ?? []), '@promo']
+    await writeFile(aboutPath(), JSON.stringify(about))
+    const snapshot = await take()
+    await rm(join(sourceDir, 'assets/test-pattern-2092f9b7.jpg'))
+
+    const staticResult = await publish(snapshot, ['about', 'home'], 'static')
+    expect(staticResult.notPublished.map(n => n.name)).toEqual(['about'])
+
+    target = memoryStorage()
+    const esiResult = await publish(snapshot, ['about', 'home'], 'esi', ['promo'])
+    expect(esiResult.notPublished).toEqual([{ kind: 'fragment', name: 'promo', assets: ['test-pattern'] }])
+  })
+
+  it('still fails the target for an asset that had no manifest when the snapshot was taken', async () => {
+    await rm(join(sourceDir, 'assets/test-pattern.asset.json'))
+    const snapshot = await take()
+    await writeFile(join(sourceDir, 'assets/test-pattern.asset.json'), '{}')
+    const result = await publish(snapshot, ['asset-demo'])
+    expect(result.run?.failed).toBe(true)
+    expect(result.run?.failureReason).toContain('missing test-pattern')
   })
 })

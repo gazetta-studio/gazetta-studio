@@ -183,3 +183,71 @@ describe('Validation Cut 4 — POST /api/v1/publish gate', () => {
     expect(body.blocked).toHaveLength(1)
   })
 })
+
+describe('the server gate and the render read one snapshot (#1632)', () => {
+  const original = JSON.stringify({ template: 'page-default', route: '/', content: {}, metadata: { title: 'Audited' } })
+  const changed = JSON.stringify({
+    template: 'page-default',
+    route: '/',
+    content: {},
+    metadata: { title: 'Unaudited' },
+  })
+
+  // Saves `pages/home` while the gate audits it: what the gate saw is what must go out.
+  function saveDuringGate(storage: MemoryStorage): Validator {
+    return {
+      source: 'gazetta',
+      name: 'test-save-during-gate',
+      stages: ['pre-publish'] as const,
+      defaultSeverity: () => 'error',
+      async validate(input) {
+        if (input.scope.kind !== 'pre-publish') return []
+        await storage.writeFile('pages/home/page.json', changed)
+        return []
+      },
+    }
+  }
+
+  async function publishWith(route: '/api/v1/publish' | '/api/v1/publish/stream') {
+    const { starterTemplatesDir } = await import('./_helpers/starter.js')
+    const source = memoryStorage()
+    const target = memoryStorage()
+    source.seed({ 'pages/home/page.json': original })
+    const targetConfigs = {
+      local: { storage: source, type: 'esi' as const, environment: 'local' as const, editable: true },
+      staging: { storage: target, type: 'esi' as const, environment: 'staging' as const, publicStorage: false },
+    }
+    const publishApp = createAdminApp({
+      source: createSourceContext({
+        storage: source,
+        siteDir: '',
+        projectSiteDir: '/test-project',
+        manifest: { name: 'test-site', targets: targetConfigs },
+      }),
+      siteDir: '/test-project',
+      templatesDir: starterTemplatesDir,
+      targets: new Map([
+        ['local', source],
+        ['staging', target],
+      ]),
+      targetConfigs,
+      disableCacheStatsLogger: true,
+      validators: createValidatorRegistry([saveDuringGate(source)]),
+    })
+    const res = await publishApp.request(route, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: ['pages/home'], targets: ['staging'] }),
+    })
+    await res.text()
+    return { res, source, target }
+  }
+
+  it.each(['/api/v1/publish', '/api/v1/publish/stream'] as const)('%s publishes what the gate audited', async route => {
+    const { res, source, target } = await publishWith(route)
+    expect(res.status).toBe(200)
+    expect(await source.readFile('pages/home/page.json')).toBe(changed)
+    expect(await target.readFile('pages/home/page.json')).toBe(original)
+    expect(await target.readFile('index.html')).toContain('Audited')
+  })
+})

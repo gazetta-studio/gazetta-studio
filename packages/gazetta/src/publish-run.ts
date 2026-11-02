@@ -236,6 +236,11 @@ export interface PublishRunInput {
    * publishes every item it is given.
    */
   readonly force?: boolean
+  /**
+   * Assets the asset copy leaves out: their files were removed during the
+   * publish, and the items using them aren't published (#1632).
+   */
+  readonly skipAssets?: ReadonlySet<string>
   /** Streaming callback emitted at run / target / item boundaries. */
   readonly onProgress?: (event: PublishProgressEvent) => void
 }
@@ -420,6 +425,7 @@ export async function publishRun(input: PublishRunInput): Promise<PublishRunResu
           sourceRoot: input.sourceRoot,
           targetRoot,
           itemNames,
+          skipAssets: input.skipAssets,
         })
         if (!assetResult.ok) {
           targetFailureReason = `asset publish failed: missing ${assetResult.missing.join(', ')}`

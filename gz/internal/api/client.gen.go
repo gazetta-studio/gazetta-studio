@@ -17081,19 +17081,29 @@ type PostApiV1PublishResponse struct {
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *struct {
 		Results []struct {
-			CopiedFiles float64 `json:"copiedFiles"`
-			Error       *string `json:"error,omitempty"`
-			Success     bool    `json:"success"`
-			Target      string  `json:"target"`
+			CopiedFiles  float64 `json:"copiedFiles"`
+			Error        *string `json:"error,omitempty"`
+			NotPublished *[]struct {
+				Assets []string `json:"assets"`
+				Item   string   `json:"item"`
+				Reason string   `json:"reason"`
+			} `json:"notPublished,omitempty"`
+			Success bool   `json:"success"`
+			Target  string `json:"target"`
 		} `json:"results"`
 	}
 	// JSON207 the response for an HTTP 207 `application/json` response
 	JSON207 *struct {
 		Results []struct {
-			CopiedFiles float64 `json:"copiedFiles"`
-			Error       *string `json:"error,omitempty"`
-			Success     bool    `json:"success"`
-			Target      string  `json:"target"`
+			CopiedFiles  float64 `json:"copiedFiles"`
+			Error        *string `json:"error,omitempty"`
+			NotPublished *[]struct {
+				Assets []string `json:"assets"`
+				Item   string   `json:"item"`
+				Reason string   `json:"reason"`
+			} `json:"notPublished,omitempty"`
+			Success bool   `json:"success"`
+			Target  string `json:"target"`
 		} `json:"results"`
 	}
 	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
@@ -17111,10 +17121,15 @@ type PostApiV1PublishResponse struct {
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
 func (r PostApiV1PublishResponse) GetJSON200() *struct {
 	Results []struct {
-		CopiedFiles float64 `json:"copiedFiles"`
-		Error       *string `json:"error,omitempty"`
-		Success     bool    `json:"success"`
-		Target      string  `json:"target"`
+		CopiedFiles  float64 `json:"copiedFiles"`
+		Error        *string `json:"error,omitempty"`
+		NotPublished *[]struct {
+			Assets []string `json:"assets"`
+			Item   string   `json:"item"`
+			Reason string   `json:"reason"`
+		} `json:"notPublished,omitempty"`
+		Success bool   `json:"success"`
+		Target  string `json:"target"`
 	} `json:"results"`
 } {
 	return r.JSON200
@@ -17123,10 +17138,15 @@ func (r PostApiV1PublishResponse) GetJSON200() *struct {
 // GetJSON207 returns the response for an HTTP 207 `application/json` response
 func (r PostApiV1PublishResponse) GetJSON207() *struct {
 	Results []struct {
-		CopiedFiles float64 `json:"copiedFiles"`
-		Error       *string `json:"error,omitempty"`
-		Success     bool    `json:"success"`
-		Target      string  `json:"target"`
+		CopiedFiles  float64 `json:"copiedFiles"`
+		Error        *string `json:"error,omitempty"`
+		NotPublished *[]struct {
+			Assets []string `json:"assets"`
+			Item   string   `json:"item"`
+			Reason string   `json:"reason"`
+		} `json:"notPublished,omitempty"`
+		Success bool   `json:"success"`
+		Target  string `json:"target"`
 	} `json:"results"`
 } {
 	return r.JSON207
@@ -22914,10 +22934,15 @@ func ParsePostApiV1PublishResponse(rsp *http.Response) (*PostApiV1PublishRespons
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
 			Results []struct {
-				CopiedFiles float64 `json:"copiedFiles"`
-				Error       *string `json:"error,omitempty"`
-				Success     bool    `json:"success"`
-				Target      string  `json:"target"`
+				CopiedFiles  float64 `json:"copiedFiles"`
+				Error        *string `json:"error,omitempty"`
+				NotPublished *[]struct {
+					Assets []string `json:"assets"`
+					Item   string   `json:"item"`
+					Reason string   `json:"reason"`
+				} `json:"notPublished,omitempty"`
+				Success bool   `json:"success"`
+				Target  string `json:"target"`
 			} `json:"results"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -22928,10 +22953,15 @@ func ParsePostApiV1PublishResponse(rsp *http.Response) (*PostApiV1PublishRespons
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 207:
 		var dest struct {
 			Results []struct {
-				CopiedFiles float64 `json:"copiedFiles"`
-				Error       *string `json:"error,omitempty"`
-				Success     bool    `json:"success"`
-				Target      string  `json:"target"`
+				CopiedFiles  float64 `json:"copiedFiles"`
+				Error        *string `json:"error,omitempty"`
+				NotPublished *[]struct {
+					Assets []string `json:"assets"`
+					Item   string   `json:"item"`
+					Reason string   `json:"reason"`
+				} `json:"notPublished,omitempty"`
+				Success bool   `json:"success"`
+				Target  string `json:"target"`
 			} `json:"results"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

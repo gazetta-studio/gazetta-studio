@@ -751,7 +751,11 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
     process.exit(1)
   }
   const storage = source.storage
-  const site = await loadSite({ contentRoot: source.contentRoot, templatesDir, manifest })
+  // One snapshot per publish (design-publish-undo.md Q4, #1632): compare,
+  // the history record, the manifest copy and the render all read it.
+  const { createPublishSnapshot } = await import('../publish-snapshot.js')
+  const snapshot = await createPublishSnapshot({ contentRoot: source.contentRoot, templatesDir, manifest })
+  const site = snapshot.site
 
   const siteYaml = manifest
   if (!siteYaml.targets || Object.keys(siteYaml.targets).length === 0) {
@@ -849,7 +853,7 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
     if (!opts.force) {
       const { compareTargets } = await import('../compare.js')
       const cmp = await compareTargets({
-        sourceRoot: source.contentRoot,
+        sourceRoot: snapshot.sourceRoot,
         target: targetStorage,
         templatesDir,
         projectRoot,
@@ -933,9 +937,8 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
       targetName: name,
       targetStorage,
       targetConfig,
-      sourceRoot: source.contentRoot,
+      snapshot,
       sourceName: source.targetName,
-      site,
       siteManifest: manifest,
       items: sharedItems,
       itemRefs,
@@ -973,6 +976,13 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
       }
     }
     purgeReports.push({ name, outcome: shared.purge })
+    for (const item of shared.notPublished) {
+      const label = item.kind === 'fragment' ? `@${item.name}` : item.name
+      console.error(
+        `    ${c.red('✗')} ${label}: not published, asset ${item.assets.join(', ')} was removed during the publish`,
+      )
+      failedItems++
+    }
 
     if (skipped > 0) console.log(`    ${c.dim(`· ${skipped} unchanged (skipped)`)}`)
 

@@ -8,6 +8,7 @@ import { isValidLocale, normalizeLocale } from '../../locale.js'
 import type { SourceContextResolver } from '../source-context.js'
 import type { PublishResult } from '../../publish.js'
 import { loadSiteFromSource } from '../source-context.js'
+import { createPublishSnapshot, type PublishSnapshot } from '../../publish-snapshot.js'
 import { isAltAdapterConfigured } from '../../alt/factory.js'
 import { resolveAltConfig } from '../../alt/config.js'
 import { inspectTarget } from '../../runtime/runtime-capabilities.js'
@@ -273,8 +274,23 @@ export function publishRoutes(
    * Returns `{ target, issues }` per target that produced errors. Targets
    * with only warns/infos are omitted (errors-only gate).
    */
+  /**
+   * One snapshot per publish request (design-publish-undo.md Q4, #1632):
+   * the gate audits it and the render loop publishes it, so what reaches
+   * the target is what was audited.
+   */
+  async function takeSnapshot(source: import('../source-context.js').SourceContext): Promise<PublishSnapshot> {
+    return createPublishSnapshot({
+      contentRoot: source.contentRoot,
+      manifest: source.manifest,
+      templatesDir: templatesDir ?? `${source.projectSiteDir}/templates`,
+      cache: source.cache,
+    })
+  }
+
   async function evaluatePublishGate(
     source: import('../source-context.js').SourceContext,
+    snapshot: PublishSnapshot,
     targetNames: ReadonlyArray<string>,
     itemPaths: ReadonlyArray<string>,
   ): Promise<Array<{ target: string; issues: Issue[] }>> {
@@ -285,9 +301,7 @@ export function publishRoutes(
       if (i.kind === 'page' || i.kind === 'fragment') items.push({ kind: i.kind, name: i.name })
     }
     if (items.length === 0) return []
-    const site = await loadSiteFromSource(source, {
-      templatesDir: templatesDir ?? `${source.projectSiteDir}/templates`,
-    })
+    const { site } = snapshot
     const blocked: Array<{ target: string; issues: Issue[] }> = []
     for (const targetName of targetNames) {
       const targetCfg = source.manifest?.targets?.[targetName]
@@ -295,8 +309,8 @@ export function publishRoutes(
       const issues = await runPublishAudit({
         items,
         site,
-        contentRoot: source.contentRoot,
-        storage: source.storage,
+        contentRoot: snapshot.sourceRoot,
+        storage: snapshot.sourceRoot.storage,
         registry: opts.validators,
         cache: source.cache,
         strict,
@@ -467,7 +481,8 @@ export function publishRoutes(
   async function* runPublish(
     items: string[],
     targetNames: string[],
-    sourceName?: string,
+    sourceName: string | undefined,
+    snapshot: PublishSnapshot,
   ): AsyncGenerator<PublishProgress> {
     if (!items?.length) {
       yield { kind: 'fatal', error: 'No items specified' }
@@ -496,7 +511,7 @@ export function publishRoutes(
       }
     }
 
-    const allItems = await resolveDependencies(source.contentRoot, items)
+    const allItems = await resolveDependencies(snapshot.sourceRoot, items)
 
     console.log(`  Publishing to ${targetNames.length} target(s):`)
     console.log(`    Items: ${items.join(', ')} (+ ${allItems.length - items.length} dependencies)`)
@@ -517,7 +532,7 @@ export function publishRoutes(
     // Per Cut 7 cutover: per-item hash composition lives inside publishRun
     // (consumes templateInfos, computes per-item hashManifest including
     // fragmentHashes for static-mode pages). Route doesn't precompute.
-    const site = await loadSiteFromSource(source, { templatesDir: tdir })
+    const { site } = snapshot
 
     yield { kind: 'start', targets: targetNames, itemsPerTarget: allItems.length }
 
@@ -538,7 +553,7 @@ export function publishRoutes(
           const expanded = new Set(allItems)
           for (const frag of fragmentItems) {
             const name = frag.replace('fragments/', '')
-            const deps = await findFragmentDependents(source.contentRoot, name)
+            const deps = await findFragmentDependents(snapshot.sourceRoot, name)
             for (const p of deps.pages) expanded.add(`pages/${p}`)
           }
           targetItems = [...expanded]
@@ -621,9 +636,8 @@ export function publishRoutes(
           targetName,
           targetStorage,
           targetConfig: config,
-          sourceRoot: source.contentRoot,
+          snapshot,
           sourceName,
-          site,
           siteManifest: source.manifest ?? { name: '(publish)' },
           items: targetItems,
           itemRefs,
@@ -691,7 +705,18 @@ export function publishRoutes(
           yield { kind: 'progress', target: targetName, current, total, label: 'cache purge' }
         }
 
-        const result: PublishResult = { target: targetName, success: true, copiedFiles: totalFiles }
+        const notPublished = shared.notPublished.map(n => ({
+          item: `${n.kind === 'page' ? 'pages' : 'fragments'}/${n.name}`,
+          assets: [...n.assets],
+          reason: `asset ${n.assets.join(', ')} was removed during the publish; it goes out with the next publish`,
+        }))
+        for (const n of notPublished) console.warn(`    ${targetName}: ${n.item} not published: ${n.reason}`)
+        const result: PublishResult = {
+          target: targetName,
+          success: true,
+          copiedFiles: totalFiles,
+          ...(notPublished.length > 0 ? { notPublished } : {}),
+        }
         results.push(result)
         console.log(`    ${targetName}: ${totalFiles} files`)
 
@@ -836,7 +861,8 @@ export function publishRoutes(
     // remaining error-severity issues so a determined client can't
     // bypass the dialog. `publishAudit.strict` is applied per-target.
     const sourceForGate = await resolve(body.source)
-    const blocked = await evaluatePublishGate(sourceForGate, body.targets, finalItems)
+    const snapshot = await takeSnapshot(sourceForGate)
+    const blocked = await evaluatePublishGate(sourceForGate, snapshot, body.targets, finalItems)
     if (blocked.length > 0) {
       await c.var.audit.record({
         action: 'publish',
@@ -872,7 +898,7 @@ export function publishRoutes(
 
     let results: PublishResult[] = []
     let fatal: PublishProgress | null = null
-    for await (const ev of runPublish(finalItems, body.targets, body.source)) {
+    for await (const ev of runPublish(finalItems, body.targets, body.source, snapshot)) {
       if (ev.kind === 'fatal') fatal = ev
       else if (ev.kind === 'done') results = ev.results
     }
@@ -912,10 +938,15 @@ export function publishRoutes(
     if (hooks && hookCtx) {
       const finalPublishItems = finalItems.map(toPublishItem)
       for (const r of results) {
+        const skipped = new Map((r.notPublished ?? []).map(n => [n.item, n.reason]))
         const hookResult: PublishHookResult = {
           target: r.target,
-          itemsPublished: r.success ? finalPublishItems : [],
-          itemsFailed: r.success ? [] : finalPublishItems.map(item => ({ item, reason: r.error ?? 'unknown' })),
+          itemsPublished: r.success ? finalPublishItems.filter(item => !skipped.has(item.path)) : [],
+          itemsFailed: r.success
+            ? finalPublishItems.flatMap(item =>
+                skipped.has(item.path) ? [{ item, reason: skipped.get(item.path)! }] : [],
+              )
+            : finalPublishItems.map(item => ({ item, reason: r.error ?? 'unknown' })),
         }
         await dispatchAfterPublish(hooks, r.target, hookResult, hookCtx)
       }
@@ -991,7 +1022,8 @@ export function publishRoutes(
     // synchronous 409 before the SSE stream opens, so the client can
     // treat audit-failure identically across the two endpoints.
     const sourceForGate = await resolve(body.source)
-    const blocked = await evaluatePublishGate(sourceForGate, body.targets, finalItems)
+    const snapshot = await takeSnapshot(sourceForGate)
+    const blocked = await evaluatePublishGate(sourceForGate, snapshot, body.targets, finalItems)
     if (blocked.length > 0) {
       await c.var.audit.record({
         action: 'publish',
@@ -1044,7 +1076,7 @@ export function publishRoutes(
         })
       }
       try {
-        for await (const ev of runPublish(finalItems, body.targets, body.source)) {
+        for await (const ev of runPublish(finalItems, body.targets, body.source, snapshot)) {
           if (stream.aborted) return
           await stream.writeSSE({ event: ev.kind, data: JSON.stringify(ev) })
           if (ev.kind === 'fatal') {
@@ -1081,10 +1113,15 @@ export function publishRoutes(
       if (hooks && hookCtx && recordedSuccess) {
         const finalPublishItems = finalItems.map(toPublishItem)
         for (const r of collectedResults) {
+          const skipped = new Map((r.notPublished ?? []).map(n => [n.item, n.reason]))
           const hookResult: PublishHookResult = {
             target: r.target,
-            itemsPublished: r.success ? finalPublishItems : [],
-            itemsFailed: r.success ? [] : finalPublishItems.map(item => ({ item, reason: r.error ?? 'unknown' })),
+            itemsPublished: r.success ? finalPublishItems.filter(item => !skipped.has(item.path)) : [],
+            itemsFailed: r.success
+              ? finalPublishItems.flatMap(item =>
+                  skipped.has(item.path) ? [{ item, reason: skipped.get(item.path)! }] : [],
+                )
+              : finalPublishItems.map(item => ({ item, reason: r.error ?? 'unknown' })),
           }
           await dispatchAfterPublish(hooks, r.target, hookResult, hookCtx)
         }

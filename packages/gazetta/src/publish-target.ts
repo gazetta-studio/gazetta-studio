@@ -8,6 +8,8 @@
  *      12-13 build the real publish-approval gate here, before any
  *      write (design-publish-undo.md Q4 / design-target-removal.md
  *      Q13). Do not implement it in this cut.
+ *   0b. Asset check - items using an asset whose files went after the
+ *      snapshot was taken aren't published; the rest goes ahead (#1632).
  *   1. History record - one `publish` revision, baseline pre-publish.
  *   2. Source item copy - own files and ordinary subfolders for bare
  *      items, excluding descendant items; single variant manifests
@@ -31,6 +33,10 @@
  *      apiToken/zone skips with a log line; a purge failure is
  *      logged, not thrown.
  *
+ * Every step reads the source through the caller's one snapshot
+ * (publish-snapshot.ts, design-publish-undo.md Q4), so the target gets
+ * what the server's gate audited.
+ *
  * Callers keep: target iteration and init, incremental filtering,
  * locale fan-out into ItemRefs, output formatting (console / SSE),
  * 404.html, and audit. publishRun keeps its per-item behaviour; its
@@ -50,7 +56,8 @@ import { stateFolderPath } from './state-folders.js'
 import { writePublishGeneration } from './publish-generation.js'
 import { resolveEnvVars } from './targets.js'
 import { trimTrailingSlashes } from './url.js'
-import type { Site } from './site-loader.js'
+import { checkGoneAssets, type NotPublished } from './publish-gone-assets.js'
+import type { PublishSnapshot } from './publish-snapshot.js'
 import type { TemplateInfo } from './templates-scan.js'
 import type { PublishItemRef, PublishRunResult } from './publish-run.js'
 import { manifestPathsToRemove, removeItemFromTarget, type PublishRemovalRef } from './publish-remove.js'
@@ -65,12 +72,14 @@ export interface PublishToTargetInput {
   readonly targetName: string
   readonly targetStorage: StorageProvider
   readonly targetConfig: TargetConfig | undefined
-  /** Source content root the manifests are copied from. */
-  readonly sourceRoot: ContentRoot
+  /**
+   * The source as one snapshot (design-publish-undo.md Q4, #1632): the
+   * history record, the manifest copy, the render loop and the asset
+   * copy all read it, so the target gets what the gate audited.
+   */
+  readonly snapshot: PublishSnapshot
   /** Recorded as the history revision's `source`. */
   readonly sourceName: string | undefined
-  /** The loaded site the render loop and the redirects rows use. */
-  readonly site: Site
   /** Site manifest (site.yaml) - publishRun, sitemap and redirects read it. */
   readonly siteManifest: PublishRunSiteManifest
   /**
@@ -133,6 +142,12 @@ export interface PublishToTargetResult {
   /** Removals that deleted the item's files (or found them already gone). */
   readonly removed: PublishRemovalRef[]
   readonly removalFailures: { readonly ref: PublishRemovalRef; readonly reason: string }[]
+  /**
+   * Items not published because an asset they use lost its files during
+   * the publish (#1632). They keep their previous manifest, HTML and
+   * revision entry on the target; the next publish takes them.
+   */
+  readonly notPublished: readonly NotPublished[]
 }
 
 /**
@@ -156,21 +171,41 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
     targetName,
     targetStorage,
     targetConfig,
-    sourceRoot,
+    snapshot,
     sourceName,
-    site,
     siteManifest,
-    items,
-    itemRefs,
     templateInfos,
     purgeScope,
     onProgress,
   } = input
+  const { site, sourceRoot } = snapshot
   const removals = input.removals ?? []
   // Step 0 - the approval gate's place (no-op, see above).
   await publishApprovalGate(input)
 
   const targetRoot = createContentRoot(targetStorage)
+  const targetType = targetConfig ? getType(targetConfig) : 'static'
+
+  // Step 0b - every asset the snapshot's items use must still have its
+  // files on the source (design-publish-undo.md Q4). Items using one
+  // that lost them aren't published: they're dropped from the history
+  // record, the manifest copy, the render loop and the asset copy, and
+  // the rest goes ahead.
+  const itemNameOf = (it: string) => {
+    const m = /^(pages|fragments)\/([^:]+)/.exec(it)
+    return m ? { kind: m[1] === 'pages' ? ('page' as const) : ('fragment' as const), name: m[2] } : null
+  }
+  const check = await checkGoneAssets(
+    snapshot,
+    [...input.itemRefs.map(r => ({ kind: r.kind, name: r.name })), ...input.items.flatMap(it => itemNameOf(it) ?? [])],
+    targetType === 'static',
+  )
+  const dropped = new Set(check.notPublished.map(n => `${n.kind}:${n.name}`))
+  const items = input.items.filter(it => {
+    const n = itemNameOf(it)
+    return !n || !dropped.has(`${n.kind}:${n.name}`)
+  })
+  const itemRefs = input.itemRefs.filter(r => !dropped.has(`${r.kind}:${r.name}`))
 
   // Step 1 - history record. Runs BEFORE the manifest copy and the
   // render loop so the recorded baseline captures pre-publish state
@@ -236,6 +271,7 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
       purge: { kind: 'none' },
       removed: [],
       removalFailures: [],
+      notPublished: check.notPublished,
     }
   }
   let variantFiles = 0
@@ -264,6 +300,7 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
     targetStorages: new Map([[targetName, targetStorage]]),
     templateInfos: [...templateInfos],
     force: input.force,
+    skipAssets: check.gone,
     onProgress,
   })
   const run = runResult.targets.find(t => t.name === targetName)
@@ -281,11 +318,11 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
       purge: { kind: 'none' },
       removed: [],
       removalFailures: [],
+      notPublished: check.notPublished,
     }
   }
 
   // Removals - after the render loop, before the generated files.
-  const targetType = targetConfig ? getType(targetConfig) : 'static'
   const removed: PublishRemovalRef[] = []
   const removalFailures: { ref: PublishRemovalRef; reason: string }[] = []
   if (removals.length > 0) {
@@ -558,6 +595,7 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
     purge,
     removed,
     removalFailures,
+    notPublished: check.notPublished,
   }
 }
 
