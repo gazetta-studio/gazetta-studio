@@ -14,6 +14,8 @@ export interface PlanRevision {
   readonly items: readonly string[]
   /** `path → content hash`; required for the run's revisions and the ones just before them. */
   readonly snapshot?: Readonly<Record<string, string>>
+  /** Paths the revision created (`Revision.created`). */
+  readonly created?: readonly string[]
 }
 
 export interface PlanInput {
@@ -36,8 +38,10 @@ export interface PlannedItem {
   readonly name: string
   readonly locale?: string
   /**
-   * The version before the run: a content hash, null when the item didn't
-   * exist, undefined when history no longer holds the revision before it.
+   * The version before the run: a content hash, null when the run created
+   * the item, undefined when history doesn't hold it (the revision before
+   * was evicted, or the item came in outside the admin, so it's in no
+   * snapshot).
    */
   readonly before: string | null | undefined
   /** The version the run left: a content hash, or null when the run deleted it. */
@@ -103,8 +107,12 @@ export function planRevert(input: PlanInput): PlannedItem[] {
       last = i
     })
     if (first === -1) continue
+    // Absence from the snapshot before isn't proof the run created it: a
+    // file added outside the admin is in no snapshot until a write. Only the
+    // revision's own record of creating it is.
     const previous = first > 0 ? input.revisions[first - 1]!.snapshot : undefined
-    const before = previous === undefined ? undefined : (previous[path] ?? null)
+    const createdByRun = input.revisions[first]!.created?.includes(path) === true
+    const before = createdByRun ? null : previous?.[path]
     const after = input.revisions[last]!.snapshot?.[path] ?? null
     const current = input.current.get(path) ?? null
     plan.push({

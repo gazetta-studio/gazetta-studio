@@ -244,6 +244,21 @@ describe('reverting a run', () => {
     expect(await titleOf(local, 'pages/home/page.json')).toBe('Home')
   })
 
+  it("doesn't archive a page that came in outside the admin; it skips it (Seer, #1732)", async () => {
+    const { app, local } = setup()
+    const token = await signIn(app)
+    // History's baseline is taken at the first save; news arrives afterwards, as a git pull would bring it.
+    await save(app, token, 'other', { name: 'about', manifest: page('About again') })
+    local.seed({ 'pages/news/page.json': JSON.stringify(page('News')) })
+    await save(app, token, 'r1', { name: 'news', manifest: page('News by agent') })
+    const body = (await (await revert(app, token)).json()) as Reverted
+    expect(statusOf(body, 'pages.news')).toMatchObject({
+      status: 'skipped-failed',
+      reason: expect.stringContaining('history'),
+    })
+    expect(JSON.parse(await local.readFile('pages/news/page.json')).archived).toBeUndefined()
+  })
+
   it('reverts a language version as its own item', async () => {
     const { app, local } = setup()
     const token = await signIn(app)
@@ -252,6 +267,14 @@ describe('reverting a run', () => {
     expect(body.items).toEqual([expect.objectContaining({ item: 'pages.home:fr', status: 'reverted' })])
     expect(await titleOf(local, 'pages/home/page.fr.json')).toBe('Accueil')
     expect(await titleOf(local, 'pages/home/page.json')).toBe('Home')
+  })
+
+  it('answers 401 to an anonymous caller before reading the run (Seer, #1732)', async () => {
+    const { app } = setup()
+    const token = await signIn(app)
+    await theRun(app, token)
+    expect((await revert(app, {})).status).toBe(401)
+    expect((await revert(app, {}, {}, 'nope')).status).toBe(401)
   })
 
   it('answers 404 for an unknown run, and refuses a revert sent in the same run', async () => {

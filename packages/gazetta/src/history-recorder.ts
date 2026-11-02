@@ -37,6 +37,8 @@ export interface WrittenItem {
    * variants). `null` marks a deletion.
    */
   content: BlobContent | null
+  /** The write created the item: nothing was at `path` before it (#1730). */
+  created?: boolean
 }
 
 /**
@@ -134,6 +136,7 @@ export async function recordWrite(opts: RecordWriteOptions) {
     restoredFrom: opts.restoredFrom,
     items: nextItems,
     changed: opts.items.map(it => it.path),
+    created: opts.items.filter(it => it.created).map(it => it.path),
   }
   return opts.history.recordRevision(input)
 }

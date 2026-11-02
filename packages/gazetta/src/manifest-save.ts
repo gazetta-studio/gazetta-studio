@@ -578,8 +578,15 @@ export async function checkSave(input: SaveManifestInput): Promise<CheckedSave |
 }
 
 /** The history entry for a checked save: its path and the content it writes. */
-export function savedItem(input: SaveManifestInput, checked: CheckedSave): { path: string; content: string } {
-  return { path: input.source.contentRoot.relative(input.manifestPath), content: checked.serialized }
+export function savedItem(
+  input: SaveManifestInput,
+  checked: CheckedSave,
+): { path: string; content: string; created?: boolean } {
+  return {
+    path: input.source.contentRoot.relative(input.manifestPath),
+    content: checked.serialized,
+    ...(input.create ? { created: true } : {}),
+  }
 }
 
 /** Strict mode's success record before the write; false when recording failed. */

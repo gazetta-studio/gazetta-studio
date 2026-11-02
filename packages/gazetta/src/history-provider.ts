@@ -305,6 +305,7 @@ export function createHistoryProvider(opts: CreateHistoryProviderOptions): Histo
       items: [...(input.changed ?? input.items.keys())].sort(),
       message: input.message,
       restoredFrom: input.restoredFrom,
+      ...(input.created?.length ? { created: [...input.created].sort() } : {}),
       ...input.origin,
       snapshot,
     }

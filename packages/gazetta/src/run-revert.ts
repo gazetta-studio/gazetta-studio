@@ -44,7 +44,7 @@ export async function loadRunPlan(source: SaveSourceWiring, runId: string): Prom
     order.map(async id => {
       if (!toRead.has(id)) return { id, items: [] }
       const manifest = await history.readRevision(id)
-      return { id, items: manifest.items, snapshot: manifest.snapshot }
+      return { id, items: manifest.items, snapshot: manifest.snapshot, created: manifest.created }
     }),
   )
   const paths = new Set(revisions.filter(r => runRevisions.has(r.id)).flatMap(r => r.items))

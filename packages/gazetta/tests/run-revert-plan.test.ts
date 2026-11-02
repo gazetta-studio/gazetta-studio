@@ -9,7 +9,7 @@ const PROMO = 'pages/promo/page.json'
 function history(): PlanRevision[] {
   return [
     { id: 'r1', items: [HOME], snapshot: { [HOME]: 'h0', [HOME_FR]: 'f0' } },
-    { id: 'r2', items: [HOME, PROMO], snapshot: { [HOME]: 'h1', [HOME_FR]: 'f0', [PROMO]: 'p1' } },
+    { id: 'r2', items: [HOME, PROMO], snapshot: { [HOME]: 'h1', [HOME_FR]: 'f0', [PROMO]: 'p1' }, created: [PROMO] },
     { id: 'r3', items: [HOME, HOME_FR], snapshot: { [HOME]: 'h2', [HOME_FR]: 'f1', [PROMO]: 'p1' } },
     { id: 'r4', items: [HOME], snapshot: { [HOME]: 'h3', [HOME_FR]: 'f1', [PROMO]: 'p1' } },
   ]
@@ -50,6 +50,14 @@ describe('planRevert', () => {
   it('marks an item the run created', () => {
     const plan = planRevert({ revisions: history(), runRevisions: run, items, current: new Map([[PROMO, 'p1']]) })
     expect(plan.find(p => p.item === 'pages.promo')).toMatchObject({ before: null, created: true, changed: false })
+  })
+
+  it('does not take a file missing from the snapshot before for one the run created (Seer, #1732)', () => {
+    // promo came in outside the admin (a git pull): in no snapshot, and the
+    // run's revision doesn't say it created it.
+    const revisions = history().map(r => ({ ...r, created: undefined }))
+    const plan = planRevert({ revisions, runRevisions: run, items, current: new Map([[PROMO, 'p1']]) })
+    expect(plan.find(p => p.item === 'pages.promo')).toMatchObject({ before: undefined, created: false })
   })
 
   it('marks an item changed since the run, and one deleted since', () => {
