@@ -35,6 +35,12 @@ type Admin struct {
 	TokensSeen          []string // the Gazetta token on authenticated calls
 	// Headers holds every request's headers, in order.
 	Headers []http.Header
+
+	// Content, after SeedContent: items by kind, name and locale; the saves
+	// accepted; and what GET /api/v1/validation/issues answers.
+	Items  map[string]*Item
+	Saves  []Save
+	Issues []map[string]any
 }
 
 const grantID = "g-1"
@@ -130,7 +136,9 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request) {
 		a.Revoked[grantID] = true
 		w.WriteHeader(http.StatusNoContent)
 	default:
-		problem(w, 404, "NOT_FOUND")
+		if !a.serveContent(w, r, path) {
+			problem(w, 404, "NOT_FOUND")
+		}
 	}
 }
 
