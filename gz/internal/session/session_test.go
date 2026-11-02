@@ -82,6 +82,11 @@ func TestProblemsMapToExitCodes(t *testing.T) {
 		{Problem{Status: 404, Code: "NOT_FOUND"}, output.NotFound},
 		{Problem{Status: 418, Code: "SOMETHING_NEW"}, output.Failure},
 		{Problem{Status: 401}, output.NeedsLogin},
+		{Problem{Status: 409, Code: "VALIDATION_FAILED"}, output.Failure},
+		{Problem{Status: 409, Code: "LIVE_CONFLICT"}, output.Conflict},
+		{Problem{Status: 409, Code: "BATCH_REFUSED", Items: []ItemProblem{{Code: "VALIDATION_FAILED"}, {Code: "NOT_FOUND"}}}, output.NotFound},
+		{Problem{Status: 409, Code: "BATCH_REFUSED", Items: []ItemProblem{{Code: "NOT_FOUND"}, {Code: "STALE"}}}, output.Conflict},
+		{Problem{Status: 409, Code: "BATCH_REFUSED", Items: []ItemProblem{{Code: "VALIDATION_FAILED"}}}, output.Failure},
 	}
 	for _, c := range cases {
 		if got := c.p.Error().Exit; got != c.exit {
@@ -90,6 +95,17 @@ func TestProblemsMapToExitCodes(t *testing.T) {
 	}
 	if msg := (Problem{Status: 418, Code: "SOMETHING_NEW", Detail: "new"}).Error().Message; msg != "new (SOMETHING_NEW)" {
 		t.Errorf("an unknown code isn't kept: %q", msg)
+	}
+}
+
+func TestProblemTextNamesFields(t *testing.T) {
+	p := Problem{Status: 409, Code: "BATCH_REFUSED", Detail: "1 of 2 items can't be saved", Items: []ItemProblem{{
+		Kind: "page", Name: "home", Locale: "fr", Code: "VALIDATION_FAILED",
+		Issues: []Issue{{Message: "title: Required", ContentPath: "hero"}},
+	}}}
+	want := "1 of 2 items can't be saved (BATCH_REFUSED)\n  page home (fr): VALIDATION_FAILED\n    at hero: title: Required"
+	if got := p.Error().Message; got != want {
+		t.Errorf("got %q, want %q", got, want)
 	}
 }
 

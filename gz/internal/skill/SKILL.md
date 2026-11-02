@@ -1,6 +1,6 @@
 ---
 name: gz
-description: Edit a Gazetta site's content through its admin with the gz command line - pick the admin to work on and check which one gz uses. Use when the person works on a Gazetta site through an admin URL rather than in a Gazetta project folder.
+description: Edit a Gazetta site's content through its admin with the gz command line - read, change and create pages and fragments, check them, and pick the admin to work on. Use when the person works on a Gazetta site through an admin URL rather than in a Gazetta project folder.
 metadata:
   gz-version: "{{version}}"
 ---
@@ -20,6 +20,28 @@ The person you work for decides what goes live. You edit and check content; publ
 - `gz auth status` says which admin `gz` will use. With no profile it exits 3 and says how to log in.
 - `gz auth logout <name>` removes a profile and its stored login.
 - `--admin <name|url>` or the `GZ_ADMIN` environment variable picks another admin for one command.
+
+## One task, one run
+
+Set `GZ_RUN` once per task, to a short id of your own (letters, digits, `.`, `_`, `-`): `export GZ_RUN=fix-footer-links`. Every save then joins that run, so the person can review your task's changes together and undo them as one. Without it, each `gz` command is its own run; `--run <id>` sets it for one command.
+
+## Editing content
+
+- `gz pages list` and `gz fragments list` show names, routes, templates and languages.
+- `gz pages get <name> [--locale fr]` prints the manifest. With `--json` it also gives the save-version (`etag`).
+- `gz templates schema <template>` prints a template's fields: read it before changing content.
+- `gz pages set <name> <path>=<value>...` changes values and saves. A path is dot-separated; inside `components`, address a component by its name: `gz pages set home components.hero.content.title="Spring sale"`. Use `path:=<json>` for numbers, booleans, lists and objects, and `@file` to read a value from a file (`content.body=@body.md`).
+- Several items in one command (`gz pages set home ... about ...`, or `--from <folder|file>` with whole manifests, such as `home.fr.json`) are saved all or nothing.
+- `gz pages edit <name>` replaces the manifest with JSON from stdin.
+- `gz pages create <name> --template <t>` creates a page; with `--locale fr`, a French version of a page that exists.
+- The same commands work for fragments, such as `gz fragments set header content.tagline="New"`.
+- A save that conflicts with someone else's change exits 4: read the item again and redo your change. A save the template's schema refuses exits 1 and names the fields.
+
+## Checking your work
+
+- `gz validate` lists the site's validation issues and exits 1 if any is an error.
+- `gz preview <page> [--locale fr] --html` prints the page as rendered, so you can check it; without `--html` it prints the preview URL for the person (`gz preview @<fragment>` for a fragment).
+- `gz status` lists the changes not yet published to the next target. Publishing them is the person's decision.
 
 ## Output and exit codes
 

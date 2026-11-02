@@ -183,6 +183,7 @@ func init() {
 		{"skill install", "gz skill install <dir>", "Write the agent skill into an agent's skills folder", 1, 1, skillInstall, nil, nil},
 		{"version", "gz version", "Print the gz version", 0, 0, showVersion, nil, nil},
 	}
+	commands = append(commands, contentCommands()...)
 }
 
 // Run runs gz with args and returns the exit code.
@@ -309,6 +310,14 @@ func printHelp(w io.Writer) {
 		fmt.Fprintf(w, "  %-26s %s\n", c.usage, c.summary)
 	}
 	fmt.Fprint(w, `
+Changing values with set: <path>=<string>, <path>:=<json>, and @file for a
+file's contents (path=@body.md, path:=@list.json). A path is dot-separated;
+in an array, use an index or a component's name:
+  gz pages set home components.hero.content.title="Spring sale"
+
+Runs: GZ_RUN=<id> (or --run) puts a task's saves in one run; without it,
+each command is its own run.
+
 Using an AI agent? Run gz skill install <your agent's skills folder>.
 
 Flags:

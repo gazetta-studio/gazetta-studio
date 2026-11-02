@@ -35,6 +35,9 @@ type Error struct {
 	Exit    int
 	Message string
 	Hint    string
+	// Reported means the command already printed its result (a report
+	// that sets the exit code, like gz validate): Fail prints nothing.
+	Reported bool
 }
 
 func (e *Error) Error() string { return e.Message }
@@ -77,6 +80,9 @@ func (p Printer) Fail(err error) int {
 	var e *Error
 	if !errors.As(err, &e) {
 		e = &Error{Exit: Failure, Message: err.Error()}
+	}
+	if e.Reported {
+		return e.Exit
 	}
 	if p.JSON {
 		body := map[string]any{"kind": kinds[e.Exit], "message": e.Message}
