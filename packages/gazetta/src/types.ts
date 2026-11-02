@@ -945,6 +945,8 @@ export interface StorageProvider {
 /** Resolved component ready for rendering */
 export interface ResolvedComponent {
   template: TemplateFunction
+  /** The template's name, so a render that throws can say which template did (#1755). */
+  templateName?: string
   content?: Record<string, unknown>
   children: ResolvedComponent[]
   path?: string

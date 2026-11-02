@@ -14,6 +14,7 @@ import { loadSite, type Site } from '../site-loader.js'
 import type { SiteManifest, StorageProvider } from '../types.js'
 import type { Issue, Validator } from '../validation/types.js'
 import { checkProject, type ProjectIssue } from './project-checks.js'
+import type { TemplateSelection } from './validate-render-check.js'
 import { withCliSeverity } from './validate-severity.js'
 
 /** Validators that render each page: slow, so only with `--include-quality`. */
@@ -26,6 +27,8 @@ export interface RunInput {
   includeQuality: boolean
   /** Targets whose stored content is checked too, with this run's templates. */
   targets?: readonly TargetSource[]
+  /** With `--render`: render the items that use these templates and report throws (T8, #1755). */
+  render?: TemplateSelection
 }
 
 /** A target's stored content, ready to check. */
@@ -130,6 +133,17 @@ export async function runChecks(input: RunInput): Promise<RunIssues> {
         scope: { kind: 'cli' },
       })),
     )
+  }
+
+  // --render: the same items publish would render, per content source (T8).
+  if (input.render) {
+    const { itemsToRender, renderItems } = await import('./validate-render-check.js')
+    for (const source of [repo, ...targets]) {
+      const items = itemsToRender(source.site, input.render)
+      const where = source.target === null ? '' : ` on ${source.target}`
+      console.log(`  Rendering ${items.length} item${items.length === 1 ? '' : 's'}${where}…`)
+      source.itemIssues.push(...(await renderItems(source.site, items)))
+    }
   }
 
   return {

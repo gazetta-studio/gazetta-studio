@@ -59,9 +59,17 @@ export function computeTemplateImpact(
   site: Site,
   templateName: string,
   issuesFor: (itemPath: string) => readonly Issue[],
+  options: { throughFragments?: boolean } = {},
 ): TemplateImpactResult {
   const items: TemplateImpactItem[] = []
   const seen = new Set<string>()
+  // With `throughFragments`, an item also uses the template when it uses a
+  // fragment that does, at any depth (#1755). Read from the loaded site only:
+  // the fragment-deps sidecars can be stale in a fresh checkout.
+  const viaFragments = options.throughFragments ? fragmentsUsing(site, templateName) : new Set<string>()
+  const uses = (manifest: PageManifest | FragmentManifest) =>
+    usesTemplate(manifest, templateName) ||
+    (viaFragments.size > 0 && fragmentRefs(manifestComponents(manifest)).some(f => viaFragments.has(f)))
 
   // Each language version is its own item, as the scanner checks it (#1667).
   const add = (
@@ -71,7 +79,7 @@ export function computeTemplateImpact(
     dir: string,
     locale?: string,
   ) => {
-    if (!usesTemplate(manifest, templateName)) return
+    if (!uses(manifest)) return
     const itemPath = `${dir}/${kind}${locale ? `.${locale}` : ''}.json`
     if (seen.has(itemPath)) return
     seen.add(itemPath)
@@ -102,4 +110,39 @@ function entriesReferenceTemplate(entries: readonly ComponentEntry[], templateNa
     if (inline.components && entriesReferenceTemplate(inline.components, templateName)) return true
   }
   return false
+}
+
+/** Fragment names directly referenced by `entries`, nested inline components included. */
+function fragmentRefs(entries: readonly ComponentEntry[]): string[] {
+  const out: string[] = []
+  for (const entry of entries) {
+    if (typeof entry === 'string') {
+      if (entry.startsWith('@')) out.push(entry.slice(1))
+      continue
+    }
+    const inline = entry as InlineComponent
+    if (inline.components) out.push(...fragmentRefs(inline.components))
+  }
+  return out
+}
+
+/**
+ * Fragments that use `templateName` themselves, or through other fragments,
+ * in any of their language versions: a fixed point over the loaded site.
+ */
+function fragmentsUsing(site: Site, templateName: string): Set<string> {
+  const entries = [...allFragmentEntries(site)]
+  const using = new Set(entries.filter(e => usesTemplate(e.fragment, templateName)).map(e => e.name))
+  let grew = true
+  while (grew) {
+    grew = false
+    for (const e of entries) {
+      if (using.has(e.name)) continue
+      if (fragmentRefs(manifestComponents(e.fragment)).some(f => using.has(f))) {
+        using.add(e.name)
+        grew = true
+      }
+    }
+  }
+  return using
 }

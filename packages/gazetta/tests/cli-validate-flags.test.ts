@@ -19,6 +19,7 @@ describe('parseValidateFlags', () => {
       warnAsError: true,
       verbose: false,
       format: 'text',
+      render: false,
     })
   })
 
@@ -60,7 +61,12 @@ describe('parseValidateFlags', () => {
       warnAsError: false,
       verbose: true,
       format: 'text',
+      render: false,
     })
+  })
+
+  it('parses --render (#1755)', () => {
+    expect(parseValidateFlags(['--render']).render).toBe(true)
   })
 
   it('ignores unknown args', () => {

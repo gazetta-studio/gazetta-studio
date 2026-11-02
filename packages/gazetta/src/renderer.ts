@@ -4,13 +4,45 @@ import { resolveSeoTags, escapeAttr, type SeoContext } from './seo.js'
 
 export { type SeoContext } from './seo.js'
 
+const THROWN_BY = Symbol.for('gazetta.thrownByTemplate')
+
+/**
+ * Call a component's template; when it throws, mark the error with the
+ * template's name, so `gazetta validate --render` can say which template
+ * threw (#1755). The error itself, and its message, are unchanged.
+ */
+async function callTemplate(
+  component: ResolvedComponent,
+  params: Parameters<ResolvedComponent['template']>[0],
+): Promise<Awaited<ReturnType<ResolvedComponent['template']>>> {
+  try {
+    return await component.template(params)
+  } catch (err) {
+    if (component.templateName && typeof err === 'object' && err !== null && !(THROWN_BY in err)) {
+      try {
+        Object.defineProperty(err, THROWN_BY, { value: component.templateName })
+      } catch {
+        // A frozen error stays unmarked; the caller falls back to the item's template.
+      }
+    }
+    throw err
+  }
+}
+
+/** The template that threw `err` during a render, when known. */
+export function thrownByTemplate(err: unknown): string | undefined {
+  if (typeof err !== 'object' || err === null) return undefined
+  const name = (err as Record<symbol, unknown>)[THROWN_BY]
+  return typeof name === 'string' ? name : undefined
+}
+
 export async function renderComponent(
   component: ResolvedComponent,
   routeParams?: Record<string, string>,
   locale = 'en',
 ): Promise<RenderOutput> {
   const children = await Promise.all(component.children.map(c => renderComponent(c, routeParams, locale)))
-  const output = await component.template({ content: component.content, children, params: routeParams, locale })
+  const output = await callTemplate(component, { content: component.content, children, params: routeParams, locale })
 
   const scopeId = hashPath(component.treePath ?? '')
 
@@ -27,7 +59,7 @@ export async function renderComponent(
 export async function renderFragment(component: ResolvedComponent, locale?: string): Promise<string> {
   const lang = locale || 'en'
   const children = await Promise.all(component.children.map(c => renderComponent(c, undefined, lang)))
-  const output = await component.template({ content: component.content, children, locale: lang })
+  const output = await callTemplate(component, { content: component.content, children, locale: lang })
 
   const headContent = [...children.map(c => c.head).filter(Boolean), output.head].filter(Boolean).join('\n  ')
 
@@ -66,7 +98,7 @@ export async function renderPage(
   const seo = opts.seo ?? {}
   const lang = seo.locale || 'en'
   const children = await Promise.all(component.children.map(c => renderComponent(c, opts.routeParams, lang)))
-  const output = await component.template({
+  const output = await callTemplate(component, {
     content: component.content,
     children,
     params: opts.routeParams,
