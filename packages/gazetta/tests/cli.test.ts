@@ -96,7 +96,9 @@ describe('runInit', () => {
   it('scaffolds the correct project structure', { timeout: 60000 }, async () => {
     // Run init via the compiled CLI
     const { execSync } = await import('node:child_process')
-    execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} init ${testDir}`, { stdio: 'pipe' })
+    execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} init ${testDir} --no-install`, {
+      stdio: 'pipe',
+    })
 
     // Verify structure
     expect(existsSync(join(testDir, 'package.json'))).toBe(true)
@@ -135,7 +137,9 @@ describe('runInit', () => {
 
   it('scaffold passes its own broken-links check (#1183)', { timeout: 120000 }, async () => {
     const { execFileSync, spawnSync } = await import('node:child_process')
-    execFileSync('node', [resolve(import.meta.dirname, '../dist/cli/index.js'), 'init', testDir], { stdio: 'pipe' })
+    execFileSync('node', [resolve(import.meta.dirname, '../dist/cli/index.js'), 'init', testDir, '--no-install'], {
+      stdio: 'pipe',
+    })
 
     // The scaffold still tells the user where the CMS is, without linking to it.
     const home = await import('node:fs').then(fs =>
@@ -178,7 +182,9 @@ describe('runInit', () => {
 
   it('package.json has correct fields', { timeout: 60000 }, async () => {
     const { execSync } = await import('node:child_process')
-    execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} init ${testDir}`, { stdio: 'pipe' })
+    execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} init ${testDir} --no-install`, {
+      stdio: 'pipe',
+    })
 
     const pkg = JSON.parse(await import('node:fs').then(fs => fs.readFileSync(join(testDir, 'package.json'), 'utf-8')))
     expect(pkg.private).toBe(true)
@@ -195,7 +201,9 @@ describe('runInit', () => {
 
   it('gitignores .env files and .gazetta/ state', { timeout: 60000 }, async () => {
     const { execSync } = await import('node:child_process')
-    execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} init ${testDir}`, { stdio: 'pipe' })
+    execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} init ${testDir} --no-install`, {
+      stdio: 'pipe',
+    })
 
     execSync('git init -q .', { cwd: testDir, stdio: 'pipe' })
     // Real git verdicts, not text comparison: the pattern must cover nested
@@ -238,11 +246,15 @@ describe('runInit', () => {
 
   it('refuses to init in existing project', { timeout: 60000 }, async () => {
     const { execSync } = await import('node:child_process')
-    execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} init ${testDir}`, { stdio: 'pipe' })
+    execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} init ${testDir} --no-install`, {
+      stdio: 'pipe',
+    })
 
     // Try again — should fail
     expect(() => {
-      execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} init ${testDir}`, { stdio: 'pipe' })
+      execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} init ${testDir} --no-install`, {
+        stdio: 'pipe',
+      })
     }).toThrow()
   })
 })

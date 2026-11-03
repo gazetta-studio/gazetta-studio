@@ -6,7 +6,7 @@ Every `gazetta` command, its arguments and flags, and how the CLI picks a site a
 
 | Command | What it does |
 |---|---|
-| `gazetta init [dir]` | Create a new project and install its dependencies |
+| `gazetta init [dir]` | Create a new project and install its dependencies (`--no-install` skips the install) |
 | `gazetta dev [site]` | Run the site and the admin at `http://localhost:3000` |
 | `gazetta publish [target] [site]` | Render the site and write it to a target |
 | `gazetta serve [target] [site]` | Serve a target's published pages |
@@ -56,7 +56,7 @@ npx gazetta publish production sites/main
 
 ### `gazetta init [dir]`
 
-Creates a project in `dir` (default: the current directory), then runs `npm install` in it. It refuses when `dir` already has a `sites/` folder or a `site.config.ts`. If `npm install` fails, the files stay in place, npm's error is shown, and the command exits 1; run `npm install` in the project yourself to finish. The new site depends on a range of the CLI's own version. [Getting started](./getting-started.md) walks through it.
+Creates a project in `dir` (default: the current directory), then runs `npm install` in it. It refuses when `dir` already has a `sites/` folder or a `site.config.ts`. If `npm install` fails, the files stay in place, npm's error is shown, and the command exits 1; run `npm install` in the project yourself to finish. The new site depends on a range of the CLI's own version. With `--no-install`, `init` writes the project without running npm and ends by telling you to run `npm install`, for example to install offline later or with pnpm or yarn. [Getting started](./getting-started.md) walks through it.
 
 `init` also writes an `AGENTS.md` with a section for coding agents (Claude Code, Codex, Copilot, Cursor). It tells the agent to install the Gazetta skill, which ships in the package at `node_modules/gazetta/agents/gazetta/`, into the folder its client reads skills from. The skill covers editing pages, fragments and translations, writing templates and schemas, and `gazetta validate`. It also lists the commands and admin routes an agent must never run itself (publishing, deploying, undo and rollback, purging, and deleting pages, fragments or assets) and must ask you about instead. Nothing enforces that list: on your own machine, only the agent and your agent client's own settings stop it. If `dir` already has an `AGENTS.md`, `init` adds the section at the end and leaves your text as it is. If it has a `CLAUDE.md`, `init` adds an `@AGENTS.md` import line to it, because Claude Code reads `AGENTS.md` only when a project has no `CLAUDE.md`.
 

@@ -11,6 +11,8 @@ export interface ParsedArgs {
   force?: boolean
   yes?: boolean
   limit?: number
+  /** `--no-install`: `init` writes the project and leaves `npm install` to the person. */
+  noInstall?: boolean
 }
 
 export function parseArgs(input: string[]): ParsedArgs {
@@ -20,6 +22,7 @@ export function parseArgs(input: string[]): ParsedArgs {
   let force = false
   let yes = false
   let limit: number | undefined
+  let noInstall = false
   for (let i = 0; i < input.length; i++) {
     if (input[i] === '--port' || input[i] === '-p') {
       port = parseInt(input[++i], 10)
@@ -31,6 +34,8 @@ export function parseArgs(input: string[]): ParsedArgs {
       force = true
     } else if (input[i] === '--yes' || input[i] === '-y') {
       yes = true
+    } else if (input[i] === '--no-install') {
+      noInstall = true
     } else if (input[i] === '--limit') {
       limit = parseInt(input[++i], 10)
     } else if (
@@ -47,5 +52,5 @@ export function parseArgs(input: string[]): ParsedArgs {
       positional.push(input[i])
     }
   }
-  return { positional, port, host, force, yes, limit }
+  return { positional, port, host, force, yes, limit, noInstall }
 }
