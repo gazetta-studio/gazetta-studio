@@ -118,7 +118,7 @@
     "marked": "^18.1.2",
     "music-metadata": "^12.3.2",
     "nanoid": "^6.0.2",
-    "openai": "^7.45.1",
+    "openai": "^7.47.0",
     "postcss": "^8.5.32",
     "postcss-prefix-selector": "^2.2.1",
     "sharp": "^0.35.5",
@@ -144,10 +144,10 @@
     }
   },
   "devDependencies": {
-    "@aws-sdk/client-s3": "^3.1160.0",
-    "@aws-sdk/lib-storage": "^3.1160.0",
+    "@aws-sdk/client-s3": "^3.1161.0",
+    "@aws-sdk/lib-storage": "^3.1161.0",
     "@azure/storage-blob": "^12.34.0",
-    "@cloudflare/workers-types": "^5.20261029.1",
+    "@cloudflare/workers-types": "^5.20261031.1",
     "@seriousme/openapi-schema-validator": "2.11.0",
     "@stryker-mutator/core": "^10.1.1",
     "@stryker-mutator/typescript-checker": "^10.1.1",
