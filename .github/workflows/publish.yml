@@ -35,6 +35,24 @@ jobs:
       # this tag commit — branch protection requires linear history, so the
       # tagged SHA is the validated SHA. Publish proceeds directly.
 
-      - run: npm publish -w packages/gazetta --provenance
+      # A release candidate (v0.9.0-rc.1) goes to the `rc` dist-tag, so
+      # `npx gazetta@rc init` installs it and `latest` stays on the last
+      # release (design-tutorial.md Q17). npm 10 would otherwise publish a
+      # prerelease as `latest`. Any other prerelease suffix is refused.
+      - name: Choose the npm dist-tag
+        id: dist-tag
         env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          case "$REF_NAME" in
+            v*-rc.*) tag=rc ;;
+            v*-*) echo "Unsupported prerelease tag: $REF_NAME"; exit 1 ;;
+            *) tag=latest ;;
+          esac
+          echo "Publishing $REF_NAME to the $tag dist-tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - run: npm publish -w packages/gazetta --provenance --tag "$DIST_TAG"
+        env:
+          DIST_TAG: ${{ steps.dist-tag.outputs.tag }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
