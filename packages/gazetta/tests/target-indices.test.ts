@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { createContentRoot } from '../src/content-root.js'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
 import { publishRun, type PublishItemRef } from '../src/publish-run.js'
+import { DEP_INDEX_FOLDERS, mayWriteDepIndices } from '../src/state-folders.js'
 import { loadSite, type Site } from '../src/site-loader.js'
 import { scanTemplates } from '../src/templates-scan.js'
 import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
@@ -37,7 +38,12 @@ async function setup() {
   const target = memoryStorage()
   const run = (
     items: PublishItemRef[],
-    opts: { site?: Site; force?: boolean; onProgress?: Parameters<typeof publishRun>[0]['onProgress'] } = {},
+    opts: {
+      site?: Site
+      force?: boolean
+      writeDepIndices?: boolean
+      onProgress?: Parameters<typeof publishRun>[0]['onProgress']
+    } = {},
   ) =>
     publishRun({
       items,
@@ -50,6 +56,7 @@ async function setup() {
       publishAssetsBeforeItems: false,
       publishSiteManifestAfter: false,
       force: opts.force,
+      writeDepIndices: opts.writeDepIndices,
       onProgress: opts.onProgress,
     })
   return { site, target, run }
@@ -230,5 +237,26 @@ describe('target dependency indices', () => {
     expect(result.ok).toBe(true)
     expect(await target.exists('.gazetta/alias-targets/home/pages.landing')).toBe(true)
     expect(await record(target, 'alias-targets', 'pages.landing')).toEqual(['home'])
+  })
+
+  // Public storage cut 4 (#1592): until the registry marks the indices
+  // safe on public targets (cut 9), a public target gets none.
+  it('writes no edges or forward records when the run may not write indices', async () => {
+    const { target, run } = await setup()
+    const result = await run([{ kind: 'page', name: 'home' }], { writeDepIndices: false })
+    expect(result.ok).toBe(true)
+    for (const folder of DEP_INDEX_FOLDERS) expect(await target.exists(`.gazetta/${folder}`)).toBe(false)
+  })
+
+  it('still writes them when it may', async () => {
+    const { target, run } = await setup()
+    await run([{ kind: 'page', name: 'home' }], { writeDepIndices: true })
+    expect(await target.exists('.gazetta/fragment-deps/header/pages.home')).toBe(true)
+    expect(await record(target, 'fragment-deps', 'pages.home')).not.toBeNull()
+  })
+
+  it('may write indices on a private target, and not on a public one while the registry says so', () => {
+    expect(mayWriteDepIndices(false)).toBe(true)
+    expect(mayWriteDepIndices(true)).toBe(false)
   })
 })

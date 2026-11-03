@@ -85,6 +85,7 @@ describe('publishToTarget (#1426)', () => {
       type: 'esi' as const,
       environment: 'staging' as const,
       siteUrl: 'https://example.com',
+      publicStorage: false,
       ...extra,
     }) as TargetConfig
 
@@ -283,7 +284,12 @@ describe('publishToTarget (#1426)', () => {
     const result = await publishToTarget({
       targetName: 'staging',
       targetStorage: failing,
-      targetConfig: { type: 'static', environment: 'staging', siteUrl: 'https://example.com' } as TargetConfig,
+      targetConfig: {
+        type: 'static',
+        environment: 'staging',
+        publicStorage: false,
+        siteUrl: 'https://example.com',
+      } as TargetConfig,
       snapshot,
       sourceName: 'local',
       siteManifest: manifest,
@@ -311,6 +317,7 @@ describe('publishToTarget (#1426)', () => {
         type: 'static',
         environment: 'staging',
         siteUrl: 'https://example.com',
+        publicStorage: false,
         cache: { purge: PURGE_CONFIG },
       } as TargetConfig,
       snapshot,

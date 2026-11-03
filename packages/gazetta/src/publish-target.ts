@@ -49,10 +49,17 @@
 import { createContentRoot, type ContentRoot } from './content-root.js'
 import { createHistoryProvider } from './history-provider.js'
 import { recordWrite, type WrittenItem } from './history-recorder.js'
-import { isHistoryEnabled, getHistoryRetention, getType, type StorageProvider, type TargetConfig } from './types.js'
+import {
+  isHistoryEnabled,
+  isPublicStorage,
+  getHistoryRetention,
+  getType,
+  type StorageProvider,
+  type TargetConfig,
+} from './types.js'
 import { isValidLocale, localeFilename, localeFromFilename } from './locale.js'
 import { publishItems } from './publish.js'
-import { stateFolderPath } from './state-folders.js'
+import { mayWriteDepIndices, stateFolderPath } from './state-folders.js'
 import { writePublishGeneration } from './publish-generation.js'
 import { resolveEnvVars } from './targets.js'
 import { trimTrailingSlashes } from './url.js'
@@ -300,6 +307,7 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
     targetStorages: new Map([[targetName, targetStorage]]),
     templateInfos: [...templateInfos],
     force: input.force,
+    writeDepIndices: mayWriteDepIndices(targetConfig ? isPublicStorage(targetConfig) : false),
     skipAssets: check.gone,
     onProgress,
   })

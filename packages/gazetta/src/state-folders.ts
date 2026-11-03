@@ -6,9 +6,10 @@
  * literal outside this file.
  *
  * Each entry also records whether the folder may be written on a public
- * target. The gates that read `safeOnPublic` together with
- * `isPublicStorage` land with public-storage cut 4; until then the flag
- * is data only. Folders that exist only in designs are deliberately not
+ * target. The gates read `safeOnPublic` together with `isPublicStorage`
+ * (history, review and the dependency indices; design-public-storage.md
+ * Q5), and the write-path test checks every target writer against it.
+ * Folders that exist only in designs are deliberately not
  * listed: the cut that first writes one adds its entry.
  *
  * The module is pure (no node imports) so the Cloudflare worker can
@@ -55,6 +56,23 @@ export function stateFolderPath(folder: StateFolder, ...segments: string[]): str
 
 export function isStateFolderSafeOnPublic(folder: StateFolder): boolean {
   return STATE_FOLDERS[folder].safeOnPublic
+}
+
+/** The dependency indices and their forward records (sidecars.md). */
+export const DEP_INDEX_FOLDERS = [
+  'fragment-deps',
+  'asset-refs',
+  'alias-targets',
+  'deps-of',
+] as const satisfies readonly StateFolder[]
+
+/**
+ * Whether a publish may write the dependency indices on a target. On a
+ * public target only once the registry marks them safe there (public
+ * storage cut 9 flips them).
+ */
+export function mayWriteDepIndices(publicStorage: boolean): boolean {
+  return !publicStorage || DEP_INDEX_FOLDERS.every(isStateFolderSafeOnPublic)
 }
 
 /**

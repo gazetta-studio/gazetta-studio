@@ -20,7 +20,7 @@ import { scanTemplates } from '../templates-scan.js'
 import { memoizeAsync } from '../concurrency.js'
 import { createTargetRegistryView } from '../targets.js'
 import { createHistoryProvider } from '../history-provider.js'
-import { getEnvironment, isHistoryEnabled, getHistoryRetention } from '../types.js'
+import { getEnvironment, isHistoryEnabled, isPublicStorage, getHistoryRetention } from '../types.js'
 import {
   createSourceContext,
   staticSourceResolver,
@@ -483,14 +483,18 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   // v2 sinks (webhook, file, OTel, CloudWatch, etc.) extend the build
   // step here when they ship.
   const auditProviders: AuditProvider[] = []
-  if (auditConfig.provider === 'history') {
+  const auditStorage = auditStorageFor(source, opts.targetConfigs, opts.targets)
+  if (auditConfig.provider === 'history' && auditStorage) {
     auditProviders.push(
       createHistoryAuditProvider({
-        storage: source.storage,
+        storage: auditStorage,
         instance: resolveInstanceId(),
       }),
     )
   }
+  // No target with private storage holds the audit log: events are
+  // dropped, and a publish says so (design-public-storage.md Q5).
+  const auditDropped = auditProviders.length === 0
   app.use(
     '/api/*',
     auditMiddleware({
@@ -564,6 +568,7 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
     publishRoutes(resolveSource, opts.targets, opts.targetConfigs, templatesDir, scan, {
       hooks: opts.hooks,
       validators,
+      auditDropped,
     }),
   )
   api.route('/', compareRoutes(resolveSource, opts.targets, opts.targetConfigs, templatesDir, scan))
@@ -680,6 +685,26 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
  * setup. Skipped when targetConfigs is absent — historical behavior
  * (tests that rely on no `.gazetta/` writes happening).
  */
+/**
+ * Where the history audit provider writes (design-public-storage.md Q5):
+ * the source target if its storage is private, else the first target in
+ * `site.config.ts` order whose storage is private, else nowhere. Without
+ * target configs, or a source that isn't a configured target, the
+ * source's own storage as before.
+ */
+function auditStorageFor(
+  source: SourceContext,
+  configs: Record<string, TargetConfig> | undefined,
+  storages: ReadonlyMap<string, StorageProvider> | undefined,
+): StorageProvider | undefined {
+  const sourceConfig = source.targetName ? configs?.[source.targetName] : undefined
+  if (!configs || !sourceConfig || !isPublicStorage(sourceConfig)) return source.storage
+  for (const [name, config] of Object.entries(configs)) {
+    if (!isPublicStorage(config)) return storages?.get(name) ?? config.storage
+  }
+  return undefined
+}
+
 function buildHistoryForLegacySource(opts: AdminAppOptions) {
   const configs = opts.targetConfigs
   if (!configs) return undefined

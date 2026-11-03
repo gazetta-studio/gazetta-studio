@@ -60,6 +60,8 @@ export const PublishProgressSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('done'),
     results: z.array(PublishResultSchema),
+    /** Lines about the publish as a whole, such as an audit event that wasn't kept. */
+    warnings: z.array(z.string()).optional(),
   }),
   z.object({
     kind: z.literal('fatal'),
@@ -87,6 +89,8 @@ export type PublishRequest = z.infer<typeof PublishRequestSchema>
 /** Response of POST /api/publish (200 when every target succeeded, 207 otherwise). */
 export const PublishResponseSchema = z.object({
   results: z.array(PublishResultSchema),
+  /** Lines about the publish as a whole, such as an audit event that wasn't kept. */
+  warnings: z.array(z.string()).optional(),
 })
 export type PublishResponse = z.infer<typeof PublishResponseSchema>
 

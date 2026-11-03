@@ -34,7 +34,13 @@ function setup(opts: SetupOpts = {}) {
   const production = seeded()
   const review = opts.review ?? { enabled: true }
   const targetConfigs = {
-    local: { storage: local, type: 'esi' as const, environment: 'local' as const, editable: true },
+    local: {
+      storage: local,
+      publicStorage: false,
+      type: 'esi' as const,
+      environment: 'local' as const,
+      editable: true,
+    },
     production: {
       storage: production,
       type: 'esi' as const,

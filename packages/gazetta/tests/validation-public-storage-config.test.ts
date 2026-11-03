@@ -13,7 +13,12 @@ import type { Site } from '../src/site-loader.js'
 import type { StorageProvider, TargetConfig } from '../src/types.js'
 import type { ValidatorInput } from '../src/validation/types.js'
 import { defaultValidatorRegistry } from '../src/validation/default-registry.js'
-import { logDefaultedPublicTargets, publicStorageConfig } from '../src/validation/validators/public-storage-config.js'
+import {
+  logDefaultedPublicTargets,
+  logNoAuditHome,
+  NO_AUDIT_HOME_MESSAGE,
+  publicStorageConfig,
+} from '../src/validation/validators/public-storage-config.js'
 import { memoryStorage } from './_helpers/memory-storage.js'
 
 const repoRoot = resolve(import.meta.dirname, '../../..')
@@ -47,8 +52,15 @@ function cliInput(targets: Record<string, TargetConfig>): ValidatorInput {
   }
 }
 
+/**
+ * Runs the validator with a private `local` target beside the ones given,
+ * as real sites have, so the no-audit-home line only shows in the tests
+ * about it.
+ */
 async function run(targets: Record<string, TargetConfig>) {
-  return publicStorageConfig.validate(cliInput(targets))
+  return publicStorageConfig.validate(
+    cliInput({ local: { storage: memoryStorage(), publicStorage: false, editable: true }, ...targets }),
+  )
 }
 
 afterEach(() => {
@@ -184,5 +196,40 @@ describe('public-storage-config', () => {
       expect(target.publicStorage, name).toBe(false)
     }
     expect(await run(config.targets)).toEqual([])
+  })
+
+  it('reports one info line when no target has private storage to keep audit events', async () => {
+    const issues = await publicStorageConfig.validate(
+      cliInput({
+        production: { storage: cloud(), publicStorage: true },
+        staging: { storage: cloud(), publicStorage: true },
+      }),
+    )
+    expect(issues).toEqual([
+      {
+        validator: 'public-storage-config',
+        severity: 'info',
+        message: NO_AUDIT_HOME_MESSAGE,
+        itemPath: 'site.config.ts:targets',
+        subject: 'no-audit-home',
+      },
+    ])
+  })
+
+  it('reports no audit line when a target has private storage', async () => {
+    const issues = await run({ production: { storage: cloud(), publicStorage: true } })
+    expect(issues.filter(i => i.subject === 'no-audit-home')).toEqual([])
+  })
+
+  it('logs the audit line at admin boot only when no target has private storage', () => {
+    const lines: Record<string, unknown>[] = []
+    logNoAuditHome({ production: { storage: cloud(), publicStorage: true } }, entry => lines.push(entry))
+    expect(lines.map(l => l.message)).toEqual([NO_AUDIT_HOME_MESSAGE])
+    lines.length = 0
+    logNoAuditHome(
+      { local: { storage: cloud(), publicStorage: false }, production: { storage: cloud(), publicStorage: true } },
+      entry => lines.push(entry),
+    )
+    expect(lines).toEqual([])
   })
 })

@@ -19,7 +19,7 @@ import { createInterface } from 'node:readline/promises'
 import { createHistoryProvider } from '../history-provider.js'
 import { restoreRevision } from '../history-restorer.js'
 import { createContentRoot } from '../content-root.js'
-import { isHistoryEnabled, getHistoryRetention, getEnvironment } from '../types.js'
+import { historyOffReason, isHistoryEnabled, getHistoryRetention, getEnvironment } from '../types.js'
 import type { TargetConfig } from '../types.js'
 
 /** Shared context passed to every command handler. */
@@ -58,7 +58,7 @@ function formatItems(items: readonly string[]): string {
  */
 async function buildHistory(ctx: HistoryCommandContext) {
   if (!isHistoryEnabled(ctx.config)) {
-    throw new Error(`History disabled on target "${ctx.targetName}" (site.config.ts: history.enabled: false)`)
+    throw new Error(historyOffReason(ctx.targetName, ctx.config))
   }
   // Storage is already a constructed provider (Path X — operator-facing
   // factory ran at config-eval). Init the connection if the provider

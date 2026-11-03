@@ -175,7 +175,16 @@ export interface PublishRoutesOptions {
    * audit doesn't re-render pages already seen in the background scan.
    */
   cache?: import('../../cache/types.js').AdminCache
+  /**
+   * No target with private storage keeps the audit log, so a publish's
+   * audit event is dropped and the response says so
+   * (design-public-storage.md Q5).
+   */
+  auditDropped?: boolean
 }
+
+/** The line a publish adds when its audit event had nowhere to go. */
+export const AUDIT_DROPPED_WARNING = 'Audit event not recorded: no target with private storage keeps the audit log.'
 
 export function publishRoutes(
   resolve: SourceContextResolver,
@@ -189,6 +198,7 @@ export function publishRoutes(
   opts: PublishRoutesOptions = {},
 ) {
   const scan = scanTemplatesInjected ?? scanTemplates
+  const auditWarnings = opts.auditDropped ? { warnings: [AUDIT_DROPPED_WARNING] } : {}
   const hooks = opts.hooks
   const app = apiApp<AuditEnv>()
 
@@ -958,7 +968,7 @@ export function publishRoutes(
       }
     }
 
-    return c.json({ results }, allSuccess ? 200 : 207)
+    return c.json({ results, ...auditWarnings }, allSuccess ? 200 : 207)
   })
 
   app.openapi(postPublishStream, async c => {
@@ -1084,7 +1094,8 @@ export function publishRoutes(
       try {
         for await (const ev of runPublish(finalItems, body.targets, body.source, snapshot)) {
           if (stream.aborted) return
-          await stream.writeSSE({ event: ev.kind, data: JSON.stringify(ev) })
+          const data = ev.kind === 'done' ? { ...ev, ...auditWarnings } : ev
+          await stream.writeSSE({ event: ev.kind, data: JSON.stringify(data) })
           if (ev.kind === 'fatal') {
             await recordWriteFailed()
           }

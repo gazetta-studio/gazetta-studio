@@ -54,6 +54,7 @@ function setup(reviewWorkflow: ReviewWorkflowConfig | undefined): Harness {
       type: 'esi' as const,
       environment: 'local' as const,
       editable: true,
+      publicStorage: false,
       ...(reviewWorkflow ? { reviewWorkflow } : {}),
     },
   }

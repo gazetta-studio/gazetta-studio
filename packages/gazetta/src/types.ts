@@ -641,7 +641,10 @@ export function getEnvironment(target: TargetConfig): TargetEnvironment {
  * forgotten declaration never leaks history or audit data. `environment`
  * plays no part: it defaults to `'local'`, so it can't show privacy.
  */
-export function isPublicStorage(target: TargetConfig): boolean {
+/** The fields `isPublicStorage` reads. */
+export type PublicStorageFields = Pick<TargetConfig, 'publicStorage' | 'storage' | 'editable' | 'deploy'>
+
+export function isPublicStorage(target: PublicStorageFields): boolean {
   if (target.publicStorage !== undefined) return target.publicStorage
   if (target.storage.kind === 'filesystem' && target.editable === true) return false
   if (target.deploy?.copiesSiteFiles === true) return false
@@ -661,9 +664,20 @@ export function isEditable(target: TargetConfig): boolean {
 /** Default retention: keep the last 50 revisions. Matches design-publishing.md. */
 export const DEFAULT_HISTORY_RETENTION = 50
 
-/** Whether this target records history on save/publish. Default: true. */
+/**
+ * Whether this target records history on save/publish. Default: true.
+ * A target whose storage is public keeps none (design-public-storage.md Q3).
+ */
 export function isHistoryEnabled(target: TargetConfig): boolean {
+  if (isPublicStorage(target)) return false
   return target.history?.enabled ?? true
+}
+
+/** Why `isHistoryEnabled` is false, for refusal messages. */
+export function historyOffReason(targetName: string, target: TargetConfig): string {
+  return isPublicStorage(target)
+    ? `History is off because "${targetName}"'s storage is public`
+    : `History is turned off for "${targetName}" (site.config.ts: history.enabled: false)`
 }
 
 /**

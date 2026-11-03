@@ -231,6 +231,12 @@ export interface PublishTarget {
   readonly seo?: import('./seo.js').SeoContext
   /** Optional target-level cache config (browser / edge TTL); page-level overrides win in renderer. */
   readonly cache?: CacheConfig
+  /**
+   * Whether step 10b writes the item's dependency edges and forward
+   * record. False on a public target until those folders are safe there
+   * (design-public-storage.md Q5); default true.
+   */
+  readonly writeDepIndices?: boolean
 }
 
 /** List existing hashed files at item dir (for cleanup). */
@@ -414,8 +420,10 @@ export async function publishItemCore(input: PublishItemInput): Promise<PublishI
       ? ((kind === 'page' ? site.pageLocales : site.fragmentLocales).get(name)?.locales.get(locale) ?? item)
       : item
     const ref: ItemRef = locale ? { source: kind, name, locale } : { source: kind, name }
-    const targetRoot = createContentRoot(target.storage)
-    await Promise.all(DEP_RELATIONS.map(rel => replaceItemDeps(rel, targetRoot, ref, published)))
+    if (target.writeDepIndices !== false) {
+      const targetRoot = createContentRoot(target.storage)
+      await Promise.all(DEP_RELATIONS.map(rel => replaceItemDeps(rel, targetRoot, ref, published)))
+    }
 
     // Step 11 — sidecars (hash + publish-state). Skipped when caller
     // doesn't pass manifestHash (CLI / tests sometimes omit). Archive

@@ -94,8 +94,14 @@ function buildApp(opts: {
   })
   const targetStorage = memoryStorage()
   const targetConfigs = {
-    local: { storage: sourceStorage, type: 'esi' as const, environment: 'local' as const, editable: true },
-    staging: { storage: targetStorage, type: 'esi' as const, environment: 'staging' as const },
+    local: {
+      storage: sourceStorage,
+      publicStorage: false,
+      type: 'esi' as const,
+      environment: 'local' as const,
+      editable: true,
+    },
+    staging: { storage: targetStorage, publicStorage: false, type: 'esi' as const, environment: 'staging' as const },
   }
   const source = createSourceContext({
     storage: sourceStorage,

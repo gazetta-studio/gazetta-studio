@@ -61,7 +61,7 @@ function setup(opts: SetupOpts = {}) {
   })
 
   const targetConfigs = {
-    local: { storage, type: 'esi' as const, environment: 'local' as const, editable: true },
+    local: { storage, publicStorage: false, type: 'esi' as const, environment: 'local' as const, editable: true },
   }
   // Wire history so the "exactly ONE history revision per success"
   // assertion can read from `.gazetta/history/index.json`.
@@ -1288,7 +1288,7 @@ describe('POST redirects - mutation coverage (#1129)', () => {
     const manifest: SiteManifest = {
       name: 'test-site',
       targets: {
-        local: { storage, type: 'esi' as const, environment: 'local' as const, editable: true },
+        local: { storage, publicStorage: false, type: 'esi' as const, environment: 'local' as const, editable: true },
       },
       locales: { default: 'en', supported: ['en', 'fr'] },
     }

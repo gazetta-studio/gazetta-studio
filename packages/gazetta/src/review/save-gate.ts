@@ -9,8 +9,8 @@
  * re-deciding when an approval is revoked.
  */
 import type { ContentRoot } from '../content-root.js'
-import type { ReviewWorkflowConfig, TargetConfig } from '../types.js'
-import { resolveReviewWorkflow } from '../types.js'
+import type { PublicStorageFields, ReviewWorkflowConfig, TargetConfig } from '../types.js'
+import { isPublicStorage, resolveReviewWorkflow } from '../types.js'
 import { readApprovers, readReviewSidecar, removeApproverSidecar, writeReviewSidecar } from './sidecars.js'
 import type { ReviewStateKind } from './sidecars.js'
 import { transition } from './state-machine.js'
@@ -20,13 +20,13 @@ export const EDIT_LOCKED_MESSAGE = 'Withdraw submission to edit'
 
 /** The parts of a site manifest that decide review policy for a save. */
 export interface ReviewPolicySource {
-  readonly targets?: Readonly<Record<string, Pick<TargetConfig, 'reviewWorkflow'>>>
+  readonly targets?: Readonly<Record<string, Pick<TargetConfig, 'reviewWorkflow'> & PublicStorageFields>>
   readonly reviewWorkflow?: ReviewWorkflowConfig
 }
 
 /**
  * Effective review policy for the target being saved to, or `undefined`
- * when review is off there. Without a target name (no registry), only
+ * when review is off there, which it always is on a public target. Without a target name (no registry), only
  * the site-level block applies.
  */
 export function resolveSaveReviewPolicy(
@@ -35,6 +35,8 @@ export function resolveSaveReviewPolicy(
 ): ReviewWorkflowConfig | undefined {
   if (!manifest) return undefined
   const target = targetName ? manifest.targets?.[targetName] : undefined
+  // No review state is ever written to a public target (design-public-storage.md Q5).
+  if (target && isPublicStorage(target)) return undefined
   const config = resolveReviewWorkflow(target ?? {}, manifest)
   return config?.enabled === true ? config : undefined
 }
