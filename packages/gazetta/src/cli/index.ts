@@ -2021,7 +2021,8 @@ async function runDev(siteDir: string, port: number, hostFlag?: string) {
           },
           server: {
             middlewareMode: true,
-            hmr: { server: nodeServer as unknown as import('node:http').Server },
+            // Vite 8 names the HMR websocket's options `server.ws`; `server.hmr.*` is deprecated.
+            ws: { server: nodeServer as unknown as import('node:http').Server },
             fs: { allow: [searchForWorkspaceRoot(cmsWebDir), siteDir] },
           },
         })
