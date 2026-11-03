@@ -18,7 +18,7 @@ import type { Issue } from '../validation/types.js'
 import { getEnvironment, getType, isEditable } from '../types.js'
 import { buildHooksRegistry, createAdminApp } from '../admin-api/index.js'
 import { parseValidateFlags, VALIDATE_FLAGS } from './validate-flags.js'
-import { logDefaultedPublicTargets } from '../validation/validators/public-storage-config.js'
+import { logDefaultedPublicTargets, logNoAuditHome } from '../validation/validators/public-storage-config.js'
 import { parseArgs } from './args.js'
 import {
   agentsSectionHint,
@@ -2302,6 +2302,7 @@ async function setupCmsApi(
   // extension surface; sites without `admin.hooks` get an empty
   // registry (no overhead).
   logDefaultedPublicTargets(targetConfigs)
+  logNoAuditHome(targetConfigs)
   const hooks = await buildHooksRegistry({ contributions })
   const validationScanner = await buildValidationScanner({ source, templatesDir, manifest })
   // Mount SSE on the OUTER Hono app — matches `/__reload`'s placement so
@@ -2370,6 +2371,7 @@ async function setupProductionMode(
   // Same shape as dev mode — `gazetta serve` reads `admin.hooks`
   // factory contributions from the same site config.
   logDefaultedPublicTargets(targetConfigs)
+  logNoAuditHome(targetConfigs)
   const hooks = await buildHooksRegistry({ contributions })
   const validationScanner = await buildValidationScanner({ source, templatesDir, manifest })
   // SSE channel at the outer app's root; see setupCmsApi for rationale.

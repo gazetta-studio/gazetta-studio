@@ -53,6 +53,34 @@ export function logDefaultedPublicTargets(
   }
 }
 
+/** The info line when no target can keep audit events. Shared with the admin boot log. */
+export const NO_AUDIT_HOME_MESSAGE =
+  "Audit events aren't kept: no target has private storage to hold the audit log. " +
+  "Set `publicStorage: false` on a target visitors can't reach."
+
+/**
+ * True when targets are configured and every one of them resolves public,
+ * so the audit log has nowhere to go (design-public-storage.md Q5).
+ */
+export function hasNoAuditHome(targets: Record<string, TargetConfig>): boolean {
+  const all = Object.values(targets)
+  return all.length > 0 && all.every(target => isPublicStorage(target))
+}
+
+/** Admin boot: the no-audit-home line `gazetta validate` reports, when it applies. */
+export function logNoAuditHome(
+  targets: Record<string, TargetConfig> | undefined,
+  sink: (entry: Record<string, unknown>) => void = entry => console.log(JSON.stringify(entry)),
+): void {
+  if (!hasNoAuditHome(targets ?? {})) return
+  sink({
+    timestamp: new Date().toISOString(),
+    level: 'info',
+    module: 'admin-api.public-storage',
+    message: NO_AUDIT_HOME_MESSAGE,
+  })
+}
+
 /** Validators don't throw, so a storage failure comes back as a message for the issue. */
 async function sensitiveStateOf(target: TargetConfig): Promise<{ folders: string[]; error?: string }> {
   try {
@@ -136,6 +164,15 @@ export const publicStorageConfig: Validator = {
 
     for (const name of defaultedPublicTargets(targets)) {
       issues.push(issue(name, 'defaulted-public', 'info', defaultedPublicMessage(name)))
+    }
+    if (hasNoAuditHome(targets)) {
+      issues.push({
+        validator: 'public-storage-config',
+        severity: 'info',
+        message: NO_AUDIT_HOME_MESSAGE,
+        itemPath: 'site.config.ts:targets',
+        subject: 'no-audit-home',
+      })
     }
 
     return issues

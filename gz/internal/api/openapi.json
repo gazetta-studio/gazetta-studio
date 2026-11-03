@@ -5773,6 +5773,12 @@
                         },
                         "required": ["target", "success", "copiedFiles"]
                       }
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     }
                   },
                   "required": ["results"]
@@ -5827,6 +5833,12 @@
                           }
                         },
                         "required": ["target", "success", "copiedFiles"]
+                      }
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
                       }
                     }
                   },

@@ -237,6 +237,12 @@ export interface PublishRunInput {
    */
   readonly force?: boolean
   /**
+   * Whether items write their dependency edges and forward records on the
+   * targets. The caller decides from the target's storage
+   * (design-public-storage.md Q5); default true.
+   */
+  readonly writeDepIndices?: boolean
+  /**
    * Assets the asset copy leaves out: their files were removed during the
    * publish, and the items using them aren't published (#1632).
    */
@@ -361,6 +367,7 @@ export async function publishRun(input: PublishRunInput): Promise<PublishRunResu
       type: targetType,
       seo: undefined,
       cache: targetConfig?.cache,
+      writeDepIndices: input.writeDepIndices ?? true,
     }
     const targetRoot = createContentRoot(targetStorage)
 

@@ -19,7 +19,7 @@
 
 import { createRoute } from '@hono/zod-openapi'
 import type { StorageProvider, TargetConfig } from '../../types.js'
-import { isHistoryEnabled, getHistoryRetention } from '../../types.js'
+import { historyOffReason, isHistoryEnabled, getHistoryRetention } from '../../types.js'
 import { createHistoryProvider } from '../../history-provider.js'
 import { restoreRevision } from '../../history-restorer.js'
 import { createContentRoot } from '../../content-root.js'
@@ -142,7 +142,7 @@ export function historyRoutes(
       return {
         kind: 'err',
         status: 409,
-        body: { code: 'CONFLICT', message: `History disabled for target "${targetName}"` },
+        body: { code: 'CONFLICT', message: historyOffReason(targetName, config) },
       }
     }
     const history = createHistoryProvider({ storage, retention: getHistoryRetention(config) })

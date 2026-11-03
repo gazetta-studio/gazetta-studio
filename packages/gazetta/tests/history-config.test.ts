@@ -7,7 +7,7 @@ import { isHistoryEnabled, getHistoryRetention, DEFAULT_HISTORY_RETENTION } from
 import { memoryStorage } from './_helpers/memory-storage.js'
 
 function T(history?: TargetConfig['history']): TargetConfig {
-  return { storage: memoryStorage(), history }
+  return { storage: memoryStorage(), publicStorage: false, history }
 }
 
 describe('isHistoryEnabled', () => {

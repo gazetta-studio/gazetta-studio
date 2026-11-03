@@ -63,7 +63,13 @@ An editable filesystem target's storage counts as private automatically — an e
 
 ## `publicStorage`
 
-Whether visitors can reach the target's storage directly — a host serving the bucket or folder as the site. A public target keeps no history, audit, review or CLI sign-in state in its storage.
+Whether visitors can reach the target's storage directly — a host serving the bucket or folder as the site. A public target keeps no history, audit, review or CLI sign-in state in its storage, and no dependency indices for now. So on a public target:
+
+- Undo, rollback and the history list are refused: history is off because the storage is public. To go back, restore the content on a private target and publish again.
+- Review is off, whatever `reviewWorkflow` says.
+- Publishing writes no `.gazetta/` folders except `publish-generation`, the id the Cloudflare worker's cache key reads.
+
+The admin keeps its audit log on the target it edits when that target's storage is private, otherwise on the first target in `site.config.ts` whose storage is private. When no target is private, audit events aren't kept: `gazetta validate` and the admin's startup log say so, and each publish from the admin adds a warning to its result.
 
 When `publicStorage` is unset, a target counts as private only if it is an editable filesystem target or its deploy adapter copies site files to the host; every other target is assumed public, so a forgotten declaration never leaks history or audit data. Set `publicStorage: false` for storage only a worker reads, such as a private R2 bucket behind `cloudflareWorkersDeploy`.
 

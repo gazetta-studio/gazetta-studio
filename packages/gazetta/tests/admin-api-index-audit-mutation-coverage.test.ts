@@ -308,7 +308,7 @@ describe('Cluster A — buildHistory guard (line 310)', () => {
       'pages/home/page.json': JSON.stringify({ template: 'page-default', route: '/', content: {} }),
     })
     const targetConfigs: Record<string, TargetConfig> = {
-      ghost: { storage, type: 'esi' as const, environment: 'local' as const, editable: true },
+      ghost: { storage, publicStorage: false, type: 'esi' as const, environment: 'local' as const, editable: true },
     }
     const source = createSourceContext({
       storage,
@@ -768,7 +768,7 @@ describe('Cluster G — invalidateTemplatesCache closure (line 505)', () => {
     //   cached result → scanTemplates call count stays at 1 (not 2).
     const storage = memoryStorage()
     const targetConfigs = {
-      local: { storage, type: 'esi' as const, environment: 'local' as const, editable: true },
+      local: { storage, publicStorage: false, type: 'esi' as const, environment: 'local' as const, editable: true },
     }
     const source = createSourceContext({
       storage,
@@ -898,7 +898,7 @@ describe('Cluster I — buildHistoryForLegacySource predicate (line 527)', () =>
     const storage = memoryStorage()
     const targetConfigs = {
       // Default: history enabled (no explicit override).
-      local: { storage, type: 'esi' as const, environment: 'local' as const, editable: true },
+      local: { storage, publicStorage: false, type: 'esi' as const, environment: 'local' as const, editable: true },
     }
 
     // Reset the counter to isolate this test from other mock uses.

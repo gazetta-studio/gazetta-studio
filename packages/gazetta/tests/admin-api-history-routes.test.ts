@@ -81,7 +81,7 @@ function mount(opts: MountOptions): Mounted {
 }
 
 function config(storage: StorageProvider, extra: Partial<TargetConfig> = {}): TargetConfig {
-  return { storage, ...extra } as TargetConfig
+  return { storage, publicStorage: false, ...extra } as TargetConfig
 }
 
 /** Record three save revisions of `pages/home/page.json` on `storage`. */
@@ -176,7 +176,7 @@ describe('target resolution', () => {
     const { app } = mount({ configs: { staging: config(storage, { history: { enabled: false } }) } })
     const res = await app.request('/api/v1/history?target=staging')
     expect(res.status).toBe(409)
-    await expectProblem(res, 'CONFLICT', 'History disabled for target "staging"')
+    await expectProblem(res, 'CONFLICT', 'History is turned off for "staging" (site.config.ts: history.enabled: false)')
   })
 })
 
@@ -297,7 +297,7 @@ describe('POST /api/v1/history/restore', () => {
     const { app } = mount({ configs: { staging: config(storage, { history: { enabled: false } }) } })
     const res = await app.request('/api/v1/history/restore?target=staging&id=rev-1', { method: 'POST' })
     expect(res.status).toBe(409)
-    await expectProblem(res, 'CONFLICT', 'History disabled for target "staging"')
+    await expectProblem(res, 'CONFLICT', 'History is turned off for "staging" (site.config.ts: history.enabled: false)')
   })
 
   it('restores the chosen revision and audits it', async () => {

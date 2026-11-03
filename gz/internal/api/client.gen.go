@@ -19075,6 +19075,7 @@ type PostApiV1PublishResponse struct {
 			Success bool   `json:"success"`
 			Target  string `json:"target"`
 		} `json:"results"`
+		Warnings *[]string `json:"warnings,omitempty"`
 	}
 	// JSON207 the response for an HTTP 207 `application/json` response
 	JSON207 *struct {
@@ -19089,6 +19090,7 @@ type PostApiV1PublishResponse struct {
 			Success bool   `json:"success"`
 			Target  string `json:"target"`
 		} `json:"results"`
+		Warnings *[]string `json:"warnings,omitempty"`
 	}
 	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
 	ApplicationproblemJSON400 *Problem
@@ -19115,6 +19117,7 @@ func (r PostApiV1PublishResponse) GetJSON200() *struct {
 		Success bool   `json:"success"`
 		Target  string `json:"target"`
 	} `json:"results"`
+	Warnings *[]string `json:"warnings,omitempty"`
 } {
 	return r.JSON200
 }
@@ -19132,6 +19135,7 @@ func (r PostApiV1PublishResponse) GetJSON207() *struct {
 		Success bool   `json:"success"`
 		Target  string `json:"target"`
 	} `json:"results"`
+	Warnings *[]string `json:"warnings,omitempty"`
 } {
 	return r.JSON207
 }
@@ -26194,6 +26198,7 @@ func ParsePostApiV1PublishResponse(rsp *http.Response) (*PostApiV1PublishRespons
 				Success bool   `json:"success"`
 				Target  string `json:"target"`
 			} `json:"results"`
+			Warnings *[]string `json:"warnings,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -26213,6 +26218,7 @@ func ParsePostApiV1PublishResponse(rsp *http.Response) (*PostApiV1PublishRespons
 				Success bool   `json:"success"`
 				Target  string `json:"target"`
 			} `json:"results"`
+			Warnings *[]string `json:"warnings,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err

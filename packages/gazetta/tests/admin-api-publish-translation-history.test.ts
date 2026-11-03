@@ -54,12 +54,14 @@ function buildApp(): { app: Hono; sourceStorage: MemoryStorage; targetStorage: M
     storage: targetStorage,
     type: 'esi' as const,
     environment: 'staging' as const,
+    publicStorage: false,
   }
   const localConfig = {
     storage: sourceStorage,
     type: 'esi' as const,
     environment: 'local' as const,
     editable: true,
+    publicStorage: false,
   }
 
   const source = createSourceContext({

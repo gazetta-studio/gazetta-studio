@@ -140,6 +140,8 @@ export interface CreateSourceContextOptions {
   siteDir: string
   /** Absolute project site directory. Defaults to `siteDir` for backward compat. */
   projectSiteDir?: string
+  /** The configured target this source is, when it is one. */
+  targetName?: string
   history?: HistoryProvider
   /** Project-level site manifest — passed to loadSite so targets don't need their own site config. */
   manifest?: SiteManifest
@@ -190,6 +192,7 @@ export function createSourceContext(opts: CreateSourceContextOptions): SourceCon
     manifest: opts.manifest,
     gazettaManifest: opts.gazettaManifest,
     cache,
+    ...(opts.targetName !== undefined ? { targetName: opts.targetName } : {}),
   }
 }
 
