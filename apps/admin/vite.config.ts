@@ -102,7 +102,8 @@ export default defineConfig({
     },
   },
   server: {
-    hmr: {
+    // The HMR websocket's options (`server.hmr.*` before Vite 8).
+    ws: {
       // When proxied through gazetta dev, tell the browser to connect HMR websocket to Vite's actual port
       clientPort: parseInt(process.env.VITE_HMR_PORT ?? '0', 10) || undefined,
     },
