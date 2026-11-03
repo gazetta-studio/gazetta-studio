@@ -34,6 +34,7 @@ import {
   clearReviewSidecar,
   readApprovers,
   readReviewSidecar,
+  removeApproverSidecar,
   type ReviewStateKind,
   writeApproverSidecar,
   writePendingMarker,
@@ -302,6 +303,12 @@ async function persist(
   }
   if (action.kind === 'approve') {
     await writeApproverSidecar(root, kind, name, actorId)
+    // A reject or withdraw that landed meanwhile ended this submission:
+    // take the vote back rather than approve content that went back to draft.
+    if ((await readReviewSidecar(root, kind, name))?.state !== 'pending-review') {
+      await removeApproverSidecar(root, kind, name, actorId)
+      return
+    }
     // Count the votes as stored, not the snapshot's: two approvals at once
     // each saw only the other's absence, and the later one must still
     // reach the threshold.
