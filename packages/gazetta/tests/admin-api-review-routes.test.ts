@@ -184,6 +184,26 @@ describe('review transitions', () => {
     expect(await markerExists(h, 'page', 'home')).toBe(false)
   })
 
+  it('an approval that lands after a reject leaves the item in draft with no vote', async () => {
+    const h = setup()
+    await post(h, 'page', 'home', 'submit')
+    // The reject lands between the approval's read and its vote.
+    const write = h.local.writeFile.bind(h.local)
+    let rejected = false
+    h.local.writeFile = async (path, content, opts) => {
+      if (!rejected && path.includes('/approvers/')) {
+        rejected = true
+        expect((await post(h, 'page', 'home', 'reject')).status).toBe(200)
+      }
+      return write(path, content, opts)
+    }
+    expect((await post(h, 'page', 'home', 'approve')).status).toBe(200)
+    expect(rejected).toBe(true)
+    expect(await readReviewSidecar(h.contentRoot, 'page', 'home')).toBeNull()
+    expect(await readApprovers(h.contentRoot, 'page', 'home')).toEqual([])
+    expect(await markerExists(h, 'page', 'home')).toBe(false)
+  })
+
   it('an archived item answers 409 ARCHIVED and takes no review', async () => {
     const h = setup()
     expect((await h.app.request('/api/v1/pages/home/archive', { method: 'POST' })).status).toBe(200)
