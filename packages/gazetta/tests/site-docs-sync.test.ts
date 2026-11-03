@@ -44,6 +44,7 @@ const NAV = {
     releaseSentence: 'Release {version} is out',
     securityClause: ', and it lacks security fixes',
     securityClauseVersion: '0.0.1',
+    lastRelease: '0.0.1',
     link: '[run from main](https://example.com/run-from-main)',
   },
   groups: [
@@ -281,6 +282,44 @@ describe('site docs sync check', () => {
       expect(bumped).not.toContain('security fixes')
       run(fixtureArgs())
       expect(page().components[2]?.content).toContain('Release 0.0.1 is out, and it lacks security fixes.')
+    },
+    SPAWN_TIMEOUT,
+  )
+
+  // A release candidate goes to npm's `rc` tag, not `latest`: while the
+  // package version is a prerelease, the banner names the last full release.
+  it(
+    'the banner names the last full release, with its security clause, while the version is a prerelease',
+    () => {
+      run(fixtureArgs(['--version', '0.0.2-rc.1']))
+      const content =
+        (
+          JSON.parse(readFileSync(join(fixtureSite, 'targets/local/pages/docs/other/page.json'), 'utf-8')) as {
+            components: { content?: string }[]
+          }
+        ).components[2]?.content ?? ''
+      expect(content).toContain('Release 0.0.1 is out, and it lacks security fixes.')
+      expect(content).not.toContain('0.0.2-rc.1')
+      run(fixtureArgs())
+    },
+    SPAWN_TIMEOUT,
+  )
+
+  it.each([
+    { lastRelease: '0.0.2-rc.1', version: '0.0.2-rc.1', message: 'must be a full release' },
+    { lastRelease: '0.0.2', version: '0.0.2-rc.1', message: 'is newer than the package version 0.0.2-rc.1' },
+    { lastRelease: '0.1.0', version: '0.0.1', message: 'is newer than the package version 0.0.1' },
+  ])(
+    'refuses banner.lastRelease $lastRelease with version $version',
+    ({ lastRelease, version, message }) => {
+      const navPath = join(fixtureSite, 'scripts', 'docs-nav.json')
+      writeFileSync(navPath, JSON.stringify({ ...NAV, banner: { ...NAV.banner, lastRelease } }, null, 2))
+      for (const mode of [[], ['--check']]) {
+        const res = run(fixtureArgs(['--version', version, ...mode]))
+        expect(res.status).toBe(1)
+        expect(res.stderr).toContain(message)
+      }
+      writeFileSync(navPath, JSON.stringify(NAV, null, 2))
     },
     SPAWN_TIMEOUT,
   )

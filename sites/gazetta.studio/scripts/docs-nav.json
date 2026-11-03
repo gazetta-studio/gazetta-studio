@@ -4,6 +4,7 @@
     "releaseSentence": "The latest release on npm, {version}, is older and works differently in places",
     "securityClause": ", and it lacks security fixes made since",
     "securityClauseVersion": "0.8.0",
+    "lastRelease": "0.8.0",
     "text": "These docs describe Gazetta's `main` branch."
   },
   "groups": [

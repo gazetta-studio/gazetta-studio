@@ -56,8 +56,14 @@ export interface DocsBanner {
   releaseSentence: string
   /** Appended to the release sentence only at securityClauseVersion. */
   securityClause: string
-  /** The clause ships only while packages/gazetta/package.json is this version. */
+  /** The clause ships only while the release the banner names is this version. */
   securityClauseVersion: string
+  /**
+   * The last full release on npm's `latest` tag. While the package version
+   * is a prerelease (an rc on the `rc` tag), the banner names this one, so
+   * the site never calls a release candidate the latest release.
+   */
+  lastRelease: string
   /** Markdown link to the run-from-main steps. */
   link: string
 }
@@ -256,13 +262,53 @@ export interface BuildResult {
   problems: DocProblem[]
 }
 
+const SEMVER = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/
+
+/** `1.2.3` → `[1, 2, 3, prerelease?]`; undefined when not semver. */
+function parseVersion(version: string): [number, number, number, string | undefined] | undefined {
+  const m = SEMVER.exec(version)
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3]), m[4]] : undefined
+}
+
+/** Negative, zero or positive as `a` is older than, equal to or newer than `b`. */
+function compareVersions(a: string, b: string): number {
+  const [pa, pb] = [parseVersion(a), parseVersion(b)]
+  if (!pa || !pb) return Number.NaN
+  for (let i = 0; i < 3; i++) if (pa[i] !== pb[i]) return (pa[i] as number) - (pb[i] as number)
+  // Same core: a full release is newer than its prereleases.
+  if (pa[3] === pb[3]) return 0
+  if (pa[3] === undefined) return 1
+  if (pb[3] === undefined) return -1
+  return pa[3] < pb[3] ? -1 : 1
+}
+
+/** The release the banner names: the package version, or `lastRelease` while that is a prerelease. */
+export function bannerRelease(nav: DocsNav, version: string): string {
+  return parseVersion(version)?.[3] !== undefined ? nav.banner.lastRelease : version
+}
+
+/** Problems with `lastRelease`: it must be a full release, no newer than the package version. */
+export function bannerReleaseProblems(nav: DocsNav, version: string): string[] {
+  const last = nav.banner.lastRelease
+  const parsed = parseVersion(last)
+  if (!parsed || parsed[3] !== undefined) {
+    return [`scripts/docs-nav.json banner.lastRelease must be a full release such as 0.8.0, not "${last}"`]
+  }
+  if (!(compareVersions(last, version) <= 0)) {
+    return [`scripts/docs-nav.json banner.lastRelease ${last} is newer than the package version ${version}`]
+  }
+  return []
+}
+
 /** The banner line on every docs page. The release sentence always shows,
- * with {version} substituted; the security clause ships only while the
- * version matches securityClauseVersion, so it disappears at the next release. */
+ * naming the package version, or the last full release while the package
+ * version is a prerelease; the security clause ships only while that release
+ * is securityClauseVersion, so it disappears at the next full release. */
 export function composeBanner(nav: DocsNav, version: string): string {
   const b = nav.banner
-  const sentence = b.releaseSentence.replaceAll('{version}', version)
-  const clause = version === b.securityClauseVersion ? b.securityClause : ''
+  const release = bannerRelease(nav, version)
+  const sentence = b.releaseSentence.replaceAll('{version}', release)
+  const clause = release === b.securityClauseVersion ? b.securityClause : ''
   return `${b.text} ${sentence}${clause}. To follow these docs, ${b.link}.`
 }
 
@@ -412,6 +458,12 @@ function main(): void {
         version: string
       }
     ).version
+
+  const releaseProblems = bannerReleaseProblems(nav, version)
+  if (releaseProblems.length > 0) {
+    for (const p of releaseProblems) console.error(`docs:site: ${p}`)
+    process.exit(1)
+  }
 
   const { files, problems } = buildDocsPages({ docsDir: opts.docsDir, nav, version })
   const errors: string[] = problems.map(p => `docs/${p.file}${p.line ? `:${p.line}` : ''}: ${p.message}`)
