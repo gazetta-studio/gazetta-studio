@@ -21,14 +21,23 @@ const section = (v: string) =>
   `<!-- gazetta:agents start version=${v} -->\n## Gazetta\nOld text.\n<!-- gazetta:agents end -->\n`
 
 const cleanup: string[] = []
-const children: ChildProcess[] = []
+/** Children with a promise that settles once their stdio is closed. */
+const children: { child: ChildProcess; closed: Promise<void> }[] = []
 
-/** Stop a child and wait for it to exit, so nothing writes into its folder afterwards. */
-async function stop(child: ChildProcess): Promise<void> {
-  if (child.exitCode !== null || child.signalCode !== null) return
-  const exited = new Promise<void>(done => child.once('exit', () => done()))
-  child.kill('SIGTERM')
-  await exited
+function track(child: ChildProcess): { child: ChildProcess; closed: Promise<void> } {
+  const tracked = { child, closed: new Promise<void>(done => child.once('close', () => done())) }
+  children.push(tracked)
+  return tracked
+}
+
+/**
+ * Stop a child and wait for `close`, not `exit`: `close` waits for every
+ * process holding its stdio, so the dev server tsx started has exited too
+ * and nothing writes into its folder afterwards.
+ */
+async function stop({ child, closed }: { child: ChildProcess; closed: Promise<void> }): Promise<void> {
+  if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM')
+  await closed
 }
 
 /** A port nothing is listening on, from the OS. */
@@ -90,7 +99,7 @@ describe('the gazetta dev hint', () => {
       cwd: project,
       env: { ...process.env, CI: 'true' },
     })
-    children.push(dev)
+    const tracked = track(dev)
     let out = ''
     await new Promise<void>((done, fail) => {
       const timer = setTimeout(() => fail(new Error(`no startup banner:\n${out}`)), 60_000)
@@ -106,7 +115,7 @@ describe('the gazetta dev hint', () => {
     })
     // One dev server at a time: the next start must not find this one
     // still holding a port or writing Vite's cache into its folder.
-    await stop(dev)
+    await stop(tracked)
     return out
   }
 
