@@ -24,6 +24,12 @@ updates:
       types:
         patterns: ["@types/*"]
         update-types: ["patch", "minor"]
+    ignore:
+      # TypeScript 7 is the native rewrite: vue-tsc's typecheck and code
+      # that reads `ts.ScriptTarget` break on it (#1680). Moving to it is a
+      # migration, not a bump; drop this once that's planned.
+      - dependency-name: "typescript"
+        versions: [">=7"]
     open-pull-requests-limit: 10
 
   - package-ecosystem: github-actions
