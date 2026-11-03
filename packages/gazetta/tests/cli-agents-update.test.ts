@@ -5,6 +5,7 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
+import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -21,8 +22,26 @@ const section = (v: string) =>
 
 const cleanup: string[] = []
 const children: ChildProcess[] = []
+
+/** Stop a child and wait for it to exit, so nothing writes into its folder afterwards. */
+async function stop(child: ChildProcess): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return
+  const exited = new Promise<void>(done => child.once('exit', () => done()))
+  child.kill('SIGTERM')
+  await exited
+}
+
+/** A port nothing is listening on, from the OS. */
+async function freePort(): Promise<number> {
+  const server = createServer()
+  await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
+  const { port } = server.address() as { port: number }
+  await new Promise<void>(done => server.close(() => done()))
+  return port
+}
+
 afterEach(async () => {
-  for (const child of children.splice(0)) if (child.exitCode === null) child.kill('SIGTERM')
+  for (const child of children.splice(0)) await stop(child)
   for (const dir of cleanup.splice(0)) await rm(dir, { recursive: true, force: true })
 })
 
@@ -66,7 +85,7 @@ describe('the gazetta dev hint', () => {
     cleanup.push(project)
     await cp(resolve(repoRoot, 'examples/starter'), project, { recursive: true })
     await writeFile(join(project, 'AGENTS.md'), agentsMd)
-    const port = String(5200 + Math.floor(Math.random() * 100))
+    const port = String(await freePort())
     const dev = spawn(tsxBin, [cliPath, 'dev', '--host', '127.0.0.1', '-p', port], {
       cwd: project,
       env: { ...process.env, CI: 'true' },
@@ -85,6 +104,9 @@ describe('the gazetta dev hint', () => {
       dev.stdout.on('data', read)
       dev.stderr.on('data', read)
     })
+    // One dev server at a time: the next start must not find this one
+    // still holding a port or writing Vite's cache into its folder.
+    await stop(dev)
     return out
   }
 
