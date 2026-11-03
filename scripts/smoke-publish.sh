@@ -65,10 +65,15 @@ fi
 # ── 2. Init a fresh project using the tarball ────────────────────
 step "gazetta init from tarball"
 cd "$SMOKE_DIR"
-npx --package="$TARBALL_ABS" -y gazetta init my-site
+# --no-install: init's own `npm install` would fetch gazetta from npm, which
+# may not have this version yet (a version bump before its release) and
+# isn't the tarball under test anyway.
+npx --package="$TARBALL_ABS" -y gazetta init my-site --no-install
 
 step "Install local tarball into generated project"
 cd "$SMOKE_DIR/my-site"
+# The project's dependencies, with gazetta from the tarball.
+npm install "$TARBALL_ABS" --no-save --silent
 # Overwrite admin/ and templates/ gazetta deps to use the tarball
 for ws in admin templates; do
   if [ -d "$ws" ]; then
