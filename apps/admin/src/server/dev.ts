@@ -4,7 +4,10 @@ import { serve } from '@hono/node-server'
 import { buildSourceContext } from 'gazetta'
 import { createAdminApp } from './index.js'
 
-const siteDir = resolve(process.argv[2] ?? '../../examples/starter')
+// A project holds `templates/` and `admin/`, and its sites under
+// `sites/<name>/`: `tsx src/server/dev.ts [project] [site]`.
+const projectRoot = resolve(process.argv[2] ?? '../../examples/starter')
+const siteDir = resolve(projectRoot, 'sites', process.argv[3] ?? 'main')
 const port = parseInt(process.env.API_PORT ?? '4000', 10)
 
 // Resolve the default editable target from site.config.ts and derive a
@@ -14,7 +17,9 @@ const { source, manifest, targetConfigs } = await buildSourceContext({ projectSi
 
 const app = createAdminApp({
   source,
-  siteDir, // used for templatesDir/adminDir defaults
+  siteDir,
+  templatesDir: resolve(projectRoot, 'templates'),
+  adminDir: resolve(projectRoot, 'admin'),
   targetConfigs,
 })
 
