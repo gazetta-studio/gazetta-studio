@@ -276,7 +276,8 @@ function printHelp() {
   gazetta - Stateless CMS for composable websites
 
   Usage:
-    gazetta init [dir]              Create a new site
+    gazetta init [dir] [--no-install]
+                                    Create a new site (--no-install: skip npm install)
     gazetta dev [site]              Start dev server + CMS at /admin
     gazetta build                   Build admin UI for production
     gazetta admin [site]            Run production CMS admin server
@@ -437,7 +438,7 @@ async function resolveTarget(positionalTarget: string | undefined, siteDir: stri
   return result as string
 }
 
-async function runInit(dir: string) {
+async function runInit(dir: string, opts: { install?: boolean } = {}) {
   const { writeFile, mkdir } = await import('node:fs/promises')
   const target = resolve(dir)
 
@@ -697,6 +698,14 @@ export default template
     `Created ${c.green(name)}/`,
   )
 
+  const cdStep = dir !== '.' ? `cd ${dir} && ` : ''
+  // --no-install: the person installs with their own package manager, or
+  // offline later; init doesn't run npm at all.
+  if (opts.install === false) {
+    outro(`Done! Install the dependencies, then run the site: ${c.cyan(`${cdStep}npm install && npx gazetta dev`)}`)
+    return
+  }
+
   // Run npm install
   const s = spinner()
   s.start('Installing dependencies')
@@ -722,7 +731,6 @@ export default template
     process.exit(1)
   }
 
-  const cdStep = dir !== '.' ? `cd ${dir} && ` : ''
   outro(`Done! Run: ${c.cyan(`${cdStep}npx gazetta dev`)}`)
 }
 
@@ -2518,7 +2526,7 @@ async function main() {
   let rollbackRevisionId: string | undefined
 
   if (command === 'init') {
-    await runInit(parsed.positional[0] ?? '.')
+    await runInit(parsed.positional[0] ?? '.', { install: !parsed.noInstall })
     return
   }
 

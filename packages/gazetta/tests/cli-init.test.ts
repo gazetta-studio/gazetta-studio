@@ -4,8 +4,9 @@
  * history on its editing target and validates with no public-storage
  * issue.
  */
-import { execSync } from 'node:child_process'
-import { readFile, rm } from 'node:fs/promises'
+import { execSync, spawnSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { createJiti } from 'jiti'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -24,7 +25,9 @@ afterEach(async () => {
 
 describe('gazetta init site.config.ts', () => {
   it('sets publicStorage on every target and validates clean', { timeout: 120000 }, async () => {
-    execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} init ${testDir}`, { stdio: 'pipe' })
+    execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} init ${testDir} --no-install`, {
+      stdio: 'pipe',
+    })
     const jiti = createJiti(import.meta.url, {
       moduleCache: false,
       alias: { gazetta: resolve(import.meta.dirname, '../src/index.ts') },
@@ -58,7 +61,9 @@ describe('gazetta init site.config.ts', () => {
   })
 
   it('writes a staging target next to the editing target', { timeout: 120000 }, async () => {
-    execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} init ${testDir}`, { stdio: 'pipe' })
+    execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} init ${testDir} --no-install`, {
+      stdio: 'pipe',
+    })
     const jiti = createJiti(import.meta.url, {
       moduleCache: false,
       alias: { gazetta: resolve(import.meta.dirname, '../src/index.ts') },
@@ -83,7 +88,9 @@ describe('gazetta init site.config.ts', () => {
 
 describe('gazetta init package.json', () => {
   it("depends on a caret range of the CLI's own version, not '*'", { timeout: 120000 }, async () => {
-    execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} init ${testDir}`, { stdio: 'pipe' })
+    execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} init ${testDir} --no-install`, {
+      stdio: 'pipe',
+    })
     const pkg = JSON.parse(await readFile(join(testDir, 'package.json'), 'utf-8')) as {
       dependencies: Record<string, string>
     }
@@ -93,5 +100,40 @@ describe('gazetta init package.json', () => {
     // A stable CLI version becomes a caret range; a prerelease pins to itself.
     const expected = cliPkg.version.includes('-') ? cliPkg.version : `^${cliPkg.version}`
     expect(pkg.dependencies.gazetta).toBe(expected)
+  })
+})
+
+describe('gazetta init --no-install', () => {
+  const binDir = tempDir('cli-init-fake-npm-' + Date.now())
+  const marker = join(binDir, 'npm-ran')
+  afterEach(async () => {
+    await rm(binDir, { recursive: true, force: true })
+  })
+
+  /** Runs init with a fake `npm` first on PATH that only records it ran. */
+  async function initWithFakeNpm(extra: string[]) {
+    await mkdir(binDir, { recursive: true })
+    const npm = join(binDir, 'npm')
+    await writeFile(npm, `#!/bin/sh\necho "$@" >> ${JSON.stringify(marker)}\n`)
+    await chmod(npm, 0o755)
+    return spawnSync('node', [resolve(import.meta.dirname, '../dist/cli/index.js'), 'init', testDir, ...extra], {
+      env: { ...process.env, PATH: `${binDir}:${process.env.PATH}`, NO_COLOR: '1' },
+      encoding: 'utf-8',
+    })
+  }
+
+  it('writes the project, runs no npm, and says to run npm install', { timeout: 120000 }, async () => {
+    const res = await initWithFakeNpm(['--no-install'])
+    expect(res.status, res.stderr).toBe(0)
+    expect(existsSync(marker)).toBe(false)
+    expect(existsSync(join(testDir, 'sites/main/site.config.ts'))).toBe(true)
+    expect(existsSync(join(testDir, 'package.json'))).toBe(true)
+    expect(res.stdout + res.stderr).toContain('npm install && npx gazetta dev')
+  })
+
+  it('runs npm install without the flag', { timeout: 120000 }, async () => {
+    const res = await initWithFakeNpm([])
+    expect(res.status, res.stderr).toBe(0)
+    expect(await readFile(marker, 'utf-8')).toContain('install')
   })
 })
