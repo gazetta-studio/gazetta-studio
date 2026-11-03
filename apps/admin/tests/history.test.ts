@@ -106,7 +106,9 @@ describe('History on save', () => {
       siteDir: starterSiteDir,
       templatesDir,
       targets: new Map([['local', storage]]),
-      targetConfigs: { local: { storage: { type: 'filesystem' }, environment: 'local', editable: true } },
+      targetConfigs: {
+        local: { storage: { type: 'filesystem' }, environment: 'local', editable: true, publicStorage: false },
+      },
       disableCacheStatsLogger: true,
     })
   })
@@ -301,7 +303,9 @@ describe('History HTTP endpoints', () => {
       siteDir: starterSiteDir,
       templatesDir,
       targets: new Map([['local', storage]]),
-      targetConfigs: { local: { storage: { type: 'filesystem' }, environment: 'local', editable: true } },
+      targetConfigs: {
+        local: { storage: { type: 'filesystem' }, environment: 'local', editable: true, publicStorage: false },
+      },
       disableCacheStatsLogger: true,
     })
   })
@@ -396,7 +400,9 @@ describe('History HTTP endpoints', () => {
         siteDir: starterSiteDir,
         templatesDir,
         targets: new Map([['local', storage]]),
-        targetConfigs: { local: { storage: { type: 'filesystem' }, environment: 'local', editable: true } },
+        targetConfigs: {
+          local: { storage: { type: 'filesystem' }, environment: 'local', editable: true, publicStorage: false },
+        },
         disableCacheStatsLogger: true,
       })
       const res = await freshApp.request('/api/v1/history/undo?target=local', { method: 'POST' })

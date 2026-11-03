@@ -956,3 +956,39 @@ describe('Cluster I — buildHistoryForLegacySource predicate (line 527)', () =>
     expect(vi.mocked(mockableCreateHistoryProvider)).not.toHaveBeenCalled()
   })
 })
+
+describe('audit retention pruner — where the audit log is kept (#1592)', () => {
+  const retention = { provider: 'history' as const, retention: { events: 100 } }
+  const boot = (targets: Record<string, import('../src/types.js').TargetConfig>) => {
+    const source = createSourceContext({
+      storage: targets.local.storage,
+      siteDir: '',
+      projectSiteDir: '/test-project',
+      targetName: 'local',
+      manifest: { name: 'test-site', targets, admin: { audit: retention } },
+    })
+    createAdminApp({
+      source,
+      siteDir: '/test-project',
+      templatesDir: '/test-project/templates',
+      targets: new Map(Object.entries(targets).map(([name, t]) => [name, t.storage])),
+      targetConfigs: targets,
+      disableCacheStatsLogger: true,
+    })
+  }
+
+  it('prunes the first private target when the source is public', () => {
+    const backup = memoryStorage()
+    boot({
+      local: { storage: memoryStorage(), publicStorage: true },
+      backup: { storage: backup, publicStorage: false },
+    })
+    expect(vi.mocked(mockableRunAuditPrune)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(mockableRunAuditPrune).mock.calls[0][0].storage).toBe(backup)
+  })
+
+  it('prunes nothing when no target keeps the audit log', () => {
+    boot({ local: { storage: memoryStorage(), publicStorage: true } })
+    expect(vi.mocked(mockableRunAuditPrune)).not.toHaveBeenCalled()
+  })
+})

@@ -644,13 +644,15 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   if (
     !opts.disableAuditRetentionPruner &&
     auditConfig.provider === 'history' &&
+    auditStorage &&
     auditConfig.retention &&
     (auditConfig.retention.events !== undefined || auditConfig.retention.maxAgeMonths)
   ) {
     const retentionConfig = auditConfig.retention
     const runPrune = () =>
       runAuditPrune({
-        storage: source.storage,
+        // Where the audit log is kept, which may not be the source (Q5).
+        storage: auditStorage,
         retentionConfig: {
           events: retentionConfig.events,
           maxAgeMonths: retentionConfig.maxAgeMonths ?? null,
