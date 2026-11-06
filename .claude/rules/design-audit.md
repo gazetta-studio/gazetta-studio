@@ -274,7 +274,7 @@ Every write **attempt** — success and write-class rejection:
 
 A publish records one event per destination target, each with its own outcome: `success` when every item reached that target, `write-failed` when any item didn't, with the items that failed in `metadata`. So a publish to staging and production where production fails records `success` for staging and `write-failed` for production, and the drawer and the live feed show which target changed. Today the publish routes record one `success` event for the whole publish even when a target fails (`admin-api/routes/publish.ts`, read from code 2026-11-05). `write-failed` is already in the code's outcome list (`audit/types.ts`), for a write that fails after its event was recorded (`docs/audit.md`). The code change is #1799.
 
-Decided: maintainer, 2026-11-06 (#<PR>)
+Decided: maintainer, 2026-11-06 (#1801)
 
 | Rejected | Why |
 |---|---|
