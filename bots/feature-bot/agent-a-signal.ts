@@ -29,7 +29,7 @@
  */
 
 /** Closed enum of reason codes Agent A may emit on the NEEDS_HUMAN path. */
-export type AgentAReasonCode = 'missing-prereq' | 'spec-too-vague' | 'files-conflict' | 'needs-human'
+type AgentAReasonCode = 'missing-prereq' | 'spec-too-vague' | 'files-conflict' | 'needs-human'
 
 const VALID_REASON_CODES: readonly AgentAReasonCode[] = [
   'missing-prereq',
