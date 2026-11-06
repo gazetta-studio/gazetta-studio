@@ -17,7 +17,7 @@ import { createContentRoot } from '../src/content-root.js'
 import { createHistoryProvider } from '../src/history-provider.js'
 import { rebuildAllDepIndices } from '../src/publish-rendered.js'
 import { loadSite } from '../src/site-loader.js'
-import type { TargetConfig } from '../src/types.js'
+import type { SiteManifest, TargetConfig } from '../src/types.js'
 import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
 
 const HOME_V1 = JSON.stringify({ route: '/', template: 'page-default', components: ['@header'] })
@@ -40,16 +40,29 @@ async function homeEdges(storage: MemoryStorage) {
   }
 }
 
-/** Mount the history routes over one target `t` of the given type. */
-function mount(storage: MemoryStorage, type: 'static' | 'esi') {
-  const source = createSourceContext({ storage: memoryStorage(), siteDir: '', projectSiteDir: '/test-project' })
+/**
+ * Mount the history routes over one target `t`. Defaults to a staging
+ * target, which isn't editable; `manifest` is the site's manifest.
+ */
+function mount(
+  storage: MemoryStorage,
+  type: 'static' | 'esi',
+  extra: Partial<TargetConfig> = {},
+  manifest?: SiteManifest,
+) {
+  const source = createSourceContext({
+    storage: memoryStorage(),
+    siteDir: '',
+    projectSiteDir: '/test-project',
+    manifest,
+  })
   const app = new Hono<AuditEnv>()
   app.use('/api/*', principalMiddleware())
   app.use('/api/*', async (c, next) => {
     c.set('audit', { strict: false, record: async () => ({ succeeded: 1, failed: 0 }) } as unknown as AuditContext)
     await next()
   })
-  const config = { storage, type, publicStorage: false } as TargetConfig
+  const config = { storage, type, environment: 'staging', publicStorage: false, ...extra } as TargetConfig
   app.route('/api/v1', historyRoutes(staticSourceResolver(source), new Map([['t', storage]]), { t: config }))
   return app
 }
@@ -76,6 +89,35 @@ describe('history restore rebuilds the indices for the target type', () => {
     const res = await mount(storage, type).request(`/api/v1/history/restore?target=t&id=${r1.id}`, { method: 'POST' })
     expect(res.status).toBe(200)
     expect(await homeEdges(storage)).toEqual(expected)
+  })
+
+  it('keeps direct edges on an editable static target, as its saves write', async () => {
+    const { storage, r1 } = await seededTarget()
+    const app = mount(storage, 'static', { environment: 'local', editable: true })
+    await app.request(`/api/v1/history/restore?target=t&id=${r1.id}`, { method: 'POST' })
+    expect(await homeEdges(storage)).toEqual({ header: true, logo: false, brand: false })
+  })
+
+  it("follows a page's language to the fragments' versions in that language", async () => {
+    // Only the French header uses @logo, so only the French page bakes it.
+    const storage = memoryStorage()
+    const history = createHistoryProvider({ storage })
+    const files = {
+      ...FILES,
+      'fragments/header/fragment.json': JSON.stringify({ template: 'header-layout', components: [] }),
+      'fragments/header/fragment.fr.json': JSON.stringify({ template: 'header-layout', components: ['@logo'] }),
+      'pages/home/page.json': HOME_V1,
+      'pages/home/page.fr.json': HOME_V1,
+    }
+    const r1 = await history.recordRevision({ operation: 'publish', items: new Map(Object.entries(files)) })
+    await history.recordRevision({ operation: 'publish', items: new Map([['pages/home/page.json', HOME_V2]]) })
+    storage.seed({ ...files, 'pages/home/page.json': HOME_V2 })
+    const manifest = { name: 'x', locales: { default: 'en', supported: ['en', 'fr'] } } as SiteManifest
+    await mount(storage, 'static', {}, manifest).request(`/api/v1/history/restore?target=t&id=${r1.id}`, {
+      method: 'POST',
+    })
+    expect(await exists(storage, '.gazetta/fragment-deps/logo/pages.home:fr')).toBe(true)
+    expect(await exists(storage, '.gazetta/fragment-deps/logo/pages.home')).toBe(false)
   })
 
   it('keeps direct edges for fragments on a static target', async () => {
@@ -107,6 +149,17 @@ describe('rebuildAllDepIndices (reindex)', () => {
     const { storage, site } = await siteOn({ ...FILES, 'pages/home/page.json': HOME_V1 })
     await rebuildAllDepIndices(site, storage, '')
     expect(await homeEdges(storage)).toEqual({ header: true, logo: false, brand: false })
+  })
+
+  it("keeps direct edges for an archived page's language version, as publish reads the base page", async () => {
+    const archived = JSON.stringify({ route: '/', template: 'page-default', components: ['@header'], archived: true })
+    const { storage, site } = await siteOn({
+      ...FILES,
+      'pages/home/page.json': archived,
+      'pages/home/page.fr.json': HOME_V1,
+    })
+    await rebuildAllDepIndices(site, storage, '', { flattenStaticPages: true })
+    expect(await exists(storage, '.gazetta/fragment-deps/logo/pages.home:fr')).toBe(false)
   })
 
   it('keeps direct edges for an archived page', async () => {

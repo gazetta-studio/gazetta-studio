@@ -19,7 +19,7 @@
 
 import { createRoute } from '@hono/zod-openapi'
 import type { StorageProvider, TargetConfig } from '../../types.js'
-import { historyOffReason, isHistoryEnabled, getHistoryRetention, getType } from '../../types.js'
+import { historyOffReason, isHistoryEnabled, getHistoryRetention, getType, isEditable } from '../../types.js'
 import { createHistoryProvider } from '../../history-provider.js'
 import { restoreRevision } from '../../history-restorer.js'
 import { createContentRoot } from '../../content-root.js'
@@ -183,7 +183,8 @@ export function historyRoutes(
       contentRoot,
       revisionId: list[1].id,
       message: `Undo ${list[0].operation} (rev ${list[0].id})`,
-      flattenStaticPages: getType(config) === 'static',
+      flattenStaticPages: getType(config) === 'static' && !isEditable(config),
+      siteManifest: source.manifest,
     })
     // Restoring on the source target rewrites the manifests we summarize
     // through `/api/pages` and `/api/fragments`. Other targets share no
@@ -217,7 +218,8 @@ export function historyRoutes(
         contentRoot,
         revisionId,
         message: `Rollback to ${revisionId}`,
-        flattenStaticPages: getType(config) === 'static',
+        flattenStaticPages: getType(config) === 'static' && !isEditable(config),
+        siteManifest: source.manifest,
       })
       if (targetName === source.targetName) {
         await Promise.all([source.cache.invalidatePrefix('pages:'), source.cache.invalidatePrefix('fragments:')])

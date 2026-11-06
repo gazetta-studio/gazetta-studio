@@ -63,8 +63,9 @@ export async function rebuildDepIndex(
   const writes: Promise<void>[] = []
   for (const { name, page, locale } of allPageEntries(sourceSite)) {
     const item = locale ? { source: 'page' as const, name, locale } : { source: 'page' as const, name }
-    // An archived page publishes a marker, not baked HTML, so it keeps direct edges.
-    if (flatten && !isArchived(page)) {
+    // An archived page publishes a marker, not baked HTML, so it keeps
+    // direct edges. Publish reads the archive state from the base page.
+    if (flatten && !isArchived(sourceSite.pages.get(name) ?? page)) {
       const baked = flattenStaticPageDeps(sourceSite, page, { locale, resolvedLocales })
       writes.push(replaceItemEdges(rel, destRoot, item, rel === FRAGMENT_DEPS ? baked.fragments : baked.assets))
     } else {
