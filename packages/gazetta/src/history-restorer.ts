@@ -25,6 +25,7 @@
 import { currentOrigin, originFields } from './request-origin.js'
 import type { ContentRoot } from './content-root.js'
 import type { HistoryProvider, Revision, RevisionManifest, RevisionOperation } from './history.js'
+import type { SiteManifest } from './types.js'
 
 export interface RestoreRevisionOptions {
   /** HistoryProvider for the target being restored. */
@@ -37,8 +38,14 @@ export interface RestoreRevisionOptions {
   author?: string
   /** Human-readable note ("Undo publish from local"). */
   message?: string
-  /** The target is static: its rebuilt indices get the flattened page edges publish writes. */
+  /**
+   * The target is static and not editable: its rebuilt indices get the
+   * flattened page edges publish writes there. An editable target keeps
+   * direct edges, as its saves write.
+   */
   flattenStaticPages?: boolean
+  /** The site's manifest, so the rebuild resolves language versions as publish does. */
+  siteManifest?: SiteManifest
 }
 
 /**
@@ -98,7 +105,7 @@ export async function restoreRevision(opts: RestoreRevisionOptions): Promise<Rev
     try {
       const { loadSite } = await import('./site-loader.js')
       const { rebuildAllDepIndices } = await import('./publish-rendered.js')
-      const site = await loadSite({ contentRoot, manifest: { name: '(history-restore)' } })
+      const site = await loadSite({ contentRoot, manifest: opts.siteManifest ?? { name: '(history-restore)' } })
       await rebuildAllDepIndices(site, contentRoot.storage, contentRoot.rootPath, {
         flattenStaticPages: opts.flattenStaticPages,
       })

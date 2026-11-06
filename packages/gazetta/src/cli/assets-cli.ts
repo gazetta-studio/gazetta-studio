@@ -204,11 +204,7 @@ async function runReindex(opts: { siteDir: string; targetName?: string; sink: Ou
 
   const site = await loadSite({ contentRoot: source.contentRoot, manifest })
   const t0 = Date.now()
-  const { getType } = await import('../types.js')
-  const targetConfig = source.targetName ? manifest.targets?.[source.targetName] : undefined
-  await rebuildAllDepIndices(site, source.contentRoot.storage, source.contentRoot.rootPath, {
-    flattenStaticPages: targetConfig ? getType(targetConfig) === 'static' : false,
-  })
+  await rebuildAllDepIndices(site, source.contentRoot.storage, source.contentRoot.rootPath)
   const elapsed = Date.now() - t0
 
   sink.line(`✓ Rebuilt dep indices for ${site.pages.size} page(s) + ${site.fragments.size} fragment(s) in ${elapsed}ms`)

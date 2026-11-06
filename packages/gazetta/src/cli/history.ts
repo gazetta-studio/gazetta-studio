@@ -19,14 +19,23 @@ import { createInterface } from 'node:readline/promises'
 import { createHistoryProvider } from '../history-provider.js'
 import { restoreRevision } from '../history-restorer.js'
 import { createContentRoot } from '../content-root.js'
-import { historyOffReason, isHistoryEnabled, getHistoryRetention, getEnvironment, getType } from '../types.js'
-import type { TargetConfig } from '../types.js'
+import {
+  historyOffReason,
+  isHistoryEnabled,
+  getHistoryRetention,
+  getEnvironment,
+  getType,
+  isEditable,
+} from '../types.js'
+import type { SiteManifest, TargetConfig } from '../types.js'
 
 /** Shared context passed to every command handler. */
 export interface HistoryCommandContext {
   siteDir: string
   targetName: string
   config: TargetConfig
+  /** The site's manifest; a restore uses its languages to rebuild the indices. */
+  manifest?: SiteManifest
 }
 
 /** Format an ISO timestamp as "Apr 16, 2026 · 11:05" for humans. */
@@ -140,7 +149,8 @@ export async function runHistoryUndo(ctx: HistoryCommandContext, opts: { yes?: b
     contentRoot,
     revisionId: prior.id,
     message: `Undo ${head.operation} (rev ${head.id})`,
-    flattenStaticPages: getType(ctx.config) === 'static',
+    flattenStaticPages: getType(ctx.config) === 'static' && !isEditable(ctx.config),
+    siteManifest: ctx.manifest,
   })
   console.log(
     `\n  ✓ Undone. ${ctx.targetName} is now at ${prior.id} (${prior.operation} @ ${formatTimestamp(prior.timestamp)})`,
@@ -178,7 +188,8 @@ export async function runHistoryRollback(
     contentRoot,
     revisionId,
     message: `Rollback to ${revisionId}`,
-    flattenStaticPages: getType(ctx.config) === 'static',
+    flattenStaticPages: getType(ctx.config) === 'static' && !isEditable(ctx.config),
+    siteManifest: ctx.manifest,
   })
   console.log(
     `\n  ✓ Rolled back. ${ctx.targetName} is now at ${revisionId} (${target.operation} @ ${formatTimestamp(target.timestamp)})`,
