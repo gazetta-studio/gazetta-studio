@@ -14,7 +14,7 @@ import { resolveAltConfig } from '../../alt/config.js'
 import { inspectTarget } from '../../runtime/runtime-capabilities.js'
 import { scanTemplates, type TemplateInfo } from '../../templates-scan.js'
 import { createContentRoot } from '../../content-root.js'
-import { denyWithoutCapability, requireCapability } from '../middleware/capability.js'
+import { denyWithoutCapability, requireCapability, requireCapabilityOr } from '../middleware/capability.js'
 import { problem, problemFrom, type ProblemResponse } from '../problem.js'
 import { capabilityGrants, type Principal } from '../../auth/index.js'
 import type { Context } from 'hono'
@@ -143,7 +143,8 @@ const postPublishAudit = createRoute({
   method: 'post',
   path: '/publish/audit',
   summary: 'Run the pre-publish audit for items about to be published',
-  middleware: [requireCapability('publish:non-production')] as const,
+  // Read-only, so someone who can only request a publish runs it too (#1787).
+  middleware: [requireCapabilityOr('publish:non-production', 'publish:request')] as const,
   request: {
     query: PublishAuditQuerySchema,
     body: { required: true, content: { 'application/json': { schema: PublishAuditRequestSchema } } },
@@ -1379,6 +1380,20 @@ export function publishRoutes(
     // is written before this check.
     const fetchProductionForbidden = await productionGate(c, [destination.targetName ?? body.destination])
     if (fetchProductionForbidden) return fetchProductionForbidden
+
+    // A fetch writes into its destination directly, without the shared
+    // target-publish function, so it can't go through the publish-approval
+    // gate. Into a target that requires approval it's refused before any
+    // write until a fetch can be a publish request (#1787).
+    const fetchInto = destination.targetName ?? body.destination
+    if (fetchInto && isGated(fetchInto)) {
+      return problem(
+        c,
+        400,
+        'BAD_REQUEST',
+        `${fetchInto} requires publish approval, so fetching into it isn't supported yet. Publish into it from another target instead, which creates a publish request.`,
+      )
+    }
 
     let items: string[]
     if (body.items?.length) {

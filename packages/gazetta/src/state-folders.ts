@@ -44,7 +44,13 @@ export type StateFolder = keyof typeof STATE_FOLDERS
  * deletes exactly these. The dependency indices aren't safe on public
  * targets either, but they aren't sensitive, so they aren't listed.
  */
-export const SENSITIVE_STATE_FOLDERS = ['history', 'audit', 'review', 'auth'] as const satisfies readonly StateFolder[]
+export const SENSITIVE_STATE_FOLDERS = [
+  'history',
+  'audit',
+  'review',
+  'auth',
+  'publish-requests',
+] as const satisfies readonly StateFolder[]
 
 export type SensitiveStateFolder = (typeof SENSITIVE_STATE_FOLDERS)[number]
 

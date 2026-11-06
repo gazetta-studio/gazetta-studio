@@ -161,3 +161,19 @@ export function requireCapability(capability: string) {
     await next()
   })
 }
+
+/**
+ * Lets the request through when the principal holds `alternative`, and
+ * otherwise checks `capability` as `requireCapability` does. For a
+ * read-only route two capabilities each justify (#1787: the pre-publish
+ * audit serves someone who publishes and someone who requests a publish).
+ */
+export function requireCapabilityOr(capability: string, alternative: string) {
+  return createMiddleware<AuditEnv>(async (c, next) => {
+    const principal = c.get('principal')
+    if (!isAnonymous(principal) && capabilityGrants(principal.capabilities, alternative)) return next()
+    const denied = await denyWithoutCapability(c, capability)
+    if (denied) return denied
+    await next()
+  })
+}
