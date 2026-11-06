@@ -60,7 +60,7 @@ describe('isStatePath', () => {
 
 describe('SENSITIVE_STATE_FOLDERS', () => {
   it('is history, audit, review and auth, each a registry key unsafe on public targets', () => {
-    expect(SENSITIVE_STATE_FOLDERS).toEqual(['history', 'audit', 'review', 'auth'])
+    expect(SENSITIVE_STATE_FOLDERS).toEqual(['history', 'audit', 'review', 'auth', 'publish-requests'])
     for (const folder of SENSITIVE_STATE_FOLDERS) {
       expect(STATE_FOLDERS[folder].safeOnPublic).toBe(false)
     }

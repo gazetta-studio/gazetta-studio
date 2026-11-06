@@ -63,7 +63,7 @@ An editable filesystem target's storage counts as private automatically — an e
 
 ## `publicStorage`
 
-Whether visitors can reach the target's storage directly — a host serving the bucket or folder as the site. A public target keeps no history, audit, review or CLI sign-in state in its storage, and no dependency indices for now. So on a public target:
+Whether visitors can reach the target's storage directly — a host serving the bucket or folder as the site. A public target keeps no history, audit, review, CLI sign-in or publish request state in its storage, and no dependency indices for now. So on a public target:
 
 - Undo, rollback and the history list are refused: history is off because the storage is public. To go back, restore the content on a private target and publish again.
 - Review is off, whatever `reviewWorkflow` says.

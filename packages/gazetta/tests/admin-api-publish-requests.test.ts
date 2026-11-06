@@ -20,6 +20,8 @@ import { starterTemplatesDir } from './_helpers/starter.js'
 
 const editor = { 'X-Forwarded-User': 'alice' }
 const viewer = { 'X-Forwarded-User': 'vic', 'X-Forwarded-Groups': 'viewers' }
+/** Holds `publish:request` but not `publish:non-production`. */
+const requester = { 'X-Forwarded-User': 'rae', 'X-Forwarded-Groups': 'requesters' }
 
 interface Fixture {
   app: ReturnType<typeof createAdminApp>
@@ -29,7 +31,7 @@ interface Fixture {
   calls: string[]
 }
 
-function build(opts: { cancelRequest?: boolean } = {}): Fixture {
+function build(opts: { cancelRequest?: boolean; gatedSource?: boolean } = {}): Fixture {
   const source = memoryStorage()
   source.seed({
     'pages/home/page.json': JSON.stringify({
@@ -74,6 +76,7 @@ function build(opts: { cancelRequest?: boolean } = {}): Fixture {
       environment: 'local' as const,
       editable: true,
       publicStorage: false,
+      ...(opts.gatedSource ? { requiresPublishApproval: true } : {}),
     },
     staging: { storage: staging, type: 'esi' as const, environment: 'staging' as const, publicStorage: false },
     production: {
@@ -92,7 +95,12 @@ function build(opts: { cancelRequest?: boolean } = {}): Fixture {
       auth: {
         trust: 'forwarded-user',
         allowAnyOrigin: true,
-        roleMapping: { claim: 'groups', map: { admins: 'admin', viewers: 'viewer' }, defaultRole: 'editor' },
+        roles: { requester: { capabilities: ['read:pages', 'publish:request'] } },
+        roleMapping: {
+          claim: 'groups',
+          map: { admins: 'admin', viewers: 'viewer', requesters: 'requester' },
+          defaultRole: 'editor',
+        },
       },
     },
   } as SiteManifest
@@ -278,5 +286,36 @@ describe('publish requests on a target that requires approval', { timeout: 30000
     expect(results[0]).toMatchObject({ target: 'production', outcome: 'requested' })
     expect(JSON.parse(await f.source.readFile(requestFiles(f.source)[0])).requestedBy).toBe('bob')
     expect(await f.production.exists('pages/home/page.json')).toBe(false)
+  })
+})
+
+describe('around publish requests', { timeout: 30_000 }, () => {
+  it('refuses a fetch into a target that requires publish approval, writing nothing', async () => {
+    const f = build({ gatedSource: true })
+    f.staging.seed({ 'pages/promo/page.json': JSON.stringify({ template: 'page-default' }) })
+    const before = await f.source.exists('pages/promo/page.json')
+    const res = await f.app.request('/api/v1/fetch', {
+      method: 'POST',
+      headers: { ...editor, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: 'staging' }),
+    })
+    expect(res.status).toBe(400)
+    expect(((await res.json()) as { detail: string }).detail).toBe(
+      "local requires publish approval, so fetching into it isn't supported yet. Publish into it from another target instead, which creates a publish request.",
+    )
+    expect(before).toBe(false)
+    expect(await f.source.exists('pages/promo/page.json')).toBe(false)
+  })
+
+  it('lets someone who can only request a publish run the pre-publish audit', async () => {
+    const f = build()
+    const audit = (headers: Record<string, string>) =>
+      f.app.request('/api/v1/publish/audit', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: 'production', items: [{ kind: 'page', name: 'home' }] }),
+      })
+    expect((await audit(requester)).status).toBe(200)
+    expect((await audit(viewer)).status).toBe(403)
   })
 })
