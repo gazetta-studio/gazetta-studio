@@ -64,6 +64,7 @@ export const AuditOutcomeSchema = z.enum([
   'unauthenticated',
   'hook-cancelled',
   'timeout',
+  'write-failed',
 ])
 export type AuditOutcomeWire = z.infer<typeof AuditOutcomeSchema>
 

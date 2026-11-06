@@ -36,6 +36,7 @@ import { isSafeItemName } from '../../item-name.js'
 import { PublishAuditRequestSchema } from '../schemas/validation.js'
 import { apiApp, json, problems } from '../openapi.js'
 import { publishResultEvent, publishStartEvent, type PublishAuditBase } from '../../publish-audit-events.js'
+import type { PublishFailedItem } from '../../publish-target.js'
 import type { AuditContext } from '../../audit/index.js'
 import { TargetInfoSchema } from '../schemas/targets.js'
 import { DependentsResponseSchema } from '../schemas/dependents.js'
@@ -203,6 +204,24 @@ async function recordTargetResults(
     const ev = publishResultEvent(r, base)
     if (strict && ev.outcome === 'success') continue
     await audit.record(ev)
+  }
+}
+
+/**
+ * Strict mode refused the publish because some targets' events failed to
+ * record. The targets that were recorded get a `write-failed` event, as
+ * nothing reached them.
+ */
+async function recordRefused(
+  audit: AuditContext,
+  targets: readonly string[],
+  pre: readonly { failed: number }[],
+  base: PublishAuditBase,
+): Promise<void> {
+  for (const [i, t] of targets.entries()) {
+    if (pre[i].failed === 0) {
+      await audit.record(publishResultEvent({ target: t, success: false, error: 'audit recording failed' }, base))
+    }
   }
 }
 
@@ -608,6 +627,9 @@ export function publishRoutes(
       // sequentially per target); the event VALUES (current/total) are
       // computed in the callbacks exactly as before.
       const progressQueue: PublishProgress[] = []
+      // The items publishRun failed on this target, kept for a target
+      // that then fails as a whole, so its result keeps their reasons.
+      let failedOnTarget: PublishFailedItem[] = []
       try {
         let totalFiles = 0
 
@@ -705,6 +727,7 @@ export function publishRoutes(
         // path used to throw so the per-target try/catch projects to
         // `target-result success: false`.
         const tr = shared.run
+        failedOnTarget = [...shared.failedItems]
         if (tr?.failed) {
           throw new Error(tr.failureReason ?? 'all items failed')
         }
@@ -779,7 +802,13 @@ export function publishRoutes(
         yield { kind: 'target-result', result }
       } catch (err) {
         const error = (err as Error).message
-        const result: PublishResult = { target: targetName, success: false, error, copiedFiles: 0 }
+        const result: PublishResult = {
+          target: targetName,
+          success: false,
+          error,
+          copiedFiles: 0,
+          ...(failedOnTarget.length > 0 ? { failedItems: failedOnTarget } : {}),
+        }
         results.push(result)
         console.error(`    ${targetName}: FAILED — ${error}`)
         yield { kind: 'target-result', result }
@@ -927,6 +956,9 @@ export function publishRoutes(
         body.targets.map(t => c.var.audit.record(publishStartEvent(t, { items: finalItems, source: body.source }))),
       )
       if (pre.some(r => r.failed > 0)) {
+        // Targets whose event was recorded get their compensating event:
+        // nothing was written to them.
+        await recordRefused(c.var.audit, body.targets, pre, { items: finalItems, source: body.source })
         return problem(c, 500, 'AUDIT_FAILED', 'Audit recording failed; publish refused (strict mode)')
       }
     }
@@ -1075,6 +1107,9 @@ export function publishRoutes(
         body.targets.map(t => c.var.audit.record(publishStartEvent(t, { items: finalItems, source: body.source }))),
       )
       if (pre.some(r => r.failed > 0)) {
+        // Targets whose event was recorded get their compensating event:
+        // nothing was written to them.
+        await recordRefused(c.var.audit, body.targets, pre, { items: finalItems, source: body.source })
         return problem(c, 500, 'AUDIT_FAILED', 'Audit recording failed; publish refused (strict mode)')
       }
     }
@@ -1087,10 +1122,14 @@ export function publishRoutes(
       // publish; a fatal (yielded or thrown) gets one compensating
       // 'write-failed' event (#1393).
       const auditBase = { items: finalItems, source: body.source }
+      // Targets whose result already streamed keep it; a thrown error
+      // fails only the ones still to come.
+      const finishedTargets = new Set<string>()
       const recordWriteFailed = async (error?: string): Promise<void> => {
         if (!strictPreRecord || recordedWriteFailed) return
         recordedWriteFailed = true
         for (const t of body.targets) {
+          if (finishedTargets.has(t)) continue
           await c.var.audit.record(publishResultEvent({ target: t, success: false, error }, auditBase))
         }
       }
@@ -1102,9 +1141,16 @@ export function publishRoutes(
           if (ev.kind === 'fatal') {
             await recordWriteFailed(ev.error)
           }
+          if (ev.kind === 'target-result') {
+            finishedTargets.add(ev.result.target)
+            // Under strict mode a failed target's write-failed event is
+            // recorded now, so a later thrown error doesn't record it twice.
+            if (strictPreRecord) await recordTargetResults(c.var.audit, [ev.result], auditBase, true)
+          }
           if (ev.kind === 'done') {
             // One event per target, as the synchronous /api/publish records.
-            await recordTargetResults(c.var.audit, ev.results, auditBase, strictPreRecord)
+            // Strict mode recorded each target's failure at its target-result.
+            if (!strictPreRecord) await recordTargetResults(c.var.audit, ev.results, auditBase, false)
             recordedSuccess = true
             collectedResults.push(...ev.results)
           }

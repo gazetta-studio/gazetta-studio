@@ -629,6 +629,7 @@ const (
 	GetApiV1Audit200JSONResponseBodyEventsOutcomeTimeout          GetApiV1Audit200JSONResponseBodyEventsOutcome = "timeout"
 	GetApiV1Audit200JSONResponseBodyEventsOutcomeUnauthenticated  GetApiV1Audit200JSONResponseBodyEventsOutcome = "unauthenticated"
 	GetApiV1Audit200JSONResponseBodyEventsOutcomeValidationFailed GetApiV1Audit200JSONResponseBodyEventsOutcome = "validation-failed"
+	GetApiV1Audit200JSONResponseBodyEventsOutcomeWriteFailed      GetApiV1Audit200JSONResponseBodyEventsOutcome = "write-failed"
 )
 
 // Valid indicates whether the value is a known member of the GetApiV1Audit200JSONResponseBodyEventsOutcome enum.
@@ -645,6 +646,8 @@ func (e GetApiV1Audit200JSONResponseBodyEventsOutcome) Valid() bool {
 	case GetApiV1Audit200JSONResponseBodyEventsOutcomeUnauthenticated:
 		return true
 	case GetApiV1Audit200JSONResponseBodyEventsOutcomeValidationFailed:
+		return true
+	case GetApiV1Audit200JSONResponseBodyEventsOutcomeWriteFailed:
 		return true
 	default:
 		return false
@@ -1241,6 +1244,7 @@ const (
 	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcomeTimeout          GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcome = "timeout"
 	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcomeUnauthenticated  GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcome = "unauthenticated"
 	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcomeValidationFailed GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcome = "validation-failed"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcomeWriteFailed      GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcome = "write-failed"
 )
 
 // Valid indicates whether the value is a known member of the GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcome enum.
@@ -1257,6 +1261,8 @@ func (e GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcome) Valid() boo
 	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcomeUnauthenticated:
 		return true
 	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcomeValidationFailed:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryOutcomeWriteFailed:
 		return true
 	default:
 		return false
@@ -1568,6 +1574,7 @@ const (
 	GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcomeTimeout          GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcome = "timeout"
 	GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcomeUnauthenticated  GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcome = "unauthenticated"
 	GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcomeValidationFailed GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcome = "validation-failed"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcomeWriteFailed      GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcome = "write-failed"
 )
 
 // Valid indicates whether the value is a known member of the GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcome enum.
@@ -1584,6 +1591,8 @@ func (e GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcome) Valid() bool {
 	case GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcomeUnauthenticated:
 		return true
 	case GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcomeValidationFailed:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryOutcomeWriteFailed:
 		return true
 	default:
 		return false
@@ -19065,8 +19074,12 @@ type PostApiV1PublishResponse struct {
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *struct {
 		Results []struct {
-			CopiedFiles  float64 `json:"copiedFiles"`
-			Error        *string `json:"error,omitempty"`
+			CopiedFiles float64 `json:"copiedFiles"`
+			Error       *string `json:"error,omitempty"`
+			FailedItems *[]struct {
+				Item   string `json:"item"`
+				Reason string `json:"reason"`
+			} `json:"failedItems,omitempty"`
 			NotPublished *[]struct {
 				Assets []string `json:"assets"`
 				Item   string   `json:"item"`
@@ -19080,8 +19093,12 @@ type PostApiV1PublishResponse struct {
 	// JSON207 the response for an HTTP 207 `application/json` response
 	JSON207 *struct {
 		Results []struct {
-			CopiedFiles  float64 `json:"copiedFiles"`
-			Error        *string `json:"error,omitempty"`
+			CopiedFiles float64 `json:"copiedFiles"`
+			Error       *string `json:"error,omitempty"`
+			FailedItems *[]struct {
+				Item   string `json:"item"`
+				Reason string `json:"reason"`
+			} `json:"failedItems,omitempty"`
 			NotPublished *[]struct {
 				Assets []string `json:"assets"`
 				Item   string   `json:"item"`
@@ -19107,8 +19124,12 @@ type PostApiV1PublishResponse struct {
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
 func (r PostApiV1PublishResponse) GetJSON200() *struct {
 	Results []struct {
-		CopiedFiles  float64 `json:"copiedFiles"`
-		Error        *string `json:"error,omitempty"`
+		CopiedFiles float64 `json:"copiedFiles"`
+		Error       *string `json:"error,omitempty"`
+		FailedItems *[]struct {
+			Item   string `json:"item"`
+			Reason string `json:"reason"`
+		} `json:"failedItems,omitempty"`
 		NotPublished *[]struct {
 			Assets []string `json:"assets"`
 			Item   string   `json:"item"`
@@ -19125,8 +19146,12 @@ func (r PostApiV1PublishResponse) GetJSON200() *struct {
 // GetJSON207 returns the response for an HTTP 207 `application/json` response
 func (r PostApiV1PublishResponse) GetJSON207() *struct {
 	Results []struct {
-		CopiedFiles  float64 `json:"copiedFiles"`
-		Error        *string `json:"error,omitempty"`
+		CopiedFiles float64 `json:"copiedFiles"`
+		Error       *string `json:"error,omitempty"`
+		FailedItems *[]struct {
+			Item   string `json:"item"`
+			Reason string `json:"reason"`
+		} `json:"failedItems,omitempty"`
 		NotPublished *[]struct {
 			Assets []string `json:"assets"`
 			Item   string   `json:"item"`
@@ -26188,8 +26213,12 @@ func ParsePostApiV1PublishResponse(rsp *http.Response) (*PostApiV1PublishRespons
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
 			Results []struct {
-				CopiedFiles  float64 `json:"copiedFiles"`
-				Error        *string `json:"error,omitempty"`
+				CopiedFiles float64 `json:"copiedFiles"`
+				Error       *string `json:"error,omitempty"`
+				FailedItems *[]struct {
+					Item   string `json:"item"`
+					Reason string `json:"reason"`
+				} `json:"failedItems,omitempty"`
 				NotPublished *[]struct {
 					Assets []string `json:"assets"`
 					Item   string   `json:"item"`
@@ -26208,8 +26237,12 @@ func ParsePostApiV1PublishResponse(rsp *http.Response) (*PostApiV1PublishRespons
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 207:
 		var dest struct {
 			Results []struct {
-				CopiedFiles  float64 `json:"copiedFiles"`
-				Error        *string `json:"error,omitempty"`
+				CopiedFiles float64 `json:"copiedFiles"`
+				Error       *string `json:"error,omitempty"`
+				FailedItems *[]struct {
+					Item   string `json:"item"`
+					Reason string `json:"reason"`
+				} `json:"failedItems,omitempty"`
 				NotPublished *[]struct {
 					Assets []string `json:"assets"`
 					Item   string   `json:"item"`
