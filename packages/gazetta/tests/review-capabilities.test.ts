@@ -129,11 +129,12 @@ describe('Cut #516 — review-workflow capability vocabulary', () => {
       expect(caps).not.toContain('review:approve')
     })
 
-    it('editor does NOT carry publish:request / publish:approve', () => {
-      // These pair with `requiresPublishApproval` workflows — a
-      // distinct archetype (publisher) per design-review-workflow.md.
+    it('editor carries publish:request but not publish:approve', () => {
+      // Editors request publishes to targets that require approval
+      // (design-review-workflow.md, "Settled by the plan review" item
+      // 13); approving stays with a custom publisher role.
       const caps = expandRole('editor') ?? []
-      expect(caps).not.toContain('publish:request')
+      expect(caps).toContain('publish:request')
       expect(caps).not.toContain('publish:approve')
     })
 
@@ -144,9 +145,9 @@ describe('Cut #516 — review-workflow capability vocabulary', () => {
       expect(capabilityGrants(BUILT_IN_ROLES.editor, 'review:submit')).toBe(true)
     })
 
-    it('editor still cannot approve, request, or publish-approve via existing wildcards', () => {
+    it('editor can request a publish but not approve reviews or publishes', () => {
       expect(capabilityGrants(BUILT_IN_ROLES.editor, 'review:approve')).toBe(false)
-      expect(capabilityGrants(BUILT_IN_ROLES.editor, 'publish:request')).toBe(false)
+      expect(capabilityGrants(BUILT_IN_ROLES.editor, 'publish:request')).toBe(true)
       expect(capabilityGrants(BUILT_IN_ROLES.editor, 'publish:approve')).toBe(false)
     })
   })

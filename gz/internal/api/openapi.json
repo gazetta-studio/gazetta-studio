@@ -2725,6 +2725,7 @@
                               "review-approve",
                               "review-reject",
                               "review-withdraw",
+                              "publish-request",
                               "ai-suggest-alt",
                               "create-redirect",
                               "login-approve",
@@ -3502,6 +3503,7 @@
                               "review-approve",
                               "review-reject",
                               "review-withdraw",
+                              "publish-request",
                               "ai-suggest-alt",
                               "create-redirect",
                               "login-approve",
@@ -5786,6 +5788,16 @@
                               },
                               "required": ["item", "reason"]
                             }
+                          },
+                          "outcome": {
+                            "type": "string",
+                            "enum": ["published", "requested"]
+                          },
+                          "requestIds": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
                           }
                         },
                         "required": ["target", "success", "copiedFiles"]
@@ -5861,6 +5873,16 @@
                                 }
                               },
                               "required": ["item", "reason"]
+                            }
+                          },
+                          "outcome": {
+                            "type": "string",
+                            "enum": ["published", "requested"]
+                          },
+                          "requestIds": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
                             }
                           }
                         },
@@ -8231,6 +8253,7 @@
                               "review-approve",
                               "review-reject",
                               "review-withdraw",
+                              "publish-request",
                               "ai-suggest-alt",
                               "create-redirect",
                               "login-approve",

@@ -22,6 +22,9 @@ export const STATE_FOLDERS = {
   history: { safeOnPublic: false },
   audit: { safeOnPublic: false },
   review: { safeOnPublic: false },
+  // Publish requests, on the source the author publishes from
+  // (design-review-workflow.md, "Settled by the plan review" item 2).
+  'publish-requests': { safeOnPublic: false },
   'fragment-deps': { safeOnPublic: false },
   'asset-refs': { safeOnPublic: false },
   'alias-targets': { safeOnPublic: false },

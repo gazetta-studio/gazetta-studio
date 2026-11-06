@@ -232,10 +232,13 @@ export type BuiltInCapability =
  * `editor` carries `review:submit` so the editor archetype can
  * push their work into the review workflow without an admin
  * role bump; `review:approve` lives on operator-defined
- * `reviewer` custom roles.
+ * `reviewer` custom roles. `publish:request` lets an editor's
+ * publish to a target that requires approval create the request
+ * (design-review-workflow.md, "Settled by the plan review" item 13);
+ * `publish:approve` stays off the built-in roles but admin.
  */
 export const BUILT_IN_ROLES: Readonly<Record<string, ReadonlyArray<BuiltInCapability>>> = {
   admin: ['*'],
-  editor: ['read:*', 'edit:*', 'publish:non-production', 'review:submit'],
+  editor: ['read:*', 'edit:*', 'publish:non-production', 'review:submit', 'publish:request'],
   viewer: ['read:*'],
 }

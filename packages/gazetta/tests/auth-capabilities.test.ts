@@ -120,7 +120,13 @@ describe('expandRole (Cut 6)', () => {
     // editor carries review:submit per design-review-workflow.md
     // "Capability additions": the editor archetype can push work
     // into the review workflow without an admin role bump.
-    expect(expandRole('editor')).toEqual(['read:*', 'edit:*', 'publish:non-production', 'review:submit'])
+    expect(expandRole('editor')).toEqual([
+      'read:*',
+      'edit:*',
+      'publish:non-production',
+      'review:submit',
+      'publish:request',
+    ])
     expect(expandRole('viewer')).toEqual(['read:*'])
   })
 

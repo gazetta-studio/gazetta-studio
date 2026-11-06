@@ -79,6 +79,7 @@ export type AuditAction =
   | 'review-approve'
   | 'review-reject'
   | 'review-withdraw'
+  | 'publish-request'
   | 'ai-suggest-alt'
   | 'create-redirect'
   | 'login-approve'

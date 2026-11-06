@@ -55,9 +55,11 @@ import { eventFromRegistration } from './audit-emitter.js'
 import type {
   AfterLoadHook,
   AfterPublishHook,
+  AfterReviewTransitionHook,
   AfterSaveHook,
   AfterUploadHook,
   BeforePublishHook,
+  BeforeReviewTransitionHook,
   BeforeSaveHook,
   BeforeUploadHook,
   HookContext,
@@ -66,6 +68,7 @@ import type {
   HookScope,
   PublishHookResult,
   PublishItem,
+  ReviewTransition,
   SaveResult,
   UploadHookAsset,
   UploadHookPayload,
@@ -184,6 +187,50 @@ export async function dispatchAfterUpload(
 ): Promise<void> {
   const handlers = registry.getByPhase('afterUpload')
   await runAfterChain(handlers, ctx, async reg => (reg.handler as AfterUploadHook)(asset, result, ctx))
+}
+
+/** The review-lifecycle `before*` phases (design-review-workflow.md "Hook firings"). */
+export type BeforeReviewPhase =
+  | 'beforeSubmitForReview'
+  | 'beforeApprove'
+  | 'beforeReject'
+  | 'beforePublishRequest'
+  | 'beforePublishApprove'
+
+/** The review-lifecycle `after*` phases. */
+export type AfterReviewPhase =
+  | 'afterSubmitForReview'
+  | 'afterApprove'
+  | 'afterReject'
+  | 'afterPublishRequest'
+  | 'afterPublishApprove'
+
+/** Chain a review-lifecycle `before*` phase. A throwing handler cancels the transition. */
+export async function dispatchBeforeReviewTransition(
+  registry: HookRegistry,
+  phase: BeforeReviewPhase,
+  transition: ReviewTransition,
+  ctx: HookContext,
+): Promise<ReviewTransition> {
+  let current = transition
+  for (const reg of registry.getByPhase(phase)) {
+    current = await runWithTimeout(phase, reg as HookRegistration<BeforeReviewPhase>, ctx, async () =>
+      (reg.handler as BeforeReviewTransitionHook)(current, ctx),
+    )
+  }
+  return current
+}
+
+/** Fan out a review-lifecycle `after*` phase in parallel; failures are logged, never thrown. */
+export async function dispatchAfterReviewTransition(
+  registry: HookRegistry,
+  phase: AfterReviewPhase,
+  transition: ReviewTransition,
+  ctx: HookContext,
+): Promise<void> {
+  await runAfterChain(registry.getByPhase(phase), ctx, async reg =>
+    (reg.handler as AfterReviewTransitionHook)(transition, ctx),
+  )
 }
 
 /**

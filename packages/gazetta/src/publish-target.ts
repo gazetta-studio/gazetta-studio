@@ -4,10 +4,12 @@
  * POST `/api/publish` and `/api/publish/stream`, and - in later cuts -
  * undo/rollback. Per target, in locked order:
  *
- *   0. publishApprovalGate - RESERVED no-op. Review workflow cuts
- *      12-13 build the real publish-approval gate here, before any
- *      write (design-publish-undo.md Q4 / design-target-removal.md
- *      Q13). Do not implement it in this cut.
+ *   0. publishApprovalGate (publish-approval-gate.ts, review workflow
+ *      cut 12) - before any write, history included. A target with
+ *      `requiresPublishApproval: true` gets publish requests on the
+ *      source instead of a publish, and nothing is written to it; with
+ *      no signed-in user (the CLI) it is refused; removals to it are
+ *      refused. Cut 13 adds the approved publish passing by request id.
  *   0b. Asset check - items using an asset whose files went after the
  *      snapshot was taken aren't published; the rest goes ahead (#1632).
  *   1. History record - one `publish` revision, baseline pre-publish.
@@ -69,6 +71,9 @@ import type { TemplateInfo } from './templates-scan.js'
 import type { PublishItemRef, PublishRunResult } from './publish-run.js'
 import type { PublishItemResult } from './publish-item.js'
 import { manifestPathsToRemove, removeItemFromTarget, type PublishRemovalRef } from './publish-remove.js'
+import { publishApprovalGate } from './publish-approval-gate.js'
+import type { PublishRequestRecord } from './review/publish-requests.js'
+import type { Principal } from './auth/index.js'
 
 export type { PublishRemovalRef } from './publish-remove.js'
 
@@ -115,6 +120,12 @@ export interface PublishToTargetInput {
    * sitemap no longer lists them; a failed run removes nothing.
    */
   readonly removals?: readonly PublishRemovalRef[]
+  /**
+   * The signed-in user the publish runs for (the admin passes it; the
+   * CLI passes none). On a target that requires publish approval the
+   * gate creates requests in this user's name, and refuses without one.
+   */
+  readonly requester?: Principal
   /** Progress events from publishRun, bridged to the caller's output. */
   readonly onProgress?: Parameters<typeof import('./publish-run.js').publishRun>[0]['onProgress']
   /**
@@ -137,6 +148,13 @@ export type PurgeOutcome =
 type PublishRunSiteManifest = Parameters<typeof import('./publish-run.js').publishRun>[0]['siteManifest']
 
 export interface PublishToTargetResult {
+  /**
+   * `requested` when the target requires publish approval: the gate
+   * created `requests` and nothing else ran. `published` otherwise.
+   */
+  readonly outcome: 'published' | 'requested'
+  /** The publish requests the gate created (empty unless `outcome` is `requested`). */
+  readonly requests: readonly PublishRequestRecord[]
   /** publishRun's per-target aggregate. */
   readonly run: PublishRunResult['targets'][number] | undefined
   /** Manifest files copied in step 2. */
@@ -180,22 +198,6 @@ function failedItemsOf(items: readonly PublishItemResult[]): PublishFailedItem[]
   )
 }
 
-/**
- * The approval gate's place (review workflow cuts 12-13 build the real
- * gate here). A publish must pass the gate before ANY write - before
- * the history record - so a refused publish leaves the target and its
- * history untouched. No-op in this cut by design; do not add logic.
- */
-async function publishApprovalGate(_input: PublishToTargetInput): Promise<void> {
-  // Reserved: design-publish-undo.md Q4, design-target-removal.md Q13.
-  // Gazetta tokens (design-agent-access.md Q20, Q29): on a target that
-  // needs approval, a token's publish creates the request here whether or
-  // not it's elevated; an elevation gives publish rights, never the
-  // approval. An un-elevated token reaches this gate only on such a
-  // target, so the capability check must let it through to create the
-  // request (today it answers ELEVATION_REQUIRED before getting here).
-}
-
 export async function publishToTarget(input: PublishToTargetInput): Promise<PublishToTargetResult> {
   const {
     targetName,
@@ -210,8 +212,35 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
   } = input
   const { site, sourceRoot } = snapshot
   const removals = input.removals ?? []
-  // Step 0 - the approval gate's place (no-op, see above).
-  await publishApprovalGate(input)
+  // Step 0 - the publish-approval gate, before any write (history
+  // included): a gated target gets requests on the source and nothing
+  // else runs; refusals throw before anything is written.
+  const gate = await publishApprovalGate({
+    targetName,
+    targetStorage,
+    targetConfig,
+    snapshot,
+    sourceName,
+    items: input.items,
+    templateInfos,
+    removals,
+    requester: input.requester,
+  })
+  if (gate.kind === 'requested') {
+    return {
+      outcome: 'requested',
+      requests: gate.requests,
+      run: undefined,
+      copiedFiles: 0,
+      generatedFiles: [],
+      deletedFiles: [],
+      purge: { kind: 'none' },
+      removed: [],
+      removalFailures: [],
+      notPublished: [],
+      failedItems: [],
+    }
+  }
 
   const targetRoot = createContentRoot(targetStorage)
   const targetType = targetConfig ? getType(targetConfig) : 'static'
@@ -294,6 +323,8 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
   } catch (err) {
     const failureReason = `source manifest copy failed: ${err instanceof Error ? err.message : String(err)}`
     return {
+      outcome: 'published',
+      requests: [],
       run: { name: targetName, failed: true, failureReason, filesWritten: 0, filesRemoved: 0 },
       copiedFiles: 0,
       generatedFiles: [],
@@ -344,6 +375,8 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
   // the edge keeps serving the last good generation).
   if (run?.failed) {
     return {
+      outcome: 'published',
+      requests: [],
       run,
       copiedFiles: copiedFiles + variantFiles,
       generatedFiles: [],
@@ -622,6 +655,8 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
   }
 
   return {
+    outcome: 'published',
+    requests: [],
     run,
     copiedFiles: copiedFiles + variantFiles,
     generatedFiles,
