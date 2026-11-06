@@ -10,6 +10,8 @@ export interface PublishResult {
   copiedFiles: number
   /** Items not published because an asset they use lost its files during the publish (#1632). */
   notPublished?: { item: string; assets: string[]; reason: string }[]
+  /** Items that failed to publish to this target (`pages/home:fr`), with the reason. */
+  failedItems?: { item: string; reason: string }[]
 }
 
 /**

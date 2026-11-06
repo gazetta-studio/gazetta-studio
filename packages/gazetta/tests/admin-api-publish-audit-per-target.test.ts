@@ -151,6 +151,14 @@ describe('a publish records one audit event per target', { timeout: 30_000 }, ()
     ])
   })
 
+  it.each(ROUTES)('%s: a target where every item fails keeps each item and its reason', async (_, path) => {
+    const app = build({ production: refusing(path => /^fragments\/[^/]+\/index/.test(path)) })
+    await publish(app, path)
+    const failed = (await publishEvents(app)).find(e => e.outcome === 'write-failed')!
+    expect(failed.metadata.failedItems?.map(f => f.item).sort()).toEqual(['fragments/footer', 'fragments/header'])
+    for (const f of failed.metadata.failedItems ?? []) expect(f.reason).toContain('write refused')
+  })
+
   it.each(ROUTES)(
     '%s: strict mode records each target before writing, then write-failed for the one that failed',
     async (_, path) => {

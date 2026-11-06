@@ -28,7 +28,8 @@ function event(target: string, base: PublishAuditBase, extra: Partial<RecordEven
     outcome: 'success',
     scope: { kind: 'site', name: target },
     ...extra,
-    metadata: { items: base.items, target, source: base.source, ...extra.metadata },
+    // `targets` kept for readers of the earlier one-event-per-publish shape.
+    metadata: { items: base.items, target, targets: [target], source: base.source, ...extra.metadata },
   }
 }
 
@@ -43,9 +44,12 @@ export function publishStartEvent(target: string, base: PublishAuditBase): Recor
  * failed as a whole failed every item, with its error as the reason.
  */
 export function publishResultEvent(result: PublishTargetOutcome, base: PublishAuditBase): RecordEventInput {
-  const failedItems = result.success
-    ? [...(result.failedItems ?? []), ...(result.notPublished ?? [])].map(f => ({ item: f.item, reason: f.reason }))
-    : base.items.map(item => ({ item, reason: result.error ?? 'unknown' }))
-  if (failedItems.length === 0) return event(result.target, base, {})
+  const listed = [...(result.failedItems ?? []), ...(result.notPublished ?? [])].map(f => ({
+    item: f.item,
+    reason: f.reason,
+  }))
+  if (result.success && listed.length === 0) return event(result.target, base, {})
+  const failedItems =
+    result.success || listed.length > 0 ? listed : base.items.map(item => ({ item, reason: result.error ?? 'unknown' }))
   return event(result.target, base, { outcome: 'write-failed', metadata: { failedItems } })
 }

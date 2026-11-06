@@ -2743,7 +2743,8 @@
                               "validation-failed",
                               "unauthenticated",
                               "hook-cancelled",
-                              "timeout"
+                              "timeout",
+                              "write-failed"
                             ]
                           },
                           "scope": {
@@ -3519,7 +3520,8 @@
                               "validation-failed",
                               "unauthenticated",
                               "hook-cancelled",
-                              "timeout"
+                              "timeout",
+                              "write-failed"
                             ]
                           },
                           "scope": {
@@ -5769,6 +5771,21 @@
                               },
                               "required": ["item", "assets", "reason"]
                             }
+                          },
+                          "failedItems": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "item": {
+                                  "type": "string"
+                                },
+                                "reason": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["item", "reason"]
+                            }
                           }
                         },
                         "required": ["target", "success", "copiedFiles"]
@@ -5829,6 +5846,21 @@
                                 }
                               },
                               "required": ["item", "assets", "reason"]
+                            }
+                          },
+                          "failedItems": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "item": {
+                                  "type": "string"
+                                },
+                                "reason": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["item", "reason"]
                             }
                           }
                         },
@@ -8217,7 +8249,8 @@
                               "validation-failed",
                               "unauthenticated",
                               "hook-cancelled",
-                              "timeout"
+                              "timeout",
+                              "write-failed"
                             ]
                           },
                           "scope": {
