@@ -79,7 +79,12 @@ describe('resolveSiteDir', () => {
     await expect(resolveSiteDir(undefined, 'publish')).rejects.toEqual(new ExitError(1))
     expect(select).not.toHaveBeenCalled()
     expect(errorOutput()).toContain('multiple sites found')
-    expect(errorOutput()).toContain('alpha, beta')
+    // readdirSync's order depends on the filesystem, so compare the list as a set.
+    const available = errorOutput()
+      .match(/Available: (.+)/)?.[1]
+      .split(', ')
+      .sort()
+    expect(available).toEqual(['alpha', 'beta'])
   })
 
   it('exits 0 when the prompt is cancelled', async () => {
@@ -138,7 +143,8 @@ describe('resolveTarget', () => {
   it('skips the prompt when a target is named', async () => {
     const site = join(root, 'sites/main')
     writeSite(site, ['staging', 'production'])
-    expect(await resolveTarget('staging', site, 'publish')).toBe('staging')
+    // Not the first target, so falling back to the first would fail.
+    expect(await resolveTarget('production', site, 'publish')).toBe('production')
     expect(select).not.toHaveBeenCalled()
   })
 })
