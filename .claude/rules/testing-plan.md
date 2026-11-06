@@ -194,12 +194,11 @@ feature cut that touches the foundation in question — not as a backlog batch.
 
 Routes whose **logic** is tested via direct function calls but whose
 **HTTP handler** (status code mapping, content-type, schema validation,
-middleware ordering) has no `app.request()` test. Inventory as of 2026-10-21 (#1058 covers the four left):
+middleware ordering) has no `app.request()` test. Inventory as of 2026-10-21, less `POST /api/publish/stream` (covered by #1036; #1058 covers the rest):
 
 | Route | Logic tested via | Gap |
 |---|---|---|
 | `GET /api/compare` | `compareTargets()` direct call ([compare.test.ts](../../packages/gazetta/tests/compare.test.ts)) | Route handler — target-name lookup + serialization |
-| `POST /api/publish/stream` | Schema only | SSE stream contract; main publish flow |
 | `GET /api/templates/:name/impact` | `validation-template-impact.test.ts` | Route handler |
 | `GET /api/validation/issues` | Only its `read:pages` gate ([auth-route-gates.test.ts](../../packages/gazetta/tests/auth-route-gates.test.ts)) | Response body |
 
