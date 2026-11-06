@@ -1293,9 +1293,22 @@ export function publishRoutes(
         }
       }
       const requests = new Map<string, PublishRequestRecord[]>()
+      // Gated targets whose requests are recorded (audit + after hooks).
+      // Recorded per target as its result arrives, and caught up if the
+      // client leaves, so requests written to the source are never left
+      // without their events.
+      const recordedRequests = new Set<string>()
+      const recordRequestsOf = async (results: readonly PublishResult[]) => {
+        const fresh = results.filter(r => isGated(r.target) && !recordedRequests.has(r.target))
+        for (const r of fresh) recordedRequests.add(r.target)
+        await recordRequests(c.var.audit, hookCtx, fresh, requests, finalItems)
+      }
       try {
         for await (const ev of runPublish(finalItems, body.targets, body.source, snapshot, c.var.principal, requests)) {
-          if (stream.aborted) return
+          if (stream.aborted) {
+            await recordRequestsOf([...requests.keys()].map(target => ({ target, success: true, copiedFiles: 0 })))
+            return
+          }
           const data = ev.kind === 'done' ? { ...ev, ...auditWarnings } : ev
           await stream.writeSSE({ event: ev.kind, data: JSON.stringify(data) })
           if (ev.kind === 'fatal') {
@@ -1303,6 +1316,7 @@ export function publishRoutes(
           }
           if (ev.kind === 'target-result') {
             finishedTargets.add(ev.result.target)
+            await recordRequestsOf([ev.result])
             // Under strict mode a failed target's write-failed event is
             // recorded now, so a later thrown error doesn't record it twice.
             if (strictPreRecord && !isGated(ev.result.target)) {
@@ -1314,7 +1328,7 @@ export function publishRoutes(
             // Strict mode recorded each target's failure at its target-result.
             const published = ev.results.filter(r => !isGated(r.target))
             if (!strictPreRecord) await recordTargetResults(c.var.audit, published, auditBase, false)
-            await recordRequests(c.var.audit, hookCtx, ev.results, requests, finalItems)
+            await recordRequestsOf(ev.results)
             recordedSuccess = true
             collectedResults.push(...ev.results)
           }

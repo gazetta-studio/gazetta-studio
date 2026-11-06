@@ -62,6 +62,14 @@ export class PublishRequestForbiddenError extends Error {
   }
 }
 
+/** A gated publish with no page or fragment to request (templates or assets only). */
+export class NothingToRequestError extends Error {
+  constructor(readonly target: string) {
+    super(`${target} requires publish approval, and only pages and fragments can be requested. Nothing was changed.`)
+    this.name = 'NothingToRequestError'
+  }
+}
+
 /** Removals sent to a gated target: removal requests come with target removal cut 2. */
 export class GatedRemovalError extends Error {
   constructor(readonly target: string) {
@@ -99,6 +107,7 @@ export async function publishApprovalGate(input: PublishApprovalGateInput): Prom
   }
   if (input.removals.length > 0) throw new GatedRemovalError(targetName)
 
+  if (requestItemsOf(input.items).length === 0) throw new NothingToRequestError(targetName)
   const requests = await planRequests(input, requester)
   for (const record of requests) await writePublishRequest(input.snapshot.liveRoot, record)
   return { kind: 'requested', requests }
@@ -109,7 +118,18 @@ export async function publishApprovalGate(input: PublishApprovalGateInput): Prom
  * item, once each. Templates and assets aren't requested.
  */
 export function requestItemsOf(items: readonly string[]): string[] {
-  return [...new Set(items)].filter(item => parseRequestItem(item) !== null)
+  // `pages/home:FR` and `pages/home:fr` are one item, as publishing normalizes locales.
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const item of items) {
+    const parsed = parseRequestItem(item)
+    if (!parsed) continue
+    const key = `${parsed.kind}/${parsed.name}:${parsed.locale ? normalizeLocale(parsed.locale) : ''}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(item)
+  }
+  return out
 }
 
 /** One request per page or fragment item string. */
@@ -142,9 +162,12 @@ async function planRequests(input: PublishApprovalGateInput, requester: Principa
   return planned.map(p => {
     const prefix = p.kind === 'page' ? 'pages' : 'fragments'
     const translations = p.kind === 'page' ? site.pageLocales.get(p.name) : site.fragmentLocales.get(p.name)
+    // A bare item covers the translations the publish copies to this
+    // target: all of them, or those in `targets.{name}.locales`.
+    const allowed = targetConfig?.locales
     const locales: (string | undefined)[] = p.locale
       ? [normalizeLocale(p.locale)]
-      : [undefined, ...(translations?.locales.keys() ?? [])]
+      : [undefined, ...[...(translations?.locales.keys() ?? [])].filter(l => !allowed || allowed.includes(l))]
     const recorded: Record<string, string> = {}
     for (const locale of locales) {
       const hash = hashes.get(locale ? `${prefix}/${p.name}:${locale}` : `${prefix}/${p.name}`)

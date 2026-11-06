@@ -80,8 +80,10 @@ function itemRefOf(record: Pick<PublishRequestRecord, 'item'>): ItemRef {
   return { source: parsed.kind, name: parsed.name, ...(parsed.locale ? { locale: parsed.locale } : {}) }
 }
 
+// The target's name goes in the path as it is: target names are config
+// keys and may contain dots, which `encodeRefName` reserves for item names.
 function requestDir(root: ContentRoot, target: string, kind: PublishRequestKind, name: string): string {
-  return root.path(stateFolderPath('publish-requests', encodeRefName(target), kind, encodeRefName(name)))
+  return root.path(stateFolderPath('publish-requests', target, kind, encodeRefName(name)))
 }
 
 export function publishRequestPath(
@@ -105,7 +107,7 @@ export function publishRequestApproversDir(
 }
 
 export function pendingPublishRequestsDir(root: ContentRoot, target: string): string {
-  return root.path(stateFolderPath('publish-requests', encodeRefName(target), 'pending'))
+  return root.path(stateFolderPath('publish-requests', target, 'pending'))
 }
 
 /** The pending marker's file name: the encoded item, `@`, the request id. */
