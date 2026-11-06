@@ -315,9 +315,22 @@ export async function replaceItemDeps(
   item: ItemRef,
   newManifest: ManifestLike,
 ): Promise<void> {
+  return replaceItemEdges(rel, contentRoot, item, rel.extract(newManifest))
+}
+
+/**
+ * Replace one item's edges with `newTargets`, as `replaceItemDeps` does,
+ * for callers whose edge set isn't the manifest's own references (a
+ * static page's flattened fragments and assets).
+ */
+export async function replaceItemEdges(
+  rel: DepRelation,
+  contentRoot: ContentRoot,
+  item: ItemRef,
+  newTargets: ReadonlySet<string>,
+): Promise<void> {
   if (!isIndexable(item)) return
   const oldTargets = (await readDepRecord(rel, contentRoot, item)) ?? new Set<string>()
-  const newTargets = rel.extract(newManifest)
   await applyEdgeDiff(rel, contentRoot, item, oldTargets, newTargets)
   await writeDepRecord(rel, contentRoot, item, newTargets)
 }

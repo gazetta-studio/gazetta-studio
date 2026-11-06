@@ -58,7 +58,11 @@ import {
 import { writeSidecars } from './sidecars.js'
 import { createContentRoot } from './content-root.js'
 import { DEP_RELATIONS } from './dep-relations.js'
-import { replaceItemDeps, type ItemRef } from './dep-sidecars.js'
+import { replaceItemDeps, replaceItemEdges, type ItemRef } from './dep-sidecars.js'
+import { FRAGMENT_DEPS } from './fragment-deps.js'
+import { ASSET_REFS } from './assets/asset-deps.js'
+import { resolveSiteLocales } from './locale.js'
+import { flattenStaticPageDeps } from './static-page-deps.js'
 import { publishedPageNoindex } from './seo.js'
 import type { CacheConfig, StorageProvider } from './types.js'
 import type { Site } from './site-loader.js'
@@ -422,7 +426,22 @@ export async function publishItemCore(input: PublishItemInput): Promise<PublishI
     const ref: ItemRef = locale ? { source: kind, name, locale } : { source: kind, name }
     if (target.writeDepIndices !== false) {
       const targetRoot = createContentRoot(target.storage)
-      await Promise.all(DEP_RELATIONS.map(rel => replaceItemDeps(rel, targetRoot, ref, published)))
+      // A static page's HTML inlines its fragments, so its edges cover
+      // everything it bakes; other items keep their direct references.
+      const baked =
+        staticPage && mode === 'page-static'
+          ? flattenStaticPageDeps(site, published, {
+              locale,
+              resolvedLocales: resolveSiteLocales(site.manifest) ?? undefined,
+            })
+          : null
+      await Promise.all(
+        DEP_RELATIONS.map(rel => {
+          if (baked && rel === FRAGMENT_DEPS) return replaceItemEdges(rel, targetRoot, ref, baked.fragments)
+          if (baked && rel === ASSET_REFS) return replaceItemEdges(rel, targetRoot, ref, baked.assets)
+          return replaceItemDeps(rel, targetRoot, ref, published)
+        }),
+      )
     }
 
     // Step 11 — sidecars (hash + publish-state). Skipped when caller

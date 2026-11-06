@@ -11,6 +11,7 @@ import { publishRun, type PublishItemRef } from '../src/publish-run.js'
 import { DEP_INDEX_FOLDERS, mayWriteDepIndices } from '../src/state-folders.js'
 import { loadSite, type Site } from '../src/site-loader.js'
 import { scanTemplates } from '../src/templates-scan.js'
+import { findDependentsFromSidecars } from '../src/publish.js'
 import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
 import { starterManifest, starterProjectRoot, starterTargetDir, starterTemplatesDir } from './_helpers/starter.js'
 
@@ -33,7 +34,7 @@ function loadStarter() {
   return starter
 }
 
-async function setup() {
+async function setup(type: 'static' | 'dynamic' = 'dynamic') {
   const { manifest, sourceRoot, site, templateInfos } = await loadStarter()
   const target = memoryStorage()
   const run = (
@@ -50,7 +51,7 @@ async function setup() {
       targets: ['t'],
       site: opts.site ?? site,
       sourceRoot,
-      siteManifest: { ...manifest, targets: { t: { storage: target, type: 'dynamic' } } } as typeof manifest,
+      siteManifest: { ...manifest, targets: { t: { storage: target, type } } } as typeof manifest,
       targetStorages: new Map([['t', target]]),
       templateInfos,
       publishAssetsBeforeItems: false,
@@ -67,6 +68,22 @@ function withPage(site: Site, name: string, page: unknown): Site {
   const pages = new Map(site.pages)
   pages.set(name, page as never)
   return { ...site, pages }
+}
+
+/** The starter site with @header using a new @logo fragment that references an asset. */
+function withNestedLogo(site: Site, logoUsesAsset = true, headerUsesLogo = true): Site {
+  const fragments = new Map(site.fragments)
+  const header = site.fragments.get('header')!
+  fragments.set('header', {
+    ...header,
+    components: [...(header.components ?? []), ...(headerUsesLogo ? ['@logo'] : [])],
+  })
+  fragments.set('logo', {
+    template: 'logo',
+    content: logoUsesAsset ? { text: 'G', href: '/', img: { _asset: 'logo-img' } } : { text: 'G', href: '/' },
+    dir: header.dir,
+  } as never)
+  return { ...site, fragments }
 }
 
 async function listNames(storage: MemoryStorage, dir: string): Promise<string[]> {
@@ -258,5 +275,71 @@ describe('target dependency indices', () => {
   it('may write indices on a private target, and not on a public one while the registry says so', () => {
     expect(mayWriteDepIndices(false)).toBe(true)
     expect(mayWriteDepIndices(true)).toBe(false)
+  })
+  describe('static targets', () => {
+    it('a page gets edges and a record for nested fragments and their assets', async () => {
+      const { site, target, run } = await setup('static')
+      const result = await run([{ kind: 'page', name: 'home' }], { site: withNestedLogo(site) })
+      expect(result.ok).toBe(true)
+      expect(await record(target, 'fragment-deps', 'pages.home')).toEqual(['footer', 'header', 'logo'])
+      expect(await target.exists('.gazetta/fragment-deps/logo/pages.home')).toBe(true)
+      expect(await record(target, 'asset-refs', 'pages.home')).toContain('logo-img')
+      expect(await target.exists('.gazetta/asset-refs/logo-img/pages.home')).toBe(true)
+    })
+
+    it('the same page on a dynamic target keeps direct edges only', async () => {
+      const { site, target, run } = await setup('dynamic')
+      await run([{ kind: 'page', name: 'home' }], { site: withNestedLogo(site) })
+      expect(await record(target, 'fragment-deps', 'pages.home')).toEqual(['footer', 'header'])
+      expect(await target.exists('.gazetta/asset-refs/logo-img/pages.home')).toBe(false)
+    })
+
+    it('a fragment published to a static target keeps its direct edges', async () => {
+      const { site, target, run } = await setup('static')
+      await run([{ kind: 'fragment', name: 'header' }], { site: withNestedLogo(site) })
+      expect(await record(target, 'fragment-deps', 'fragments.header')).toEqual(['logo'])
+      expect(await record(target, 'asset-refs', 'fragments.header')).toEqual([])
+    })
+
+    it('republishing after a nested fragment drops a reference removes that edge', async () => {
+      const { site, target, run } = await setup('static')
+      await run([{ kind: 'page', name: 'home' }], { site: withNestedLogo(site) })
+      await run([{ kind: 'page', name: 'home' }], { site: withNestedLogo(site, true, false), force: false })
+      expect(await target.exists('.gazetta/fragment-deps/logo/pages.home')).toBe(false)
+      expect(await target.exists('.gazetta/asset-refs/logo-img/pages.home')).toBe(false)
+      expect(await record(target, 'fragment-deps', 'pages.home')).toEqual(['footer', 'header'])
+    })
+
+    it('a page locale variant records edges under its own item', async () => {
+      const { site, target, run } = await setup('static')
+      // header and logo have no fr version here, so the default fragments are baked.
+      const nested = withNestedLogo(site)
+      const fragmentLocales = new Map(nested.fragmentLocales)
+      fragmentLocales.delete('header')
+      await run([{ kind: 'page', name: 'home', locale: 'fr' }], { site: { ...nested, fragmentLocales } })
+      expect(await record(target, 'fragment-deps', 'pages.home:fr')).toEqual(['footer', 'header', 'logo'])
+      expect(await target.exists('.gazetta/asset-refs/logo-img/pages.home:fr')).toBe(true)
+      expect(await record(target, 'fragment-deps', 'pages.home')).toBeNull()
+    })
+
+    it('findDependentsFromSidecars returns a page for a fragment it uses only through another', async () => {
+      const { site, target, run } = await setup('static')
+      await run([{ kind: 'page', name: 'home' }], { site: withNestedLogo(site) })
+      const deps = await findDependentsFromSidecars(createContentRoot(target), { fragment: 'logo' })
+      expect(deps.pages).toContain('home')
+    })
+
+    it('a page whose render fails keeps its previous flattened edges and record', async () => {
+      const { site, target, run } = await setup('static')
+      await run([{ kind: 'page', name: 'home' }], { site: withNestedLogo(site) })
+      const broken = withPage(withNestedLogo(site), 'home', {
+        route: '/',
+        template: 'no-such-template',
+        components: ['@header'],
+      })
+      const result = await run([{ kind: 'page', name: 'home' }], { site: broken })
+      expect(result.items[0]?.ok).toBe(false)
+      expect(await record(target, 'fragment-deps', 'pages.home')).toEqual(['footer', 'header', 'logo'])
+    })
   })
 })

@@ -29,6 +29,7 @@ import {
   rebuildItemDeps,
   removeItemDeps,
   replaceItemDeps,
+  replaceItemEdges,
   type DepRelation,
   type ItemRef,
 } from '../src/dep-sidecars.js'
@@ -308,6 +309,29 @@ describe('forward records (deps-of)', () => {
     const before = snapshot()
     await replaceItemDeps(REL, root, item, page('hero'))
     expect(snapshot()).toEqual(before)
+  })
+
+  it('replaceItemEdges replaces the recorded edges with a given set and writes the record', async () => {
+    const { storage, root } = setup()
+    await replaceItemDeps(REL, root, item, page('hero', 'banner'))
+    await replaceItemEdges(REL, root, item, new Set(['banner', 'nested']))
+    expect(await storage.exists(edge('hero'))).toBe(false)
+    expect(await storage.exists(edge('banner'))).toBe(true)
+    expect(await storage.exists(edge('nested'))).toBe(true)
+    expect(await readDepRecord(REL, root, item)).toEqual(new Set(['banner', 'nested']))
+  })
+
+  it('replaceItemEdges writes the record after the edges', async () => {
+    const { storage, root } = setup()
+    const writes: string[] = []
+    const writeFile = storage.writeFile.bind(storage)
+    storage.writeFile = async (path: string, content: string) => {
+      writes.push(path)
+      return writeFile(path, content)
+    }
+    await replaceItemEdges(REL, root, item, new Set(['hero', 'banner']))
+    expect(writes.at(-1)).toBe(recordPath)
+    expect(writes).toHaveLength(3)
   })
 
   it('locale variants keep their own edges and record', async () => {
