@@ -23,6 +23,8 @@ import {
   buildHookContext,
   dispatchAfterPublish,
   dispatchBeforePublish,
+  dispatchAfterReviewTransition,
+  dispatchBeforeReviewTransition,
   HookCancellation,
   HookTimeout,
   type HookRegistry,
@@ -37,6 +39,8 @@ import { PublishAuditRequestSchema } from '../schemas/validation.js'
 import { apiApp, json, problems } from '../openapi.js'
 import { publishResultEvent, publishStartEvent, type PublishAuditBase } from '../../publish-audit-events.js'
 import type { PublishFailedItem } from '../../publish-target.js'
+import { requestItemsOf, requiresPublishApproval } from '../../publish-approval-gate.js'
+import type { PublishRequestRecord } from '../../review/publish-requests.js'
 import type { AuditContext } from '../../audit/index.js'
 import { TargetInfoSchema } from '../schemas/targets.js'
 import { DependentsResponseSchema } from '../schemas/dependents.js'
@@ -92,7 +96,7 @@ const postPublish = createRoute({
   method: 'post',
   path: '/publish',
   summary: 'Publish items to targets',
-  middleware: [requireCapability('publish:non-production')] as const,
+  // The capability check reads the body's targets: see publishCapabilityGate.
   request: publishRequest,
   responses: {
     200: json(PublishResponseSchema, 'Every target succeeded'),
@@ -105,7 +109,7 @@ const postPublishStream = createRoute({
   method: 'post',
   path: '/publish/stream',
   summary: 'Publish items to targets, streaming progress',
-  middleware: [requireCapability('publish:non-production')] as const,
+  // The capability check reads the body's targets: see publishCapabilityGate.
   request: publishRequest,
   responses: {
     200: {
@@ -524,6 +528,112 @@ export function publishRoutes(
   })
 
   /**
+   * The items a publish sends to one target: the requested items and
+   * their dependencies, plus, on a static target, every page that uses a
+   * requested fragment (static mode bakes fragments into pages, so
+   * republishing @header republishes them). ESI targets get the narrow set.
+   */
+  async function itemsForTarget(
+    snapshot: PublishSnapshot,
+    items: readonly string[],
+    allItems: readonly string[],
+    config: TargetConfig | undefined,
+  ): Promise<string[]> {
+    const isStatic = config ? getType(config) === 'static' : true
+    const fragmentItems = items.filter(i => i.startsWith('fragments/'))
+    if (!isStatic || fragmentItems.length === 0) return [...allItems]
+    const expanded = new Set(allItems)
+    for (const frag of fragmentItems) {
+      const deps = await findFragmentDependents(snapshot.sourceRoot, frag.replace('fragments/', ''))
+      for (const p of deps.pages) expanded.add(`pages/${p}`)
+    }
+    return [...expanded]
+  }
+
+  const isGated = (name: string) => requiresPublishApproval(getTargetConfig(name))
+
+  /**
+   * Fire `beforePublishRequest` for every request the gated targets will
+   * get (design-review-workflow.md "Hook firings"), before anything is
+   * written. A handler that throws cancels the whole publish with 409.
+   */
+  async function dispatchBeforeRequests(
+    c: Context<AuditEnv>,
+    hookCtx: ReturnType<typeof buildHookContext> | null,
+    snapshot: PublishSnapshot,
+    items: string[],
+    gatedTargets: readonly string[],
+  ): Promise<Response | null> {
+    if (!hooks || !hookCtx || gatedTargets.length === 0) return null
+    const allItems = await resolveDependencies(snapshot.sourceRoot, items)
+    for (const target of gatedTargets) {
+      for (const item of requestItemsOf(await itemsForTarget(snapshot, items, allItems, getTargetConfig(target)))) {
+        const scope = toPublishItem(itemBase(item))
+        try {
+          await dispatchBeforeReviewTransition(
+            hooks,
+            'beforePublishRequest',
+            { scope: { kind: scope.kind, name: scope.name }, target },
+            hookCtx,
+          )
+        } catch (err) {
+          if (!(err instanceof HookCancellation || err instanceof HookTimeout)) throw err
+          await c.var.audit.record({
+            action: 'publish-request',
+            outcome: 'hook-cancelled',
+            scope: { kind: scope.kind, name: scope.name },
+            metadata: { targetName: target, item, hook: err.hookName },
+          })
+          return problem(c, 409, 'HOOK_CANCELLED', err.message, { hook: err.hookName, reason: err.message })
+        }
+      }
+    }
+    return null
+  }
+
+  /**
+   * After a run: one `publish-request` audit event per request a gated
+   * target got, and its `afterPublishRequest` hooks. A gated target whose
+   * requests couldn't be made records the failure under the same action.
+   */
+  async function recordRequests(
+    audit: AuditContext,
+    hookCtx: ReturnType<typeof buildHookContext> | null,
+    results: readonly PublishResult[],
+    requests: ReadonlyMap<string, readonly PublishRequestRecord[]>,
+    items: readonly string[],
+  ): Promise<void> {
+    for (const r of results) {
+      if (!isGated(r.target)) continue
+      if (!r.success) {
+        await audit.record({
+          action: 'publish-request',
+          outcome: 'write-failed',
+          scope: { kind: 'site', name: r.target },
+          metadata: { targetName: r.target, items, error: r.error },
+        })
+        continue
+      }
+      for (const req of requests.get(r.target) ?? []) {
+        await audit.record({
+          action: 'publish-request',
+          outcome: 'success',
+          scope: { kind: req.kind, name: req.name },
+          metadata: { targetName: req.target, requestId: req.id, item: req.item },
+        })
+        if (hooks && hookCtx) {
+          await dispatchAfterReviewTransition(
+            hooks,
+            'afterPublishRequest',
+            { scope: { kind: req.kind, name: req.name }, target: req.target },
+            hookCtx,
+          )
+        }
+      }
+    }
+  }
+
+  /**
    * Run a publish, yielding progress events. Both the synchronous
    * /api/publish route and the streaming /api/publish/stream route consume
    * this generator. Caller can short-circuit by returning false from the
@@ -532,12 +642,17 @@ export function publishRoutes(
    *
    * Pre-flight validation (unknown targets, invalid templates) is reported as
    * 'fatal' before any 'target-start' event so callers can map to a 4xx.
+   *
+   * A target that requires publish approval gets requests (from
+   * `requester`) instead of a publish; they're collected in `requestsOut`.
    */
   async function* runPublish(
     items: string[],
     targetNames: string[],
     sourceName: string | undefined,
     snapshot: PublishSnapshot,
+    requester: Principal | undefined,
+    requestsOut: Map<string, PublishRequestRecord[]>,
   ): AsyncGenerator<PublishProgress> {
     if (!items?.length) {
       yield { kind: 'fatal', error: 'No items specified' }
@@ -598,22 +713,7 @@ export function publishRoutes(
       const isStatic = config ? getType(config) === 'static' : true
       const purgeConfig = config?.cache?.purge
 
-      // Static mode bakes fragments into pages at publish time — if the user
-      // picked @header, we must also republish every page that uses it.
-      // Expand per-target so ESI targets still get the narrow item set.
-      let targetItems = allItems
-      if (isStatic) {
-        const fragmentItems = items.filter(i => i.startsWith('fragments/'))
-        if (fragmentItems.length) {
-          const expanded = new Set(allItems)
-          for (const frag of fragmentItems) {
-            const name = frag.replace('fragments/', '')
-            const deps = await findFragmentDependents(snapshot.sourceRoot, name)
-            for (const p of deps.pages) expanded.add(`pages/${p}`)
-          }
-          targetItems = [...expanded]
-        }
-      }
+      const targetItems = await itemsForTarget(snapshot, items, allItems, config)
 
       // Step count: source-copy + per-item render + manifest+index + (purge?)
       const total = 1 + targetItems.length + 1 + (purgeConfig?.type === 'cloudflare' ? 1 : 0)
@@ -701,6 +801,7 @@ export function publishRoutes(
           itemRefs,
           templateInfos,
           purgeScope: targetItems.some(i => i.startsWith('fragments/')) ? 'all' : 'items',
+          requester,
           onProgress: ev => {
             if (ev.kind === 'item-done') {
               const label =
@@ -718,6 +819,23 @@ export function publishRoutes(
             console.warn(`    ${targetName}: history record failed — ${message}`)
           },
         })
+
+        // A target that requires publish approval got requests; nothing
+        // was written to it.
+        if (shared.outcome === 'requested') {
+          requestsOut.set(targetName, [...shared.requests])
+          const result: PublishResult = {
+            target: targetName,
+            success: true,
+            copiedFiles: 0,
+            outcome: 'requested',
+            requestIds: shared.requests.map(r => r.id),
+          }
+          results.push(result)
+          console.log(`    ${targetName}: ${shared.requests.length} publish request(s) created`)
+          yield { kind: 'target-result', result }
+          continue
+        }
 
         totalFiles += shared.copiedFiles
         yield { kind: 'progress', target: targetName, current: 1, total, label: 'source files' }
@@ -835,30 +953,61 @@ export function publishRoutes(
     // The shared check records the #1192 audit event, and lets a token
     // publish to production only with a production elevation (Q17).
     if (!writesProduction) return null
-    // Anonymous callers never get here: requireCapability answered them.
     return (await denyWithoutCapability(c, 'publish:production')) as ProblemResponse<403> | null
   }
 
-  // A token publishing to production is checked for `publish:production`
-  // before the routes' `publish:non-production` baseline, so its refusal
-  // names the production scope and one production elevation (which also
-  // covers non-production, #1729) answers both checks. Only refusals end
-  // the request here; the body read is cached for the route's validator.
+  /**
+   * The publish routes' capability check (design-review-workflow.md,
+   * "Settled by the plan review" items 3 and 13). Destinations that
+   * don't require publish approval need `publish:non-production`, and
+   * production ones `publish:production` too. A destination that
+   * requires approval needs `publish:request` instead, and no publish
+   * capability: the gate creates a request there. A request naming no
+   * target still gets the baseline check, so anonymous callers get 401.
+   *
+   * A token publishing to production is checked for `publish:production`
+   * before the baseline, so its refusal names the production scope and
+   * one production elevation (which also covers non-production, #1729)
+   * answers both checks. A token keeps `publish:request` (token-cap.ts),
+   * so it reaches the gate on a gated target without an elevation
+   * (design-agent-access.md Q20, Q29).
+   */
+  async function publishCapabilityGate(c: Context<AuditEnv>, targetNames: readonly string[]) {
+    const gated = targetNames.filter(name => requiresPublishApproval(getTargetConfig(name)))
+    const ungated = targetNames.filter(name => !gated.includes(name))
+    const baseline = async () =>
+      ungated.length > 0 || gated.length === 0 ? denyWithoutCapability(c, 'publish:non-production') : null
+    const token = c.get('principal')?.channel === 'token'
+    const first = token ? await productionGate(c, ungated) : await baseline()
+    if (first) return first
+    const second = token ? await baseline() : await productionGate(c, ungated)
+    if (second) return second
+    if (gated.length === 0) return null
+    return denyWithoutCapability(
+      c,
+      'publish:request',
+      `${gated.join(', ')} ${gated.length === 1 ? 'requires' : 'require'} publish approval, and role "${c.get('principal')?.role}" can't request it. Ask an admin for the "publish:request" capability.`,
+    )
+  }
+
+  // Only refusals end the request here; the body read is cached for the
+  // route's validator.
   for (const path of ['/publish', '/publish/stream']) {
     app.use(path, async (c, next) => {
-      if (c.req.method !== 'POST' || c.get('principal')?.channel !== 'token') return next()
+      if (c.req.method !== 'POST') return next()
       const body = (await c.req.json().catch(() => null)) as { targets?: unknown } | null
       const targets = Array.isArray(body?.targets) ? body.targets.filter((t): t is string => typeof t === 'string') : []
-      const denied = await productionGate(c as unknown as Context<AuditEnv>, targets)
+      const denied = await publishCapabilityGate(c as unknown as Context<AuditEnv>, targets)
       return denied ?? next()
     })
   }
 
   app.openapi(postPublish, async c => {
     const body = c.req.valid('json')
-
-    const productionForbidden = await productionGate(c, body.targets)
-    if (productionForbidden) return productionForbidden
+    // Targets that require publish approval get requests, not a publish:
+    // no publish hooks, audit events or strict pre-record for them.
+    const ungatedTargets = body.targets.filter(t => !isGated(t))
+    const gatedTargets = body.targets.filter(isGated)
 
     // #1196: reject malformed or unknown items before anything reads
     // or writes a path built from them.
@@ -895,7 +1044,7 @@ export function publishRoutes(
         // Dispatch once per target. Cancellation by any handler
         // aborts the entire publish (multi-target).
         let mutated: ReadonlyArray<PublishItem> = inputItems
-        for (const target of body.targets) {
+        for (const target of ungatedTargets) {
           mutated = await dispatchBeforePublish(hooks, target, mutated, hookCtx)
         }
         finalItems = mutated.map(i => i.path)
@@ -944,6 +1093,9 @@ export function publishRoutes(
       return problem(c, 409, 'PUBLISH_AUDIT_FAILED', undefined, { blocked })
     }
 
+    const requestCancelled = await dispatchBeforeRequests(c, hookCtx, snapshot, finalItems, gatedTargets)
+    if (requestCancelled) return requestCancelled as ProblemResponse<409>
+
     // Strict audit mode (#1393, design-audit.md "Strict mode
     // opt-in"): record the publish event BEFORE any target write;
     // a failed recording refuses the publish before anything
@@ -953,19 +1105,20 @@ export function publishRoutes(
     if (strictPreRecord) {
       // One event per target, each before anything is written (#1799).
       const pre = await Promise.all(
-        body.targets.map(t => c.var.audit.record(publishStartEvent(t, { items: finalItems, source: body.source }))),
+        ungatedTargets.map(t => c.var.audit.record(publishStartEvent(t, { items: finalItems, source: body.source }))),
       )
       if (pre.some(r => r.failed > 0)) {
         // Targets whose event was recorded get their compensating event:
         // nothing was written to them.
-        await recordRefused(c.var.audit, body.targets, pre, { items: finalItems, source: body.source })
+        await recordRefused(c.var.audit, ungatedTargets, pre, { items: finalItems, source: body.source })
         return problem(c, 500, 'AUDIT_FAILED', 'Audit recording failed; publish refused (strict mode)')
       }
     }
 
     let results: PublishResult[] = []
     let fatal: PublishProgress | null = null
-    for await (const ev of runPublish(finalItems, body.targets, body.source, snapshot)) {
+    const requests = new Map<string, PublishRequestRecord[]>()
+    for await (const ev of runPublish(finalItems, body.targets, body.source, snapshot, c.var.principal, requests)) {
       if (ev.kind === 'fatal') fatal = ev
       else if (ev.kind === 'done') results = ev.results
     }
@@ -976,7 +1129,7 @@ export function publishRoutes(
       // the log stays honest (#1393).
       if (strictPreRecord) {
         const error = fatal.kind === 'fatal' ? fatal.error : undefined
-        for (const t of body.targets) {
+        for (const t of ungatedTargets) {
           await c.var.audit.record(publishResultEvent({ target: t, success: false, error }, auditBase))
         }
       }
@@ -985,14 +1138,16 @@ export function publishRoutes(
         : problem(c, 400, 'BAD_REQUEST', fatal.error)
     }
     const allSuccess = results.every(r => r.success)
-    await recordTargetResults(c.var.audit, results, auditBase, strictPreRecord)
+    const published = results.filter(r => !isGated(r.target))
+    await recordTargetResults(c.var.audit, published, auditBase, strictPreRecord)
+    await recordRequests(c.var.audit, hookCtx, results, requests, finalItems)
 
     // afterPublish hooks per design-hooks.md "Publish lifecycle"
     // step 5. Observational; failures logged. One dispatch per
     // target with that target's per-target result.
     if (hooks && hookCtx) {
       const finalPublishItems = finalItems.map(toPublishItem)
-      for (const r of results) {
+      for (const r of published) {
         const skipped = new Map((r.notPublished ?? []).map(n => [n.item, n.reason]))
         const hookResult: PublishHookResult = {
           target: r.target,
@@ -1012,9 +1167,9 @@ export function publishRoutes(
 
   app.openapi(postPublishStream, async c => {
     const body = c.req.valid('json')
-
-    const streamProductionForbidden = await productionGate(c, body.targets)
-    if (streamProductionForbidden) return streamProductionForbidden
+    // As in /api/publish: gated targets get requests, not a publish.
+    const ungatedTargets = body.targets.filter(t => !isGated(t))
+    const gatedTargets = body.targets.filter(isGated)
 
     // #1196: reject malformed or unknown items before anything reads
     // or writes a path built from them (synchronous 400, before the
@@ -1046,7 +1201,7 @@ export function publishRoutes(
     if (hooks && hookCtx) {
       try {
         let mutated: ReadonlyArray<PublishItem> = body.items.map(toPublishItem)
-        for (const target of body.targets) {
+        for (const target of ungatedTargets) {
           mutated = await dispatchBeforePublish(hooks, target, mutated, hookCtx)
         }
         finalItems = mutated.map(i => i.path)
@@ -1094,6 +1249,9 @@ export function publishRoutes(
       return problem(c, 409, 'PUBLISH_AUDIT_FAILED', undefined, { blocked })
     }
 
+    const requestCancelled = await dispatchBeforeRequests(c, hookCtx, snapshot, finalItems, gatedTargets)
+    if (requestCancelled) return requestCancelled as ProblemResponse<409>
+
     // Strict audit mode (#1393): same pre-record as the sync route,
     // placed synchronously BEFORE the SSE stream opens so a failed
     // recording refuses the publish with AUDIT_FAILED and nothing
@@ -1104,12 +1262,12 @@ export function publishRoutes(
     if (strictPreRecord) {
       // One event per target, each before anything is written (#1799).
       const pre = await Promise.all(
-        body.targets.map(t => c.var.audit.record(publishStartEvent(t, { items: finalItems, source: body.source }))),
+        ungatedTargets.map(t => c.var.audit.record(publishStartEvent(t, { items: finalItems, source: body.source }))),
       )
       if (pre.some(r => r.failed > 0)) {
         // Targets whose event was recorded get their compensating event:
         // nothing was written to them.
-        await recordRefused(c.var.audit, body.targets, pre, { items: finalItems, source: body.source })
+        await recordRefused(c.var.audit, ungatedTargets, pre, { items: finalItems, source: body.source })
         return problem(c, 500, 'AUDIT_FAILED', 'Audit recording failed; publish refused (strict mode)')
       }
     }
@@ -1128,13 +1286,14 @@ export function publishRoutes(
       const recordWriteFailed = async (error?: string): Promise<void> => {
         if (!strictPreRecord || recordedWriteFailed) return
         recordedWriteFailed = true
-        for (const t of body.targets) {
+        for (const t of ungatedTargets) {
           if (finishedTargets.has(t)) continue
           await c.var.audit.record(publishResultEvent({ target: t, success: false, error }, auditBase))
         }
       }
+      const requests = new Map<string, PublishRequestRecord[]>()
       try {
-        for await (const ev of runPublish(finalItems, body.targets, body.source, snapshot)) {
+        for await (const ev of runPublish(finalItems, body.targets, body.source, snapshot, c.var.principal, requests)) {
           if (stream.aborted) return
           const data = ev.kind === 'done' ? { ...ev, ...auditWarnings } : ev
           await stream.writeSSE({ event: ev.kind, data: JSON.stringify(data) })
@@ -1145,12 +1304,16 @@ export function publishRoutes(
             finishedTargets.add(ev.result.target)
             // Under strict mode a failed target's write-failed event is
             // recorded now, so a later thrown error doesn't record it twice.
-            if (strictPreRecord) await recordTargetResults(c.var.audit, [ev.result], auditBase, true)
+            if (strictPreRecord && !isGated(ev.result.target)) {
+              await recordTargetResults(c.var.audit, [ev.result], auditBase, true)
+            }
           }
           if (ev.kind === 'done') {
             // One event per target, as the synchronous /api/publish records.
             // Strict mode recorded each target's failure at its target-result.
-            if (!strictPreRecord) await recordTargetResults(c.var.audit, ev.results, auditBase, false)
+            const published = ev.results.filter(r => !isGated(r.target))
+            if (!strictPreRecord) await recordTargetResults(c.var.audit, published, auditBase, false)
+            await recordRequests(c.var.audit, hookCtx, ev.results, requests, finalItems)
             recordedSuccess = true
             collectedResults.push(...ev.results)
           }
@@ -1169,7 +1332,7 @@ export function publishRoutes(
       // affecting the already-streamed response.
       if (hooks && hookCtx && recordedSuccess) {
         const finalPublishItems = finalItems.map(toPublishItem)
-        for (const r of collectedResults) {
+        for (const r of collectedResults.filter(res => !isGated(res.target))) {
           const skipped = new Map((r.notPublished ?? []).map(n => [n.item, n.reason]))
           const hookResult: PublishHookResult = {
             target: r.target,

@@ -2,9 +2,8 @@ import { join } from 'node:path'
 import { memoryCache } from './cache/factories.js'
 import { forSite } from './cache/per-site.js'
 import { loadSite } from './site-loader.js'
-import { fragmentHashLookup } from './fragment-hashes.js'
 import { siteAssetHashes } from './asset-hashes.js'
-import { hashManifest } from './hash.js'
+import { localItemHashes } from './item-hashes.js'
 import { scanTemplates, templateHashesFrom, type TemplateInfo } from './templates-scan.js'
 import { listSidecars } from './sidecars.js'
 import { isArchived } from './archive-helpers.js'
@@ -119,49 +118,23 @@ export async function compareTargets(opts: CompareOptions): Promise<CompareResul
   // locale (and through archive aliases) the way rendering resolves them.
   // Items change when an asset they use changes (#1334).
   const assetHashes = await siteAssetHashes(site)
-  const fragmentHashes = fragmentHashLookup(site, templateHashes, assetHashes)
 
-  const local = new Map<string, string>()
-  const pageNoindex = new Map<string, boolean>()
-  // Static pages bake every fragment; ESI pages bake only fragments nested
-  // in inline components (their top-level refs are composed per request).
-  const pageHashOpts = (locale?: string) => ({
-    templateHashes,
-    fragmentHashes: fragmentHashes(locale),
-    topLevelFragmentsComposedAtRequest: opts.type !== 'static',
-    assetHashes,
-  })
-  for (const [name, page] of site.pages) {
-    local.set(`pages/${name}`, hashManifest(page, pageHashOpts()))
-    pageNoindex.set(`pages/${name}`, publishedPageNoindex(page.metadata, isArchived(page)))
-
-    // Per-locale items — each locale variant is compared independently
-    const localeEntry = site.pageLocales.get(name)
-    if (localeEntry) {
-      for (const [locale, localePage] of localeEntry.locales) {
-        const localeKey = `pages/${name}:${locale}`
-        local.set(localeKey, hashManifest(localePage, pageHashOpts(locale)))
-        pageNoindex.set(localeKey, publishedPageNoindex(localePage.metadata, isArchived(page)))
-      }
-    }
-  }
   // Static targets bake fragments into pages — no fragment sidecars exist
   // on the target, and publishing @header/@footer is a no-op server-side. Omit
   // them from local so they don't appear as perpetually "added".
-  if (opts.type !== 'static') {
-    for (const [name, frag] of site.fragments) {
-      local.set(
-        `fragments/${name}`,
-        hashManifest(frag, { templateHashes, fragmentHashes: fragmentHashes(), assetHashes }),
-      )
-    }
-    // Per-locale fragment items
-    for (const [name, localeEntry] of site.fragmentLocales) {
-      for (const [locale, localeFrag] of localeEntry.locales) {
-        local.set(
-          `fragments/${name}:${locale}`,
-          hashManifest(localeFrag, { templateHashes, fragmentHashes: fragmentHashes(locale), assetHashes }),
-        )
+  const local = localItemHashes(site, {
+    templateHashes,
+    assetHashes,
+    staticTarget: opts.type === 'static',
+    includeFragments: opts.type !== 'static',
+  })
+  const pageNoindex = new Map<string, boolean>()
+  for (const [name, page] of site.pages) {
+    pageNoindex.set(`pages/${name}`, publishedPageNoindex(page.metadata, isArchived(page)))
+    const localeEntry = site.pageLocales.get(name)
+    if (localeEntry) {
+      for (const [locale, localePage] of localeEntry.locales) {
+        pageNoindex.set(`pages/${name}:${locale}`, publishedPageNoindex(localePage.metadata, isArchived(page)))
       }
     }
   }

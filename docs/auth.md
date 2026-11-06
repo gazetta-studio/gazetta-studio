@@ -143,10 +143,10 @@ Roles are predefined capability sets. Each authenticated user gets exactly one r
 | Role | Capabilities |
 |---|---|
 | `admin` | `*` (everything) |
-| `editor` | `read:*` + `edit:*` + `publish:non-production` + `review:submit` |
+| `editor` | `read:*` + `edit:*` + `publish:non-production` + `review:submit` + `publish:request` |
 | `viewer` | `read:*` |
 
-Editor explicitly does NOT have `publish:production` or `delete:*` or `configure:site`.
+Editor explicitly does NOT have `publish:production` or `delete:*` or `configure:site`. With `publish:request`, an editor's publish to a target that requires approval (`requiresPublishApproval: true`) creates a publish request instead of publishing, production included.
 
 ### Capability vocabulary
 
@@ -156,7 +156,7 @@ Editor explicitly does NOT have `publish:production` or `delete:*` or `configure
 | Edit | `edit:pages`, `edit:fragments`, `edit:assets`, `edit:locale-variants` |
 | Delete | `delete:pages`, `delete:fragments`, `delete:assets` |
 | Archive | `archive:pages`, `archive:fragments` (held by anyone with the matching `delete:*`) |
-| Publish | `publish:non-production`, `publish:production` |
+| Publish | `publish:non-production`, `publish:production`, `publish:request`, `publish:approve` |
 | Configure | `configure:site`, `configure:targets` |
 | History | `restore:history` |
 | Review | `review:submit`, `review:approve` |
@@ -219,7 +219,7 @@ API routes live under `/api/v1` (under `/admin/api/v1` when the admin is mounted
 | `POST /api/v1/review/{page,fragment}/:name/{approve,reject}` | `review:approve` |
 | `GET /api/v1/runs/:runId` | `read:pages` |
 | `POST /api/v1/runs/:runId/revert` | `edit:pages` / `edit:fragments` for the items it puts back; items the run created are archived only with `archive:pages` / `archive:fragments`, and listed as skipped otherwise. A token needs no elevation. |
-| `POST /api/v1/publish*`, `/api/v1/fetch` | `publish:non-production`; publishing to, or fetching into, a target whose `environment` is `production` also needs `publish:production` |
+| `POST /api/v1/publish*`, `/api/v1/fetch` | `publish:non-production`; publishing to, or fetching into, a target whose `environment` is `production` also needs `publish:production`. For a target that requires publish approval, `POST /api/v1/publish` and `/api/v1/publish/stream` need `publish:request` instead, and create a request: a Gazetta token needs no elevation for it |
 | `GET /api/v1/system/cache/*` | `configure:site` |
 | `GET /api/health` | (no gate; intentionally public) |
 | `GET /api/version` | (no gate; the exact Gazetta version is included only for a signed-in caller) |

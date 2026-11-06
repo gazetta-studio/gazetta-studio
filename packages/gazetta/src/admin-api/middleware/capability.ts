@@ -86,9 +86,14 @@ function denialScope(path: string, name: string | undefined): AuditScope {
 /**
  * The check `requireCapability` runs, for a handler that needs a further
  * capability in one of its code paths: answers 401/403 (and records the
- * denial) when the principal lacks it, otherwise returns null.
+ * denial) when the principal lacks it, otherwise returns null. `detail`
+ * replaces the 403 message for a caller that can say what to do next.
  */
-export async function denyWithoutCapability(c: Context<AuditEnv>, capability: string): Promise<Response | null> {
+export async function denyWithoutCapability(
+  c: Context<AuditEnv>,
+  capability: string,
+  detail?: string,
+): Promise<Response | null> {
   const principal = c.get('principal')
   // Record one audit event per denied WRITE attempt (#1192). The
   // denial response must never depend on audit availability:
@@ -141,7 +146,7 @@ export async function denyWithoutCapability(c: Context<AuditEnv>, capability: st
   // Authenticated principal — capability check.
   if (!capabilityGrants(principal.capabilities, capability)) {
     await recordDenial('forbidden')
-    return problem(c, 403, 'FORBIDDEN', `Role "${principal.role}" does not have capability "${capability}"`, {
+    return problem(c, 403, 'FORBIDDEN', detail ?? `Role "${principal.role}" does not have capability "${capability}"`, {
       missing: [capability],
       role: principal.role,
     })

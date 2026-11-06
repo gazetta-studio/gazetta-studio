@@ -37,6 +37,8 @@ export const AuditActionSchema = z.enum([
   'review-approve',
   'review-reject',
   'review-withdraw',
+  // A publish request to a target that requires approval (`metadata.targetName`).
+  'publish-request',
   // AI alt-text suggestions per design-ai.md.
   'ai-suggest-alt',
   // Redirect UI extension per design-redirect-ui.md Q7 lock.

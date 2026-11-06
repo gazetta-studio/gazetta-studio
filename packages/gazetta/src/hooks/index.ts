@@ -41,7 +41,10 @@ export {
   dispatchAfterPublish,
   dispatchBeforeUpload,
   dispatchAfterUpload,
+  dispatchBeforeReviewTransition,
+  dispatchAfterReviewTransition,
 } from './dispatch.js'
+export type { BeforeReviewPhase, AfterReviewPhase } from './dispatch.js'
 export type { HookContribution, HookEntry } from './contribution.js'
 export { buildHookContext } from './context.js'
 export type { HookFiringEmitter, HookFiringEvent } from './audit-emitter.js'

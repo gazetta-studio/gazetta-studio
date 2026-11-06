@@ -27,6 +27,13 @@ export const PublishResultSchema = z.object({
   notPublished: z.array(z.object({ item: z.string(), assets: z.array(z.string()), reason: z.string() })).optional(),
   /** Items that failed to publish to this target (`pages/home:fr`), with the reason. */
   failedItems: z.array(z.object({ item: z.string(), reason: z.string() })).optional(),
+  /**
+   * `requested` when the target requires publish approval: nothing was
+   * published to it, and `requestIds` names the publish requests made
+   * instead, one per page or fragment item.
+   */
+  outcome: z.enum(['published', 'requested']).optional(),
+  requestIds: z.array(z.string()).optional(),
 })
 export type PublishResult = z.infer<typeof PublishResultSchema>
 

@@ -12,6 +12,9 @@ export interface PublishResult {
   notPublished?: { item: string; assets: string[]; reason: string }[]
   /** Items that failed to publish to this target (`pages/home:fr`), with the reason. */
   failedItems?: { item: string; reason: string }[]
+  /** `requested` when the target requires publish approval: requests were made instead (`requestIds`). */
+  outcome?: 'published' | 'requested'
+  requestIds?: string[]
 }
 
 /**

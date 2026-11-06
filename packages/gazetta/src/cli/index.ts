@@ -832,6 +832,10 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
     // publishItems step publishRun's step 13b ran.
     const sharedItems = [...new Set(itemRefs.map(ref => `${ref.kind === 'page' ? 'pages' : 'fragments'}/${ref.name}`))]
     const { publishToTarget } = await import('../publish-target.js')
+    const { PublishApprovalRequiredError } = await import('../publish-approval-gate.js')
+    // A CLI run has no signed-in user, so the gate refuses a target that
+    // requires publish approval before anything is written to it
+    // (design-review-workflow.md lock 6).
     const shared = await publishToTarget({
       targetName: name,
       targetStorage,
@@ -860,7 +864,15 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
       onHistoryError: message => {
         console.warn(`publishRun: history record failed for ${name}: ${message}`)
       },
+    }).catch(err => {
+      if (err instanceof PublishApprovalRequiredError) return err
+      throw err
     })
+    if (shared instanceof PublishApprovalRequiredError) {
+      console.error(`    ${c.red('✗')} ${shared.message}\n`)
+      failedTargets.push(name)
+      continue
+    }
 
     // Aggregate counts: the shared function's manifest copy plus
     // publishRun's per-target render result.

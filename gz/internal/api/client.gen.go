@@ -558,6 +558,7 @@ const (
 	GetApiV1Audit200JSONResponseBodyEventsActionLoginApprove     GetApiV1Audit200JSONResponseBodyEventsAction = "login-approve"
 	GetApiV1Audit200JSONResponseBodyEventsActionLoginDeny        GetApiV1Audit200JSONResponseBodyEventsAction = "login-deny"
 	GetApiV1Audit200JSONResponseBodyEventsActionPublish          GetApiV1Audit200JSONResponseBodyEventsAction = "publish"
+	GetApiV1Audit200JSONResponseBodyEventsActionPublishRequest   GetApiV1Audit200JSONResponseBodyEventsAction = "publish-request"
 	GetApiV1Audit200JSONResponseBodyEventsActionPurge            GetApiV1Audit200JSONResponseBodyEventsAction = "purge"
 	GetApiV1Audit200JSONResponseBodyEventsActionRename           GetApiV1Audit200JSONResponseBodyEventsAction = "rename"
 	GetApiV1Audit200JSONResponseBodyEventsActionRestore          GetApiV1Audit200JSONResponseBodyEventsAction = "restore"
@@ -597,6 +598,8 @@ func (e GetApiV1Audit200JSONResponseBodyEventsAction) Valid() bool {
 	case GetApiV1Audit200JSONResponseBodyEventsActionLoginDeny:
 		return true
 	case GetApiV1Audit200JSONResponseBodyEventsActionPublish:
+		return true
+	case GetApiV1Audit200JSONResponseBodyEventsActionPublishRequest:
 		return true
 	case GetApiV1Audit200JSONResponseBodyEventsActionPurge:
 		return true
@@ -1140,6 +1143,42 @@ func (e PostApiV1PagesNameUnarchive200JSONResponseBodyOk) Valid() bool {
 	}
 }
 
+// Defines values for PostApiV1Publish200JSONResponseBodyResultsOutcome.
+const (
+	PostApiV1Publish200JSONResponseBodyResultsOutcomePublished PostApiV1Publish200JSONResponseBodyResultsOutcome = "published"
+	PostApiV1Publish200JSONResponseBodyResultsOutcomeRequested PostApiV1Publish200JSONResponseBodyResultsOutcome = "requested"
+)
+
+// Valid indicates whether the value is a known member of the PostApiV1Publish200JSONResponseBodyResultsOutcome enum.
+func (e PostApiV1Publish200JSONResponseBodyResultsOutcome) Valid() bool {
+	switch e {
+	case PostApiV1Publish200JSONResponseBodyResultsOutcomePublished:
+		return true
+	case PostApiV1Publish200JSONResponseBodyResultsOutcomeRequested:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostApiV1Publish207JSONResponseBodyResultsOutcome.
+const (
+	PostApiV1Publish207JSONResponseBodyResultsOutcomePublished PostApiV1Publish207JSONResponseBodyResultsOutcome = "published"
+	PostApiV1Publish207JSONResponseBodyResultsOutcomeRequested PostApiV1Publish207JSONResponseBodyResultsOutcome = "requested"
+)
+
+// Valid indicates whether the value is a known member of the PostApiV1Publish207JSONResponseBodyResultsOutcome enum.
+func (e PostApiV1Publish207JSONResponseBodyResultsOutcome) Valid() bool {
+	switch e {
+	case PostApiV1Publish207JSONResponseBodyResultsOutcomePublished:
+		return true
+	case PostApiV1Publish207JSONResponseBodyResultsOutcomeRequested:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PostApiV1PublishAuditJSONBodyItemsKind.
 const (
 	PostApiV1PublishAuditJSONBodyItemsKindFragment PostApiV1PublishAuditJSONBodyItemsKind = "fragment"
@@ -1173,6 +1212,7 @@ const (
 	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionLoginApprove     GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "login-approve"
 	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionLoginDeny        GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "login-deny"
 	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionPublish          GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "publish"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionPublishRequest   GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "publish-request"
 	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionPurge            GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "purge"
 	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionRename           GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "rename"
 	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionRestore          GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "restore"
@@ -1212,6 +1252,8 @@ func (e GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction) Valid() bool
 	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionLoginDeny:
 		return true
 	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionPublish:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionPublishRequest:
 		return true
 	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionPurge:
 		return true
@@ -1503,6 +1545,7 @@ const (
 	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionLoginApprove     GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "login-approve"
 	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionLoginDeny        GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "login-deny"
 	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionPublish          GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "publish"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionPublishRequest   GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "publish-request"
 	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionPurge            GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "purge"
 	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionRename           GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "rename"
 	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionRestore          GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "restore"
@@ -1542,6 +1585,8 @@ func (e GetApiV1ReviewPageName200JSONResponseBodyHistoryAction) Valid() bool {
 	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionLoginDeny:
 		return true
 	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionPublish:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionPublishRequest:
 		return true
 	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionPurge:
 		return true
@@ -2877,6 +2922,12 @@ type PostApiV1PublishParams struct {
 	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
+
+// PostApiV1Publish200JSONResponseBodyResultsOutcome defines parameters for PostApiV1Publish.
+type PostApiV1Publish200JSONResponseBodyResultsOutcome string
+
+// PostApiV1Publish207JSONResponseBodyResultsOutcome defines parameters for PostApiV1Publish.
+type PostApiV1Publish207JSONResponseBodyResultsOutcome string
 
 // PostApiV1PublishAuditJSONBody defines parameters for PostApiV1PublishAudit.
 type PostApiV1PublishAuditJSONBody struct {
@@ -19085,8 +19136,10 @@ type PostApiV1PublishResponse struct {
 				Item   string   `json:"item"`
 				Reason string   `json:"reason"`
 			} `json:"notPublished,omitempty"`
-			Success bool   `json:"success"`
-			Target  string `json:"target"`
+			Outcome    *PostApiV1Publish200JSONResponseBodyResultsOutcome `json:"outcome,omitempty"`
+			RequestIds *[]string                                          `json:"requestIds,omitempty"`
+			Success    bool                                               `json:"success"`
+			Target     string                                             `json:"target"`
 		} `json:"results"`
 		Warnings *[]string `json:"warnings,omitempty"`
 	}
@@ -19104,8 +19157,10 @@ type PostApiV1PublishResponse struct {
 				Item   string   `json:"item"`
 				Reason string   `json:"reason"`
 			} `json:"notPublished,omitempty"`
-			Success bool   `json:"success"`
-			Target  string `json:"target"`
+			Outcome    *PostApiV1Publish207JSONResponseBodyResultsOutcome `json:"outcome,omitempty"`
+			RequestIds *[]string                                          `json:"requestIds,omitempty"`
+			Success    bool                                               `json:"success"`
+			Target     string                                             `json:"target"`
 		} `json:"results"`
 		Warnings *[]string `json:"warnings,omitempty"`
 	}
@@ -19135,8 +19190,10 @@ func (r PostApiV1PublishResponse) GetJSON200() *struct {
 			Item   string   `json:"item"`
 			Reason string   `json:"reason"`
 		} `json:"notPublished,omitempty"`
-		Success bool   `json:"success"`
-		Target  string `json:"target"`
+		Outcome    *PostApiV1Publish200JSONResponseBodyResultsOutcome `json:"outcome,omitempty"`
+		RequestIds *[]string                                          `json:"requestIds,omitempty"`
+		Success    bool                                               `json:"success"`
+		Target     string                                             `json:"target"`
 	} `json:"results"`
 	Warnings *[]string `json:"warnings,omitempty"`
 } {
@@ -19157,8 +19214,10 @@ func (r PostApiV1PublishResponse) GetJSON207() *struct {
 			Item   string   `json:"item"`
 			Reason string   `json:"reason"`
 		} `json:"notPublished,omitempty"`
-		Success bool   `json:"success"`
-		Target  string `json:"target"`
+		Outcome    *PostApiV1Publish207JSONResponseBodyResultsOutcome `json:"outcome,omitempty"`
+		RequestIds *[]string                                          `json:"requestIds,omitempty"`
+		Success    bool                                               `json:"success"`
+		Target     string                                             `json:"target"`
 	} `json:"results"`
 	Warnings *[]string `json:"warnings,omitempty"`
 } {
@@ -26224,8 +26283,10 @@ func ParsePostApiV1PublishResponse(rsp *http.Response) (*PostApiV1PublishRespons
 					Item   string   `json:"item"`
 					Reason string   `json:"reason"`
 				} `json:"notPublished,omitempty"`
-				Success bool   `json:"success"`
-				Target  string `json:"target"`
+				Outcome    *PostApiV1Publish200JSONResponseBodyResultsOutcome `json:"outcome,omitempty"`
+				RequestIds *[]string                                          `json:"requestIds,omitempty"`
+				Success    bool                                               `json:"success"`
+				Target     string                                             `json:"target"`
 			} `json:"results"`
 			Warnings *[]string `json:"warnings,omitempty"`
 		}
@@ -26248,8 +26309,10 @@ func ParsePostApiV1PublishResponse(rsp *http.Response) (*PostApiV1PublishRespons
 					Item   string   `json:"item"`
 					Reason string   `json:"reason"`
 				} `json:"notPublished,omitempty"`
-				Success bool   `json:"success"`
-				Target  string `json:"target"`
+				Outcome    *PostApiV1Publish207JSONResponseBodyResultsOutcome `json:"outcome,omitempty"`
+				RequestIds *[]string                                          `json:"requestIds,omitempty"`
+				Success    bool                                               `json:"success"`
+				Target     string                                             `json:"target"`
 			} `json:"results"`
 			Warnings *[]string `json:"warnings,omitempty"`
 		}

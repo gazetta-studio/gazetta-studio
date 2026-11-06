@@ -46,6 +46,7 @@ Recorded actions:
 | `publish`         | Content is published to a target: one event per target, so a publish to staging and production records two |
 | `delete`          | A page, fragment, or asset is deleted                          |
 | `restore`         | A history undo or arbitrary rollback executes                  |
+| `publish-request` | A publish to a target that requires approval creates a request instead: one event per request, with `metadata.targetName` and `metadata.requestId` |
 | `configure-roles` | Reserved for role-mapping changes (lands when reviews ship)    |
 | `login-approve`   | A command-line sign-in is approved, or an approval is refused (outcome `forbidden` or `unauthenticated`) |
 | `login-deny`      | A command-line sign-in is denied                               |

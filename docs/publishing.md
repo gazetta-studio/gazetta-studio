@@ -37,6 +37,12 @@ absent, and findings identify that manifest (for example, `pages/about/page.fr.j
 The server repeats the audit before writing to any destination, and refuses the
 publish when it finds an error; `publishAudit.strict` turns warnings into errors.
 
+### Targets that require approval
+
+A target with `requiresPublishApproval: true` isn't published to directly. Publishing to it from the admin, or through `POST /api/v1/publish`, creates a publish request for each page and fragment instead (a page with its translations is one request), and nothing on the target changes. The result for that target says `outcome: "requested"` and lists the `requestIds`. Other targets in the same publish go out as usual. Requesting needs the `publish:request` capability, which editors have, not `publish:production` ([Auth](./auth.md#per-route-capability-matrix)). Approving requests comes in a later release; until then, a request stays pending.
+
+`gazetta publish` refuses such a target with "`<target>` requires publish approval — request it from the admin." and exits with code 1, without writing anything: a command-line run has no signed-in user to make the request.
+
 ## Publish from the CLI
 
 Run these commands from a project with a configured site. Name the destination explicitly, especially in scripts:

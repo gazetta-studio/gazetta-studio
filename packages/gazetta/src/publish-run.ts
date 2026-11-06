@@ -26,9 +26,10 @@
  *      publishing @header pulls dependent pages)
  *   6. boot: init target storage (registry connect, per-target type
  *      resolution per design-rendering.md)
- *   7. (RESERVED) per-target review-publish-approval gate — Review
- *      Cut 9: targets w/ requiresPublishApproval create request,
- *      don't deploy
+ *   7. the publish-approval gate is not here: it runs in the shared
+ *      target-publish function (publish-target.ts step 0, review
+ *      workflow cut 12), before publishRun, so a gated target never
+ *      reaches this loop
  *   8. (RESERVED) dispatchBeforePublishRun hooks
  *   9. for each target: { for each item: per-item pipeline }
  *  10. dependency indices: each published item replaces its own edges
