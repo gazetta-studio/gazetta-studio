@@ -92,7 +92,7 @@ export interface AuditEvent {
   /** Required. Each recording site supplies its own outcome explicitly —
    *  no implicit default. Closed enum; future ambient-log additions
    *  ('rate-limited', 'session-expired') stay closed-enum. */
-  outcome: 'success' | 'forbidden' | 'validation-failed' | 'unauthenticated'
+  outcome: 'success' | 'forbidden' | 'validation-failed' | 'unauthenticated' | 'hook-cancelled' | 'timeout' | 'write-failed'
   /** What was acted on. */
   scope: { kind: 'page' | 'fragment' | 'asset' | 'site'; name?: string }
   /** Optional, instance-configurable per privacy / GDPR. Default off. */
@@ -266,13 +266,13 @@ Every write **attempt** — success and write-class rejection:
 | Action | Recorded outcomes |
 |---|---|
 | `save` (page, fragment, or asset edit) | `success`, `validation-failed`, `forbidden`, `unauthenticated` |
-| `publish` (any target) | `success`, `write-failed`, `forbidden`, `unauthenticated` |
+| `publish` (any target) | `success`, `write-failed`, `validation-failed`, `hook-cancelled`, `forbidden`, `unauthenticated` |
 | `delete` (page, fragment, or asset) | `success`, `forbidden`, `unauthenticated` |
 | `restore` (history rollback) | `success`, `forbidden`, `unauthenticated` |
 | `configure-roles` (`site.config.ts`'s `admin.auth.roleMapping` change) | `success`, `validation-failed`, `forbidden`, `unauthenticated` |
 | `sign-in` (a write request refused before a route is matched: the `GAZETTA_TOKEN` guard, or the identity provider rejecting the request) | `unauthenticated` |
 
-A publish records one event per destination target, each with its own outcome: `success` when every item reached that target, `write-failed` when any item didn't, with the items that failed in `metadata`. So a publish to staging and production where production fails records `success` for staging and `write-failed` for production, and the drawer and the live feed show which target changed. Today the publish routes record one `success` event for the whole publish even when a target fails (`admin-api/routes/publish.ts`, read from code 2026-11-05). `write-failed` is already in the code's outcome list (`audit/types.ts`), for a write that fails after its event was recorded (`docs/audit.md`). The code change is #1799.
+A publish records one event per destination target, each with its own outcome: `success` when every item reached that target, `write-failed` when any item didn't, with the items that failed in `metadata`. So a publish to staging and production where production fails records `success` for staging and `write-failed` for production, and the drawer and the live feed show which target changed. Today the publish routes record one `success` event for the whole publish even when a target fails (`admin-api/routes/publish.ts`, read from code 2026-11-05). `write-failed` is already in the code's outcome list (`audit/types.ts`); the publish routes use it today only in strict mode, for a run that fails after its event was recorded (`docs/audit.md`). The code change is #1799.
 
 Decided: maintainer, 2026-11-06 (#1801)
 
@@ -280,6 +280,8 @@ Decided: maintainer, 2026-11-06 (#1801)
 |---|---|
 | One event per publish, `write-failed` if any target failed | A filter on `success` would hide the target that did change |
 | One event per publish, `success`, with the failed targets in `metadata` | Nothing that filters on outcome would ever see the failure |
+
+Each destination target counts as its own attempt, so the dedup rule (one event per attempt) holds. A target where some items were held back (for example pages whose asset was deleted mid-publish, `design-publish-undo.md` Q4) is `write-failed`, since not every item reached it. In strict mode, where the event is recorded before writing, each target gets its `success` event first and a second `write-failed` event if it then fails, as strict mode does for any write (`docs/audit.md`). Follows from the decision above.
 
 A `sign-in` event is recorded for write methods (POST, PUT, PATCH, DELETE) on `/api/*` only, with the request's method and path in `metadata`: no route has been matched, so there's no other action to record, and no table of routes to keep in sync. A refused draft-preview render (`POST /preview/*`) is a read, so it isn't recorded, like other reads. `sign-in` joins the closed action list additively, like `create-redirect`. Decided: maintainer, 2026-10-24 (#1263).
 
