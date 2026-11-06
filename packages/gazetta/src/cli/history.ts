@@ -19,7 +19,7 @@ import { createInterface } from 'node:readline/promises'
 import { createHistoryProvider } from '../history-provider.js'
 import { restoreRevision } from '../history-restorer.js'
 import { createContentRoot } from '../content-root.js'
-import { historyOffReason, isHistoryEnabled, getHistoryRetention, getEnvironment } from '../types.js'
+import { historyOffReason, isHistoryEnabled, getHistoryRetention, getEnvironment, getType } from '../types.js'
 import type { TargetConfig } from '../types.js'
 
 /** Shared context passed to every command handler. */
@@ -140,6 +140,7 @@ export async function runHistoryUndo(ctx: HistoryCommandContext, opts: { yes?: b
     contentRoot,
     revisionId: prior.id,
     message: `Undo ${head.operation} (rev ${head.id})`,
+    flattenStaticPages: getType(ctx.config) === 'static',
   })
   console.log(
     `\n  ✓ Undone. ${ctx.targetName} is now at ${prior.id} (${prior.operation} @ ${formatTimestamp(prior.timestamp)})`,
@@ -177,6 +178,7 @@ export async function runHistoryRollback(
     contentRoot,
     revisionId,
     message: `Rollback to ${revisionId}`,
+    flattenStaticPages: getType(ctx.config) === 'static',
   })
   console.log(
     `\n  ✓ Rolled back. ${ctx.targetName} is now at ${revisionId} (${target.operation} @ ${formatTimestamp(target.timestamp)})`,

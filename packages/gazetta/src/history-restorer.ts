@@ -37,6 +37,8 @@ export interface RestoreRevisionOptions {
   author?: string
   /** Human-readable note ("Undo publish from local"). */
   message?: string
+  /** The target is static: its rebuilt indices get the flattened page edges publish writes. */
+  flattenStaticPages?: boolean
 }
 
 /**
@@ -97,7 +99,9 @@ export async function restoreRevision(opts: RestoreRevisionOptions): Promise<Rev
       const { loadSite } = await import('./site-loader.js')
       const { rebuildAllDepIndices } = await import('./publish-rendered.js')
       const site = await loadSite({ contentRoot, manifest: { name: '(history-restore)' } })
-      await rebuildAllDepIndices(site, contentRoot.storage, contentRoot.rootPath)
+      await rebuildAllDepIndices(site, contentRoot.storage, contentRoot.rootPath, {
+        flattenStaticPages: opts.flattenStaticPages,
+      })
     } catch (err) {
       // Non-fatal: if site config is missing or load fails, dep indices
       // might drift. Reindex CLI recovers.
