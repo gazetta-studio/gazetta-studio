@@ -43,7 +43,7 @@ Recorded actions:
 | Action            | When                                                           |
 | ----------------- | -------------------------------------------------------------- |
 | `save`            | A page or fragment manifest is written                         |
-| `publish`         | Content is published to a target                               |
+| `publish`         | Content is published to a target: one event per target, so a publish to staging and production records two |
 | `delete`          | A page, fragment, or asset is deleted                          |
 | `restore`         | A history undo or arbitrary rollback executes                  |
 | `configure-roles` | Reserved for role-mapping changes (lands when reviews ship)    |
@@ -62,6 +62,7 @@ Recorded outcomes:
 | `validation-failed` | Save rejected because validators flagged blocking issues                          |
 | `forbidden`         | Capability check denied the request (capability middleware, or a route's own gate) |
 | `unauthenticated`   | Upstream auth produced no principal; request rejected                             |
+| `write-failed`      | A publish didn't reach every item on that target; `metadata.failedItems` lists the items and why |
 
 Requests refused before a route is matched aren't recorded: the 401 from the `GAZETTA_TOKEN` guard, and the 401 when the identity provider rejects a request (invalid credentials, an untrusted proxy, or a user who matches no role).
 

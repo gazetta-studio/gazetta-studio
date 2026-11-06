@@ -67,6 +67,7 @@ import { checkGoneAssets, type NotPublished } from './publish-gone-assets.js'
 import type { PublishSnapshot } from './publish-snapshot.js'
 import type { TemplateInfo } from './templates-scan.js'
 import type { PublishItemRef, PublishRunResult } from './publish-run.js'
+import type { PublishItemResult } from './publish-item.js'
 import { manifestPathsToRemove, removeItemFromTarget, type PublishRemovalRef } from './publish-remove.js'
 
 export type { PublishRemovalRef } from './publish-remove.js'
@@ -155,6 +156,28 @@ export interface PublishToTargetResult {
    * revision entry on the target; the next publish takes them.
    */
   readonly notPublished: readonly NotPublished[]
+  /** Items publishRun failed to publish to this target, with the reason (`pages/home:fr`). */
+  readonly failedItems: readonly PublishFailedItem[]
+}
+
+export interface PublishFailedItem {
+  /** `pages/<name>` or `fragments/<name>`, with `:<locale>` for a language version. */
+  readonly item: string
+  readonly reason: string
+}
+
+/** The items of one target's run that didn't publish. */
+function failedItemsOf(items: readonly PublishItemResult[]): PublishFailedItem[] {
+  return items.flatMap(r =>
+    r.ok
+      ? []
+      : [
+          {
+            item: `${r.kind === 'page' ? 'pages' : 'fragments'}/${r.name}${r.locale ? `:${r.locale}` : ''}`,
+            reason: r.code === 'VALIDATION_FAILED' ? r.issues.map(i => i.message).join('; ') : r.reason,
+          },
+        ],
+  )
 }
 
 /**
@@ -279,6 +302,7 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
       removed: [],
       removalFailures: [],
       notPublished: check.notPublished,
+      failedItems: [],
     }
   }
   let variantFiles = 0
@@ -312,6 +336,7 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
     onProgress,
   })
   const run = runResult.targets.find(t => t.name === targetName)
+  const failedItems = failedItemsOf(runResult.items)
   // A failed target stops here: the history revision and the manifest
   // copy already landed, but no generated files, no generation bump
   // and no purge - the callers report the failure as they did before
@@ -327,6 +352,7 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
       removed: [],
       removalFailures: [],
       notPublished: check.notPublished,
+      failedItems,
     }
   }
 
@@ -604,6 +630,7 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
     removed,
     removalFailures,
     notPublished: check.notPublished,
+    failedItems,
   }
 }
 

@@ -25,6 +25,8 @@ export const PublishResultSchema = z.object({
    * files during the publish (#1632). They go out with the next publish.
    */
   notPublished: z.array(z.object({ item: z.string(), assets: z.array(z.string()), reason: z.string() })).optional(),
+  /** Items that failed to publish to this target (`pages/home:fr`), with the reason. */
+  failedItems: z.array(z.object({ item: z.string(), reason: z.string() })).optional(),
 })
 export type PublishResult = z.infer<typeof PublishResultSchema>
 
