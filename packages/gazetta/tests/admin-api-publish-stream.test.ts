@@ -149,7 +149,8 @@ describe('POST /api/v1/publish/stream', { timeout: 30_000 }, () => {
     const recorded = await publishEvents(app)
     expect(recorded).toHaveLength(1)
     expect(recorded[0].outcome).toBe('success')
-    expect(recorded[0].metadata).toMatchObject({ items: ['fragments/header'], targets: ['staging'] })
+    expect(recorded[0].metadata).toMatchObject({ items: ['fragments/header'], target: 'staging' })
+    expect(recorded[0].scope).toEqual({ kind: 'site', name: 'staging' })
   })
 
   it('refuses with 409 HOOK_CANCELLED before the stream opens when a beforePublish hook throws', async () => {

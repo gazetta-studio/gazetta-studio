@@ -35,6 +35,8 @@ import type { Issue } from '../../validation/types.js'
 import { isSafeItemName } from '../../item-name.js'
 import { PublishAuditRequestSchema } from '../schemas/validation.js'
 import { apiApp, json, problems } from '../openapi.js'
+import { publishResultEvent, publishStartEvent, type PublishAuditBase } from '../../publish-audit-events.js'
+import type { AuditContext } from '../../audit/index.js'
 import { TargetInfoSchema } from '../schemas/targets.js'
 import { DependentsResponseSchema } from '../schemas/dependents.js'
 import { FetchResponseSchema } from '../schemas/fetch.js'
@@ -185,6 +187,24 @@ export interface PublishRoutesOptions {
 
 /** The line a publish adds when its audit event had nowhere to go. */
 export const AUDIT_DROPPED_WARNING = 'Audit event not recorded: no target with private storage keeps the audit log.'
+
+/**
+ * One `publish` event per target once its run is over (#1799). Under
+ * strict mode each target already has its event from before the write,
+ * so only a target that then failed gets a second, `write-failed`, one.
+ */
+async function recordTargetResults(
+  audit: AuditContext,
+  results: readonly PublishResult[],
+  base: PublishAuditBase,
+  strict: boolean,
+): Promise<void> {
+  for (const r of results) {
+    const ev = publishResultEvent(r, base)
+    if (strict && ev.outcome === 'success') continue
+    await audit.record(ev)
+  }
+}
 
 export function publishRoutes(
   resolve: SourceContextResolver,
@@ -732,6 +752,7 @@ export function publishRoutes(
           success: true,
           copiedFiles: totalFiles,
           ...(notPublished.length > 0 ? { notPublished } : {}),
+          ...(shared.failedItems.length > 0 ? { failedItems: [...shared.failedItems] } : {}),
         }
         results.push(result)
         console.log(`    ${targetName}: ${totalFiles} files`)
@@ -901,13 +922,11 @@ export function publishRoutes(
     // when this ran.
     const strictPreRecord = c.var.audit?.strict === true
     if (strictPreRecord) {
-      const preResult = await c.var.audit.record({
-        action: 'publish',
-        outcome: 'success',
-        scope: { kind: 'site' },
-        metadata: { items: finalItems, targets: body.targets, source: body.source },
-      })
-      if (preResult.failed > 0) {
+      // One event per target, each before anything is written (#1799).
+      const pre = await Promise.all(
+        body.targets.map(t => c.var.audit.record(publishStartEvent(t, { items: finalItems, source: body.source }))),
+      )
+      if (pre.some(r => r.failed > 0)) {
         return problem(c, 500, 'AUDIT_FAILED', 'Audit recording failed; publish refused (strict mode)')
       }
     }
@@ -918,35 +937,23 @@ export function publishRoutes(
       if (ev.kind === 'fatal') fatal = ev
       else if (ev.kind === 'done') results = ev.results
     }
+    const auditBase = { items: finalItems, source: body.source }
     if (fatal) {
-      // Under strict mode the pre-write event already claims the
-      // publish; a second event records the failure so the log
-      // stays honest (#1393).
+      // Under strict mode each target's pre-write event already claims
+      // the publish; a second event per target records the failure so
+      // the log stays honest (#1393).
       if (strictPreRecord) {
-        await c.var.audit.record({
-          action: 'publish',
-          outcome: 'write-failed',
-          scope: { kind: 'site' },
-          metadata: { items: finalItems, targets: body.targets, source: body.source },
-        })
+        const error = fatal.kind === 'fatal' ? fatal.error : undefined
+        for (const t of body.targets) {
+          await c.var.audit.record(publishResultEvent({ target: t, success: false, error }, auditBase))
+        }
       }
       return fatal.invalidTemplates
         ? problem(c, 400, 'TEMPLATE_INVALID', fatal.error, { invalidTemplates: fatal.invalidTemplates })
         : problem(c, 400, 'BAD_REQUEST', fatal.error)
     }
     const allSuccess = results.every(r => r.success)
-    // Audit: one event per publish operation. metadata carries the
-    // requested items + targets for forensic queries; per-item
-    // events would explode volume on multi-item publishes.
-    // Skipped when strict mode already recorded above (#1393).
-    if (!strictPreRecord) {
-      await c.var.audit.record({
-        action: 'publish',
-        outcome: 'success',
-        scope: { kind: 'site' },
-        metadata: { items: finalItems, targets: body.targets, source: body.source },
-      })
-    }
+    await recordTargetResults(c.var.audit, results, auditBase, strictPreRecord)
 
     // afterPublish hooks per design-hooks.md "Publish lifecycle"
     // step 5. Observational; failures logged. One dispatch per
@@ -1063,13 +1070,11 @@ export function publishRoutes(
     // from the admin UI.
     const strictPreRecord = c.var.audit?.strict === true
     if (strictPreRecord) {
-      const preResult = await c.var.audit.record({
-        action: 'publish',
-        outcome: 'success',
-        scope: { kind: 'site' },
-        metadata: { items: finalItems, targets: body.targets, source: body.source },
-      })
-      if (preResult.failed > 0) {
+      // One event per target, each before anything is written (#1799).
+      const pre = await Promise.all(
+        body.targets.map(t => c.var.audit.record(publishStartEvent(t, { items: finalItems, source: body.source }))),
+      )
+      if (pre.some(r => r.failed > 0)) {
         return problem(c, 500, 'AUDIT_FAILED', 'Audit recording failed; publish refused (strict mode)')
       }
     }
@@ -1081,15 +1086,13 @@ export function publishRoutes(
       // Under strict mode the pre-write record already claims the
       // publish; a fatal (yielded or thrown) gets one compensating
       // 'write-failed' event (#1393).
-      const recordWriteFailed = async (): Promise<void> => {
+      const auditBase = { items: finalItems, source: body.source }
+      const recordWriteFailed = async (error?: string): Promise<void> => {
         if (!strictPreRecord || recordedWriteFailed) return
         recordedWriteFailed = true
-        await c.var.audit.record({
-          action: 'publish',
-          outcome: 'write-failed',
-          scope: { kind: 'site' },
-          metadata: { items: finalItems, targets: body.targets, source: body.source },
-        })
+        for (const t of body.targets) {
+          await c.var.audit.record(publishResultEvent({ target: t, success: false, error }, auditBase))
+        }
       }
       try {
         for await (const ev of runPublish(finalItems, body.targets, body.source, snapshot)) {
@@ -1097,26 +1100,17 @@ export function publishRoutes(
           const data = ev.kind === 'done' ? { ...ev, ...auditWarnings } : ev
           await stream.writeSSE({ event: ev.kind, data: JSON.stringify(data) })
           if (ev.kind === 'fatal') {
-            await recordWriteFailed()
+            await recordWriteFailed(ev.error)
           }
           if (ev.kind === 'done') {
-            // Record once per stream — same shape as the
-            // synchronous /api/publish endpoint. Skipped when
-            // strict mode already recorded above (#1393).
-            if (!strictPreRecord) {
-              await c.var.audit.record({
-                action: 'publish',
-                outcome: 'success',
-                scope: { kind: 'site' },
-                metadata: { items: finalItems, targets: body.targets, source: body.source },
-              })
-            }
+            // One event per target, as the synchronous /api/publish records.
+            await recordTargetResults(c.var.audit, ev.results, auditBase, strictPreRecord)
             recordedSuccess = true
             collectedResults.push(...ev.results)
           }
         }
       } catch (err) {
-        await recordWriteFailed()
+        await recordWriteFailed((err as Error).message)
         if (!stream.aborted) {
           await stream.writeSSE({
             event: 'fatal',
