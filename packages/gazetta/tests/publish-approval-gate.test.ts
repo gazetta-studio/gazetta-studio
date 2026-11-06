@@ -12,6 +12,7 @@ import { expandRole, type Principal } from '../src/auth/index.js'
 import { createContentRoot } from '../src/content-root.js'
 import {
   GatedRemovalError,
+  NothingToRequestError,
   PublishApprovalRequiredError,
   PublishRequestForbiddenError,
 } from '../src/publish-approval-gate.js'
@@ -201,5 +202,45 @@ describe('publishApprovalGate in publishToTarget', { timeout: 30000 }, () => {
     const byItem = new Map(result.requests.map(r => [r.item, r]))
     // about uses header, and logo through it.
     expect(byItem.get('pages/about')!.waitsFor).toEqual([byItem.get('fragments/logo')!.id])
+  })
+
+  it("covers only the translations in the target's locales", async () => {
+    const result = await publish(gated({ locales: ['en'] }), { requester: editor() })
+    expect(Object.keys(result.requests[0].hashes)).toEqual(['pages/home/page.json'])
+  })
+
+  it('refuses a publish with nothing to request (templates only) and writes nothing', async () => {
+    await expect(
+      publish(gated(), { requester: editor(), items: ['templates/page-default'], itemRefs: [] }),
+    ).rejects.toThrow(NothingToRequestError)
+    expect(target.dump().size).toBe(0)
+    expect(requestsOnSource()).toEqual([])
+  })
+
+  it('makes one request for two spellings of the same language', async () => {
+    const result = await publish(gated(), { requester: editor(), items: ['pages/home:fr', 'pages/home:FR'] })
+    expect(result.requests.map(r => r.item)).toEqual(['pages/home:fr'])
+  })
+
+  it('keeps a target name with a dot in the path as it is', async () => {
+    const result = await publish(gated(), { requester: editor(), targetName: 'prod.eu' })
+    expect(
+      requestsOnSource().some(k =>
+        k.startsWith(`.gazetta/publish-requests/prod.eu/page/home/${result.requests[0].id}`),
+      ),
+    ).toBe(true)
+  })
+
+  it("records each manifest's hash, which changes with its content", async () => {
+    const before = (await publish(gated(), { requester: editor() })).requests[0].hashes
+    source.seed({ 'pages/home/page.json': page(['@header'], 'Changed') })
+    snapshot = await createPublishSnapshot({
+      contentRoot: createContentRoot(source, ''),
+      manifest,
+      templatesDir: starterTemplatesDir,
+    })
+    const after = (await publish(gated(), { requester: editor() })).requests[0].hashes
+    expect(after['pages/home/page.json']).not.toBe(before['pages/home/page.json'])
+    expect(after['pages/home/page.fr.json']).toBe(before['pages/home/page.fr.json'])
   })
 })
