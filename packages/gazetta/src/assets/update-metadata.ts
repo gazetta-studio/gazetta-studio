@@ -29,7 +29,7 @@ import { AssetStorageError } from './errors.js'
  * Patch shape — every field optional; only present fields are applied.
  * Undefined = "don't change," explicit `null` = "set to null state."
  */
-export interface AssetMetadataPatch {
+interface AssetMetadataPatch {
   /** Three-state alt (string | "" | null). Absent in patch = unchanged. */
   alt?: string | null
   /**
