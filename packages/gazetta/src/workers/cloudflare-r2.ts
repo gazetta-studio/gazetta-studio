@@ -205,7 +205,9 @@ export function createWorker(options?: CloudflareR2WorkerOptions) {
     })
   })
 
-  // Static assets (CSS, JS) — immutable cache
+  // Static assets (CSS, JS) — immutable cache. Private storage under these
+  // prefixes (per-item sidecars, manifests) answers 404 before any bucket
+  // read: one rule shared with every other server (design-public-storage.md Q4).
   app.get('/pages/*', async c => serveStatic(c, c.env[bindingName], true))
   app.get('/fragments/*', async c => serveStatic(c, c.env[bindingName]))
 
@@ -285,6 +287,7 @@ export function createWorker(options?: CloudflareR2WorkerOptions) {
 
 async function serveStatic(c: any, bucket: R2Bucket, checkArchive = false) {
   const path = new URL(c.req.url).pathname.slice(1)
+  if (!isPublicSitePath(path)) return c.notFound()
   const obj = await bucket.get(path)
   if (!obj) return c.notFound()
 

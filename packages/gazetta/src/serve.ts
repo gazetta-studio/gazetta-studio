@@ -358,7 +358,9 @@ export function createServer(options: ServeOptions) {
     }
   })
 
-  // Hashed CSS/JS — immutable cache
+  // Hashed CSS/JS — immutable cache. Private storage under these prefixes
+  // (per-item sidecars, manifests) answers 404 before any storage read: one
+  // rule shared with every other server (design-public-storage.md Q4).
   app.get('/pages/*', async c => serveAsset(c, storage, true))
   app.get('/fragments/*', async c => serveAsset(c, storage))
 
@@ -437,6 +439,7 @@ export function createServer(options: ServeOptions) {
 
 async function serveAsset(c: any, storage: StorageProvider, checkArchive = false) {
   const path = new URL(c.req.url).pathname.slice(1)
+  if (!isPublicSitePath(path)) return c.notFound()
   try {
     const content = await storage.readFile(path)
     const ext = path.split('.').pop()
