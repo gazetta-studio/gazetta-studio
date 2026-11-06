@@ -41,7 +41,7 @@
 import { ref, type Ref } from 'vue'
 import { ArchivedNameConflictError, type ArchivedNameConflictDetails } from '../api/client.js'
 
-export type ResolutionMode = 'restore' | 'replace' | 'moveAside'
+type ResolutionMode = 'restore' | 'replace' | 'moveAside'
 
 export interface ArchivedConflictAttemptOptions {
   onConflict?: ResolutionMode
