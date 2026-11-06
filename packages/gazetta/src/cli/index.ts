@@ -34,6 +34,7 @@ import { isInside } from './is-inside.js'
 import { isArchived } from '../archive-helpers.js'
 import { viteCacheDir } from './vite-cache-dir.js'
 import { devRoute } from './dev-routing.js'
+import { hasSiteConfig, loadSiteManifestForCli, resolveSiteDir, resolveTarget } from './resolve-site-target.js'
 import { isStatePath, STATE_ROOT } from '../state-folders.js'
 
 // ANSI color helpers — no dependency, suppressed when NO_COLOR or CI
@@ -51,21 +52,6 @@ const c = {
 
 const args = process.argv.slice(2)
 const command = args[0]
-
-/**
- * Load a site manifest from `siteDir` via the TS config loader. Recognizes
- * `site.config.ts`, `site.config.js`, and `site.config.mjs`.
- *
- * Returns null when no config file is found.
- */
-async function loadSiteManifestForCli(siteDir: string): Promise<SiteManifest | null> {
-  const tsConfigCandidates = ['site.config.ts', 'site.config.js', 'site.config.mjs']
-  if (!tsConfigCandidates.some(f => existsSync(join(siteDir, f)))) return null
-  const { loadSiteConfig, siteConfigToManifest } = await import('../config/loader.js')
-  const loaded = await loadSiteConfig(siteDir)
-  if (!loaded) return null
-  return siteConfigToManifest(loaded.config)
-}
 
 /**
  * Read `admin.hooks` factory contributions from a site manifest.
@@ -199,8 +185,8 @@ function detectProjectRoot(siteDir: string): string {
  */
 async function resolveSiteDirForCommand(cmd: string, parsed: { positional: readonly string[] }): Promise<string> {
   // Commands whose site positional sits at a fixed index.
-  if (cmd === 'build') return resolveSiteDir(parsed.positional[0])
-  if (cmd === 'dev' || cmd === 'validate' || cmd === 'admin') return resolveSiteDir(parsed.positional[0])
+  if (cmd === 'build') return resolveSiteDir(parsed.positional[0], command)
+  if (cmd === 'dev' || cmd === 'validate' || cmd === 'admin') return resolveSiteDir(parsed.positional[0], command)
 
   // `rollback <rev> [target|site] [site]`: site is positional[1] when
   // site-shaped, else positional[2].
@@ -208,7 +194,7 @@ async function resolveSiteDirForCommand(cmd: string, parsed: { positional: reado
     const second = parsed.positional[1]
     const third = parsed.positional[2]
     const secondIsSite = second && (second.includes('/') || hasSiteConfig(resolve(second)))
-    return resolveSiteDir(secondIsSite ? second : third)
+    return resolveSiteDir(secondIsSite ? second : third, command)
   }
 
   // `publish|serve|deploy|history|undo [target|site] [site]`: site is
@@ -216,32 +202,32 @@ async function resolveSiteDirForCommand(cmd: string, parsed: { positional: reado
   if (cmd === 'publish' || cmd === 'serve' || cmd === 'deploy' || cmd === 'history' || cmd === 'undo') {
     const first = parsed.positional[0]
     const firstIsSite = first && (first.includes('/') || hasSiteConfig(resolve(first)))
-    return resolveSiteDir(firstIsSite ? first : parsed.positional[1])
+    return resolveSiteDir(firstIsSite ? first : parsed.positional[1], command)
   }
 
   // `translate <item> --to <locale> [target]` — no explicit site arg.
-  if (cmd === 'translate') return resolveSiteDir(undefined)
+  if (cmd === 'translate') return resolveSiteDir(undefined, command)
 
   // `assets <subcmd> [args...] [target] [site]`: layout differs by subcmd.
   if (cmd === 'assets') {
     const subcmd = parsed.positional[0]
     const sitePositional = subcmd === 'info' ? parsed.positional[3] : parsed.positional[2]
-    return resolveSiteDir(sitePositional)
+    return resolveSiteDir(sitePositional, command)
   }
 
   // `archive <subcmd> [args...] [target] [site]`: site at trailingStart+1.
   if (cmd === 'archive') {
     const subcmd = parsed.positional[0]
     const requiredArgs = subcmd === 'rename' ? 2 : subcmd === 'purge' || subcmd === 'restore' ? 1 : 0
-    return resolveSiteDir(parsed.positional[1 + requiredArgs + 1])
+    return resolveSiteDir(parsed.positional[1 + requiredArgs + 1], command)
   }
 
   // `state remove <target> [site]`: site at positional[2].
-  if (cmd === 'state') return resolveSiteDir(parsed.positional[2])
+  if (cmd === 'state') return resolveSiteDir(parsed.positional[2], command)
 
   // Unknown command → auto-detect (main's switch will reject with a
   // clear "Unknown command" error after env-load runs).
-  return resolveSiteDir(undefined)
+  return resolveSiteDir(undefined, command)
 }
 
 /**
@@ -341,101 +327,6 @@ ${VALIDATE_FLAGS.map(f => `    ${`${f.flag}${f.value ? ` ${f.value}` : ''}`.padE
     gazetta undo production --yes       # undo last write on production (CI-safe)
     gazetta rollback rev-1776337441608  # roll back to a specific revision
 `)
-}
-
-/**
- * Resolve the site directory from positional args or auto-detection.
- * For commands like `dev` and `validate`, the first positional is the site.
- * For commands like `publish` and `serve`, the first positional is the target
- * and the second is the site.
- */
-/** Returns true if the directory contains a Gazetta site config (`site.config.ts`/.js/.mjs). */
-function hasSiteConfig(dir: string): boolean {
-  return (
-    existsSync(join(dir, 'site.config.ts')) ||
-    existsSync(join(dir, 'site.config.js')) ||
-    existsSync(join(dir, 'site.config.mjs'))
-  )
-}
-
-async function resolveSiteDir(positionalSite?: string): Promise<string> {
-  // Explicit site dir provided
-  if (positionalSite) {
-    const dir = resolve(positionalSite)
-    if (hasSiteConfig(dir)) return dir
-    // Maybe it's a site name under sites/
-    const sitesSubdir = resolve('sites', positionalSite)
-    if (hasSiteConfig(sitesSubdir)) return sitesSubdir
-    // Maybe it's a project root with sites/
-    const mainSite = resolve(dir, 'sites/main')
-    if (hasSiteConfig(mainSite)) return mainSite
-    return dir // let loadSite produce a clear error
-  }
-
-  // Auto-detect: check current dir first
-  if (hasSiteConfig(resolve('.'))) return resolve('.')
-
-  // Check sites/ directory
-  const sitesDir = resolve('sites')
-  if (existsSync(sitesDir)) {
-    const { readdirSync, statSync } = await import('node:fs')
-    const sites = readdirSync(sitesDir).filter(name => {
-      const dir = join(sitesDir, name)
-      return statSync(dir).isDirectory() && hasSiteConfig(dir)
-    })
-
-    if (sites.length === 1) return join(sitesDir, sites[0])
-    if (sites.length > 1) {
-      if (process.env.CI) {
-        console.error(
-          `\n  Error: multiple sites found. Specify one: gazetta ${command} <site>\n  Available: ${sites.join(', ')}\n`,
-        )
-        process.exit(1)
-      }
-      const { select } = await import('@clack/prompts')
-      const result = await select({
-        message: 'Select site:',
-        options: sites.map(s => ({ value: s, label: s })),
-      })
-      if (typeof result === 'symbol') process.exit(0) // cancelled
-      return join(sitesDir, result as string)
-    }
-  }
-
-  // No site found — give a helpful error
-  console.error(`\n  Error: no site found in current directory.\n`)
-  console.error(`  To create a new project:  gazetta init my-site`)
-  console.error(`  To use an existing site:  gazetta ${command} <path-to-site>\n`)
-  process.exit(1)
-}
-
-/**
- * Resolve target from positional args or auto-detection.
- * Prompts if multiple targets and no explicit choice.
- */
-async function resolveTarget(positionalTarget: string | undefined, siteDir: string): Promise<string | undefined> {
-  if (positionalTarget) return positionalTarget
-
-  const manifest = await loadSiteManifestForCli(siteDir)
-  if (!manifest) return undefined
-  const targets = Object.keys(manifest.targets ?? {})
-
-  if (targets.length <= 1) return targets[0] // auto-select if 0 or 1
-
-  if (process.env.CI) {
-    console.error(
-      `\n  Error: multiple targets found. Specify one: gazetta ${command} <target>\n  Available: ${targets.join(', ')}\n`,
-    )
-    process.exit(1)
-  }
-
-  const { select } = await import('@clack/prompts')
-  const result = await select({
-    message: 'Select target:',
-    options: targets.map(t => ({ value: t, label: t })),
-  })
-  if (typeof result === 'symbol') process.exit(0)
-  return result as string
 }
 
 async function runInit(dir: string, opts: { install?: boolean } = {}) {
@@ -2560,12 +2451,16 @@ async function main() {
     }
     rollbackRevisionId = rev
     const secondIsSite = second && (second.includes('/') || hasSiteConfig(resolve(second)))
-    targetName = secondIsSite ? await resolveTarget(undefined, siteDir) : await resolveTarget(second, siteDir)
+    targetName = secondIsSite
+      ? await resolveTarget(undefined, siteDir, command)
+      : await resolveTarget(second, siteDir, command)
   } else if (targetFirstCommands.has(command)) {
     // gazetta publish [target] [site]
     const [first] = parsed.positional
     const firstIsSite = first && (first.includes('/') || hasSiteConfig(resolve(first)))
-    targetName = firstIsSite ? await resolveTarget(undefined, siteDir) : await resolveTarget(first, siteDir)
+    targetName = firstIsSite
+      ? await resolveTarget(undefined, siteDir, command)
+      : await resolveTarget(first, siteDir, command)
   } else if (siteOnlyCommands.has(command)) {
     // siteDir set up front; nothing more needed.
   } else if (command === 'translate') {
@@ -2579,7 +2474,7 @@ async function main() {
     //   assets reindex [target] [site]     → subcmd, target, site
     const subcmd = parsed.positional[0]
     const targetArg = subcmd === 'info' ? parsed.positional[2] : parsed.positional[1]
-    targetName = targetArg ? await resolveTarget(targetArg, siteDir) : undefined
+    targetName = targetArg ? await resolveTarget(targetArg, siteDir, command) : undefined
   } else if (command === 'archive') {
     // gazetta archive <subcommand> [args...]
     //
@@ -2600,7 +2495,7 @@ async function main() {
     const requiredArgs = subcmd === 'rename' ? 2 : subcmd === 'purge' || subcmd === 'restore' ? 1 : 0
     const trailingStart = 1 + requiredArgs
     const targetArg = parsed.positional[trailingStart]
-    targetName = targetArg ? await resolveTarget(targetArg, siteDir) : undefined
+    targetName = targetArg ? await resolveTarget(targetArg, siteDir, command) : undefined
   } else if (command === 'state') {
     // gazetta state remove <target> [site]
     const [subcmd, targetArg] = parsed.positional
@@ -2610,7 +2505,7 @@ async function main() {
       process.exit(1)
       return
     }
-    targetName = await resolveTarget(targetArg, siteDir)
+    targetName = await resolveTarget(targetArg, siteDir, command)
   } else {
     console.error(`  Unknown command: ${command}\n`)
     printHelp()
