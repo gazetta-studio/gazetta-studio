@@ -19,7 +19,7 @@
 
 import { createRoute } from '@hono/zod-openapi'
 import type { StorageProvider, TargetConfig } from '../../types.js'
-import { historyOffReason, isHistoryEnabled, getHistoryRetention } from '../../types.js'
+import { historyOffReason, isHistoryEnabled, getHistoryRetention, getType } from '../../types.js'
 import { createHistoryProvider } from '../../history-provider.js'
 import { restoreRevision } from '../../history-restorer.js'
 import { createContentRoot } from '../../content-root.js'
@@ -169,7 +169,7 @@ export function historyRoutes(
     if (!targetName) return problem(c, 400, 'BAD_REQUEST', 'Missing "target" query parameter')
     const resolved = await resolveHistory(targetName, source.projectSiteDir)
     if (resolved.kind === 'err') return problemFrom(c, resolved.status, resolved.body)
-    const { history, contentRoot } = resolved
+    const { history, contentRoot, config } = resolved
 
     // Undo = restore the revision just before head. Needs at least
     // two revisions — one current + one to roll back to. No-op (with
@@ -183,6 +183,7 @@ export function historyRoutes(
       contentRoot,
       revisionId: list[1].id,
       message: `Undo ${list[0].operation} (rev ${list[0].id})`,
+      flattenStaticPages: getType(config) === 'static',
     })
     // Restoring on the source target rewrites the manifests we summarize
     // through `/api/pages` and `/api/fragments`. Other targets share no
@@ -208,7 +209,7 @@ export function historyRoutes(
     if (!revisionId) return problem(c, 400, 'BAD_REQUEST', 'Missing "id" query parameter')
     const resolved = await resolveHistory(targetName, source.projectSiteDir)
     if (resolved.kind === 'err') return problemFrom(c, resolved.status, resolved.body)
-    const { history, contentRoot } = resolved
+    const { history, contentRoot, config } = resolved
 
     try {
       const restored = await restoreRevision({
@@ -216,6 +217,7 @@ export function historyRoutes(
         contentRoot,
         revisionId,
         message: `Rollback to ${revisionId}`,
+        flattenStaticPages: getType(config) === 'static',
       })
       if (targetName === source.targetName) {
         await Promise.all([source.cache.invalidatePrefix('pages:'), source.cache.invalidatePrefix('fragments:')])

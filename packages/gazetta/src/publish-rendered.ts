@@ -3,9 +3,14 @@ import type { Site } from './site-loader.js'
 import { allFragmentEntries, allPageEntries, loadSite } from './site-loader.js'
 import { createContentRoot, type ContentRoot } from './content-root.js'
 import type { DepRelation } from './dep-sidecars.js'
-import { rebuildItemDeps } from './dep-sidecars.js'
+import { rebuildItemDeps, replaceItemEdges } from './dep-sidecars.js'
 import { stateFolderPath } from './state-folders.js'
 import { DEP_RELATIONS } from './dep-relations.js'
+import { FRAGMENT_DEPS } from './fragment-deps.js'
+import { ASSET_REFS } from './assets/asset-deps.js'
+import { resolveSiteLocales } from './locale.js'
+import { isArchived } from './archive-helpers.js'
+import { flattenStaticPageDeps } from './static-page-deps.js'
 
 // The old per-item publish functions (publishPageRendered /
 // publishPageStatic / publishFragmentRendered) moved to publish-compat.ts
@@ -37,21 +42,34 @@ export async function publishSiteManifest(
  * restore, the source's first rebuild, `gazetta assets reindex`). A
  * publish never calls this: it replaces the edges of each item it
  * writes (`replaceItemDeps`), so a target's index describes the target.
+ *
+ * With `flattenStaticPages` (a static target), each page that renders in
+ * full gets the flattened fragment and asset edges publish writes there
+ * (`flattenStaticPageDeps`), walked through the fragments of `sourceSite`.
  */
 export async function rebuildDepIndex(
   rel: DepRelation,
   sourceSite: Site,
   destStorage: StorageProvider,
   destRootPath = '',
+  opts: RebuildDepIndexOptions = {},
 ): Promise<void> {
   const destRoot = createContentRoot(destStorage, destRootPath)
 
   await wipeRelation(rel, destRoot)
 
+  const flatten = opts.flattenStaticPages === true && (rel === FRAGMENT_DEPS || rel === ASSET_REFS)
+  const resolvedLocales = flatten ? (resolveSiteLocales(sourceSite.manifest) ?? undefined) : undefined
   const writes: Promise<void>[] = []
   for (const { name, page, locale } of allPageEntries(sourceSite)) {
     const item = locale ? { source: 'page' as const, name, locale } : { source: 'page' as const, name }
-    writes.push(rebuildItemDeps(rel, destRoot, item, null, page))
+    // An archived page publishes a marker, not baked HTML, so it keeps direct edges.
+    if (flatten && !isArchived(page)) {
+      const baked = flattenStaticPageDeps(sourceSite, page, { locale, resolvedLocales })
+      writes.push(replaceItemEdges(rel, destRoot, item, rel === FRAGMENT_DEPS ? baked.fragments : baked.assets))
+    } else {
+      writes.push(rebuildItemDeps(rel, destRoot, item, null, page))
+    }
   }
   for (const { name, fragment, locale } of allFragmentEntries(sourceSite)) {
     const item = locale ? { source: 'fragment' as const, name, locale } : { source: 'fragment' as const, name }
@@ -70,9 +88,19 @@ async function wipeRelation(rel: DepRelation, root: ContentRoot): Promise<void> 
   )
 }
 
+export interface RebuildDepIndexOptions {
+  /** The store is a static target: pages get the flattened edges publish writes there. */
+  flattenStaticPages?: boolean
+}
+
 /** Rebuild every relation's index (see `rebuildDepIndex`). */
-export async function rebuildAllDepIndices(site: Site, destStorage: StorageProvider, destRootPath = ''): Promise<void> {
-  await Promise.all(DEP_RELATIONS.map(rel => rebuildDepIndex(rel, site, destStorage, destRootPath)))
+export async function rebuildAllDepIndices(
+  site: Site,
+  destStorage: StorageProvider,
+  destRootPath = '',
+  opts: RebuildDepIndexOptions = {},
+): Promise<void> {
+  await Promise.all(DEP_RELATIONS.map(rel => rebuildDepIndex(rel, site, destStorage, destRootPath, opts)))
 }
 
 /**
