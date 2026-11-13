@@ -11,7 +11,7 @@
  * SRP: this module owns "what needs to be clean between scenarios".
  * Each helper does one thing; `resetScenarioState` composes them.
  */
-import { readFile, writeFile } from 'node:fs/promises'
+import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { rmSafe } from '../_helpers/rm-safe.js'
 
@@ -90,15 +90,4 @@ async function wipeAllTargetDists(projectDir: string): Promise<void> {
 export async function resetScenarioState(projectDir: string): Promise<void> {
   await restorePristineHome(projectDir)
   await wipeAllTargetDists(projectDir)
-}
-
-/**
- * Verify the reset worked — sanity check used inside the isolation
- * helper's own test, not in scenarios. Exported so a unit test can
- * assert the fixture is what we expect.
- */
-export async function verifyPristineHome(projectDir: string): Promise<boolean> {
-  const path = join(projectDir, 'sites/main/targets/local/pages/home/page.json')
-  const contents = await readFile(path, 'utf-8')
-  return JSON.parse(contents).content.title === 'Home'
 }
