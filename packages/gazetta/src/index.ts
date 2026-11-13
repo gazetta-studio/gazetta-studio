@@ -85,6 +85,7 @@ export {
   type SeoContext,
 } from './renderer.js'
 export { resolveSeoTags, type ResolveSeoTagsInput } from './seo.js'
+export { html, raw, type SafeHtml } from './html.js'
 export { resolveComponent, resolveFragment, resolvePage } from './resolver.js'
 export { loadSite } from './site-loader.js'
 export type { Site, LocalizedEntry, PageEntry, FragmentEntry, LoadSiteOptions } from './site-loader.js'

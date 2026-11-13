@@ -135,8 +135,9 @@ function substituteHashes(
  * (`sidecars.md`, "Hash input").
  *
  * 1: the published-version marker (design-live-check.md Q4).
+ * 2: Markdown and rich-text fields sanitized (design-content-trust.md Q2, Q3).
  */
-export const RENDER_FORMAT_VERSION = 1
+export const RENDER_FORMAT_VERSION = 2
 
 export interface HashManifestOptions {
   templateHashes: Map<string, string>

@@ -37,14 +37,18 @@ function assetContext(
   }
 }
 
-/** Process content: sync transforms (markdown) + async asset resolution. */
-async function processAndResolve(
+/**
+ * Process content: Markdown conversion and sanitizing, then asset resolution.
+ * The admin preview runs draft content through it too.
+ */
+export async function processAndResolve(
   content: Record<string, unknown> | undefined,
   schema: unknown,
+  templateName: string,
   site: Site,
   ctx: { locale?: string; theme?: string; resolvedLocales?: ResolvedLocales; resolvedThemes?: ResolvedThemes | null },
 ): Promise<Record<string, unknown> | undefined> {
-  const processed = processContent(content, schema)
+  const processed = processContent(content, schema, templateName)
   return resolveAssetRefs(
     processed,
     assetContext(site, ctx.locale, ctx.theme, ctx.resolvedLocales ?? null, ctx.resolvedThemes ?? null),
@@ -178,7 +182,8 @@ async function resolveFragmentRef(fragmentName: string, ctx: ResolveContext): Pr
   return {
     template: loaded.render,
     templateName: fragment.template,
-    content: await processAndResolve(fragment.content, loaded.schema, ctx.site, ctx),
+    schema: loaded.schema,
+    content: await processAndResolve(fragment.content, loaded.schema, fragment.template, ctx.site, ctx),
     children,
     path: fragment.dir,
     treePath,
@@ -208,7 +213,8 @@ async function resolveInlineComponent(comp: InlineComponent, ctx: ResolveContext
   return {
     template: loaded.render,
     templateName: comp.template,
-    content: await processAndResolve(comp.content, loaded.schema, ctx.site, ctx),
+    schema: loaded.schema,
+    content: await processAndResolve(comp.content, loaded.schema, comp.template, ctx.site, ctx),
     children,
     treePath,
   }
@@ -270,7 +276,8 @@ export async function resolveFragment(
   return {
     template: loaded.render,
     templateName: fragment.template,
-    content: await processAndResolve(fragment.content, loaded.schema, site, ctx),
+    schema: loaded.schema,
+    content: await processAndResolve(fragment.content, loaded.schema, fragment.template, site, ctx),
     children,
     path: fragment.dir,
     treePath: '',
@@ -329,7 +336,8 @@ export async function resolvePage(
   return {
     template: loaded.render,
     templateName: page.template,
-    content: await processAndResolve(page.content, loaded.schema, site, ctx),
+    schema: loaded.schema,
+    content: await processAndResolve(page.content, loaded.schema, page.template, site, ctx),
     children,
     path: page.dir,
     treePath: '',

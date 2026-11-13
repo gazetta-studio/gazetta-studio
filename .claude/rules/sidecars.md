@@ -152,7 +152,8 @@ references with hashed forms so the hash catches upstream changes:
   whenever publish output changes for unchanged content (a new tag, a changed
   layout): every hash changes, so the next publish rewrites every page and
   fragment once instead of skipping them as unchanged. Version 1 added the
-  published-version marker (`design-live-check.md` Q4).
+  published-version marker (`design-live-check.md` Q4); version 2 sanitizes
+  Markdown and rich-text fields (`design-content-trust.md` Q2, Q3).
 
 ESI-mode pages don't include fragment hashes — fragments are published
 separately, and the edge runtime composes per request.

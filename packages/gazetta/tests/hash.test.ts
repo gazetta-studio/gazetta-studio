@@ -39,12 +39,16 @@ describe('hashManifest', () => {
     it('a page without metadata hashes the same as one with empty metadata', () => {
       // Pinned at render format 1; a different value at the same format
       // would show every published page without metadata as changed.
-      expect(hashManifest(baseManifest, { templateHashes: t })).toBe('8b66546b')
-      expect(hashManifest({ ...baseManifest, metadata: {} }, { templateHashes: t })).toBe('8b66546b')
+      const opts = { templateHashes: t, renderFormatVersion: 1 }
+      expect(hashManifest(baseManifest, opts)).toBe('8b66546b')
+      expect(hashManifest({ ...baseManifest, metadata: {} }, opts)).toBe('8b66546b')
     })
 
     it('changes when metadata changes, whatever its key order', () => {
-      const withTitle = hashManifest({ ...baseManifest, metadata: { title: 'A' } }, { templateHashes: t })
+      const withTitle = hashManifest(
+        { ...baseManifest, metadata: { title: 'A' } },
+        { templateHashes: t, renderFormatVersion: 1 },
+      )
       expect(withTitle).not.toBe('8b66546b')
       expect(hashManifest({ ...baseManifest, metadata: { title: 'B' } }, { templateHashes: t })).not.toBe(withTitle)
       expect(hashManifest({ ...baseManifest, metadata: { title: 'A', description: 'D' } }, { templateHashes: t })).toBe(
@@ -248,5 +252,14 @@ describe('hashManifest — render format version', () => {
     const current = hashManifest(manifest, { templateHashes })
     expect(hashManifest(manifest, { templateHashes, renderFormatVersion: RENDER_FORMAT_VERSION })).toBe(current)
     expect(hashManifest(manifest, { templateHashes, renderFormatVersion: RENDER_FORMAT_VERSION + 1 })).not.toBe(current)
+  })
+
+  // Version 2 sanitizes Markdown and rich-text fields, so items published at
+  // version 1 must all count as changed once (design-content-trust.md Q3).
+  it.each(cases)('%s: a version-1 hash differs from the current one', (_label, manifest) => {
+    expect(RENDER_FORMAT_VERSION).toBe(2)
+    expect(hashManifest(manifest, { templateHashes, renderFormatVersion: 1 })).not.toBe(
+      hashManifest(manifest, { templateHashes }),
+    )
   })
 })

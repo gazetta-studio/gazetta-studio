@@ -4,7 +4,9 @@ import type { ComponentEntry, DraftOverrides, ManifestKey, ResolvedComponent } f
 import { manifestKeyToString } from '../../types.js'
 import { allPageEntries, type Site } from '../../site-loader.js'
 import { loadSiteFromSource } from '../source-context.js'
-import { resolveFragment, resolvePage } from '../../resolver.js'
+import { processAndResolve, resolveFragment, resolvePage } from '../../resolver.js'
+import { resolveSiteLocales } from '../../locale.js'
+import { resolveSiteThemes } from '../../themes.js'
 import { renderFragment, renderPage } from '../../renderer.js'
 import { defaultLocaleFor } from '../../locale.js'
 import type { SourceContext, SourceContextResolver } from '../source-context.js'
@@ -119,7 +121,7 @@ async function renderPreview(c: Context, source: SourceContext, overrides: Draft
     try {
       const previewSite = withStructuralOverride(site, { kind: 'fragment', name: fragmentName }, overrides)
       const resolved = await resolveFragment(fragmentName, previewSite, previewLocale)
-      applyContentOverrides(resolved, overrides.content)
+      await applyContentOverrides(resolved, overrides.content, previewSite, previewLocale)
       return c.html(await renderFragment(resolved, previewLocale))
     } catch (err) {
       const e = err as Error
@@ -141,7 +143,7 @@ async function renderPreview(c: Context, source: SourceContext, overrides: Draft
       try {
         const previewSite = withStructuralOverride(site, { kind: 'page', name: pageName }, overrides)
         const resolved = await resolvePage(pageName, previewSite, pageLocale)
-        applyContentOverrides(resolved, overrides.content)
+        await applyContentOverrides(resolved, overrides.content, previewSite, pageLocale)
         return c.html(
           await renderPage(resolved, {
             routeParams: params,
@@ -205,15 +207,31 @@ function archivePlaceholder(site: Site, aliasOf: string | undefined, kind: 'page
   )
 }
 
-function applyContentOverrides(node: ResolvedComponent, content: DraftOverrides['content']) {
-  // Match on treePath (name path) for merged JSON format, fallback to filesystem path for compatibility
-  const key = node.treePath ?? node.path
-  if (key && content[key]) {
-    node.content = content[key]
+/**
+ * Replace components' content with the draft overrides, processed like saved
+ * content (Markdown conversion, sanitizing, asset resolution), so the preview
+ * shows what publish would render.
+ */
+async function applyContentOverrides(
+  root: ResolvedComponent,
+  content: DraftOverrides['content'],
+  site: Site,
+  locale: string | undefined,
+): Promise<void> {
+  const ctx = {
+    locale,
+    resolvedLocales: resolveSiteLocales(site.manifest) ?? undefined,
+    resolvedThemes: resolveSiteThemes(site.manifest),
   }
-  for (const child of node.children) {
-    applyContentOverrides(child, content)
+  const visit = async (node: ResolvedComponent): Promise<void> => {
+    // Match on treePath (name path) for merged JSON format, fallback to filesystem path for compatibility
+    const key = node.treePath ?? node.path
+    if (key && content[key]) {
+      node.content = await processAndResolve(content[key], node.schema, node.templateName ?? '', site, ctx)
+    }
+    await Promise.all(node.children.map(visit))
   }
+  await visit(root)
 }
 
 /**

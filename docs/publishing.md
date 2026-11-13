@@ -66,6 +66,10 @@ Publish pre-renders pages and uploads content to storage. Its output follows the
 
 `npx gazetta deploy production` runs the target's deploy adapter; see [Deploy](./deploy.md) for its contract and platform guides. For a Cloudflare worker, deploy bundles the installed Gazetta and embeds the locales, `siteUrl` and bucket, so deploy again after upgrading Gazetta or changing any of those.
 
+### After upgrading
+
+When an upgrade changes what publish writes for unchanged content, every page and fragment shows as changed. Publish everything to each target once, from the CLI or by selecting every item in the panel: a publish of only some items leaves the others' old HTML live. Releases with Markdown and rich-text sanitizing are such an upgrade: until the next full publish, a target keeps serving those fields unsanitized.
+
 ## Sync chips and unpublished-change dots
 
 These are two different comparisons:

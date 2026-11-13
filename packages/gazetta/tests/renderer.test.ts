@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { ResolvedComponent, RenderOutput } from '../src/types.js'
 import { renderComponent, renderFragment, renderPage } from '../src/renderer.js'
 import { hashPath } from '../src/scope.js'
+import { html } from '../src/html.js'
 
 function leaf(html: string, css = '', js = '', treePath = ''): ResolvedComponent {
   return {
@@ -533,5 +534,38 @@ describe('renderPage', () => {
     expect(html).toContain('name="robots" content="noindex"')
     expect(html).not.toContain('Fallback')
     expect(html).not.toContain('default.jpg')
+  })
+})
+
+describe('rendering with the html tag', () => {
+  it('a composite inserts its children unescaped while c.html stays a plain string', async () => {
+    const seen: unknown[] = []
+    const parent: ResolvedComponent = {
+      template: ({ children = [], content }) => {
+        seen.push(...children.map(c => c.html))
+        return { html: html`<header data-t="${content?.title}">${children}</header>`, css: '', js: '' }
+      },
+      content: { title: '<x>' },
+      children: [leaf('<b>logo</b>', '', '', 'logo'), leaf('<i>nav</i>', '', '', 'nav')],
+      treePath: 'header',
+    }
+    const result = await renderComponent(parent)
+    expect(seen.every(h => typeof h === 'string')).toBe(true)
+    expect(typeof result.html).toBe('string')
+    expect(result.html).toContain('data-t="&lt;x&gt;"')
+    expect(result.html).toContain('<b>logo</b>')
+    expect(result.html).toContain('<i>nav</i>')
+    expect(result.html).not.toContain('&lt;b&gt;')
+  })
+
+  it('renderPage accepts an html tag result as the page html', async () => {
+    const page: ResolvedComponent = {
+      template: ({ children = [] }) => ({ html: html`<main>${children}</main>`, css: '', js: '' }),
+      children: [leaf('<p>body</p>', '', '', 'p')],
+      treePath: '',
+    }
+    const out = await renderPage(page)
+    expect(out).toContain('<main><div data-gz=')
+    expect(out).toContain('<p>body</p>')
   })
 })

@@ -1,6 +1,7 @@
 import type { RenderOutput, ResolvedComponent, PageMetadata } from './types.js'
 import { hashPath, scopeHtml, scopeCss } from './scope.js'
 import { resolveSeoTags, escapeAttr, type SeoContext } from './seo.js'
+import { markRendered } from './html.js'
 
 export { type SeoContext } from './seo.js'
 
@@ -16,7 +17,9 @@ async function callTemplate(
   params: Parameters<ResolvedComponent['template']>[0],
 ): Promise<Awaited<ReturnType<ResolvedComponent['template']>>> {
   try {
-    return await component.template(params)
+    const output = await component.template(params)
+    // The `html` tag returns a String object; `RenderOutput.html` stays a plain string.
+    return (output.html as unknown) instanceof String ? { ...output, html: String(output.html) } : output
   } catch (err) {
     if (component.templateName && typeof err === 'object' && err !== null && !(THROWN_BY in err)) {
       try {
@@ -48,12 +51,13 @@ export async function renderComponent(
 
   const headParts = [...children.map(c => c.head).filter(Boolean), output.head].filter(Boolean)
 
-  return {
+  // Marked so a parent template's `html` tag inserts it unescaped (design-content-trust.md Q2).
+  return markRendered({
     html: scopeHtml(output.html, scopeId),
     css: scopeCss(output.css, scopeId),
     js: output.js,
     head: headParts.length ? headParts.join('\n') : undefined,
-  }
+  })
 }
 
 export async function renderFragment(component: ResolvedComponent, locale?: string): Promise<string> {
