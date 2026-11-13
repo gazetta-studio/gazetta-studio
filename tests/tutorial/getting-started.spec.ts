@@ -2,12 +2,21 @@
  * Runs the tutorial in docs/getting-started.md the way a reader would
  * (design-tutorial.md, "The CI check").
  *
- * The tarball under test comes from GAZETTA_TARBALL (CI's `pack` artifact)
- * or, when unset, from `npm pack` in packages/gazetta, which needs
- * `npm run build` and `npm run build:admin -w packages/gazetta` first. A
- * Verdaccio registry serves that tarball as `gazetta` and proxies every other
- * package to npmjs, so the tutorial's own commands (`npx gazetta init`, the
- * `npm install` it runs) install the code under test, not npm's release.
+ * Two ways to get the `gazetta` under test:
+ *
+ * - Local (default): the tarball comes from GAZETTA_TARBALL (CI's `pack`
+ *   artifact) or, when unset, from `npm pack` in packages/gazetta, which needs
+ *   `npm run build` and `npm run build:admin -w packages/gazetta` first. A
+ *   Verdaccio registry serves that tarball as `gazetta` and proxies every
+ *   other package to npmjs, so the tutorial's own commands (`npx gazetta
+ *   init`, the `npm install` it runs) install the code under test, not npm's
+ *   release.
+ * - npm (GAZETTA_NPM_TAG=rc or latest): the release a dist-tag names on
+ *   registry.npmjs.org, for the weekly and after-release run (Q15). Step 1
+ *   runs `npx gazetta@<tag> init`, so npx installs that release and not
+ *   `latest`; every other command runs as written.
+ *
+ * Either way, the site's lockfile must hold exactly that package.
  *
  * The shell steps below must match the tutorial's shell blocks exactly; the
  * first test fails when either changes without the other.
@@ -28,7 +37,8 @@ const tutorialPath = join(repoRoot, 'docs/getting-started.md')
 
 const VERDACCIO = 'verdaccio@6.10.5'
 const REGISTRY_PORT = 4873
-const REGISTRY = `http://127.0.0.1:${REGISTRY_PORT}/`
+const LOCAL_REGISTRY = `http://127.0.0.1:${REGISTRY_PORT}/`
+const NPM_REGISTRY = 'https://registry.npmjs.org/'
 const SITE = 'http://localhost:3000'
 const STAGING = 'http://localhost:3001'
 const ORIGINAL_TITLE = 'Welcome to my-site'
@@ -74,22 +84,21 @@ const PNG = Buffer.from(
 
 let work = ''
 let env: NodeJS.ProcessEnv = {}
-let tarball = ''
 let cwd = ''
-let registry: ChildProcess | undefined
+let source: GazettaSource | undefined
 let dev: ChildProcess | undefined
 let serve: ChildProcess | undefined
 let page: Page
 
-/** The environment a reader's shell would have: no npm_* from `npm run`, our registry. */
-function readerEnv(): NodeJS.ProcessEnv {
+/** The environment a reader's shell would have: no npm_* from `npm run`, the given registry. */
+function readerEnv(registryUrl: string): NodeJS.ProcessEnv {
   const clean: NodeJS.ProcessEnv = {}
   for (const [k, v] of Object.entries(process.env)) {
     if (!/^npm_/i.test(k) && k !== 'INIT_CWD') clean[k] = v
   }
   return {
     ...clean,
-    npm_config_registry: REGISTRY,
+    npm_config_registry: registryUrl,
     npm_config_cache: join(work, 'npm-cache'),
     npm_config_userconfig: join(work, 'reader.npmrc'),
     npm_config_update_notifier: 'false',
@@ -102,13 +111,17 @@ function run(
   command: string,
   dir: string,
   extraEnv: NodeJS.ProcessEnv = env,
-): Promise<{ code: number | null; output: string }> {
+): Promise<{ code: number | null; output: string; stdout: string }> {
   return new Promise(res => {
     const child = spawn(command, { cwd: dir, env: extraEnv, shell: true })
     let output = ''
-    child.stdout.on('data', d => (output += d))
+    let stdout = ''
+    child.stdout.on('data', d => {
+      output += d
+      stdout += d
+    })
     child.stderr.on('data', d => (output += d))
-    child.on('close', code => res({ code, output }))
+    child.on('close', code => res({ code, output, stdout }))
   })
 }
 
@@ -150,6 +163,57 @@ async function html(url: string): Promise<string> {
   return r.text()
 }
 
+/**
+ * Where the reader's `gazetta` comes from, and what the site's lockfile must
+ * then hold. The steps and checks read this and never branch on the mode.
+ */
+interface GazettaSource {
+  registry: string
+  /** The tutorial's init command, as this source runs it. */
+  initCommand(command: string): string
+  /** What `node_modules/gazetta` in the site's lockfile must match. */
+  expected: { integrity: string; version?: string; resolvedPrefix: string }
+  stop(): void
+}
+
+/** GAZETTA_NPM_TAG picks a release on npm; unset, the local tarball. */
+async function prepareSource(): Promise<GazettaSource> {
+  const tag = process.env.GAZETTA_NPM_TAG
+  return tag ? npmSource(tag) : localSource()
+}
+
+async function npmSource(tag: string): Promise<GazettaSource> {
+  const npmEnv = readerEnv(NPM_REGISTRY)
+  const viewed = await run(`npm view gazetta@${tag} version dist.integrity --json`, work, npmEnv)
+  if (viewed.code !== 0) {
+    throw new Error(`npm has no gazetta@${tag} (GAZETTA_NPM_TAG=${tag}):\n${viewed.output}`)
+  }
+  const info = JSON.parse(viewed.stdout) as { version?: string; 'dist.integrity'?: string }
+  const version = info.version
+  const integrity = info['dist.integrity']
+  if (!version || !integrity) throw new Error(`npm view gazetta@${tag} gave no version or integrity:\n${viewed.output}`)
+  return {
+    registry: NPM_REGISTRY,
+    initCommand: command => {
+      if (!command.startsWith('npx gazetta ')) throw new Error(`can't pin a tag on "${command}"`)
+      return command.replace(/^npx gazetta /, `npx gazetta@${tag} `)
+    },
+    expected: { integrity, version, resolvedPrefix: `${NPM_REGISTRY}gazetta/-/gazetta-${version}.tgz` },
+    stop: () => {},
+  }
+}
+
+async function localSource(): Promise<GazettaSource> {
+  const tarball = await findTarball()
+  const registry = await startRegistry(tarball)
+  return {
+    registry: LOCAL_REGISTRY,
+    initCommand: command => command,
+    expected: { integrity: await sha512(tarball), resolvedPrefix: LOCAL_REGISTRY },
+    stop: () => stop(registry),
+  }
+}
+
 /** Pack packages/gazetta unless CI handed us its tarball. */
 async function findTarball(): Promise<string> {
   if (process.env.GAZETTA_TARBALL) return resolve(process.env.GAZETTA_TARBALL)
@@ -169,7 +233,7 @@ async function findTarball(): Promise<string> {
 }
 
 /** Start Verdaccio with gazetta local-only, and publish the tarball to it. */
-async function startRegistry(): Promise<void> {
+async function startRegistry(tarball: string): Promise<ChildProcess> {
   const dir = join(work, 'verdaccio')
   await mkdir(dir)
   const config = join(dir, 'config.yaml')
@@ -195,14 +259,13 @@ log: { type: stdout, format: pretty, level: warn }
 `,
   )
   // Verdaccio itself comes from npmjs, outside the reader's environment.
-  registry = background(`npx -y ${VERDACCIO} --config "${config}" --listen 127.0.0.1:${REGISTRY_PORT}`, dir, {
-    ...readerEnv(),
-    npm_config_registry: 'https://registry.npmjs.org/',
+  const registry = background(`npx -y ${VERDACCIO} --config "${config}" --listen 127.0.0.1:${REGISTRY_PORT}`, dir, {
+    ...readerEnv(NPM_REGISTRY),
     npm_config_cache: join(work, 'tool-cache'),
   })
-  await waitFor(`${REGISTRY}-/ping`, registry)
+  await waitFor(`${LOCAL_REGISTRY}-/ping`, registry)
 
-  const user = await fetch(`${REGISTRY}-/user/org.couchdb.user:tutorial`, {
+  const user = await fetch(`${LOCAL_REGISTRY}-/user/org.couchdb.user:tutorial`, {
     method: 'PUT',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ name: 'tutorial', password: 'tutorial-password' }),
@@ -210,11 +273,12 @@ log: { type: stdout, format: pretty, level: warn }
   const { token } = (await user.json()) as { token: string }
   const npmrc = join(work, 'publisher.npmrc')
   await writeFile(npmrc, `//127.0.0.1:${REGISTRY_PORT}/:_authToken=${token}\n`)
-  const published = await run(`npm publish "${tarball}" --registry ${REGISTRY} --ignore-scripts`, work, {
-    ...readerEnv(),
+  const published = await run(`npm publish "${tarball}" --registry ${LOCAL_REGISTRY} --ignore-scripts`, work, {
+    ...readerEnv(LOCAL_REGISTRY),
     npm_config_userconfig: npmrc,
   })
   if (published.code !== 0) throw new Error(`publishing the tarball failed:\n${published.output}`)
+  return registry
 }
 
 async function sha512(file: string): Promise<string> {
@@ -235,18 +299,17 @@ test.describe('tutorial', () => {
     test.setTimeout(10 * 60_000)
     work = await mkdtemp(join(tmpdir(), 'gazetta-tutorial-'))
     await writeFile(join(work, 'reader.npmrc'), '')
-    env = readerEnv()
     cwd = join(work, 'reader')
     await mkdir(cwd)
-    tarball = await findTarball()
-    await startRegistry()
+    source = await prepareSource()
+    env = readerEnv(source.registry)
   })
 
   test.afterAll(async () => {
     await page?.close()
     stop(serve)
     stop(dev)
-    stop(registry)
+    source?.stop()
     if (work && !process.env.KEEP_TUTORIAL_DIR) await rm(work, { recursive: true, force: true })
   })
 
@@ -255,7 +318,7 @@ test.describe('tutorial', () => {
 
     await test.step(create.heading, async () => {
       const [init, cd] = create.commands
-      const { code, output } = await run(init, cwd)
+      const { code, output } = await run((source as GazettaSource).initCommand(init), cwd)
       expect(code, output).toBe(0)
       expect(output).not.toContain('npm install failed')
       expect(cd).toBe('cd my-site')
@@ -263,11 +326,13 @@ test.describe('tutorial', () => {
       const config = await readFile(join(cwd, 'sites/main/site.config.ts'), 'utf8')
       expect(config).toMatch(/\blocal:\s*{/)
       expect(config).toMatch(/\bstaging:\s*{/)
-      // The site installed the tarball under test, not a release from npm.
+      // The site installed the package under test, not another release.
+      const { expected } = source as GazettaSource
       const lock = JSON.parse(await readFile(join(cwd, 'package-lock.json'), 'utf8'))
       const installed = lock.packages['node_modules/gazetta']
-      expect(installed.resolved).toContain(`127.0.0.1:${REGISTRY_PORT}`)
-      expect(installed.integrity).toBe(await sha512(tarball))
+      expect(installed.resolved.startsWith(expected.resolvedPrefix), installed.resolved).toBe(true)
+      if (expected.version) expect(installed.version).toBe(expected.version)
+      expect(installed.integrity).toBe(expected.integrity)
     })
 
     await test.step(devStep.heading, async () => {
