@@ -83,3 +83,122 @@ describe('format helpers', () => {
     expect(props.color.format).toBe('color')
   })
 })
+
+describe('processContent sanitizing', () => {
+  const md = z.object({ body: z.string().meta(format.markdown()) })
+  const rich = z.object({ body: z.string().meta(format.richtext()) })
+
+  it.each([
+    ['script', '<script>alert(1)</script>', /<script|alert\(1\)/],
+    ['event handler', '<img src="/a.png" onerror="alert(1)">', /onerror/],
+    [
+      'form and controls',
+      '<form action="/x"><input name="a"><select><option>o</option></select><textarea>t</textarea></form>',
+      /<form|<input|<select|<option|<textarea|action=/,
+    ],
+    ['iframe', '<iframe src="https://evil.test"></iframe>', /<iframe/],
+    ['object and embed', '<object data="x"></object><embed src="y">', /<object|<embed/],
+    ['style element', '<style>body{display:none}</style>', /<style|display:none/],
+    ['style attribute', '<p style="position:fixed">x</p>', /style=/],
+  ])('removes %s from Markdown fields', (_name, input, forbidden) => {
+    const result = processContent({ body: `# Title\n\n${input}` }, md)
+    expect(result?.body).not.toMatch(forbidden)
+    expect(result?.body).toContain('<h1>Title</h1>')
+  })
+
+  it('keeps headings, emphasis, links and images in Markdown', () => {
+    const result = processContent({ body: '## Sub\n\n*em* **strong** [link](/about) ![alt](/a.png)' }, md)
+    expect(result?.body).toContain('<h2>Sub</h2>')
+    expect(result?.body).toContain('<em>em</em>')
+    expect(result?.body).toContain('<strong>strong</strong>')
+    expect(result?.body).toContain('<a href="/about">link</a>')
+    expect(result?.body).toContain('<img src="/a.png" alt="alt">')
+  })
+
+  it('removes javascript: links', () => {
+    const result = processContent({ body: '[x](javascript:alert(1))' }, md)
+    expect(result?.body).not.toContain('javascript:')
+  })
+
+  it('sanitizes rich-text HTML and keeps target, rel, dir and bdi', () => {
+    const body =
+      '<p dir="rtl" onclick="x()">a <bdi>b</bdi> <a href="/x" target="_blank" rel="noopener">l</a></p><script>bad()</script>'
+    const result = processContent({ body }, rich)
+    expect(result?.body).toBe('<p dir="rtl">a <bdi>b</bdi> <a href="/x" target="_blank" rel="noopener">l</a></p>')
+  })
+
+  it('does not convert rich-text fields as Markdown', () => {
+    expect(processContent({ body: '# not a heading' }, rich)?.body).toBe('# not a heading')
+  })
+
+  it('leaves plain text fields unchanged', () => {
+    const schema = z.object({ title: z.string() })
+    expect(processContent({ title: '<b>x</b>' }, schema)?.title).toBe('<b>x</b>')
+  })
+
+  it('converts and sanitizes Markdown nested in objects and array items', () => {
+    const schema = z.object({
+      card: z.object({ text: z.string().meta(format.markdown()) }),
+      items: z.array(z.object({ text: z.string().meta(format.markdown()), label: z.string() })),
+    })
+    const result = processContent(
+      {
+        card: { text: '**card**<script>x()</script>' },
+        items: [
+          { text: '*one*', label: '*label*' },
+          { text: '<img src="/i.png" onerror="y()">', label: 'two' },
+        ],
+      },
+      schema,
+    ) as { card: { text: string }; items: { text: string; label: string }[] }
+    expect(result.card.text).toContain('<strong>card</strong>')
+    expect(result.card.text).not.toContain('<script')
+    expect(result.items[0].text).toContain('<em>one</em>')
+    expect(result.items[0].label).toBe('*label*')
+    expect(result.items[1].text).not.toContain('onerror')
+  })
+
+  it('handles optional and nullable Markdown fields', () => {
+    const schema = z.object({ body: z.string().meta(format.markdown()).nullable().optional() })
+    expect(processContent({ body: '*x*' }, schema)?.body).toContain('<em>x</em>')
+    expect(processContent({ body: null }, schema)?.body).toBeNull()
+    expect(processContent({}, schema)).toEqual({})
+  })
+
+  it('follows recursive schemas', () => {
+    type Node = { text: string; kids: Node[] }
+    const NodeSchema: z.ZodType<Node> = z.object({
+      text: z.string().meta(format.markdown()),
+      get kids() {
+        return z.array(NodeSchema)
+      },
+    })
+    const result = processContent({ text: 'a', kids: [{ text: '*deep*<script>z()</script>', kids: [] }] }, NodeSchema)
+    const kid = (result?.kids as Node[])[0]
+    expect(kid.text).toContain('<em>deep</em>')
+    expect(kid.text).not.toContain('<script')
+  })
+
+  it('keeps rendering schemas with z.date, .transform, z.custom and z.bigint fields', () => {
+    const schema = z.object({
+      when: z.date(),
+      count: z.string().transform(s => s.length),
+      custom: z.custom<string>(() => true),
+      big: z.bigint(),
+      body: z.string().meta(format.markdown()),
+    })
+    const result = processContent(
+      { when: 'w', count: 'c', custom: 'u', big: 'b', body: '*x*<script>s()</script>' },
+      schema,
+    )
+    expect(result?.body).toContain('<em>x</em>')
+    expect(result?.body).not.toContain('<script')
+    expect(result?.when).toBe('w')
+  })
+
+  it('throws, naming the template, when the schema cannot be read', () => {
+    expect(() => processContent({ body: '<script>x()</script>' }, { notZod: true }, 'broken-hero')).toThrow(
+      /Template "broken-hero".*can't be read/,
+    )
+  })
+})
