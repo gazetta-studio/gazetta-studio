@@ -7538,6 +7538,140 @@
         }
       }
     },
+    "/api/v1/assets/{name}/replace-file": {
+      "post": {
+        "summary": "Replace an asset's file, keeping its alt text, focal point and uses",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "name",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "target",
+            "in": "query"
+          },
+          {
+            "$ref": "#/components/parameters/GazettaRun"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated asset, and how many uses have their own alt text",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "manifest": {
+                      "$ref": "#/components/schemas/AssetSummary"
+                    },
+                    "perUseAltCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": ["manifest", "perUseAltCount"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is invalid: BAD_REQUEST, ASSET_NAME_INVALID, ASSET_PATH_TRAVERSAL, ASSET_SIZE_EXCEEDED, ASSET_MIME_MISMATCH, ASSET_PREPROCESS_FAILED, ASSET_VARIANT_GENERATION_FAILED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in: UNAUTHENTICATED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing a capability: FORBIDDEN, TARGET_NOT_EDITABLE",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: ASSET_MANIFEST_NOT_FOUND",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicts with the current state: ASSET_KIND_MISMATCH, HOOK_CANCELLED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported media type: BAD_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error: ASSET_MANIFEST_CORRUPT, ASSET_MIME_UNSUPPORTED, ASSET_STORAGE_FAILURE",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/assets/{name}/suggest-alt": {
       "post": {
         "summary": "Suggest alt text for an asset with the configured AI provider",

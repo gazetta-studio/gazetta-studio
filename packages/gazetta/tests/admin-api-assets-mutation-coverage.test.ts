@@ -700,6 +700,16 @@ describe('capability gates on write routes — StringLiteral pinning', () => {
     expect(body.role).toBe('viewer')
   })
 
+  it('POST /api/assets/:name/replace-file — 403 with missing:[edit:assets]', async () => {
+    const { app } = buildAppWith(providerWithCaps(readOnly, 'viewer'))
+    const res = await app.request('/api/v1/assets/hero/replace-file', { method: 'POST' })
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { code: string; missing: string[]; role: string }
+    expect(body.code).toBe('FORBIDDEN')
+    expect(body.missing).toEqual(['edit:assets'])
+    expect(body.role).toBe('viewer')
+  })
+
   it('POST /api/assets/:name/suggest-alt — 403 with missing:[edit:assets]', async () => {
     // Capability middleware runs BEFORE the AI-adapter unavailability
     // check inside the handler; a principal lacking edit:assets 403s

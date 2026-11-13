@@ -1,13 +1,12 @@
 <script setup lang="ts">
 /**
- * Asset detail pane — shows metadata for the selected asset from the grid.
- * No edit affordances in v1; authors can edit in a later step once the
- * persistence path is in place (PATCH /api/assets/:name).
+ * Asset detail pane — shows metadata for the selected asset from the grid,
+ * with its alt, focal point, language versions, Replace file and Delete.
  *
  * Reads from `assetsSelection` + `assetsList`. If the selection points to
  * an asset not in the list (stale after a refresh), shows an empty state.
  */
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import Button from './ui/Button.vue'
 import { formatBytes } from 'gazetta/format'
 import { suggestAlt, updateAssetMetadata, type SuggestAltResult } from '../api/assets.js'
@@ -20,6 +19,8 @@ import { buildAssetUrl, extFromMime } from '../utils/assetUrl.js'
 import AssetAltEditor from './AssetAltEditor.vue'
 import AssetDetailLocaleSection from './AssetDetailLocaleSection.vue'
 import AssetFocalPointEditor from './AssetFocalPointEditor.vue'
+import AssetReplaceButton from './AssetReplaceButton.vue'
+import { useAssetReplace } from '../composables/useAssetReplace.js'
 
 const list = useAssetsListStore()
 const selection = useAssetsSelectionStore()
@@ -62,6 +63,32 @@ async function onFocalPointUpdate(value: { x: number; y: number } | null): Promi
     // eslint-disable-next-line no-console
     console.warn(`Failed to update focal point for ${name}:`, err)
   }
+}
+
+const replace = useAssetReplace(() => list.refresh())
+const root = ref<HTMLElement | null>(null)
+
+// The note is about the asset it was shown for; another selection clears it.
+watch(
+  () => selection.selectedName,
+  () => replace.dismiss(),
+)
+
+function onReplaceChoose(file: File): void {
+  if (asset.value) void replace.choose(asset.value, file)
+}
+
+async function onEditAlt(): Promise<void> {
+  await nextTick()
+  const input = root.value?.querySelector<HTMLInputElement>('[data-testid="alt-editor-input"]')
+  input?.scrollIntoView({ block: 'center' })
+  input?.focus()
+}
+
+async function onEditFocal(): Promise<void> {
+  await nextTick()
+  const stage = root.value?.querySelector<HTMLElement>('[data-testid="focal-stage"]')
+  stage?.scrollIntoView({ block: 'center' })
 }
 
 const isImage = computed(() => asset.value?.mime?.startsWith('image/') ?? false)
@@ -131,7 +158,7 @@ function formatDate(iso: string): string {
 </script>
 
 <template>
-  <div class="asset-detail" data-testid="asset-detail">
+  <div ref="root" class="asset-detail" data-testid="asset-detail">
     <div v-if="!asset" class="asset-detail-empty" data-testid="asset-detail-empty">
       Select an asset to view details.
     </div>
@@ -202,6 +229,16 @@ function formatDate(iso: string): string {
       </dl>
       <AssetDetailLocaleSection :asset="asset" />
       <div class="asset-detail-actions">
+        <AssetReplaceButton
+          :asset-name="asset.name"
+          :asset-mime="asset.mime"
+          :state="replace.state.value"
+          :ai-available="aiAvailable"
+          @choose="onReplaceChoose"
+          @edit-alt="onEditAlt"
+          @edit-focal="onEditFocal"
+          @suggest="onSuggestAlt"
+          @dismiss="replace.dismiss" />
         <Button
           label="Delete"
           severity="danger"
@@ -312,7 +349,9 @@ function formatDate(iso: string): string {
 
 .asset-detail-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
   margin-top: 0.5rem;
   border-top: 1px solid var(--color-border);
   padding-top: 0.75rem;

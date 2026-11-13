@@ -2208,6 +2208,19 @@ type PostApiV1AssetsNameRenameToNewNameParams struct {
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
 }
 
+// PostApiV1AssetsNameReplaceFileMultipartBody defines parameters for PostApiV1AssetsNameReplaceFile.
+type PostApiV1AssetsNameReplaceFileMultipartBody struct {
+	File *openapi_types.File `json:"file,omitempty"`
+}
+
+// PostApiV1AssetsNameReplaceFileParams defines parameters for PostApiV1AssetsNameReplaceFile.
+type PostApiV1AssetsNameReplaceFileParams struct {
+	Target *string `form:"target,omitempty" json:"target,omitempty"`
+
+	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
+	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
 // PostApiV1AssetsNameReplaceWithNewNameParams defines parameters for PostApiV1AssetsNameReplaceWithNewName.
 type PostApiV1AssetsNameReplaceWithNewNameParams struct {
 	Target *string `form:"target,omitempty" json:"target,omitempty"`
@@ -3291,6 +3304,9 @@ type PatchApiV1AssetsNameJSONRequestBody PatchApiV1AssetsNameJSONBody
 
 // PostApiV1AssetsNameLocaleBytesMultipartRequestBody defines body for PostApiV1AssetsNameLocaleBytes for multipart/form-data ContentType.
 type PostApiV1AssetsNameLocaleBytesMultipartRequestBody PostApiV1AssetsNameLocaleBytesMultipartBody
+
+// PostApiV1AssetsNameReplaceFileMultipartRequestBody defines body for PostApiV1AssetsNameReplaceFile for multipart/form-data ContentType.
+type PostApiV1AssetsNameReplaceFileMultipartRequestBody PostApiV1AssetsNameReplaceFileMultipartBody
 
 // PostApiV1AuthElevationsJSONRequestBody defines body for PostApiV1AuthElevations for application/json ContentType.
 type PostApiV1AuthElevationsJSONRequestBody PostApiV1AuthElevationsJSONBody
@@ -5104,6 +5120,13 @@ type ClientInterface interface {
 	// Corresponds with POST /api/v1/assets/{name}/rename-to/{newName} (the `PostApiV1AssetsNameRenameToNewName` operationId).
 	PostApiV1AssetsNameRenameToNewName(ctx context.Context, name string, newName string, params *PostApiV1AssetsNameRenameToNewNameParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PostApiV1AssetsNameReplaceFileWithBody Replace an asset's file, keeping its alt text, focal point and uses
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/assets/{name}/replace-file (the `PostApiV1AssetsNameReplaceFile` operationId).
+	PostApiV1AssetsNameReplaceFileWithBody(ctx context.Context, name string, params *PostApiV1AssetsNameReplaceFileParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PostApiV1AssetsNameReplaceWithNewName Point every reference at another asset, then delete this one
 	//
 	// Corresponds with POST /api/v1/assets/{name}/replace-with/{newName} (the `PostApiV1AssetsNameReplaceWithNewName` operationId).
@@ -5907,6 +5930,23 @@ func (c *Client) PostApiV1AssetsNameLocaleBytesWithBody(ctx context.Context, nam
 // Corresponds with POST /api/v1/assets/{name}/rename-to/{newName} (the `PostApiV1AssetsNameRenameToNewName` operationId).
 func (c *Client) PostApiV1AssetsNameRenameToNewName(ctx context.Context, name string, newName string, params *PostApiV1AssetsNameRenameToNewNameParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostApiV1AssetsNameRenameToNewNameRequest(c.Server, name, newName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostApiV1AssetsNameReplaceFileWithBody Replace an asset's file, keeping its alt text, focal point and uses
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/assets/{name}/replace-file (the `PostApiV1AssetsNameReplaceFile` operationId).
+func (c *Client) PostApiV1AssetsNameReplaceFileWithBody(ctx context.Context, name string, params *PostApiV1AssetsNameReplaceFileParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiV1AssetsNameReplaceFileRequestWithBody(c.Server, name, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8269,6 +8309,84 @@ func NewPostApiV1AssetsNameRenameToNewNameRequest(server string, name string, ne
 	if err != nil {
 		return nil, err
 	}
+
+	if params != nil {
+
+		if params.GazettaRun != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Gazetta-Run", *params.GazettaRun, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Gazetta-Run", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewPostApiV1AssetsNameReplaceFileRequestWithBody constructs an http.Request for the PostApiV1AssetsNameReplaceFile method, with any body, and a specified content type
+func NewPostApiV1AssetsNameReplaceFileRequestWithBody(server string, name string, params *PostApiV1AssetsNameReplaceFileParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/assets/%s/replace-file", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Target != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "target", *params.Target, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	if params != nil {
 
@@ -13979,6 +14097,13 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /api/v1/assets/{name}/rename-to/{newName} (the `PostApiV1AssetsNameRenameToNewName` operationId).
 	PostApiV1AssetsNameRenameToNewNameWithResponse(ctx context.Context, name string, newName string, params *PostApiV1AssetsNameRenameToNewNameParams, reqEditors ...RequestEditorFn) (*PostApiV1AssetsNameRenameToNewNameResponse, error)
 
+	// PostApiV1AssetsNameReplaceFileWithBodyWithResponse Replace an asset's file, keeping its alt text, focal point and uses
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/assets/{name}/replace-file (the `PostApiV1AssetsNameReplaceFile` operationId).
+	PostApiV1AssetsNameReplaceFileWithBodyWithResponse(ctx context.Context, name string, params *PostApiV1AssetsNameReplaceFileParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AssetsNameReplaceFileResponse, error)
+
 	// PostApiV1AssetsNameReplaceWithNewNameWithResponse Point every reference at another asset, then delete this one
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -15538,6 +15663,102 @@ func (r PostApiV1AssetsNameRenameToNewNameResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r PostApiV1AssetsNameRenameToNewNameResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostApiV1AssetsNameReplaceFileResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Manifest       AssetSummary `json:"manifest"`
+		PerUseAltCount int          `json:"perUseAltCount"`
+	}
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *Problem
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Problem
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Problem
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Problem
+	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
+	ApplicationproblemJSON409 *Problem
+	// ApplicationproblemJSON415 the response for an HTTP 415 `application/problem+json` response
+	ApplicationproblemJSON415 *Problem
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PostApiV1AssetsNameReplaceFileResponse) GetJSON200() *struct {
+	Manifest       AssetSummary `json:"manifest"`
+	PerUseAltCount int          `json:"perUseAltCount"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r PostApiV1AssetsNameReplaceFileResponse) GetApplicationproblemJSON400() *Problem {
+	return r.ApplicationproblemJSON400
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r PostApiV1AssetsNameReplaceFileResponse) GetApplicationproblemJSON401() *Problem {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r PostApiV1AssetsNameReplaceFileResponse) GetApplicationproblemJSON403() *Problem {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r PostApiV1AssetsNameReplaceFileResponse) GetApplicationproblemJSON404() *Problem {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
+func (r PostApiV1AssetsNameReplaceFileResponse) GetApplicationproblemJSON409() *Problem {
+	return r.ApplicationproblemJSON409
+}
+
+// GetApplicationproblemJSON415 returns the response for an HTTP 415 `application/problem+json` response
+func (r PostApiV1AssetsNameReplaceFileResponse) GetApplicationproblemJSON415() *Problem {
+	return r.ApplicationproblemJSON415
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r PostApiV1AssetsNameReplaceFileResponse) GetApplicationproblemJSON500() *Problem {
+	return r.ApplicationproblemJSON500
+}
+
+// GetBody returns the raw response body bytes
+func (r PostApiV1AssetsNameReplaceFileResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostApiV1AssetsNameReplaceFileResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostApiV1AssetsNameReplaceFileResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostApiV1AssetsNameReplaceFileResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -21584,6 +21805,19 @@ func (c *ClientWithResponses) PostApiV1AssetsNameRenameToNewNameWithResponse(ctx
 	return ParsePostApiV1AssetsNameRenameToNewNameResponse(rsp)
 }
 
+// PostApiV1AssetsNameReplaceFileWithBodyWithResponse Replace an asset's file, keeping its alt text, focal point and uses
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/assets/{name}/replace-file (the `PostApiV1AssetsNameReplaceFile` operationId).
+func (c *ClientWithResponses) PostApiV1AssetsNameReplaceFileWithBodyWithResponse(ctx context.Context, name string, params *PostApiV1AssetsNameReplaceFileParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiV1AssetsNameReplaceFileResponse, error) {
+	rsp, err := c.PostApiV1AssetsNameReplaceFileWithBody(ctx, name, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiV1AssetsNameReplaceFileResponse(rsp)
+}
+
 // PostApiV1AssetsNameReplaceWithNewNameWithResponse Point every reference at another asset, then delete this one
 //
 // Returns a wrapper object for the known response body format(s).
@@ -23519,6 +23753,84 @@ func ParsePostApiV1AssetsNameRenameToNewNameResponse(rsp *http.Response) (*PostA
 			return nil, err
 		}
 		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostApiV1AssetsNameReplaceFileResponse parses an HTTP response from a PostApiV1AssetsNameReplaceFileWithResponse call
+func ParsePostApiV1AssetsNameReplaceFileResponse(rsp *http.Response) (*PostApiV1AssetsNameReplaceFileResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostApiV1AssetsNameReplaceFileResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Manifest       AssetSummary `json:"manifest"`
+			PerUseAltCount int          `json:"perUseAltCount"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 415:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON415 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest Problem

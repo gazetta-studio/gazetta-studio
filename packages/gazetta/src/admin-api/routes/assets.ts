@@ -22,6 +22,7 @@ import { readManifest } from '../../assets/manifest.js'
 import { removeOverride } from '../../assets/remove-override.js'
 import { renameAsset } from '../../assets/rename.js'
 import { replaceAsset } from '../../assets/replace.js'
+import { replaceAssetBytes } from '../../assets/replace-bytes.js'
 import { updateAssetMetadata } from '../../assets/update-metadata.js'
 import { buildSelector, type Selector } from '../../schema/dimensions.js'
 import { isValidLocale } from '../../locale.js'
@@ -52,6 +53,8 @@ import {
   AssetMetadataResponseSchema,
   AssetNameParamSchema,
   AssetRenameParamSchema,
+  AssetReplaceFileFormSchema,
+  AssetReplaceFileResponseSchema,
   AssetSelectorQuerySchema,
   AssetSummarySchema,
   AssetUploadFormSchema,
@@ -287,6 +290,44 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
         404: ['ASSET_MANIFEST_NOT_FOUND'],
         409: ['ASSET_KIND_MISMATCH'],
         500: ['ASSET_MANIFEST_CORRUPT', 'ASSET_STORAGE_FAILURE'],
+      }),
+    },
+  })
+
+  /**
+   * POST /api/assets/:name/replace-file — put a new file of the same kind
+   * into this asset (design-media.md M3). Alt, focal point, language and
+   * theme versions and every use are kept; no page or fragment changes.
+   * One history revision covers the replace.
+   */
+  const replaceFileRoute = createRoute({
+    method: 'post',
+    path: '/assets/:name/replace-file',
+    summary: "Replace an asset's file, keeping its alt text, focal point and uses",
+    middleware: [requireCapability('edit:assets'), editableTarget] as const,
+    request: {
+      params: AssetNameParamSchema,
+      query: TargetQuerySchema,
+      body: { required: true, content: { 'multipart/form-data': { schema: AssetReplaceFileFormSchema } } },
+    },
+    responses: {
+      200: json(AssetReplaceFileResponseSchema, 'The updated asset, and how many uses have their own alt text'),
+      ...problems({
+        400: [
+          'BAD_REQUEST',
+          'ASSET_NAME_INVALID',
+          'ASSET_PATH_TRAVERSAL',
+          'ASSET_SIZE_EXCEEDED',
+          'ASSET_MIME_MISMATCH',
+          'ASSET_PREPROCESS_FAILED',
+          'ASSET_VARIANT_GENERATION_FAILED',
+        ],
+        401: ['UNAUTHENTICATED'],
+        403: ['FORBIDDEN', 'TARGET_NOT_EDITABLE'],
+        404: ['ASSET_MANIFEST_NOT_FOUND'],
+        409: ['ASSET_KIND_MISMATCH', 'HOOK_CANCELLED'],
+        415: ['BAD_REQUEST'],
+        500: ['ASSET_MANIFEST_CORRUPT', 'ASSET_MIME_UNSUPPORTED', 'ASSET_STORAGE_FAILURE'],
       }),
     },
   })
@@ -555,6 +596,85 @@ export function assetRoutes(resolve: SourceContextResolver, opts: AssetRoutesOpt
         history: source.history,
       })
       return c.body(null, 204)
+    } catch (err) {
+      return assetProblem(c, err)
+    }
+  })
+
+  app.openapi(replaceFileRoute, async c => {
+    const { name } = c.req.valid('param')
+    const source = await resolve(c.req.valid('query').target)
+    const file = c.req.valid('form').file
+    if (!(file instanceof File)) {
+      return problem(c, 400, 'BAD_REQUEST', 'Missing or invalid "file" field')
+    }
+    const targetConfig = source.targetName ? source.manifest?.targets?.[source.targetName] : undefined
+
+    // New bytes enter the asset, so the upload hooks run as they do for an
+    // upload (design-hooks.md "Asset lifecycle"); otherwise a beforeUpload
+    // policy could be bypassed by uploading one file and replacing it.
+    // The asset keeps its name: a hook's rename is ignored.
+    let bytes: Uint8Array
+    try {
+      bytes = new Uint8Array(await file.arrayBuffer())
+    } catch (err) {
+      return problem(c, 400, 'BAD_REQUEST', `Failed to read file bytes: ${(err as Error).message}`)
+    }
+    let hookAsset: UploadHookAsset = {
+      name,
+      mime: file.type || 'application/octet-stream',
+      size: bytes.byteLength,
+    }
+    const hookCtx = hooks
+      ? buildHookContext({
+          principal: c.var.principal,
+          storage: source.storage,
+          target: source.targetName,
+          requestId: c.req.header('x-request-id') ?? crypto.randomUUID(),
+          site: { name: source.manifest?.name },
+          auditEmit: makeAuditFiringEmitter(c.var.audit),
+        })
+      : null
+    if (hooks && hookCtx) {
+      try {
+        const mutated = await dispatchBeforeUpload(hooks, hookAsset, bytes, hookCtx)
+        hookAsset = { ...mutated.asset, name }
+        bytes = mutated.bytes
+      } catch (err) {
+        if (err instanceof HookCancellation || err instanceof HookTimeout) {
+          return problem(c, 409, 'HOOK_CANCELLED', undefined, { hook: err.hookName, reason: err.message })
+        }
+        throw err
+      }
+    }
+
+    try {
+      const finalBytes = bytes
+      const result = await replaceAssetBytes({
+        storage: source.storage,
+        assetsRoot: ASSETS_ROOT,
+        siteDir: source.siteDir,
+        assetName: name,
+        bytes: new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(finalBytes)
+            controller.close()
+          },
+        }),
+        policy: targetConfig?.assets,
+        manifest: source.manifest,
+        site: source.manifest ? await loadSiteFromSource(source) : undefined,
+        history: source.history,
+        contentRoot: source.contentRoot,
+      })
+      if (hooks && hookCtx) {
+        await dispatchAfterUpload(hooks, hookAsset, { asset: hookAsset, hash: result.manifest.hash ?? '' }, hookCtx)
+      }
+      const { locales, themes } = await overridesOf(source.storage, result.manifest)
+      return c.json(
+        { manifest: toSummary(result.manifest, locales, themes), perUseAltCount: result.perUseAltCount },
+        200,
+      )
     } catch (err) {
       return assetProblem(c, err)
     }

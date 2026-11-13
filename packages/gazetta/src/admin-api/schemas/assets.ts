@@ -213,6 +213,17 @@ export const AssetUploadFormSchema = z.object({
   alt: z.any().optional().meta({ type: 'string' }),
 })
 
+/** Multipart body of POST /api/assets/:name/replace-file. */
+export const AssetReplaceFileFormSchema = z.object({ file: FileFieldSchema })
+
+/** Body of a 200 response on POST /api/assets/:name/replace-file. */
+export const AssetReplaceFileResponseSchema = z.object({
+  manifest: AssetSummarySchema,
+  /** Page and fragment references to the asset that carry their own alt text. */
+  perUseAltCount: z.number().int().min(0),
+})
+export type AssetReplaceFileResponse = z.infer<typeof AssetReplaceFileResponseSchema>
+
 /** Multipart body of POST /api/assets/:name/locale-bytes. */
 export const LocaleBytesFormSchema = z.object({ file: FileFieldSchema })
 

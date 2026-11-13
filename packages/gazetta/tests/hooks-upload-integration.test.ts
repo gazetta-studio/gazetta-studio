@@ -290,3 +290,94 @@ describe('Cut 6 — beforeUpload + afterUpload firing', () => {
     expect(JSON.parse(persisted).name).toBe('hero')
   })
 })
+
+describe('upload hooks on replace-file', () => {
+  async function seedHero(app: Hono) {
+    const res = await app.request('/api/v1/assets', {
+      method: 'POST',
+      body: multipartForm({
+        file: { name: 'hero.jpg', bytes: new Uint8Array(await jpegBuffer()), type: 'image/jpeg' },
+        name: 'hero',
+      }),
+    })
+    expect(res.status).toBe(201)
+    return ((await res.json()) as { manifest: { hash: string } }).manifest.hash
+  }
+
+  async function pngBytes(): Promise<Uint8Array> {
+    const buf = await sharp({ create: { width: 90, height: 30, channels: 3, background: { r: 9, g: 9, b: 9 } } })
+      .png()
+      .toBuffer()
+    return new Uint8Array(buf)
+  }
+
+  function replaceFile(app: Hono, bytes: Uint8Array) {
+    return app.request('/api/v1/assets/hero/replace-file', {
+      method: 'POST',
+      body: multipartForm({ file: { name: 'new.png', bytes, type: 'image/png' } }),
+    })
+  }
+
+  it('a cancelling beforeUpload hook stops the replace and writes nothing', async () => {
+    const hooks = new HookRegistry()
+    let armed = false
+    const reject: BeforeUploadHook = async (asset, bytes) => {
+      if (armed) throw new Error('replace blocked')
+      return { asset, bytes }
+    }
+    hooks.register('beforeUpload', reject, { name: 'reject-replace' })
+    hooks.seal()
+    const { app, storage } = buildApp({ hooks })
+    const hash = await seedHero(app)
+    const filesBefore = (await storage.readDir('assets')).map(e => e.name).sort()
+    const manifestBefore = await storage.readFile('assets/hero.asset.json')
+    armed = true
+
+    const res = await replaceFile(app, await pngBytes())
+
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as { code: string; hook: string; reason: string }
+    expect(body).toMatchObject({ code: 'HOOK_CANCELLED', hook: 'reject-replace' })
+    expect(body.reason).toContain('replace blocked')
+    expect(await storage.readFile('assets/hero.asset.json')).toBe(manifestBefore)
+    expect(JSON.parse(manifestBefore).hash).toBe(hash)
+    expect((await storage.readDir('assets')).map(e => e.name).sort()).toEqual(filesBefore)
+  })
+
+  it('beforeUpload sees the new bytes and its byte changes are what gets stored; afterUpload sees the new hash', async () => {
+    const hooks = new HookRegistry()
+    const replacement = await pngBytes()
+    const seen: { name: string; mime: string; size: number }[] = []
+    const after: CapturedAfter[] = []
+    let armed = false
+    const swap: BeforeUploadHook = async (asset, bytes) => {
+      if (!armed) return { asset, bytes }
+      seen.push({ name: asset.name, mime: asset.mime, size: bytes.byteLength })
+      // Rename attempts are ignored on replace: the asset keeps its name.
+      return { asset: { ...asset, name: 'renamed' }, bytes: replacement }
+    }
+    const record: AfterUploadHook = async (asset, result) => {
+      after.push({ asset, result })
+    }
+    hooks.register('beforeUpload', swap, { name: 'swap' })
+    hooks.register('afterUpload', record, { name: 'record' })
+    hooks.seal()
+    const { app, storage } = buildApp({ hooks })
+    await seedHero(app)
+    after.length = 0
+    armed = true
+
+    const sent = new Uint8Array(await jpegBuffer())
+    const res = await replaceFile(app, sent)
+
+    expect(res.status).toBe(200)
+    expect(seen).toEqual([{ name: 'hero', mime: 'image/png', size: sent.byteLength }])
+    const manifest = JSON.parse(await storage.readFile('assets/hero.asset.json'))
+    // The hook's PNG, not the JPEG that was sent, was stored.
+    expect(manifest).toMatchObject({ name: 'hero', mime: 'image/png', width: 90, height: 30 })
+    expect(await storage.exists('assets/renamed.asset.json')).toBe(false)
+    expect(after).toHaveLength(1)
+    expect(after[0].asset.name).toBe('hero')
+    expect(after[0].result.hash).toBe(manifest.hash)
+  })
+})

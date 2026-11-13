@@ -97,6 +97,8 @@ const ROUTES: Record<string, 'never' | 'allowed'> = {
   'DELETE /api/v1/assets/:name': 'never',
   'POST /api/v1/assets/:name/replace-with/:newName': 'never',
   'POST /api/v1/assets/:name/rename-to/:newName': 'allowed',
+  // Replacing an asset's file in place keeps the asset and its uses, and undo covers it (Q32).
+  'POST /api/v1/assets/:name/replace-file': 'allowed',
   // Removing one language's version is an edit undo covers (Q32).
   'POST /api/v1/assets/:name/locale-bytes': 'allowed',
   'DELETE /api/v1/assets/:name/locale-bytes': 'allowed',

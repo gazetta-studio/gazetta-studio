@@ -41,7 +41,7 @@ import type { AssetManifest, AssetVariant, LocaleBytesOverrideManifest } from '.
 import type { Selector } from '../schema/dimensions.js'
 import { selectorSuffix } from '../schema/dimensions.js'
 import type { StorageProvider } from '../types.js'
-import { rmIgnoreMissing } from '../providers/_rm-ignore-missing.js'
+import { rollback } from './rollback.js'
 import {
   AssetKindMismatchError,
   AssetMimeMismatchError,
@@ -258,16 +258,6 @@ export async function ingestLocaleBytes(input: IngestLocaleBytesInput): Promise<
   }
 
   return { manifest: localeManifest, bytesPath: bytesAbs }
-}
-
-async function rollback(storage: StorageProvider, paths: readonly string[]): Promise<void> {
-  for (const path of paths) {
-    try {
-      await rmIgnoreMissing(storage, path)
-    } catch {
-      /* best-effort */
-    }
-  }
 }
 
 async function collectBytes(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
