@@ -84,6 +84,7 @@ const writes: Array<[string, string, string, unknown?]> = [
   ['delete asset', 'DELETE', '/api/v1/assets/hero'],
   ['rename asset', 'POST', '/api/v1/assets/hero/rename-to/banner', {}],
   ['replace asset', 'POST', '/api/v1/assets/hero/replace-with/banner', {}],
+  ['replace asset file', 'POST', '/api/v1/assets/hero/replace-file', {}],
   ['add locale bytes', 'POST', '/api/v1/assets/hero/locale-bytes?locale=fr', {}],
   ['remove locale bytes', 'DELETE', '/api/v1/assets/hero/locale-bytes?locale=fr'],
 ]

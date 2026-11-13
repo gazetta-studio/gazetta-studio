@@ -104,6 +104,31 @@ export async function replaceAsset(oldName: string, newName: string): Promise<vo
   throw await parseAssetError(res, 'Replace failed')
 }
 
+/** Response payload from replacing an asset's file in place. */
+export interface ReplacedAssetFile {
+  manifest: AssetSummary
+  /** Page and fragment uses of the asset that carry their own alt text. */
+  perUseAltCount: number
+}
+
+/**
+ * Put a new file of the same kind into an asset, keeping its alt, focal
+ * point and uses (design-media.md M3). Throws `AssetKindMismatchError` on
+ * 409 and `AssetApiError` on any other failure.
+ */
+export async function replaceAssetFile(name: string, file: File): Promise<ReplacedAssetFile> {
+  const form = new FormData()
+  form.set('file', file)
+  const res = await fetch(apiUrl(`/assets/${encodeURIComponent(name)}/replace-file`), {
+    method: 'POST',
+    headers: authHeaders(),
+    body: form,
+  })
+  if (res.ok) return (await res.json()) as ReplacedAssetFile
+  if (res.status === 409) throw await parseKindMismatchResponse(res, name, name)
+  throw await parseAssetError(res, 'Replace failed')
+}
+
 /** Selector identifying which override (locale and/or theme) to write or remove. */
 export interface AssetSelector {
   locale?: string

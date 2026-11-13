@@ -37,6 +37,8 @@ Seven content / publish / upload phases ship in v1, plus ten review-lifecycle ph
 | `beforeUpload`    | An asset is about to be written (after sanitization)| Yes       |
 | `afterUpload`     | After an asset and its manifest land in storage     | No        |
 
+The upload hooks also fire when an asset's file is replaced (**Replace file**, `POST /api/v1/assets/:name/replace-file`): a `beforeUpload` hook sees the new file and can change or refuse it, and `afterUpload` sees the result. The asset keeps its name, so a rename in `beforeUpload` is ignored there.
+
 `before*` hooks return the (possibly mutated) payload. Throwing from a `before*` hook **cancels** the operation — the audit log records the cancellation, and the user sees the failure. `after*` hooks return `void`; their failures log but never propagate to the caller.
 
 ## Writing a site-local hook

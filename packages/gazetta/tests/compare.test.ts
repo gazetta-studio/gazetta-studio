@@ -116,6 +116,63 @@ describe('compareTargets', () => {
     expect(r.unchanged).toEqual(['fragments/header'])
   })
 
+  it('detects modified for the pages that use an asset after its file is replaced in place', async () => {
+    const sharp = (await import('sharp')).default
+    const { hashManifest } = await import('../src/hash.js')
+    const { computeAssetHashes } = await import('../src/asset-hashes.js')
+    const { ingestAsset } = await import('../src/assets/ingest.js')
+    const { replaceAssetBytes } = await import('../src/assets/replace-bytes.js')
+    const { scanTemplates, templateHashesFrom } = await import('../src/templates-scan.js')
+    const { loadSite } = await import('../src/site-loader.js')
+    const jpeg = async (width: number) => {
+      const buf = await sharp({ create: { width, height: 20, channels: 3, background: { r: 9, g: 9, b: 9 } } })
+        .jpeg()
+        .toBuffer()
+      return new ReadableStream<Uint8Array>({
+        start(c) {
+          c.enqueue(new Uint8Array(buf))
+          c.close()
+        },
+      })
+    }
+    const assetsRoot = join(siteDir, 'assets')
+    await ingestAsset({
+      storage: source,
+      assetsRoot,
+      bytes: await jpeg(30),
+      requestedName: 'hero',
+      alt: 'a',
+      uploadedBy: '',
+    })
+    await writeFile(
+      join(siteDir, 'pages/home/page.json'),
+      JSON.stringify({ template: 'page', content: { title: 'Hello', image: { _asset: 'hero' } } }),
+    )
+    const tHashes = templateHashesFrom(await scanTemplates(templatesDir, root))
+    const assetHashes = await computeAssetHashes(sourceRoot, ['hero'])
+    const site = await loadSite({ siteDir, storage: source, templatesDir, manifest: { name: 'Test' } })
+    for (const [name, page] of site.pages) {
+      await writeSidecar(join(targetDir, 'pages', name), hashManifest(page, { templateHashes: tHashes, assetHashes }))
+    }
+    for (const [name, frag] of site.fragments) {
+      await writeSidecar(join(targetDir, 'fragments', name), hashManifest(frag, { templateHashes: tHashes }))
+    }
+    const synced = await compareTargets({
+      sourceRoot,
+      target,
+      templatesDir,
+      projectRoot: root,
+      manifest: { name: 'Test' },
+    })
+    expect(synced.modified).toEqual([])
+
+    await replaceAssetBytes({ storage: source, assetsRoot, siteDir, assetName: 'hero', bytes: await jpeg(40) })
+
+    const r = await compareTargets({ sourceRoot, target, templatesDir, projectRoot: root, manifest: { name: 'Test' } })
+    expect(r.modified).toEqual(['pages/home'])
+    expect(r.unchanged).toEqual(['fragments/header'])
+  })
+
   it.each([false, true])(
     'republishes stale locale indexing despite matching hashes (default noindex=%s)',
     async noindex => {

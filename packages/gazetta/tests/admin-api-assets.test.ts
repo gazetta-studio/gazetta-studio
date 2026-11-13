@@ -15,6 +15,7 @@ import { createFilesystemProvider } from '../src/providers/filesystem.js'
 import { principalMiddleware } from '../src/admin-api/middleware/principal.js'
 import { tempDir } from './_helpers/temp.js'
 import { ErrorResponseSchema } from '../src/admin-api/schemas/error.js'
+import { AssetReplaceFileResponseSchema } from '../src/admin-api/schemas/assets.js'
 
 /** A 400 answered as a problem body with exactly this `detail`. */
 async function expectBadRequest(res: Response, detail: string): Promise<void> {
@@ -468,6 +469,104 @@ describe('POST /api/assets/:name/replace-with/:newName', () => {
     expect(body.newKind).toBe('downloadable')
     expect(body.oldMimeCategory).toBe('image')
     expect(body.newMimeCategory).toBe('application')
+  })
+})
+
+describe('POST /api/assets/:name/replace-file', () => {
+  async function uploadHero(app: Hono) {
+    const res = await app.request('/api/v1/assets', {
+      method: 'POST',
+      body: multipartForm({
+        file: { name: 'hero.jpg', bytes: new Uint8Array(await jpegBuffer()), type: 'image/jpeg' },
+        name: 'hero',
+        alt: 'Sunset',
+      }),
+    })
+    return ((await res.json()) as { manifest: { hash: string } }).manifest
+  }
+
+  async function png(width: number, height: number): Promise<Uint8Array> {
+    const buf = await sharp({ create: { width, height, channels: 3, background: { r: 1, g: 2, b: 3 } } })
+      .png()
+      .toBuffer()
+    return new Uint8Array(buf)
+  }
+
+  function replaceFile(app: Hono, name: string, bytes: Uint8Array, type = 'image/png') {
+    return app.request(`/api/v1/assets/${name}/replace-file`, {
+      method: 'POST',
+      body: multipartForm({ file: { name: 'new.png', bytes, type } }),
+    })
+  }
+
+  it('200s with the updated summary and the per-use alt count; the page is unchanged', async () => {
+    const { app } = buildApp()
+    const before = await uploadHero(app)
+    const fs = await import('node:fs/promises')
+    await fs.mkdir(join(testDir, 'pages/home'), { recursive: true })
+    const page = JSON.stringify({
+      template: 'page-default',
+      route: '/',
+      content: { hero: { _asset: 'hero', alt: 'Own' } },
+    })
+    await fs.writeFile(join(testDir, 'pages/home/page.json'), page)
+
+    const res = await replaceFile(app, 'hero', await png(120, 80))
+
+    expect(res.status).toBe(200)
+    const body = AssetReplaceFileResponseSchema.parse(await res.json())
+    expect(body.perUseAltCount).toBe(1)
+    expect(body.manifest).toMatchObject({ name: 'hero', mime: 'image/png', width: 120, height: 80, alt: 'Sunset' })
+    expect(body.manifest.hash).not.toBe(before.hash)
+    expect(await fs.readFile(join(testDir, 'pages/home/page.json'), 'utf-8')).toBe(page)
+    await expect(fs.access(join(testDir, `assets/hero-${before.hash}.jpg`))).rejects.toThrow()
+    await fs.access(join(testDir, `assets/hero-${body.manifest.hash}.png`))
+  })
+
+  it('404s when the asset is missing', async () => {
+    const { app } = buildApp()
+    const res = await replaceFile(app, 'ghost', await png(10, 10))
+    expect(res.status).toBe(404)
+    expect(((await res.json()) as { code: string }).code).toBe('ASSET_MANIFEST_NOT_FOUND')
+  })
+
+  it('409s ASSET_KIND_MISMATCH for a file of another kind, and the asset is unchanged', async () => {
+    const { app } = buildApp()
+    const before = await uploadHero(app)
+    const wav = Buffer.alloc(108)
+    wav.write('RIFF', 0)
+    wav.writeUInt32LE(100, 4)
+    wav.write('WAVEfmt ', 8)
+    wav.writeUInt32LE(16, 16)
+    wav.writeUInt16LE(1, 20)
+    wav.writeUInt16LE(1, 22)
+    wav.writeUInt32LE(8000, 24)
+    wav.writeUInt32LE(8000, 28)
+    wav.writeUInt16LE(1, 32)
+    wav.writeUInt16LE(8, 34)
+    wav.write('data', 36)
+    wav.writeUInt32LE(64, 40)
+
+    const res = await replaceFile(app, 'hero', new Uint8Array(wav), 'audio/wav')
+
+    expect(res.status).toBe(409)
+    expect(await res.json()).toMatchObject({
+      code: 'ASSET_KIND_MISMATCH',
+      oldMimeCategory: 'image',
+      newMimeCategory: 'audio',
+    })
+    const after = (await (await app.request('/api/v1/assets/hero')).json()) as { hash: string }
+    expect(after.hash).toBe(before.hash)
+  })
+
+  it('400s when the file field is missing', async () => {
+    const { app } = buildApp()
+    await uploadHero(app)
+    const res = await app.request('/api/v1/assets/hero/replace-file', {
+      method: 'POST',
+      body: multipartForm({ other: 'x' }),
+    })
+    await expectBadRequest(res, 'Missing or invalid "file" field')
   })
 })
 

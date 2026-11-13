@@ -127,30 +127,44 @@ function scanValue(value: unknown, path: string, input: ScanManifestInput, out: 
  */
 export function collectAssetRefs(manifest: Walkable): Set<string> {
   const names = new Set<string>()
-  collectFromComponent(manifest, names)
+  visitAssetRefs(manifest, ref => names.add(ref._asset))
   return names
 }
 
-function collectFromComponent(comp: Walkable, out: Set<string>): void {
-  if (comp.content) collectFromValue(comp.content, out)
+/**
+ * The reference objects in `manifest` that point at `assetName`, with
+ * their per-use overrides (`alt`, `focalPoint`, ...).
+ */
+export function findAssetRefObjects(manifest: Walkable, assetName: string): Record<string, unknown>[] {
+  const out: Record<string, unknown>[] = []
+  visitAssetRefs(manifest, ref => {
+    if (ref._asset === assetName) out.push(ref)
+  })
+  return out
+}
+
+type AssetRefObject = Record<string, unknown> & { _asset: string }
+
+function visitAssetRefs(comp: Walkable, visit: (ref: AssetRefObject) => void): void {
+  if (comp.content) visitValue(comp.content, visit)
   if (comp.components) {
     for (const child of comp.components) {
       if (typeof child === 'string') continue
-      collectFromComponent(child, out)
+      visitAssetRefs(child, visit)
     }
   }
 }
 
-function collectFromValue(value: unknown, out: Set<string>): void {
+function visitValue(value: unknown, visit: (ref: AssetRefObject) => void): void {
   if (value === null || typeof value !== 'object') return
   if (Array.isArray(value)) {
-    for (const item of value) collectFromValue(item, out)
+    for (const item of value) visitValue(item, visit)
     return
   }
   const obj = value as Record<string, unknown>
-  if (typeof obj._asset === 'string') out.add(obj._asset)
+  if (typeof obj._asset === 'string') visit(obj as AssetRefObject)
   for (const [key, child] of Object.entries(obj)) {
     if (key === '_asset') continue
-    collectFromValue(child, out)
+    visitValue(child, visit)
   }
 }

@@ -95,7 +95,7 @@ LOCALE BYTES
 + Add ar version
 ─────────────────
 Uploaded     2026-04-22 14:23
-[ Delete ]
+[ Replace file ]                    [ Delete ]
 ```
 
 ### Editing alt
@@ -256,7 +256,30 @@ the thumbnail) needs attention.
 
 ## Replace, rename, delete
 
-### Replace
+### Replace file
+
+**Replace file** in the detail pane puts a new file into the same
+asset: same name, new file. The asset keeps its alt text, focal point,
+tags, language and theme versions, and every page and fragment that
+uses it, which shows the new file from then on. No page changes.
+
+The new file has to be the same kind: an image replaces an image (a
+JPEG with a PNG is fine), but choosing an audio file for an image is
+refused ("This file is audio; hero is an image. Choose an image.") and
+nothing changes.
+
+When it's done, the pane shows the new image with its alt text and
+focal point, and asks you to check they still fit: **Edit alt**,
+**Edit focal point**, and **Suggest** when AI alt text is set up. If
+some pages give the image their own alt text, it says how many, since
+those aren't changed. **Dismiss** closes the note; nothing about it is
+kept.
+
+One history revision covers the replace, so undo brings the old file
+back. Pages that use the asset show as changed in the publish list, so
+the next publish sends the new file to the target.
+
+### Replace with another asset
 
 When you want to swap one asset for another *without* breaking any
 references — author picks a replacement asset from the library, the
