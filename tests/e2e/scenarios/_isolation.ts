@@ -75,7 +75,7 @@ export async function restorePristineHome(projectDir: string): Promise<void> {
  * Wipe every target's dist dir + its .gazetta/history/ subdir so each
  * scenario starts with all targets in "firstPublish" state.
  */
-export async function wipeAllTargetDists(projectDir: string): Promise<void> {
+async function wipeAllTargetDists(projectDir: string): Promise<void> {
   const sitesMain = join(projectDir, 'sites/main')
   await Promise.all(TARGET_DIST_DIRS.map(d => rmSafe(join(sitesMain, d))))
   // local's content dir also has a .gazetta/history/ from prior tests — wipe
