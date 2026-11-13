@@ -66,7 +66,7 @@ const TARGET_DIST_DIRS = ['dist/staging', 'dist/esi-test', 'dist/prod-test'] as 
  * Scenarios edit the title then save, which leaves the file modified.
  * Without this, scenario #2 would see "edited title" as the baseline.
  */
-export async function restorePristineHome(projectDir: string): Promise<void> {
+async function restorePristineHome(projectDir: string): Promise<void> {
   const path = join(projectDir, 'sites/main/targets/local/pages/home/page.json')
   await writeFile(path, JSON.stringify(PRISTINE_HOME, null, 2) + '\n')
 }
