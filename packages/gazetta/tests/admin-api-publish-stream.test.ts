@@ -16,6 +16,7 @@ import { createSourceContext } from '../src/admin-api/source-context.js'
 import { HookRegistry } from '../src/hooks/index.js'
 import type { PublishHookResult } from '../src/hooks/index.js'
 import { createValidatorRegistry } from '../src/validation/registry.js'
+import type { AuthIdentityProvider, Principal } from '../src/auth/index.js'
 import type { Validator } from '../src/validation/types.js'
 import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
 import { starterTemplatesDir } from './_helpers/starter.js'
@@ -26,6 +27,7 @@ interface BuildOpts {
   strictAudit?: boolean
   /** Target storage whose writes all fail. */
   failTargetWrites?: boolean
+  authProvider?: AuthIdentityProvider
 }
 
 function build(opts: BuildOpts = {}): { app: Hono; sourceStorage: MemoryStorage; targetStorage: MemoryStorage } {
@@ -68,6 +70,7 @@ function build(opts: BuildOpts = {}): { app: Hono; sourceStorage: MemoryStorage;
     targetConfigs,
     disableCacheStatsLogger: true,
     ...(opts.hooks ? { hooks: opts.hooks } : {}),
+    ...(opts.authProvider ? { authProvider: opts.authProvider } : {}),
     ...(opts.validator ? { validators: createValidatorRegistry([opts.validator]) } : {}),
   })
   return { app, sourceStorage, targetStorage }
@@ -256,6 +259,21 @@ describe('POST /api/v1/publish/stream', { timeout: 30_000 }, () => {
     expect(recorded).toHaveLength(1)
     expect(recorded[0].outcome).toBe('validation-failed')
     expect(recorded[0].metadata).toMatchObject({ blockedTargets: ['staging'] })
+  })
+
+  it('refuses with 403 before the stream opens when the caller lacks publish:non-production', async () => {
+    const authProvider: AuthIdentityProvider = {
+      trustMode: 'forwarded-user',
+      async extractPrincipal(): Promise<Principal> {
+        return { id: 'viewer', role: 'viewer', trustMode: 'forwarded-user', capabilities: ['read:pages'] }
+      },
+    }
+    const { app, targetStorage } = build({ authProvider })
+    const res = await stream(app, { items: ['fragments/header'], targets: ['staging'] })
+    expect(res.status).toBe(403)
+    expect(res.headers.get('content-type')).not.toContain('text/event-stream')
+    expect(((await res.json()) as { code: string }).code).toBe('FORBIDDEN')
+    expect(targetStorage.dump().size).toBe(0)
   })
 
   it('lets warnings through the gate', async () => {
