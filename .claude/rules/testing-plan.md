@@ -194,16 +194,13 @@ feature cut that touches the foundation in question — not as a backlog batch.
 
 Routes whose **logic** is tested via direct function calls but whose
 **HTTP handler** (status code mapping, content-type, schema validation,
-middleware ordering) has no `app.request()` test. Inventory as of 2026-10-21, less `POST /api/publish/stream` (covered by #1036; #1058 covers the rest):
+middleware ordering) has no `app.request()` test. None as of 2026-11-13:
+#1058 covered the last four (`POST /api/publish/stream`, `GET /api/compare`,
+`GET /api/templates/:name/impact`, `GET /api/validation/issues`).
 
-| Route | Logic tested via | Gap |
-|---|---|---|
-| `GET /api/compare` | `compareTargets()` direct call ([compare.test.ts](../../packages/gazetta/tests/compare.test.ts)) | Route handler — target-name lookup + serialization |
-| `GET /api/templates/:name/impact` | `validation-template-impact.test.ts` | Route handler |
-| `GET /api/validation/issues` | Only its `read:pages` gate ([auth-route-gates.test.ts](../../packages/gazetta/tests/auth-route-gates.test.ts)) | Response body |
-
-Same policy as the cross-foundation punch list: write the test alongside
-the next feature cut that touches the route. Don't backfill as a batch
+Same policy as the cross-foundation punch list: when a route ships
+without one, write the test alongside the next feature cut that touches
+the route. Don't backfill as a batch
 ([team-preferences rule 17](team-preferences.md)).
 
 The pattern this avoids: testing the underlying helper while leaving the
