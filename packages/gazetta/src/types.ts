@@ -961,6 +961,8 @@ export interface ResolvedComponent {
   template: TemplateFunction
   /** The template's name, so a render that throws can say which template did (#1755). */
   templateName?: string
+  /** The template's Zod schema, so draft content can be processed like saved content. */
+  schema?: unknown
   content?: Record<string, unknown>
   children: ResolvedComponent[]
   path?: string
