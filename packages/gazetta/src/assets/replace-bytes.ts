@@ -9,8 +9,9 @@
  * Different from `replace.ts`, which points every reference at another
  * asset and deletes this one.
  *
- * Order: new byte files, then the history revision, then the manifest,
- * then the old byte files. If writing the new files or recording the
+ * Order: a revision holding the asset as it is now, when history lacks
+ * it (so undo brings it back); new byte files, then the history revision,
+ * then the manifest, then the old byte files. If writing the new files or recording the
  * revision fails, the new files are removed and the asset is as it was.
  * If the manifest write itself fails, the new files are removed too, but
  * the revision already recorded stays in history.
@@ -18,7 +19,7 @@
 import type { ContentRoot } from '../content-root.js'
 import { createContentRoot } from '../content-root.js'
 import type { HistoryProvider } from '../history.js'
-import { recordWrite, type WrittenItem } from '../history-recorder.js'
+import { ensureHistoryBaseline, recordWrite, type WrittenItem } from '../history-recorder.js'
 import type { AssetManifest } from '../schema/types.js'
 import { allFragmentEntries, allPageEntries, loadSite, type Site } from '../site-loader.js'
 import type { SiteManifest, StorageProvider } from '../types.js'
@@ -97,6 +98,13 @@ export async function replaceAssetBytes(input: ReplaceAssetBytesInput): Promise<
   const oldPaths = oldBytePaths(root, existing).filter(p => !newPaths.has(p))
 
   const manifestAbs = `${root}/${manifestPath(input.assetName)}`
+  if (input.history) {
+    await recordStateBeforeReplace(input.history, contentRoot, input.storage, input.assetName, [
+      manifestAbs,
+      ...oldBytePaths(root, existing),
+    ])
+  }
+
   // Only files this replace created are rolled back: the same bytes give
   // the same hashed paths, which the unchanged manifest still points at.
   const written: string[] = []
@@ -148,6 +156,46 @@ export async function replaceAssetBytes(input: ReplaceAssetBytesInput): Promise<
 function withByteFields(existing: AssetManifest, fields: ByteFields): AssetManifest {
   const { animated: _a, frames: _f, duration: _d, poster: _p, ...rest } = existing
   return { ...rest, ...fields }
+}
+
+/**
+ * Undo restores the revision before the replace, so that revision must
+ * hold the asset as it is now. An asset uploaded before history was on,
+ * or edited without a revision, isn't in it: record its current manifest
+ * and byte files first, as their own revision.
+ */
+async function recordStateBeforeReplace(
+  history: HistoryProvider,
+  contentRoot: ContentRoot,
+  storage: StorageProvider,
+  assetName: string,
+  paths: readonly string[],
+): Promise<void> {
+  await ensureHistoryBaseline({ history, contentRoot })
+  const [head] = await history.listRevisions(1)
+  const snapshot = head ? (await history.readRevision(head.id)).snapshot : {}
+  const items: WrittenItem[] = []
+  for (const path of paths) {
+    if (!(await storage.exists(path))) continue
+    const current = await storage.readBytes(path)
+    const hash = snapshot[path]
+    if (hash !== undefined && sameBytes(await history.readBlob(hash), current)) continue
+    items.push({ path, content: current })
+  }
+  if (items.length === 0) return
+  await recordWrite({
+    history,
+    contentRoot,
+    operation: 'save',
+    items,
+    message: `Before replacing the file of ${assetName}`,
+  })
+}
+
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  return true
 }
 
 function oldBytePaths(root: string, manifest: AssetManifest): string[] {
