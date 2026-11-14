@@ -109,7 +109,7 @@
     "@tiptap/starter-kit": "^3.32.2",
     "axe-core": "^4.11.4",
     "file-type": "^22.3.0",
-    "hono": "^4.13.14",
+    "hono": "^4.13.18",
     "html-validate": "^11.17.0",
     "isomorphic-dompurify": "^4.6.0",
     "jiti": "^2.7.0",
