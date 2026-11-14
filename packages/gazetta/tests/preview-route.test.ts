@@ -1,36 +1,19 @@
 /**
- * Mutation-coverage tests for `admin-api/routes/preview.ts` - closes
- * surviving / no-coverage mutants identified by the Stryker run
- * 39747793511 (issue #1128). Coverage gaps targeted:
+ * The preview route (`admin-api/routes/preview.ts`): what GET and POST
+ * `/preview/*` answer for pages, fragments, archived items, unsaved
+ * overrides, empty targets and template errors.
  *
- *  - StringLiteral mutants on the route registration + the
- *    `Cache-Control: no-store` header (`/preview/*`, `Cache-Control`,
- *    `no-store`) - existing preview tests assert bodies and statuses but
- *    never the header, so blanking those strings survived. Every test
- *    here asserts `no-store` on the response.
- *
- *  - NoCoverage on the `catch` branch of `renderPreview` (the "No
- *    content on this target yet" 404 placeholder) - no test reached the
- *    empty-target path or the rethrow for non-`loadSite:` errors. One
- *    test drives a source with no manifest (loadSite throws
- *    `loadSite:`), another drives a storage whose read fails with a
- *    plain error (must propagate to Hono's 500, not become a 404
- *    placeholder).
- *
- *  - Surviving mutants on the POST overrides path - the defaults
- *    (`overrides.content` / `overrides.structural` defaulting to `{}`),
- *    `applyContentOverrides` (treePath keying + recursion), and
- *    `withStructuralOverride` (clone-only-the-patched-manifest, original
- *    site untouched). The starter home page's `hero` and nested
- *    `features/fast` components pin content overrides; a structural
- *    override keyed `page:home` pins the manifest patch, a follow-up
- *    GET pins that overrides never persist, and direct unit tests pin
- *    that the original Site is never mutated in memory.
- *
- *  - Surviving mutants on the fragment branch (`/@name`, the locale
- *    prefix regex, the Template Error 500) and the final "Page not
- *    found" 404 body - existing tests asserted the 404 status but not
- *    the body text.
+ * Unkillable mutants, kept here because no test can tell them apart:
+ *  - The OpenAPI metadata of the preview routes (`htmlPage`, the response
+ *    descriptions, the summaries): preview sits outside `/api`, so the
+ *    published document never includes it.
+ *  - Dropping `^` from the request-path regex or `$` from the fragment
+ *    locale regex: `.*` and `(@.+)` already match from the start and to
+ *    the end.
+ *  - `e.stack ?? ''`'s right side: every error that reaches the catch
+ *    has a stack.
+ *  - `archivePlaceholder`'s `kind = 'page'` default: only `'fragment'`
+ *    is ever compared.
  *
  * Per rule 26 (test-isolation paranoia): the error-path tests build a
  * fresh app per test; the starter-copy suite copies the starter into a
@@ -64,7 +47,7 @@ afterAll(async () => {
  * Mirrors the harness in preview-capability-gate.test.ts.
  */
 async function buildStarterSource(patch?: (projectRoot: string) => Promise<void>) {
-  const projectRoot = tempDir(`preview-mut-${Date.now()}-${Math.random()}`)
+  const projectRoot = tempDir(`preview-route-${Date.now()}-${Math.random()}`)
   createdRoots.push(projectRoot)
   await rm(projectRoot, { recursive: true, force: true })
   await cp(realStarter, projectRoot, {
@@ -100,7 +83,7 @@ function postPreview(path: string, overrides?: unknown) {
   }
 }
 
-describe('preview route registration and Cache-Control (#1128)', () => {
+describe('preview route registration and Cache-Control', () => {
   it('GET /preview/* returns Cache-Control: no-store', async () => {
     const app = await buildStarterApp()
     const res = await app.request('/preview/about')
@@ -137,13 +120,13 @@ describe('preview route registration and Cache-Control (#1128)', () => {
 
   it('GET /preview/<missing> returns the Page not found 404 body', async () => {
     const app = await buildStarterApp()
-    const res = await app.request('/preview/nonexistent-1128')
+    const res = await app.request('/preview/nonexistent')
     expect(res.status).toBe(404)
     expect(await res.text()).toContain('Page not found')
   })
 })
 
-describe('preview POST overrides (#1128)', () => {
+describe('preview POST overrides', () => {
   it('POST without an overrides key renders the stored content', async () => {
     const app = await buildStarterApp()
     const res = await app.request('/preview/', postPreview('/preview/'))
@@ -247,7 +230,7 @@ function previewApp(resolveFn: Parameters<typeof previewRoutes>[0]): Hono {
   return app
 }
 
-describe('preview empty target and loader errors (#1128)', () => {
+describe('preview empty target and loader errors', () => {
   it('a target with no site config returns the 404 placeholder', async () => {
     // Never-published publish-target: the source has content storage but
     // no project manifest, so loadSite throws a `loadSite:` error and the
@@ -258,9 +241,12 @@ describe('preview empty target and loader errors (#1128)', () => {
     const res = await app.request('/preview/anything')
     expect(res.status).toBe(404)
     expect(res.headers.get('Cache-Control')).toBe('no-store')
-    const body = await res.text()
-    expect(body).toContain('No content on this target yet')
-    expect(body).toContain('Publish from an editable target to see a preview here.')
+    expect(await res.text()).toBe(
+      '<!doctype html><html><body style="font-family:system-ui;padding:2rem;color:#525252">' +
+        '<h2 style="margin:0 0 0.5rem">No content on this target yet</h2>' +
+        '<p style="margin:0;font-size:0.875rem">Publish from an editable target to see a preview here.</p>' +
+        '</body></html>',
+    )
   })
 
   it('a non-loadSite loader error propagates instead of becoming the placeholder', async () => {
@@ -287,7 +273,7 @@ describe('preview empty target and loader errors (#1128)', () => {
   })
 })
 
-describe('withStructuralOverride (#1128)', () => {
+describe('withStructuralOverride', () => {
   it('returns a copy with only the keyed manifest patched and never mutates the original Site', async () => {
     const { source, templatesDir } = await buildStarterSource()
     const site = await loadSiteFromSource(source, { templatesDir })
@@ -323,14 +309,46 @@ describe('withStructuralOverride (#1128)', () => {
     expect(
       withStructuralOverride(
         site,
-        { kind: 'page', name: 'no-such-page-1128' },
-        { content: {}, structural: { 'page:no-such-page-1128': [] } },
+        { kind: 'page', name: 'no-such-page' },
+        { content: {}, structural: { 'page:no-such-page': [] } },
       ),
     ).toBe(site)
   })
 })
 
-describe('preview fragment branch (#1128)', () => {
+describe('withStructuralOverride for fragments', () => {
+  it('patches only the keyed fragment and leaves pages and the original Site alone', async () => {
+    const { source, templatesDir } = await buildStarterSource()
+    const site = await loadSiteFromSource(source, { templatesDir })
+    const headerBefore = site.fragments.get('header')
+    const replacement: DraftOverrides['structural'][string] = [
+      { name: 'logo', template: 'logo', content: { text: 'x' } },
+    ]
+    const patched = withStructuralOverride(
+      site,
+      { kind: 'fragment', name: 'header' },
+      { content: {}, structural: { 'fragment:header': replacement } },
+    )
+    expect(patched.fragments.get('header')?.components).toBe(replacement)
+    expect(patched.fragments.get('header')?.template).toBe(headerBefore?.template)
+    expect(patched.fragments.get('footer')).toBe(site.fragments.get('footer'))
+    expect(patched.pages).toBe(site.pages)
+    expect(site.fragments.get('header')).toBe(headerBefore)
+  })
+
+  it('returns the original Site for an override keyed to a fragment that does not exist', async () => {
+    const { source, templatesDir } = await buildStarterSource()
+    const site = await loadSiteFromSource(source, { templatesDir })
+    const patched = withStructuralOverride(
+      site,
+      { kind: 'fragment', name: 'no-such-fragment' },
+      { content: {}, structural: { 'fragment:no-such-fragment': [] } },
+    )
+    expect(patched).toBe(site)
+  })
+})
+
+describe('preview fragment branch', () => {
   it('GET /preview/@header renders the fragment', async () => {
     const app = await buildStarterApp()
     const res = await app.request('/preview/@header')
@@ -365,13 +383,192 @@ describe('preview fragment branch (#1128)', () => {
 
   it('a page whose template cannot render answers the Template Error 500', async () => {
     const app = await buildStarterApp(async projectRoot => {
-      const dir = resolve(projectRoot, 'sites/main/targets/local/pages/broken-1128')
+      const dir = resolve(projectRoot, 'sites/main/targets/local/pages/broken')
       await mkdir(dir, { recursive: true })
-      await writeFile(resolve(dir, 'page.json'), JSON.stringify({ template: 'no-such-template-1128', content: {} }))
+      await writeFile(resolve(dir, 'page.json'), JSON.stringify({ template: 'no-such-template', content: {} }))
     })
-    const res = await app.request('/preview/broken-1128')
+    const res = await app.request('/preview/broken')
     expect(res.status).toBe(500)
     const body = await res.text()
     expect(body).toContain('Template Error')
+  })
+})
+
+/** Write a manifest into the starter copy's local target. */
+async function writeManifest(projectRoot: string, dir: string, file: string, manifest: unknown) {
+  const path = resolve(projectRoot, 'sites/main/targets/local', dir)
+  await mkdir(path, { recursive: true })
+  await writeFile(resolve(path, file), JSON.stringify(manifest))
+}
+
+const PLACEHOLDER_OPEN = '<!doctype html><html><body style="font-family:system-ui;padding:2rem;color:#525252">'
+const PLACEHOLDER_CLOSE = '</body></html>'
+
+describe('preview archive placeholders', () => {
+  it('an archived page without an alias shows the page wording of the 410 placeholder', async () => {
+    const app = await buildStarterApp(root => writeManifest(root, 'pages/gone-page', 'page.json', { archived: true }))
+    const res = await app.request('/preview/gone-page')
+    expect(res.status).toBe(200)
+    expect(await res.text()).toBe(
+      PLACEHOLDER_OPEN +
+        '<h2 style="margin:0 0 0.5rem">410 Gone</h2>' +
+        '<p style="margin:0;font-size:0.875rem">This page is archived. Visitors get a "Gone" response.</p>' +
+        PLACEHOLDER_CLOSE,
+    )
+  })
+
+  it('an archived fragment without an alias shows the fragment wording of the 410 placeholder', async () => {
+    const app = await buildStarterApp(root =>
+      writeManifest(root, 'fragments/gone-frag', 'fragment.json', { archived: true }),
+    )
+    const res = await app.request('/preview/@gone-frag')
+    expect(res.status).toBe(200)
+    const body = await res.text()
+    expect(body).toContain('This fragment is archived. References to it cannot resolve.')
+    expect(body).not.toContain('Visitors get a "Gone" response')
+  })
+
+  it('a page alias links to the aliased page route, not its name', async () => {
+    // `home` lives at `/`, so `/${aliasOf}` would wrongly give `/home`.
+    const app = await buildStarterApp(root =>
+      writeManifest(root, 'pages/old-home', 'page.json', { archived: true, aliasOf: 'home' }),
+    )
+    const body = await (await app.request('/preview/old-home')).text()
+    expect(body).toContain('<h2 style="margin:0 0 0.5rem">301 → /</h2>')
+    expect(body).toContain('Visitors are redirected to <a href="/">/</a>.')
+  })
+
+  it('a page alias to a name with no page falls back to /<name>, escaped', async () => {
+    const app = await buildStarterApp(root =>
+      writeManifest(root, 'pages/odd-alias', 'page.json', { archived: true, aliasOf: 'a&b"<c>' }),
+    )
+    const res = await app.request('/preview/odd-alias')
+    expect(res.status).toBe(200)
+    expect(await res.text()).toBe(
+      PLACEHOLDER_OPEN +
+        '<h2 style="margin:0 0 0.5rem">301 → /a&amp;b&quot;&lt;c&gt;</h2>' +
+        '<p style="margin:0;font-size:0.875rem">Visitors are redirected to <a href="/a&amp;b&quot;&lt;c&gt;">/a&amp;b&quot;&lt;c&gt;</a>.</p>' +
+        PLACEHOLDER_CLOSE,
+    )
+  })
+
+  it('a fragment alias names @<alias>, escaped', async () => {
+    const app = await buildStarterApp(root =>
+      writeManifest(root, 'fragments/odd-frag', 'fragment.json', { archived: true, aliasOf: 'a&b"<c>' }),
+    )
+    expect(await (await app.request('/preview/@odd-frag')).text()).toBe(
+      PLACEHOLDER_OPEN +
+        '<h2 style="margin:0 0 0.5rem">301 → @a&amp;b&quot;&lt;c&gt;</h2>' +
+        '<p style="margin:0;font-size:0.875rem">References to this fragment resolve to @a&amp;b&quot;&lt;c&gt;.</p>' +
+        PLACEHOLDER_CLOSE,
+    )
+  })
+})
+
+describe('preview fragment overrides and locale prefix', () => {
+  it('a structural override keyed fragment:<name> replaces that fragment’s components', async () => {
+    const app = await buildStarterApp()
+    const res = await app.request(
+      '/preview/@header',
+      postPreview('/preview/@header', {
+        content: {},
+        structural: { 'fragment:header': [{ name: 'logo', template: 'logo', content: { text: 'Only Logo' } }] },
+      }),
+    )
+    expect(res.status).toBe(200)
+    const body = await res.text()
+    expect(body).toContain('Only Logo')
+    expect(body).not.toContain('href="/about"')
+  })
+
+  it('content overrides apply to a fragment’s components by treePath', async () => {
+    const app = await buildStarterApp()
+    const res = await app.request(
+      '/preview/@header',
+      postPreview('/preview/@header', { content: { '@header/logo': { text: 'Fragment Override' } }, structural: {} }),
+    )
+    expect(res.status).toBe(200)
+    expect(await res.text()).toContain('Fragment Override')
+  })
+
+  it('a region locale prefix (pt-br) is taken as the fragment preview locale', async () => {
+    const app = await buildStarterApp()
+    const res = await app.request('/preview/pt-br/@header')
+    expect(res.status).toBe(200)
+    expect(await res.text()).toContain('<html lang="pt-br">')
+  })
+
+  it('a locale-looking segment after another segment is not a fragment preview', async () => {
+    const app = await buildStarterApp()
+    const res = await app.request('/preview/x/fr/@header')
+    expect(res.status).toBe(404)
+    expect(await res.text()).toBe('<p>Page not found</p>')
+  })
+})
+
+describe('preview page routing and SEO context', () => {
+  it('a locale page renders with its own locale and metadata title', async () => {
+    const app = await buildStarterApp()
+    const body = await (await app.request('/preview/fr')).text()
+    expect(body).toContain('<html lang="fr">')
+    expect(body).toContain('<title>Gazetta — CMS Composable</title>')
+  })
+
+  it('dynamic route params reach the template by name', async () => {
+    const app = await buildStarterApp(async root => {
+      const dir = resolve(root, 'templates/params-echo')
+      await mkdir(dir, { recursive: true })
+      await writeFile(
+        resolve(dir, 'index.ts'),
+        "import { z } from 'zod'\n" +
+          'export const schema = z.object({})\n' +
+          'export default ({ params }: { params?: Record<string, string> }) => ' +
+          '({ html: `<p id="params">${JSON.stringify(params ?? null)}</p>`, css: "", js: "" })\n',
+      )
+      await writeManifest(root, 'pages/echo/[slug]', 'page.json', { template: 'params-echo' })
+    })
+    const res = await app.request('/preview/echo/my-post')
+    expect(res.status).toBe(200)
+    expect(await res.text()).toContain('<p id="params">{"slug":"my-post"}</p>')
+  })
+
+  it('a path with more segments than any route is not found', async () => {
+    const app = await buildStarterApp()
+    const res = await app.request('/preview/about/extra')
+    expect(res.status).toBe(404)
+  })
+})
+
+describe('preview Template Error escaping', () => {
+  /** The message and stack-trace `<pre>` blocks of the error page. */
+  function errorBlocks(body: string) {
+    const msg = body.match(
+      /<pre style="white-space:pre-wrap;font-size:0.875rem;line-height:1.7">([\s\S]*?)<\/pre>/,
+    )?.[1]
+    const stack = body.match(/<pre style="color:#52525b;font-size:0.75rem;margin-top:0.5rem">([\s\S]*?)<\/pre>/)?.[1]
+    return { msg, stack }
+  }
+
+  it('a fragment error escapes angle brackets in both the message and the stack', async () => {
+    const app = await buildStarterApp()
+    const body = await (await app.request('/preview/@%3Cb%3Ex')).text()
+    const { msg, stack } = errorBlocks(body)
+    expect(msg).toContain('&lt;b&gt;x')
+    expect(stack).toContain('&lt;b&gt;x')
+    expect(msg).not.toMatch(/[<>]/)
+    expect(stack).not.toMatch(/[<>]/)
+  })
+
+  it('a page error escapes angle brackets in both the message and the stack', async () => {
+    const app = await buildStarterApp(root =>
+      writeManifest(root, 'pages/broken-esc', 'page.json', { template: 'no<such>tpl', content: {} }),
+    )
+    const res = await app.request('/preview/broken-esc')
+    expect(res.status).toBe(500)
+    const { msg, stack } = errorBlocks(await res.text())
+    expect(msg).toContain('&lt;such&gt;')
+    expect(stack).toContain('&lt;such&gt;')
+    expect(msg).not.toMatch(/[<>]/)
+    expect(stack).not.toMatch(/[<>]/)
   })
 })
