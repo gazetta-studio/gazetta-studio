@@ -68,9 +68,10 @@ async function onFocalPointUpdate(value: { x: number; y: number } | null): Promi
 const replace = useAssetReplace(() => list.refresh())
 const root = ref<HTMLElement | null>(null)
 
-// The note is about the asset it was shown for; another selection clears it.
+// The note is about the asset it was shown for; another selection or
+// target clears it, and a replace still running then shows nothing.
 watch(
-  () => selection.selectedName,
+  () => [selection.selectedName, activeTarget.activeTargetName],
   () => replace.dismiss(),
 )
 
