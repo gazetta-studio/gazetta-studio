@@ -32,15 +32,19 @@ that references `@header`.
 |---|---|---|
 | `.gazetta/fragment-deps/{frag}/{source}` | `{source}` references `@{frag}` | `.gazetta/fragment-deps/header/pages.home` |
 | `.gazetta/asset-refs/{asset}/{source}` | `{source}` references `{asset}` (media library entry) | `.gazetta/asset-refs/hero/pages.home` |
+| `.gazetta/alias-targets/{target}/{source}` | `{source}` is an archive whose `aliasOf` points at `{target}` | `.gazetta/alias-targets/welcome/pages.landing` |
+| `.gazetta/deps-of/{relation}/{source}` | Forward record: a JSON array of the targets the `{relation}` index holds edges for `{source}`, so its edges can be replaced without reading the manifest that produced them | `.gazetta/deps-of/fragment-deps/pages.home` → `["footer","header"]` |
 
 Source-item filenames encode `pages/<name>` as `pages.<name>` (slashes → dots
 via `encodeRefName` in [hash.ts](../packages/gazetta/src/hash.ts) — dots are
 reserved in ref names so the encoding is collision-free).
 
 The generic primitives live in [dep-sidecars.ts](../packages/gazetta/src/dep-sidecars.ts);
-[fragment-deps.ts](../packages/gazetta/src/fragment-deps.ts) and
-[asset-refs.ts](../packages/gazetta/src/assets/asset-deps.ts) bind it to the two
-relations.
+[fragment-deps.ts](../packages/gazetta/src/fragment-deps.ts),
+[asset-deps.ts](../packages/gazetta/src/assets/asset-deps.ts) and
+[archive-aliases.ts](../packages/gazetta/src/archive-aliases.ts) bind it to the three
+relations (`fragment-deps`, `asset-refs`, `alias-targets`), listed together in
+[dep-relations.ts](../packages/gazetta/src/dep-relations.ts) (`DEP_RELATIONS`).
 
 Used by:
 - `findDependentsFromSidecars` — "publishing `@header` affects pages.home,
@@ -77,34 +81,35 @@ work for either source or target storage:
 
 | Location | Per-item sidecars written by | Reverse indices written by |
 |---|---|---|
-| **Source** — `sites/{name}/pages/{page}/` | _(not written today; `gazetta validate` may add this in a future pass)_ | Admin API save handlers (per-edge incremental); `gazetta reindex` CLI; admin's first-time `/api/dependents` rebuild (memoized) |
-| **Target** — `pages/{page}/` in target storage | `publishPageRendered` / `publishPageStatic` / `publishFragmentRendered` | `publishDepIndices` after each publish (full rebuild from in-memory site) — **changing to per-item updates, see below** |
+| **Source** — `sites/{name}/pages/{page}/` | _(not written today; `gazetta validate` may add this in a future pass)_ | Admin API saves, creates, renames and move-asides, each writing the item's edges and its forward record (`rebuildItemDeps`); whole-index rebuilds, which wipe and rewrite every item's edges and records (`rebuildDepIndex`): `gazetta assets reindex` (all three relations), history restore (all three), and the admin's first `/api/dependents` query on a fresh clone (`fragment-deps` only, memoized) |
+| **Target** — `pages/{page}/` in target storage | `publishPageRendered` / `publishPageStatic` / `publishFragmentRendered` | Each published item replaces its own edges and forward record, per relation and per locale (`replaceItemDeps` / `replaceItemEdges` in `publish-item.ts`), after its render and HTML write and before its `.{hash}.hash` sidecar; a removal deletes them (`removeItemDeps`). A full `--force` publish wipes the indices first (`wipeDepIndices`) and rebuilds them through the same per-item path. History restore rebuilds all three relations. Public targets write none while public storage marks the folders unsafe there (`mayWriteDepIndices`) |
 
 The per-run index lives wherever history is kept, on source and target alike: `recordRevision` writes it for revisions with a run id, and retention removes it.
 
 ## Target indices describe the target (decided 2026-10-21, #1077)
 
-**Problem.** `publishDepIndices` wipes a target's indices and rebuilds them from the whole **source** site (`rebuildDepIndex`, `publish-rendered.ts`). The target's index then names pages the target never received, and edges from source manifests the target doesn't serve. Readers that rely on it: `/api/dependents?target=…` (the publish panel's "affects N pages", `admin-api/routes/publish.ts:262`), the live-check route planner (`design-live-check.md` Q3), and any later use of the target as a source. Restoring history on a target rebuilds from the target's own manifests, which is correct until the next publish overwrites it.
+A target's dependency indices (`fragment-deps`, `asset-refs`, `alias-targets`) describe what was published to that target, not the source site. Readers that rely on that: `/api/dependents?target=…` (the publish panel's "affects N pages", `admin-api/routes/publish.ts`), the live-check route planner (`design-live-check.md` Q3), target removal's check (`design-target-removal.md` Q4, Q12) and any later use of the target as a source. Before #1557, `publishDepIndices` wiped a target's indices and rebuilt them from the whole source site, so they named pages the target never received.
 
-**Decision: replace each published item's edges, using the index's own record.** Every item on a target gets a forward record, `.gazetta/deps-of/{relation}/{item}`, listing the edges the index holds for it. For each item a publish writes, per relation (`fragment-deps`, `asset-refs`, `alias-targets`) and per locale:
+**Each published item replaces its own edges, using the index's own record.** Every item on a target has a forward record, `.gazetta/deps-of/{relation}/{item}`, listing the edges the index holds for it. For each item a publish writes, per relation and per locale (`publish-item.ts`, `replaceItemEdges` in `dep-sidecars.ts`):
 1. read the item's record;
-2. delete those edges;
-3. write the new edges, computed from the manifest being published (in memory);
-4. write the new record last.
+2. write the new edges, computed from the manifest being published (in memory), and delete the old ones the new set drops (adds first, so a reader mid-update sees a superset);
+3. write the new record last.
 
-These steps run only once the item's render and HTML write have succeeded, and before its `.{hash}.hash` sidecar is written: an item that fails keeps its old edges and record, which describe what the target still serves, and a crash between the edges and the sidecar leaves the item changed, so the next publish redoes it (`design-target-removal.md` Q15). Every other write of an item's edges writes its forward record too: saves, creates, renames and move-asides on an editable target, and every whole-index rebuild (history restore, the source's first rebuild after a fresh clone, `gazetta assets reindex`), so only items a rebuild never saw stay unknown (`design-target-removal.md` Q12).
+These steps run only once the item's render and HTML write have succeeded, and before its `.{hash}.hash` sidecar is written: an item that fails keeps its old edges and record, which describe what the target still serves, and a crash between the edges and the sidecar leaves the item changed, so the next publish redoes it (`design-target-removal.md` Q15). Every other write of an item's edges writes its forward record too: saves, creates, renames and move-asides on an editable target (`rebuildItemDeps`), and every whole-index rebuild (history restore, the source's first rebuild after a fresh clone, `gazetta assets reindex`; `rebuildDepIndex`), so only items a rebuild never saw stay unknown (`design-target-removal.md` Q12).
 
 Decided: maintainer, 2026-10-23 (#1120).
 
-No target manifest is read, so the order of the manifest copy and missing manifests on static targets don't matter. A crashed run is safe to retry: it deletes and rewrites the same edges. Two concurrent publishes of the same item can leave a stray edge, which the next publish of that item clears. An item removed from the target (publish undo, `design-publish-undo.md` Q4) has its edges and record deleted. Cost is a few small operations per published item, proportional to the publish, not the site.
+No target manifest is read, so the order of the manifest copy and missing manifests on static targets don't matter. A crashed run is safe to retry: it deletes and rewrites the same edges. Two concurrent publishes of the same item can leave a stray edge, which the next publish of that item clears. An item removed from the target (publish undo, target removal; `publish-remove.ts`) has its edges and record deleted (`removeItemDeps`). Cost is a few small operations per published item, proportional to the publish, not the site.
 
-**Static targets get flattened edges.** On a static target only pages are rendered and fragments are baked in, and fragment manifests are on the target only if the fragment itself was published there. So a page published to a static target gets an edge to **every** fragment it bakes, direct or nested, and an `asset-refs` edge to every asset those fragments use, from a walk of the in-memory site's fragment references. That is the graph a static page really has, and `/api/dependents` needs one directory listing per fragment, no transitive walk. ESI targets keep direct edges; fragments are published separately there and `findDependentsFromSidecars` walks them transitively. A history restore on a static target that isn't editable flattens pages the same way, with the same walk over the restored site, so it keeps flattened edges (#1800). An editable target keeps direct edges in every rebuild (history restore, `gazetta assets reindex`), as its saves write.
+**Static targets get flattened edges.** On a static target only pages are rendered and fragments are baked in, and fragment manifests are on the target only if the fragment itself was published there. So a page published to a static target gets a `fragment-deps` edge to **every** fragment it bakes, direct or nested, and an `asset-refs` edge to every asset the page or those fragments use, from a walk of the in-memory site's fragment references (`flattenStaticPageDeps`, `static-page-deps.ts`). That is the graph a static page really has, and `/api/dependents` needs one directory listing per fragment, no transitive walk. ESI targets keep direct edges; fragments are published separately there and `findDependentsFromSidecars` walks them transitively. An archived page on a static target publishes a marker, not baked HTML, so it keeps direct edges. A history restore on a static target that isn't editable flattens pages the same way, with the same walk over the restored site, so it keeps flattened edges (#1800). An editable target keeps direct edges in every rebuild (history restore, `gazetta assets reindex`), as its saves write.
 
-**Existing targets** hold source-built indices and no forward records. A full `gazetta publish <target> --force` wipes the target's indices and rebuilds them through the per-item path; with no production users, that runs once per existing target (gazetta.studio's production included). A separate target reindex was rejected: static targets don't hold every fragment manifest, so a rebuild from the target couldn't recover nested edges, and it would race concurrent publishes.
+**A forced publish rebuilds.** `gazetta publish <target> --force` wipes the target's indices and forward records (`wipeDepIndices`, `publish-run.ts`), clears the hash sidecars of the items it's about to write so any it fails to reach are redone by the next publish, and rebuilds the indices through the per-item path. There is no separate target reindex.
 
-**Restoring history on a target** (`history-restorer.ts`) rebuilds all three relations; today it skips `alias-targets`.
+**Existing targets** published before #1557 hold source-built indices and no forward records. Run `gazetta publish <target> --force` once on each, gazetta.studio's production included (a manual step).
 
-**Public targets** keep no indices today (`design-public-storage.md` Q5). Once these indices describe the target, public targets keep them too (`design-target-removal.md` Q12).
+**Restoring history on a target** (`history-restorer.ts`) rebuilds all three relations (`rebuildAllDepIndices`).
+
+**Public targets** keep no indices yet: public storage marks the index folders and `deps-of/` unsafe on public targets, so publish skips them there (`mayWriteDepIndices`, `state-folders.ts`). Public storage cut 9 switches them on, so target removal's check works there too (`design-public-storage.md` Q5, `design-target-removal.md` Q12).
 
 | Rejected | Why |
 |---|---|
@@ -118,12 +123,9 @@ No target manifest is read, so the order of the manifest copy and missing manife
 
 **Found alongside:** static pages don't update when a nested fragment changes, because fragment hashes leave out their own nested fragments ([#1090](https://github.com/gazetta-studio/gazetta-studio/issues/1090)).
 
-| # | What | Depends on | Test tier | Risk |
-|---|---|---|---|---|
-| 1 | Per-item edge replacement with forward records on publish (all three relations, per locale, removals; only for items whose render and HTML write succeeded, before their `.{hash}.hash` sidecar) and on every other write of an item's edges (saves, creates, renames and move-asides on an editable target; whole-index rebuilds), replacing the whole-source rebuild in `publishDepIndices`; a full `--force` publish wipes and rebuilds; history restore rebuilds all three relations | — | api-first | Medium |
-| 2 | Static targets: flattened page → fragment and page → asset edges from the in-memory site's fragment references | 1 | unit + api | Medium |
-| 3 | Run `gazetta publish production --force` for gazetta.studio once cuts 1–2 ship (maintainer step) | 1, 2 | (manual) | Low |
-| 4 | Update this section and the "Where sidecars live" table to the shipped state | 1–3 | docs | Low |
+**Status:** shipped in #1557 (per-item replacement and forward records) and #1727 (flattened edges on static targets). The one forced publish of gazetta.studio's production is a maintainer step.
+
+**Current code alignment:** `publishDepIndices` (`publish-rendered.ts`) is still exported from `gazetta`, but nothing in publish calls it; it rebuilds a whole store from a site's manifests, like `rebuildAllDepIndices`.
 
 ## Hash input
 
@@ -188,12 +190,16 @@ republishing `@header` means republishing every page that bakes it in.
   `.gazetta/{relation}/.../*` edges as part of the save.
 - **External manifest edits** (git pull, direct file edit) bypass the save
   handlers. Per-item `.{hash}.hash` becomes stale until the next compare
-  rebuilds it; the reverse-dep index for the touched item also drifts until
-  the next publish runs `publishDepIndices`. The dev server's first
+  rebuilds it; the source's reverse-dep index for the touched item also
+  drifts until `gazetta assets reindex` rebuilds it. The dev server's first
   `/api/dependents` query against a fresh source rebuilds the fragment-deps
-  index from scratch (memoized per process).
+  index from scratch (memoized per process). Publish isn't affected: it
+  computes each item's target edges from the in-memory manifest.
 - **Publishing without running `gazetta dev`** is fine — compare always
-  rehashes; publish always rebuilds the dep indices on the destination.
+  rehashes; publish replaces the target edges of every item it writes.
+- **A failed or crashed item** leaves no drift on the target: its old edges
+  and forward record stay, describing what the target still serves, and its
+  `.{hash}.hash` sidecar isn't written, so the next publish redoes it.
 
 Target sidecars become stale only if someone mutates target storage outside
 of Gazetta (manual upload, bucket sync). `--force` handles that case.
