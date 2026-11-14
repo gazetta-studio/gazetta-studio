@@ -89,21 +89,25 @@ describe('processContent sanitizing', () => {
   const rich = z.object({ body: z.string().meta(format.richtext()) })
 
   it.each([
-    ['script', '<script>alert(1)</script>', /<script|alert\(1\)/],
-    ['event handler', '<img src="/a.png" onerror="alert(1)">', /onerror/],
+    ['script', '<script>alert(1)</script>', /<script|alert\(1\)/, ''],
+    ['event handler', '<img src="/a.png" onerror="alert(1)">', /onerror/, '<img src="/a.png">'],
     [
       'form and controls',
       '<form action="/x"><input name="a"><select><option>o</option></select><textarea>t</textarea></form>',
       /<form|<input|<select|<option|<textarea|action=/,
+      '',
     ],
-    ['iframe', '<iframe src="https://evil.test"></iframe>', /<iframe/],
-    ['object and embed', '<object data="x"></object><embed src="y">', /<object|<embed/],
-    ['style element', '<style>body{display:none}</style>', /<style|display:none/],
-    ['style attribute', '<p style="position:fixed">x</p>', /style=/],
-  ])('removes %s from Markdown fields', (_name, input, forbidden) => {
-    const result = processContent({ body: `# Title\n\n${input}` }, md)
+    ['iframe', '<iframe src="https://evil.test"></iframe>', /<iframe/, ''],
+    ['object and embed', '<object data="x"></object><embed src="y">', /<object|<embed/, ''],
+    ['style element', '<style>body{display:none}</style>', /<style|display:none/, ''],
+    ['style attribute', '<p style="position:fixed">x</p>', /style=/, '<p>x</p>'],
+  ])('removes %s from Markdown fields', (_name, input, forbidden, kept) => {
+    const result = processContent({ body: `# Title\n\n<p>before</p>\n${input}\n<p>after</p>` }, md)
     expect(result?.body).not.toMatch(forbidden)
     expect(result?.body).toContain('<h1>Title</h1>')
+    expect(result?.body).toContain('<p>before</p>')
+    expect(result?.body).toContain('<p>after</p>')
+    if (kept) expect(result?.body).toContain(kept)
   })
 
   it('keeps headings, emphasis, links and images in Markdown', () => {
@@ -125,6 +129,33 @@ describe('processContent sanitizing', () => {
       '<p dir="rtl" onclick="x()">a <bdi>b</bdi> <a href="/x" target="_blank" rel="noopener">l</a></p><script>bad()</script>'
     const result = processContent({ body }, rich)
     expect(result?.body).toBe('<p dir="rtl">a <bdi>b</bdi> <a href="/x" target="_blank" rel="noopener">l</a></p>')
+  })
+
+  it.each([
+    ['drops rel=opener', '<a href="/x" rel="opener">l</a>', '<a href="/x">l</a>'],
+    [
+      'drops opener but keeps other rel tokens',
+      '<a href="/x" rel="nofollow opener">l</a>',
+      '<a href="/x" rel="nofollow">l</a>',
+    ],
+    [
+      'adds noopener to target=_blank',
+      '<a href="/x" target="_blank" rel="opener">l</a>',
+      '<a href="/x" target="_blank" rel="noopener">l</a>',
+    ],
+    [
+      'adds noopener to a named target',
+      '<a href="/x" target="win">l</a>',
+      '<a href="/x" target="win" rel="noopener">l</a>',
+    ],
+    [
+      'reads attribute values containing > and tag-like text',
+      '<a title="a > <a rel=opener>" href="/x" rel="opener" target="_blank">l</a>',
+      '<a title="a > <a rel=opener>" href="/x" target="_blank" rel="noopener">l</a>',
+    ],
+    ['leaves target=_self alone', '<a href="/x" target="_self">l</a>', '<a href="/x" target="_self">l</a>'],
+  ])('rich-text links: %s', (_name, body, expected) => {
+    expect(processContent({ body }, rich)?.body).toBe(`${expected}`)
   })
 
   it('does not convert rich-text fields as Markdown', () => {
@@ -200,5 +231,63 @@ describe('processContent sanitizing', () => {
     expect(() => processContent({ body: '<script>x()</script>' }, { notZod: true }, 'broken-hero')).toThrow(
       /Template "broken-hero".*can't be read/,
     )
+  })
+})
+
+describe('processContent finds Markdown fields in every schema shape', () => {
+  const md = z.string().meta(format.markdown())
+  const XSS = '*safe*<img src="/x.png" onerror="alert(1)"><script>s()</script>'
+  const expectSanitized = (html: unknown) => {
+    expect(html).toContain('<em>safe</em>')
+    expect(html).toContain('<img src="/x.png">')
+    expect(html).not.toMatch(/onerror|<script|s\(\)/)
+  }
+
+  it('sanitizes record values (additionalProperties)', () => {
+    const schema = z.object({ title: z.string(), byKey: z.record(z.string(), md) })
+    const result = processContent({ title: '<b>t</b>', byKey: { a: XSS, b: XSS } }, schema) as {
+      title: string
+      byKey: Record<string, string>
+    }
+    expectSanitized(result.byKey.a)
+    expectSanitized(result.byKey.b)
+    expect(result.title).toBe('<b>t</b>')
+  })
+
+  it('sanitizes catchall values but leaves declared plain fields', () => {
+    const schema = z.object({ title: z.string() }).catchall(md)
+    const result = processContent({ title: '<b>t</b>', extra: XSS }, schema)
+    expectSanitized(result?.extra)
+    expect(result?.title).toBe('<b>t</b>')
+  })
+
+  it('sanitizes tuple elements (prefixItems)', () => {
+    const schema = z.object({ pair: z.tuple([z.string(), md]) })
+    const result = processContent({ pair: ['<b>plain</b>', XSS] }, schema) as { pair: string[] }
+    expect(result.pair[0]).toBe('<b>plain</b>')
+    expectSanitized(result.pair[1])
+  })
+
+  it('sanitizes a field in a later union branch', () => {
+    const schema = z.object({
+      block: z.union([z.object({ label: z.string() }), z.object({ body: md })]),
+    })
+    const result = processContent({ block: { body: XSS } }, schema) as { block: { body: string } }
+    expectSanitized(result.block.body)
+    const plain = processContent({ block: { label: '<b>l</b>' } }, schema) as { block: { label: string } }
+    expect(plain.block.label).toBe('<b>l</b>')
+  })
+
+  it('sanitizes a Markdown field with a .transform()', () => {
+    const schema = z.object({ body: md.transform(s => s.trim()), title: z.string() })
+    const result = processContent({ body: XSS, title: '<b>t</b>' }, schema)
+    expectSanitized(result?.body)
+    expect(result?.title).toBe('<b>t</b>')
+  })
+
+  it('handles a schema that refers to itself through a union', () => {
+    const Y: z.ZodType = z.lazy(() => z.union([md, Y]))
+    const result = processContent({ y: XSS }, z.object({ y: Y }))
+    expectSanitized(result?.y)
   })
 })
