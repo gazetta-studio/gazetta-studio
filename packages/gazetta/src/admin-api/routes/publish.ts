@@ -1,6 +1,8 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import { streamSSE } from 'hono/streaming'
-import { getType, getEnvironment, isEditable } from '../../types.js'
+import { getType, getEnvironment, isEditable, isPublicStorage } from '../../types.js'
+import { describeTarget } from '../../target-capabilities.js'
+import { auditHomeFor } from '../../audit-home.js'
 import type { StorageProvider, TargetConfig } from '../../types.js'
 import { stateFolderPath } from '../../state-folders.js'
 import { publishItems, resolveDependencies, findFragmentDependents, findDependentsFromSidecars } from '../../publish.js'
@@ -451,6 +453,7 @@ export function publishRoutes(
     // context whose .manifest holds `ai:` and `altText:`.
     const source = await resolve(undefined)
     const site = source.manifest
+    const allConfigs = targetConfigs ?? {}
     return c.json(
       [...t.keys()].map(name => {
         const cfg = getTargetConfig(name)
@@ -483,6 +486,9 @@ export function publishRoutes(
             has: [...inspection.has],
             gaps: inspection.gaps.map(g => ({ capability: g.capability, reason: g.reason })),
           },
+          publicStorage: cfg ? isPublicStorage(cfg) : false,
+          auditHome: cfg ? auditHomeFor(name, { ...allConfigs, [name]: cfg }) : { kind: 'none' as const },
+          about: cfg ? describeTarget(name, cfg, allConfigs) : [],
         }
       }),
       200,

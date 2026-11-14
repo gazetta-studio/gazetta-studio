@@ -11,6 +11,8 @@ export interface MenuItem {
   /** Child items render as a group under this item's label. */
   items?: MenuItem[]
   separator?: boolean
+  /** Rendered as the item's `data-testid`. */
+  testid?: string
 }
 </script>
 
@@ -112,6 +114,7 @@ function onCloseAutoFocus(event: Event) {
               :key="j"
               class="ui-menu-item"
               :class="child.class"
+              :data-testid="child.testid"
               :data-active="isActive(child) || undefined"
               :aria-current="isActive(child) || undefined"
               @select="select(child, $event)"
@@ -125,6 +128,7 @@ function onCloseAutoFocus(event: Event) {
             v-else
             class="ui-menu-item"
             :class="item.class"
+            :data-testid="item.testid"
             :data-active="isActive(item) || undefined"
             :aria-current="isActive(item) || undefined"
             @select="select(item, $event)"

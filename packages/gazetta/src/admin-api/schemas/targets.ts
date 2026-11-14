@@ -7,6 +7,7 @@
  * Don't duplicate the literals on the client.
  */
 import { z } from 'zod'
+import { TARGET_CAPABILITY_KEYS } from '../../target-capabilities.js'
 
 export const TargetEnvironmentSchema = z.enum(['local', 'staging', 'production'])
 export type TargetEnvironment = z.infer<typeof TargetEnvironmentSchema>
@@ -58,6 +59,25 @@ export const TargetCapabilitiesSchema = z.object({
 })
 export type TargetCapabilitiesInfo = z.infer<typeof TargetCapabilitiesSchema>
 
+/**
+ * One row of a target's capabilities view (design-public-storage.md, UX
+ * check): `label` and `value` are the copy the admin and `gazetta targets`
+ * show. Clients render rows as text; decisions read the structured fields.
+ */
+export const TargetAboutRowSchema = z.object({
+  key: z.enum(TARGET_CAPABILITY_KEYS),
+  label: z.string(),
+  value: z.string(),
+})
+export type TargetAboutRow = z.infer<typeof TargetAboutRowSchema>
+
+/** Where a target's audit events are recorded (design-public-storage.md Q5). */
+export const AuditHomeSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('self') }),
+  z.object({ kind: z.literal('target'), name: z.string() }),
+  z.object({ kind: z.literal('none') }),
+])
+
 /** Entry in the list response for GET /api/targets. */
 export const TargetInfoSchema = z.object({
   name: z.string(),
@@ -72,5 +92,11 @@ export const TargetInfoSchema = z.object({
    * capability-gap UX principle.
    */
   capabilities: TargetCapabilitiesSchema,
+  /** Whether visitors can reach the target's storage (`isPublicStorage`). */
+  publicStorage: z.boolean(),
+  /** Where this target's audit events are recorded. */
+  auditHome: AuditHomeSchema,
+  /** What the target keeps and can do: the capabilities view's rows. */
+  about: z.array(TargetAboutRowSchema),
 })
 export type TargetInfo = z.infer<typeof TargetInfoSchema>

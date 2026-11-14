@@ -186,7 +186,8 @@ function detectProjectRoot(siteDir: string): string {
 async function resolveSiteDirForCommand(cmd: string, parsed: { positional: readonly string[] }): Promise<string> {
   // Commands whose site positional sits at a fixed index.
   if (cmd === 'build') return resolveSiteDir(parsed.positional[0], command)
-  if (cmd === 'dev' || cmd === 'validate' || cmd === 'admin') return resolveSiteDir(parsed.positional[0], command)
+  if (cmd === 'dev' || cmd === 'validate' || cmd === 'admin' || cmd === 'targets')
+    return resolveSiteDir(parsed.positional[0], command)
 
   // `rollback <rev> [target|site] [site]`: site is positional[1] when
   // site-shaped, else positional[2].
@@ -271,6 +272,7 @@ function printHelp() {
     gazetta serve [target] [site]   Serve published pages from target storage
     gazetta deploy [target] [site]  Deploy worker to hosting (one-time setup)
     gazetta validate [site]         Check site for broken references
+    gazetta targets [site]          Show what each target keeps and can do
     gazetta translate <item> --to <locale> [target]
                                     Create a locale copy of a page or fragment
     gazetta history [target] [site] List revisions on a target
@@ -2419,7 +2421,7 @@ async function main() {
   // Commands that take [target] [site] positional args
   const targetFirstCommands = new Set(['publish', 'serve', 'deploy', 'history', 'undo'])
   // Commands that take [site] positional arg
-  const siteOnlyCommands = new Set(['dev', 'validate', 'admin'])
+  const siteOnlyCommands = new Set(['dev', 'validate', 'admin', 'targets'])
 
   let siteDir: string
   let targetName: string | undefined
@@ -2622,6 +2624,12 @@ async function main() {
     case 'archive': {
       const { runArchiveSubcommand } = await import('./archive.js')
       await runArchiveSubcommand({ args: args.slice(1), siteDir, targetName })
+      break
+    }
+    case 'targets': {
+      const { runTargets } = await import('./targets.js')
+      const { loadSiteTargets } = await import('./bootstrap.js')
+      runTargets({ targetConfigs: (await loadSiteTargets(siteDir)).targetConfigs })
       break
     }
     case 'state': {

@@ -1863,6 +1863,90 @@ func (e PostApiV1ReviewPageNameWithdraw200JSONResponseBodyState) Valid() bool {
 	}
 }
 
+// Defines values for GetApiV1Targets200JSONResponseBodyAboutKey.
+const (
+	Audit      GetApiV1Targets200JSONResponseBodyAboutKey = "audit"
+	Deploy     GetApiV1Targets200JSONResponseBodyAboutKey = "deploy"
+	Gone       GetApiV1Targets200JSONResponseBodyAboutKey = "gone"
+	History    GetApiV1Targets200JSONResponseBodyAboutKey = "history"
+	Indices    GetApiV1Targets200JSONResponseBodyAboutKey = "indices"
+	Redirects  GetApiV1Targets200JSONResponseBodyAboutKey = "redirects"
+	Review     GetApiV1Targets200JSONResponseBodyAboutKey = "review"
+	Scheduling GetApiV1Targets200JSONResponseBodyAboutKey = "scheduling"
+	Storage    GetApiV1Targets200JSONResponseBodyAboutKey = "storage"
+)
+
+// Valid indicates whether the value is a known member of the GetApiV1Targets200JSONResponseBodyAboutKey enum.
+func (e GetApiV1Targets200JSONResponseBodyAboutKey) Valid() bool {
+	switch e {
+	case Audit:
+		return true
+	case Deploy:
+		return true
+	case Gone:
+		return true
+	case History:
+		return true
+	case Indices:
+		return true
+	case Redirects:
+		return true
+	case Review:
+		return true
+	case Scheduling:
+		return true
+	case Storage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetApiV1Targets200JSONResponseBodyAuditHome0Kind.
+const (
+	Self GetApiV1Targets200JSONResponseBodyAuditHome0Kind = "self"
+)
+
+// Valid indicates whether the value is a known member of the GetApiV1Targets200JSONResponseBodyAuditHome0Kind enum.
+func (e GetApiV1Targets200JSONResponseBodyAuditHome0Kind) Valid() bool {
+	switch e {
+	case Self:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetApiV1Targets200JSONResponseBodyAuditHome1Kind.
+const (
+	Target GetApiV1Targets200JSONResponseBodyAuditHome1Kind = "target"
+)
+
+// Valid indicates whether the value is a known member of the GetApiV1Targets200JSONResponseBodyAuditHome1Kind enum.
+func (e GetApiV1Targets200JSONResponseBodyAuditHome1Kind) Valid() bool {
+	switch e {
+	case Target:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetApiV1Targets200JSONResponseBodyAuditHome2Kind.
+const (
+	None GetApiV1Targets200JSONResponseBodyAuditHome2Kind = "none"
+)
+
+// Valid indicates whether the value is a known member of the GetApiV1Targets200JSONResponseBodyAuditHome2Kind enum.
+func (e GetApiV1Targets200JSONResponseBodyAuditHome2Kind) Valid() bool {
+	switch e {
+	case None:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetApiV1Targets200JSONResponseBodyEnvironment.
 const (
 	GetApiV1Targets200JSONResponseBodyEnvironmentLocal      GetApiV1Targets200JSONResponseBodyEnvironment = "local"
@@ -3214,6 +3298,39 @@ type GetApiV1SystemCacheStatsParams struct {
 type GetApiV1TargetsParams struct {
 	// GazettaRun The agent run this request belongs to: 1 to 64 letters, digits, ".", "_" or "-", other than "." and "..". Recorded on the revision and audit event it writes; anything else answers 400.
 	GazettaRun *GazettaRun `json:"Gazetta-Run,omitempty"`
+}
+
+// GetApiV1Targets200JSONResponseBodyAboutKey defines parameters for GetApiV1Targets.
+type GetApiV1Targets200JSONResponseBodyAboutKey string
+
+// GetApiV1Targets200JSONResponseBodyAuditHome0 defines parameters for GetApiV1Targets.
+type GetApiV1Targets200JSONResponseBodyAuditHome0 struct {
+	Kind GetApiV1Targets200JSONResponseBodyAuditHome0Kind `json:"kind"`
+}
+
+// GetApiV1Targets200JSONResponseBodyAuditHome0Kind defines parameters for GetApiV1Targets.
+type GetApiV1Targets200JSONResponseBodyAuditHome0Kind string
+
+// GetApiV1Targets200JSONResponseBodyAuditHome1 defines parameters for GetApiV1Targets.
+type GetApiV1Targets200JSONResponseBodyAuditHome1 struct {
+	Kind GetApiV1Targets200JSONResponseBodyAuditHome1Kind `json:"kind"`
+	Name string                                           `json:"name"`
+}
+
+// GetApiV1Targets200JSONResponseBodyAuditHome1Kind defines parameters for GetApiV1Targets.
+type GetApiV1Targets200JSONResponseBodyAuditHome1Kind string
+
+// GetApiV1Targets200JSONResponseBodyAuditHome2 defines parameters for GetApiV1Targets.
+type GetApiV1Targets200JSONResponseBodyAuditHome2 struct {
+	Kind GetApiV1Targets200JSONResponseBodyAuditHome2Kind `json:"kind"`
+}
+
+// GetApiV1Targets200JSONResponseBodyAuditHome2Kind defines parameters for GetApiV1Targets.
+type GetApiV1Targets200JSONResponseBodyAuditHome2Kind string
+
+// GetApiV1Targets200JSONResponseBody_AuditHome defines parameters for GetApiV1Targets.
+type GetApiV1Targets200JSONResponseBody_AuditHome struct {
+	union json.RawMessage
 }
 
 // GetApiV1Targets200JSONResponseBodyEnvironment defines parameters for GetApiV1Targets.
@@ -4912,6 +5029,94 @@ func (t DeleteApiV1PagesName200JSONResponseBody) MarshalJSON() ([]byte, error) {
 }
 
 func (t *DeleteApiV1PagesName200JSONResponseBody) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsGetApiV1Targets200JSONResponseBodyAuditHome0 returns the union data inside the GetApiV1Targets200JSONResponseBody_AuditHome as a GetApiV1Targets200JSONResponseBodyAuditHome0
+func (t GetApiV1Targets200JSONResponseBody_AuditHome) AsGetApiV1Targets200JSONResponseBodyAuditHome0() (GetApiV1Targets200JSONResponseBodyAuditHome0, error) {
+	var body GetApiV1Targets200JSONResponseBodyAuditHome0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromGetApiV1Targets200JSONResponseBodyAuditHome0 overwrites any union data inside the GetApiV1Targets200JSONResponseBody_AuditHome as the provided GetApiV1Targets200JSONResponseBodyAuditHome0
+func (t *GetApiV1Targets200JSONResponseBody_AuditHome) FromGetApiV1Targets200JSONResponseBodyAuditHome0(v GetApiV1Targets200JSONResponseBodyAuditHome0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeGetApiV1Targets200JSONResponseBodyAuditHome0 performs a merge with any union data inside the GetApiV1Targets200JSONResponseBody_AuditHome, using the provided GetApiV1Targets200JSONResponseBodyAuditHome0
+func (t *GetApiV1Targets200JSONResponseBody_AuditHome) MergeGetApiV1Targets200JSONResponseBodyAuditHome0(v GetApiV1Targets200JSONResponseBodyAuditHome0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsGetApiV1Targets200JSONResponseBodyAuditHome1 returns the union data inside the GetApiV1Targets200JSONResponseBody_AuditHome as a GetApiV1Targets200JSONResponseBodyAuditHome1
+func (t GetApiV1Targets200JSONResponseBody_AuditHome) AsGetApiV1Targets200JSONResponseBodyAuditHome1() (GetApiV1Targets200JSONResponseBodyAuditHome1, error) {
+	var body GetApiV1Targets200JSONResponseBodyAuditHome1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromGetApiV1Targets200JSONResponseBodyAuditHome1 overwrites any union data inside the GetApiV1Targets200JSONResponseBody_AuditHome as the provided GetApiV1Targets200JSONResponseBodyAuditHome1
+func (t *GetApiV1Targets200JSONResponseBody_AuditHome) FromGetApiV1Targets200JSONResponseBodyAuditHome1(v GetApiV1Targets200JSONResponseBodyAuditHome1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeGetApiV1Targets200JSONResponseBodyAuditHome1 performs a merge with any union data inside the GetApiV1Targets200JSONResponseBody_AuditHome, using the provided GetApiV1Targets200JSONResponseBodyAuditHome1
+func (t *GetApiV1Targets200JSONResponseBody_AuditHome) MergeGetApiV1Targets200JSONResponseBodyAuditHome1(v GetApiV1Targets200JSONResponseBodyAuditHome1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsGetApiV1Targets200JSONResponseBodyAuditHome2 returns the union data inside the GetApiV1Targets200JSONResponseBody_AuditHome as a GetApiV1Targets200JSONResponseBodyAuditHome2
+func (t GetApiV1Targets200JSONResponseBody_AuditHome) AsGetApiV1Targets200JSONResponseBodyAuditHome2() (GetApiV1Targets200JSONResponseBodyAuditHome2, error) {
+	var body GetApiV1Targets200JSONResponseBodyAuditHome2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromGetApiV1Targets200JSONResponseBodyAuditHome2 overwrites any union data inside the GetApiV1Targets200JSONResponseBody_AuditHome as the provided GetApiV1Targets200JSONResponseBodyAuditHome2
+func (t *GetApiV1Targets200JSONResponseBody_AuditHome) FromGetApiV1Targets200JSONResponseBodyAuditHome2(v GetApiV1Targets200JSONResponseBodyAuditHome2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeGetApiV1Targets200JSONResponseBodyAuditHome2 performs a merge with any union data inside the GetApiV1Targets200JSONResponseBody_AuditHome, using the provided GetApiV1Targets200JSONResponseBodyAuditHome2
+func (t *GetApiV1Targets200JSONResponseBody_AuditHome) MergeGetApiV1Targets200JSONResponseBodyAuditHome2(v GetApiV1Targets200JSONResponseBodyAuditHome2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t GetApiV1Targets200JSONResponseBody_AuditHome) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *GetApiV1Targets200JSONResponseBody_AuditHome) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -21181,10 +21386,16 @@ type GetApiV1TargetsResponse struct {
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *[]struct {
+		About []struct {
+			Key   GetApiV1Targets200JSONResponseBodyAboutKey `json:"key"`
+			Label string                                     `json:"label"`
+			Value string                                     `json:"value"`
+		} `json:"about"`
 		AltText struct {
 			Auto      bool `json:"auto"`
 			Available bool `json:"available"`
 		} `json:"altText"`
+		AuditHome    GetApiV1Targets200JSONResponseBody_AuditHome `json:"auditHome"`
 		Capabilities struct {
 			Gaps []struct {
 				Capability string `json:"capability"`
@@ -21192,10 +21403,11 @@ type GetApiV1TargetsResponse struct {
 			} `json:"gaps"`
 			Has []string `json:"has"`
 		} `json:"capabilities"`
-		Editable    bool                                          `json:"editable"`
-		Environment GetApiV1Targets200JSONResponseBodyEnvironment `json:"environment"`
-		Name        string                                        `json:"name"`
-		Type        GetApiV1Targets200JSONResponseBodyType        `json:"type"`
+		Editable      bool                                          `json:"editable"`
+		Environment   GetApiV1Targets200JSONResponseBodyEnvironment `json:"environment"`
+		Name          string                                        `json:"name"`
+		PublicStorage bool                                          `json:"publicStorage"`
+		Type          GetApiV1Targets200JSONResponseBodyType        `json:"type"`
 	}
 	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
 	ApplicationproblemJSON403 *Problem
@@ -21203,10 +21415,16 @@ type GetApiV1TargetsResponse struct {
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
 func (r GetApiV1TargetsResponse) GetJSON200() *[]struct {
+	About []struct {
+		Key   GetApiV1Targets200JSONResponseBodyAboutKey `json:"key"`
+		Label string                                     `json:"label"`
+		Value string                                     `json:"value"`
+	} `json:"about"`
 	AltText struct {
 		Auto      bool `json:"auto"`
 		Available bool `json:"available"`
 	} `json:"altText"`
+	AuditHome    GetApiV1Targets200JSONResponseBody_AuditHome `json:"auditHome"`
 	Capabilities struct {
 		Gaps []struct {
 			Capability string `json:"capability"`
@@ -21214,10 +21432,11 @@ func (r GetApiV1TargetsResponse) GetJSON200() *[]struct {
 		} `json:"gaps"`
 		Has []string `json:"has"`
 	} `json:"capabilities"`
-	Editable    bool                                          `json:"editable"`
-	Environment GetApiV1Targets200JSONResponseBodyEnvironment `json:"environment"`
-	Name        string                                        `json:"name"`
-	Type        GetApiV1Targets200JSONResponseBodyType        `json:"type"`
+	Editable      bool                                          `json:"editable"`
+	Environment   GetApiV1Targets200JSONResponseBodyEnvironment `json:"environment"`
+	Name          string                                        `json:"name"`
+	PublicStorage bool                                          `json:"publicStorage"`
+	Type          GetApiV1Targets200JSONResponseBodyType        `json:"type"`
 } {
 	return r.JSON200
 }
@@ -27945,10 +28164,16 @@ func ParseGetApiV1TargetsResponse(rsp *http.Response) (*GetApiV1TargetsResponse,
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest []struct {
+			About []struct {
+				Key   GetApiV1Targets200JSONResponseBodyAboutKey `json:"key"`
+				Label string                                     `json:"label"`
+				Value string                                     `json:"value"`
+			} `json:"about"`
 			AltText struct {
 				Auto      bool `json:"auto"`
 				Available bool `json:"available"`
 			} `json:"altText"`
+			AuditHome    GetApiV1Targets200JSONResponseBody_AuditHome `json:"auditHome"`
 			Capabilities struct {
 				Gaps []struct {
 					Capability string `json:"capability"`
@@ -27956,10 +28181,11 @@ func ParseGetApiV1TargetsResponse(rsp *http.Response) (*GetApiV1TargetsResponse,
 				} `json:"gaps"`
 				Has []string `json:"has"`
 			} `json:"capabilities"`
-			Editable    bool                                          `json:"editable"`
-			Environment GetApiV1Targets200JSONResponseBodyEnvironment `json:"environment"`
-			Name        string                                        `json:"name"`
-			Type        GetApiV1Targets200JSONResponseBodyType        `json:"type"`
+			Editable      bool                                          `json:"editable"`
+			Environment   GetApiV1Targets200JSONResponseBodyEnvironment `json:"environment"`
+			Name          string                                        `json:"name"`
+			PublicStorage bool                                          `json:"publicStorage"`
+			Type          GetApiV1Targets200JSONResponseBodyType        `json:"type"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err

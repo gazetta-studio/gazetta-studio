@@ -5566,9 +5566,88 @@
                           }
                         },
                         "required": ["has", "gaps"]
+                      },
+                      "publicStorage": {
+                        "type": "boolean"
+                      },
+                      "auditHome": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": ["self"]
+                              }
+                            },
+                            "required": ["kind"]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": ["target"]
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["kind", "name"]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": ["none"]
+                              }
+                            },
+                            "required": ["kind"]
+                          }
+                        ]
+                      },
+                      "about": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "key": {
+                              "type": "string",
+                              "enum": [
+                                "storage",
+                                "history",
+                                "audit",
+                                "review",
+                                "scheduling",
+                                "redirects",
+                                "gone",
+                                "indices",
+                                "deploy"
+                              ]
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "value": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["key", "label", "value"]
+                        }
                       }
                     },
-                    "required": ["name", "environment", "type", "editable", "altText", "capabilities"]
+                    "required": [
+                      "name",
+                      "environment",
+                      "type",
+                      "editable",
+                      "altText",
+                      "capabilities",
+                      "publicStorage",
+                      "auditHome",
+                      "about"
+                    ]
                   }
                 }
               }

@@ -46,6 +46,7 @@ const COMMANDS: Record<string, 'never' | 'allowed'> = {
   serve: 'allowed',
   deploy: 'never',
   validate: 'allowed',
+  targets: 'allowed',
   translate: 'allowed',
   history: 'allowed',
   undo: 'never',
