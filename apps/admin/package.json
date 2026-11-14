@@ -14,18 +14,18 @@
   },
   "dependencies": {
     "@formkit/drag-and-drop": "0.6.1",
-    "@hono/node-server": "^2.1.5",
-    "@lucide/vue": "^1.66.0",
-    "@tanstack/query-async-storage-persister": "^5.105.0",
-    "@tanstack/vue-query": "^5.105.0",
+    "@hono/node-server": "^2.1.6",
+    "@lucide/vue": "^1.70.0",
+    "@tanstack/query-async-storage-persister": "^5.107.1",
+    "@tanstack/vue-query": "^5.107.1",
     "@vueuse/core": "^15.0.0",
     "gazetta": "*",
-    "hono": "^4.13.14",
+    "hono": "^4.13.17",
     "idb": "^8.0.4",
     "morphdom": "^2.7.8",
     "pinia": "^4.1.0",
     "reka-ui": "^2.11.0",
-    "vue": "^3.5.44",
+    "vue": "^3.5.45",
     "vue-router": "^5.4.0"
   },
   "devDependencies": {
@@ -37,7 +37,7 @@
     "testcontainers": "^12.2.1",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
-    "vite": "^8.3.5",
+    "vite": "^8.3.6",
     "vite-plugin-pwa": "^2.0.0",
     "vitest": "^5.0.5",
     "vue-tsc": "^3.3.14"
