@@ -111,7 +111,8 @@ async function elevate(
 const publishTo = (app: App, token: Record<string, string>, target: string) =>
   app.request('/api/v1/publish', post({ items: ['pages/home'], targets: [target] }, token))
 
-describe('an elevation', () => {
+// Publishes through the whole pipeline: about 1 s alone, 3-5 s when the full suite loads the machine (#1776).
+describe('an elevation', { timeout: 30_000 }, () => {
   it('lets the token publish in its scope and not outside it', async () => {
     const app = appOn()
     const { token } = await signIn(app)

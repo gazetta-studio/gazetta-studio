@@ -197,7 +197,8 @@ describe('the approve page accepts only a browser', () => {
   })
 })
 
-describe('a token edits but cannot publish, delete, purge or restore without an elevation', () => {
+// Publishes through the whole pipeline: about 1 s alone, 3-5 s when the full suite loads the machine (#1776).
+describe('a token edits but cannot publish, delete, purge or restore without an elevation', { timeout: 30_000 }, () => {
   const capped: Array<[string, string, RequestInit]> = [
     ['publish', '/api/v1/publish', post({ items: ['pages/home'], targets: ['staging'] })],
     ['delete', '/api/v1/pages/home', { method: 'DELETE' }],

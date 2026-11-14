@@ -99,7 +99,8 @@ async function record(storage: MemoryStorage, relation: string, item: string): P
   return (await storage.exists(path)) ? JSON.parse(await storage.readFile(path)) : null
 }
 
-describe('target dependency indices', () => {
+// Publishes through the whole pipeline: about 1 s alone, 3-5 s when the full suite loads the machine (#1776).
+describe('target dependency indices', { timeout: 30_000 }, () => {
   it("replaces only the published page's edges and leaves everything else in place", async () => {
     const { target, run } = await setup()
     // Edges another publish left, including an item only on the target.

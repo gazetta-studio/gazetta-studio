@@ -167,7 +167,8 @@ function buildApp(strict = false, targetLocales?: string[], wireValidators = tru
   return { app, target, storage }
 }
 
-describe('publish audit translation HTML', () => {
+// Publishes through the whole pipeline: about 1 s alone, 3-5 s when the full suite loads the machine (#1776).
+describe('publish audit translation HTML', { timeout: 30_000 }, () => {
   it('reports each translation’s broken link and keeps the default audit clean', async () => {
     const { app } = buildApp()
     const res = await app.request('/api/v1/publish/audit', {
