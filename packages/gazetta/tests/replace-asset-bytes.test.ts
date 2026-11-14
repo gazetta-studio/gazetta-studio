@@ -13,6 +13,7 @@ import { buildSelector } from '../src/schema/dimensions.js'
 import { createContentRoot } from '../src/content-root.js'
 import { createHistoryProvider } from '../src/history-provider.js'
 import { restoreRevision } from '../src/history-restorer.js'
+import { recordWrite } from '../src/history-recorder.js'
 import type { StorageProvider } from '../src/types.js'
 import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
 
@@ -193,13 +194,18 @@ describe('replaceAssetBytes', () => {
     expect(assetFiles(storage)).toEqual([])
   })
 
-  it('records one revision, and restoring the one before brings the old file back', async () => {
+  it('records one revision when history already holds the asset, and undo brings the old file back', async () => {
     const storage = memoryStorage()
     const history = createHistoryProvider({ storage })
     const contentRoot = createContentRoot(storage, '')
     const before = await seedHero(storage, history)
-    const beforeManifest = await readManifest(storage, ROOT, 'hero')
-    const [upload] = await history.listRevisions(1)
+    // The extra fields seedHero adds after the upload, recorded as a save would.
+    await recordWrite({
+      history,
+      contentRoot,
+      operation: 'save',
+      items: [{ path: `${ROOT}/hero.asset.json`, content: storage.dump().get(`${ROOT}/hero.asset.json`)! }],
+    })
     const revisionsBefore = (await history.listRevisions()).length
 
     await replace(storage, await jpeg(500, 300, 200), { history, contentRoot })
@@ -209,11 +215,25 @@ describe('replaceAssetBytes', () => {
     const head = await history.readRevision(revisions[0]!.id)
     expect(Object.keys(head.snapshot)).not.toContain(`${ROOT}/hero-${before.hash}.jpg`)
 
-    await restoreRevision({ history, contentRoot, revisionId: upload!.id })
-    const restored = await readManifest(storage, ROOT, 'hero')
-    expect(restored.hash).toBe(before.hash)
-    expect(restored.width).toBe(beforeManifest.width)
+    await restoreRevision({ history, contentRoot, revisionId: revisions[1]!.id })
+    expect(await readManifest(storage, ROOT, 'hero')).toEqual(before)
     expect(storage.dump().has(`${ROOT}/hero-${before.hash}.jpg`)).toBe(true)
+  })
+
+  it('undo brings the old file back for an asset uploaded before history was on', async () => {
+    const storage = memoryStorage()
+    const before = await seedHero(storage)
+    const oldBytes = storage.dump().get(`${ROOT}/hero-${before.hash}.jpg`)
+    const history = createHistoryProvider({ storage })
+    const contentRoot = createContentRoot(storage, '')
+
+    await replace(storage, await jpeg(500, 300, 200), { history, contentRoot })
+
+    const [, previous] = await history.listRevisions()
+    await restoreRevision({ history, contentRoot, revisionId: previous!.id })
+    expect(await readManifest(storage, ROOT, 'hero')).toEqual(before)
+    expect(storage.dump().get(`${ROOT}/hero-${before.hash}.jpg`)).toEqual(oldBytes)
+    for (const v of before.variants) expect(storage.dump().has(`${ROOT}/${v.path}`)).toBe(true)
   })
 
   it.each([

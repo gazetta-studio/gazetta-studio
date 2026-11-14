@@ -275,8 +275,7 @@ some pages give the image their own alt text, it says how many, since
 those aren't changed. **Dismiss** closes the note; nothing about it is
 kept.
 
-One history revision covers the replace, so undo brings the old file
-back. Pages that use the asset show as changed in the publish list, so
+The replace is recorded in history, so undo brings the old file back. Pages that use the asset show as changed in the publish list, so
 the next publish sends the new file to the target.
 
 ### Replace with another asset
