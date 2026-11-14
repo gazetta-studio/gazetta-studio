@@ -55,8 +55,12 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 const restoringId = ref<string | null>(null)
 
+// Until the targets list names this target we can't tell whether its
+// storage is public, and asking a public target for revisions fails.
+const infoPending = computed(() => targetName.value !== null && targetInfo.value === null)
+
 async function load() {
-  if (!targetName.value || publicStorage.value) {
+  if (!targetName.value || infoPending.value || publicStorage.value) {
     revisions.value = []
     return
   }
@@ -73,9 +77,10 @@ async function load() {
   }
 }
 
-// Reload whenever the panel opens OR the target changes while open.
+// Reload whenever the panel opens, the target changes while open, or the
+// target's info arrives after the panel opened.
 watch(
-  () => [props.visible, targetName.value],
+  () => [props.visible, targetName.value, infoPending.value, publicStorage.value],
   ([v]) => {
     if (v) load()
   },
@@ -164,7 +169,7 @@ function isHead(rev: RevisionSummary): boolean {
           @click="emit('open-capabilities')" />
       </span>
     </div>
-    <div v-else-if="loading && revisions.length === 0" class="state-loading" data-testid="history-loading">
+    <div v-else-if="(loading || infoPending) && revisions.length === 0" class="state-loading" data-testid="history-loading">
       <Spinner strokeWidth="4" />
       <span>Loading revisions…</span>
     </div>

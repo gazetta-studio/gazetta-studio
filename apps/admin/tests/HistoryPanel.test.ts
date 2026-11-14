@@ -86,4 +86,27 @@ describe('HistoryPanel on public storage', () => {
     expect(listHistory).toHaveBeenCalledWith('local')
     expect(document.querySelector('[data-testid="history-empty"]')).not.toBeNull()
   })
+
+  it('waits for the target list before asking for revisions', async () => {
+    const store = useActiveTargetStore()
+    store.activeTargetName = 'production'
+    const historyApi: HistoryApi = { listHistory, undoLastWrite: vi.fn(), restoreRevision: vi.fn() }
+    const w = mount(HistoryPanel, {
+      props: { visible: false },
+      attachTo: document.body,
+      global: { provide: { [HISTORY_API as symbol]: historyApi } },
+    })
+    await w.setProps({ visible: true })
+    await flushPromises()
+    expect(listHistory).not.toHaveBeenCalled()
+    expect(document.querySelector('[data-testid="history-error"]')).toBeNull()
+
+    store.targets = [
+      targetInfo('local', false, { kind: 'self' }),
+      targetInfo('production', true, { kind: 'target', name: 'local' }),
+    ]
+    await flushPromises()
+    expect(listHistory).not.toHaveBeenCalled()
+    expect(line()).not.toBeNull()
+  })
 })
