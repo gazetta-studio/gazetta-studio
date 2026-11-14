@@ -229,7 +229,7 @@ Decided: maintainer, 2026-11-14 (#1830)
 
 8. **Config validation checks the approval settings.** `requiredPublishApprovers` must be a whole number of at least 1, and `allowSelfPublishApproval` a boolean. Approval settings on a target without `requiresPublishApproval: true` are a warning, since they do nothing. It's part of cut 16's boot config validation, with the constructive "no one can approve" error. Follows from "Configuration" and cut 16.
 
-9. **A static page waits for its fragments' pending requests from earlier publishes too.** On a static target, a page's request also waits for any pending request of a fragment it bakes in, whether made in this publish or an earlier one, so approving the page can't publish a fragment change nobody approved. This extends item 12 above, which only covered requests from the same publish.
+9. **A page waits for its fragments' pending requests from earlier publishes too.** On a static target, a page's request also waits for any pending request of a fragment it bakes in, whether made in this publish or an earlier one, so approving the page can't publish a fragment change nobody approved. On any target, it also waits for a pending request of a fragment that isn't on the target yet, from this publish or an earlier one, so a page is never published before its fragment. This extends item 12 above, which only covered requests from the same publish.
 
 10. **An approved publish refuses a changed item list.** If a `beforePublish` hook changes the items while an approved request publishes (item 4 above), the publish fails with "a publish hook changed the approved items", and the request waits for Retry (item 5 above). Approvers only ever ship what they approved (lock 3).
 
@@ -238,6 +238,7 @@ Decided: maintainer, 2026-11-14 (#1830)
 | Rejected | Why |
 |---|---|
 | Refuse the page's request while a fragment it bakes has a pending request (9) | The author has to wait for or withdraw the fragment's request before requesting the page |
+| Static targets only (9) | On an ESI target, approving the page first publishes it before its new fragment is on the target, and visitors see the page without it |
 | Ignore a hook's change and publish the approved items (10) | The hook's change is dropped silently |
 
 ### Configuration
