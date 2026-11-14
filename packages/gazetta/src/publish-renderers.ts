@@ -28,7 +28,7 @@
 
 import { createHash } from 'node:crypto'
 import { isArchived } from './archive-helpers.js'
-import { renderComponent, renderPage } from './renderer.js'
+import { callTemplate, renderComponent, renderPage } from './renderer.js'
 import { resolveFragment, resolvePage } from './resolver.js'
 import { archiveMarker } from './runtime/archive-marker.js'
 import { appendFragmentMarker, insertPageMarker } from './runtime/published-marker.js'
@@ -162,7 +162,7 @@ export async function renderPageWithEsi(pageName: string, ctx: PageRenderContext
   // Render page-level template (layout CSS, head tags)
   const lang = ctx.seo?.locale || ctx.locale || 'en'
   const childOutputs = await Promise.all(resolved.children.map(c => renderComponent(c, undefined, lang)))
-  const pageOutput = await resolved.template({ content: resolved.content, children: childOutputs, locale: lang })
+  const pageOutput = await callTemplate(resolved, { content: resolved.content, children: childOutputs, locale: lang })
   if (pageOutput.css) localCssParts.unshift(pageOutput.css)
   if (pageOutput.head) localHeadParts.unshift(pageOutput.head)
 

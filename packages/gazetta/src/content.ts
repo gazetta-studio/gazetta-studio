@@ -27,7 +27,8 @@ export function processContent(
   let root = cacheable ? jsonSchemas.get(schema as object) : undefined
   if (!root) {
     try {
-      root = z.toJSONSchema(schema as z.ZodType, { unrepresentable: 'any' }) as JsonSchema
+      // Stored content is the schema's input: a `.transform()` on a Markdown field keeps its format there.
+      root = z.toJSONSchema(schema as z.ZodType, { io: 'input', unrepresentable: 'any' }) as JsonSchema
     } catch (err) {
       throw new Error(
         `Template "${templateName ?? '(unknown)'}": its schema can't be read, so its Markdown and rich-text ` +
@@ -36,7 +37,7 @@ export function processContent(
     }
     if (cacheable) jsonSchemas.set(schema as object, root)
   }
-  return processValue(content, root, root) as Record<string, unknown>
+  return processValue(content, [root], root) as Record<string, unknown>
 }
 
 /** Follow local `$ref`s (`#`, `#/$defs/name`) that recursive schemas produce. */
@@ -55,43 +56,102 @@ function deref(node: JsonSchema, root: JsonSchema): JsonSchema {
   return current
 }
 
-/** The node itself plus the branches of `anyOf` / `oneOf` / `allOf` (nullable and optional fields). */
-function candidates(node: JsonSchema, root: JsonSchema): JsonSchema[] {
-  const self = deref(node, root)
-  const out = [self]
-  for (const key of ['anyOf', 'oneOf', 'allOf']) {
-    const branches = self[key]
-    if (Array.isArray(branches)) {
-      for (const b of branches) if (b && typeof b === 'object') out.push(...candidates(b as JsonSchema, root))
+function isSchema(value: unknown): value is JsonSchema {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+/**
+ * Every schema a value must be checked against: the given nodes, what their
+ * `$ref`s point to, and every branch of `anyOf` / `oneOf` / `allOf` (unions,
+ * nullable and optional fields, intersections). All branches count, so a
+ * Markdown field in a later union branch is found too. `seen` stops recursive
+ * schemas (`z.lazy(() => z.union([md, Y]))`) from looping.
+ */
+function candidates(nodes: readonly JsonSchema[], root: JsonSchema): JsonSchema[] {
+  const out: JsonSchema[] = []
+  const seen = new Set<JsonSchema>()
+  const visit = (node: JsonSchema): void => {
+    if (seen.has(node)) return
+    seen.add(node)
+    out.push(node)
+    if (typeof node.$ref === 'string') {
+      const target = deref(node, root)
+      if (target !== node) visit(target)
+    }
+    for (const key of ['anyOf', 'oneOf', 'allOf']) {
+      const branches = node[key]
+      if (Array.isArray(branches)) for (const b of branches) if (isSchema(b)) visit(b)
+    }
+  }
+  for (const n of nodes) visit(n)
+  return out
+}
+
+/** Schemas for one key: `properties`, else matching `patternProperties`, else `additionalProperties` (records, catchall). */
+function propertySchemas(nodes: readonly JsonSchema[], key: string): JsonSchema[] {
+  const out: JsonSchema[] = []
+  for (const n of nodes) {
+    const declared = isSchema(n.properties) ? n.properties : undefined
+    if (declared && Object.hasOwn(declared, key)) {
+      if (isSchema(declared[key])) out.push(declared[key])
+      continue
+    }
+    let matched = false
+    if (isSchema(n.patternProperties)) {
+      for (const [pattern, sub] of Object.entries(n.patternProperties)) {
+        let re: RegExp
+        try {
+          re = new RegExp(pattern, 'u')
+        } catch {
+          continue
+        }
+        if (isSchema(sub) && re.test(key)) {
+          out.push(sub)
+          matched = true
+        }
+      }
+    }
+    if (!matched && isSchema(n.additionalProperties)) out.push(n.additionalProperties)
+  }
+  return out
+}
+
+/** Schemas for array element `index`: `prefixItems[index]` (tuples), else `items`. */
+function itemSchemas(nodes: readonly JsonSchema[], index: number): JsonSchema[] {
+  const out: JsonSchema[] = []
+  for (const n of nodes) {
+    const prefix = Array.isArray(n.prefixItems) ? n.prefixItems : undefined
+    if (prefix && index < prefix.length) {
+      if (isSchema(prefix[index])) out.push(prefix[index])
+    } else if (isSchema(n.items)) {
+      out.push(n.items)
     }
   }
   return out
 }
 
-function processValue(value: unknown, node: JsonSchema, root: JsonSchema): unknown {
-  const nodes = candidates(node, root)
+/**
+ * Process a value once, against every schema it may match together: a
+ * Markdown or rich-text format in any of them is applied, so no union branch
+ * lets a value through raw, and no value is converted twice.
+ */
+function processValue(value: unknown, schemas: readonly JsonSchema[], root: JsonSchema): unknown {
+  if (schemas.length === 0) return value
+  const nodes = candidates(schemas, root)
 
   if (typeof value === 'string') {
-    const format = nodes.find(n => n.format === 'markdown' || n.format === 'richtext')?.format
-    if (format === 'markdown') return sanitizeContentHtml(marked(value, { async: false }))
-    if (format === 'richtext') return sanitizeContentHtml(value)
+    if (nodes.some(n => n.format === 'markdown')) return sanitizeContentHtml(marked(value, { async: false }))
+    if (nodes.some(n => n.format === 'richtext')) return sanitizeContentHtml(value)
     return value
   }
 
   if (Array.isArray(value)) {
-    const items = nodes.find(n => n.items && typeof n.items === 'object')?.items as JsonSchema | undefined
-    return items ? value.map(v => processValue(v, items, root)) : value
+    return value.map((v, i) => processValue(v, itemSchemas(nodes, i), root))
   }
 
   if (value && typeof value === 'object') {
-    const properties = nodes.find(n => n.properties && typeof n.properties === 'object')?.properties as
-      | Record<string, JsonSchema>
-      | undefined
-    if (!properties) return value
     const out: Record<string, unknown> = { ...(value as Record<string, unknown>) }
-    for (const [key, prop] of Object.entries(properties)) {
-      if (key in out) out[key] = processValue(out[key], prop, root)
-    }
+    for (const key of Object.keys(out)) out[key] = processValue(out[key], propertySchemas(nodes, key), root)
     return out
   }
 

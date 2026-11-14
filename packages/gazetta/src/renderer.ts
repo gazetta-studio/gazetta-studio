@@ -12,7 +12,7 @@ const THROWN_BY = Symbol.for('gazetta.thrownByTemplate')
  * template's name, so `gazetta validate --render` can say which template
  * threw (#1755). The error itself, and its message, are unchanged.
  */
-async function callTemplate(
+export async function callTemplate(
   component: ResolvedComponent,
   params: Parameters<ResolvedComponent['template']>[0],
 ): Promise<Awaited<ReturnType<ResolvedComponent['template']>>> {
