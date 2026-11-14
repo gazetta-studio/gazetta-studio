@@ -103,6 +103,14 @@ Decided: maintainer, 2026-10-30 (#1579)
 |---|---|
 | Drop `target`, DOMPurify's default | Every rich-text and Markdown link would stop opening in a new tab after cut 1 |
 
+The sanitizer keeps `<audio>` and `<video>` (with `<source>` and `<track>`), with their event handlers removed: a video in an article is formatting, like an image, which may already load from any address. Embeds that run their own page or plugin (`iframe`, `object`, `embed`) stay template-only.
+
+Decided: maintainer, 2026-11-14 (#1832)
+
+| Rejected | Why |
+|---|---|
+| Remove audio and video, so they come only through templates like iframes | Authors who paste a video tag see it dropped, though it runs no script |
+
 The sanitizer also removes the `style` attribute; formatting comes from templates' CSS. Tiptap emits no inline styles.
 
 Decided: maintainer, 2026-10-30 (#1579)
