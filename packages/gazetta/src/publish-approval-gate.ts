@@ -36,12 +36,13 @@ import {
 } from './review/publish-requests.js'
 import { collectFragmentRefs, listSidecars } from './sidecars.js'
 import { templateHashesFrom, type TemplateInfo } from './templates-scan.js'
-import { getType, type FragmentManifest, type StorageProvider, type TargetConfig } from './types.js'
-
-/** Whether publishing to the target needs approval (`targets.{name}.requiresPublishApproval`). */
-export function requiresPublishApproval(config: TargetConfig | undefined): boolean {
-  return config?.requiresPublishApproval === true
-}
+import {
+  getType,
+  requiresPublishApproval,
+  type FragmentManifest,
+  type StorageProvider,
+  type TargetConfig,
+} from './types.js'
 
 /** Lock 6: a gated target published to without a signed-in user (the CLI). */
 export class PublishApprovalRequiredError extends Error {

@@ -1865,15 +1865,16 @@ func (e PostApiV1ReviewPageNameWithdraw200JSONResponseBodyState) Valid() bool {
 
 // Defines values for GetApiV1Targets200JSONResponseBodyAboutKey.
 const (
-	Audit      GetApiV1Targets200JSONResponseBodyAboutKey = "audit"
-	Deploy     GetApiV1Targets200JSONResponseBodyAboutKey = "deploy"
-	Gone       GetApiV1Targets200JSONResponseBodyAboutKey = "gone"
-	History    GetApiV1Targets200JSONResponseBodyAboutKey = "history"
-	Indices    GetApiV1Targets200JSONResponseBodyAboutKey = "indices"
-	Redirects  GetApiV1Targets200JSONResponseBodyAboutKey = "redirects"
-	Review     GetApiV1Targets200JSONResponseBodyAboutKey = "review"
-	Scheduling GetApiV1Targets200JSONResponseBodyAboutKey = "scheduling"
-	Storage    GetApiV1Targets200JSONResponseBodyAboutKey = "storage"
+	Audit           GetApiV1Targets200JSONResponseBodyAboutKey = "audit"
+	Deploy          GetApiV1Targets200JSONResponseBodyAboutKey = "deploy"
+	Gone            GetApiV1Targets200JSONResponseBodyAboutKey = "gone"
+	History         GetApiV1Targets200JSONResponseBodyAboutKey = "history"
+	Indices         GetApiV1Targets200JSONResponseBodyAboutKey = "indices"
+	PublishApproval GetApiV1Targets200JSONResponseBodyAboutKey = "publish-approval"
+	Redirects       GetApiV1Targets200JSONResponseBodyAboutKey = "redirects"
+	Review          GetApiV1Targets200JSONResponseBodyAboutKey = "review"
+	Scheduling      GetApiV1Targets200JSONResponseBodyAboutKey = "scheduling"
+	Storage         GetApiV1Targets200JSONResponseBodyAboutKey = "storage"
 )
 
 // Valid indicates whether the value is a known member of the GetApiV1Targets200JSONResponseBodyAboutKey enum.
@@ -1888,6 +1889,8 @@ func (e GetApiV1Targets200JSONResponseBodyAboutKey) Valid() bool {
 	case History:
 		return true
 	case Indices:
+		return true
+	case PublishApproval:
 		return true
 	case Redirects:
 		return true

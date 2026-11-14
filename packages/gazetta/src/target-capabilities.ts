@@ -11,10 +11,9 @@
  * does; renderers show them as code.
  */
 import { auditHomeFor } from './audit-home.js'
-import { requiresPublishApproval } from './publish-approval-gate.js'
 import { inspectTarget } from './runtime/runtime-capabilities.js'
 import { mayWriteDepIndices } from './state-folders.js'
-import { isHistoryEnabled, isPublicStorage, type TargetConfig } from './types.js'
+import { isHistoryEnabled, isPublicStorage, requiresPublishApproval, type TargetConfig } from './types.js'
 
 export const TARGET_CAPABILITY_KEYS = [
   'storage',

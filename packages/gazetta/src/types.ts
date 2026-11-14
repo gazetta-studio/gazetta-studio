@@ -668,6 +668,11 @@ export const DEFAULT_HISTORY_RETENTION = 50
  * Whether this target records history on save/publish. Default: true.
  * A target whose storage is public keeps none (design-public-storage.md Q3).
  */
+/** Whether publishing to the target needs approval (`targets.{name}.requiresPublishApproval`). */
+export function requiresPublishApproval(config: TargetConfig | undefined): boolean {
+  return config?.requiresPublishApproval === true
+}
+
 export function isHistoryEnabled(target: TargetConfig): boolean {
   if (isPublicStorage(target)) return false
   return target.history?.enabled ?? true
