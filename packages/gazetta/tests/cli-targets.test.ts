@@ -27,7 +27,11 @@ export default defineSite({
   name: 'Test',
   targets: {
     local: { storage: filesystemStorage({ path: './dist/local' }), editable: true },
-    staging: { storage: filesystemStorage({ path: './dist/staging' }) },
+    staging: {
+      storage: filesystemStorage({ path: './dist/staging' }),
+      requiresPublishApproval: true,
+      requiredPublishApprovers: 2,
+    },
   },
 })
 `)
@@ -48,5 +52,8 @@ export default defineSite({
     expect(staging).toMatch(/History\s+Off: storage is public/)
     expect(staging).toMatch(/Audit\s+Kept on `local`/)
     expect(staging).toMatch(/Deploy\s+None/)
+    expect(staging).toMatch(/Content review\s+Not available: storage is public/)
+    expect(staging).toMatch(/Publish approval\s+Required, 2 approvers/)
+    expect(local).toMatch(/Publish approval\s+Not required/)
   })
 })
