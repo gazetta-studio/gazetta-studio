@@ -294,4 +294,21 @@ describe('replaceAssetBytes', () => {
     ).rejects.toBeInstanceOf(AssetStorageError)
     expect(new Map([...storage.dump()].filter(([p]) => p.startsWith(`${ROOT}/`)))).toEqual(assetsBefore)
   })
+
+  it('keeps the asset files when the same bytes are uploaded again and the manifest write fails', async () => {
+    const storage = memoryStorage()
+    const bytes = await jpeg(900, 600)
+    await seedHero(storage)
+    const assetsBefore = new Map([...storage.dump()].filter(([p]) => p.startsWith(`${ROOT}/`)))
+    const failing: StorageProvider = {
+      ...storage,
+      async writeFile(path, content, opts) {
+        if (path === `${ROOT}/hero.asset.json`) throw new Error('disk full')
+        return storage.writeFile(path, content, opts)
+      },
+    }
+
+    await expect(replace(failing, bytes)).rejects.toBeInstanceOf(AssetStorageError)
+    expect(new Map([...storage.dump()].filter(([p]) => p.startsWith(`${ROOT}/`)))).toEqual(assetsBefore)
+  })
 })

@@ -96,18 +96,21 @@ export async function replaceAssetBytes(input: ReplaceAssetBytesInput): Promise<
   // Same bytes again give the same paths; those must survive the cleanup.
   const oldPaths = oldBytePaths(root, existing).filter(p => !newPaths.has(p))
 
+  const manifestAbs = `${root}/${manifestPath(input.assetName)}`
+  // Only files this replace created are rolled back: the same bytes give
+  // the same hashed paths, which the unchanged manifest still points at.
   const written: string[] = []
   for (const f of newFiles) {
     try {
+      const existed = await input.storage.exists(f.abs)
       await input.storage.writeStream(f.abs, byteStreamFrom(f.bytes))
+      if (!existed) written.push(f.abs)
     } catch (err) {
       await rollback(input.storage, written)
       throw new AssetStorageError('write', f.abs, err)
     }
-    written.push(f.abs)
   }
 
-  const manifestAbs = `${root}/${manifestPath(input.assetName)}`
   try {
     if (input.history) {
       const items: WrittenItem[] = [
