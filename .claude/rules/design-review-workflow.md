@@ -179,7 +179,7 @@ Decided: maintainer, 2026-10-25 (#1434)
 
 Two more, from Seer's second review:
 
-12. **A page's request waits for the fragments it relies on.** When one publish run requests a page and a fragment the page uses that isn't on the target yet, the page's request records the fragment's request. Approving the page's request first is refused: "@promo isn't on production yet: approve its request first." If the fragment's request is rejected or withdrawn, the page's request is withdrawn too, with the reason. This is the pattern [`design-target-removal.md`](design-target-removal.md) Q13 uses for removals. On a static target, where fragments are baked into pages, the page's request also waits for the requests of changed fragments it uses from the same run: "@header's change isn't approved yet." On ESI targets a changed fragment publishes separately, so only new ones matter.
+12. **A page's request waits for the fragments it relies on.** When one publish run requests a page and a fragment the page uses that isn't on the target yet, the page's request records the fragment's request. Approving the page's request first is refused: "@promo isn't on production yet: approve its request first." If the fragment's request is rejected or withdrawn, the page's request is withdrawn too, with the reason. A request replaced by a newer version re-links instead ("Settled before cut 13", rule 2). This is the pattern [`design-target-removal.md`](design-target-removal.md) Q13 uses for removals. On a static target, where fragments are baked into pages, the page's request also waits for the requests of changed fragments it uses from the same run: "@header's change isn't approved yet." On ESI targets a changed fragment publishes separately, so only new ones matter.
 13. **Editors can request.** The built-in editor role gains `publish:request`, so an editor clicking **Publish** to a gated target sees "Approval requested". Both publish routes (`POST /api/publish`, `POST /api/publish/stream`) check `publish:non-production` only for destinations that don't require approval and `publish:request` for those that do (cut 12, with `docs/auth.md`).
 
 Decided: maintainer, 2026-10-25 (#1434)
@@ -206,13 +206,13 @@ Decided: maintainer, 2026-11-14 (#1830)
 
 The replaced request is recorded as a `publish-withdraw`, with the audit shape's usual fields. Two instances republishing the same item at the same moment can still leave two pending requests, since storage has no create-if-absent write for these files; that's accepted, as double approvals are (item 5 above). Follows from rule 1.
 
-2. **A replaced request's dependents are re-linked.** Requests that wait for a replaced request (a page waiting for its fragment's, or a removal relying on another request, `design-target-removal.md` Q13) keep their approvals and now wait for the new request, instead of being withdrawn with it. Approvers re-approve only what changed.
+2. **A replaced request's dependents are re-linked.** A page's request that waits for a replaced fragment request keeps its approvals and now waits for the new request, instead of being withdrawn with it. Approvers re-approve only what changed. A removal request relying on a replaced request (`design-target-removal.md` Q13) is re-linked the same way; follows from this rule.
 
 3. **A request waiting for Retry follows rule 1.** When an approved request's publish failed (item 5 above) and the author publishes the item again, an unchanged item keeps that request, and Retry still publishes it. A changed item replaces it with a new request that needs approving again.
 
-4. **A publish that fails while writing its requests undoes them.** If storage fails partway through writing a batch's requests, the requests this publish wrote are removed, best effort, and the author sees the error. Publishing again starts clean, so no request waits for one that was never written. It's all or nothing, like the bulk save (`design-agent-access.md` Q46).
+4. **A publish that fails while writing its requests undoes them.** If storage fails partway through writing a batch's requests, the requests this publish wrote are removed, best effort, and the author sees the error. Publishing again starts clean, so no request waits for one that was never written. It's all or nothing, like the bulk save (`design-agent-access.md` Q46). So a publish writes all its new requests first, and only once every write has succeeded withdraws the requests they replace (rule 1) and re-links their dependents (rule 2); a failure leaves the earlier requests and their approvals untouched. A request counts as pending only while its pending marker exists, so a request file left behind by a failed cleanup is ignored by rule 1. Follows from this rule.
 
-5. **`beforePublishRequest` can only block, once per request.** As cut 12 built it, it fires once per request with the item and target, and may refuse that request by throwing. It can't change which items are requested, so requests always match what the author chose.
+5. **`beforePublishRequest` can only block, once per request.** As cut 12 built it, it fires once per request with the item and target. A hook that refuses (throws) cancels the whole publish before anything is written (`409 HOOK_CANCELLED`), in line with rule 4. It can't change which items are requested, so requests always match what the author chose.
 
 Decided: maintainer, 2026-11-14 (#1830)
 
@@ -228,6 +228,17 @@ Decided: maintainer, 2026-11-14 (#1830)
 7. **An asset that goes during the approved publish fails it.** An asset changed or removed after the request makes the request stale (rule 6). One whose files go after the approval's own snapshot is taken is held back by Publish's own steps (item 4 above, `design-publish-undo.md` Q4) and reported as not published; cut 13 treats an item not published as a failed approved publish (item 5 above), with the reason. Follows from item 4, item 5 and publish undo Q4.
 
 8. **Config validation checks the approval settings.** `requiredPublishApprovers` must be a whole number of at least 1, and `allowSelfPublishApproval` a boolean. Approval settings on a target without `requiresPublishApproval: true` are a warning, since they do nothing. It's part of cut 16's boot config validation, with the constructive "no one can approve" error. Follows from "Configuration" and cut 16.
+
+9. **A static page waits for its fragments' pending requests from earlier publishes too.** On a static target, a page's request also waits for any pending request of a fragment it bakes in, whether made in this publish or an earlier one, so approving the page can't publish a fragment change nobody approved. This extends item 12 above, which only covered requests from the same publish.
+
+10. **An approved publish refuses a changed item list.** If a `beforePublish` hook changes the items while an approved request publishes (item 4 above), the publish fails with "a publish hook changed the approved items", and the request waits for Retry (item 5 above). Approvers only ever ship what they approved (lock 3).
+
+Decided: maintainer, 2026-11-14 (#1830)
+
+| Rejected | Why |
+|---|---|
+| Refuse the page's request while a fragment it bakes has a pending request (9) | The author has to wait for or withdraw the fragment's request before requesting the page |
+| Ignore a hook's change and publish the approved items (10) | The hook's change is dropped silently |
 
 ### Configuration
 ```ts

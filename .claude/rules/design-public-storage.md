@@ -219,13 +219,22 @@ Root `data-testid="target-capabilities"`; one row per capability, `data-testid="
 | `storage` | "Public (assumed)" · "Public (declared)" · "Private (declared)" · "Private (editing folder)" · "Private (copied to the host by `<adapter>`)" |
 | `history` | "On" · "Off: storage is public" · "Off: turned off in config" |
 | `audit` | "Kept here" · "Kept on `local`" · "Sent to `<sink>`" · "Not kept for this target's publishes" |
-| `review` | "Available" · "Not available: storage is public" |
+| `review` | Content review: "Available" · "Not available: storage is public" |
+| `publish-approval` | Publish approval: "Required, N approvers" · "Not required" (requests are kept on the source, so it works on public targets) |
 | `scheduling` | "Available" · "Not available: storage is public" |
 | `redirects`, `gone` | "Yes" · "No" (from the runtime capability matrix) |
 | `live-check` | "On, last result: …" · "Off: no `siteUrl`" · "Off in config" |
 | `lock` | absent when not locked · "Publishing paused: Gazetta's private files are reachable (checked <time>)", with Re-check (`target-capability-recheck`) |
 | `indices` | "Kept" · "Not kept: storage is public" |
 | `deploy` | adapter name · "None" |
+
+The view shows content review and publish approval as separate rows, so a public target's "Content review: Not available" isn't read as publish approval not working there (Q5 keeps publish requests on the source).
+
+Decided: maintainer, 2026-11-14 (#1830)
+
+| Rejected | Why |
+|---|---|
+| Keep one `review` row | An operator could read "Review: Not available" on a public production target as "publish approval doesn't work here" |
 
 ### History panel on a public target (cut 5)
 
