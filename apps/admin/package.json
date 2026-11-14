@@ -15,9 +15,9 @@
   "dependencies": {
     "@formkit/drag-and-drop": "0.7.0",
     "@hono/node-server": "^2.1.8",
-    "@lucide/vue": "^1.66.0",
-    "@tanstack/query-async-storage-persister": "^5.105.0",
-    "@tanstack/vue-query": "^5.105.0",
+    "@lucide/vue": "^1.72.0",
+    "@tanstack/query-async-storage-persister": "^5.107.1",
+    "@tanstack/vue-query": "^5.107.1",
     "@vueuse/core": "^15.0.0",
     "gazetta": "*",
     "hono": "^4.13.18",
@@ -25,19 +25,19 @@
     "morphdom": "^2.7.8",
     "pinia": "^4.1.0",
     "reka-ui": "^2.11.0",
-    "vue": "^3.5.44",
-    "vue-router": "^5.4.0"
+    "vue": "^3.5.45",
+    "vue-router": "^5.5.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
     "@vitejs/plugin-vue": "^6.0.10",
     "@vue/test-utils": "^2.5.1",
-    "fake-indexeddb": "^6.2.7",
+    "fake-indexeddb": "^6.2.8",
     "jsdom": "^31.0.0",
     "testcontainers": "^12.2.1",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
-    "vite": "^8.3.5",
+    "vite": "^8.3.8",
     "vite-plugin-pwa": "^2.0.0",
     "vitest": "^5.0.5",
     "vue-tsc": "^3.3.14"
