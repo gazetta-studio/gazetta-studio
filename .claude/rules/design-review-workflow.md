@@ -191,6 +191,25 @@ Decided: maintainer, 2026-10-25 (#1434)
 | One request per publish run on a gated target | Reverses lock 5: approvers could no longer approve items separately |
 | Grant `publish:request` only through custom roles | Out of the box, nobody but an admin could request a publish to a gated target |
 
+
+### Settled before cut 13 (2026-11-14)
+
+Building cut 12 (#1805) left these open for cut 13.
+
+1. **One pending request per item and target, for its latest version.** Publishing an item that already has a pending request on that target returns the existing request when the item hasn't changed (the snapshot hashes match), and creates nothing. When it has changed, the old request is withdrawn, its approvals dropped since they were for the old version, and a new one is made. Withdrawal records `publish-withdraw` with the reason "replaced by a newer version".
+
+Decided: maintainer, 2026-11-14 (#<PR>)
+
+| Rejected | Why |
+|---|---|
+| Always a new request | Approvers see duplicates, and the old version's request fails with "changed since" when approved |
+| Refuse while one is pending | The author has to withdraw before requesting a newer version |
+
+2. **A batch that fails partway keeps what it wrote.** Each item's request is independent (lock 5), so requests written before a storage failure stay. The result lists the requested and the failed items, and repeating the publish reuses the ones already made (rule 1). Follows from lock 5 and rule 1.
+3. **The snapshot includes what a page bakes in.** On a static target a request records the page's static-mode `hashManifest`, which includes the hashes of the fragments it bakes (`sidecars.md` "Hash input"), and each translation's hash with the translated fragments it uses. So a fragment edited after the request answers `409 STALE_REQUEST` at approval. Follows from lock 6.
+4. **Missing assets are checked when the approval publishes, not at request time.** The approval runs Publish's own steps (item 4 above), which hold back an item whose asset files are gone and report it (`design-publish-undo.md` Q4). The request records the failure like any failed approved publish (item 5). Follows from item 4 and publish undo Q4.
+5. **`beforePublishRequest` behaves like `beforePublish`.** It may cancel by throwing, or return a changed item list, as every `before*` hook may (`design-hooks.md`). Requests are made, and snapshotted, for the list it returns, so what is approved is what was hashed. Follows from `design-hooks.md` and lock 3.
+6. **Config validation checks the approval settings.** `requiredPublishApprovers` must be a whole number of at least 1, and `allowSelfPublishApproval` a boolean. Approval settings on a target without `requiresPublishApproval: true` are a warning, since they do nothing. "No one can approve" stays cut 16's constructive error. Follows from "Configuration" and cut 16.
 ### Configuration
 ```ts
 export default defineSite({
