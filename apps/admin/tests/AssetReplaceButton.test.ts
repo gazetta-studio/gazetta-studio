@@ -175,6 +175,17 @@ describe('useAssetReplace', () => {
     expect(onReplaced).not.toHaveBeenCalled()
   })
 
+  it('a hook’s refusal shows its reason, not a kind mismatch', async () => {
+    vi.stubGlobal('fetch', respond(409, { code: 'HOOK_CANCELLED', detail: 'Uploads are frozen' }))
+    const onReplaced = vi.fn()
+    const replace = useAssetReplace(onReplaced)
+
+    await replace.choose(summary(), png())
+
+    expect(replace.state.value).toEqual({ kind: 'failed', reason: 'Uploads are frozen' })
+    expect(onReplaced).not.toHaveBeenCalled()
+  })
+
   it('a failure shows the reason and reports nothing, so the old preview stays', async () => {
     vi.stubGlobal('fetch', respond(500, { code: 'ASSET_STORAGE_FAILURE', detail: 'disk full' }))
     const onReplaced = vi.fn()
