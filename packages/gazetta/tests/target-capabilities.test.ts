@@ -17,6 +17,17 @@ vi.mock('../src/state-folders.js', async importOriginal => {
   }
 })
 
+// Lets a test stand in for a future reason isPublicStorage might call storage private.
+const publicStorageOverride = vi.hoisted(() => ({ forcePrivate: false }))
+vi.mock('../src/types.js', async importOriginal => {
+  const real = await importOriginal<typeof import('../src/types.js')>()
+  return {
+    ...real,
+    isPublicStorage: (t: Parameters<typeof real.isPublicStorage>[0]) =>
+      publicStorageOverride.forcePrivate ? false : real.isPublicStorage(t),
+  }
+})
+
 function storage(kind: StorageKind = 'r2') {
   return { ...memoryStorage(), kind }
 }
@@ -63,6 +74,15 @@ describe('describeTarget', () => {
     ['copy adapter', { storage: storage(), deploy: copyAdapter }, 'Private (copied to the host by `github-pages`)'],
   ])('storage row: %s', (_label, config, value) => {
     expect(rows('t', config).storage).toBe(value)
+  })
+
+  it('storage row refuses a private target it has no wording for, rather than naming no adapter', () => {
+    publicStorageOverride.forcePrivate = true
+    try {
+      expect(() => rows('t', { storage: storage(), deploy: workerAdapter })).toThrow(/No storage row wording/)
+    } finally {
+      publicStorageOverride.forcePrivate = false
+    }
   })
 
   it.each<[string, TargetConfig, string]>([

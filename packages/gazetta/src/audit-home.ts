@@ -4,6 +4,11 @@
  * target in `site.config.ts` order whose storage is private, else
  * nowhere. An external audit sink would come third; none ships yet
  * (`AuditConfigSchema` accepts only `provider: 'history'`).
+ *
+ * The capabilities view names the first private target, but the admin
+ * records a publish's events on its own source (`auditStorageFor` in
+ * admin-api/index.ts), so when the source is private and not first in
+ * config order, this is an approximation.
  */
 import { isPublicStorage, type PublicStorageFields } from './types.js'
 

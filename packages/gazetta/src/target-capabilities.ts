@@ -56,7 +56,9 @@ function storageRow(config: TargetConfig): string {
   if (config.publicStorage === false) return 'Private (declared)'
   if (isPublicStorage(config)) return 'Public (assumed)'
   if (config.storage.kind === 'filesystem' && config.editable === true) return 'Private (editing folder)'
-  return `Private (copied to the host by \`${config.deploy?.name}\`)`
+  if (config.deploy?.copiesSiteFiles === true) return `Private (copied to the host by \`${config.deploy.name}\`)`
+  // isPublicStorage gained a reason to call storage private that this row doesn't name.
+  throw new Error(`No storage row wording for private target (storage kind ${config.storage.kind})`)
 }
 
 function historyRow(config: TargetConfig): string {
