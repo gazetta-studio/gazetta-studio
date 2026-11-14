@@ -5,7 +5,7 @@
  */
 import { ref } from 'vue'
 import type { AssetSummary } from 'gazetta/schema'
-import { AssetKindMismatchError, replaceAssetFile } from '../api/assets.js'
+import { AssetKindMismatchError, replaceAssetFile, type ReplacedAssetFile } from '../api/assets.js'
 
 export type ReplaceState =
   | { kind: 'idle' }
@@ -22,8 +22,14 @@ export function mimeCategory(mime: string): string {
 
 export function useAssetReplace(onReplaced: (asset: AssetSummary) => Promise<void> | void) {
   const state = ref<ReplaceState>({ kind: 'idle' })
+  /**
+   * Bumped by every choose and dismiss: a reply that comes back after the
+   * pane moved to another asset or target must not show its note there.
+   */
+  let current = 0
 
   async function choose(asset: AssetSummary, file: File): Promise<void> {
+    const request = ++current
     // The browser's type is a hint; the server sniffs the bytes and has the last word.
     const fileCategory = file.type ? mimeCategory(file.type) : ''
     if (fileCategory && fileCategory !== mimeCategory(asset.mime)) {
@@ -31,22 +37,25 @@ export function useAssetReplace(onReplaced: (asset: AssetSummary) => Promise<voi
       return
     }
     state.value = { kind: 'working' }
-    let replaced: AssetSummary
+    let result: ReplacedAssetFile
     try {
-      const result = await replaceAssetFile(asset.name, file)
-      replaced = result.manifest
-      state.value = { kind: 'done', asset: replaced, perUseAltCount: result.perUseAltCount }
+      result = await replaceAssetFile(asset.name, file)
     } catch (err) {
+      if (request !== current) return
       state.value =
         err instanceof AssetKindMismatchError
           ? { kind: 'wrong-kind', fileCategory: err.newMimeCategory }
           : { kind: 'failed', reason: err instanceof Error ? err.message : String(err) }
       return
     }
-    await onReplaced(replaced)
+    if (request === current)
+      state.value = { kind: 'done', asset: result.manifest, perUseAltCount: result.perUseAltCount }
+    // The file was replaced either way, so the list still refreshes.
+    await onReplaced(result.manifest)
   }
 
   function dismiss(): void {
+    current++
     state.value = { kind: 'idle' }
   }
 

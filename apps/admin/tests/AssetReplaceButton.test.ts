@@ -11,6 +11,7 @@ import AssetDetail from '../src/client/components/AssetDetail.vue'
 import { useAssetReplace, type ReplaceState } from '../src/client/composables/useAssetReplace.js'
 import { useAssetsListStore } from '../src/client/stores/assetsList.js'
 import { useAssetsSelectionStore } from '../src/client/stores/assetsSelection.js'
+import { useActiveTargetStore } from '../src/client/stores/activeTarget.js'
 
 function summary(overrides: Partial<AssetSummary> = {}): AssetSummary {
   return {
@@ -134,7 +135,12 @@ describe('AssetReplaceButton states', () => {
     expect(note.text()).toContain('jingle now uses the new file.')
     expect(note.text()).not.toContain('alt')
     expect(note.find('img').exists()).toBe(false)
-    for (const id of ['replace-note-edit-alt', 'replace-note-edit-focal', 'replace-note-suggest', 'replace-note-per-use']) {
+    for (const id of [
+      'replace-note-edit-alt',
+      'replace-note-edit-focal',
+      'replace-note-suggest',
+      'replace-note-per-use',
+    ]) {
       expect(wrapper.find(`[data-testid="${id}"]`).exists()).toBe(false)
     }
     expect(wrapper.find('[data-testid="replace-note-dismiss"]').exists()).toBe(true)
@@ -231,6 +237,64 @@ describe('useAssetReplace', () => {
 describe('Replace file in AssetDetail', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+  })
+
+  function deferredFetch() {
+    let resolve!: (r: Response) => void
+    const fetch = vi.fn(() => new Promise<Response>(r => (resolve = r)))
+    const reply = () =>
+      resolve(
+        new Response(JSON.stringify({ manifest: summary(), perUseAltCount: 0 }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      )
+    return { fetch, reply }
+  }
+
+  async function chooseIn(wrapper: ReturnType<typeof mount>) {
+    const input = wrapper.find('[data-testid="asset-detail-replace-input"]')
+    Object.defineProperty(input.element, 'files', { value: [png()], configurable: true })
+    await input.trigger('change')
+  }
+
+  it.each([
+    ['selection', () => useAssetsSelectionStore().select('other')],
+    ['target', () => (useActiveTargetStore().activeTargetName = 'staging')],
+  ])('a replace still running when the %s changes shows no note', async (_label, change) => {
+    const list = useAssetsListStore()
+    list.assets = [summary({ mime: 'image/jpeg', hash: 'aaaaaaaa' }), summary({ name: 'other', mime: 'image/jpeg' })]
+    list.refresh = vi.fn(async () => {})
+    useAssetsSelectionStore().select('hero')
+    const wrapper = mount(AssetDetail)
+    const { fetch, reply } = deferredFetch()
+    vi.stubGlobal('fetch', fetch)
+
+    await chooseIn(wrapper)
+    change()
+    await flushPromises()
+    reply()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="replace-note"]').exists()).toBe(false)
+    expect(list.refresh).toHaveBeenCalled()
+  })
+
+  it('changing the target clears the note', async () => {
+    const list = useAssetsListStore()
+    list.assets = [summary({ mime: 'image/jpeg', hash: 'aaaaaaaa' })]
+    list.refresh = vi.fn(async () => {})
+    useAssetsSelectionStore().select('hero')
+    const wrapper = mount(AssetDetail)
+    vi.stubGlobal('fetch', respond(200, { manifest: summary(), perUseAltCount: 0 }))
+    await chooseIn(wrapper)
+    await flushPromises()
+    expect(wrapper.find('[data-testid="replace-note"]').exists()).toBe(true)
+
+    useActiveTargetStore().activeTargetName = 'staging'
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="replace-note"]').exists()).toBe(false)
   })
 
   it('keeps the old preview when the replace fails, and Dismiss removes the note after a success', async () => {
