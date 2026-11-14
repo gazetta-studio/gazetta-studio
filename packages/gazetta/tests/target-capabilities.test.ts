@@ -58,6 +58,7 @@ describe('describeTarget', () => {
       'history',
       'audit',
       'review',
+      'publish-approval',
       'scheduling',
       'redirects',
       'gone',
@@ -122,6 +123,40 @@ describe('describeTarget', () => {
       review: 'Not available: storage is public',
       scheduling: 'Not available: storage is public',
     })
+  })
+
+  it('labels content review and publish approval as separate rows', () => {
+    const labels = Object.fromEntries(describeTarget('local', local, { local }).map(r => [r.key, r.label]))
+    expect(labels.review).toBe('Content review')
+    expect(labels['publish-approval']).toBe('Publish approval')
+  })
+
+  it.each<[string, TargetConfig, string]>([
+    ['not configured', { storage: storage(), publicStorage: false }, 'Not required'],
+    ['turned off', { storage: storage(), publicStorage: false, requiresPublishApproval: false }, 'Not required'],
+    [
+      'one approver by default',
+      { storage: storage(), publicStorage: false, requiresPublishApproval: true },
+      'Required, 1 approver',
+    ],
+    [
+      'several approvers',
+      { storage: storage(), publicStorage: false, requiresPublishApproval: true, requiredPublishApprovers: 3 },
+      'Required, 3 approvers',
+    ],
+    // Requests are kept on the source, so public storage doesn't turn approval off.
+    [
+      'public storage',
+      { storage: storage(), requiresPublishApproval: true, requiredPublishApprovers: 2 },
+      'Required, 2 approvers',
+    ],
+    [
+      'approver count without the switch',
+      { storage: storage(), publicStorage: false, requiredPublishApprovers: 2 },
+      'Not required',
+    ],
+  ])('publish-approval row: %s', (_label, config, value) => {
+    expect(rows('t', config)['publish-approval']).toBe(value)
   })
 
   it.each<[string, TargetConfig, string, string]>([

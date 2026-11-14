@@ -223,6 +223,7 @@ describe('GET /api/v1/targets response mapping', () => {
       'history',
       'audit',
       'review',
+      'publish-approval',
       'scheduling',
       'redirects',
       'gone',

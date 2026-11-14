@@ -129,7 +129,7 @@ Exit code: 0 when the run passes, 1 when there are errors, and 2 when `--base` o
 
 ### `gazetta targets [site]`
 
-Prints every target in `site.config.ts` with what it keeps and can do: whether its storage is public or private and why, whether it keeps history, where its audit events are kept, whether review and scheduling are available, whether it can serve redirects and `410 Gone`, whether it keeps dependency indices, and its deploy adapter. These are the rows of "About this target" in the admin's target menu. It reads the config only and connects to no storage, and exits 0. See [Targets](./targets.md).
+Prints every target in `site.config.ts` with what it keeps and can do: whether its storage is public or private and why, whether it keeps history, where its audit events are kept, whether content review and scheduling are available, whether publishing to it needs approval and from how many people, whether it can serve redirects and `410 Gone`, whether it keeps dependency indices, and its deploy adapter. These are the rows of "About this target" in the admin's target menu. It reads the config only and connects to no storage, and exits 0. See [Targets](./targets.md).
 
 ### `gazetta translate <item> --to <locale> [target]`
 

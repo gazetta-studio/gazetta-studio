@@ -16,7 +16,8 @@ const LABELS: Record<Row['key'], string> = {
   storage: 'Storage',
   history: 'History',
   audit: 'Audit',
-  review: 'Review',
+  review: 'Content review',
+  'publish-approval': 'Publish approval',
   scheduling: 'Scheduling',
   redirects: 'Redirects',
   gone: 'Gone (410)',
@@ -47,12 +48,14 @@ const privateRows = {
   history: 'On',
   audit: 'Kept here',
   review: 'Available',
+  'publish-approval': 'Not required',
   scheduling: 'Available',
   indices: 'Kept',
 }
 const publicRows = {
   history: 'Off: storage is public',
   review: 'Not available: storage is public',
+  'publish-approval': 'Not required',
   scheduling: 'Not available: storage is public',
   indices: 'Not kept: storage is public',
 }
@@ -110,6 +113,29 @@ export const DefaultedPublicCloud = story(
     'local',
   ),
   { storage: 'Public (assumed)', history: 'Off: storage is public', audit: 'Kept on `local`' },
+)
+
+/**
+ * A public production target that needs publish approval: content review
+ * isn't available there, but publish approval is, since requests are kept
+ * on the source.
+ */
+export const PublicWithPublishApproval = story(
+  target(
+    'production',
+    true,
+    {
+      ...publicRows,
+      'publish-approval': 'Required, 2 approvers',
+      storage: 'Public (declared)',
+      audit: 'Kept on `local`',
+      redirects: 'Yes',
+      gone: 'Yes',
+      deploy: 'cloudflare-workers',
+    },
+    'local',
+  ),
+  { review: 'Not available: storage is public', 'publish-approval': 'Required, 2 approvers' },
 )
 
 /** Every target public: nothing keeps this target's audit events. */

@@ -11,6 +11,7 @@
  * does; renderers show them as code.
  */
 import { auditHomeFor } from './audit-home.js'
+import { requiresPublishApproval } from './publish-approval-gate.js'
 import { inspectTarget } from './runtime/runtime-capabilities.js'
 import { mayWriteDepIndices } from './state-folders.js'
 import { isHistoryEnabled, isPublicStorage, type TargetConfig } from './types.js'
@@ -20,6 +21,7 @@ export const TARGET_CAPABILITY_KEYS = [
   'history',
   'audit',
   'review',
+  'publish-approval',
   'scheduling',
   'redirects',
   'gone',
@@ -39,7 +41,8 @@ const LABELS: Record<TargetCapabilityKey, string> = {
   storage: 'Storage',
   history: 'History',
   audit: 'Audit',
-  review: 'Review',
+  review: 'Content review',
+  'publish-approval': 'Publish approval',
   scheduling: 'Scheduling',
   redirects: 'Redirects',
   gone: 'Gone (410)',
@@ -66,6 +69,17 @@ function historyRow(config: TargetConfig): string {
   return isPublicStorage(config) ? 'Off: storage is public' : 'Off: turned off in config'
 }
 
+/**
+ * Publish requests are kept on the source (design-public-storage.md Q5),
+ * so this row doesn't depend on whether the target's storage is public.
+ * The approver count is the default the gate snapshots onto a request.
+ */
+function publishApprovalRow(config: TargetConfig): string {
+  if (!requiresPublishApproval(config)) return 'Not required'
+  const approvers = config.requiredPublishApprovers ?? 1
+  return `Required, ${approvers} ${approvers === 1 ? 'approver' : 'approvers'}`
+}
+
 function auditRow(name: string, configs: Readonly<Record<string, TargetConfig>>): TargetCapabilityRow {
   const home = auditHomeFor(name, configs)
   if (home.kind === 'self') return row('audit', 'Kept here')
@@ -86,6 +100,7 @@ export function describeTarget(
     row('history', historyRow(config)),
     auditRow(name, { ...allTargetConfigs, [name]: config }),
     row('review', availability),
+    row('publish-approval', publishApprovalRow(config)),
     row('scheduling', availability),
     row('redirects', runtime.has('redirects') ? 'Yes' : 'No'),
     row('gone', runtime.has('gone-status') ? 'Yes' : 'No'),
