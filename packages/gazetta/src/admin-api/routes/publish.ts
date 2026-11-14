@@ -1300,73 +1300,108 @@ export function publishRoutes(
       }
       const requests = new Map<string, PublishRequestRecord[]>()
       // Gated targets whose requests are recorded (audit + after hooks).
-      // Recorded per target as its result arrives, and caught up if the
-      // client leaves, so requests written to the source are never left
-      // without their events.
+      // Recorded per target as its result arrives, so requests written to
+      // the source are never left without their events.
       const recordedRequests = new Set<string>()
       const recordRequestsOf = async (results: readonly PublishResult[]) => {
         const fresh = results.filter(r => isGated(r.target) && !recordedRequests.has(r.target))
         for (const r of fresh) recordedRequests.add(r.target)
         await recordRequests(c.var.audit, hookCtx, fresh, requests, finalItems)
       }
-      try {
-        for await (const ev of runPublish(finalItems, body.targets, body.source, snapshot, c.var.principal, requests)) {
-          if (stream.aborted) {
-            await recordRequestsOf([...requests.keys()].map(target => ({ target, success: true, copiedFiles: 0 })))
-            return
+      // The publish runs to completion whether or not the client stays
+      // connected (#1068): it never awaits the stream, so a slow or gone
+      // client can't stall or stop it. Events queue here and a forwarder
+      // writes them while the stream is open.
+      const queued: { event: string; data: string }[] = []
+      let wake: (() => void) | null = null
+      let finished = false
+      const notify = (): void => wake?.()
+      const emit = (event: string, data: unknown): void => {
+        if (stream.aborted) return
+        queued.push({ event, data: JSON.stringify(data) })
+        notify()
+      }
+      stream.onAbort(notify)
+      const forward = (async () => {
+        while (!stream.aborted) {
+          const next = queued.shift()
+          if (next) {
+            await stream.writeSSE(next)
+            continue
           }
-          const data = ev.kind === 'done' ? { ...ev, ...auditWarnings } : ev
-          await stream.writeSSE({ event: ev.kind, data: JSON.stringify(data) })
-          if (ev.kind === 'fatal') {
-            await recordWriteFailed(ev.error)
-          }
-          if (ev.kind === 'target-result') {
-            finishedTargets.add(ev.result.target)
-            await recordRequestsOf([ev.result])
-            // Under strict mode a failed target's write-failed event is
-            // recorded now, so a later thrown error doesn't record it twice.
-            if (strictPreRecord && !isGated(ev.result.target)) {
-              await recordTargetResults(c.var.audit, [ev.result], auditBase, true)
+          if (finished) return
+          await new Promise<void>(resolve => {
+            wake = resolve
+          })
+          wake = null
+        }
+      })()
+      const work = async (): Promise<void> => {
+        try {
+          for await (const ev of runPublish(
+            finalItems,
+            body.targets,
+            body.source,
+            snapshot,
+            c.var.principal,
+            requests,
+          )) {
+            const data = ev.kind === 'done' ? { ...ev, ...auditWarnings } : ev
+            emit(ev.kind, data)
+            if (ev.kind === 'fatal') {
+              await recordWriteFailed(ev.error)
+            }
+            if (ev.kind === 'target-result') {
+              finishedTargets.add(ev.result.target)
+              await recordRequestsOf([ev.result])
+              // Under strict mode a failed target's write-failed event is
+              // recorded now, so a later thrown error doesn't record it twice.
+              if (strictPreRecord && !isGated(ev.result.target)) {
+                await recordTargetResults(c.var.audit, [ev.result], auditBase, true)
+              }
+            }
+            if (ev.kind === 'done') {
+              // One event per target, as the synchronous /api/publish records.
+              // Strict mode recorded each target's failure at its target-result.
+              const published = ev.results.filter(r => !isGated(r.target))
+              if (!strictPreRecord) await recordTargetResults(c.var.audit, published, auditBase, false)
+              await recordRequestsOf(ev.results)
+              recordedSuccess = true
+              collectedResults.push(...ev.results)
             }
           }
-          if (ev.kind === 'done') {
-            // One event per target, as the synchronous /api/publish records.
-            // Strict mode recorded each target's failure at its target-result.
-            const published = ev.results.filter(r => !isGated(r.target))
-            if (!strictPreRecord) await recordTargetResults(c.var.audit, published, auditBase, false)
-            await recordRequestsOf(ev.results)
-            recordedSuccess = true
-            collectedResults.push(...ev.results)
+        } catch (err) {
+          await recordWriteFailed((err as Error).message)
+          emit('fatal', { kind: 'fatal', error: (err as Error).message })
+        }
+        // afterPublish hooks fire after the stream's `done` event —
+        // observational; failures logged via ctx.log without
+        // affecting the already-streamed response.
+        if (hooks && hookCtx && recordedSuccess) {
+          const finalPublishItems = finalItems.map(toPublishItem)
+          for (const r of collectedResults.filter(res => !isGated(res.target))) {
+            const skipped = new Map((r.notPublished ?? []).map(n => [n.item, n.reason]))
+            const hookResult: PublishHookResult = {
+              target: r.target,
+              itemsPublished: r.success ? finalPublishItems.filter(item => !skipped.has(itemBase(item.path))) : [],
+              itemsFailed: r.success
+                ? finalPublishItems.flatMap(item =>
+                    skipped.has(itemBase(item.path)) ? [{ item, reason: skipped.get(itemBase(item.path))! }] : [],
+                  )
+                : finalPublishItems.map(item => ({ item, reason: r.error ?? 'unknown' })),
+            }
+            await dispatchAfterPublish(hooks, r.target, hookResult, hookCtx)
           }
         }
-      } catch (err) {
-        await recordWriteFailed((err as Error).message)
-        if (!stream.aborted) {
-          await stream.writeSSE({
-            event: 'fatal',
-            data: JSON.stringify({ kind: 'fatal', error: (err as Error).message }),
-          })
-        }
       }
-      // afterPublish hooks fire after the stream's `done` event —
-      // observational; failures logged via ctx.log without
-      // affecting the already-streamed response.
-      if (hooks && hookCtx && recordedSuccess) {
-        const finalPublishItems = finalItems.map(toPublishItem)
-        for (const r of collectedResults.filter(res => !isGated(res.target))) {
-          const skipped = new Map((r.notPublished ?? []).map(n => [n.item, n.reason]))
-          const hookResult: PublishHookResult = {
-            target: r.target,
-            itemsPublished: r.success ? finalPublishItems.filter(item => !skipped.has(itemBase(item.path))) : [],
-            itemsFailed: r.success
-              ? finalPublishItems.flatMap(item =>
-                  skipped.has(itemBase(item.path)) ? [{ item, reason: skipped.get(itemBase(item.path))! }] : [],
-                )
-              : finalPublishItems.map(item => ({ item, reason: r.error ?? 'unknown' })),
-          }
-          await dispatchAfterPublish(hooks, r.target, hookResult, hookCtx)
-        }
+      try {
+        await work()
+      } finally {
+        finished = true
+        notify()
       }
+      await forward
+
       // Avoid recording a duplicate when the loop completed without
       // a 'done' event (rare — happens if runPublish yields fatal
       // before done). Suppresses double-audit; the absence of a
