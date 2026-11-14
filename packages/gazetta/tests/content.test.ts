@@ -151,7 +151,7 @@ describe('processContent sanitizing', () => {
     [
       'reads attribute values containing > and tag-like text',
       '<a title="a > <a rel=opener>" href="/x" rel="opener" target="_blank">l</a>',
-      '<a title="a > <a rel=opener>" href="/x" target="_blank" rel="noopener">l</a>',
+      '<a title="a &gt; &lt;a rel=opener&gt;" href="/x" target="_blank" rel="noopener">l</a>',
     ],
     ['leaves target=_self alone', '<a href="/x" target="_self">l</a>', '<a href="/x" target="_self">l</a>'],
   ])('rich-text links: %s', (_name, body, expected) => {
