@@ -198,7 +198,7 @@ Building cut 12 (#1805) left these open for cut 13.
 
 1. **One pending request per item and target, for its latest version.** Publishing an item that already has a pending request on that target returns the existing request when the item hasn't changed (the snapshot hashes match), and creates nothing. When it has changed, the old request is withdrawn, its approvals dropped since they were for the old version, and a new one is made. Withdrawal records `publish-withdraw` with the reason "replaced by a newer version".
 
-Decided: maintainer, 2026-11-14 (#<PR>)
+Decided: maintainer, 2026-11-14 (#1830)
 
 | Rejected | Why |
 |---|---|
