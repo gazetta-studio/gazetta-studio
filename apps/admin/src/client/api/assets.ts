@@ -113,8 +113,9 @@ export interface ReplacedAssetFile {
 
 /**
  * Put a new file of the same kind into an asset, keeping its alt, focal
- * point and uses (design-media.md M3). Throws `AssetKindMismatchError` on
- * 409 and `AssetApiError` on any other failure.
+ * point and uses (design-media.md M3). Throws `AssetKindMismatchError`
+ * when the file is another kind, and `AssetApiError` on any other failure,
+ * including a hook's refusal (409 `HOOK_CANCELLED`).
  */
 export async function replaceAssetFile(name: string, file: File): Promise<ReplacedAssetFile> {
   const form = new FormData()
@@ -125,8 +126,9 @@ export async function replaceAssetFile(name: string, file: File): Promise<Replac
     body: form,
   })
   if (res.ok) return (await res.json()) as ReplacedAssetFile
-  if (res.status === 409) throw await parseKindMismatchResponse(res, name, name)
-  throw await parseAssetError(res, 'Replace failed')
+  const body = (await res.json().catch(() => ({}))) as { code?: string } & Parameters<typeof kindMismatchFromBody>[0]
+  if (res.status === 409 && body.code === 'ASSET_KIND_MISMATCH') throw kindMismatchFromBody(body)
+  throw assetErrorFromBody(res, body, 'Replace failed')
 }
 
 /** Selector identifying which override (locale and/or theme) to write or remove. */
@@ -235,12 +237,15 @@ async function parseKindMismatchResponse(
   _oldName: string,
   _newName: string,
 ): Promise<AssetKindMismatchError> {
-  const body = (await res.json().catch(() => ({}))) as {
-    oldKind?: string
-    oldMimeCategory?: string
-    newKind?: string
-    newMimeCategory?: string
-  }
+  return kindMismatchFromBody(await res.json().catch(() => ({})))
+}
+
+function kindMismatchFromBody(body: {
+  oldKind?: string
+  oldMimeCategory?: string
+  newKind?: string
+  newMimeCategory?: string
+}): AssetKindMismatchError {
   return new AssetKindMismatchError(
     body.oldKind ?? 'unknown',
     body.oldMimeCategory ?? 'unknown',
@@ -251,10 +256,14 @@ async function parseKindMismatchResponse(
 
 /** Read a non-success, non-409 response body and return a typed `AssetApiError`. */
 async function parseAssetError(res: Response, fallbackPrefix: string): Promise<AssetApiError> {
-  const body = (await res.json().catch(() => ({}))) as {
-    code?: string
-    detail?: string
-  }
+  return assetErrorFromBody(res, await res.json().catch(() => ({})), fallbackPrefix)
+}
+
+function assetErrorFromBody(
+  res: Response,
+  body: { code?: string; detail?: string },
+  fallbackPrefix: string,
+): AssetApiError {
   return new AssetApiError(body.detail ?? `${fallbackPrefix}: ${res.status}`, res.status, body.code)
 }
 
