@@ -271,7 +271,7 @@ Uses the existing validation banner and Site health drawer; no new component.
 ## Foundational checks
 
 - **Multi-instance:** escaping and sanitizing are pure functions; the validator is stateless.
-- **Scale:** sanitizing runs per Markdown or rich-text field at render and publish; cut 1 measures it on the 5K-page synthetic site, since DOMPurify server-side needs a DOM. The validator runs per changed field at save and per field in the background scan. Cut 1 (#1818) measured about 1.5 ms per component, about 15 s more for a full render of 5,000 pages with three rich fields per component; ordinary publishes render only changed items. That cost is accepted for v1, and a cache of sanitized output keyed by the field's content comes only if real sites find publishing slow.
+- **Scale:** sanitizing runs per Markdown or rich-text field at render and publish; cut 1 measures it on the 5K-page synthetic site, since DOMPurify server-side needs a DOM. The validator runs per changed field at save and per field in the background scan. Cut 1 (#1818) measured about 0.35 ms per component, about 3.4 s more for a full render of 5,000 pages with three rich fields per component (`tests/content-sanitize.bench.ts`, mean of 3 passes on an Apple M4 Pro with Node 25.1); ordinary publishes render only changed items. A run on a busy GitHub-hosted runner took about 15 s, so treat that as an upper bound on slow CI hardware. That cost is accepted for v1, and a cache of sanitized output keyed by the field's content comes only if real sites find publishing slow.
 
   Decided: maintainer, 2026-11-14 (#1830)
 
