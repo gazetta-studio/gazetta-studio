@@ -53,6 +53,8 @@ const kindError = computed(() => {
 })
 
 const done = computed(() => (props.state.kind === 'done' ? props.state : null))
+/** Alt text and focal point are image fields; other kinds get a plain note. */
+const doneIsImage = computed(() => (done.value ? mimeCategory(done.value.asset.mime) === 'image' : false))
 
 const preview = computed(() => {
   if (!done.value) return null
@@ -112,40 +114,45 @@ function onChange(event: Event): void {
 
     <div v-if="done" class="asset-replace-note" role="status" data-testid="replace-note">
       <img
-        v-if="preview"
+        v-if="doneIsImage && preview"
         class="asset-replace-preview"
         :src="preview"
         :alt="done.asset.alt ?? ''"
         :style="{ objectPosition }" />
-      <p class="asset-replace-note-text">Check the alt text and focal point still fit the new image.</p>
-      <dl class="asset-replace-fields">
-        <div>
-          <dt>Alt</dt>
-          <dd>{{ altText }}</dd>
-        </div>
-        <div>
-          <dt>Focal point</dt>
-          <dd>{{ focalText }}</dd>
-        </div>
-      </dl>
-      <p v-if="done.perUseAltCount > 0" class="asset-replace-per-use" data-testid="replace-note-per-use">
-        Used on {{ done.perUseAltCount }} pages and fragments with their own alt text.
-      </p>
+      <template v-if="doneIsImage">
+        <p class="asset-replace-note-text">Check the alt text and focal point still fit the new image.</p>
+        <dl class="asset-replace-fields">
+          <div>
+            <dt>Alt</dt>
+            <dd>{{ altText }}</dd>
+          </div>
+          <div>
+            <dt>Focal point</dt>
+            <dd>{{ focalText }}</dd>
+          </div>
+        </dl>
+        <p v-if="done.perUseAltCount > 0" class="asset-replace-per-use" data-testid="replace-note-per-use">
+          Used on {{ done.perUseAltCount }} pages and fragments with their own alt text.
+        </p>
+      </template>
+      <p v-else class="asset-replace-note-text">{{ assetName }} now uses the new file.</p>
       <div class="asset-replace-actions">
-        <Button label="Edit alt" text size="small" data-testid="replace-note-edit-alt" @click="emit('editAlt')" />
-        <Button
-          label="Edit focal point"
-          text
-          size="small"
-          data-testid="replace-note-edit-focal"
-          @click="emit('editFocal')" />
-        <Button
-          v-if="aiAvailable"
-          label="Suggest"
-          text
-          size="small"
-          data-testid="replace-note-suggest"
-          @click="emit('suggest')" />
+        <template v-if="doneIsImage">
+          <Button label="Edit alt" text size="small" data-testid="replace-note-edit-alt" @click="emit('editAlt')" />
+          <Button
+            label="Edit focal point"
+            text
+            size="small"
+            data-testid="replace-note-edit-focal"
+            @click="emit('editFocal')" />
+          <Button
+            v-if="aiAvailable"
+            label="Suggest"
+            text
+            size="small"
+            data-testid="replace-note-suggest"
+            @click="emit('suggest')" />
+        </template>
         <Button
           label="Dismiss"
           text

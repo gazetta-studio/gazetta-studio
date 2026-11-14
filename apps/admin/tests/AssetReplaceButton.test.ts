@@ -120,6 +120,26 @@ describe('AssetReplaceButton states', () => {
     expect(wrapper.emitted(event)).toHaveLength(1)
   })
 
+  it('done for audio has no alt or focal point to check', () => {
+    const audio = summary({ name: 'jingle', mime: 'audio/mpeg', alt: null, focalPoint: undefined })
+    const wrapper = mount(AssetReplaceButton, {
+      props: {
+        assetName: 'jingle',
+        assetMime: 'audio/mpeg',
+        state: { kind: 'done', asset: audio, perUseAltCount: 2 },
+        aiAvailable: true,
+      },
+    })
+    const note = wrapper.find('[data-testid="replace-note"]')
+    expect(note.text()).toContain('jingle now uses the new file.')
+    expect(note.text()).not.toContain('alt')
+    expect(note.find('img').exists()).toBe(false)
+    for (const id of ['replace-note-edit-alt', 'replace-note-edit-focal', 'replace-note-suggest', 'replace-note-per-use']) {
+      expect(wrapper.find(`[data-testid="${id}"]`).exists()).toBe(false)
+    }
+    expect(wrapper.find('[data-testid="replace-note-dismiss"]').exists()).toBe(true)
+  })
+
   it('choosing a file emits it', async () => {
     const wrapper = render({ kind: 'idle' })
     const input = wrapper.find('[data-testid="asset-detail-replace-input"]')

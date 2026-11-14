@@ -61,5 +61,26 @@ export const DoneWithoutAi: Story = {
 /** Done, no use has its own alt: no per-use line. */
 export const DoneNoPerUseAlt: Story = { args: { state: { kind: 'done', asset: replaced, perUseAltCount: 0 } } }
 
+/** Done for an audio asset: no alt text or focal point to check. */
+export const DoneAudio: Story = {
+  args: {
+    assetName: 'jingle',
+    assetMime: 'audio/mpeg',
+    state: {
+      kind: 'done',
+      asset: {
+        ...replaced,
+        name: 'jingle',
+        mime: 'audio/mpeg',
+        width: null,
+        height: null,
+        alt: null,
+        focalPoint: undefined,
+      },
+      perUseAltCount: 0,
+    },
+  },
+}
+
 /** Failed: the asset is unchanged. */
 export const Failed: Story = { args: { state: { kind: 'failed', reason: 'storage write failed' } } }
