@@ -103,7 +103,7 @@ describe('parseBotPRs', () => {
       { headRefName: 'main', createdAt: '2026-05-17T10:00:00Z' }, // not improve/*
       { headRefName: 'improve/unknown-type-foo', createdAt: '2026-05-17T10:00:00Z' }, // type not in closed enum
     ])
-    expect(parseBotPRs(stdout, 30).size).toBe(0)
+    expect(parseBotPRs(stdout, 30, NOW).size).toBe(0)
   })
 
   it('handles hyphenated dir names (bots/fix-bot/) via candidate-key enumeration', () => {
@@ -139,7 +139,7 @@ describe('parseBotPRs', () => {
     expect(branch).toBe('improve/security-packages--gazetta--src--auth-capability-gate')
 
     const stdout = JSON.stringify([{ headRefName: branch, createdAt: '2026-05-17T10:00:00Z' }])
-    const result = parseBotPRs(stdout, 180)
+    const result = parseBotPRs(stdout, 180, NOW)
 
     expect(result.get('packages/gazetta/src/auth/')).toBe('2026-05-17T10:00:00Z')
     // Negative: the type prefix MUST NOT be the key.
