@@ -14,6 +14,7 @@ Every `gazetta` command, its arguments and flags, and how the CLI picks a site a
 | `gazetta admin [site]` | Run the built admin without the dev server |
 | `gazetta deploy [target] [site]` | Run the target's deploy adapter |
 | `gazetta validate [site]` | Check the site for broken references and other problems |
+| `gazetta targets [site]` | Show what each target keeps and can do |
 | `gazetta translate <item> --to <locale> [target]` | Copy a page or fragment as a new language version |
 | `gazetta history [target] [site]` | List a target's revisions |
 | `gazetta undo [target] [site]` | Restore the revision before the latest one |
@@ -125,6 +126,10 @@ The JSON report:
 Each item has `kind` (`page` or `fragment`), `name`, `locale` (`null` for the default language), `target` (`null` for the repo, or the target's name), `fix` (for a target's item with a new problem, how to fix it) and `issues`. Each issue has `validator`, `severity`, `message`, `component` (the component's path in the item) and `contentPath` (the field in its content, such as `cta`).
 
 Exit code: 0 when the run passes, 1 when there are errors, and 2 when `--base` or `--targets` can't be used (a commit git can't find, a target that can't be checked). With `--severity=warn` or `all`, warnings fail the run too, unless `--no-warn-as-error` is set; with the default `--severity=error`, a run with only warnings reports "All good." and exits 0. Site config issues and the template, editor and field checks are shown whatever `--severity` is.
+
+### `gazetta targets [site]`
+
+Prints every target in `site.config.ts` with what it keeps and can do: whether its storage is public or private and why, whether it keeps history, where its audit events are kept, whether review and scheduling are available, whether it can serve redirects and `410 Gone`, whether it keeps dependency indices, and its deploy adapter. These are the rows of "About this target" in the admin's target menu. It reads the config only and connects to no storage, and exits 0. See [Targets](./targets.md).
 
 ### `gazetta translate <item> --to <locale> [target]`
 

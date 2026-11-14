@@ -175,4 +175,60 @@ describe('GET /api/v1/targets response mapping', () => {
       ]),
     )
   })
+
+  it("reports each target's publicStorage and capabilities-view rows", async () => {
+    // The `about` rows come from describeTarget, in config order for the
+    // audit fallback: the public cloud target's audit is kept on the
+    // first private target. `capabilities` stays alongside, unchanged.
+    const localStorage = { ...memoryStorage(), kind: 'filesystem' as const }
+    const cloudStorage = { ...memoryStorage(), kind: 'r2' as const }
+    const { app } = buildApp({
+      targetConfigs: {
+        production: { storage: cloudStorage, type: 'static' },
+        local: { storage: localStorage, editable: true, type: 'static' },
+      },
+      preInitTargets: new Map<string, StorageProvider>([
+        ['production', cloudStorage],
+        ['local', localStorage],
+      ]),
+    })
+
+    const res = await app.request('/api/v1/targets')
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Array<{
+      name: string
+      publicStorage: boolean
+      auditHome: { kind: string; name?: string }
+      about: Array<{ key: string; value: string }>
+      capabilities: { has: string[] }
+    }>
+    const byName = Object.fromEntries(body.map(t => [t.name, t]))
+    const value = (name: string, key: string) => byName[name].about.find(r => r.key === key)?.value
+    expect(byName.production.publicStorage).toBe(true)
+    expect(byName.local.publicStorage).toBe(false)
+    expect(value('production', 'storage')).toBe('Public (assumed)')
+    expect(value('production', 'history')).toBe('Off: storage is public')
+    expect(byName.production.about.find(r => r.key === 'audit')).toEqual({
+      key: 'audit',
+      label: 'Audit',
+      value: 'Kept on `local`',
+    })
+    expect(byName.production.auditHome).toEqual({ kind: 'target', name: 'local' })
+    expect(byName.local.auditHome).toEqual({ kind: 'self' })
+    expect(value('local', 'storage')).toBe('Private (editing folder)')
+    expect(value('local', 'audit')).toBe('Kept here')
+    expect(byName.production.about.map(r => r.key)).toEqual([
+      'storage',
+      'history',
+      'audit',
+      'review',
+      'scheduling',
+      'redirects',
+      'gone',
+      'indices',
+      'deploy',
+    ])
+    expect(byName.production.capabilities.has).toEqual([])
+  })
 })

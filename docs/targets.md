@@ -73,6 +73,8 @@ The admin keeps its audit log on the target it edits when that target's storage 
 
 When `publicStorage` is unset, a target counts as private only if it is an editable filesystem target or its deploy adapter copies site files to the host; every other target is assumed public, so a forgotten declaration never leaks history or audit data. Set `publicStorage: false` for storage only a worker reads, such as a private R2 bucket behind `cloudflareWorkersDeploy`.
 
+To see what each target keeps and can do, open "About this target" in the admin's target menu, or run `gazetta targets`. Both show whether the storage is public and why, history, where audit events are kept, review and scheduling, redirects and `410 Gone`, dependency indices and the deploy adapter.
+
 `gazetta serve` never serves private files — `.gazetta/` and other dot-paths answer 404 — so a filesystem target it serves stays private.
 
 ## `history`

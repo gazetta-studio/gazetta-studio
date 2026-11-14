@@ -340,7 +340,7 @@ describe('ActiveTargetIndicator', () => {
       expect(prodGroup!.items!.map(i => i.label)).toEqual(['prod-us', 'prod-eu'])
     })
 
-    it('always includes View history + View audit log actions at the bottom', () => {
+    it('always includes View history, View audit log and About this target at the bottom', () => {
       const targets: TargetInfo[] = [
         {
           name: 'local',
@@ -354,10 +354,79 @@ describe('ActiveTargetIndicator', () => {
       const w = mountWithGlobals()
       const menu = w.findComponent({ name: 'Menu' })
       const model = menu.props('model') as Array<{ label?: string; separator?: boolean }>
-      // Tail is: separator, View history, View audit log
-      expect(model.at(-1)?.label).toBe('View audit log')
-      expect(model.at(-2)?.label).toBe('View history')
-      expect(model.at(-3)?.separator).toBe(true)
+      // Tail is: separator, View history, View audit log, About this target
+      expect(model.at(-1)?.label).toBe('About this target')
+      expect(model.at(-2)?.label).toBe('View audit log')
+      expect(model.at(-3)?.label).toBe('View history')
+      expect(model.at(-4)?.separator).toBe(true)
+    })
+  })
+
+  describe('About this target', () => {
+    it('opens the capabilities dialog for the active target', async () => {
+      const about = [{ key: 'storage' as const, label: 'Storage', value: 'Private (editing folder)' }]
+      const targets: TargetInfo[] = [
+        {
+          name: 'local',
+          environment: 'local',
+          type: 'static',
+          editable: true,
+          altText: { available: false, auto: false },
+          capabilities: { has: [], gaps: [] },
+          publicStorage: false,
+          auditHome: { kind: 'self' },
+          about,
+        },
+      ]
+      setup(targets, 'local')
+      const w = mountWithGlobals({
+        global: { stubs: { HistoryPanel: true, AuditDrawer: true, TargetCapabilities: true } },
+      })
+      const dialog = () => w.findComponent({ name: 'TargetCapabilities' })
+      expect(dialog().props('visible')).toBe(false)
+
+      const model = w.findComponent({ name: 'Menu' }).props('model') as Array<{
+        label?: string
+        testid?: string
+        command?: (e: unknown) => void
+      }>
+      const item = model.find(m => m.label === 'About this target')
+      expect(item?.testid).toBe('target-about')
+      item!.command!({})
+      await w.vm.$nextTick()
+
+      expect(dialog().props('visible')).toBe(true)
+      expect(dialog().props('target')).toMatchObject({ name: 'local', about })
+    })
+
+    it("opens from the History panel's link, closing the panel", async () => {
+      const targets: TargetInfo[] = [
+        {
+          name: 'production',
+          environment: 'production',
+          type: 'static',
+          editable: false,
+          altText: { available: false, auto: false },
+          capabilities: { has: [], gaps: [] },
+          publicStorage: true,
+          auditHome: { kind: 'none' },
+          about: [],
+        },
+      ]
+      setup(targets, 'production')
+      const w = mountWithGlobals({
+        global: { stubs: { HistoryPanel: true, AuditDrawer: true, TargetCapabilities: true } },
+      })
+      const history = w.findComponent({ name: 'HistoryPanel' })
+      history.vm.$emit('update:visible', true)
+      await w.vm.$nextTick()
+      expect(history.props('visible')).toBe(true)
+
+      history.vm.$emit('open-capabilities')
+      await w.vm.$nextTick()
+
+      expect(history.props('visible')).toBe(false)
+      expect(w.findComponent({ name: 'TargetCapabilities' }).props('visible')).toBe(true)
     })
   })
 })

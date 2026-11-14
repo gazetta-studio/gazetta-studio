@@ -244,6 +244,9 @@ describe('GET /api/v1/targets contract', () => {
         editable: true,
         altText: { available: false, auto: false },
         capabilities: { has: [], gaps: [] },
+        publicStorage: false,
+        auditHome: { kind: 'self' },
+        about: [],
       }
       expect(TargetInfoSchema.safeParse(entry).success).toBe(true)
     })
@@ -255,6 +258,21 @@ describe('GET /api/v1/targets contract', () => {
       expect(
         TargetInfoSchema.safeParse({ name: 'local', environment: 'local', type: 'static', editable: true }).success,
       ).toBe(false)
+    })
+
+    it('rejects an about row with an unknown key', () => {
+      const entry = {
+        name: 'local',
+        environment: 'local',
+        type: 'static',
+        editable: true,
+        altText: { available: false, auto: false },
+        capabilities: { has: [], gaps: [] },
+        publicStorage: false,
+        auditHome: { kind: 'self' },
+        about: [{ key: 'colour', label: 'Colour', value: 'Blue' }],
+      }
+      expect(TargetInfoSchema.safeParse(entry).success).toBe(false)
     })
 
     it('accepts altText capability with both availability and auto values', () => {
@@ -271,6 +289,9 @@ describe('GET /api/v1/targets contract', () => {
           editable: true,
           altText,
           capabilities: { has: [], gaps: [] },
+          publicStorage: false,
+          auditHome: { kind: 'self' },
+          about: [],
         }
         expect(TargetInfoSchema.safeParse(entry).success).toBe(true)
       }
@@ -290,6 +311,12 @@ describe('GET /api/v1/targets contract', () => {
             { capability: 'gone-status', reason: 'no worker available to emit 410 Gone' },
           ],
         },
+        publicStorage: true,
+        auditHome: { kind: 'target', name: 'local' },
+        about: [
+          { key: 'storage', label: 'Storage', value: 'Public (assumed)' },
+          { key: 'audit', label: 'Audit', value: 'Kept on `local`' },
+        ],
       }
       expect(TargetInfoSchema.safeParse(entry).success).toBe(true)
     })

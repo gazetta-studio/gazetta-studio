@@ -15,7 +15,7 @@
  */
 import { type Component, computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ChevronDown, Circle, History, Lock, Shield } from '@lucide/vue'
+import { ChevronDown, Circle, History, Info, Lock, Shield } from '@lucide/vue'
 import Menu, { type MenuItem } from './ui/Menu.vue'
 import { useActiveTargetStore } from '../stores/activeTarget.js'
 import { useEditingStore } from '../stores/editing.js'
@@ -27,6 +27,7 @@ import { usePagesApi, useFragmentsApi } from '../composables/api.js'
 import type { TargetInfo } from '../api/client.js'
 import HistoryPanel from './HistoryPanel.vue'
 import AuditDrawer from './AuditDrawer.vue'
+import TargetCapabilities from './TargetCapabilities.vue'
 
 const pagesApi = usePagesApi()
 const fragmentsApi = useFragmentsApi()
@@ -92,11 +93,25 @@ const menuItems = computed((): MenuItem[] => {
         showAudit.value = true
       },
     },
+    {
+      label: 'About this target',
+      icon: Info,
+      testid: 'target-about',
+      command: () => {
+        showAbout.value = true
+      },
+    },
   ]
 })
 
 const showHistory = ref(false)
 const showAudit = ref(false)
+const showAbout = ref(false)
+
+function openAboutFromHistory() {
+  showHistory.value = false
+  showAbout.value = true
+}
 
 function targetItem(t: TargetInfo): MenuItem {
   return {
@@ -208,8 +223,9 @@ function onClick(event: Event) {
       <ChevronDown v-if="interactive" class="chevron" aria-hidden="true" />
     </button>
     <Menu v-if="interactive" ref="menu" :model="menuItems" data-testid="active-target-menu" />
-    <HistoryPanel v-model:visible="showHistory" />
+    <HistoryPanel v-model:visible="showHistory" @open-capabilities="openAboutFromHistory" />
     <AuditDrawer v-model:visible="showAudit" />
+    <TargetCapabilities v-model:visible="showAbout" :target="activeTarget.activeTarget" />
   </template>
 </template>
 

@@ -20,7 +20,8 @@ import { scanTemplates } from '../templates-scan.js'
 import { memoizeAsync } from '../concurrency.js'
 import { createTargetRegistryView } from '../targets.js'
 import { createHistoryProvider } from '../history-provider.js'
-import { getEnvironment, isHistoryEnabled, isPublicStorage, getHistoryRetention } from '../types.js'
+import { getEnvironment, isHistoryEnabled, getHistoryRetention } from '../types.js'
+import { auditHomeFor } from '../audit-home.js'
 import {
   createSourceContext,
   staticSourceResolver,
@@ -699,11 +700,10 @@ function auditStorageFor(
   configs: Record<string, TargetConfig> | undefined,
   storages: ReadonlyMap<string, StorageProvider> | undefined,
 ): StorageProvider | undefined {
-  const sourceConfig = source.targetName ? configs?.[source.targetName] : undefined
-  if (!configs || !sourceConfig || !isPublicStorage(sourceConfig)) return source.storage
-  for (const [name, config] of Object.entries(configs)) {
-    if (!isPublicStorage(config)) return storages?.get(name) ?? config.storage
-  }
+  if (!configs || !source.targetName || !configs[source.targetName]) return source.storage
+  const home = auditHomeFor(source.targetName, configs)
+  if (home.kind === 'self') return source.storage
+  if (home.kind === 'target') return storages?.get(home.name) ?? configs[home.name].storage
   return undefined
 }
 

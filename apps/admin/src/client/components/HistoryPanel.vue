@@ -33,7 +33,7 @@ const props = defineProps<{
   /** Target to show history for. Defaults to active target. */
   target?: string
 }>()
-const emit = defineEmits<{ (e: 'update:visible', v: boolean): void }>()
+const emit = defineEmits<{ (e: 'update:visible', v: boolean): void; (e: 'open-capabilities'): void }>()
 
 const activeTarget = useActiveTargetStore()
 const syncStatus = useSyncStatusStore()
@@ -41,6 +41,14 @@ const editing = useEditingStore()
 const toast = useToastStore()
 
 const targetName = computed(() => props.target ?? activeTarget.activeTargetName ?? null)
+const targetInfo = computed(() => activeTarget.targets.find(t => t.name === targetName.value) ?? null)
+// A public target keeps no history (design-public-storage.md Q3); the
+// target that keeps its audit log is the private one to restore on.
+const publicStorage = computed(() => targetInfo.value?.publicStorage === true)
+const restoreOn = computed(() => {
+  const home = targetInfo.value?.auditHome
+  return home?.kind === 'target' ? home.name : null
+})
 
 const revisions = ref<RevisionSummary[]>([])
 const loading = ref(false)
@@ -48,7 +56,7 @@ const error = ref<string | null>(null)
 const restoringId = ref<string | null>(null)
 
 async function load() {
-  if (!targetName.value) {
+  if (!targetName.value || publicStorage.value) {
     revisions.value = []
     return
   }
@@ -148,7 +156,15 @@ function isHead(rev: RevisionSummary): boolean {
     :header="`History — ${targetName ?? '(no target)'}`"
     :style="{ width: '620px', maxWidth: '95vw' }"
     data-testid="history-panel">
-    <div v-if="loading && revisions.length === 0" class="state-loading" data-testid="history-loading">
+    <div v-if="publicStorage" class="state-empty" data-testid="history-public-storage">
+      <span>
+        This target doesn't keep history because its storage is public.<template v-if="restoreOn">
+        To roll back, restore the page on <code>{{ restoreOn }}</code> and publish it again.</template>
+        <Button label="About this target" text size="small" data-testid="history-public-storage-about"
+          @click="emit('open-capabilities')" />
+      </span>
+    </div>
+    <div v-else-if="loading && revisions.length === 0" class="state-loading" data-testid="history-loading">
       <Spinner strokeWidth="4" />
       <span>Loading revisions…</span>
     </div>
@@ -205,6 +221,10 @@ function isHead(rev: RevisionSummary): boolean {
   border-radius: var(--radius-sm);
 }
 .state-error { color: var(--color-danger-fg); border-color: var(--color-danger-fg); }
+code {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
 
 .revisions {
   list-style: none;
