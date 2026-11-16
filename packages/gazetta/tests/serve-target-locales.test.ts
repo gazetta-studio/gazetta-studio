@@ -70,6 +70,17 @@ describe('gazetta serve on an ESI target follows the target languages (#1146)', 
     expect((await app.request('http://localhost/fr/about')).status).toBe(404)
   })
 
+  it('without defaultPrefix the default language has no prefixed route', async () => {
+    const app = createServer({
+      storage: esiStorage(),
+      type: 'dynamic',
+      ...serveLocaleOptions(SITE, {} as TargetConfig),
+    })
+
+    expect((await app.request('http://localhost/en/about')).status).toBe(404)
+    expect(await (await app.request('http://localhost/about')).text()).toContain('About EN')
+  })
+
   it('defaultPrefix serves the default language under its prefix', async () => {
     const app = createServer({ storage: esiStorage(), type: 'dynamic', ...serveLocaleOptions(SITE, PREFIXED) })
 
