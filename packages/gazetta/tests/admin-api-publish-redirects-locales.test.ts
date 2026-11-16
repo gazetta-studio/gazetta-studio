@@ -133,11 +133,10 @@ describe('publish route — redirects rows per target language (#1130)', () => {
     expect(body.trim().split('\n')).toHaveLength(2)
   })
 
-  it('still writes the default-language rows when the target locale subset excludes the site default', async () => {
-    // The target's locales filter only gates variants: default-locale
-    // content is still published at the unprefixed route, so its rows
-    // must not disappear (regression: an earlier cut emitted only the
-    // /fr rows here).
+  it('a French-only target writes French rows at unprefixed routes and no English rows (#1146)', async () => {
+    // A single-language target serves its language without a prefix and
+    // publishes nothing in the site default (design-i18n.md "Target
+    // locale rules"); its rows name the routes it serves.
     const { app, targetStorage } = buildApp({
       manifestExtra: { locales: { default: 'en', supported: ['en', 'fr'] } },
       targetConfigExtra: { locales: ['fr'] },
@@ -147,9 +146,60 @@ describe('publish route — redirects rows per target language (#1130)', () => {
 
     expect(body).toContain('/landing  /welcome  301')
     expect(body).toContain('/old  /  410')
-    expect(body).toContain('/fr/landing  /fr/welcome  301')
-    expect(body).toContain('/fr/old  /  410')
+    expect(body).not.toContain('/fr/')
+    expect(body).not.toContain('/en/')
+    expect(body.trim().split('\n')).toHaveLength(2)
+  })
+
+  it('prefixes the site default when the target default is another language (#1146)', async () => {
+    const { app, targetStorage } = buildApp({
+      manifestExtra: { locales: { default: 'en', supported: ['en', 'fr'] } },
+      targetConfigExtra: { locale: 'fr', locales: ['fr', 'en'] },
+    })
+
+    const body = await publishAndReadRedirects(app, targetStorage)
+
+    expect(body).toContain('/landing  /welcome  301')
+    expect(body).toContain('/en/landing  /en/welcome  301')
+    expect(body).toContain('/old  /  410')
+    expect(body).toContain('/en/old  /  410')
     expect(body.trim().split('\n')).toHaveLength(4)
+  })
+
+  it('prefixes every language with defaultPrefix (#1146)', async () => {
+    const { app, targetStorage } = buildApp({
+      manifestExtra: { locales: { default: 'en', supported: ['en', 'fr'] } },
+      targetConfigExtra: { defaultPrefix: true },
+    })
+
+    const body = await publishAndReadRedirects(app, targetStorage)
+
+    expect(body).toContain('/en/landing  /en/welcome  301')
+    expect(body).toContain('/fr/landing  /fr/welcome  301')
+    expect(body).toContain('/en/old  /  410')
+    expect(body).not.toMatch(/^\/landing /m)
+    expect(body.trim().split('\n')).toHaveLength(4)
+  })
+
+  it('falls back to the target default language when a French-only destination lacks French (#1146)', async () => {
+    const { app, targetStorage } = buildApp({
+      manifestExtra: { locales: { default: 'en', supported: ['en', 'fr'] } },
+      targetConfigExtra: { locales: ['fr'] },
+      seedExtra: {
+        'pages/contact/page.json': JSON.stringify({ template: 'page-default', content: {} }),
+        'pages/obsolete/page.json': JSON.stringify({
+          template: 'page-default',
+          content: {},
+          archived: true,
+          aliasOf: 'contact',
+        }),
+      },
+    })
+
+    const body = await publishAndReadRedirects(app, targetStorage)
+
+    expect(body).toContain('/obsolete  /contact  301')
+    expect(body).not.toContain('/en/')
   })
 
   it('points a language row at the destination default-language page when the destination lacks that language (#1124 Q10)', async () => {

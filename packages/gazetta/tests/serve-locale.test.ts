@@ -283,7 +283,13 @@ describe('serveLocaleOptions', () => {
         name: 'test',
         locales: { supported: ['en', 'fr'], default: 'en', defaultPrefix: false, detection: true },
       }),
-    ).toEqual({ locales: ['en', 'fr'], defaultLocale: 'en', defaultPrefix: false, detection: true })
+    ).toEqual({
+      locales: ['en', 'fr'],
+      defaultLocale: 'en',
+      defaultPrefix: false,
+      detection: true,
+      contentLocale: 'en',
+    })
   })
 
   it('returns empty options when the site has no locales config', () => {
@@ -313,7 +319,8 @@ describe('detection with defaultPrefix', () => {
   it('does not treat the default locale prefix as unlocalized', async () => {
     const storage = memoryStorage()
     storage.seed({
-      'pages/about/index.en.html': '<!DOCTYPE html><html><body>About EN</body></html>',
+      // Publish stores the site's default language as index.html.
+      'pages/about/index.html': '<!DOCTYPE html><html><body>About EN</body></html>',
       'pages/about/index.fr.html': '<!DOCTYPE html><html><body>\u00c0 propos</body></html>',
     })
     const app = createServer({

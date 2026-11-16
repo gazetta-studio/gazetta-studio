@@ -268,11 +268,11 @@ describe('serve archive markers (static, localized)', () => {
     expect(res.headers.get('cache-control')).toBe(ARCHIVE_CACHE_CONTROL)
   })
 
-  it('does not prefix the default language on static targets with defaultPrefix on', async () => {
-    // Static publish writes default-language pages unprefixed until #1146.
+  it('prefixes the default language on static targets with defaultPrefix on (#1146)', async () => {
+    // Static publish writes the default language under its prefix there.
     const storage = memoryStorage()
     storage.seed({
-      '/welcome/index.html': LIVE_PAGE,
+      '/en/welcome/index.html': LIVE_PAGE,
       '/fr/landing/index.html': archiveMarker({ kind: 'alias', target: 'welcome' }),
     })
     const app = createServer({
@@ -285,7 +285,7 @@ describe('serve archive markers (static, localized)', () => {
 
     const res = await app.request('http://localhost/fr/landing')
     expect(res.status).toBe(301)
-    expect(res.headers.get('location')).toBe('/welcome')
+    expect(res.headers.get('location')).toBe('/en/welcome')
   })
 
   it('still keeps the request language with defaultPrefix on when the destination version exists', async () => {
