@@ -40,8 +40,8 @@ export interface ArchiveSummary {
  *
  *   /from  /to  301        — permanent alias redirect
  *
- * Cloudflare and Netlify both default to 301 when status is omitted,
- * but we emit it explicitly for forensic clarity. An archive without
+ * Netlify defaults to 301 and Cloudflare Pages to 302 when the status
+ * is omitted, so we always write it. An archive without
  * an alias gets no row: Cloudflare Pages can't return 410 from
  * `_redirects` and Netlify doesn't document it, so the host answers
  * 404 there (design-redirects.md, #1149).
