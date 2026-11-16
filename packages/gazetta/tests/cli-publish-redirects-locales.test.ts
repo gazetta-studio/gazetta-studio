@@ -59,11 +59,21 @@ async function seedArchivedPages(projectDir: string): Promise<void> {
   )
 }
 
-async function addRedirectsFormat(projectDir: string): Promise<void> {
+async function addRedirectsFormat(projectDir: string, extra = ''): Promise<void> {
   const configPath = join(projectDir, 'sites/main/site.config.ts')
   const config = await readFile(configPath, 'utf8')
-  const updated = config.replace('staging: {', "staging: {\n      redirects: { format: 'cloudflare' as const },")
+  const updated = config.replace(
+    'staging: {',
+    `staging: {\n      redirects: { format: 'cloudflare' as const },${extra}`,
+  )
   await writeFile(configPath, updated)
+}
+
+async function exists(path: string): Promise<boolean> {
+  return readFile(path).then(
+    () => true,
+    () => false,
+  )
 }
 
 describe('gazetta publish — redirects rows per target language (#1130)', { timeout: 120000 }, () => {
@@ -120,5 +130,85 @@ describe('gazetta publish — redirects rows per target language (#1130)', { tim
     const second = await runCli(projectDir, ['publish', 'staging', 'sites/main', '--force'])
     expect(second.code).toBe(0)
     await expect(readFile(redirectsPath, 'utf8')).rejects.toThrow()
+  })
+})
+
+describe("gazetta publish — the target's own language settings (#1146)", { timeout: 120000 }, () => {
+  let projectDir: string
+  const staging = () => join(projectDir, 'sites/main/dist/staging')
+
+  async function setup(extra: string): Promise<void> {
+    projectDir = tempDir(`cli-publish-target-langs-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+    await cp(starterDir, projectDir, {
+      recursive: true,
+      filter: src => !src.includes('/node_modules') && !src.includes('/dist'),
+    })
+    await seedArchivedPages(projectDir)
+    await addRedirectsFormat(projectDir, `\n      siteUrl: 'https://example.test',${extra}`)
+  }
+
+  afterEach(async () => {
+    await rm(projectDir, { recursive: true, force: true })
+  })
+
+  it('serves French unprefixed and English under /en on a French-default target', async () => {
+    await setup("\n      locale: 'fr',\n      locales: ['fr', 'en'],")
+    const res = await runCli(projectDir, ['publish', 'staging', 'sites/main', '--force'])
+    expect(res.code, res.output).toBe(0)
+
+    expect(await exists(join(staging(), 'welcome/index.html'))).toBe(true)
+    expect(await exists(join(staging(), 'en/welcome/index.html'))).toBe(true)
+    expect(await exists(join(staging(), 'fr/welcome/index.html'))).toBe(false)
+    // Languages outside the target's locales aren't published.
+    expect(await exists(join(staging(), 'ar/index.html'))).toBe(false)
+    expect(await exists(join(staging(), 'ja/index.html'))).toBe(false)
+
+    const sitemap = await readFile(join(staging(), 'sitemap.xml'), 'utf8')
+    expect(sitemap).toContain('<loc>https://example.test/welcome</loc>')
+    expect(sitemap).toContain('<loc>https://example.test/en/welcome</loc>')
+    expect(sitemap).not.toContain('https://example.test/fr/')
+    expect(sitemap).not.toContain('https://example.test/ar/')
+
+    const redirects = await readFile(join(staging(), '_redirects'), 'utf8')
+    expect(redirects).toContain('/landing  /welcome  301')
+    expect(redirects).toContain('/en/landing  /en/welcome  301')
+    expect(redirects).toContain('/old  /  410')
+    expect(redirects).toContain('/en/old  /  410')
+    expect(redirects).not.toContain('/fr/')
+    expect(redirects).not.toContain('/ar/')
+  })
+
+  it('prefixes the default language too with defaultPrefix', async () => {
+    await setup('\n      defaultPrefix: true,')
+    const res = await runCli(projectDir, ['publish', 'staging', 'sites/main', '--force'])
+    expect(res.code, res.output).toBe(0)
+
+    expect(await exists(join(staging(), 'en/welcome/index.html'))).toBe(true)
+    expect(await exists(join(staging(), 'fr/welcome/index.html'))).toBe(true)
+    expect(await exists(join(staging(), 'welcome/index.html'))).toBe(false)
+
+    const sitemap = await readFile(join(staging(), 'sitemap.xml'), 'utf8')
+    expect(sitemap).toContain('<loc>https://example.test/en/welcome</loc>')
+    expect(sitemap).toContain('<loc>https://example.test/fr/welcome</loc>')
+    expect(sitemap).not.toContain('<loc>https://example.test/welcome</loc>')
+
+    const redirects = await readFile(join(staging(), '_redirects'), 'utf8')
+    expect(redirects).toContain('/en/landing  /en/welcome  301')
+    expect(redirects).toContain('/fr/landing  /fr/welcome  301')
+    expect(redirects).not.toMatch(/^\/landing /m)
+  })
+
+  it("publishes only the target's languages: a French-only target skips the English files", async () => {
+    await setup("\n      locales: ['fr'],")
+    const res = await runCli(projectDir, ['publish', 'staging', 'sites/main', '--force'])
+    expect(res.code, res.output).toBe(0)
+
+    // welcome's French version is served unprefixed; page.json (English) isn't published.
+    expect(await exists(join(staging(), 'welcome/index.html'))).toBe(true)
+    expect(await exists(join(staging(), 'en/welcome/index.html'))).toBe(false)
+
+    const sitemap = await readFile(join(staging(), 'sitemap.xml'), 'utf8')
+    expect(sitemap).toContain('<loc>https://example.test/welcome</loc>')
+    expect(sitemap).not.toContain('https://example.test/en/')
   })
 })
