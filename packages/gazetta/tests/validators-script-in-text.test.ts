@@ -82,6 +82,21 @@ describe('script-in-text at save', () => {
     expect(issue).toMatchObject({ message: "Script isn't allowed in link: remove <script>.", subject: '<script>' })
   })
 
+  it.each([
+    ['<a href="javascript:x">y</a>', 'javascript:'],
+    ['<iframe src=javascript:1></iframe>', 'javascript:'],
+    ['<button formaction=javascript:x>go</button>', 'javascript:'],
+    ['<svg><animate onbegin=alert(1)></animate></svg>', 'onbegin'],
+    ['<a href="vbscript:x">y</a>', 'vbscript:'],
+  ])('refuses %j, naming what runs script', async (value, what) => {
+    const [issue] = await save({ link: value })
+    expect(issue).toMatchObject({ message: `Script isn't allowed in link: remove ${what}.`, subject: what })
+  })
+
+  it('lets markup with a safe link save', async () => {
+    expect(await save({ link: '<a href="https://example.com">y</a>' })).toEqual([])
+  })
+
   it.each(['a < b', '<b>bold</b>', 'https://example.com', 'Notes: see below'])('lets %j save', async value => {
     expect(await save({ title: value })).toEqual([])
   })

@@ -9,6 +9,7 @@
  * hooks.
  */
 import DOMPurify from 'isomorphic-dompurify'
+import { unsafeAddressScheme } from './unsafe-address.js'
 
 const FORBID_TAGS = [
   'script',
@@ -96,8 +97,10 @@ function fixLinkRel(html: string): string {
 }
 
 /**
- * The script DOMPurify would remove from `value`: `<script>` elements and
- * `on*` event-handler attributes, each named once (`<script>`, `onerror`).
+ * The script DOMPurify would remove from `value`, each named once: `<script>`
+ * elements, `on*` event-handler attributes (also on an element removed
+ * whole, such as `<animate onbegin>`), and the scheme of an unsafe address
+ * in a removed attribute (`javascript:` in `href`, `src`, `formaction`).
  * Plain text such as `a < b` or `<b>` holds none. Used by the save check on
  * plain text fields (design-content-trust.md Q2).
  */
@@ -106,12 +109,20 @@ export function findScript(value: string): string[] {
   // FORCE_BODY: a leading `<script>` would otherwise be parsed into <head> and dropped unrecorded.
   DOMPurify.sanitize(value, { FORCE_BODY: true })
   const found = new Set<string>()
+  const checkAttribute = (attr: Attr): void => {
+    const name = attr.name.toLowerCase()
+    if (name.startsWith('on')) found.add(name)
+    else {
+      const scheme = unsafeAddressScheme(attr.value)
+      if (scheme) found.add(scheme)
+    }
+  }
   for (const removed of DOMPurify.removed as Array<{ element?: Node; attribute?: Attr | null }>) {
-    if (removed.attribute) {
-      const name = removed.attribute.name.toLowerCase()
-      if (name.startsWith('on')) found.add(name)
-    } else if (removed.element && removed.element.nodeName.toLowerCase() === 'script') {
-      found.add('<script>')
+    if (removed.attribute) checkAttribute(removed.attribute)
+    else if (removed.element) {
+      if (removed.element.nodeName.toLowerCase() === 'script') found.add('<script>')
+      const attributes = (removed.element as Element).attributes
+      if (attributes) for (const attr of Array.from(attributes)) checkAttribute(attr)
     }
   }
   return [...found]
