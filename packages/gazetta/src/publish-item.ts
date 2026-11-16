@@ -296,10 +296,19 @@ async function cleanupOldFiles(
  * (`versionRoutePrefix`, target-locales.ts).
  */
 export function staticPageIndexPath(route: string, prefix = ''): string {
-  const base = route === '/' ? '' : route.replace(/^\/+|\/+$/g, '')
-  const lang = prefix.replace(/^\/+|\/+$/g, '')
+  const base = route === '/' ? '' : trimSlashes(route)
+  const lang = trimSlashes(prefix)
   const urlPath = lang ? (base ? `${lang}/${base}` : lang) : base
   return urlPath ? `${urlPath}/index.html` : 'index.html'
+}
+
+/** Strips leading and trailing `/`, in linear time (a regex alternation is polynomial on long runs of `/`). */
+function trimSlashes(value: string): string {
+  let start = 0
+  let end = value.length
+  while (start < end && value[start] === '/') start++
+  while (end > start && value[end - 1] === '/') end--
+  return value.slice(start, end)
 }
 
 async function removeIfExists(storage: StorageProvider, path: string): Promise<void> {
