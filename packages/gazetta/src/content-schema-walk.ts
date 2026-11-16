@@ -62,8 +62,9 @@ export interface ContentString {
 
 /**
  * Rebuild `content`, passing every string to `fn` with what its schema says
- * about it; non-string values are copied. Strings with no schema are passed
- * through without calling `fn`.
+ * about it; non-string values are copied. Strings no schema describes
+ * (`z.any()`, `z.record(z.string(), z.unknown())`, undeclared keys) reach
+ * `fn` too, with no formats, so the save check sees them as plain text.
  */
 export function mapContentStrings(content: unknown, root: JsonSchema, fn: (s: ContentString) => string): unknown {
   return mapValue(content, [root], root, [], undefined, fn)
@@ -177,7 +178,6 @@ function mapValue(
   label: string | undefined,
   fn: (s: ContentString) => string,
 ): unknown {
-  if (schemas.length === 0) return value
   const nodes = candidates(schemas, root)
   const ownLabel = titleOf(nodes) ?? label
 

@@ -24,6 +24,8 @@ export const schema = z.object({
   cta: z.object({ label: z.string() }).optional(),
   tags: z.array(z.string()).meta({ title: 'Tags' }).optional(),
   items: z.array(z.object({ href: z.string() })).optional(),
+  data: z.any().optional(),
+  meta: z.record(z.string(), z.unknown()).optional(),
 })
 export default () => ({ html: '', css: '', js: '' })
 `
@@ -134,6 +136,19 @@ describe('script-in-text at save', () => {
       ['cta.label', "Script isn't allowed in label: remove onload."],
       ['tags.1', "Script isn't allowed in Tags: remove onerror."],
       ['items.0.href', "Script isn't allowed in href: remove javascript:."],
+    ])
+  })
+
+  it('finds script in values no schema describes: z.any, records of unknown and undeclared keys', async () => {
+    const issues = await save({
+      data: { links: [{ href: 'javascript:x' }] },
+      meta: { nested: { caption: '<img src=x onerror=y>' } },
+      extra: '<script>x</script>',
+    })
+    expect(issues.map(i => [i.field, i.subject])).toEqual([
+      ['data.links.0.href', 'javascript:'],
+      ['meta.nested.caption', 'onerror'],
+      ['extra', '<script>'],
     ])
   })
 

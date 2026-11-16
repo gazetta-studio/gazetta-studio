@@ -3,7 +3,7 @@
  * fragments, and nothing is written (design-content-trust.md Q2). Script an
  * item already held doesn't block a save of another field (Q3).
  */
-import { cp, mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createAdminApp } from '../src/admin-api/index.js'
@@ -20,6 +20,14 @@ beforeAll(async () => {
   for (const name of ['hero', 'page-default']) {
     await cp(join(starterTemplatesDir, name), join(templatesDir, name), { recursive: true })
   }
+  await mkdir(join(templatesDir, 'loose'), { recursive: true })
+  await writeFile(
+    join(templatesDir, 'loose', 'index.ts'),
+    `import { z } from 'zod'
+export const schema = z.object({ data: z.any().optional(), meta: z.record(z.string(), z.unknown()).optional() })
+export default () => ({ html: '', css: '', js: '' })
+`,
+  )
 })
 afterAll(async () => {
   await rm(resolve(templatesDir, '..'), { recursive: true, force: true })
@@ -103,6 +111,24 @@ describe('save refuses script in plain text fields', () => {
       "Script isn't allowed in subtitle: remove javascript:.",
     ])
     expect(await local.readFile('fragments/banner/fragment.json')).toBe(stored)
+  })
+
+  it('answers 409 for script in values no schema describes and writes nothing', async () => {
+    const { app, local } = setup()
+    const stored = await local.readFile('pages/home/page.json')
+    const res = await put(app, 'pages/home', {
+      components: [
+        hero({ title: 'Hello', extra: '<img src=x onerror=y>' }),
+        {
+          name: 'loose',
+          template: 'loose',
+          content: { data: { links: [{ href: 'javascript:x' }] }, meta: { nested: { caption: '<script>x</script>' } } },
+        },
+      ],
+    })
+    expect(res.status).toBe(409)
+    expect((await scriptIssues(res)).map(i => i.field)).toEqual(['extra', 'data.links.0.href', 'meta.nested.caption'])
+    expect(await local.readFile('pages/home/page.json')).toBe(stored)
   })
 
   it('saves plain text that only looks like markup', async () => {

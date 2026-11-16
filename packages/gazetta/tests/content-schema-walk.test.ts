@@ -71,10 +71,24 @@ describe('mapContentStrings', () => {
     ])
   })
 
-  it('rebuilds the content with what fn returns and leaves unknown keys alone', () => {
+  it('rebuilds the content with what fn returns', () => {
     const root = contentJsonSchema(z.object({ a: z.string(), n: z.number() }))
-    const out = mapContentStrings({ a: 'x', n: 1, extra: 'y' }, root, s => s.value.toUpperCase())
-    expect(out).toEqual({ a: 'X', n: 1, extra: 'y' })
+    const out = mapContentStrings({ a: 'x', n: 1 }, root, s => s.value.toUpperCase())
+    expect(out).toEqual({ a: 'X', n: 1 })
+  })
+
+  it('passes strings no schema describes to fn with no formats, at any depth', () => {
+    const schema = z.object({ any: z.any(), loose: z.record(z.string(), z.unknown()) })
+    const found = visit(schema, {
+      any: { links: [{ href: 'h' }] },
+      loose: { nested: { title: 't' } },
+      extra: 'e',
+    })
+    expect(found).toEqual([
+      ['any.links.0.href', 'h', [], 'href'],
+      ['loose.nested.title', 't', [], 'title'],
+      ['extra', 'e', [], 'extra'],
+    ])
   })
 })
 

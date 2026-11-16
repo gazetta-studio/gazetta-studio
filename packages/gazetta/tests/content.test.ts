@@ -167,6 +167,16 @@ describe('processContent sanitizing', () => {
     expect(processContent({ title: '<b>x</b>' }, schema)?.title).toBe('<b>x</b>')
   })
 
+  it('leaves values no schema describes unchanged (z.any, records of unknown, undeclared keys)', () => {
+    const schema = z.object({ any: z.any(), loose: z.record(z.string(), z.unknown()) })
+    const content = {
+      any: { links: [{ href: 'javascript:x', label: '<img src=x onerror=y>' }] },
+      loose: { nested: { title: '<script>x</script>' } },
+      extra: '<b>e</b>',
+    }
+    expect(processContent(structuredClone(content), schema)).toEqual(content)
+  })
+
   it('converts and sanitizes Markdown nested in objects and array items', () => {
     const schema = z.object({
       card: z.object({ text: z.string().meta(format.markdown()) }),
