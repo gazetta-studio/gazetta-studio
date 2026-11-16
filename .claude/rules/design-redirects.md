@@ -100,10 +100,12 @@ publish writes none there
 303, 307 and 308, plus 200 for proxying, so not 410
 ([Cloudflare docs](https://developers.cloudflare.com/pages/configuration/redirects/)).
 With a row per language, a four-language target reaches 2,000 rows at
-500 archived pages. Publish is to warn past the limit, and
-`format: 'cloudflare'` to write no 410 rows
-([#1149](https://github.com/gazetta-studio/gazetta-studio/issues/1149));
-until then it writes them and doesn't warn. Without a 410 row, Pages
+500 archived pages with an alias. Publishing to a `format: 'cloudflare'`
+target warns past the limit (a line after the file's in
+`gazetta publish`, and the `cloudflare-redirects-limit` validator in the
+pre-publish audit and `gazetta validate`), and the format writes no 410
+rows ([#1149](https://github.com/gazetta-studio/gazetta-studio/issues/1149)).
+Without a 410 row, Pages
 shows the target's `404.html` for an archive without an alias, once
 static publish writes no file at the route and writes that page
 ([#1152](https://github.com/gazetta-studio/gazetta-studio/issues/1152)).
@@ -124,8 +126,7 @@ worker, `gazetta serve`, a dynamic origin), the more precise answer
 ([HTTP status codes](https://developers.google.com/crawling/docs/troubleshooting/http-status-codes)).
 
 Same mechanism: HTML marker `<!-- gazetta:archived gone -->` on
-worker-served targets. Once #1149 lands, `_redirects` writes no 410
-rows: Cloudflare Pages can't return 410 from `_redirects` (Cloudflare
+worker-served targets. `_redirects` writes no 410 rows: Cloudflare Pages can't return 410 from `_redirects` (Cloudflare
 Pages limits, above) and Netlify doesn't document it, so a removed page
 on a plain host answers 404 (#1149, #1152). `gone-status` is a worker
 capability.
@@ -260,11 +261,10 @@ Cloudflare Pages / Netlify (`format: 'cloudflare'` or `'netlify'`):
 
 ```
 /old-page    /new-page    301
-/retired     /            410
 ```
 
-Once #1149 lands, neither format writes `410` rows (Cloudflare Pages
-limits and 410 Gone, above); `json` keeps its `gone` list.
+Neither format writes `410` rows (Cloudflare Pages limits and 410 Gone,
+above); `json` keeps its `gone` list.
 
 Sorted alphabetically by source for determinism (same input → same
 file → host CDN cache hits when republishing).

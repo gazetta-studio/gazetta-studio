@@ -3,6 +3,7 @@ import { aliasOfPointsToArchived } from './validators/aliasof-points-to-archived
 import { altRequired } from './validators/alt-required.js'
 import { archiveNotSupportedOnTarget } from './validators/archive-not-supported-on-target.js'
 import { brokenLinks } from './validators/broken-links.js'
+import { cloudflareRedirectsLimit } from './validators/cloudflare-redirects-limit.js'
 import { circularAlias } from './validators/circular-alias.js'
 import { circularFragment } from './validators/circular-fragment.js'
 import { danglingAlias } from './validators/dangling-alias.js'
@@ -49,6 +50,8 @@ export function defaultValidatorRegistry(): ValidatorRegistry {
     circularAlias,
     archiveNotSupportedOnTarget,
     aliasOfPointsToArchived,
+    // Cloudflare Pages' _redirects row limit (design-redirects.md, #1149).
+    cloudflareRedirectsLimit,
     // Deploy validators per design-deploy.md Cut 2.
     deployTargetTypeSupported,
     targetDeployCoverage,

@@ -421,13 +421,13 @@ export interface TargetConfig {
  * else is sourced from the per-page HTML marker.
  *
  *   - `cloudflare`: `_redirects` file in Cloudflare Pages format.
- *     Lines: `<from>  <to>  301` for aliased archives, `<from>  /  410`
- *     for soft-deletes.
+ *     Lines: `<from>  <to>  301` for aliased archives; soft-deletes get
+ *     no row, since Pages can't return 410 from `_redirects` (#1149).
  *   - `netlify`: `_redirects` in Netlify's format (same syntax as
  *     Cloudflare for the patterns we emit).
  *   - `json`: `redirects.json` for custom integrations — structured
  *     `{ redirects: [...], gone: [...] }` shape; operator wires their
- *     own host glue.
+ *     own host glue. The only format that lists soft-deletes.
  *   - `none`: no file emitted. Default for non-CDN-format storage.
  */
 export type RedirectsFormat = 'cloudflare' | 'netlify' | 'json' | 'none'

@@ -18,12 +18,14 @@ The capability vocabulary is a closed enum that grows additively as new features
 | Target type                                     | `redirects` | `gone-status` | Notes                                              |
 | ----------------------------------------------- | ----------- | ------------- | -------------------------------------------------- |
 | `static` + Cloudflare Worker                    | ✓           | ✓             | Worker reads HTML markers, emits 301/410           |
-| `static` + `redirects.format: 'cloudflare'`     | ✓           | ✓             | Cloudflare Pages honors `_redirects` file          |
-| `static` + `redirects.format: 'netlify'`        | ✓           | ✓             | Netlify honors `_redirects` file                   |
-| `static` + `redirects.format: 'json'`           | ✓           | ✓             | Custom integrations consume `redirects.json`       |
+| `static` + `redirects.format: 'cloudflare'`     | ✓           | ✗             | Cloudflare Pages honors `_redirects` file          |
+| `static` + `redirects.format: 'netlify'`        | ✓           | ✗             | Netlify honors `_redirects` file                   |
+| `static` + `redirects.format: 'json'`           | ✓           | ✗             | Custom integrations consume `redirects.json`       |
 | `static` (no worker, no redirects)              | ✗           | ✗             | Plain-static; falls back to host's natural 404     |
 | `esi`                                           | ✓           | ✓             | Worker is required for ESI assembly                |
 | `dynamic`                                       | ✓           | ✓             | Origin server emits 301/410 directly               |
+
+Only a worker or an origin server sends `410 Gone`. Cloudflare Pages can't return 410 from `_redirects`, and Netlify doesn't document it, so the `cloudflare` and `netlify` files have no row for an archived page without an alias, and it answers 404. The `json` file still lists those pages under `gone`, for custom integrations that can send 410.
 
 For plain-static targets, the **host's 404** is the floor: visitors hitting a missing URL get whatever the host shows for a missing file. Every publish to a static target writes `404.html` at the target root: a copy of the site's `/404` page in the default language as published to that target, or a minimal "Page not found" page (marked `noindex`) until the 404 page is published there. Cloudflare Pages, Netlify and GitHub Pages show it for missing paths; an S3 website shows it when its error document is set to `404.html`. `gazetta serve` on a static target answers missing paths with it too, with status 404. Google treats 404 and 410 alike and drops the URL either way ([HTTP status codes](https://developers.google.com/crawling/docs/troubleshooting/http-status-codes)).
 
@@ -93,10 +95,11 @@ Wire format:
 
 ```text
 /old-page    /new-page    301
-/retired                  410
 ```
 
-Sorted alphabetically by source for determinism — the same input produces the same file, so host CDN caches hit when you republish unchanged.
+One row per archived page with an alias, per language the target publishes; an archived page without an alias gets none. Sorted alphabetically by source for determinism — the same input produces the same file, so host CDN caches hit when you republish unchanged.
+
+Cloudflare Pages reads at most 2,000 static rows from `_redirects` ([Cloudflare docs](https://developers.cloudflare.com/pages/configuration/redirects/)). When a `cloudflare` target's file would have more, `gazetta publish` prints a warning after the `_redirects` line, and `gazetta validate` and the admin's pre-publish audit show it as a warning. A four-language target reaches the limit at 500 archived pages with an alias.
 
 **`redirects.json` (custom integrations):**
 

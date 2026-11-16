@@ -39,13 +39,12 @@ export interface ArchiveSummary {
  * same syntax for the patterns we emit:
  *
  *   /from  /to  301        — permanent alias redirect
- *   /from  /    410        — soft-delete (gone)
  *
  * Cloudflare and Netlify both default to 301 when status is omitted,
- * but we emit it explicitly for forensic clarity. The `410` row uses
- * `/` as the destination because both hosts require a destination
- * column even for status-only rules; both will apply the status
- * regardless of where the destination points.
+ * but we emit it explicitly for forensic clarity. An archive without
+ * an alias gets no row: Cloudflare Pages can't return 410 from
+ * `_redirects` and Netlify doesn't document it, so the host answers
+ * 404 there (design-redirects.md, #1149).
  *
  * Sorted by `from` so the output is deterministic across publishes.
  * Determinism matters because the file is content-addressed
@@ -55,10 +54,12 @@ export interface ArchiveSummary {
 export function emitCloudflareRedirects(archives: ReadonlyArray<ArchiveSummary>): string {
   // Fields are separated by whitespace, so a route containing any would
   // split its row into more fields or rows; such a row is left out.
-  const rows = archives.filter(a => !/\s/.test(a.from) && (a.to === undefined || !/\s/.test(a.to)))
+  const rows = archives.filter(
+    (a): a is Required<ArchiveSummary> => a.to !== undefined && !/\s/.test(a.from) && !/\s/.test(a.to),
+  )
   if (rows.length === 0) return ''
   const sorted = [...rows].sort((a, b) => a.from.localeCompare(b.from))
-  const lines = sorted.map(a => (a.to ? `${a.from}  ${a.to}  301` : `${a.from}  /  410`))
+  const lines = sorted.map(a => `${a.from}  ${a.to}  301`)
   return lines.join('\n') + '\n'
 }
 

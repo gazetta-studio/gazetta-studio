@@ -69,7 +69,16 @@ type ValidatorScope =
        */
       manifest: PageManifest | FragmentManifest
     }
-  | { kind: 'pre-publish'; items: readonly SavedItem[] }
+  | {
+      kind: 'pre-publish'
+      items: readonly SavedItem[]
+      /**
+       * The destination this audit is for. The publish audit runs once per
+       * destination and a strict one promotes warnings to errors, so
+       * target-scoped checks report only this target.
+       */
+      target?: string
+    }
   | { kind: 'cli' }
 
 /**

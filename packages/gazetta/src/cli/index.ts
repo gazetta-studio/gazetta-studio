@@ -36,6 +36,7 @@ import { viteCacheDir } from './vite-cache-dir.js'
 import { devRoute } from './dev-routing.js'
 import { hasSiteConfig, loadSiteManifestForCli, resolveSiteDir, resolveTarget } from './resolve-site-target.js'
 import { isStatePath, STATE_ROOT } from '../state-folders.js'
+import { CLOUDFLARE_REDIRECTS_ROW_LIMIT, cloudflareRedirectsLimitMessage } from '../redirect-rows.js'
 
 // ANSI color helpers — no dependency, suppressed when NO_COLOR or CI
 const noColor = !!process.env.NO_COLOR || !process.stdout.isTTY
@@ -903,6 +904,9 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
     for (const file of shared.generatedFiles) {
       totalFiles++
       console.log(`    ${c.dim(`· ${file}`)}`)
+      if (file === '_redirects' && (shared.redirectsRows ?? 0) > CLOUDFLARE_REDIRECTS_ROW_LIMIT) {
+        console.log(`    ${c.yellow('⚠')} ${cloudflareRedirectsLimitMessage(name, shared.redirectsRows!)}`)
+      }
     }
 
     const removedMsg = totalRemoved > 0 ? c.dim(` (${totalRemoved} old files cleaned)`) : ''

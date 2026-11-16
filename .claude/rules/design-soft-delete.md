@@ -448,7 +448,7 @@ Decided: maintainer, 2026-10-24 (#1231).
 | Render it from the source's current 404 page on every publish, and say so in the docs | A publish of any other page also ships unpublished edits of the 404 page. |
 | Render it from the source only when `pages/404` is published in the same run, or when `404.html` is missing | A first publish without `pages/404` can still ship a draft. |
 
-**4. Removed pages answer 404 on every plain host.** `_redirects` writes no 410 rows for `netlify` either (#1149 drops them for `cloudflare`), so a removed page on a plain host answers 404 (an S3 website may answer 403), with the site's 404 page on Pages, Netlify and GitHub Pages. Q14's invariant 2 is scoped to match: 410 wherever Gazetta answers the request (Q14). `gone-status` stays a worker capability, as `inspectTarget` already says, and `docs/runtime-capabilities.md`, which marks it ✓ for these formats, is corrected. `json` keeps its gone list for custom integrations.
+**4. Removed pages answer 404 on every plain host.** `_redirects` writes no 410 rows for `netlify` either (#1149 dropped them for `cloudflare` too), so a removed page on a plain host answers 404 (an S3 website may answer 403), with the site's 404 page on Pages, Netlify and GitHub Pages. Q14's invariant 2 is scoped to match: 410 wherever Gazetta answers the request (Q14). `gone-status` stays a worker capability, as `inspectTarget` already says, and `docs/runtime-capabilities.md` marks it ✗ for these formats (corrected in #1149). `json` keeps its gone list for custom integrations.
 
 Decided: maintainer, 2026-10-23 (#1163).
 
@@ -636,7 +636,7 @@ Renames produce permanent (301) redirects. Temporary (302), scheduled (date-base
 4. HTML marker grammar is extensible (new markers land additively)
 5. Capability gap surfaced at four points (future redirect-lifecycle features inherit the pattern)
 
-Invariant 2 was scoped by #1152: plain hosts don't send 410 from `_redirects` (Cloudflare Pages doesn't support it, and Netlify doesn't document it, so Gazetta writes no such rows once #1149 lands), so they answer 404 (Q10, #1152 decision 4). Google treats 404 and 410 alike ([HTTP status codes](https://developers.google.com/crawling/docs/troubleshooting/http-status-codes)), so 410 is the more precise answer, not a search-engine requirement.
+Invariant 2 was scoped by #1152: plain hosts don't send 410 from `_redirects` (Cloudflare Pages doesn't support it, and Netlify doesn't document it, so Gazetta writes no such rows since #1149), so they answer 404 (Q10, #1152 decision 4). Google treats 404 and 410 alike ([HTTP status codes](https://developers.google.com/crawling/docs/troubleshooting/http-status-codes)), so 410 is the more precise answer, not a search-engine requirement.
 
 Decided: maintainer, 2026-10-23 (#1163).
 

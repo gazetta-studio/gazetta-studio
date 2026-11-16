@@ -163,6 +163,8 @@ export interface PublishToTargetResult {
   readonly generatedFiles: string[]
   /** Generated files deleted in step 4 (previously live, now empty). */
   readonly deletedFiles: string[]
+  /** Rows written to a Cloudflare Pages `_redirects` file, when step 4 wrote one. */
+  readonly redirectsRows?: number
   /** What the purge step did, for the caller to report. */
   readonly purge: PurgeOutcome
   /** Removals that deleted the item's files (or found them already gone). */
@@ -563,43 +565,16 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
   // for archive-driven redirects. Independent of siteUrl - the format
   // determines whether to emit at all.
   const redirectsFormat = targetConfig?.redirects?.format
+  let redirectsRows: number | undefined
   if (redirectsFormat && redirectsFormat !== 'none') {
     const { emitRedirects } = await import('./runtime/redirects-emit.js')
-    const { allPageEntries, deriveRoute } = await import('./site-loader.js')
-    const { localeRoutePrefix } = await import('./locale.js')
-    const { resolveTargetLanguages } = await import('./target-locales.js')
-    const archives: { from: string; to?: string }[] = []
-    // One row per language the target publishes, at the route its
-    // language rules give: a redirect keeps the visitor's language
-    // (#1124, #1146). Locale variant entries share the parent's archive
-    // state in v1 (per design-soft-delete.md future directions), so rows
-    // expand from the default-locale entry.
-    const languages = resolveTargetLanguages(siteManifest, targetConfig)
-    const rowLanguages = languages ? languages.target.supported : ['']
-    const prefixOf = (lang: string) => (languages && lang ? localeRoutePrefix(lang, languages.target) : '')
-    const atRoute = (prefix: string, route: string) => (route === '/' ? prefix || '/' : `${prefix}${route}`)
-    for (const entry of allPageEntries(site)) {
-      if (entry.page.archived !== true) continue
-      if (entry.locale) continue
-      const baseFrom = deriveRoute(entry.name)
-      const baseTo = entry.page.aliasOf ? deriveRoute(entry.page.aliasOf) : undefined
-      const destEntry = entry.page.aliasOf ? site.pageLocales.get(entry.page.aliasOf) : undefined
-      for (const lang of rowLanguages) {
-        const from = atRoute(prefixOf(lang), baseFrom)
-        // A language with no destination version falls back to the
-        // destination's page in the target's default language (#1124
-        // Q10): static publish only writes a language's route when the
-        // page has that version.
-        const destHasLang = !languages || lang === languages.contentDefault || (destEntry?.locales.has(lang) ?? false)
-        const destLang = destHasLang ? lang : (languages?.target.default ?? '')
-        const to = baseTo === undefined ? undefined : atRoute(prefixOf(destLang), baseTo)
-        archives.push(to !== undefined ? { from, to } : { from })
-      }
-    }
+    const { redirectArchives, redirectsRowCount } = await import('./redirect-rows.js')
+    const archives = redirectArchives(site, siteManifest, targetConfig)
     const result = emitRedirects(redirectsFormat, archives)
     if (result && result.body !== '') {
       await targetStorage.writeFile(result.filename, result.body)
       generatedFiles.push(result.filename)
+      if (redirectsFormat === 'cloudflare') redirectsRows = redirectsRowCount(result.body)
     } else if (result && (await targetStorage.exists(result.filename))) {
       // No redirect rows remain: delete a previously published file
       // rather than leaving it live (design-publish-undo.md Q4).
@@ -668,6 +643,7 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
     copiedFiles: copiedFiles + variantFiles,
     generatedFiles,
     deletedFiles,
+    ...(redirectsRows !== undefined ? { redirectsRows } : {}),
     purge,
     removed,
     removalFailures,

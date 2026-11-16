@@ -377,6 +377,7 @@ export function publishRoutes(
         registry: opts.validators,
         cache: source.cache,
         strict,
+        target: targetName,
         targetLocales: targetCfg?.locales,
         templatesDir: site.templatesDir,
       })
@@ -1528,6 +1529,7 @@ export function publishRoutes(
         registry: opts.validators,
         cache: source.cache,
         strict,
+        target: targetName,
         targetLocales: targetCfg?.locales,
         templatesDir: site.templatesDir,
       })

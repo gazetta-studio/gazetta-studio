@@ -40,13 +40,15 @@ export interface RunPublishAuditOptions {
   cache?: AdminCache
   /** Per-target strict flag — promotes warns to errors when true. */
   strict: boolean
+  /** The destination being audited; target-scoped validators check only it. */
+  target?: string
   /** Destination locale filter for variants expanded from bare item names. */
   targetLocales?: readonly string[]
   templatesDir?: string
 }
 
 export async function runPublishAudit(opts: RunPublishAuditOptions): Promise<Issue[]> {
-  const { items, site, contentRoot, storage, registry, cache, strict, targetLocales, templatesDir } = opts
+  const { items, site, contentRoot, storage, registry, cache, strict, target, targetLocales, templatesDir } = opts
 
   const validators = registry.forStage('pre-publish')
   if (validators.length === 0) return []
@@ -115,7 +117,7 @@ export async function runPublishAudit(opts: RunPublishAuditOptions): Promise<Iss
         site,
         contentRoot,
         storage,
-        scope: { kind: 'pre-publish', items: savedItems },
+        scope: { kind: 'pre-publish', items: savedItems, ...(target !== undefined ? { target } : {}) },
         renderedOutput,
       })
       out.push(...issues)
