@@ -2,14 +2,19 @@ import GithubSlugger from 'github-slugger'
 import { Marked } from 'marked'
 import { createHighlighter, type Highlighter } from 'shiki'
 import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { format, type TemplateFunction } from 'gazetta'
 
 // Docs page renderer. Content is the page's Markdown source as one plain
 // string (scripts/docs-pages.ts rewrites links and prepends the banner);
 // this template does the Markdown → HTML rendering: syntax highlighting,
 // GitHub-compatible heading ids with a visible # link, and an "On this
 // page" list of the H2/H3 headings.
-export const schema = z.string().describe('Markdown source of the docs page')
+// A code field: the save check leaves it alone, so `<script>` and JSX in
+// code examples don't count as script (design-content-trust.md Q2).
+export const schema = z
+  .string()
+  .meta(format.code({ language: 'markdown' }))
+  .describe('Markdown source of the docs page')
 
 // Languages highlighted with Shiki; anything else renders as plain text.
 const HIGHLIGHT_LANGS = [
