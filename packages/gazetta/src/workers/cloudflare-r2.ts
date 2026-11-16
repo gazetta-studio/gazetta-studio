@@ -27,6 +27,7 @@
 import { Hono } from 'hono'
 import { assembleEsi, parseCacheComment } from '../assemble.js'
 import { archiveResponse } from '../runtime/archive-response.js'
+import { routeRequest, type LocaleRouting } from '../runtime/locale-route.js'
 import { fetchFragmentEntries } from '../runtime/fragment-fetch.js'
 import { stateFolderPath } from '../state-folders.js'
 import { isPublicSitePath } from '../public-site-path.js'
@@ -41,6 +42,8 @@ export interface CloudflareR2WorkerOptions {
   defaultLocale?: string
   /** When true, the default locale also gets a URL prefix (e.g. /en/about). */
   defaultPrefix?: boolean
+  /** The site's default language: its pages are `index.html`, other languages `index.<locale>.html`. Defaults to `defaultLocale`. */
+  contentLocale?: string
   /** Custom middleware to add before page serving */
   middleware?: (app: Hono<{ Bindings: Record<string, R2Bucket> }>) => void
 }
@@ -79,19 +82,6 @@ function generationCacheKey(request: Request, generation: string): Request {
 }
 
 // ---------------------------------------------------------------------------
-// Locale extraction (same logic as serve.ts — SRP)
-// ---------------------------------------------------------------------------
-
-function extractLocale(requestPath: string, locales: string[]): { locale: string | undefined; path: string } {
-  if (locales.length === 0) return { locale: undefined, path: requestPath }
-  const parts = requestPath.split('/').filter(Boolean)
-  if (parts.length > 0 && locales.includes(parts[0])) {
-    return { locale: parts[0], path: '/' + parts.slice(1).join('/') || '/' }
-  }
-  return { locale: undefined, path: requestPath }
-}
-
-// ---------------------------------------------------------------------------
 // Fragment fetching with locale fallback (SRP)
 // ---------------------------------------------------------------------------
 
@@ -118,19 +108,22 @@ async function findPage(
   bucket: R2Bucket,
   requestPath: string,
   locales?: string[],
+  routing?: Omit<LocaleRouting, 'locales'>,
 ): Promise<{ html: string; locale: string | undefined; params?: Record<string, string> } | null> {
-  const { locale, path: resolvedPath } = locales?.length
-    ? extractLocale(requestPath, locales)
-    : { locale: undefined, path: requestPath }
-  const indexFile = locale ? `index.${locale}.html` : 'index.html'
+  const {
+    locale,
+    path: resolvedPath,
+    indexFile,
+    translated,
+  } = routeRequest(requestPath, { ...routing, locales: locales ?? [] })
 
   // Try exact page path
   const pagePath = resolvedPath === '/' ? `pages/home/${indexFile}` : `pages${resolvedPath}/${indexFile}`
   const obj = await bucket.get(pagePath)
   if (obj) return { html: await obj.text(), locale }
 
-  // Locale fallback to default
-  if (locale) {
+  // Translation fallback to the default-language file
+  if (translated) {
     const fallback = resolvedPath === '/' ? 'pages/home/index.html' : `pages${resolvedPath}/index.html`
     const fallbackObj = await bucket.get(fallback)
     if (fallbackObj) return { html: await fallbackObj.text(), locale }
@@ -151,8 +144,8 @@ async function findPage(
         const dynamicPath = `pages/${dynamicParts.join('/')}/${indexFile}`
         const dynObj = await bucket.get(dynamicPath)
         if (dynObj) return { html: await dynObj.text(), locale, params }
-        // Dynamic route locale fallback
-        if (locale) {
+        // Dynamic route translation fallback
+        if (translated) {
           const dynFallback = await bucket.get(`pages/${dynamicParts.join('/')}/index.html`)
           if (dynFallback) return { html: await dynFallback.text(), locale, params }
         }
@@ -170,11 +163,17 @@ async function findPage(
 export function createWorker(options?: CloudflareR2WorkerOptions) {
   const bindingName = options?.bucketBinding ?? 'SITE_BUCKET'
   const locales = options?.locales
-  const defaultLocale = options?.defaultLocale
+  const defaultLocale = options?.defaultLocale ?? locales?.[0]
   const defaultPrefix = options?.defaultPrefix
-  const nonDefaultLocales = locales?.filter(l => l !== (defaultLocale ?? locales?.[0])) ?? []
+  // Without a default, any listed language is a prefix (routing before #1146).
+  const routing = {
+    defaultLocale: options?.defaultLocale,
+    defaultPrefix,
+    contentLocale: options?.contentLocale ?? options?.defaultLocale,
+  }
+  const nonDefaultLocales = locales?.filter(l => l !== defaultLocale) ?? []
   const archiveFor = (html: string, locale: string | undefined, params?: Record<string, string>) =>
-    archiveResponse(html, { locale, defaultLocale: defaultLocale ?? locales?.[0], defaultPrefix, params })
+    archiveResponse(html, { locale, defaultLocale, defaultPrefix, params })
 
   const app = new Hono<{ Bindings: Record<string, R2Bucket> }>()
 
@@ -234,9 +233,9 @@ export function createWorker(options?: CloudflareR2WorkerOptions) {
     // string is untouched and `/` itself is unchanged (#1491).
     const normalizedPath = requestPath !== '/' && requestPath.endsWith('/') ? requestPath.slice(0, -1) : requestPath
 
-    const result = await findPage(bucket, normalizedPath, locales)
+    const result = await findPage(bucket, normalizedPath, locales, routing)
     if (!result) {
-      const notFound = await findPage(bucket, '/404')
+      const notFound = await findPage(bucket, '/404', locales, routing)
       if (notFound && !archiveResponse(notFound.html)) {
         const { html: raw404 } = parseCacheComment(notFound.html)
         const fragEntries = await fetchFragmentEntries(path => readFragmentHtml(bucket, path), raw404)

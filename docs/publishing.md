@@ -64,7 +64,7 @@ Publish pre-renders pages and uploads content to storage. Its output follows the
 
 `npx gazetta build` writes the production admin UI and custom editors/fields to `dist/admin/`; only `gazetta admin` needs that output, and it is not a content publish.
 
-`npx gazetta deploy production` runs the target's deploy adapter; see [Deploy](./deploy.md) for its contract and platform guides. For a Cloudflare worker, deploy bundles the installed Gazetta and embeds the locales, `siteUrl` and bucket, so deploy again after upgrading Gazetta or changing any of those.
+`npx gazetta deploy production` runs the target's deploy adapter; see [Deploy](./deploy.md) for its contract and platform guides. For a Cloudflare worker, deploy bundles the installed Gazetta and embeds the target's languages, `siteUrl` and bucket, so deploy again after upgrading Gazetta or changing any of those.
 
 ### After upgrading
 

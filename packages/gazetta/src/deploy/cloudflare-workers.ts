@@ -57,7 +57,8 @@ import type {
   WorkerRuntimeConfig,
 } from './types.js'
 import { DeployAuthError, DeployConfigError, DeployTransportError } from './errors.js'
-import { resolveSiteLocales } from '../locale.js'
+import { resolveTargetLanguages } from '../target-locales.js'
+import type { SiteManifest, TargetConfig } from '../types.js'
 import type { Issue } from '../validation/types.js'
 
 const ADAPTER_NAME = 'cloudflare-workers'
@@ -106,23 +107,41 @@ export function renderWranglerToml(input: WranglerTomlInput): string {
   return out
 }
 
-/** Site locales embedded in the generated worker entry. */
+/** The target's locales embedded in the generated worker entry (#1146). */
 export interface WorkerEntryLocales {
   supported: string[]
   default: string
   defaultPrefix: boolean
+  /** The site's default language: the one stored as `index.html`. Defaults to `default`. */
+  contentLocale?: string
+}
+
+/** The target's locales for the worker entry, or undefined when the site has none. */
+export function workerEntryLocales(site: SiteManifest, target: TargetConfig): WorkerEntryLocales | undefined {
+  const languages = resolveTargetLanguages(site, target)
+  if (!languages) return undefined
+  return {
+    supported: languages.target.supported,
+    default: languages.target.default,
+    defaultPrefix: languages.target.defaultPrefix,
+    contentLocale: languages.contentDefault,
+  }
 }
 
 /**
  * Render the worker entry-point code. Pure function. The
  * `cloudflare-r2` adapter at `packages/gazetta/src/workers/` provides
  * the actual request-handling logic; the entry is a thin re-export.
- * Site locales are embedded at deploy time, so a change to the site's
- * locales needs a redeploy, like other worker settings.
+ * The target's locales are embedded at deploy time, so a change to them
+ * needs a redeploy, like other worker settings.
  */
 export function renderWorkerEntry(locales?: WorkerEntryLocales): string {
   const options = locales
-    ? `{ locales: ${JSON.stringify(locales.supported)}, defaultLocale: ${JSON.stringify(locales.default)}, defaultPrefix: ${locales.defaultPrefix} }`
+    ? `{ locales: ${JSON.stringify(locales.supported)}, defaultLocale: ${JSON.stringify(locales.default)}, defaultPrefix: ${locales.defaultPrefix}${
+        locales.contentLocale && locales.contentLocale !== locales.default
+          ? `, contentLocale: ${JSON.stringify(locales.contentLocale)}`
+          : ''
+      } }`
     : ''
   return `import { createWorker } from 'gazetta/workers/cloudflare-r2'\nexport default createWorker(${options})\n`
 }
@@ -230,18 +249,9 @@ export function cloudflareWorkersDeploy(opts: CloudflareWorkersDeployOptions): W
           siteUrl: target.siteUrl,
         })
         await writeFile(join(tmpDir, 'wrangler.toml'), tomlBody)
-        const siteLocales = ctx.site ? resolveSiteLocales(ctx.site) : null
         await writeFile(
           join(tmpDir, 'index.ts'),
-          renderWorkerEntry(
-            siteLocales
-              ? {
-                  supported: siteLocales.supported,
-                  default: siteLocales.default,
-                  defaultPrefix: siteLocales.defaultPrefix,
-                }
-              : undefined,
-          ),
+          renderWorkerEntry(ctx.site ? workerEntryLocales(ctx.site, target) : undefined),
         )
         await writeFile(
           join(tmpDir, 'package.json'),

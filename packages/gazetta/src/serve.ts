@@ -14,7 +14,7 @@
 import { Hono } from 'hono'
 import { logger } from 'hono/logger'
 import { createHash } from 'node:crypto'
-import type { SiteManifest, StorageProvider, TargetType } from './types.js'
+import type { SiteManifest, StorageProvider, TargetConfig, TargetType } from './types.js'
 import { assembleEsi, parseCacheComment } from './assemble.js'
 import { isPublicSitePath } from './public-site-path.js'
 import { assetServeRoutes } from './assets/serve-route.js'
@@ -22,21 +22,28 @@ import { assetMimeForPath, exactArrayBuffer } from './assets/serve-shared.js'
 import { archiveGoneResponse, archiveResponse } from './runtime/archive-response.js'
 import { aliasTargetIssue, parseArchiveMarker } from './runtime/archive-marker.js'
 import { deriveRoute, fillRouteParams } from './runtime/derive-route.js'
-import { resolveSiteLocales } from './locale.js'
+import { localeRoutePrefix } from './locale.js'
+import { resolveTargetLanguages } from './target-locales.js'
+import { routeRequest, type LocaleRouting } from './runtime/locale-route.js'
 import { fetchFragmentEntries } from './runtime/fragment-fetch.js'
 
-/** Locale options for `createServer`, resolved from the site manifest.
- * Empty object when the site has no `locales` config. */
+/** Locale options for `createServer`: the target's languages, default and
+ * prefix rule (inherited from the site), plus the site's default language,
+ * which names the `index.html` files (#1146). Empty object when the site
+ * has no `locales` config. */
 export function serveLocaleOptions(
   site: SiteManifest,
-): Pick<ServeOptions, 'locales' | 'defaultLocale' | 'defaultPrefix' | 'detection'> {
-  const loc = resolveSiteLocales(site)
-  if (!loc) return {}
+  target?: TargetConfig,
+): Pick<ServeOptions, 'locales' | 'defaultLocale' | 'defaultPrefix' | 'detection' | 'contentLocale'> {
+  const languages = resolveTargetLanguages(site, target)
+  if (!languages) return {}
+  const loc = languages.target
   return {
     locales: loc.supported,
     defaultLocale: loc.default,
     defaultPrefix: loc.defaultPrefix,
     detection: loc.detection,
+    contentLocale: languages.contentDefault,
   }
 }
 
@@ -52,6 +59,8 @@ export interface ServeOptions {
   defaultPrefix?: boolean
   /** When true, redirects unlocalized requests to the best Accept-Language match (302). */
   detection?: boolean
+  /** The site's default language: its pages are `index.html`, other languages `index.<locale>.html`. Defaults to `defaultLocale`. */
+  contentLocale?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -147,19 +156,22 @@ export async function findPage(
   storage: StorageProvider,
   requestPath: string,
   locales?: string[],
+  routing?: Omit<LocaleRouting, 'locales'>,
 ): Promise<FindPageResult | null> {
-  const { locale, path: resolvedPath } = locales?.length
-    ? extractLocale(requestPath, locales)
-    : { locale: undefined, path: requestPath }
-  const indexFile = locale ? `index.${locale}.html` : 'index.html'
+  const {
+    locale,
+    path: resolvedPath,
+    indexFile,
+    translated,
+  } = routeRequest(requestPath, { ...routing, locales: locales ?? [] })
 
   // Try exact page path
   const pagePath = resolvedPath === '/' ? `pages/home/${indexFile}` : `pages${resolvedPath}/${indexFile}`
   try {
     return { html: await storage.readFile(pagePath), locale }
   } catch {
-    // Locale page not found — fall back to default locale file
-    if (locale) {
+    // Translation not found — fall back to the default-language file
+    if (translated) {
       const fallback = resolvedPath === '/' ? 'pages/home/index.html' : `pages${resolvedPath}/index.html`
       try {
         return { html: await storage.readFile(fallback), locale }
@@ -185,7 +197,7 @@ export async function findPage(
           try {
             return { html: await storage.readFile(dynamicPath), locale, params }
           } catch {
-            if (locale) {
+            if (translated) {
               try {
                 return { html: await storage.readFile(`pages/${dynamicParts.join('/')}/index.html`), locale, params }
               } catch {
@@ -208,25 +220,40 @@ export async function findPage(
 // ---------------------------------------------------------------------------
 
 export function createServer(options: ServeOptions) {
-  const { storage, type = 'dynamic', locales, defaultLocale, defaultPrefix, detection } = options
-  const nonDefaultLocales = locales?.filter(l => l !== (defaultLocale ?? locales?.[0])) ?? []
+  const { storage, type = 'dynamic', locales, detection } = options
+  const defaultPrefix = options.defaultPrefix ?? false
+  const defaultLocale = options.defaultLocale ?? locales?.[0]
+  // Without a default, any listed language is a prefix (routing before #1146).
+  const routing = {
+    defaultLocale: options.defaultLocale,
+    defaultPrefix,
+    contentLocale: options.contentLocale ?? options.defaultLocale,
+  }
+  const nonDefaultLocales = locales?.filter(l => l !== defaultLocale) ?? []
   const archiveFor = (html: string, locale: string | undefined, params?: Record<string, string>) =>
-    archiveResponse(html, { locale, defaultLocale: defaultLocale ?? locales?.[0], defaultPrefix, params })
+    archiveResponse(html, { locale, defaultLocale, defaultPrefix, params })
 
   // Static targets store each language's version at the language's route,
   // so an alias redirect keeps the request's language only when the
   // destination has a version in it; otherwise the 301 goes to the
-  // destination's default-language page, like the `_redirects` row
-  // (design-soft-delete.md Q10).
-  const staticArchiveFor = async (html: string, locale: string | undefined) => {
-    const siteDefault = defaultLocale ?? locales?.[0]
+  // destination's page in the target's default language, like the
+  // `_redirects` row (design-soft-delete.md Q10, #1146).
+  const staticArchiveFor = async (html: string, requestPath: string) => {
+    const { locale } = routeRequest(requestPath, { ...routing, locales: locales ?? [] })
     let effectiveLocale = locale
-    if (locale && locale !== siteDefault) {
+    if (locale && locale !== defaultLocale && defaultLocale) {
       const marker = parseArchiveMarker(html)
       if (marker?.kind === 'alias' && aliasTargetIssue(marker.target) === null) {
         const route = fillRouteParams(deriveRoute(marker.target))
         if (route === null) return archiveGoneResponse()
-        const rel = `${locale}${route === '/' ? '' : route}/index.html`
+        const prefix = localeRoutePrefix(locale, {
+          supported: locales ?? [],
+          default: defaultLocale,
+          defaultPrefix,
+          detection: false,
+          fallbacks: {},
+        })
+        const rel = `${prefix.slice(1)}${route === '/' ? '' : route}/index.html`
         let hasVersion = false
         for (const candidate of [`/${rel}`, rel]) {
           if (await storage.exists(candidate)) {
@@ -237,9 +264,7 @@ export function createServer(options: ServeOptions) {
         if (!hasVersion) effectiveLocale = undefined
       }
     }
-    // Static publish writes default-language pages unprefixed until #1146,
-    // so prefixing the default locale here would redirect to a 404.
-    return archiveResponse(html, { locale: effectiveLocale, defaultLocale: siteDefault, defaultPrefix: false })
+    return archiveResponse(html, { locale: effectiveLocale, defaultLocale, defaultPrefix })
   }
   const readFragment = (path: string) => readFragmentHtml(storage, path)
   const app = new Hono()
@@ -286,11 +311,10 @@ export function createServer(options: ServeOptions) {
       if (!isPublicSitePath(requestPath)) {
         return c.html('<h1>404 — Page not found</h1>', 404)
       }
-      const { locale } = extractLocale(requestPath, locales ?? [])
       const filePath = requestPath === '/' ? 'index.html' : `${requestPath.replace(/\/$/, '')}/index.html`
       try {
         const html = await storage.readFile(filePath)
-        const archived = await staticArchiveFor(html, locale)
+        const archived = await staticArchiveFor(html, requestPath)
         if (archived) return archived
         const etag = `"${createHash('sha256').update(html).digest('hex').slice(0, 16)}"`
         if (c.req.header('If-None-Match') === etag) return new Response(null, { status: 304, headers: { ETag: etag } })
@@ -306,7 +330,7 @@ export function createServer(options: ServeOptions) {
         if (isHtml) {
           try {
             const html = await storage.readFile(requestPath.slice(1))
-            const archived = await staticArchiveFor(html, locale)
+            const archived = await staticArchiveFor(html, requestPath)
             if (archived) return archived
             return c.html(html)
           } catch {
@@ -399,9 +423,9 @@ export function createServer(options: ServeOptions) {
   app.get('*', async c => {
     const requestPath = new URL(c.req.url).pathname
 
-    const result = await findPage(storage, requestPath, locales)
+    const result = await findPage(storage, requestPath, locales, routing)
     if (!result) {
-      const notFound = await findPage(storage, '/404')
+      const notFound = await findPage(storage, '/404', locales, routing)
       if (notFound && !archiveResponse(notFound.html)) {
         const { html: raw404 } = parseCacheComment(notFound.html)
         const fragEntries = await fetchFragmentEntries(readFragment, raw404)

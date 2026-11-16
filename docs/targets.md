@@ -85,6 +85,25 @@ Per-target history powers undo and rollback. The default keeps the 50 most recen
 
 The target's public base URL, for example `https://example.com`. Publish uses it for the sitemap, robots.txt and locale alternate links; `gazetta deploy` derives a worker's route binding from it; and a Cloudflare cache purge auto-detects the zone from it.
 
+## Languages: `locales`, `locale`, `defaultPrefix`
+
+On a site with `locales` in `site.config.ts`, a target publishes and serves the site's languages unless it sets its own:
+
+- `locales` — the languages the target publishes, for example `['fr']`. A page or language version outside them isn't published there, the site's default language included; a page with no file in them is skipped.
+- `locale` — the target's default language, served without a prefix. Defaults to the site's default, or to the only entry of a one-language `locales`.
+- `defaultPrefix` — when `true`, the default language gets a prefix too (`/en/about`).
+
+The target's other languages are served under `/<locale>/`. For example, with the site's default `en`:
+
+| Target settings | `page.json` (English) | `page.fr.json` (French) |
+|---|---|---|
+| none | `/about` | `/fr/about` |
+| `locales: ['fr']` | not published | `/about` |
+| `locale: 'fr', locales: ['fr', 'en']` | `/en/about` | `/about` |
+| `defaultPrefix: true` | `/en/about` | `/fr/about` |
+
+The sitemap, the `_redirects` rows, `gazetta serve` and the Cloudflare worker follow the same routes. A fragment's default file is always published, since a page in a language the fragment lacks uses it. A Cloudflare worker embeds these settings, so deploy again after changing them.
+
 ## `cache`
 
 Per target:

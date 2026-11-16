@@ -770,20 +770,20 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
     // explicitly here (vs publishRun, which treats the input list
     // verbatim). Each (page|fragment, locale) cell becomes one ItemRef
     // unless the unchanged set covers it.
-    const targetLocales = targetConfig?.locales
+    // Versions follow the target's languages (design-i18n.md "Target
+    // locale rules", #1146).
+    const { fragmentVersionsFor, pageVersionsFor, resolveTargetLanguages } = await import('../target-locales.js')
+    const targetLanguages = resolveTargetLanguages(site.manifest, targetConfig)
     const itemRefs: { kind: 'page' | 'fragment'; name: string; locale?: string }[] = []
     const skippedNames = new Set<string>() // for console output (item entirely skipped)
 
-    // Pages — default + per-locale variants, filtered by target.locales when set.
+    // Pages — the versions the target publishes (a page with none is skipped).
     for (const [pageName] of site.pages) {
-      const pageLocales = site.pageLocales.get(pageName)
-      const localesForPage: (string | undefined)[] = [undefined]
-      if (pageLocales) {
-        for (const loc of pageLocales.locales.keys()) {
-          if (targetLocales && !targetLocales.includes(loc)) continue
-          localesForPage.push(loc)
-        }
-      }
+      const localesForPage = pageVersionsFor(
+        site.pageLocales.get(pageName)?.locales.keys() ?? [],
+        targetLanguages,
+        targetConfig?.locales,
+      )
       let added = 0
       for (const loc of localesForPage) {
         const key = loc ? `pages/${pageName}:${loc}` : `pages/${pageName}`
@@ -802,14 +802,11 @@ async function runPublish(siteDir: string, targetName?: string, opts: { force?: 
     // still needs them in the site for page rendering (already loaded).
     if (targetType !== 'static') {
       for (const [fragName] of site.fragments) {
-        const fragLocales = site.fragmentLocales.get(fragName)
-        const localesForFrag: (string | undefined)[] = [undefined]
-        if (fragLocales) {
-          for (const loc of fragLocales.locales.keys()) {
-            if (targetLocales && !targetLocales.includes(loc)) continue
-            localesForFrag.push(loc)
-          }
-        }
+        const localesForFrag = fragmentVersionsFor(
+          site.fragmentLocales.get(fragName)?.locales.keys() ?? [],
+          targetLanguages,
+          targetConfig?.locales,
+        )
         let added = 0
         for (const loc of localesForFrag) {
           const key = loc ? `fragments/${fragName}:${loc}` : `fragments/${fragName}`
@@ -1198,7 +1195,7 @@ async function runServe(siteDir: string, port: number, targetName?: string, host
   const storage = config.storage
   const { getType } = await import('../types.js')
   const { createServer, serveLocaleOptions } = await import('../serve.js')
-  const app = createServer({ storage, type: getType(config), ...serveLocaleOptions(siteYaml) })
+  const app = createServer({ storage, type: getType(config), ...serveLocaleOptions(siteYaml, config) })
 
   const server = serve({ fetch: app.fetch, port, hostname: resolveListenHost('serve', hostFlag) }, () => {
     console.log()

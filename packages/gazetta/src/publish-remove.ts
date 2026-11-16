@@ -34,6 +34,12 @@ export interface RemovalContext {
   readonly locales: readonly string[]
   /** The site's default locale: its output is unprefixed, so it never names a `<locale>/` path. */
   readonly defaultLocale?: string
+  /**
+   * A version's URL prefix on this target (`versionRoutePrefix`,
+   * target-locales.ts): where a static page was written. Without it, a
+   * variant is prefixed with its own code and the base file isn't.
+   */
+  readonly routePrefix?: (locale: string | undefined) => string
 }
 
 export type RemovalResult =
@@ -104,12 +110,14 @@ async function removeValidItem(
   const route = ref.route ?? deriveRoute(ref.name)
   const paths: string[] = []
   let itemLocales: string[] = []
+  const prefixOf = (locale: string | undefined) =>
+    ctx.routePrefix ? ctx.routePrefix(locale) : locale ? `/${locale}` : ''
 
   if (ref.locale) {
     const locale = normalizeLocale(ref.locale)
     const base = ref.kind === 'page' ? 'page' : 'fragment'
     paths.push(`${dir}/${localeFilename(base, locale)}`, `${dir}/index.${locale}.html`)
-    if (staticPage) paths.push(staticPageIndexPath(route, locale))
+    if (staticPage) paths.push(staticPageIndexPath(route, prefixOf(locale)))
     for (const name of await listFiles(storage, dir)) {
       const hashScope = parseSidecarName(name) ? parseSidecarLocale(name) : null
       const pubScope = parsePubSidecarName(name) ? parsePubSidecarLocale(name) : null
@@ -120,12 +128,11 @@ async function removeValidItem(
     itemLocales = publishedLocales(files, ref, ctx)
     for (const name of files) paths.push(`${dir}/${name}`)
     if (staticPage) {
-      paths.push(staticPageIndexPath(route))
+      paths.push(staticPageIndexPath(route, prefixOf(undefined)))
       for (const loc of itemLocales) {
-        // The default locale's output is unprefixed; `<default>/<route>` would
-        // name another page's folder.
+        // The site default's output is the base file's, already listed.
         if (loc === ctx.defaultLocale || !isValidLocale(loc)) continue
-        paths.push(staticPageIndexPath(route, normalizeLocale(loc)))
+        paths.push(staticPageIndexPath(route, prefixOf(normalizeLocale(loc))))
       }
     }
   }

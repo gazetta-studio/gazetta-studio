@@ -241,6 +241,12 @@ export interface PublishTarget {
    * (design-public-storage.md Q5); default true.
    */
   readonly writeDepIndices?: boolean
+  /**
+   * A version's URL prefix on this target (`versionRoutePrefix`,
+   * target-locales.ts): where a static page goes. Without it, a variant
+   * is prefixed with its own code and the base file isn't.
+   */
+  readonly routePrefix?: (locale: string | undefined) => string
 }
 
 /** List existing hashed files at item dir (for cleanup). */
@@ -285,12 +291,14 @@ async function cleanupOldFiles(
  */
 /**
  * Where a static target serves a page: `/` → `index.html`, `/about` →
- * `about/index.html`, locale `fr` → `fr/about/index.html`. Same rule as
- * before publish pipeline Cut 3.
+ * `about/index.html`, under prefix `/fr` → `fr/about/index.html`. The
+ * prefix is the version's language prefix on the target
+ * (`versionRoutePrefix`, target-locales.ts).
  */
-export function staticPageIndexPath(route: string, locale?: string): string {
+export function staticPageIndexPath(route: string, prefix = ''): string {
   const base = route === '/' ? '' : route.replace(/^\/+|\/+$/g, '')
-  const urlPath = locale ? (base ? `${locale}/${base}` : locale) : base
+  const lang = prefix.replace(/^\/+|\/+$/g, '')
+  const urlPath = lang ? (base ? `${lang}/${base}` : lang) : base
   return urlPath ? `${urlPath}/index.html` : 'index.html'
 }
 
@@ -387,7 +395,8 @@ export async function publishItemCore(input: PublishItemInput): Promise<PublishI
   // pages and fragments keep `{kind}s/{name}/{indexFile}`.
   const staticRoute = kind === 'page' && target.type === 'static' ? site.pages.get(name)?.route : undefined
   const staticPage = staticRoute !== undefined
-  const indexPath = staticPage ? staticPageIndexPath(staticRoute, locale) : `${dir}/${output.indexFile}`
+  const prefix = target.routePrefix ? target.routePrefix(locale) : locale ? `/${locale}` : ''
+  const indexPath = staticPage ? staticPageIndexPath(staticRoute, prefix) : `${dir}/${output.indexFile}`
   const oldFiles = await listHashedFiles(target.storage, dir)
   const newFiles: string[] = []
 

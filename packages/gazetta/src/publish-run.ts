@@ -63,6 +63,7 @@ import { siteAssetHashes } from './asset-hashes.js'
 import type { HistoryProvider } from './history.js'
 import { recordWrite, type WrittenItem } from './history-recorder.js'
 import { localeFilename } from './locale.js'
+import { resolveTargetLanguages, versionRoutePrefix } from './target-locales.js'
 import { publishPage, resolvePageRenderMode } from './pages/publish.js'
 import type { PublishItemKind, PublishItemResult, PublishRenderMode, PublishTarget } from './publish-item.js'
 import { publishSiteManifest, wipeDepIndices } from './publish-rendered.js'
@@ -359,6 +360,7 @@ export async function publishRun(input: PublishRunInput): Promise<PublishRunResu
 
     const targetConfig: TargetConfig | undefined = input.siteManifest.targets?.[targetName]
     const targetType = targetConfig ? renderTargetType(getType(targetConfig)) : 'static'
+    const targetLanguages = resolveTargetLanguages(input.siteManifest, targetConfig)
 
     input.onProgress?.({ kind: 'target-start', target: targetName })
 
@@ -369,6 +371,7 @@ export async function publishRun(input: PublishRunInput): Promise<PublishRunResu
       seo: undefined,
       cache: targetConfig?.cache,
       writeDepIndices: input.writeDepIndices ?? true,
+      routePrefix: locale => versionRoutePrefix(targetLanguages, locale),
     }
     const targetRoot = createContentRoot(targetStorage)
 

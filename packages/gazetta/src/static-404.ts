@@ -31,8 +31,8 @@ export const MINIMAL_404_HTML = `<!doctype html>
  * what the target serves at `/404`, not rendering the source's page, keeps
  * unpublished edits of the 404 page off the target (#1231).
  */
-export async function static404Html(storage: StorageProvider): Promise<string> {
-  const published = staticPageIndexPath('/404')
+export async function static404Html(storage: StorageProvider, prefix = ''): Promise<string> {
+  const published = staticPageIndexPath('/404', prefix)
   if (!(await storage.exists(published))) return MINIMAL_404_HTML
   const html = await storage.readFile(published)
   return parseArchiveMarker(html) ? MINIMAL_404_HTML : html
@@ -42,6 +42,6 @@ export async function static404Html(storage: StorageProvider): Promise<string> {
  * Writes `404.html` at the target root. Callers run it after the publish's own
  * writes, so a `/404` page published in the same run is the one copied.
  */
-export async function writeStatic404(storage: StorageProvider): Promise<void> {
-  await storage.writeFile(STATIC_404_PATH, await static404Html(storage))
+export async function writeStatic404(storage: StorageProvider, prefix = ''): Promise<void> {
+  await storage.writeFile(STATIC_404_PATH, await static404Html(storage, prefix))
 }

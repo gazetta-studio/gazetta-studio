@@ -142,7 +142,7 @@ fragments/header/
 
 Locale filenames use lowercase codes. Each variant has its own `template`, `content` and `components`; it is not a field-level patch over `page.json`. Configure the site's supported locales in `site.config.ts`, for example `locales: { default: 'en', supported: ['en', 'fr'] }`.
 
-With that configuration and the default URL-prefix settings, `pages/about/page.json` serves `/about` and `page.fr.json` serves `/fr/about`. The translated home page serves `/fr`. Dynamic routes keep the same folder pattern: `pages/blog/[slug]/page.fr.json` maps to `/fr/blog/:slug`. Targets can narrow their locale set or change the default and prefix settings.
+With that configuration and the default URL-prefix settings, `pages/about/page.json` serves `/about` and `page.fr.json` serves `/fr/about`. The translated home page serves `/fr`. Dynamic routes keep the same folder pattern: `pages/blog/[slug]/page.fr.json` maps to `/fr/blog/:slug`. Targets can narrow their locale set or change the default and prefix settings ([Targets](./targets.md#languages-locales-locale-defaultprefix)).
 
 For a French page, `@header` uses `fragment.fr.json` when available, then the configured fallback chain, then `fragment.json`. Both pages and fragments remain whole manifests. See [Targets](./targets.md) for target configuration.
 

@@ -7,6 +7,7 @@ import type { StorageProvider, TargetConfig } from '../../types.js'
 import { stateFolderPath } from '../../state-folders.js'
 import { publishItems, resolveDependencies, findFragmentDependents, findDependentsFromSidecars } from '../../publish.js'
 import { isValidLocale, normalizeLocale } from '../../locale.js'
+import { fragmentVersionsFor, pageVersionsFor, resolveTargetLanguages } from '../../target-locales.js'
 import type { SourceContextResolver } from '../source-context.js'
 import type { PublishResult } from '../../publish.js'
 import { loadSiteFromSource } from '../source-context.js'
@@ -750,41 +751,26 @@ export function publishRoutes(
         // both. Static-mode page hash composition (fragmentHashes) is
         // handled inside publishRun when templateInfos is supplied.
         const itemRefs: { kind: 'page' | 'fragment'; name: string; locale?: string }[] = []
+        // Versions follow the target's languages (design-i18n.md "Target
+        // locale rules", #1146): a language outside them isn't published,
+        // the site's default included.
+        const languages = resolveTargetLanguages(site.manifest, config)
         for (const it of targetItems) {
-          if (it.startsWith('pages/')) {
-            const raw = it.replace('pages/', '')
-            const [name, rawLocale] = raw.includes(':') ? raw.split(':') : [raw, undefined]
-            const locale = rawLocale ? normalizeLocale(rawLocale) : undefined
-            // Locale-qualified: just the requested variant. Else: default
-            // + every supported locale (subject to target.locales filter).
-            if (locale) {
-              itemRefs.push({ kind: 'page', name, locale })
-            } else {
-              itemRefs.push({ kind: 'page', name })
-              const pageLocales = site.pageLocales.get(name)
-              if (pageLocales) {
-                for (const loc of pageLocales.locales.keys()) {
-                  if (config?.locales && !config.locales.includes(loc)) continue
-                  itemRefs.push({ kind: 'page', name, locale: loc })
-                }
-              }
-            }
-          } else if (it.startsWith('fragments/') && !isStatic) {
-            const raw = it.replace('fragments/', '')
-            const [name, rawLocale] = raw.includes(':') ? raw.split(':') : [raw, undefined]
-            const locale = rawLocale ? normalizeLocale(rawLocale) : undefined
-            if (locale) {
-              itemRefs.push({ kind: 'fragment', name, locale })
-            } else {
-              itemRefs.push({ kind: 'fragment', name })
-              const fragLocales = site.fragmentLocales.get(name)
-              if (fragLocales) {
-                for (const loc of fragLocales.locales.keys()) {
-                  if (config?.locales && !config.locales.includes(loc)) continue
-                  itemRefs.push({ kind: 'fragment', name, locale: loc })
-                }
-              }
-            }
+          const isPage = it.startsWith('pages/')
+          if (!isPage && !(it.startsWith('fragments/') && !isStatic)) continue
+          const kind = isPage ? 'page' : 'fragment'
+          const raw = it.replace(isPage ? 'pages/' : 'fragments/', '')
+          const [name, rawLocale] = raw.includes(':') ? raw.split(':') : [raw, undefined]
+          const locale = rawLocale ? normalizeLocale(rawLocale) : undefined
+          const versionsFor = isPage ? pageVersionsFor : fragmentVersionsFor
+          // Locale-qualified: just the requested variant, when the target
+          // publishes its language. Else: every version the target publishes.
+          const variants = locale
+            ? [locale]
+            : [...((isPage ? site.pageLocales : site.fragmentLocales).get(name)?.locales.keys() ?? [])]
+          for (const version of versionsFor(variants, languages, config?.locales)) {
+            if (locale && version === undefined) continue
+            itemRefs.push(version ? { kind, name, locale: version } : { kind, name })
           }
         }
 

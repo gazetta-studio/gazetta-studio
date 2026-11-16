@@ -40,6 +40,11 @@ export interface GenerateSitemapOptions {
   hreflangGroups?: Map<string, HreflangAlternate[]>
   /** Default locale code — used for x-default in hreflang. */
   defaultLocale?: string
+  /**
+   * The URL prefix of a version on the target (`''`, `/fr`): `null` is
+   * the base file (`page.json`). Defaults to the variant's own code.
+   */
+  routePrefix?: (locale: string | null) => string
 }
 
 function escapeXml(s: string): string {
@@ -76,7 +81,8 @@ export function generateSitemap(opts: GenerateSitemapOptions): string | null {
     // For locale entries, use the locale-prefixed route (e.g. /fr/about).
     // For default entries, use the standard route (e.g. /about).
     const baseRoute = deriveRoute(baseName)
-    const route = locale ? (baseRoute === '/' ? `/${locale}` : `/${locale}${baseRoute}`) : baseRoute
+    const prefix = opts.routePrefix ? opts.routePrefix(locale) : locale ? `/${locale}` : ''
+    const route = baseRoute === '/' ? prefix || '/' : `${prefix}${baseRoute}`
     const loc = `${base}${route}`
     const lastmod = state.pub?.lastPublished
 

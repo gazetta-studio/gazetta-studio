@@ -396,7 +396,14 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
     const { resolveSiteLocales } = await import('./locale.js')
     const resolved = resolveSiteLocales(siteManifest)
     const locales = [...new Set([...(resolved?.supported ?? []), ...(targetConfig?.locales ?? [])])]
-    const ctx = { targetType, locales, defaultLocale: resolved?.default }
+    const { resolveTargetLanguages, versionRoutePrefix } = await import('./target-locales.js')
+    const languages = resolveTargetLanguages(siteManifest, targetConfig)
+    const ctx = {
+      targetType,
+      locales,
+      defaultLocale: resolved?.default,
+      routePrefix: (locale: string | undefined) => versionRoutePrefix(languages, locale),
+    }
     for (const ref of removals) {
       // Removing an item this run also publishes would delete what was just rendered.
       const published = itemRefs.some(
@@ -421,7 +428,8 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
   // it (#1430 review).
   if (targetType === 'static') {
     const { writeStatic404 } = await import('./static-404.js')
-    await writeStatic404(targetStorage)
+    const { resolveTargetLanguages, defaultLanguagePrefix } = await import('./target-locales.js')
+    await writeStatic404(targetStorage, defaultLanguagePrefix(resolveTargetLanguages(siteManifest, targetConfig)))
     generatedFiles.push('404.html')
   }
   const siteUrl = targetConfig?.siteUrl
@@ -463,37 +471,39 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
       })
     }
 
-    const { resolveSiteLocales, defaultLocaleFor, localeRoutePrefix } = await import('./locale.js')
+    const { resolveSiteLocales, resolveTargetLocales, defaultLocaleFor, localeRoutePrefix } = await import(
+      './locale.js'
+    )
+    const { resolveTargetLanguages, versionRoutePrefix } = await import('./target-locales.js')
 
     // hreflang groups - subpath alternates on this target plus
-    // cross-domain alternates from other configured targets.
+    // cross-domain alternates from other configured targets, each at the
+    // route its target's language rules give (#1146).
     const resolvedLoc = resolveSiteLocales(siteManifest)
     const defLoc = defaultLocaleFor(siteManifest)
     const hreflangGroups = new Map<string, { locale: string; url: string }[]>()
     if (resolvedLoc) {
       const allTargets = siteManifest.targets ?? {}
-      const thisTargetLocales = targetConfig?.locales ?? resolvedLoc.supported
-      const thisTargetDefault = targetConfig?.locale ?? defLoc
+      const thisTarget = (targetConfig && resolveTargetLocales(targetConfig, siteManifest)) || resolvedLoc
       for (const [pageName, page] of site.pages) {
         if (pageName.includes('[')) continue
         const alternates: { locale: string; url: string }[] = []
-        if (thisTargetLocales.length > 1) {
-          for (const loc of thisTargetLocales) {
-            const prefix = localeRoutePrefix(loc, { ...resolvedLoc, default: thisTargetDefault })
+        if (thisTarget.supported.length > 1) {
+          for (const loc of thisTarget.supported) {
+            const prefix = localeRoutePrefix(loc, thisTarget)
             const route = page.route === '/' ? prefix || '/' : `${prefix}${page.route}`
             alternates.push({ locale: loc, url: `${siteUrl}${route}` })
           }
         } else {
-          alternates.push({ locale: thisTargetLocales[0] ?? defLoc, url: `${siteUrl}${page.route}` })
+          alternates.push({ locale: thisTarget.supported[0] ?? defLoc, url: `${siteUrl}${page.route}` })
         }
         for (const [otherName, otherConfig] of Object.entries(allTargets)) {
           if (otherName === targetName) continue
           if (!otherConfig.siteUrl) continue
-          const otherLocales = otherConfig.locales ?? resolvedLoc.supported
-          const otherDefault = otherConfig.locale ?? defLoc
-          for (const loc of otherLocales) {
+          const other = resolveTargetLocales(otherConfig, siteManifest) ?? resolvedLoc
+          for (const loc of other.supported) {
             if (alternates.some(a => a.locale === loc)) continue
-            const prefix = localeRoutePrefix(loc, { ...resolvedLoc, default: otherDefault })
+            const prefix = localeRoutePrefix(loc, other)
             const route = page.route === '/' ? prefix || '/' : `${prefix}${page.route}`
             alternates.push({ locale: loc, url: `${otherConfig.siteUrl}${route}` })
           }
@@ -504,12 +514,14 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
       }
     }
 
+    const languages = resolveTargetLanguages(siteManifest, targetConfig)
     const sitemapXml = generateSitemap({
       siteUrl,
       pages: targetPageSidecars,
       systemPages: site.manifest.systemPages,
       hreflangGroups: hreflangGroups.size > 0 ? hreflangGroups : undefined,
       defaultLocale: defLoc,
+      routePrefix: locale => versionRoutePrefix(languages, locale ?? undefined),
     })
     if (sitemapXml) {
       await targetStorage.writeFile('sitemap.xml', sitemapXml)
@@ -551,41 +563,33 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
   if (redirectsFormat && redirectsFormat !== 'none') {
     const { emitRedirects } = await import('./runtime/redirects-emit.js')
     const { allPageEntries, deriveRoute } = await import('./site-loader.js')
-    const { resolveSiteLocales, localeRoutePrefix } = await import('./locale.js')
+    const { localeRoutePrefix } = await import('./locale.js')
+    const { resolveTargetLanguages } = await import('./target-locales.js')
     const archives: { from: string; to?: string }[] = []
-    // One row per published route: a redirect keeps the visitor's
-    // language (#1124). Locale variant entries share the parent's
-    // archive state in v1 (per design-soft-delete.md future
-    // directions), so rows expand from the default-locale entry.
-    const resolvedLoc = resolveSiteLocales(siteManifest)
-    // Rows mirror the static write path (staticPageIndexPath): default-
-    // locale content is always published unprefixed - the target's
-    // locales filter only gates variants - and each published variant
-    // lives at /<locale>/. The site default is therefore always in the
-    // row set, and prefixes never apply target.locale/defaultPrefix
-    // overrides, which the static write path ignores.
-    const siteDefault = resolvedLoc?.default ?? ''
-    const rowLocales = resolvedLoc
-      ? [siteDefault, ...(targetConfig?.locales ?? resolvedLoc.supported).filter(l => l !== siteDefault)]
-      : ['']
+    // One row per language the target publishes, at the route its
+    // language rules give: a redirect keeps the visitor's language
+    // (#1124, #1146). Locale variant entries share the parent's archive
+    // state in v1 (per design-soft-delete.md future directions), so rows
+    // expand from the default-locale entry.
+    const languages = resolveTargetLanguages(siteManifest, targetConfig)
+    const rowLanguages = languages ? languages.target.supported : ['']
+    const prefixOf = (lang: string) => (languages && lang ? localeRoutePrefix(lang, languages.target) : '')
+    const atRoute = (prefix: string, route: string) => (route === '/' ? prefix || '/' : `${prefix}${route}`)
     for (const entry of allPageEntries(site)) {
       if (entry.page.archived !== true) continue
       if (entry.locale) continue
       const baseFrom = deriveRoute(entry.name)
       const baseTo = entry.page.aliasOf ? deriveRoute(entry.page.aliasOf) : undefined
-      for (const loc of rowLocales) {
-        const prefix = loc
-          ? localeRoutePrefix(loc, { ...resolvedLoc!, default: siteDefault, defaultPrefix: false })
-          : ''
-        const from = baseFrom === '/' ? prefix || '/' : `${prefix}${baseFrom}`
+      const destEntry = entry.page.aliasOf ? site.pageLocales.get(entry.page.aliasOf) : undefined
+      for (const lang of rowLanguages) {
+        const from = atRoute(prefixOf(lang), baseFrom)
         // A language with no destination version falls back to the
-        // destination's default-language page (#1124 Q10): static
-        // publish only writes /<locale>/<page> when the page has that
-        // version, while the archived page's own row exists for every
-        // published route.
-        const destEntry = entry.page.aliasOf ? site.pageLocales.get(entry.page.aliasOf) : undefined
-        const destPrefix = loc === '' || loc === siteDefault || (destEntry?.locales.has(loc) ?? false) ? prefix : ''
-        const to = baseTo === undefined ? undefined : baseTo === '/' ? destPrefix || '/' : `${destPrefix}${baseTo}`
+        // destination's page in the target's default language (#1124
+        // Q10): static publish only writes a language's route when the
+        // page has that version.
+        const destHasLang = !languages || lang === languages.contentDefault || (destEntry?.locales.has(lang) ?? false)
+        const destLang = destHasLang ? lang : (languages?.target.default ?? '')
+        const to = baseTo === undefined ? undefined : atRoute(prefixOf(destLang), baseTo)
         archives.push(to !== undefined ? { from, to } : { from })
       }
     }
