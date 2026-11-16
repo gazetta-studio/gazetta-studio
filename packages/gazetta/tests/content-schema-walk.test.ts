@@ -39,10 +39,10 @@ describe('mapContentStrings', () => {
       }),
     ).toEqual([
       ['title', 't', [], 'Title'],
-      ['body', 'b', ['markdown'], 'body'],
-      ['cta.label', 'l', [], 'label'],
+      ['body', 'b', ['markdown'], 'Body'],
+      ['cta.label', 'l', [], 'Label'],
       ['tags.0', 'x', [], 'Tags'],
-      ['items.0.snippet', 's', ['code'], 'snippet'],
+      ['items.0.snippet', 's', ['code'], 'Snippet'],
     ])
   })
 
@@ -85,9 +85,9 @@ describe('mapContentStrings', () => {
       extra: 'e',
     })
     expect(found).toEqual([
-      ['any.links.0.href', 'h', [], 'href'],
-      ['loose.nested.title', 't', [], 'title'],
-      ['extra', 'e', [], 'extra'],
+      ['any.links.0.href', 'h', [], 'Href'],
+      ['loose.nested.title', 't', [], 'Title'],
+      ['extra', 'e', [], 'Extra'],
     ])
   })
 })

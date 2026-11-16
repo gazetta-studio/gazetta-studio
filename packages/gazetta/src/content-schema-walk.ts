@@ -54,8 +54,9 @@ export interface ContentString {
   /** The schemas the value must match. */
   readonly nodes: readonly JsonSchema[]
   /**
-   * The field's label: its schema `title`, else its property key. A list
-   * item without a title of its own is named by its list.
+   * The field's label: its schema `title`, else its property key with the
+   * first letter capitalised (`title` → `Title`). A list item without a
+   * title of its own is named by its list.
    */
   readonly label: string | undefined
 }
@@ -160,6 +161,10 @@ function itemSchemas(nodes: readonly JsonSchema[], index: number): JsonSchema[] 
   return out
 }
 
+function capitalise(key: string): string {
+  return key.charAt(0).toUpperCase() + key.slice(1)
+}
+
 function titleOf(nodes: readonly JsonSchema[]): string | undefined {
   for (const n of nodes) if (typeof n.title === 'string' && n.title) return n.title
   return undefined
@@ -194,7 +199,7 @@ function mapValue(
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = { ...(value as Record<string, unknown>) }
     for (const key of Object.keys(out)) {
-      out[key] = mapValue(out[key], propertySchemas(nodes, key), root, [...path, key], key, fn)
+      out[key] = mapValue(out[key], propertySchemas(nodes, key), root, [...path, key], capitalise(key), fn)
     }
     return out
   }

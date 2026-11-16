@@ -79,7 +79,7 @@ describe('script-in-text at save', () => {
 
   it('refuses a script element', async () => {
     const [issue] = await save({ link: 'hi <script>x()</script>' })
-    expect(issue).toMatchObject({ message: "Script isn't allowed in link: remove <script>.", subject: '<script>' })
+    expect(issue).toMatchObject({ message: "Script isn't allowed in Link: remove <script>.", subject: '<script>' })
   })
 
   it.each([
@@ -90,7 +90,7 @@ describe('script-in-text at save', () => {
     ['<a href="vbscript:x">y</a>', 'vbscript:'],
   ])('refuses %j, naming what runs script', async (value, what) => {
     const [issue] = await save({ link: value })
-    expect(issue).toMatchObject({ message: `Script isn't allowed in link: remove ${what}.`, subject: what })
+    expect(issue).toMatchObject({ message: `Script isn't allowed in Link: remove ${what}.`, subject: what })
   })
 
   it('lets markup with a safe link save', async () => {
@@ -112,7 +112,7 @@ describe('script-in-text at save', () => {
     ['data:image/svg+xml;base64,PHN2Zz4=', 'data:'],
   ])('refuses the unsafe address %j', async (value, what) => {
     const [issue] = await save({ link: value })
-    expect(issue).toMatchObject({ message: `Script isn't allowed in link: remove ${what}.`, subject: what })
+    expect(issue).toMatchObject({ message: `Script isn't allowed in Link: remove ${what}.`, subject: what })
   })
 
   it.each(['data:image/png;base64,AAAA', 'data:image/avif;base64,AAAA', 'data:image/webp,%3Csvg'])(
@@ -148,9 +148,9 @@ describe('script-in-text at save', () => {
       items: [{ href: 'javascript:x' }],
     })
     expect(issues.map(i => [i.field, i.message])).toEqual([
-      ['cta.label', "Script isn't allowed in label: remove onload."],
+      ['cta.label', "Script isn't allowed in Label: remove onload."],
       ['tags.1', "Script isn't allowed in Tags: remove onerror."],
-      ['items.0.href', "Script isn't allowed in href: remove javascript:."],
+      ['items.0.href', "Script isn't allowed in Href: remove javascript:."],
     ])
   })
 
@@ -204,7 +204,7 @@ describe('script-in-text in the background scan', () => {
     const [issue] = await scan({ snippet: '<script>alert(1)</script>' })
     expect(issue).toMatchObject({
       severity: 'info',
-      message: 'snippet holds script (<script>). It shows as code only if the template escapes it.',
+      message: 'Snippet holds script (<script>). It shows as code only if the template escapes it.',
       subject: '<script>',
     })
   })

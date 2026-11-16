@@ -97,7 +97,7 @@ describe('save refuses script in plain text fields', () => {
     expect(res.status).toBe(409)
     expect(((await res.clone().json()) as Body).code).toBe('VALIDATION_FAILED')
     expect(await scriptIssues(res)).toEqual([
-      expect.objectContaining({ message: "Script isn't allowed in title: remove onerror.", field: 'title' }),
+      expect.objectContaining({ message: "Script isn't allowed in Title: remove onerror.", field: 'title' }),
     ])
     expect(await local.readFile('pages/home/page.json')).toBe(stored)
   })
@@ -108,7 +108,7 @@ describe('save refuses script in plain text fields', () => {
     const res = await put(app, 'fragments/banner', { content: { title: 'Banner', subtitle: 'javascript:alert(1)' } })
     expect(res.status).toBe(409)
     expect((await scriptIssues(res)).map(i => i.message)).toEqual([
-      "Script isn't allowed in subtitle: remove javascript:.",
+      "Script isn't allowed in Subtitle: remove javascript:.",
     ])
     expect(await local.readFile('fragments/banner/fragment.json')).toBe(stored)
   })
