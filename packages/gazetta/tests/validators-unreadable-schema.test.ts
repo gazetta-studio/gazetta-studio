@@ -34,7 +34,15 @@ afterAll(async () => {
   await rm(resolve(templatesDir, '..'), { recursive: true, force: true })
 })
 
-function scan(templates: string[], stage: ValidatorInput['stage'] = 'background') {
+function scan(
+  templates: string[],
+  stage: ValidatorInput['stage'] = 'background',
+  item: { kind: 'page' | 'fragment'; name: string; itemPath: string } = {
+    kind: 'page',
+    name: 'home',
+    itemPath: 'pages/home/page.json',
+  },
+) {
   const storage = memoryStorage()
   const manifest = {
     template: templates[0],
@@ -46,7 +54,7 @@ function scan(templates: string[], stage: ValidatorInput['stage'] = 'background'
     site: { templatesDir } as never,
     contentRoot: createContentRoot(storage, ''),
     storage,
-    scope: { kind: 'background', item: { kind: 'page', name: 'home', itemPath: 'pages/home/page.json' }, manifest },
+    scope: { kind: 'background', item, manifest },
   } as ValidatorInput)
 }
 
@@ -61,6 +69,15 @@ describe('unreadable-schema', () => {
       subject: 'us-broken',
     })
     expect(issues[0].message).toMatch(/^Template "us-broken": its schema can't be read, so this page won't render\. \S/)
+  })
+
+  it('says "this fragment" for a fragment', async () => {
+    const [issue] = await scan(['us-broken'], 'background', {
+      kind: 'fragment',
+      name: 'header',
+      itemPath: 'fragments/header/fragment.json',
+    })
+    expect(issue.message).toMatch(/so this fragment won't render\./)
   })
 
   it('reports nothing for readable schemas, including ones with unrepresentable fields', async () => {

@@ -41,7 +41,7 @@ export const unreadableSchema: Validator = {
         issues.push({
           validator: 'unreadable-schema',
           severity: 'error',
-          message: `Template "${name}": its schema can't be read, so this page won't render. ${err.reason}`,
+          message: `Template "${name}": its schema can't be read, so this ${scope.item.kind} won't render. ${err.reason}`,
           itemPath: scope.item.itemPath,
           subject: name,
         })
