@@ -51,6 +51,28 @@ describe('compareRuns', () => {
     expect(items(result[expected === 'new' ? 'fresh' : 'alreadyBroken'])).toHaveLength(1)
   })
 
+  it.each([
+    ['the same field and what to remove', {}, 'already'],
+    ['another field with the same handler', { field: 'subtitle' }, 'new'],
+    ['another thing to remove in the same field', { subject: '<script>' }, 'new'],
+  ] as const)('script-in-text issue: %s → %s', (_, headOver, expected) => {
+    const script = (root: string, over: Partial<Issue> = {}): Issue => ({
+      validator: 'script-in-text',
+      severity: 'error',
+      message: 'title holds script (onerror). Remove it before the next save of this field.',
+      itemPath: `${root}/pages/home/page.json`,
+      contentPath: 'hero',
+      field: 'title',
+      subject: 'onerror',
+      ...over,
+    })
+    const result = compareRuns(
+      run('head', { itemIssues: [script('head', headOver)] }),
+      run('base', { itemIssues: [script('base')] }),
+    )
+    expect(items(result[expected === 'new' ? 'fresh' : 'alreadyBroken'])).toHaveLength(1)
+  })
+
   it('matches other item issues by validator, item and contentPath', () => {
     const missing = (root: string, contentPath?: string): Issue => ({
       validator: 'referenced-fragment-exists',
@@ -250,6 +272,8 @@ const SUBJECTS: Record<string, string> = {
   'referenced-template-exists': 'subject: the template',
   'referenced-archived-without-alias': 'subject: the archived item',
   'schema-conformance': 'field (matched on field, not subject)',
+  'script-in-text': 'field and subject: what to remove',
+  'unreadable-schema': 'subject: the template',
   'html-validity': 'subject: the rule',
   accessibility: 'subject: the rule',
   'broken-links': 'subject: the link',

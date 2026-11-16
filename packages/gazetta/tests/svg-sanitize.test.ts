@@ -88,6 +88,15 @@ describe('sanitizeSvg — external references stripped', () => {
     expect(decode(result.bytes)).toContain('data:image/png;base64')
   })
 
+  it.each([
+    ['avif', true],
+    ['webp', true],
+    ['svg+xml', false],
+  ])('keeps an inline data:image/%s URI only when it is a safe raster type: %s', (type, kept) => {
+    const input = encode(`<svg xmlns="http://www.w3.org/2000/svg"><image href="data:image/${type};base64,AAAA"/></svg>`)
+    expect(decode(sanitizeSvg(input).bytes).includes(`data:image/${type}`)).toBe(kept)
+  })
+
   it('strips <a> tags (avoid hidden navigation surfaces)', () => {
     const input = encode('<svg xmlns="http://www.w3.org/2000/svg"><a href="https://evil"><rect/></a></svg>')
     const result = sanitizeSvg(input)

@@ -94,3 +94,25 @@ function fixLinkRel(html: string): string {
     return `<${name}${kept.join('')}${relAttr}${end}>`
   })
 }
+
+/**
+ * The script DOMPurify would remove from `value`: `<script>` elements and
+ * `on*` event-handler attributes, each named once (`<script>`, `onerror`).
+ * Plain text such as `a < b` or `<b>` holds none. Used by the save check on
+ * plain text fields (design-content-trust.md Q2).
+ */
+export function findScript(value: string): string[] {
+  if (!value.includes('<')) return []
+  // FORCE_BODY: a leading `<script>` would otherwise be parsed into <head> and dropped unrecorded.
+  DOMPurify.sanitize(value, { FORCE_BODY: true })
+  const found = new Set<string>()
+  for (const removed of DOMPurify.removed as Array<{ element?: Node; attribute?: Attr | null }>) {
+    if (removed.attribute) {
+      const name = removed.attribute.name.toLowerCase()
+      if (name.startsWith('on')) found.add(name)
+    } else if (removed.element && removed.element.nodeName.toLowerCase() === 'script') {
+      found.add('<script>')
+    }
+  }
+  return [...found]
+}

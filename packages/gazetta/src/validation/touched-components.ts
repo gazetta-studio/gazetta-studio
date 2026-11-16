@@ -25,7 +25,7 @@ export interface TouchedComponent {
 type Manifest = Pick<PageManifest | FragmentManifest, 'template' | 'content' | 'components'>
 
 /** Components with a template, by name path, in manifest order. */
-function componentsOf(manifest: Manifest | null): TouchedComponent[] {
+export function componentsOf(manifest: Manifest | null): TouchedComponent[] {
   const out: TouchedComponent[] = []
   if (!manifest) return out
   if (manifest.template) out.push({ path: '', template: manifest.template, content: manifest.content ?? {} })

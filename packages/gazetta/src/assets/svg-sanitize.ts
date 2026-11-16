@@ -46,6 +46,7 @@
  * server-side render path.
  */
 import DOMPurify from 'isomorphic-dompurify'
+import { SAFE_DATA_IMAGE_BASE64_SOURCE } from '../safe-data-images.js'
 
 const SVG_MIME = 'image/svg+xml'
 
@@ -129,7 +130,7 @@ export function sanitizeSvg(input: Uint8Array): SvgSanitizeResult {
   // out the wrapper tags so warnings only reflect content the author
   // actually wrote.
   const HOOK_NOISE = new Set(['html', 'head', 'body'])
-  const ALLOWED_URI_PATTERN = /^(?:#|data:image\/(?:png|jpeg|gif|webp);base64,)/i
+  const ALLOWED_URI_PATTERN = new RegExp(`^(?:#|${SAFE_DATA_IMAGE_BASE64_SOURCE})`, 'i')
   const URI_BEARING_ATTRS = new Set(['href', 'xlink:href', 'src'])
   const removedElements = new Set<string>()
   const removedAttributes = new Set<string>()
@@ -225,7 +226,7 @@ export function sanitizeSvg(input: Uint8Array): SvgSanitizeResult {
 // the target is judged by its prefix, so a quoted URL containing `)` or
 // an unclosed url( can't slip past, and nothing can backtrack.
 const CSS_URL_OPENING = /url\(\s*['"]?\s*/gi
-const LOCAL_CSS_URL = /^(?:#|data:image\/(?:png|jpeg|gif|webp);base64,)/i
+const LOCAL_CSS_URL = new RegExp(`^(?:#|${SAFE_DATA_IMAGE_BASE64_SOURCE})`, 'i')
 
 /**
  * True when CSS text could load something from the network: a url()

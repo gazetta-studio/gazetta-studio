@@ -145,3 +145,34 @@ export const WarningsOnly: Story = {
     },
   ]),
 }
+
+/**
+ * Script in plain text fields (design-content-trust.md, "Save check"):
+ * one field, several fields, and an unsafe address. Each row names the
+ * field and what to remove.
+ */
+export const ScriptInText: Story = {
+  render: seedIssues([
+    {
+      validator: 'script-in-text',
+      severity: 'error',
+      message: "Script isn't allowed in Title: remove onerror.",
+      itemPath: 'pages/about/page.json',
+      contentPath: 'hero',
+    },
+    {
+      validator: 'script-in-text',
+      severity: 'error',
+      message: "Script isn't allowed in Subtitle: remove <script>.",
+      itemPath: 'pages/about/page.json',
+      contentPath: 'hero',
+    },
+    {
+      validator: 'script-in-text',
+      severity: 'error',
+      message: "Script isn't allowed in Link: remove javascript:.",
+      itemPath: 'pages/about/page.json',
+      contentPath: 'cta',
+    },
+  ]),
+}

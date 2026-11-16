@@ -16,8 +16,10 @@ import { referencedArchivedWithoutAlias } from './validators/referenced-archived
 import { referencedAssetExists } from './validators/referenced-asset-exists.js'
 import { referencedFragmentExists } from './validators/referenced-fragment-exists.js'
 import { referencedTemplateExists } from './validators/referenced-template-exists.js'
+import { scriptInText } from './validators/script-in-text.js'
 import { schemaConformance } from './validators/schema-conformance.js'
 import { targetDeployCoverage } from './validators/target-deploy-coverage.js'
+import { unreadableSchema } from './validators/unreadable-schema.js'
 import { unusedFragment } from './validators/unused-fragment.js'
 import { createValidatorRegistry, type ValidatorRegistry } from './registry.js'
 
@@ -57,5 +59,8 @@ export function defaultValidatorRegistry(): ValidatorRegistry {
     targetDeployCoverage,
     // Public storage config per design-public-storage.md Q6.
     publicStorageConfig,
+    // Content trust per design-content-trust.md Q2.
+    scriptInText,
+    unreadableSchema,
   ])
 }

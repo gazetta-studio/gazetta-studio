@@ -129,7 +129,7 @@ describe('defaultValidatorRegistry', () => {
     expect(names).toContain('dynamic-route-conflict')
   })
 
-  it('the ref-existence, altRequired, archive and schema-conformance validators run at save-delta', () => {
+  it('the ref-existence, altRequired, archive, schema-conformance and script-in-text validators run at save-delta', () => {
     const reg = defaultValidatorRegistry()
     const saveDeltaNames = reg
       .forStage('save-delta')
@@ -145,6 +145,7 @@ describe('defaultValidatorRegistry', () => {
       'referenced-fragment-exists',
       'referenced-template-exists',
       'schema-conformance',
+      'script-in-text',
     ])
   })
 

@@ -99,6 +99,8 @@ Checks every page and fragment for broken references (templates, fragments, asse
 
 Content that doesn't fit its template's schema (a required field missing, a value of the wrong type) is an error here, so the run fails until the content is fixed. Each issue is listed under its page or fragment with the field, the component and the language version. Site health in the admin shows the same problems as warnings.
 
+Script in a plain text field is an error too: a `<script>` tag or an event handler such as `onerror`, or a value that is a `javascript:`, `vbscript:` or `data:` address (raster `data:image` URIs of PNG, JPEG, GIF, WebP and AVIF are fine). Saving refuses such a value in the admin and the API, and content that already holds one is listed here and in Site health. Markdown and rich-text fields aren't checked, because they are sanitized when the page renders; a code field holding script is listed as info. A template whose schema can't be read is an error on every page and fragment using it, since those pages can't render.
+
 To check a template change in a pull request, run it with `--base`: see [Check a template change in CI](./templates.md#check-a-template-change-in-ci) for a workflow to copy.
 
 | Flag | Effect |

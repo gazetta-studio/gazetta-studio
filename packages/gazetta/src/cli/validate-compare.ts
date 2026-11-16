@@ -15,6 +15,7 @@
  * | Issue                         | Key                                                  | Example                                                        |
  * |-------------------------------|------------------------------------------------------|----------------------------------------------------------------|
  * | Schema problem                | validator, item (kind, name, language), component, field | `schema-conformance` page `home` `fr`, `hero`, `title`     |
+ * | Script in a text field        | validator, item, component, field, subject           | `script-in-text` page `home`, `hero`, `title`, `onerror`       |
  * | Other problem on an item      | validator, item, contentPath, subject                | `referenced-asset-exists` page `about`, `hero`, `logo`; `html-validity` page `home`, `attr-quotes` |
  * | Site config                   | validator, config path, subject                      | `public-storage-config` `site.config.ts:targets.production` `editable` |
  * | Template or project file      | validator, template or file, field                   | `custom-field-exists` `hero` `color`; `orphaned-editor` `admin/editors/x.tsx` |
@@ -78,10 +79,13 @@ export function itemKey(issue: Issue, items: ReturnType<typeof itemIndex>, targe
   // of the key (Seer on #1758).
   const contentPath =
     issue.validator === 'altRequired' ? (issue.contentPath ?? '').replace(/\[\d+\]/g, '[]') : (issue.contentPath ?? '')
+  // Script in text is per field: two fields of one component can hold the same `onerror`.
   const where =
     issue.validator === 'schema-conformance'
       ? `${contentPath}|${issue.field ?? ''}`
-      : `${contentPath}|${issue.subject ?? ''}`
+      : issue.validator === 'script-in-text'
+        ? `${contentPath}|${issue.field ?? ''}|${issue.subject ?? ''}`
+        : `${contentPath}|${issue.subject ?? ''}`
   return `item|${target ?? ''}|${issue.validator}|${id}|${where}`
 }
 
