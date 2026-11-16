@@ -4,8 +4,10 @@
  * broken redirects in production.
  *
  * Each emitter is a pure function; tests cover both archive kinds
- * (alias = 301, no alias = 410), the determinism / sort guarantee,
- * and the empty-archives edge case.
+ * (alias = 301; no alias = 410 in `json` only, since Cloudflare Pages
+ * can't return 410 from `_redirects` and Netlify doesn't document it,
+ * #1149), the determinism / sort guarantee, and the empty-archives
+ * edge case.
  */
 import { describe, it, expect } from 'vitest'
 import {
@@ -25,17 +27,17 @@ describe('emitCloudflareRedirects', () => {
     expect(emitCloudflareRedirects([aliasArchive])).toBe('/landing  /welcome  301\n')
   })
 
-  it('emits a 410 row for a soft-delete (no aliasOf)', () => {
-    expect(emitCloudflareRedirects([goneArchive])).toBe('/old-page  /  410\n')
+  it('writes no row for a soft-delete (no aliasOf): Pages has no 410 status', () => {
+    expect(emitCloudflareRedirects([goneArchive])).toBe('')
   })
 
-  it('emits both kinds together, sorted alphabetically by source', () => {
+  it('writes the 301 rows sorted by source and leaves out the soft-deletes', () => {
     const out = emitCloudflareRedirects([
       { from: '/zeta', to: '/welcome' },
       { from: '/alpha' },
       { from: '/beta', to: '/welcome' },
     ])
-    expect(out).toBe(['/alpha  /  410', '/beta  /welcome  301', '/zeta  /welcome  301', ''].join('\n'))
+    expect(out).toBe(['/beta  /welcome  301', '/zeta  /welcome  301', ''].join('\n'))
   })
 
   it('leaves out a row whose route contains whitespace, which would split it', () => {
@@ -63,6 +65,10 @@ describe('emitNetlifyRedirects', () => {
   it('matches Cloudflare format for the patterns we emit', () => {
     const archives = [aliasArchive, goneArchive]
     expect(emitNetlifyRedirects(archives)).toBe(emitCloudflareRedirects(archives))
+  })
+
+  it('writes the 301 rows and no 410 rows', () => {
+    expect(emitNetlifyRedirects([aliasArchive, goneArchive])).toBe('/landing  /welcome  301\n')
   })
 })
 
@@ -153,7 +159,7 @@ describe('publish-end wiring (walk site → emit)', () => {
     expect(result).not.toBeNull()
     expect(result!.filename).toBe('_redirects')
     // Deterministic sort — landing before old-page
-    expect(result!.body).toBe(['/landing  /welcome  301', '/old-page  /  410', ''].join('\n'))
+    expect(result!.body).toBe('/landing  /welcome  301\n')
   })
 
   it('produces an empty body when no pages are archived (caller skips writing)', async () => {
@@ -192,8 +198,8 @@ describe('emitRedirects (orchestrator)', () => {
   })
 
   it('dispatches to the netlify emitter', () => {
-    const out = emitRedirects('netlify', [goneArchive])
-    expect(out).toEqual({ filename: '_redirects', body: '/old-page  /  410\n' })
+    const out = emitRedirects('netlify', [aliasArchive, goneArchive])
+    expect(out).toEqual({ filename: '_redirects', body: '/landing  /welcome  301\n' })
   })
 
   it('dispatches to the json emitter', () => {

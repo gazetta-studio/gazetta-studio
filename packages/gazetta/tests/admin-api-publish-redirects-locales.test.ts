@@ -114,9 +114,29 @@ describe('publish route — redirects rows per target language (#1130)', () => {
 
     expect(body).toContain('/landing  /welcome  301')
     expect(body).toContain('/fr/landing  /fr/welcome  301')
-    expect(body).toContain('/old  /  410')
-    expect(body).toContain('/fr/old  /  410')
-    expect(body.trim().split('\n')).toHaveLength(4)
+    // `old` has no alias, so no row: Pages can't return 410 from
+    // `_redirects` (#1149).
+    expect(body).not.toContain('410')
+    expect(body.trim().split('\n')).toHaveLength(2)
+  })
+
+  it('lists the archive without an alias under gone in every language for json', async () => {
+    const { app, targetStorage } = buildApp({
+      manifestExtra: { locales: { default: 'en', supported: ['en', 'fr'] } },
+      targetConfigExtra: { redirects: { format: 'json' as const } },
+    })
+
+    const res = await app.request('/api/v1/publish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: ['fragments/header'], targets: ['staging'] }),
+    })
+    expect(res.status).toBeLessThan(300)
+    const out = JSON.parse(await targetStorage.readFile('redirects.json'))
+    expect(out.gone).toEqual([
+      { path: '/fr/old', status: 410 },
+      { path: '/old', status: 410 },
+    ])
   })
 
   it('writes only the default-language rows for a single-locale target', async () => {
@@ -128,9 +148,8 @@ describe('publish route — redirects rows per target language (#1130)', () => {
     const body = await publishAndReadRedirects(app, targetStorage)
 
     expect(body).toContain('/landing  /welcome  301')
-    expect(body).toContain('/old  /  410')
     expect(body).not.toContain('/fr/')
-    expect(body.trim().split('\n')).toHaveLength(2)
+    expect(body.trim().split('\n')).toHaveLength(1)
   })
 
   it('a French-only target writes French rows at unprefixed routes and no English rows (#1146)', async () => {
@@ -145,10 +164,9 @@ describe('publish route — redirects rows per target language (#1130)', () => {
     const body = await publishAndReadRedirects(app, targetStorage)
 
     expect(body).toContain('/landing  /welcome  301')
-    expect(body).toContain('/old  /  410')
     expect(body).not.toContain('/fr/')
     expect(body).not.toContain('/en/')
-    expect(body.trim().split('\n')).toHaveLength(2)
+    expect(body.trim().split('\n')).toHaveLength(1)
   })
 
   it('prefixes the site default when the target default is another language (#1146)', async () => {
@@ -161,9 +179,7 @@ describe('publish route — redirects rows per target language (#1130)', () => {
 
     expect(body).toContain('/landing  /welcome  301')
     expect(body).toContain('/en/landing  /en/welcome  301')
-    expect(body).toContain('/old  /  410')
-    expect(body).toContain('/en/old  /  410')
-    expect(body.trim().split('\n')).toHaveLength(4)
+    expect(body.trim().split('\n')).toHaveLength(2)
   })
 
   it('prefixes every language with defaultPrefix (#1146)', async () => {
@@ -176,9 +192,8 @@ describe('publish route — redirects rows per target language (#1130)', () => {
 
     expect(body).toContain('/en/landing  /en/welcome  301')
     expect(body).toContain('/fr/landing  /fr/welcome  301')
-    expect(body).toContain('/en/old  /  410')
     expect(body).not.toMatch(/^\/landing /m)
-    expect(body.trim().split('\n')).toHaveLength(4)
+    expect(body.trim().split('\n')).toHaveLength(2)
   })
 
   it('falls back to the target default language when a French-only destination lacks French (#1146)', async () => {
@@ -237,7 +252,7 @@ describe('publish route — redirects rows per target language (#1130)', () => {
     expect(body).toContain('/ancien  /  301')
     expect(body).toContain('/fr/ancien  /  301')
     expect(body).not.toContain('/fr/contact')
-    expect(body.trim().split('\n')).toHaveLength(8)
+    expect(body.trim().split('\n')).toHaveLength(6)
   })
 
   it('deletes _redirects when the last archived page is unarchived and republished (#1426)', async () => {
@@ -246,7 +261,7 @@ describe('publish route — redirects rows per target language (#1130)', () => {
     // published file must not stay live.
     const first = buildApp({})
     const body = await publishAndReadRedirects(first.app, first.targetStorage)
-    expect(body).toContain('/old  /  410')
+    expect(body).toContain('/landing  /welcome  301')
 
     first.sourceStorage.seed({
       'pages/landing/page.json': JSON.stringify({ template: 'page-default', content: {} }),
@@ -272,8 +287,7 @@ describe('publish route — redirects rows per target language (#1130)', () => {
     const body = await publishAndReadRedirects(app, targetStorage)
 
     expect(body).toContain('/landing  /welcome  301')
-    expect(body).toContain('/old  /  410')
     expect(body).not.toContain('/fr/')
-    expect(body.trim().split('\n')).toHaveLength(2)
+    expect(body.trim().split('\n')).toHaveLength(1)
   })
 })

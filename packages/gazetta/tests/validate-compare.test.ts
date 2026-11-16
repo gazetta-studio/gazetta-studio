@@ -259,6 +259,7 @@ const SUBJECTS: Record<string, string> = {
   'public-storage-config': 'subject: one code per problem',
   'deploy-target-type-supported': 'subject: one code',
   'target-deploy-coverage': 'subject: one code',
+  'cloudflare-redirects-limit': 'subject: one code',
   'circular-fragment': 'none: one cycle per fragment',
   'dangling-alias': 'none: one per archived item',
   'aliasOf-points-to-archived': 'none: one per archived item',

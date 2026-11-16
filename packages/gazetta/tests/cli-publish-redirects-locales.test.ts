@@ -3,7 +3,7 @@
  * `redirects: { format: 'cloudflare' }` writes one `_redirects` row per
  * language the target publishes for each archived page, instead of only
  * the default-language row. The starter site declares en/fr/ar/ja
- * locales, so the alias and 410 rows appear unprefixed for English and
+ * locales, so the alias rows appear unprefixed for English and
  * prefixed for every other published language.
  *
  * Runs the real CLI against a temp copy of examples/starter (matching
@@ -106,10 +106,30 @@ describe('gazetta publish — redirects rows per target language (#1130)', { tim
     expect(body).toContain('/ja/landing  /welcome  301')
     expect(body).not.toContain('/ar/welcome')
     expect(body).not.toContain('/ja/welcome')
-    expect(body).toContain('/old  /  410')
-    expect(body).toContain('/fr/old  /  410')
-    expect(body).toContain('/ar/old  /  410')
-    expect(body).toContain('/ja/old  /  410')
+    // `old` has no alias: Pages can't return 410 from `_redirects`, so
+    // it gets no row in any language (#1149).
+    expect(body).not.toContain('410')
+    expect(body).not.toMatch(/^\/(\w+\/)?old /m)
+  })
+
+  it('warns after the _redirects line when the file would pass 2,000 rows (#1149)', async () => {
+    // 501 more archives with an alias × 4 languages, plus landing's 4
+    // rows: 2,008, past the 2,000 static rows Cloudflare Pages reads.
+    for (let i = 0; i < 501; i++) {
+      const dir = join(projectDir, 'sites/main/targets/local/pages', `retired-${i}`)
+      await mkdir(dir, { recursive: true })
+      await writeFile(
+        join(dir, 'page.json'),
+        JSON.stringify({ template: 'page-default', content: {}, archived: true, aliasOf: 'welcome' }),
+      )
+    }
+    const res = await runCli(projectDir, ['publish', 'staging', 'sites/main', '--force'])
+    expect(res.code).toBe(0)
+    const fileLine = res.output.indexOf('· _redirects')
+    expect(fileLine).toBeGreaterThan(-1)
+    const warning = res.output.indexOf('2,008 rows', fileLine)
+    expect(warning).toBeGreaterThan(fileLine)
+    expect(res.output.slice(warning)).toContain('2,000')
   })
 
   it('deletes _redirects when the last archived page is unarchived and republished (#1426)', async () => {
