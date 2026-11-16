@@ -192,8 +192,8 @@ describe("gazetta publish — the target's own language settings (#1146)", { tim
     const redirects = await readFile(join(staging(), '_redirects'), 'utf8')
     expect(redirects).toContain('/landing  /welcome  301')
     expect(redirects).toContain('/en/landing  /en/welcome  301')
-    expect(redirects).toContain('/old  /  410')
-    expect(redirects).toContain('/en/old  /  410')
+    // `old` has no alias, so no row on Cloudflare Pages (#1149).
+    expect(redirects).not.toContain('410')
     expect(redirects).not.toContain('/fr/')
     expect(redirects).not.toContain('/ar/')
   })
