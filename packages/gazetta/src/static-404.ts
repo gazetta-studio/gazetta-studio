@@ -26,22 +26,33 @@ export const MINIMAL_404_HTML = `<!doctype html>
 `
 
 /**
- * The target's own `/404` page in the default language, as published, or the
- * minimal noindex page when the target has none or holds it archived. Copying
- * what the target serves at `/404`, not rendering the source's page, keeps
- * unpublished edits of the 404 page off the target (#1231).
+ * The target's own `/404` page, as published, or the minimal noindex page when
+ * the target has none or holds it archived. `prefixes` are tried in order (the
+ * target's default language first, then the base file's version) and the first
+ * one published is used. Copying what the target serves at `/404`, not
+ * rendering the source's page, keeps unpublished edits of the 404 page off the
+ * target (#1231).
  */
-export async function static404Html(storage: StorageProvider, prefix = ''): Promise<string> {
-  const published = staticPageIndexPath('/404', prefix)
-  if (!(await storage.exists(published))) return MINIMAL_404_HTML
-  const html = await storage.readFile(published)
-  return parseArchiveMarker(html) ? MINIMAL_404_HTML : html
+export async function static404Html(
+  storage: StorageProvider,
+  prefixes: string | readonly string[] = '',
+): Promise<string> {
+  for (const prefix of typeof prefixes === 'string' ? [prefixes] : prefixes) {
+    const published = staticPageIndexPath('/404', prefix)
+    if (!(await storage.exists(published))) continue
+    const html = await storage.readFile(published)
+    return parseArchiveMarker(html) ? MINIMAL_404_HTML : html
+  }
+  return MINIMAL_404_HTML
 }
 
 /**
  * Writes `404.html` at the target root. Callers run it after the publish's own
  * writes, so a `/404` page published in the same run is the one copied.
  */
-export async function writeStatic404(storage: StorageProvider, prefix = ''): Promise<void> {
-  await storage.writeFile(STATIC_404_PATH, await static404Html(storage, prefix))
+export async function writeStatic404(
+  storage: StorageProvider,
+  prefixes: string | readonly string[] = '',
+): Promise<void> {
+  await storage.writeFile(STATIC_404_PATH, await static404Html(storage, prefixes))
 }

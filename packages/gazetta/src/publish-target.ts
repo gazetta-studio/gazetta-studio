@@ -428,8 +428,11 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
   // it (#1430 review).
   if (targetType === 'static') {
     const { writeStatic404 } = await import('./static-404.js')
-    const { resolveTargetLanguages, defaultLanguagePrefix } = await import('./target-locales.js')
-    await writeStatic404(targetStorage, defaultLanguagePrefix(resolveTargetLanguages(siteManifest, targetConfig)))
+    const { resolveTargetLanguages, defaultLanguagePrefix, versionRoutePrefix } = await import('./target-locales.js')
+    const languages = resolveTargetLanguages(siteManifest, targetConfig)
+    // The target's default language, else the base file's version (a
+    // French-default target may only have an English 404 page).
+    await writeStatic404(targetStorage, [defaultLanguagePrefix(languages), versionRoutePrefix(languages, undefined)])
     generatedFiles.push('404.html')
   }
   const siteUrl = targetConfig?.siteUrl

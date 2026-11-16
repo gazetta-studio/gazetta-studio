@@ -16,6 +16,7 @@ import { createSourceContext } from '../src/admin-api/source-context.js'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
 import type { SiteManifest, TargetConfig } from '../src/types.js'
 import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
+import { MINIMAL_404_HTML } from '../src/static-404.js'
 import { starterManifest, starterTargetDir, starterTemplatesDir } from './_helpers/starter.js'
 import {
   fragmentVersionsFor,
@@ -125,6 +126,15 @@ describe('static publish follows the target language rules (#1146)', { timeout: 
       'fr/about/index.html',
       'fr/index.html',
     ])
+  })
+
+  it('404.html falls back to the base 404 page when the target default has no version of it', async () => {
+    // The starter's 404 page has only page.json (English).
+    const target = await publishTo({ locale: 'fr', locales: ['fr', 'en'] }, ['pages/404'])
+
+    expect(servedPages(target)).toEqual(['en/404/index.html'])
+    expect(await target.readFile('404.html')).toBe(await target.readFile('en/404/index.html'))
+    expect(await target.readFile('404.html')).not.toBe(MINIMAL_404_HTML)
   })
 
   it('every sitemap URL is a page the publish wrote', async () => {
