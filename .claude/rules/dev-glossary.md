@@ -94,10 +94,10 @@ Multi-instance correctness. Each has its own design pass; new features
 answer each one in their "Foundational checks" section.
 
 **Non-foundational disciplines**:
-Six narrower invariants that compose with implementation but don't rise to
+Seven narrower invariants that compose with implementation but don't rise to
 dimension level: MCP schema discipline, real-time event-source discipline,
 multi-instance discipline, logging discipline, no-aggregate-manifests rule,
-capability-gap-UX-at-four-points. Documented inline in
+state folders declaring public-storage safety, capability-gap-UX-at-four-points. Documented inline in
 [feature-design-process.md](feature-design-process.md), not in their own
 design files.
 

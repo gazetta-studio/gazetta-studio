@@ -86,7 +86,9 @@ These will ship as separate PRs after the contract lands:
 | `s3StaticDeploy` | [#211](https://github.com/gazetta-studio/gazetta-studio/issues/211) | `static` |
 | `azureBlobStaticDeploy` | [#212](https://github.com/gazetta-studio/gazetta-studio/issues/212) | `static` |
 
-Until the static adapters ship, you deploy a static target yourself by uploading its storage or pointing a static host at it. That makes the target's `.gazetta/` folder (audit log, page history) public unless you block or exclude it: see [Where Gazetta keeps its own files, and when they're public](audit.md#where-gazetta-keeps-its-own-files-and-when-theyre-public).
+Until the static adapters ship, you deploy a static target yourself by uploading its storage or pointing a static host at it. That makes the target's `.gazetta/` folder (audit log, page history) public unless you block or exclude it. A target whose storage a host serves directly should be public: that is the default for cloud storage (`publicStorage` left out), and a public target keeps no history or audit, so there is nothing sensitive to leak. See [Where Gazetta keeps its own files, and when they're public](audit.md#where-gazetta-keeps-its-own-files-and-when-theyre-public).
+
+The static adapters will copy only site files to the host: paths that `gazetta serve` would serve (`isPublicSitePath`), never `.gazetta/` or Gazetta's manifest files. They declare that they do, so their targets default to private storage and keep history and audit.
 
 ## Container hosts (Fly.io, Cloud Run, Railway, Render)
 

@@ -13,7 +13,7 @@ Every target keeps Gazetta's own files in a `.gazetta/` folder next to the publi
 - [`design-review-workflow.md`](design-review-workflow.md), [`design-scheduling.md`](design-scheduling.md): state that must not land on a public target
 - [`design-deploy.md`](design-deploy.md): static deploy adapters (#208, #209, #211) copy only site files
 - [`docs/runtime-capabilities.md`](../../docs/runtime-capabilities.md): the per-target capability matrix the capabilities view extends
-- ADR-0017 (cut 8): target storage is assumed public unless declared private
+- [ADR-0017](../../docs/adr/0017-target-storage-assumed-public.md): target storage is assumed public unless declared private
 - Related bugs: [#1071](https://github.com/gazetta-studio/gazetta-studio/issues/1071) (static `gazetta serve` serves `.gazetta/`; cut 1), [#1074](https://github.com/gazetta-studio/gazetta-studio/issues/1074) (`gazetta dev`/`admin` listen on every interface), [#1075](https://github.com/gazetta-studio/gazetta-studio/issues/1075) (`init`'s `.gitignore`), [#1077](https://github.com/gazetta-studio/gazetta-studio/issues/1077) (target indices built from the source)
 
 ## Scope

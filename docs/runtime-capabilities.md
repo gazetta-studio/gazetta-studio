@@ -27,6 +27,20 @@ The capability vocabulary is a closed enum that grows additively as new features
 
 For plain-static targets, the **host's 404** is the floor: visitors hitting a missing URL get whatever the host shows for a missing file. Every publish to a static target writes `404.html` at the target root: a copy of the site's `/404` page in the default language as published to that target, or a minimal "Page not found" page (marked `noindex`) until the 404 page is published there. Cloudflare Pages, Netlify and GitHub Pages show it for missing paths; an S3 website shows it when its error document is set to `404.html`. `gazetta serve` on a static target answers missing paths with it too, with status 404. Google treats 404 and 410 alike and drops the URL either way ([HTTP status codes](https://developers.google.com/crawling/docs/troubleshooting/http-status-codes)).
 
+## Public storage
+
+A target whose storage visitors can reach directly (`publicStorage`, public by default unless the target is an editing folder or a copy adapter deploys it) keeps none of Gazetta's sensitive state. On a public target:
+
+| Feature | Available? | Why |
+| ------------------------- | ---------- | ------------------------------------------------------- |
+| History, undo, rollback   | ✗          | Past versions would be downloadable                     |
+| Audit log on the target   | ✗          | Recorded on a private target instead, or not at all     |
+| Content review            | ✗          | Review state names approvers                            |
+| Scheduling (not built yet) | ✗          | Schedules are kept as state on the target               |
+| Publish approval          | ✓          | Requests are kept on the source                         |
+
+The admin's "About this target" view (target menu) and `npx gazetta targets` show this per target. Details: [Where Gazetta keeps its own files, and when they're public](audit.md#where-gazetta-keeps-its-own-files-and-when-theyre-public).
+
 ## How gaps surface
 
 When a target lacks a capability that an in-flight feature needs, Gazetta surfaces the gap at four uniform points so authors and operators see it before it bites:

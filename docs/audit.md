@@ -106,8 +106,10 @@ Visitors never need these files. Whether they *can* get them depends on how the 
 These read only pages, fragments, `sitemap.xml` and `robots.txt` from storage, so a request for `/.gazetta/…` gets a 404:
 
 - The Cloudflare worker (`cloudflareWorkersDeploy()`, see [`cloudflare.md`](cloudflare.md)), as long as the R2 bucket itself is private. If you turn on public access for the bucket (an `r2.dev` URL or a custom domain connected to the bucket), every object in it is served directly, without the worker, `.gazetta/` included.
-- `gazetta serve`, on any target type
+- `gazetta serve`, on any target type (static, ESI and dynamic)
 - A filesystem target that only `gazetta serve` or `gazetta dev` reads and that is never uploaded anywhere
+
+The worker and `gazetta serve` refuse private paths with a 404: any path with a segment that starts with `.` (so `.gazetta/` and the per-page `.{hash}.hash` and `.pub-…` files), except a first segment of exactly `.well-known`, and Gazetta's manifest files wherever they sit: `page.json`, `page.<anything>.json`, `fragment.json`, `fragment.<anything>.json`, `<name>.asset.json` and `<name>.asset.<anything>.json`. These names are reserved, so a file with one of them in your site's `public/` folder isn't served either.
 
 ### Not safe: the storage is the public site
 
@@ -143,7 +145,23 @@ What follows from the setting:
 - A public target whose storage still holds history, audit, review, CLI sign-ins (`.gazetta/auth/`) or publish requests (`.gazetta/publish-requests/`) is a validation error: "`production` is public but still holds history; run `gazetta state remove production`." See [Removing Gazetta's state from a target](#removing-gazettas-state-from-a-target).
 - A target assumed public (no `publicStorage` set) gets one info line in `gazetta validate` and when the admin starts: "storage assumed public, so history and audit aren't kept. Set `publicStorage: false` if visitors can't reach it."
 
-`gazetta init`, the starter and gazetta.studio set `publicStorage` on every target. Upcoming releases stop writing history and audit to public targets ([design](../.claude/rules/design-public-storage.md)).
+`gazetta init`, the starter and gazetta.studio set `publicStorage` on every target.
+
+### What a public target keeps
+
+On a public target, Gazetta writes under `.gazetta/` only what is safe for visitors to see:
+
+- **Not kept:** history (so undo and rollback aren't available there), the audit log, review state, CLI sign-ins and publish requests. Publish requests are kept on the source you publish from.
+- **Not kept yet:** the dependency indices (`.gazetta/fragment-deps/`, `.gazetta/asset-refs/`, `.gazetta/alias-targets/`, `.gazetta/deps-of/`). They will be once a target's indices describe only what was published to it ([#1093](https://github.com/gazetta-studio/gazetta-studio/issues/1093)).
+- **Kept:** `.gazetta/publish-generation`, a publish id the Cloudflare worker uses for its cache key.
+
+Content review and scheduling aren't available on a public target either.
+
+**Where audit events for a public target go.** Gazetta records them on a target whose storage is private, in this order: the target the publish came from, if its storage is private; otherwise the first target in `site.config.ts` with private storage. If no target has private storage, the events aren't kept anywhere: `gazetta validate` and the admin, when it starts, print "Audit events aren't kept: no target has private storage to hold the audit log.", and a publish whose audit event was dropped says so in its result: "Audit event not recorded: no target with private storage keeps the audit log." External audit sinks, which would come before "nowhere", aren't available yet.
+
+**Check what a target keeps** in the admin under "About this target" in the target menu, or from the command line with `npx gazetta targets`. Both list, per target, whether its storage is public or private and why, whether it keeps history, where its audit events go, and whether review, scheduling and the dependency indices are available.
+
+A check that requests `.gazetta/` files from your live site after a publish, and stops publishing to a target that serves them, is coming ([design](../.claude/rules/design-public-storage.md)). Until then, check by hand as described below.
 
 **Upgrading an older site:** a filesystem target that sets neither `editable: true` nor `publicStorage` counts as public, and a public target isn't editable. A site whose editing target is just `local: { storage: filesystemStorage() }` therefore has no editable target: `gazetta dev`, `validate` and `publish` stop with an error that says so. Mark the target you edit:
 

@@ -131,7 +131,7 @@ For multi-instance self-hosted deployments (Kubernetes, multi-replica VMs), per-
 
 Audit events live in the same target storage as content; they're picked up by your existing target backup. The `.gazetta/audit/` directory is gitignored — runtime state, not source.
 
-If a web server or static host serves the target's storage folder directly, or you run `gazetta serve` on a `type: 'static'` target, the audit log and page history under `.gazetta/` are downloadable. Block `/.gazetta/` at the proxy (see [Nginx](#nginx)) or leave it out of the upload. Details: [Where Gazetta keeps its own files, and when they're public](audit.md#where-gazetta-keeps-its-own-files-and-when-theyre-public).
+`gazetta serve` refuses `/.gazetta/…` and Gazetta's other private files on every target type. If nginx, Caddy, Apache or a static host reads the target's storage folder directly instead, the audit log and page history under `.gazetta/` are downloadable: block `/.gazetta/` at that server (see [Nginx](#nginx)) or leave it out of the upload. A target whose storage visitors can reach should be public (`publicStorage: true`, the default unless the target is an editing folder), so Gazetta keeps no history or audit there. Details: [Where Gazetta keeps its own files, and when they're public](audit.md#where-gazetta-keeps-its-own-files-and-when-theyre-public).
 
 ## Docker
 

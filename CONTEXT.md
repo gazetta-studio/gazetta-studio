@@ -104,6 +104,10 @@ The TypeScript type `AssetRef` in code carries Usage data (where the Asset is re
 A storage location plus a runtime that holds a complete copy of a Site's content. Each Target has a `type` (static / dynamic), an `environment` (local / staging / production / unset), and an `editable` flag. Multiple Targets can coexist; they may diverge in content. Defined in detail in `design-concepts.md`.
 _Avoid_: Environment (a property, not the Target itself), Stage, Channel.
 
+**Public Storage**:
+A Target whose storage visitors can reach directly (an S3 or Azure static website, an R2 bucket with public access, a folder a web server serves). Set by the Target's `publicStorage` field and resolved by `isPublicStorage(target)`: public by default, except an editable filesystem Target or a Target whose deploy adapter copies only site files to the host. A Target with Public Storage keeps no history, audit or review state, so nothing sensitive sits where visitors can download it. Per [`design-public-storage.md`](.claude/rules/design-public-storage.md) and [ADR 0017](docs/adr/0017-target-storage-assumed-public.md).
+_Avoid_: Public target (ambiguous: every published site is public), Exposed bucket.
+
 **Active Target**:
 The Target the editor is currently focused on. Drives tree, editor, preview, save destination, sync indicators, and publish defaults. Cheap and reversible to switch. Independent of publish operations — distinct from Source Target and Destination Target.
 _Avoid_: Selected target, Current target, Edit target.
