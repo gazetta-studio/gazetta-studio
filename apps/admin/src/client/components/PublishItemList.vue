@@ -3,7 +3,8 @@
  * Item list for the Publish panel. One row per item that differs from at
  * least one destination. Each row:
  *   - Summary marker (+ added, ● modified, − deleted)
- *   - Checkbox (checked = include in publish; defaults to all)
+ *   - Checkbox (checked = include in publish; defaults to every row except
+ *     target-only ones, which have no checkbox and are never selected)
  *   - Path
  *   - Fragment-only blast-radius badge (uses R36's component)
  *   - Per-destination state ("staging: modified", "prod: in sync")
@@ -31,11 +32,17 @@ const { items, loading, error } = usePublishItems(
   () => props.destinations,
 )
 
+// Target-only rows ('deleted': absent on the source) have nothing to
+// publish, so they're never selected; removing them is a separate action.
+function isPublishable(r: ItemRow): boolean {
+  return r.hasChanges && r.summary !== 'deleted'
+}
+
 // When items re-compute (source/destinations changed), default to selecting
-// every item with changes. Parent can still toggle individual ones.
+// every publishable item. Parent can still toggle individual ones.
 watch(items, rows => {
   const next = new Set<string>()
-  for (const r of rows) if (r.hasChanges) next.add(r.path)
+  for (const r of rows) if (isPublishable(r)) next.add(r.path)
   emit('update:selected', next)
 })
 
@@ -62,7 +69,7 @@ function toggle(path: string, included: boolean) {
 
 function selectAll() {
   const next = new Set<string>()
-  for (const r of items.value) if (r.hasChanges) next.add(r.path)
+  for (const r of items.value) if (isPublishable(r)) next.add(r.path)
   emit('update:selected', next)
 }
 function selectNone() {
