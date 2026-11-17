@@ -27,6 +27,15 @@ describe('inspectTarget', () => {
     expect(result.gaps.map(g => g.capability).sort()).toEqual(['gone-status', 'redirects'])
   })
 
+  // gazetta serve answers archived routes itself (301 / 410) on a static
+  // target, and config can't say which server serves it (#1165).
+  it('plain-static gap reasons say gazetta serve answers 301/410 itself', () => {
+    const result = inspectTarget(makeTarget({ type: 'static' }))
+    for (const gap of result.gaps) {
+      expect(gap.reason).toContain('unless `gazetta serve` serves this target')
+    }
+  })
+
   it('static target with redirects.format=cloudflare has redirects but not gone-status', () => {
     const target = makeTarget({ type: 'static', redirects: { format: 'cloudflare' } })
     const result = inspectTarget(target)

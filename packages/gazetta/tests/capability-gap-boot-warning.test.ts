@@ -46,6 +46,7 @@ describe('boot capability-gap warning (#1305)', () => {
       expect(msg).toContain('plain-static')
       expect(msg).toContain('redirects')
       expect(msg).toContain('gone-status')
+      expect(msg).toContain('may not emit 301/410 redirects unless `gazetta serve` serves this target')
     } finally {
       warnSpy.mockRestore()
     }

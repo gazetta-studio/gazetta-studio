@@ -414,6 +414,7 @@ describe('archive-not-supported-on-target (P4)', () => {
     expect(issues).toHaveLength(1)
     expect(issues[0].severity).toBe('warn')
     expect(issues[0].message).toContain('prod-static')
+    expect(issues[0].message).toContain("the host's natural 404 instead, unless `gazetta serve` serves the target")
   })
 
   it('does not fire on live items', async () => {
