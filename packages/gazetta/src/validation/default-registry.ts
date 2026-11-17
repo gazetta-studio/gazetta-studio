@@ -19,6 +19,7 @@ import { referencedTemplateExists } from './validators/referenced-template-exist
 import { scriptInText } from './validators/script-in-text.js'
 import { schemaConformance } from './validators/schema-conformance.js'
 import { targetDeployCoverage } from './validators/target-deploy-coverage.js'
+import { targetMissingOptions } from './validators/target-missing-options.js'
 import { unreadableSchema } from './validators/unreadable-schema.js'
 import { unusedFragment } from './validators/unused-fragment.js'
 import { createValidatorRegistry, type ValidatorRegistry } from './registry.js'
@@ -57,6 +58,8 @@ export function defaultValidatorRegistry(): ValidatorRegistry {
     // Deploy validators per design-deploy.md Cut 2.
     deployTargetTypeSupported,
     targetDeployCoverage,
+    // Targets whose factories were called without a required option (#1185).
+    targetMissingOptions,
     // Public storage config per design-public-storage.md Q6.
     publicStorageConfig,
     // Content trust per design-content-trust.md Q2.

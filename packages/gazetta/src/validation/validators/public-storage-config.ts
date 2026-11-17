@@ -14,6 +14,7 @@
  * gets one info line, so the assumption is visible without blocking a
  * valid setup.
  */
+import { missingOptionsOf } from '../../providers/missing-options.js'
 import { findSensitiveState, formatFolderList } from '../../state-remove.js'
 import { isPublicStorage, type TargetConfig } from '../../types.js'
 import type { Issue, Validator, ValidatorInput } from '../types.js'
@@ -139,6 +140,8 @@ export const publicStorageConfig: Validator = {
           ),
         )
       }
+      // Storage missing its options can't be read; target-missing-options lists them instead.
+      if (missingOptionsOf(target.storage).length > 0) continue
       const held = await sensitiveStateOf(target)
       if (held.error) {
         issues.push(

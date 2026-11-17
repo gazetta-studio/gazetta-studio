@@ -105,26 +105,9 @@ The Dockerfile's entrypoint is `gazetta serve`. The running container reads from
 
 Per-platform Dockerfile + CI recipes are filed as [#213](https://github.com/gazetta-studio/gazetta-studio/issues/213).
 
-## Lazy adapter construction
+## Missing keys
 
-Adapter factories validate at construction. If you want to write a site config that doesn't fail when secrets are missing (e.g., local dev), construct conditionally:
-
-```ts
-production: {
-  type: 'dynamic',
-  storage: r2Storage({...}),
-  deploy: process.env.CLOUDFLARE_API_TOKEN
-    ? cloudflareWorkersDeploy({
-        apiToken: process.env.CLOUDFLARE_API_TOKEN,
-        accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
-        name: 'my-site',
-        bucket: 'my-site',
-      })
-    : undefined,
-}
-```
-
-Without `CLOUDFLARE_API_TOKEN`, the site loads but `gazetta deploy production` surfaces a clear "no deploy adapter configured" error.
+A factory called without a required option, such as `process.env.CLOUDFLARE_API_TOKEN!` with the variable unset, doesn't stop the site from loading. `gazetta dev` and publishing to other targets work; `gazetta deploy production` (or a publish to that target, for a storage key) stops with the message naming the missing option and its variable, and `gazetta validate --severity warn` lists every target with a missing option.
 
 ## Validation
 
@@ -137,7 +120,7 @@ Two validators surface deploy-related issues at `gazetta validate`:
 
 | Error class | When | Operator action |
 |---|---|---|
-| `DeployConfigError` | Factory throws at config-eval (missing required fields, malformed env vars) | Fix the factory arguments |
+| `DeployConfigError` | `execute()` throws when the factory was called without a required option | Set the variable the message names |
 | `DeployAuthError` | Adapter execute() rejects credentials at deploy time | Check API token + account ID |
 | `DeployTransportError` | Network / platform SDK failure (timeout, 5xx, DNS) | Retry or investigate platform status |
 | `DeployContentError` | Adapter expected published bytes but storage is empty | Run `gazetta publish <target>` first |

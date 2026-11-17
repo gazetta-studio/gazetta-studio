@@ -74,7 +74,9 @@ The factory **constructs** the provider at config-eval time. Field type is the r
 - SOLID 5/5 (cleanest of all alternatives evaluated)
 - Single canonical syntax — mechanically enforced by field type being the runtime interface
 - Smallest plugin-author obligation: just export a factory returning the provider interface; no registry augmentation, no registration ceremony
-- Operator-input validation throws at config-eval (missing required fields, malformed sentinel strings); SDK side effects deferred to first method call (per provider author convention) so `gazetta validate` stays fast
+- Missing required values fail at first use, not at config-eval: the factory returns a provider whose first method call throws the missing-option message, and `gazetta validate` lists the target and option. Malformed values (wrong format, not just missing) throw at config-eval. SDK side effects deferred to first method call (per provider author convention) so `gazetta validate` stays fast
+
+  Decided: maintainer, 2026-10-24 (#1185)
 - Aligns with mature TypeScript-first ecosystem patterns (Vite plugins, Astro integrations, Sanity definePlugin)
 
 **The cost:**
@@ -243,7 +245,7 @@ For each Provider surface, the gazetta package exports operator-facing factories
 
 Each factory:
 1. Accepts typed options (operator-style: env-var sentinels OK; defaults documented)
-2. Validates required fields; throws `ConfigError` on bad input
+2. Checks required fields: a missing one makes the returned instance throw on first use (#1185); a malformed one throws `ConfigError` at config-eval
 3. Resolves env-var sentinels via existing `resolveEnvVars` utility
 4. Delegates to internal `create*` factory with resolved options
 5. Returns the constructed runtime instance, typed as the surface interface

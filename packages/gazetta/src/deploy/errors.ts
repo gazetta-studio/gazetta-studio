@@ -28,13 +28,12 @@ export class DeployError extends Error {
 }
 
 /**
- * Raised at factory construction (synchronous) when operator-supplied
- * options are missing required fields or malformed. Surfaces in the
- * IDE / at admin boot, not at deploy time.
+ * Raised from `execute()` when the factory was called without a required
+ * option, so a missing secret stops only the deploy that needs it, and
+ * `gazetta validate` lists the missing options beforehand (#1185).
  *
  * Example: `cloudflareWorkersDeploy({ name: 'foo' })` without
- * `apiToken` throws `DeployConfigError` because the platform SDK
- * can't proceed without credentials.
+ * `apiToken` constructs, and its `execute()` throws `DeployConfigError`.
  */
 export class DeployConfigError extends DeployError {
   constructor(message: string, adapter: string) {

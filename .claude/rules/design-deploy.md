@@ -138,8 +138,8 @@ export class DeployError extends Error {
 }
 
 export class DeployConfigError extends DeployError {
-  /** Raised at factory construction; missing required fields,
-   *  malformed env-var sentinels. Operator-input validation. */
+  /** Raised from execute() when the factory was called without a
+   *  required option; `gazetta validate` lists these beforehand (#1185). */
 }
 
 export class DeployAuthError extends DeployError {
@@ -277,7 +277,7 @@ Per Q7 lock (matching `design-provider-config.md` + ADR-0004 Universal Provider 
 | AWS S3 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` |
 | Azure Blob | `AZURE_STORAGE_CONNECTION_STRING` |
 
-Each adapter's factory documents which vars it reads in JSDoc. Factories validate presence at construction (throw `DeployConfigError` on missing required fields); bad credentials surface at `execute()` time as `DeployAuthError`.
+Each adapter's factory documents which vars it reads in JSDoc. A factory called without a required option still returns; its `execute()` throws `DeployConfigError` with the missing-option message, and `gazetta validate` lists it (#1185). Bad credentials surface at `execute()` time as `DeployAuthError`.
 
 ## Logging and observability
 

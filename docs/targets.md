@@ -173,6 +173,8 @@ The CLI loads `.env` and `.env.local` from the project root and the site directo
 
 Values in site.config.ts reference env vars directly via `process.env.VAR_NAME!` — they're resolved at evaluation time.
 
+An unset variable doesn't stop the site from loading. A teammate without the production keys can run `gazetta dev` and publish to other targets; publishing to or deploying the target that needs them stops with a message naming the missing option and its variable, and `gazetta validate --severity warn` lists every target with a missing option.
+
 ## A complete example
 
 ```ts

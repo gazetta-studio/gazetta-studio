@@ -1,6 +1,7 @@
 import { dirname, isAbsolute, resolve } from 'node:path'
 import type { StorageKind, StorageProvider } from '../types.js'
 import { createFilesystemProvider } from './filesystem.js'
+import { findMissing, missingMessage, withMissingOptions, type MissingOption } from './missing-options.js'
 
 /**
  * Anchor for relative filesystem paths during config evaluation. The config
@@ -45,8 +46,10 @@ export function configAnchorFromFile(filePath: string): string {
  * `StorageProvider` instance (Path X — see `design-provider-config.md`).
  *
  * Each factory:
- * 1. Validates required options at construction; throws Error with a message
- *    naming the missing/invalid field.
+ * 1. Checks required options. A missing one doesn't throw: the factory
+ *    returns a provider whose first use throws a message naming it, so one
+ *    target's unset secret doesn't stop commands that use other targets
+ *    (#1185). `gazetta validate` lists them.
  * 2. Delegates to the internal `create*Provider` factory for the actual
  *    construction. Internal factories stay public for tests + advanced wiring.
  *
@@ -90,17 +93,23 @@ export interface R2StorageOptions {
 /** Cloudflare R2 storage (S3-compatible). Requires `@aws-sdk/client-s3` +
  *  `@aws-sdk/lib-storage` as optional peer deps. */
 export function r2Storage(opts: R2StorageOptions): StorageProvider {
-  if (!opts.accountId) throw new Error('r2Storage: "accountId" is required')
-  if (!opts.bucket) throw new Error('r2Storage: "bucket" is required')
-  if (!opts.accessKeyId) {
-    throw new Error(
-      'r2Storage: "accessKeyId" is required. Set R2_ACCESS_KEY_ID and pass `process.env.R2_ACCESS_KEY_ID!`.\n' +
+  const missing = findMissing([
+    { option: 'accountId', value: opts.accountId, message: 'r2Storage: "accountId" is required' },
+    { option: 'bucket', value: opts.bucket, message: 'r2Storage: "bucket" is required' },
+    {
+      option: 'accessKeyId',
+      value: opts.accessKeyId,
+      message:
+        'r2Storage: "accessKeyId" is required. Set R2_ACCESS_KEY_ID and pass `process.env.R2_ACCESS_KEY_ID!`.\n' +
         '  Create an R2 API token at https://dash.cloudflare.com/<account>/r2/api-tokens',
-    )
-  }
-  if (!opts.secretAccessKey) {
-    throw new Error('r2Storage: "secretAccessKey" is required. Set R2_SECRET_ACCESS_KEY in your env.')
-  }
+    },
+    {
+      option: 'secretAccessKey',
+      value: opts.secretAccessKey,
+      message: 'r2Storage: "secretAccessKey" is required. Set R2_SECRET_ACCESS_KEY in your env.',
+    },
+  ])
+  if (missing.length > 0) return unusableStorage('r2', missing)
   return lazyS3Provider(
     'r2',
     'r2Storage',
@@ -127,10 +136,14 @@ export interface S3StorageOptions {
 /** AWS S3 / MinIO / S3-compatible storage. Requires `@aws-sdk/client-s3` +
  *  `@aws-sdk/lib-storage`. */
 export function s3Storage(opts: S3StorageOptions): StorageProvider {
-  if (!opts.endpoint) throw new Error('s3Storage: "endpoint" is required')
-  if (!opts.bucket) throw new Error('s3Storage: "bucket" is required')
-  if (!opts.accessKeyId) throw new Error('s3Storage: "accessKeyId" is required')
-  if (!opts.secretAccessKey) throw new Error('s3Storage: "secretAccessKey" is required')
+  const missing = findMissing(
+    (['endpoint', 'bucket', 'accessKeyId', 'secretAccessKey'] as const).map(option => ({
+      option,
+      value: opts[option],
+      message: `s3Storage: "${option}" is required`,
+    })),
+  )
+  if (missing.length > 0) return unusableStorage('s3', missing)
   return lazyS3Provider(
     's3',
     's3Storage',
@@ -154,12 +167,29 @@ export interface AzureBlobStorageOptions {
 /** Azure Blob storage. Requires `@azure/storage-blob`. Use
  *  `connectionString: 'UseDevelopmentStorage=true'` for the Azurite emulator. */
 export function azureBlobStorage(opts: AzureBlobStorageOptions): StorageProvider {
-  if (!opts.connectionString) throw new Error('azureBlobStorage: "connectionString" is required')
-  if (!opts.container) throw new Error('azureBlobStorage: "container" is required')
+  const missing = findMissing(
+    (['connectionString', 'container'] as const).map(option => ({
+      option,
+      value: opts[option],
+      message: `azureBlobStorage: "${option}" is required`,
+    })),
+  )
+  if (missing.length > 0) return unusableStorage('azure', missing)
   return lazyAzureProvider(opts.connectionString, opts.container)
 }
 
 // --- internal helpers ---
+
+/** A provider for a factory call missing required options: every method throws their message. */
+function unusableStorage(kind: StorageKind, missing: readonly MissingOption[]): StorageProvider {
+  const message = missingMessage(missing)
+  return withMissingOptions(
+    makeLazyStorageProxy(kind, async () => {
+      throw new Error(message)
+    }),
+    missing,
+  )
+}
 
 interface S3FactoryArgs {
   endpoint: string

@@ -57,6 +57,7 @@ import type {
   WorkerRuntimeConfig,
 } from './types.js'
 import { DeployAuthError, DeployConfigError, DeployTransportError } from './errors.js'
+import { findMissing, missingMessage, withMissingOptions } from '../providers/missing-options.js'
 import { resolveTargetLanguages } from '../target-locales.js'
 import type { SiteManifest, TargetConfig } from '../types.js'
 import type { Issue } from '../validation/types.js'
@@ -181,128 +182,130 @@ export function extractDeployUrl(stdout: string, siteUrl: string | undefined): s
 }
 
 export function cloudflareWorkersDeploy(opts: CloudflareWorkersDeployOptions): WorkerCapableDeployAdapter {
-  // Construction-time validation per Q7 lock: factories validate
-  // operator-supplied input synchronously. Bad credentials surface
-  // at execute() as DeployAuthError, not here.
-  if (!opts.apiToken) {
-    throw new DeployConfigError(
-      'cloudflareWorkersDeploy requires `apiToken` (e.g., process.env.CLOUDFLARE_API_TOKEN)',
-      ADAPTER_NAME,
-    )
-  }
-  if (!opts.accountId) {
-    throw new DeployConfigError(
-      'cloudflareWorkersDeploy requires `accountId` (e.g., process.env.CLOUDFLARE_ACCOUNT_ID)',
-      ADAPTER_NAME,
-    )
-  }
-  if (!opts.name) {
-    throw new DeployConfigError(
-      'cloudflareWorkersDeploy requires `name` — the worker name + workers.dev subdomain',
-      ADAPTER_NAME,
-    )
-  }
-  if (!opts.bucket) {
-    throw new DeployConfigError(
-      'cloudflareWorkersDeploy requires `bucket` — the R2 bucket the worker reads from',
-      ADAPTER_NAME,
-    )
-  }
+  // A missing option fails at execute(), not here, so the config still loads
+  // for commands that don't deploy this target (#1185). Bad credentials
+  // surface at execute() as DeployAuthError.
+  const missing = findMissing([
+    {
+      option: 'apiToken',
+      value: opts.apiToken,
+      message: 'cloudflareWorkersDeploy requires `apiToken` (e.g., process.env.CLOUDFLARE_API_TOKEN)',
+    },
+    {
+      option: 'accountId',
+      value: opts.accountId,
+      message: 'cloudflareWorkersDeploy requires `accountId` (e.g., process.env.CLOUDFLARE_ACCOUNT_ID)',
+    },
+    {
+      option: 'name',
+      value: opts.name,
+      message: 'cloudflareWorkersDeploy requires `name` — the worker name + workers.dev subdomain',
+    },
+    {
+      option: 'bucket',
+      value: opts.bucket,
+      message: 'cloudflareWorkersDeploy requires `bucket` — the R2 bucket the worker reads from',
+    },
+  ])
 
   const { apiToken, accountId, name: workerName, bucket } = opts
 
-  return {
-    name: ADAPTER_NAME,
-    // `TargetType` today is `'static' | 'dynamic'`; `'dynamic'` plays
-    // the ESI role per current `getType()` semantics. Widens to
-    // `['esi']` when design-rendering.md Cut 1 splits the enum.
-    supports: ['dynamic'] as const,
+  return withMissingOptions<WorkerCapableDeployAdapter>(
+    {
+      name: ADAPTER_NAME,
+      // `TargetType` today is `'static' | 'dynamic'`; `'dynamic'` plays
+      // the ESI role per current `getType()` semantics. Widens to
+      // `['esi']` when design-rendering.md Cut 1 splits the enum.
+      supports: ['dynamic'] as const,
 
-    workerRuntimeConfig(): WorkerRuntimeConfig {
-      return {
-        bucketBinding: BUCKET_BINDING,
-        // Routes computed lazily from target.siteUrl at deploy time —
-        // not at config-eval. `gazetta build` reads the binding name
-        // here; the actual route pattern lands in wrangler.toml at
-        // deploy time via renderWranglerToml().
-      }
-    },
-
-    validate(_ctx: ValidateContext): Issue[] {
-      // No cross-field invariants in v1 beyond the construction-time
-      // checks above. Reserved for future operator-input validation
-      // (e.g., warn when target.siteUrl protocol is `http:`).
-      return []
-    },
-
-    async execute(ctx: DeployContext): Promise<DeployResult> {
-      const { target, logger, signal } = ctx
-
-      const tmpDir = join(process.cwd(), '.gazetta-deploy')
-      await rm(tmpDir, { recursive: true, force: true })
-      await mkdir(tmpDir, { recursive: true })
-
-      try {
-        const tomlBody = renderWranglerToml({
-          name: workerName,
-          bucket,
-          siteUrl: target.siteUrl,
-        })
-        await writeFile(join(tmpDir, 'wrangler.toml'), tomlBody)
-        await writeFile(
-          join(tmpDir, 'index.ts'),
-          renderWorkerEntry(ctx.site ? workerEntryLocales(ctx.site, target) : undefined),
-        )
-        await writeFile(
-          join(tmpDir, 'package.json'),
-          JSON.stringify({ type: 'module', dependencies: { gazetta: '*', hono: '*' } }),
-        )
-
-        if (signal.aborted) throw new DeployTransportError('Deploy aborted by signal', ADAPTER_NAME)
-
-        logger.info({ workerName, bucket }, 'Deploying worker to Cloudflare')
-
-        // Resolve the gazetta package install root for --install-links.
-        // import.meta.dirname is two levels above (src/deploy/).
-        const gazettaRoot = resolve(import.meta.dirname, '../..')
-        // Quoted, so a path with spaces stays one argument. Still a shell
-        // command: on Windows `npm` is `npm.cmd`, which needs a shell.
-        execSync(`npm install --install-links "${gazettaRoot}"`, { cwd: tmpDir, stdio: 'pipe' })
-
-        if (signal.aborted) throw new DeployTransportError('Deploy aborted by signal', ADAPTER_NAME)
-
-        // Wrangler reads CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID
-        // from env per its own convention; pass through.
-        const wranglerOut = execSync('npx wrangler deploy', {
-          cwd: tmpDir,
-          stdio: 'pipe',
-          env: { ...process.env, CLOUDFLARE_API_TOKEN: apiToken, CLOUDFLARE_ACCOUNT_ID: accountId },
-        }).toString()
-
-        // Wrangler 4.x stdout opens with a telemetry banner pointing at
-        // github.com/cloudflare/workers-sdk; the actual deploy URL is
-        // either `*.workers.dev` (default subdomain) or the route domain
-        // from wrangler.toml. Prefer those over any other URL.
-        const url = extractDeployUrl(wranglerOut, target.siteUrl)
-
-        logger.info({ workerName, url }, 'Worker deployed')
-
+      workerRuntimeConfig(): WorkerRuntimeConfig {
         return {
-          url,
-          details: { wranglerOutput: wranglerOut },
+          bucketBinding: BUCKET_BINDING,
+          // Routes computed lazily from target.siteUrl at deploy time —
+          // not at config-eval. `gazetta build` reads the binding name
+          // here; the actual route pattern lands in wrangler.toml at
+          // deploy time via renderWranglerToml().
         }
-      } catch (err) {
-        if (err instanceof DeployTransportError) throw err
-        const stderr = (err as { stderr?: Buffer }).stderr?.toString() ?? (err as Error).message
-        // Heuristic: wrangler exits with auth-related messages when
-        // the token is bad. Distinguish auth vs transport here.
-        if (/authentication|unauthorized|invalid token/i.test(stderr)) {
-          throw new DeployAuthError(`Cloudflare rejected credentials: ${stderr}`, ADAPTER_NAME)
-        }
-        throw new DeployTransportError(`Wrangler deploy failed: ${stderr}`, ADAPTER_NAME)
-      } finally {
+      },
+
+      validate(_ctx: ValidateContext): Issue[] {
+        // Missing options are listed by the target-missing-options validator.
+        // Reserved for future operator-input validation (e.g., warn when
+        // target.siteUrl protocol is `http:`).
+        return []
+      },
+
+      async execute(ctx: DeployContext): Promise<DeployResult> {
+        if (missing.length > 0) throw new DeployConfigError(missingMessage(missing), ADAPTER_NAME)
+        const { target, logger, signal } = ctx
+
+        const tmpDir = join(process.cwd(), '.gazetta-deploy')
         await rm(tmpDir, { recursive: true, force: true })
-      }
+        await mkdir(tmpDir, { recursive: true })
+
+        try {
+          const tomlBody = renderWranglerToml({
+            name: workerName,
+            bucket,
+            siteUrl: target.siteUrl,
+          })
+          await writeFile(join(tmpDir, 'wrangler.toml'), tomlBody)
+          await writeFile(
+            join(tmpDir, 'index.ts'),
+            renderWorkerEntry(ctx.site ? workerEntryLocales(ctx.site, target) : undefined),
+          )
+          await writeFile(
+            join(tmpDir, 'package.json'),
+            JSON.stringify({ type: 'module', dependencies: { gazetta: '*', hono: '*' } }),
+          )
+
+          if (signal.aborted) throw new DeployTransportError('Deploy aborted by signal', ADAPTER_NAME)
+
+          logger.info({ workerName, bucket }, 'Deploying worker to Cloudflare')
+
+          // Resolve the gazetta package install root for --install-links.
+          // import.meta.dirname is two levels above (src/deploy/).
+          const gazettaRoot = resolve(import.meta.dirname, '../..')
+          // Quoted, so a path with spaces stays one argument. Still a shell
+          // command: on Windows `npm` is `npm.cmd`, which needs a shell.
+          execSync(`npm install --install-links "${gazettaRoot}"`, { cwd: tmpDir, stdio: 'pipe' })
+
+          if (signal.aborted) throw new DeployTransportError('Deploy aborted by signal', ADAPTER_NAME)
+
+          // Wrangler reads CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID
+          // from env per its own convention; pass through.
+          const wranglerOut = execSync('npx wrangler deploy', {
+            cwd: tmpDir,
+            stdio: 'pipe',
+            env: { ...process.env, CLOUDFLARE_API_TOKEN: apiToken, CLOUDFLARE_ACCOUNT_ID: accountId },
+          }).toString()
+
+          // Wrangler 4.x stdout opens with a telemetry banner pointing at
+          // github.com/cloudflare/workers-sdk; the actual deploy URL is
+          // either `*.workers.dev` (default subdomain) or the route domain
+          // from wrangler.toml. Prefer those over any other URL.
+          const url = extractDeployUrl(wranglerOut, target.siteUrl)
+
+          logger.info({ workerName, url }, 'Worker deployed')
+
+          return {
+            url,
+            details: { wranglerOutput: wranglerOut },
+          }
+        } catch (err) {
+          if (err instanceof DeployTransportError) throw err
+          const stderr = (err as { stderr?: Buffer }).stderr?.toString() ?? (err as Error).message
+          // Heuristic: wrangler exits with auth-related messages when
+          // the token is bad. Distinguish auth vs transport here.
+          if (/authentication|unauthorized|invalid token/i.test(stderr)) {
+            throw new DeployAuthError(`Cloudflare rejected credentials: ${stderr}`, ADAPTER_NAME)
+          }
+          throw new DeployTransportError(`Wrangler deploy failed: ${stderr}`, ADAPTER_NAME)
+        } finally {
+          await rm(tmpDir, { recursive: true, force: true })
+        }
+      },
     },
-  }
+    missing,
+  )
 }
