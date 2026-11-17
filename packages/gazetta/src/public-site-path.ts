@@ -24,15 +24,27 @@
  *   case variant of a reserved name.
  */
 
-const MANIFEST_NAME = /^(?:page|fragment)(?:\.[^/]+)?\.json$|^[^/]+\.asset(?:\.[^/]+)?\.json$/i
-
 /**
  * Whether a file name is one of Gazetta's reserved manifest names. Shared
  * by `isPublicSitePath` and the publish copies that leave manifests off
- * public targets (design-public-storage.md Q4).
+ * public targets (design-public-storage.md Q4). Checked without a regular
+ * expression: the name comes from storage listings and request paths, and
+ * `^[^/]+\.asset(?:\.[^/]+)?\.json$` backtracks polynomially on names
+ * repeating `..asset.`.
  */
 export function isManifestFileName(name: string): boolean {
-  return MANIFEST_NAME.test(name)
+  const lower = name.toLowerCase()
+  if (lower.includes('/') || !lower.endsWith('.json')) return false
+  const base = lower.slice(0, -'.json'.length)
+  for (const kind of ['page', 'fragment']) {
+    if (base === kind || (base.startsWith(`${kind}.`) && base.length > kind.length + 1)) return true
+  }
+  // `<name>.asset` or `<name>.asset.<suffix>`, with a non-empty name and suffix.
+  for (let i = base.indexOf('.asset', 1); i !== -1; i = base.indexOf('.asset', i + 1)) {
+    const end = i + '.asset'.length
+    if (end === base.length || (base[end] === '.' && end + 1 < base.length)) return true
+  }
+  return false
 }
 
 export function isPublicSitePath(path: string): boolean {
