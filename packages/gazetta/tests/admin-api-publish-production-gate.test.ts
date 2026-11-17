@@ -70,7 +70,7 @@ function buildApp(opts: { defaultEditableProduction?: boolean } = {}): {
       environment: 'local' as const,
       editable: !opts.defaultEditableProduction,
     },
-    staging: { storage: stagingStorage, type: 'static' as const, environment: 'staging' as const },
+    staging: { storage: stagingStorage, type: 'static' as const, environment: 'staging' as const, publicStorage: false },
     production: {
       storage: productionStorage,
       type: 'static' as const,

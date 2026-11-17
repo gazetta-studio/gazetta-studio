@@ -1408,6 +1408,19 @@ export function publishRoutes(
     const targetStorage = t.get(body.source)
     if (!targetStorage) return problem(c, 400, 'BAD_REQUEST', `Unknown target: ${body.source}`)
 
+    // A target with public storage receives no page, fragment or asset
+    // manifests (design-public-storage.md Q4), so a fetch from it would copy
+    // rendered HTML and sidecars without the manifests that make them content.
+    const fetchSourceConfig = getTargetConfig(body.source)
+    if (fetchSourceConfig && isPublicStorage(fetchSourceConfig)) {
+      return problem(
+        c,
+        400,
+        'BAD_REQUEST',
+        `${body.source} has public storage, so it holds no manifests to fetch. Fetch from a target with private storage instead.`,
+      )
+    }
+
     // Resolve the destination editable target for this fetch.
     let destination: Awaited<ReturnType<SourceContextResolver>>
     try {

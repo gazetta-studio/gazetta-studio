@@ -69,6 +69,7 @@ Whether visitors can reach the target's storage directly — a host serving the 
 - Review is off, whatever `reviewWorkflow` says.
 - Publishing writes no `.gazetta/` folders except `publish-generation`, the id the Cloudflare worker's cache key reads.
 - Publishing copies no page, fragment or asset manifests (`page.json`, `fragment.fr.json`, `hero.asset.json` and the like); the rendered pages and asset files are still written.
+- Content can't be fetched back from it, since it holds no manifests: fetch from a target with private storage instead.
 
 The admin keeps its audit log on the target it edits when that target's storage is private, otherwise on the first target in `site.config.ts` whose storage is private. When no target is private, audit events aren't kept: `gazetta validate` and the admin's startup log say so, and each publish from the admin adds a warning to its result.
 

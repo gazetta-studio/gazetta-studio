@@ -38,7 +38,7 @@ function buildApp(): Built {
 
   const targetConfigs = {
     local: { storage: sourceStorage, type: 'esi' as const, environment: 'local' as const, editable: true },
-    remote: { storage: remoteStorage, type: 'esi' as const, environment: 'staging' as const },
+    remote: { storage: remoteStorage, type: 'esi' as const, environment: 'staging' as const, publicStorage: false },
   }
 
   const source = createSourceContext({
@@ -307,5 +307,51 @@ describe('POST /api/v1/fetch — explicit items path (covers publish.ts:900-902 
     // copy sidecars; assert a lower bound rather than an exact count
     // to survive sidecar policy changes.
     expect(body.copiedFiles).toBeGreaterThanOrEqual(1)
+  })
+})
+
+describe('POST /api/v1/fetch — a public source (design-public-storage.md Q4)', () => {
+  it('refuses a target with public storage and writes nothing', async () => {
+    const sourceStorage = memoryStorage()
+    const publicStorage = memoryStorage()
+    // A public target holds rendered pages and sidecars, but no manifests.
+    publicStorage.seed({ 'pages/home/index.html': '<h1>Home</h1>', 'pages/home/.abcd1234.hash': '' })
+    const targetConfigs = {
+      local: { storage: sourceStorage, type: 'esi' as const, environment: 'local' as const, editable: true },
+      production: {
+        storage: publicStorage,
+        type: 'esi' as const,
+        environment: 'production' as const,
+        publicStorage: true,
+      },
+    }
+    const app = createAdminApp({
+      source: createSourceContext({
+        storage: sourceStorage,
+        siteDir: '',
+        projectSiteDir: '/test-project',
+        manifest: { name: 'test-site', targets: targetConfigs },
+      }),
+      siteDir: '/test-project',
+      templatesDir: '/test-project/templates',
+      targets: new Map([
+        ['local', sourceStorage],
+        ['production', publicStorage],
+      ]),
+      targetConfigs,
+      disableCacheStatsLogger: true,
+    })
+
+    const res = await app.request('/api/v1/fetch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: 'production' }),
+    })
+
+    expect(res.status).toBe(400)
+    expect(ErrorResponseSchema.parse(await res.json()).detail).toBe(
+      'production has public storage, so it holds no manifests to fetch. Fetch from a target with private storage instead.',
+    )
+    expect(await sourceStorage.exists('pages/home/index.html')).toBe(false)
   })
 })
