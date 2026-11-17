@@ -53,7 +53,12 @@ beforeEach(async () => {
 
   const sourceStorage = createFilesystemProvider(join(root, 'site'))
   const targetStorage = createFilesystemProvider(join(root, 'x', 'y', 'target'))
-  const targetConfig = { storage: targetStorage, type: 'esi' as const, environment: 'staging' as const }
+  const targetConfig = {
+    storage: targetStorage,
+    type: 'esi' as const,
+    environment: 'staging' as const,
+    publicStorage: false,
+  }
   const localConfig = {
     storage: sourceStorage,
     type: 'esi' as const,

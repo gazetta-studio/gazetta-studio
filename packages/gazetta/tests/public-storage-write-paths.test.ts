@@ -3,8 +3,10 @@
  * that writes to a target leaves nothing under `.gazetta/` on a public
  * target except the folders the state folder registry marks safe there.
  * The forbidden set comes from `STATE_FOLDERS`, so a new unsafe folder is
- * covered without touching this test. A private target is the control:
- * it still gets history and dependency indices.
+ * covered without touching this test. Public targets also receive no
+ * file with a reserved manifest name (design-public-storage.md Q4). A
+ * private target is the control: it still gets history, dependency
+ * indices and manifests.
  */
 import { execFile } from 'node:child_process'
 import { cp, mkdir, readdir, rm, writeFile } from 'node:fs/promises'
@@ -17,6 +19,7 @@ import { runHistoryRollback, runHistoryUndo } from '../src/cli/history.js'
 import { createContentRoot } from '../src/content-root.js'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
 import { createPublishSnapshot } from '../src/publish-snapshot.js'
+import { isManifestFileName } from '../src/public-site-path.js'
 import { publishToTarget } from '../src/publish-target.js'
 import { STATE_FOLDERS, STATE_ROOT, type StateFolder } from '../src/state-folders.js'
 import { scanTemplates } from '../src/templates-scan.js'
@@ -39,6 +42,10 @@ function unsafeStatePaths(paths: Iterable<string>): string[] {
     return !(folder in STATE_FOLDERS && STATE_FOLDERS[folder].safeOnPublic)
   })
 }
+
+/** Paths in the storage whose file name is a reserved manifest name. */
+const manifestPaths = (storage: MemoryStorage) =>
+  [...storage.dump().keys()].filter(p => isManifestFileName(p.split('/').pop() ?? ''))
 
 const statePaths = (storage: MemoryStorage) => [...storage.dump().keys()].filter(p => p.split('/').includes(STATE_ROOT))
 
@@ -89,6 +96,23 @@ describe('publishToTarget, as the CLI calls it', { timeout: 30_000 }, () => {
     const storage = await publishTo(publicConfig(memoryStorage()))
     expect(unsafeStatePaths(storage.dump().keys())).toEqual([])
     expect(statePaths(storage)).toContain('.gazetta/publish-generation')
+  })
+
+  it('writes no manifests to a public target, but its pages, asset bytes and sidecars', async () => {
+    const storage = await publishTo(publicConfig(memoryStorage()))
+    expect(manifestPaths(storage)).toEqual([])
+    const paths = [...storage.dump().keys()]
+    expect(paths).toContain('index.html')
+    expect(paths).toContain('fragments/header/index.html')
+    expect(paths.some(p => /^assets\/test-pattern-[0-9a-f]+\.jpg$/.test(p))).toBe(true)
+    expect(paths.some(p => /^pages\/home\/\.[0-9a-f]{8}\.hash$/.test(p))).toBe(true)
+  })
+
+  it('still copies page, fragment and asset manifests to a private target', async () => {
+    const paths = manifestPaths(await publishTo(privateConfig(memoryStorage())))
+    expect(paths).toContain('pages/home/page.json')
+    expect(paths).toContain('fragments/header/fragment.json')
+    expect(paths.some(p => p.startsWith('assets/') && p.endsWith('.asset.json'))).toBe(true)
   })
 
   it('still writes history and dependency indices to a private target', async () => {
@@ -148,6 +172,7 @@ describe('the admin publish routes', { timeout: 30_000 }, () => {
       expect(body).not.toContain('"success":false')
       expect(statePaths(target).length).toBeGreaterThan(0)
       expect(unsafeStatePaths(target.dump().keys())).toEqual([])
+      expect(manifestPaths(target)).toEqual([])
     },
   )
 
@@ -156,6 +181,7 @@ describe('the admin publish routes', { timeout: 30_000 }, () => {
     const app = await appWith(privateConfig(target))
     await (await app.request(route, publish(route))).text()
     expect(statePaths(target).some(p => p.startsWith('.gazetta/history/'))).toBe(true)
+    expect(manifestPaths(target)).toContain('pages/home/page.json')
   })
 
   it.each([

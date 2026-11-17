@@ -26,6 +26,15 @@
 
 const MANIFEST_NAME = /^(?:page|fragment)(?:\.[^/]+)?\.json$|^[^/]+\.asset(?:\.[^/]+)?\.json$/i
 
+/**
+ * Whether a file name is one of Gazetta's reserved manifest names. Shared
+ * by `isPublicSitePath` and the publish copies that leave manifests off
+ * public targets (design-public-storage.md Q4).
+ */
+export function isManifestFileName(name: string): boolean {
+  return MANIFEST_NAME.test(name)
+}
+
 export function isPublicSitePath(path: string): boolean {
   const segments = path.split('/').filter(Boolean)
   const start = segments[0] === '.well-known' ? 1 : 0
@@ -33,6 +42,6 @@ export function isPublicSitePath(path: string): boolean {
     if (segments[i].startsWith('.')) return false
   }
   const last = segments[segments.length - 1]
-  if (last !== undefined && MANIFEST_NAME.test(last)) return false
+  if (last !== undefined && isManifestFileName(last)) return false
   return true
 }

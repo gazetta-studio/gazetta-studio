@@ -13,6 +13,7 @@ import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { publishToTarget, type PurgeOutcome } from '../src/publish-target.js'
+import { isManifestFileName } from '../src/public-site-path.js'
 import { createPublishSnapshot, type PublishSnapshot } from '../src/publish-snapshot.js'
 import { createContentRoot } from '../src/content-root.js'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
@@ -677,5 +678,130 @@ describe('publishToTarget: one snapshot per publish (#1632)', { timeout: 30_000 
     const result = await publish(snapshot, ['asset-demo'])
     expect(result.run?.failed).toBe(true)
     expect(result.run?.failureReason).toContain('missing test-pattern')
+  })
+})
+
+describe('publishToTarget: no manifests on public storage (design-public-storage.md Q4)', { timeout: 30_000 }, () => {
+  let tmp: string
+  let sourceDir: string
+  let manifest: SiteManifest
+  let templateInfos: TemplateInfo[]
+  let target: MemoryStorage
+
+  const isManifest = (path: string) => isManifestFileName(path.split('/').pop()!)
+
+  beforeEach(async () => {
+    tmp = await mkdtemp('.tmp-publish-public-')
+    sourceDir = join(tmp, 'local')
+    await cp(starterTargetDir, sourceDir, { recursive: true })
+    // An ordinary subfolder file of a page, and a French version of the
+    // starter's image with its own bytes and one variant.
+    await mkdir(join(sourceDir, 'pages/about/notes'), { recursive: true })
+    await writeFile(join(sourceDir, 'pages/about/notes/brief.txt'), 'brief')
+    const bytes = await readFile(join(sourceDir, 'assets/test-pattern-2092f9b7.jpg'))
+    await writeFile(join(sourceDir, 'assets/test-pattern-aaaabbbb.fr.jpg'), bytes)
+    await writeFile(join(sourceDir, 'assets/test-pattern-aaaabbbb.fr-400w.jpg'), bytes)
+    await writeFile(
+      join(sourceDir, 'assets/test-pattern.asset.fr.json'),
+      JSON.stringify({
+        version: 1,
+        name: 'test-pattern',
+        hash: 'aaaabbbb',
+        mime: 'image/jpeg',
+        size: bytes.length,
+        width: 1200,
+        height: 600,
+        alt: 'Dégradé',
+        variants: [{ width: 400, path: 'test-pattern-aaaabbbb.fr-400w.jpg', size: bytes.length }],
+      }),
+    )
+    manifest = await starterManifest()
+    templateInfos = await scanTemplates(starterTemplatesDir, starterProjectRoot)
+    target = memoryStorage()
+  })
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+  })
+
+  const publish = async (publicStorage: boolean, items: string[]) => {
+    const snapshot = await createPublishSnapshot({
+      contentRoot: createContentRoot(createFilesystemProvider(sourceDir), ''),
+      manifest,
+      templatesDir: starterTemplatesDir,
+    })
+    const result = await publishToTarget({
+      targetName: 'esi-test',
+      targetStorage: target,
+      targetConfig: { ...manifest.targets!['esi-test'], storage: target, publicStorage } as TargetConfig,
+      snapshot,
+      sourceName: 'local',
+      siteManifest: manifest,
+      items,
+      itemRefs: items.map(it => {
+        const [kind, rest] = it.split('/') as [string, string]
+        const [name, locale] = rest.split(':')
+        return { kind: kind === 'pages' ? ('page' as const) : ('fragment' as const), name: name!, locale }
+      }),
+      templateInfos,
+      purgeScope: 'all',
+    })
+    expect(result.run?.failed, result.run?.failureReason).not.toBe(true)
+    expect(result.failedItems).toEqual([])
+    return [...target.dump().keys()]
+  }
+  const items = ['pages/about', 'pages/asset-demo', 'fragments/header']
+
+  it('writes no page, fragment or asset manifest, but the other files, HTML, asset bytes and sidecars', async () => {
+    const paths = await publish(true, items)
+    expect(paths.filter(isManifest)).toEqual([])
+    expect(paths).toContain('pages/about/notes/brief.txt')
+    expect(paths).toContain('fragments/header/index.html')
+    expect(paths.some(p => p.startsWith('pages/about/index') && p.endsWith('.html'))).toBe(true)
+    expect(paths.some(p => /^pages\/about\/\.[0-9a-f]{8}\.hash$/.test(p))).toBe(true)
+    for (const bytes of [
+      'test-pattern-2092f9b7.jpg',
+      'test-pattern-aaaabbbb.fr.jpg',
+      'test-pattern-aaaabbbb.fr-400w.jpg',
+    ]) {
+      expect(paths).toContain(`assets/${bytes}`)
+    }
+  })
+
+  it('writes no variant manifest for a translation published alone', async () => {
+    const paths = await publish(true, ['pages/about:fr'])
+    expect(paths.filter(isManifest)).toEqual([])
+    expect(paths.some(p => p.startsWith('pages/about/') && p.endsWith('.html'))).toBe(true)
+  })
+
+  it('still copies every manifest to a private target', async () => {
+    const paths = await publish(false, items)
+    for (const m of [
+      'pages/about/page.json',
+      'pages/about/page.fr.json',
+      'fragments/header/fragment.json',
+      'fragments/header/fragment.fr.json',
+      'assets/test-pattern.asset.json',
+      'assets/test-pattern.asset.fr.json',
+    ]) {
+      expect(paths).toContain(m)
+    }
+    target = memoryStorage()
+    expect(await publish(false, ['pages/about:fr'])).toContain('pages/about/page.fr.json')
+  })
+
+  it('reports an unchanged page as unchanged on the next publish', async () => {
+    await publish(true, items)
+    const { compareTargets } = await import('../src/compare.js')
+    const cmp = await compareTargets({
+      sourceRoot: createContentRoot(createFilesystemProvider(sourceDir), ''),
+      target,
+      templatesDir: starterTemplatesDir,
+      projectRoot: starterProjectRoot,
+      type: 'esi',
+      scanTemplates: async () => templateInfos,
+      manifest,
+    })
+    expect(cmp.unchanged).toEqual(expect.arrayContaining(['pages/about', 'pages/asset-demo', 'fragments/header']))
+    expect(cmp.modified).not.toContain('pages/about')
   })
 })

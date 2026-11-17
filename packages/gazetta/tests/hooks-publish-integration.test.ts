@@ -93,7 +93,7 @@ beforeEach(() => {
     ]),
     targetConfigs: {
       local: { storage: sourceStorage, type: 'esi', environment: 'local', editable: true },
-      staging: { storage: targetStorage, type: 'esi', environment: 'staging' },
+      staging: { storage: targetStorage, type: 'esi', environment: 'staging', publicStorage: false },
     },
     disableCacheStatsLogger: true,
     hooks,
@@ -172,7 +172,7 @@ describe('Cut 5 — end-to-end publish hooks', () => {
       ]),
       targetConfigs: {
         local: { storage: sourceStorage, type: 'esi', environment: 'local', editable: true },
-        staging: { storage: targetStorage2, type: 'esi', environment: 'staging' },
+        staging: { storage: targetStorage2, type: 'esi', environment: 'staging', publicStorage: false },
       },
       disableCacheStatsLogger: true,
       hooks: hooks2,
@@ -225,7 +225,7 @@ describe('Cut 5 — end-to-end publish hooks', () => {
       ]),
       targetConfigs: {
         local: { storage: sourceStorage, type: 'esi', environment: 'local', editable: true },
-        staging: { storage: targetStorage2, type: 'esi', environment: 'staging' },
+        staging: { storage: targetStorage2, type: 'esi', environment: 'staging', publicStorage: false },
       },
       disableCacheStatsLogger: true,
       hooks: hooks2,
@@ -280,8 +280,8 @@ describe('Cut 5 — end-to-end publish hooks', () => {
       ]),
       targetConfigs: {
         local: { storage: sourceStorage, type: 'esi', environment: 'local', editable: true },
-        'target-a': { storage: targetA, type: 'esi', environment: 'staging' },
-        'target-b': { storage: targetB, type: 'esi', environment: 'staging' },
+        'target-a': { storage: targetA, type: 'esi', environment: 'staging', publicStorage: false },
+        'target-b': { storage: targetB, type: 'esi', environment: 'staging', publicStorage: false },
       },
       disableCacheStatsLogger: true,
       hooks: hooks2,
@@ -324,7 +324,7 @@ describe('Cut 5 — end-to-end publish hooks', () => {
       ]),
       targetConfigs: {
         local: { storage: sourceStorage, type: 'esi', environment: 'local', editable: true },
-        staging: { storage: targetNoHooks, type: 'esi', environment: 'staging' },
+        staging: { storage: targetNoHooks, type: 'esi', environment: 'staging', publicStorage: false },
       },
       disableCacheStatsLogger: true,
       // hooks omitted

@@ -78,7 +78,7 @@ beforeEach(() => {
       local: { storage: sourceStorage, type: 'esi', environment: 'local', editable: true },
       // editable: false (default) — destination cannot itself receive
       // direct writes, only publishes from local.
-      staging: { storage: stagingStorage, type: 'esi', environment: 'staging' },
+      staging: { storage: stagingStorage, type: 'esi', environment: 'staging', publicStorage: false },
     },
     disableCacheStatsLogger: true,
     hooks,

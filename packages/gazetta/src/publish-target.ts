@@ -15,7 +15,9 @@
  *   1. History record - one `publish` revision, baseline pre-publish.
  *   2. Source item copy - own files and ordinary subfolders for bare
  *      items, excluding descendant items; single variant manifests
- *      for `item:locale` forms.
+ *      for `item:locale` forms. A target with public storage gets no
+ *      manifests (page, fragment or asset), only the other files
+ *      (design-public-storage.md Q4).
  *   3. Render loop - `publishRun` (per-item renders, dependency
  *      indices, site manifest). Progress events pass through.
  *   3b. Removals - delete each removed item's own files
@@ -246,6 +248,7 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
 
   const targetRoot = createContentRoot(targetStorage)
   const targetType = targetConfig ? getType(targetConfig) : 'static'
+  const publicStorage = targetConfig ? isPublicStorage(targetConfig) : false
 
   // Step 0b - every asset the snapshot's items use must still have its
   // files on the source (design-publish-undo.md Q4). Items using one
@@ -303,12 +306,13 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
   // ordinary subfolders, excluding descendant items (publishItems).
   // A locale-qualified item (`pages/about:fr`) names one variant manifest,
   // copied directly - fail closed on anything isValidLocale rejects (#1174).
+  // Public targets get no variant manifests (design-public-storage.md Q4).
   const folderItems: string[] = []
   const variantKeys: string[] = []
   for (const it of items) {
     const m = /^(pages|fragments)\/([^:]+):([^:]+)$/.exec(it)
     if (m) {
-      if (isValidLocale(m[3])) {
+      if (!publicStorage && isValidLocale(m[3])) {
         variantKeys.push(`${m[1]}/${m[2]}/${localeFilename(m[1] === 'pages' ? 'page' : 'fragment', m[3])}`)
       }
     } else {
@@ -321,7 +325,8 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
   // files the target does not have.
   let copiedFiles = 0
   try {
-    copiedFiles = (await publishItems(sourceRoot, targetRoot, folderItems)).copiedFiles
+    copiedFiles = (await publishItems(sourceRoot, targetRoot, folderItems, { skipManifests: publicStorage }))
+      .copiedFiles
   } catch (err) {
     const failureReason = `source manifest copy failed: ${err instanceof Error ? err.message : String(err)}`
     return {
@@ -364,7 +369,8 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
     targetStorages: new Map([[targetName, targetStorage]]),
     templateInfos: [...templateInfos],
     force: input.force,
-    writeDepIndices: mayWriteDepIndices(targetConfig ? isPublicStorage(targetConfig) : false),
+    writeDepIndices: mayWriteDepIndices(publicStorage),
+    skipManifests: publicStorage,
     skipAssets: check.gone,
     onProgress,
   })

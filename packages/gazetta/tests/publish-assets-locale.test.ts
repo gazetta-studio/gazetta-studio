@@ -119,6 +119,26 @@ describe('publishAssets - locale overrides (#1350)', () => {
     }
   })
 
+  it('with skipManifests, copies the bytes and variants of every slice but no manifest', async () => {
+    const { manifest } = await seedSourceAsset('hero', await jpeg(1000, 500))
+    await seedLocaleOverride('hero', 'fr', await jpeg(1200, 600))
+    await seedSourcePage('home', { hero: { _asset: 'hero' } })
+    const frManifest = JSON.parse(await readFile(join(sourceDir, 'assets/hero.asset.fr.json'), 'utf-8'))
+    expect(manifest.variants.length).toBeGreaterThan(0)
+    expect(frManifest.variants.length).toBeGreaterThan(0)
+
+    const result = await publishAssets({ ...roots(), itemNames: ['pages/home'], skipManifests: true })
+    expect(result.ok).toBe(true)
+
+    expect(existsSync(join(targetDir, 'assets/hero.asset.json'))).toBe(false)
+    expect(existsSync(join(targetDir, 'assets/hero.asset.fr.json'))).toBe(false)
+    expect(existsSync(join(targetDir, `assets/hero-${manifest.hash}.jpg`))).toBe(true)
+    expect(existsSync(join(targetDir, `assets/hero-${frManifest.hash}.fr.jpg`))).toBe(true)
+    for (const v of [...manifest.variants, ...frManifest.variants]) {
+      expect(existsSync(join(targetDir, `assets/${v.path}`))).toBe(true)
+    }
+  })
+
   it('copies an override added after the first publish', async () => {
     await seedSourceAsset('hero', await jpeg(1000, 500))
     await seedSourcePage('home', { hero: { _asset: 'hero' } })

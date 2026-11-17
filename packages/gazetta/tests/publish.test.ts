@@ -142,6 +142,52 @@ describe('publishItems', () => {
   })
 })
 
+describe('publishItems with skipManifests', () => {
+  async function publishSeeded(skipManifests: boolean) {
+    const { memoryStorage } = await import('./_helpers/memory-storage.js')
+    const source = memoryStorage()
+    const target = memoryStorage()
+    source.seed({
+      'pages/home/page.json': '{"template":"page-default"}',
+      'pages/home/page.fr.json': '{"template":"page-default"}',
+      'pages/home/notes.txt': 'notes',
+      'pages/home/media/fragment.local.json': '{}',
+      'pages/home/media/clip.txt': 'clip',
+      'pages/home/child/page.json': '{"template":"page-default"}',
+      'fragments/header/fragment.json': '{"template":"header"}',
+      'fragments/header/fragment.ar.json': '{"template":"header"}',
+      'fragments/header/style.css': 'h1{}',
+    })
+    const result = await publishItems(
+      createContentRoot(source),
+      createContentRoot(target),
+      ['pages/home', 'fragments/header'],
+      { skipManifests },
+    )
+    return { result, paths: [...target.dump().keys()].sort() }
+  }
+
+  it('leaves out every reserved manifest name and copies the other files and ordinary subfolders', async () => {
+    const { result, paths } = await publishSeeded(true)
+    expect(paths).toEqual(['fragments/header/style.css', 'pages/home/media/clip.txt', 'pages/home/notes.txt'])
+    expect(result.copiedFiles).toBe(3)
+  })
+
+  it('without it, copies the manifests too and still leaves out the nested item', async () => {
+    const { paths } = await publishSeeded(false)
+    expect(paths).toEqual([
+      'fragments/header/fragment.ar.json',
+      'fragments/header/fragment.json',
+      'fragments/header/style.css',
+      'pages/home/media/clip.txt',
+      'pages/home/media/fragment.local.json',
+      'pages/home/notes.txt',
+      'pages/home/page.fr.json',
+      'pages/home/page.json',
+    ])
+  })
+})
+
 describe('resolveDependencies', () => {
   it('includes the item itself', async () => {
     await writeTestFile(sourceDir, 'pages/home/page.json', JSON.stringify({ template: 'default' }))

@@ -249,6 +249,11 @@ export interface PublishRunInput {
    * publish, and the items using them aren't published (#1632).
    */
   readonly skipAssets?: ReadonlySet<string>
+  /**
+   * Leave page, fragment and asset manifests off the targets: the caller
+   * sets it for a target with public storage (design-public-storage.md Q4).
+   */
+  readonly skipManifests?: boolean
   /** Streaming callback emitted at run / target / item boundaries. */
   readonly onProgress?: (event: PublishProgressEvent) => void
 }
@@ -415,7 +420,9 @@ export async function publishRun(input: PublishRunInput): Promise<PublishRunResu
         const itemDirs = [
           ...new Set(input.items.map(ref => `${ref.kind === 'page' ? 'pages' : 'fragments'}/${ref.name}`)),
         ]
-        const { copiedFiles } = await publishItems(input.sourceRoot, targetRoot, itemDirs)
+        const { copiedFiles } = await publishItems(input.sourceRoot, targetRoot, itemDirs, {
+          skipManifests: input.skipManifests,
+        })
         targetFilesWritten += copiedFiles
       } catch (err) {
         targetFailureReason = `source manifest copy failed: ${err instanceof Error ? err.message : String(err)}`
@@ -437,6 +444,7 @@ export async function publishRun(input: PublishRunInput): Promise<PublishRunResu
           targetRoot,
           itemNames,
           skipAssets: input.skipAssets,
+          skipManifests: input.skipManifests,
         })
         if (!assetResult.ok) {
           targetFailureReason = `asset publish failed: missing ${assetResult.missing.join(', ')}`

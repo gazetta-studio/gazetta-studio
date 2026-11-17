@@ -30,6 +30,11 @@ export interface PublishAssetsInput {
   readonly itemNames: readonly string[]
   /** Assets not to copy: their files were removed during the publish (#1632). */
   readonly skipAssets?: ReadonlySet<string>
+  /**
+   * Copy bytes and variants but no asset manifests: public targets receive
+   * no manifests (design-public-storage.md Q4).
+   */
+  readonly skipManifests?: boolean
 }
 
 export type PublishAssetsResult =
@@ -59,6 +64,7 @@ export async function publishAssets(input: PublishAssetsInput): Promise<PublishA
     target: input.targetRoot.storage,
     sourceAssets: input.sourceRoot.path('assets'),
     targetAssets: input.targetRoot.path('assets'),
+    skipManifests: input.skipManifests ?? false,
   }
 
   const skip = input.skipAssets ?? new Set<string>()
@@ -80,12 +86,13 @@ interface CopyContext {
   readonly target: StorageProvider
   readonly sourceAssets: string
   readonly targetAssets: string
+  readonly skipManifests: boolean
 }
 
 interface CopyResult {
   /** True when any file was written. False when the target was already current. */
   readonly copied: boolean
-  /** Files written for this asset (manifests + bytes + variants). 0 when already current. */
+  /** Files written for this asset (manifests unless skipped, bytes, variants). 0 when already current. */
   readonly files: number
 }
 
@@ -105,7 +112,8 @@ async function copyOneAsset(ctx: CopyContext, name: string): Promise<CopyResult>
   // change over an asset's life: an alt or focal-point edit, or an
   // override added after a first publish. Compare content and write
   // when missing or different; a byte-identical manifest is skipped.
-  for (const sourcePath of assetManifestPaths(sourcePaths)) {
+  // Public targets get none.
+  for (const sourcePath of ctx.skipManifests ? [] : assetManifestPaths(sourcePaths)) {
     const content = await ctx.source.readFile(sourcePath)
     const existing = await ctx.target.readFile(retarget(sourcePath)).catch(() => null)
     if (existing === content) continue
