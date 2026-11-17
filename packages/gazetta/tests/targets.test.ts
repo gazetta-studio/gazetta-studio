@@ -10,6 +10,7 @@ import {
   resolveEnvVars,
 } from '../src/targets.js'
 import { filesystemStorage, r2Storage, s3Storage, azureBlobStorage } from '../src/providers/factories.js'
+import { missingOptionsOf } from '../src/providers/missing-options.js'
 import type { StorageProvider, TargetConfig } from '../src/types.js'
 import { tempDir } from './_helpers/temp.js'
 
@@ -61,41 +62,57 @@ describe('storage provider factories', () => {
     })
   })
 
+  // A missing required option fails when the storage is used, not when
+  // site.config.ts loads, so a teammate without the production keys can still
+  // run `gazetta dev` and publish elsewhere (#1185).
   describe('r2Storage', () => {
-    it('throws when accountId missing', () => {
-      expect(() => r2Storage({ accountId: '', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' })).toThrow(
-        /accountId/,
+    it('constructs without accountId; first use fails naming it', async () => {
+      const provider = r2Storage({ accountId: '', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' })
+      await expect(provider.readFile('x')).rejects.toThrow(/r2Storage: "accountId" is required/)
+    })
+    it('constructs without bucket; first use fails naming it', async () => {
+      const provider = r2Storage({ accountId: 'a', bucket: '', accessKeyId: 'k', secretAccessKey: 's' })
+      await expect(provider.exists('x')).rejects.toThrow(/r2Storage: "bucket" is required/)
+    })
+    it('constructs without accessKeyId; first use fails with the env-var hint', async () => {
+      const provider = r2Storage({ accountId: 'a', bucket: 'b', accessKeyId: '', secretAccessKey: 's' })
+      await expect(provider.writeFile('x', 'y')).rejects.toThrow(
+        /r2Storage: "accessKeyId" is required\. Set R2_ACCESS_KEY_ID/,
       )
     })
-    it('throws when bucket missing', () => {
-      expect(() => r2Storage({ accountId: 'a', bucket: '', accessKeyId: 'k', secretAccessKey: 's' })).toThrow(/bucket/)
+    it('constructs without secretAccessKey; init fails naming it', async () => {
+      const provider = r2Storage({
+        accountId: 'a',
+        bucket: 'b',
+        accessKeyId: 'k',
+        secretAccessKey: '',
+      }) as StorageProvider & { init(): Promise<void> }
+      await expect(provider.init()).rejects.toThrow(/r2Storage: "secretAccessKey" is required/)
     })
-    it('throws when accessKeyId missing', () => {
-      expect(() => r2Storage({ accountId: 'a', bucket: 'b', accessKeyId: '', secretAccessKey: 's' })).toThrow(
-        /accessKeyId/,
-      )
-    })
-    it('throws when secretAccessKey missing', () => {
-      expect(() => r2Storage({ accountId: 'a', bucket: 'b', accessKeyId: 'k', secretAccessKey: '' })).toThrow(
-        /secretAccessKey/,
-      )
+    it('reports every missing option, in order, with its env variable', () => {
+      const provider = r2Storage({ accountId: 'a', bucket: 'b', accessKeyId: '', secretAccessKey: '' })
+      const missing = missingOptionsOf(provider)
+      expect(missing.map(m => m.option)).toEqual(['accessKeyId', 'secretAccessKey'])
+      expect(missing[0].message).toContain('R2_ACCESS_KEY_ID')
+      expect(missing[1].message).toContain('R2_SECRET_ACCESS_KEY')
+      expect(provider.kind).toBe('r2')
     })
     it('returns a provider on valid options (lazy SDK load)', () => {
       const provider = r2Storage({ accountId: 'a', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' })
       expect(provider).toBeDefined()
-      // Construction succeeds without touching the SDK; auth/connectivity errors
-      // surface on first method call per Path X's construction-timing convention.
+      expect(missingOptionsOf(provider)).toEqual([])
     })
   })
 
   describe('s3Storage', () => {
-    it('throws when endpoint missing', () => {
-      expect(() => s3Storage({ endpoint: '', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' })).toThrow(/endpoint/)
+    it('constructs without endpoint; first use fails naming it', async () => {
+      const provider = s3Storage({ endpoint: '', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' })
+      await expect(provider.readDir('x')).rejects.toThrow(/s3Storage: "endpoint" is required/)
     })
-    it('throws when bucket missing', () => {
-      expect(() => s3Storage({ endpoint: 'http://x', bucket: '', accessKeyId: 'k', secretAccessKey: 's' })).toThrow(
-        /bucket/,
-      )
+    it('constructs without credentials; first use fails naming the first', async () => {
+      const provider = s3Storage({ endpoint: 'http://x', bucket: 'b', accessKeyId: '', secretAccessKey: '' })
+      await expect(provider.readFile('x')).rejects.toThrow(/s3Storage: "accessKeyId" is required/)
+      expect(missingOptionsOf(provider).map(m => m.option)).toEqual(['accessKeyId', 'secretAccessKey'])
     })
     it('returns a provider on valid options', () => {
       const provider = s3Storage({
@@ -105,19 +122,24 @@ describe('storage provider factories', () => {
         secretAccessKey: 's',
       })
       expect(provider).toBeDefined()
+      expect(missingOptionsOf(provider)).toEqual([])
     })
   })
 
   describe('azureBlobStorage', () => {
-    it('throws when connectionString missing', () => {
-      expect(() => azureBlobStorage({ connectionString: '', container: 'c' })).toThrow(/connectionString/)
+    it('constructs without connectionString; first use fails naming it', async () => {
+      const provider = azureBlobStorage({ connectionString: '', container: 'c' })
+      await expect(provider.readFile('x')).rejects.toThrow(/azureBlobStorage: "connectionString" is required/)
+      expect(provider.kind).toBe('azure')
     })
-    it('throws when container missing', () => {
-      expect(() => azureBlobStorage({ connectionString: 'conn', container: '' })).toThrow(/container/)
+    it('constructs without container; first use fails naming it', async () => {
+      const provider = azureBlobStorage({ connectionString: 'conn', container: '' })
+      await expect(provider.rm('x')).rejects.toThrow(/azureBlobStorage: "container" is required/)
     })
     it('returns a provider on valid options', () => {
       const provider = azureBlobStorage({ connectionString: 'UseDevelopmentStorage=true', container: 'c' })
       expect(provider).toBeDefined()
+      expect(missingOptionsOf(provider)).toEqual([])
     })
   })
 })

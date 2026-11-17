@@ -17,6 +17,8 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { TargetConfig } from '../src/types.js'
+import type { DeployContext } from '../src/deploy/types.js'
+import { missingOptionsOf } from '../src/providers/missing-options.js'
 import {
   cloudflareWorkersDeploy,
   extractDeployUrl,
@@ -25,53 +27,43 @@ import {
 } from '../src/deploy/cloudflare-workers.js'
 import { DeployConfigError } from '../src/deploy/errors.js'
 
+// A missing required option fails at execute(), not when site.config.ts
+// loads, so a teammate without the deploy token can still run `gazetta dev`
+// and publish (#1185).
+function executeCtx(): DeployContext {
+  const noop = () => {}
+  return {
+    target: { storage: {} as TargetConfig['storage'] } as TargetConfig,
+    targetName: 'production',
+    outputDir: '/nonexistent',
+    storage: {} as TargetConfig['storage'],
+    env: {},
+    logger: { debug: noop, info: noop, warn: noop, error: noop } as unknown as DeployContext['logger'],
+    signal: new AbortController().signal,
+  }
+}
+
 describe('cloudflareWorkersDeploy() — construction', () => {
-  it('throws DeployConfigError when apiToken missing', () => {
-    expect(() =>
-      cloudflareWorkersDeploy({
-        // @ts-expect-error — testing runtime validation
-        apiToken: undefined,
-        accountId: 'acc',
-        name: 'site',
-        bucket: 'site',
-      }),
-    ).toThrow(DeployConfigError)
+  it.each([
+    ['apiToken', /cloudflareWorkersDeploy requires `apiToken` \(e\.g\., process\.env\.CLOUDFLARE_API_TOKEN\)/],
+    ['accountId', /cloudflareWorkersDeploy requires `accountId` \(e\.g\., process\.env\.CLOUDFLARE_ACCOUNT_ID\)/],
+    ['name', /cloudflareWorkersDeploy requires `name`/],
+    ['bucket', /cloudflareWorkersDeploy requires `bucket`/],
+  ] as const)('constructs without %s; execute() rejects with DeployConfigError naming it', async (option, message) => {
+    const opts = { apiToken: 'tok', accountId: 'acc', name: 'site', bucket: 'site', [option]: undefined }
+    const adapter = cloudflareWorkersDeploy(opts as unknown as Parameters<typeof cloudflareWorkersDeploy>[0])
+    const result = adapter.execute(executeCtx())
+    await expect(result).rejects.toBeInstanceOf(DeployConfigError)
+    await expect(result).rejects.toThrow(message)
+    expect(missingOptionsOf(adapter).map(m => m.option)).toEqual([option])
   })
 
-  it('throws DeployConfigError when accountId missing', () => {
-    expect(() =>
-      cloudflareWorkersDeploy({
-        apiToken: 'tok',
-        // @ts-expect-error — testing runtime validation
-        accountId: undefined,
-        name: 'site',
-        bucket: 'site',
-      }),
-    ).toThrow(DeployConfigError)
-  })
-
-  it('throws DeployConfigError when name missing', () => {
-    expect(() =>
-      cloudflareWorkersDeploy({
-        apiToken: 'tok',
-        accountId: 'acc',
-        // @ts-expect-error — testing runtime validation
-        name: undefined,
-        bucket: 'site',
-      }),
-    ).toThrow(DeployConfigError)
-  })
-
-  it('throws DeployConfigError when bucket missing', () => {
-    expect(() =>
-      cloudflareWorkersDeploy({
-        apiToken: 'tok',
-        accountId: 'acc',
-        name: 'site',
-        // @ts-expect-error — testing runtime validation
-        bucket: undefined,
-      }),
-    ).toThrow(DeployConfigError)
+  it('reports the env variable for missing credentials', () => {
+    const adapter = cloudflareWorkersDeploy({ apiToken: '', accountId: '', name: 'site', bucket: 'site' })
+    const missing = missingOptionsOf(adapter)
+    expect(missing.map(m => m.option)).toEqual(['apiToken', 'accountId'])
+    expect(missing[0].message).toContain('CLOUDFLARE_API_TOKEN')
+    expect(missing[1].message).toContain('CLOUDFLARE_ACCOUNT_ID')
   })
 
   it('constructs successfully with all required fields', () => {
