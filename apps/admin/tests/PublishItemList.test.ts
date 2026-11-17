@@ -41,7 +41,10 @@ describe('PublishItemList', () => {
   it('leaves target-only rows out of "Select all"', async () => {
     const w = await mountWithTargetOnlyRow()
     await w.setProps({ selected: new Set<string>() })
+    const before = (w.emitted('update:selected') ?? []).length
     await w.find('[data-testid="publish-select-all"]').trigger('click')
+    // A new event, so a "Select all" that does nothing can't pass on the default selection.
+    expect((w.emitted('update:selected') ?? []).length).toBe(before + 1)
     expect([...lastSelection(w)].sort()).toEqual(['pages/home', 'pages/new'])
   })
 })
