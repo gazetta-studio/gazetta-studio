@@ -73,7 +73,9 @@ export interface TargetCapabilities {
  * `redirects.format` ('cloudflare' | 'netlify' | 'json') support
  * `redirects` via the host's `_redirects` file, but plain-static
  * with no host config can't emit `Gone` status — the host's
- * natural 404 is the floor.
+ * natural 404 is the floor. `gazetta serve` answers 301/410 itself on
+ * a static target, but no config says which server serves one, so
+ * the gap reasons name that exception instead of changing `has`.
  */
 export function inspectTarget(target: TargetConfig): TargetCapabilities {
   const has = new Set<RuntimeCapability>()
@@ -95,7 +97,7 @@ export function inspectTarget(target: TargetConfig): TargetCapabilities {
     gaps.push({
       capability: 'redirects',
       reason: isPlainStatic
-        ? "plain-static target has no worker and no `redirects.format` configured; archived URLs return the host's natural 404 instead of a 301 redirect"
+        ? "plain-static target has no worker and no `redirects.format` configured; archived URLs return the host's natural 404 instead of a 301 redirect, unless `gazetta serve` serves this target"
         : 'target lacks a runtime that can emit 301 redirects',
     })
   }
@@ -106,7 +108,7 @@ export function inspectTarget(target: TargetConfig): TargetCapabilities {
     gaps.push({
       capability: 'gone-status',
       reason:
-        "no worker runtime available to emit `410 Gone` for archived-no-alias items; falls back to the host's natural 404",
+        "no worker runtime available to emit `410 Gone` for archived-no-alias items; falls back to the host's natural 404, unless `gazetta serve` serves this target",
     })
   }
 

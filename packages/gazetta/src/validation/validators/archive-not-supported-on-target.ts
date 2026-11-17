@@ -72,7 +72,7 @@ export const archiveNotSupportedOnTarget: Validator = {
       {
         validator: 'archive-not-supported-on-target',
         severity: 'warn',
-        message: `${scope.item.kind} "${scope.item.name}" is archived. Targets without a worker won't emit 301/410 — visitors will see the host's natural 404 instead. Affected: ${incompatibleTargets.join(', ')}.`,
+        message: `${scope.item.kind} "${scope.item.name}" is archived. Targets without a worker won't emit 301/410 — visitors will see the host's natural 404 instead, unless \`gazetta serve\` serves the target. Affected: ${incompatibleTargets.join(', ')}.`,
         itemPath: scope.item.itemPath,
       },
     ]

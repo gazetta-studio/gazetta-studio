@@ -58,7 +58,7 @@ export function warnOnCapabilityGaps(manifest: SiteManifest, opts: { anyArchived
     const reasons = inspection.gaps.map(g => `${g.capability}: ${g.reason}`).join('; ')
     console.warn(
       `  Warning: target "${name}" has runtime capability gaps. ${reasons}. ` +
-        'Archive operations on this target may not emit 301/410 redirects. ' +
+        'Archive operations on this target may not emit 301/410 redirects unless `gazetta serve` serves this target. ' +
         'See https://gazetta.studio/docs/runtime-capabilities for resolution paths.',
     )
   }

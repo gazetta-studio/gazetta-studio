@@ -21,7 +21,7 @@ The capability vocabulary is a closed enum that grows additively as new features
 | `static` + `redirects.format: 'cloudflare'`     | ✓           | ✗             | Cloudflare Pages honors `_redirects` file          |
 | `static` + `redirects.format: 'netlify'`        | ✓           | ✗             | Netlify honors `_redirects` file                   |
 | `static` + `redirects.format: 'json'`           | ✓           | ✗             | Custom integrations consume `redirects.json`       |
-| `static` (no worker, no redirects)              | ✗           | ✗             | Plain-static; falls back to host's natural 404     |
+| `static` (no worker, no redirects)              | ✗           | ✗             | Plain-static; falls back to host's natural 404, but `gazetta serve` answers 301/410 itself when it serves the target |
 | `esi`                                           | ✓           | ✓             | Worker is required for ESI assembly                |
 | `dynamic`                                       | ✓           | ✓             | Origin server emits 301/410 directly               |
 

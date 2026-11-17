@@ -343,10 +343,7 @@ export interface TargetConfig {
    * `pages/{name}/index.html` directly. Setting `redirects.format`
    * on a worker-served target is harmless but redundant.
    *
-   * Defaults:
-   *   - `cloudflare-pages` runtime hint → `cloudflare`
-   *   - `netlify` runtime hint → `netlify`
-   *   - else → `none` (no file emitted)
+   * Unset means `none`: no file is emitted.
    *
    * Override when host-runtime is plain-static and operator wants
    * a structured form (`json`) for custom integrations.
