@@ -6,7 +6,7 @@
  *   - Renders persistent banner when state is `offline`
  *   - Renders subtle indicator when state is `degraded`
  *   - Renders subtle indicator when state is `reconnecting`
- *   - "Send now" button triggers connection probe
+ *   - "Check connection" button triggers connection probe
  *   - "Connection back" toast fires on offline → online transition
  *   - Plain language locked: no jargon ("STALE", "Disconnected", etc.)
  */
@@ -35,7 +35,7 @@ describe('OfflineBanner — visibility per state', () => {
     expect(wrapper.find('[data-testid="offline-banner"]').exists()).toBe(false)
   })
 
-  it('renders persistent banner with "Offline" + "Send now" when state is offline', async () => {
+  it('renders persistent banner with "Offline" + "Check connection" when state is offline', async () => {
     const connection = useConnectionState()
     // Drive to offline via 3 consecutive failed heartbeats.
     configureConnectionState({ manualMode: true, heartbeatFn: async () => false })
@@ -51,7 +51,9 @@ describe('OfflineBanner — visibility per state', () => {
     expect(banner.exists()).toBe(true)
     expect(banner.attributes('data-state')).toBe('offline')
     expect(wrapper.text()).toContain('Offline')
-    expect(wrapper.find('[data-testid="offline-banner-send-now"]').exists()).toBe(true)
+    const button = wrapper.find('[data-testid="offline-banner-check-connection"]')
+    expect(button.exists()).toBe(true)
+    expect(button.text()).toBe('Check connection')
     // Suppress unused-var lint
     void connection
   })
@@ -66,11 +68,11 @@ describe('OfflineBanner — visibility per state', () => {
     expect(banner.exists()).toBe(true)
     expect(banner.attributes('data-state')).toBe('degraded')
     expect(wrapper.text()).toContain('Connection unstable')
-    // No Send now button on degraded — author isn't blocked yet.
-    expect(wrapper.find('[data-testid="offline-banner-send-now"]').exists()).toBe(false)
+    // No Check connection button on degraded — author isn't blocked yet.
+    expect(wrapper.find('[data-testid="offline-banner-check-connection"]').exists()).toBe(false)
   })
 
-  it('"Send now" button calls connectionState.probeNow', async () => {
+  it('"Check connection" button calls connectionState.probeNow', async () => {
     setActivePinia(createPinia())
     configureConnectionState({ manualMode: true, heartbeatFn: async () => false })
     const connection = useConnectionState()
@@ -82,7 +84,7 @@ describe('OfflineBanner — visibility per state', () => {
     const probeSpy = vi.spyOn(connection, 'probeNow').mockResolvedValue()
 
     const wrapper = mountBanner()
-    await wrapper.find('[data-testid="offline-banner-send-now"]').trigger('click')
+    await wrapper.find('[data-testid="offline-banner-check-connection"]').trigger('click')
 
     expect(probeSpy).toHaveBeenCalledOnce()
   })
@@ -154,6 +156,8 @@ describe('OfflineBanner — plain language lock', () => {
     expect(text).not.toContain('etag')
     expect(text).not.toContain('queue')
     expect(text).not.toContain('retry')
-    expect(text).not.toContain('sync') // "Send now", not "Sync now"
+    expect(text).not.toContain('sync')
+    // No save queue yet: nothing is sent, so the button can't promise it.
+    expect(text).not.toContain('send')
   })
 })

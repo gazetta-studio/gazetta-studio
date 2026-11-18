@@ -179,6 +179,8 @@ describe('StorageQuotaBanner', () => {
     expect(text).not.toContain('quota')
     expect(text).not.toContain('exceeded')
     expect(text).not.toContain('80')
+    // No save queue yet: offline saves aren't kept for sending later.
+    expect(text).not.toContain('send')
   })
 
   it('exposes a dismiss button when banner is shown', async () => {
