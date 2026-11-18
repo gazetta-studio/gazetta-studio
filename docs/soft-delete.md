@@ -280,6 +280,7 @@ import { defineSite, r2Storage } from 'gazetta'
 export default defineSite({
   targets: {
     'production-pages': {
+      environment: 'production',
       storage: r2Storage({ /* ... */ }),
       type: 'static',
       siteUrl: 'https://example.com',

@@ -130,6 +130,7 @@ targets: {
     publicStorage: false,          // the editing folder; nobody serves it
   },
   production: {
+    environment: 'production',
     storage: r2Storage({ /* ... */ }),
     publicStorage: false,          // bucket is private; only the worker serves it
   },

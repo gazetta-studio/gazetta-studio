@@ -44,6 +44,7 @@ import { defineSite, r2Storage } from 'gazetta'
 export default defineSite({
   targets: {
     production: {
+      environment: 'production',
       storage: r2Storage({ bucket: 'site-prod' }),
       siteUrl: 'https://cdn.example.com',
       // transforms: not declared → sharp adapter is used
@@ -65,6 +66,7 @@ import { defineSite, r2Storage, cloudflareAdapter } from 'gazetta'
 export default defineSite({
   targets: {
     production: {
+      environment: 'production',
       storage: r2Storage({ bucket: 'site-prod' }),
       siteUrl: 'https://cdn.example.com',
       transforms: cloudflareAdapter({
@@ -203,11 +205,13 @@ targets: {
   },
 
   staging: {
+    environment: 'staging',
     storage: r2Storage({ bucket: 'site-staging' }),
     // sharp default
   },
 
   production: {
+    environment: 'production',
     storage: r2Storage({ bucket: 'site-prod' }),
     siteUrl: 'https://example.com',
     transforms: cloudflareAdapter({ zone: 'example.com' }),

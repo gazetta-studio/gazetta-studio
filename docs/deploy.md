@@ -22,6 +22,7 @@ export default defineSite({
   targets: {
     production: {
       type: 'dynamic',
+      environment: 'production',
       storage: r2Storage({
         accountId: process.env.R2_ACCOUNT_ID!,
         bucket: 'my-site',
@@ -147,6 +148,7 @@ production: {
 ```ts
 production: {
   type: 'dynamic',
+  environment: 'production',
   storage: r2Storage({...}),
   deploy: cloudflareWorkersDeploy({
     apiToken: process.env.CLOUDFLARE_API_TOKEN!,

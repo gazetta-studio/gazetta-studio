@@ -64,6 +64,7 @@ import { defineSite, r2Storage, filesystemStorage } from 'gazetta'
 export default defineSite({
   targets: {
     'production-pages': {
+      environment: 'production',
       storage: r2Storage({ /* ... */ }),
       type: 'static',
       siteUrl: 'https://example.com',
@@ -71,6 +72,7 @@ export default defineSite({
     },
 
     'production-fly': {
+      environment: 'production',
       storage: filesystemStorage({ path: './dist/fly' }),
       type: 'static',
       siteUrl: 'https://example.com',
