@@ -201,7 +201,12 @@ Nginx respects `s-maxage` from the response headers — it will cache pages at t
 
 Place any CDN (CloudFront, Fastly, Bunny) in front of your server. The `s-maxage` header tells the CDN how long to cache. The `ETag` header enables conditional requests.
 
-No special configuration needed — standard HTTP caching.
+On a `dynamic` target, `s-maxage` is the target's `cache.edge`: 86,400 seconds (24 hours) by default (see [`targets.md`](./targets.md#cache)). After `gazetta publish`, the CDN keeps serving the previous version of a page until its copy expires, up to `cache.edge` seconds. Gazetta purges only Cloudflare's cache (`cache.purge` with `type: 'cloudflare'`), so for another CDN either:
+
+- purge the CDN after `gazetta publish`, for example as the next step in CI, with the CDN's own CLI or API (on Cloudflare, set `cache.purge` instead); or
+- lower `cache.edge` for the target, so the CDN refetches sooner (`edge: 0` turns CDN caching off).
+
+`gazetta serve` on a `static` target sends `max-age=0, must-revalidate` for pages, so the CDN revalidates each request and serves the new version after a publish.
 
 ## Fly.io
 
