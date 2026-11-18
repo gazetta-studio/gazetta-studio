@@ -62,6 +62,7 @@ import {
   type TargetConfig,
 } from './types.js'
 import { isValidLocale, localeFilename, localeFromFilename } from './locale.js'
+import { parseItemPath } from './item-name.js'
 import { publishItems } from './publish.js'
 import { mayWriteDepIndices, stateFolderPath } from './state-folders.js'
 import { writePublishGeneration } from './publish-generation.js'
@@ -256,8 +257,9 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
   // record, the manifest copy, the render loop and the asset copy, and
   // the rest goes ahead.
   const itemNameOf = (it: string) => {
-    const m = /^(pages|fragments)\/([^:]+)/.exec(it)
-    return m ? { kind: m[1] === 'pages' ? ('page' as const) : ('fragment' as const), name: m[2] } : null
+    const parsed = parseItemPath(it)
+    if (parsed?.folder !== 'pages' && parsed?.folder !== 'fragments') return null
+    return { kind: parsed.folder === 'pages' ? ('page' as const) : ('fragment' as const), name: parsed.name }
   }
   const check = await checkGoneAssets(
     snapshot,
@@ -305,15 +307,18 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
   // Step 2 - source item copy. Bare items copy their own files and
   // ordinary subfolders, excluding descendant items (publishItems).
   // A locale-qualified item (`pages/about:fr`) names one variant manifest,
-  // copied directly - fail closed on anything isValidLocale rejects (#1174).
+  // copied directly. An item parseItemPath rejects (an unsafe name or
+  // an invalid locale) is skipped (#1174, #1200).
   // Public targets get no variant manifests (design-public-storage.md Q4).
   const folderItems: string[] = []
   const variantKeys: string[] = []
   for (const it of items) {
-    const m = /^(pages|fragments)\/([^:]+):([^:]+)$/.exec(it)
-    if (m) {
-      if (!publicStorage && isValidLocale(m[3])) {
-        variantKeys.push(`${m[1]}/${m[2]}/${localeFilename(m[1] === 'pages' ? 'page' : 'fragment', m[3])}`)
+    const parsed = parseItemPath(it)
+    if (!parsed) continue
+    if (parsed.locale !== undefined) {
+      if (!publicStorage) {
+        const base = parsed.folder === 'pages' ? 'page' : 'fragment'
+        variantKeys.push(`${parsed.folder}/${parsed.name}/${localeFilename(base, parsed.locale)}`)
       }
     } else {
       folderItems.push(it)
@@ -619,7 +624,10 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
             purge = { kind: 'purged-all' }
           } else if (targetConfig?.siteUrl) {
             const publishedPageNames = new Set(
-              items.filter(i => i.startsWith('pages/')).map(i => i.replace('pages/', '').split(':')[0]),
+              items.flatMap(i => {
+                const parsed = parseItemPath(i)
+                return parsed?.folder === 'pages' ? [parsed.name] : []
+              }),
             )
             const urls: string[] = []
             const { allPageEntries } = await import('./site-loader.js')
@@ -671,15 +679,14 @@ async function collectPublishedItemsForHistory(
 ): Promise<WrittenItem[]> {
   const out: WrittenItem[] = []
   for (const item of publishedItems) {
-    const m = /^(pages|fragments)\/([^:]+)(?::([^:]+))?$/.exec(item)
-    if (!m) continue
-    const base = m[1] === 'pages' ? 'page' : 'fragment'
-    const dir = `${m[1]}/${m[2]}`
+    const parsed = parseItemPath(item)
+    if (parsed?.folder !== 'pages' && parsed?.folder !== 'fragments') continue
+    const base = parsed.folder === 'pages' ? 'page' : 'fragment'
+    const dir = `${parsed.folder}/${parsed.name}`
     const names: string[] = []
-    if (m[3]) {
+    if (parsed.locale !== undefined) {
       // Locale-qualified: exactly the requested variant's manifest.
-      // Fail closed on an invalid locale - it never reaches a path.
-      if (isValidLocale(m[3])) names.push(localeFilename(base, m[3]))
+      names.push(localeFilename(base, parsed.locale))
     } else {
       // Bare item: record the default and translation manifests in this
       // item's own folder. Descendant items are neither copied nor recorded.

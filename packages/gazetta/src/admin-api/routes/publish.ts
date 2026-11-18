@@ -6,7 +6,7 @@ import { auditHomeFor } from '../../audit-home.js'
 import type { StorageProvider, TargetConfig } from '../../types.js'
 import { stateFolderPath } from '../../state-folders.js'
 import { publishItems, resolveDependencies, findFragmentDependents, findDependentsFromSidecars } from '../../publish.js'
-import { isValidLocale, normalizeLocale } from '../../locale.js'
+import { normalizeLocale } from '../../locale.js'
 import { fragmentVersionsFor, pageVersionsFor, resolveTargetLanguages } from '../../target-locales.js'
 import type { SourceContextResolver } from '../source-context.js'
 import type { PublishResult } from '../../publish.js'
@@ -37,7 +37,7 @@ import {
 import { makeAuditFiringEmitter } from '../hook-audit-emitter.js'
 import { runPublishAudit } from '../../validation/publish-audit.js'
 import type { Issue } from '../../validation/types.js'
-import { isSafeItemName } from '../../item-name.js'
+import { parseItemPath } from '../../item-name.js'
 import { PublishAuditRequestSchema } from '../schemas/validation.js'
 import { apiApp, json, problems } from '../openapi.js'
 import { publishResultEvent, publishStartEvent, type PublishAuditBase } from '../../publish-audit-events.js'
@@ -250,35 +250,16 @@ export function publishRoutes(
   const app = apiApp<AuditEnv>()
 
   /**
-   * Route-boundary validation for user-supplied item paths (#1196).
-   * Accepted forms: `pages/<name>[:<locale>]`, `fragments/<name>[:<locale>]`,
-   * `templates/<name>`, `assets/<name>`. Every name segment must be
-   * non-empty and not `.`/`..`; no leading `/`, no backslash; a locale
-   * suffix must satisfy `isValidLocale`. The raw item used to be joined
-   * straight onto a storage root, so `..` segments could read and copy
-   * folders outside the site - anything failing these rules is rejected
-   * before a path is built from it.
+   * Route-boundary validation for item paths (#1196): the request's items
+   * and the items beforePublish hooks return (#1200). Shape rules live
+   * in parseItemPath; folder items (pages, fragments, templates) must
+   * also exist, since a path is built from them.
    */
   function parseRouteItem(item: string): { dir: string; knownPrefix: boolean } | null {
-    if (item.startsWith('/') || item.includes('\\')) return null
-    // Known folder prefixes get locale parsing + an existence check;
-    // anything else is an asset-style name (toPublishItem's fallback)
-    // and still gets the same segment rules, so no shape can carry a
-    // `..` segment through.
-    const m = /^(pages|fragments|templates|assets)\/(.+)$/.exec(item)
-    const prefix = m ? m[1] : null
-    let name = m ? m[2] : item
-    if (prefix === 'pages' || prefix === 'fragments') {
-      const ci = name.indexOf(':')
-      if (ci >= 0) {
-        if (!isValidLocale(name.slice(ci + 1))) return null
-        name = name.slice(0, ci)
-      }
-    }
-    if (!isSafeItemName(name)) return null
-    // Existence is checked for folder items (pages/fragments/templates);
-    // asset-style names pass the segment rules only.
-    return { dir: prefix ? `${prefix}/${name}` : name, knownPrefix: prefix !== null && prefix !== 'assets' }
+    const parsed = parseItemPath(item)
+    if (!parsed) return null
+    const { folder, name } = parsed
+    return { dir: folder ? `${folder}/${name}` : name, knownPrefix: folder !== null && folder !== 'assets' }
   }
 
   /**
@@ -757,12 +738,12 @@ export function publishRoutes(
         // the site's default included.
         const languages = resolveTargetLanguages(site.manifest, config)
         for (const it of targetItems) {
-          const isPage = it.startsWith('pages/')
-          if (!isPage && !(it.startsWith('fragments/') && !isStatic)) continue
+          const parsed = parseItemPath(it)
+          const isPage = parsed?.folder === 'pages'
+          if (!parsed || (!isPage && !(parsed.folder === 'fragments' && !isStatic))) continue
           const kind = isPage ? 'page' : 'fragment'
-          const raw = it.replace(isPage ? 'pages/' : 'fragments/', '')
-          const [name, rawLocale] = raw.includes(':') ? raw.split(':') : [raw, undefined]
-          const locale = rawLocale ? normalizeLocale(rawLocale) : undefined
+          const name = parsed.name
+          const locale = parsed.locale ? normalizeLocale(parsed.locale) : undefined
           const versionsFor = isPage ? pageVersionsFor : fragmentVersionsFor
           // Locale-qualified: just the requested variant, when the target
           // publishes its language. Else: every version the target publishes.
@@ -1065,6 +1046,15 @@ export function publishRoutes(
       }
     }
 
+    // #1200: items a beforePublish hook returned pass the same checks
+    // as the request's items, before anything is copied.
+    if (finalItems !== body.items) {
+      const hookItemError = await validateRequestItems(finalItems, p =>
+        sourceForValidation.storage.exists(sourceForValidation.contentRoot.path(p)),
+      )
+      if (hookItemError) return problem(c, 400, 'BAD_REQUEST', hookItemError)
+    }
+
     // Server-side publish gate per design-validation.md Cut 4. Runs the
     // same `runPublishAudit` the client-side modal calls; refuses on
     // remaining error-severity issues so a determined client can't
@@ -1220,6 +1210,15 @@ export function publishRoutes(
         }
         throw err
       }
+    }
+
+    // #1200: items a beforePublish hook returned pass the same checks
+    // as the request's items, before anything is copied.
+    if (finalItems !== body.items) {
+      const hookItemError = await validateRequestItems(finalItems, p =>
+        sourceForValidation.storage.exists(sourceForValidation.contentRoot.path(p)),
+      )
+      if (hookItemError) return problem(c, 400, 'BAD_REQUEST', hookItemError)
     }
 
     // Server-side publish gate (mirrors /api/publish). Surfaces as a
