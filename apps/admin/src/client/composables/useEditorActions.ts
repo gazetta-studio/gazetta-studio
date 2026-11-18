@@ -312,8 +312,8 @@ export function useEditorActions() {
       currentEtag = result.etag
     } catch (getErr) {
       // GET failed too — surface the network error. The author's
-      // local edits stay dirty (editor unchanged); they can retry
-      // when connection comes back.
+      // local edits stay dirty (editor unchanged); they save again
+      // once the connection is back.
       throw getErr
     }
 

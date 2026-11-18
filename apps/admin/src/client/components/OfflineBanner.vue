@@ -8,14 +8,15 @@
  *
  *   - `online`        → no banner (absence is the state)
  *   - `degraded`      → subtle "Connection unstable" indicator
- *   - `offline`       → persistent "Offline" banner with "Send now"
+ *   - `offline`       → persistent "Offline" banner with "Check connection"
  *   - `reconnecting`  → subtle spinner + "Connection back"
  *
  * # Plain language locked
  *
- * "Offline" — not "Disconnected" or "STALE." "Send now" — not
+ * "Offline" — not "Disconnected" or "STALE." "Check connection" — not
  * "Force sync" or "Retry queue." Author-facing copy stays clean of
- * the wire layer's vocabulary.
+ * the wire layer's vocabulary. The button only probes the server: there
+ * is no save queue, so the copy must not promise that anything is sent.
  *
  * # Per-item indicators are out of scope here
  *
@@ -52,12 +53,10 @@ import { useToastStore } from '../stores/toast.js'
 const connection = useConnectionState()
 const toast = useToastStore()
 
-async function sendNow(): Promise<void> {
-  // "Send now" affordance per design-offline.md "Force-sync
-  // affordance (visible only when relevant)" — fires an immediate
-  // probe + replay attempt regardless of the scheduled cadence.
-  // Useful when the operator knows the network is back; the
-  // connection-state heartbeat may still be backing off.
+async function checkConnection(): Promise<void> {
+  // Probes immediately regardless of the scheduled cadence: the
+  // heartbeat may still be backing off when the author knows the
+  // network is back.
   await connection.probeNow()
 }
 
@@ -97,10 +96,10 @@ watch(
       size="small"
       severity="secondary"
       outlined
-      label="Send now"
+      label="Check connection"
       class="banner-action"
-      data-testid="offline-banner-send-now"
-      @click="sendNow" />
+      data-testid="offline-banner-check-connection"
+      @click="checkConnection" />
   </div>
 
   <div

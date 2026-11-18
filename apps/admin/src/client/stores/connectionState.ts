@@ -207,7 +207,7 @@ export const useConnectionState = defineStore('connectionState', () => {
   }
 
   /**
-   * "Send now" affordance from the offline banner. Probes
+   * "Check connection" affordance from the offline banner. Probes
    * immediately regardless of the scheduled cadence.
    */
   async function probeNow(): Promise<void> {

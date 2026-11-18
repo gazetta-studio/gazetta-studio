@@ -44,7 +44,7 @@ const quota = useStorageQuota()
     data-testid="storage-quota-banner">
     <Database class="banner-icon" aria-hidden="true" />
     <span class="banner-text">
-      Storage almost full — please connect to send your saved items.
+      Storage almost full — connect and save your unsaved edits.
     </span>
     <Button
       :icon="X"

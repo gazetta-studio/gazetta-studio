@@ -3,9 +3,11 @@
  * approaching limit":
  *
  *   "When local storage approaches the cap (80% of allocated), a
- *   subtle banner surfaces: 'Storage almost full — please connect
- *   to send your saved items.' Plain language; actionable; appears
+ *   subtle banner surfaces. Plain language; actionable; appears
  *   once until acknowledged or storage frees."
+ *
+ * The copy is "Storage almost full — connect and save your unsaved
+ * edits.": there is no save queue, so it can't promise a send.
  *
  * LRU eviction kicks in only at 100% (per `design-cache.md` Gap 1
  * lock). The 80% warning gives the author buffer to act.

@@ -9,9 +9,9 @@ For the design model + architectural locks, see
 ## What it is
 
 The admin keeps working when the network goes away. Pages already loaded
-stay viewable, edits in progress aren't lost, and saves either land
-silently when connection comes back or surface as something the author
-can act on. The browser fetches the SPA bundle once and serves it from
+stay viewable, and edits in progress aren't lost: saving needs the
+connection, and unsaved edits are kept (across reloads too) until you
+can save them. The browser fetches the SPA bundle once and serves it from
 disk on subsequent visits, including cold loads while offline.
 
 This is offline-AWARE, not offline-FIRST. Authors don't choose to "go
@@ -28,7 +28,7 @@ healthy:
 |---|---|---|
 | Online | Nothing | Saves go through normally. The absence is the state. |
 | Connection unstable | Subtle "Connection unstable" with spinner | Recent request failed; admin is probing the server. Editing keeps working. |
-| Offline | Persistent "Offline" banner with "Send now" button | Server unreachable. Saves go to the local store and replay later. |
+| Offline | Persistent "Offline" banner with "Check connection" button | Server unreachable. Saving needs the connection; your unsaved edits are kept meanwhile. |
 | Reconnecting | Subtle "Reconnecting" indicator | Server just answered; admin is catching up. Brief — usually a flash. |
 
 When connection returns after offline, a transient toast says "Connection
@@ -46,7 +46,7 @@ What happens underneath:
 |---|---|
 | Online; save succeeds | Standard. Editor goes clean. |
 | Online; save fails partway (server crashed mid-response) | Admin checks what landed; either silently confirms success or surfaces an error. No silent loss. |
-| Offline; save attempted | Saved locally. Will send when connection comes back. |
+| Offline; save attempted | The save fails. Your edits stay as unsaved edits, kept across reloads; save again once the connection is back. |
 | Save attempted while someone else just saved the same item | "Was edited by someone else" banner with "Show what changed" + "Discard my changes" |
 
 ### "Was edited by someone else"
@@ -134,16 +134,16 @@ Two limits to know:
   proxy answers with its login page), it shows no unsaved edits and
   keeps them as they are. Sign in again and reload.
 
-### "Send now"
+### "Check connection"
 
-When you're offline and the admin says it's offline, but you know the
-network is actually back (you just reconnected to Wi-Fi, or the VPN
-came up), click "Send now" on the offline banner. The admin probes
-immediately rather than waiting for the next scheduled check.
+When the admin says it's offline, but you know the network is actually
+back (you just reconnected to Wi-Fi, or the VPN came up), click "Check
+connection" on the offline banner. The admin asks the server right away
+rather than waiting for the next scheduled check. It sends nothing:
+once the banner goes away, save your edits.
 
-This is purely a hint to the admin's heartbeat scheduler — it doesn't
-override anything. If the network really is down, the probe just
-fails again and the banner stays.
+If the network really is down, the check just fails again and the
+banner stays.
 
 ### Opening the admin offline
 
@@ -158,8 +158,8 @@ Opening a page in the editor offline doesn't work yet (#969).
 ### Storage warning
 
 If your browser's local storage approaches its cap (around 80%), a
-subtle banner appears: "Storage almost full — please connect to send
-your saved items." Dismissing the banner suppresses it at that level;
+subtle banner appears: "Storage almost full — connect and save your
+unsaved edits." Dismissing the banner suppresses it at that level;
 it reappears only if usage climbs strictly above the dismissal point.
 
 This is rare in practice. The admin's persistent storage is small
@@ -172,13 +172,13 @@ the whole-origin storage budget is being consumed by something else
 Setting expectations honestly. These items are deliberately not in v1
 and have specific triggers to revisit.
 
-### No replay while the tab is closed
+### No save queue
 
-If you save offline, close the tab, then reconnect: the save sends on
-your **next admin open**, not in the background. The browser would
-need a service worker with [Background Sync](https://developer.mozilla.org/en-US/docs/Web/API/Background_Synchronization_API)
-to do this — possible technically, but adds machinery for marginal
-value (authors reopen the admin to check status anyway).
+A save made offline isn't queued: it fails, and your edits stay as
+unsaved edits, kept across reloads and tab closes. Nothing is sent
+later, in the background or on your next admin open; once you're back
+online, open the item and save again. A save queue is on the
+[roadmap](../ROADMAP.md).
 
 ### No live multi-author concurrent editing
 
@@ -344,11 +344,11 @@ operator side.
 
 What's deferred in v1 with documented triggers to revisit:
 
-- **Replay while tab closed (Background Sync)** — see "What v1 does
-  NOT do" above.
+- **Save queue** — a save made offline goes out by itself once the
+  connection returns; see "What v1 does NOT do" above.
 - **Live multi-author concurrent editing** — Tier 3 strategic bet;
   needs OT/CRDT design.
-- **Audit integration** — replayed save events should mark
+- **Audit integration** — once the save queue ships, replayed save events should mark
   `metadata.replayed: true` with the original-attempt timestamp.
   Lands when the audit-log foundation ships.
 
