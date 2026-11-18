@@ -606,10 +606,12 @@ export async function publishToTarget(input: PublishToTargetInput): Promise<Publ
       if (!apiToken) {
         purge = { kind: 'skipped-no-token' }
       } else {
-        const { createCloudflarePurge, lookupCloudflareZoneId } = await import('./publish-rendered.js')
-        const zoneId =
-          resolveEnvVars(purgeConfig.zoneId) ??
-          (targetConfig?.siteUrl ? await lookupCloudflareZoneId(targetConfig.siteUrl, apiToken) : null)
+        const { createCloudflarePurge, resolveCloudflareZoneId } = await import('./publish-rendered.js')
+        const zoneId = await resolveCloudflareZoneId(
+          resolveEnvVars(purgeConfig.zoneId),
+          targetConfig?.siteUrl,
+          apiToken,
+        )
         if (!zoneId) {
           purge = { kind: 'skipped-no-zone' }
         } else {

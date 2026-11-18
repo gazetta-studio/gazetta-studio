@@ -65,6 +65,8 @@ cloudflareWorkersDeploy({
 
 Supports: `type: 'dynamic'` targets (ESI assembly at edge).
 
+With `target.siteUrl` set, the deploy attaches the worker to the `siteUrl` hostname (apex or subdomain) as a Cloudflare [Custom Domain](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/), which covers every path on that hostname. Cloudflare creates the DNS record and certificate; it refuses a hostname that already has a CNAME record. See [cloudflare.md](cloudflare.md).
+
 Env vars Wrangler reads at deploy time (passed through from `process.env`):
 - `CLOUDFLARE_API_TOKEN` — API token with Workers Scripts:Edit + R2 Read permissions
 - `CLOUDFLARE_ACCOUNT_ID` — Cloudflare account ID

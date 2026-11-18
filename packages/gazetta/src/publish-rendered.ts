@@ -152,13 +152,32 @@ export function createCloudflarePurge(zoneId: string, apiToken: string): PurgeSt
   }
 }
 
-/** Look up Cloudflare zone ID from a site URL */
+/**
+ * Look up the Cloudflare zone ID for a site URL. The hostname may be a
+ * subdomain of the zone, so ask for the hostname, then each parent,
+ * stopping before the bare TLD.
+ */
 export async function lookupCloudflareZoneId(siteUrl: string, apiToken: string): Promise<string | null> {
-  const domain = new URL(siteUrl).hostname.replace(/^www\./, '')
-  const res = await fetch(`https://api.cloudflare.com/client/v4/zones?name=${domain}`, {
-    headers: { Authorization: `Bearer ${apiToken}` },
-  })
-  if (!res.ok) return null
-  const data = (await res.json()) as { result: Array<{ id: string }> }
-  return data.result?.[0]?.id ?? null
+  const labels = new URL(siteUrl).hostname.split('.')
+  for (let i = 0; i <= labels.length - 2; i++) {
+    const name = labels.slice(i).join('.')
+    const res = await fetch(`https://api.cloudflare.com/client/v4/zones?name=${encodeURIComponent(name)}`, {
+      headers: { Authorization: `Bearer ${apiToken}` },
+    })
+    if (!res.ok) return null
+    const data = (await res.json()) as { result?: Array<{ id: string }> }
+    const id = data.result?.[0]?.id
+    if (id) return id
+  }
+  return null
+}
+
+/** The zone to purge: an explicit `purge.zoneId`, otherwise looked up from `siteUrl`. */
+export async function resolveCloudflareZoneId(
+  zoneId: string | undefined,
+  siteUrl: string | undefined,
+  apiToken: string,
+): Promise<string | null> {
+  if (zoneId) return zoneId
+  return siteUrl ? lookupCloudflareZoneId(siteUrl, apiToken) : null
 }

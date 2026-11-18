@@ -69,6 +69,15 @@ npx gazetta build                # build admin UI + custom editors/fields
 npx gazetta deploy production    # deploy worker to Cloudflare
 ```
 
+With `siteUrl` set, `gazetta deploy` attaches the worker to the `siteUrl` hostname as a
+[Custom Domain](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/):
+Cloudflare creates the DNS record and certificate. This works for the apex
+(`mysite.com`) and for subdomains (`blog.mysite.com`), as long as the hostname is in a
+zone on your Cloudflare account. A Custom Domain covers every path on the hostname, so a
+path in `siteUrl` (`https://mysite.com/blog`) doesn't narrow it. Cloudflare refuses to
+create a Custom Domain on a hostname that already has a CNAME record: delete that record
+first. Cloudflare's docs don't say what happens to other existing records on the hostname.
+
 ### 4. Publish content
 
 ```bash
@@ -192,7 +201,7 @@ cache: {
 
 - `browser`: How long the browser caches before revalidating. ETags are automatic.
 - `edge`: How long the Cloudflare edge caches before refetching from R2.
-- `purge`: Automatically purge the CDN cache after publish. Zone ID is auto-detected from `siteUrl`.
+- `purge`: Automatically purge the CDN cache after publish. Set `zoneId` to name the zone; without it, Gazetta asks Cloudflare for the zone of the `siteUrl` hostname, then each parent (`blog.mysite.com`, then `mysite.com`), until one is found.
 
 Set `edge: 0` to disable edge caching entirely (no purge needed). Pages are still fast — R2 reads are low-latency.
 

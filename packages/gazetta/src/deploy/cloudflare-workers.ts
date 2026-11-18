@@ -100,9 +100,10 @@ export function renderWranglerToml(input: WranglerTomlInput): string {
     `bucket_name = "${bucket}"\n`
 
   if (siteUrl) {
-    const url = new URL(siteUrl)
-    const hostname = url.hostname
-    out += `\n[[routes]]\npattern = "${hostname}/*"\nzone_name = "${hostname}"\n`
+    // A Custom Domain covers the whole hostname and needs no zone_name,
+    // so a subdomain siteUrl works without knowing its parent zone.
+    const hostname = new URL(siteUrl).hostname
+    out += `\n[[routes]]\npattern = "${hostname}"\ncustom_domain = true\n`
   }
 
   return out
@@ -154,8 +155,8 @@ export function renderWorkerEntry(locales?: WorkerEntryLocales): string {
  * github.com/cloudflare/workers-sdk; the actual deploy URL appears
  * later as either:
  *   - `*.workers.dev` — the default subdomain when `workers_dev = true`
- *   - the route domain from `[[routes]]` in wrangler.toml (the
- *     operator's `target.siteUrl`)
+ *   - the Custom Domain from `[[routes]]` in wrangler.toml (the
+ *     operator's `target.siteUrl` hostname)
  *
  * Strategy: prefer the configured siteUrl when present in stdout
  * (deploys with a custom route surface it as part of the "Published"
