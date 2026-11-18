@@ -108,14 +108,28 @@ describe('renderWranglerToml() — pure config generator', () => {
     expect(toml).toContain('bucket_name = "my-bucket"')
   })
 
-  it('adds route binding when siteUrl set', () => {
+  it('attaches the siteUrl hostname as a Custom Domain', () => {
     const toml = renderWranglerToml({
       name: 'my-site',
       bucket: 'my-bucket',
       siteUrl: 'https://example.com',
     })
-    expect(toml).toContain('pattern = "example.com/*"')
-    expect(toml).toContain('zone_name = "example.com"')
+    expect(toml).toContain('pattern = "example.com"')
+    expect(toml).toContain('custom_domain = true')
+    expect(toml).not.toContain('zone_name')
+  })
+
+  it('attaches a subdomain siteUrl as a Custom Domain with no zone_name (#1187)', () => {
+    const toml = renderWranglerToml({
+      name: 'my-site',
+      bucket: 'my-bucket',
+      siteUrl: 'https://blog.mysite.com/news',
+    })
+    expect(toml).toContain('pattern = "blog.mysite.com"')
+    expect(toml).toContain('custom_domain = true')
+    expect(toml).not.toContain('zone_name')
+    expect(toml).not.toContain('/*')
+    expect(toml).not.toContain('/news')
   })
 
   it('omits route binding when siteUrl absent', () => {
