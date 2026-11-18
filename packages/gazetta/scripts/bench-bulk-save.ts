@@ -3,7 +3,9 @@
  * Q46 "to be measured"), on the filesystem and on the MinIO emulator, against
  * the 5-second admin budget. Not run in CI; needs Docker for MinIO.
  *
- *   npx tsx packages/gazetta/scripts/bench-bulk-save.ts [items=200] [runs=3] [cold]
+ *   npx tsx packages/gazetta/scripts/bench-bulk-save.ts [items=100] [runs=3] [cold]
+ *
+ * items defaults to, and may not exceed, the bulk save's cap (BULK_SAVE_MAX_ITEMS).
  *
  * Each run edits every page of a fresh site of `items` pages in one request,
  * so the time includes loading the site, every check, every write, the
@@ -21,11 +23,9 @@ import { createFilesystemProvider } from '../src/providers/filesystem.js'
 import { createS3Provider } from '../src/providers/s3.js'
 import { computeSaveEtag } from '../src/save-etag.js'
 import type { SiteManifest, StorageProvider } from '../src/types.js'
+import { parseBenchArgs } from './bench-bulk-save-args.js'
 
-const ITEMS = Number(process.argv[2] ?? 200)
-const RUNS = Number(process.argv[3] ?? 3)
-/** `cold` measures a site's first write, which also records history's baseline. */
-const WARM = process.argv[4] !== 'cold'
+const { items: ITEMS, runs: RUNS, warm: WARM } = parseBenchArgs(process.argv.slice(2))
 const repoRoot = resolve(import.meta.dirname, '../../..')
 const templatesDir = resolve(repoRoot, 'examples/starter/templates')
 const tmpRoot = resolve(repoRoot, '.tmp/bench-bulk-save')
