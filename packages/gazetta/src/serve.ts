@@ -11,7 +11,7 @@
  * - createServer: composes the above into a Hono app
  */
 
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { logger } from 'hono/logger'
 import { createHash } from 'node:crypto'
 import type { SiteManifest, StorageProvider, TargetConfig, TargetType } from './types.js'
@@ -303,6 +303,18 @@ export function createServer(options: ServeOptions) {
     return 'public, max-age=3600'
   }
 
+  /**
+   * A stored HTML file on a static target: the page URL (`/about`) and the
+   * file URL (`/about/index.html`) both answer with an ETag and
+   * `max-age=0, must-revalidate`, so a CDN in front revalidates after a
+   * publish (#1871).
+   */
+  function staticHtmlResponse(c: Context, html: string): Response {
+    const etag = `"${createHash('sha256').update(html).digest('hex').slice(0, 16)}"`
+    if (c.req.header('If-None-Match') === etag) return new Response(null, { status: 304, headers: { ETag: etag } })
+    return c.html(html, 200, { 'Cache-Control': 'public, max-age=0, must-revalidate', ETag: etag })
+  }
+
   if (type === 'static') {
     app.get('*', async c => {
       const requestPath = new URL(c.req.url).pathname
@@ -316,9 +328,7 @@ export function createServer(options: ServeOptions) {
         const html = await storage.readFile(filePath)
         const archived = await staticArchiveFor(html, requestPath)
         if (archived) return archived
-        const etag = `"${createHash('sha256').update(html).digest('hex').slice(0, 16)}"`
-        if (c.req.header('If-None-Match') === etag) return new Response(null, { status: 304, headers: { ETag: etag } })
-        return c.html(html, 200, { 'Cache-Control': 'public, max-age=0, must-revalidate', ETag: etag })
+        return staticHtmlResponse(c, html)
       } catch {
         // Not a page — serve the stored file byte-exact with a content
         // type from its extension (#1249). Reading it as UTF-8 text and
@@ -332,7 +342,7 @@ export function createServer(options: ServeOptions) {
             const html = await storage.readFile(requestPath.slice(1))
             const archived = await staticArchiveFor(html, requestPath)
             if (archived) return archived
-            return c.html(html)
+            return staticHtmlResponse(c, html)
           } catch {
             // fall through to the 404 chain below
           }

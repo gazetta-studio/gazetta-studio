@@ -92,6 +92,32 @@ describe('static serve — stored non-page files (#1249)', () => {
     expect(res.headers.get('Cache-Control')).toBe('public, max-age=0, must-revalidate')
   })
 
+  it('gives a page requested by its .html file URL a Cache-Control and an ETag (#1871)', async () => {
+    const storage = memoryStorage()
+    storage.seed({ 'index.html': '<h1>home</h1>', 'about/index.html': '<h1>about</h1>' })
+    const app = createServer({ storage, type: 'static' })
+
+    const file = await app.request('/about/index.html')
+
+    expect(file.status).toBe(200)
+    expect(file.headers.get('Content-Type')).toContain('text/html')
+    expect(file.headers.get('Cache-Control')).toBe('public, max-age=0, must-revalidate')
+    expect(file.headers.get('ETag')).toMatch(/^"[0-9a-f]{16}"$/)
+    expect(await file.text()).toBe('<h1>about</h1>')
+  })
+
+  it('answers 304 to a matching If-None-Match on the .html file URL (#1871)', async () => {
+    const storage = memoryStorage()
+    storage.seed({ 'index.html': '<h1>home</h1>', 'about/index.html': '<h1>about</h1>' })
+    const app = createServer({ storage, type: 'static' })
+
+    const first = await app.request('/about/index.html')
+    const etag = first.headers.get('ETag')!
+    const second = await app.request('/about/index.html', { headers: { 'If-None-Match': etag } })
+
+    expect(second.status).toBe(304)
+  })
+
   it('still answers the 404 page for missing paths', async () => {
     const storage = memoryStorage()
     storage.seed({ 'index.html': '<h1>home</h1>', '404.html': 'lost' })
