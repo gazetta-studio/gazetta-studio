@@ -1,12 +1,12 @@
 import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { format, html, raw, type TemplateFunction } from 'gazetta'
 
 export const schema = z.object({
-  body: z.string().describe('Text content (HTML allowed)'),
+  body: z.string().meta(format.richtext()).describe('Text content'),
 })
 
 const template: TemplateFunction = ({ content = {} }) => ({
-  html: `<div class="text-content">${content.body ?? ''}</div>`,
+  html: html`<div class="text-content">${raw(content.body)}</div>`,
   css: `.text-content { font-size: 1rem; color: #a1a1aa; line-height: 1.8; max-width: 48rem; }
 .text-content p { margin-bottom: 1rem; }
 .text-content strong { color: #e4e4e7; }

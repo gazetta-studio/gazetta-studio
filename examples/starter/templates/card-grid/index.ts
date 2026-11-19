@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { html, type TemplateFunction } from 'gazetta'
 
 export const schema = z.object({
   heading: z.string().optional().describe('Section heading'),
@@ -11,9 +11,9 @@ type Content = z.infer<typeof schema>
 const template: TemplateFunction<Content> = ({ content, children = [] }) => {
   const minWidth = content?.columns ?? 280
   return {
-    html: `<section class="card-grid">
-  ${content?.heading ? `<h2 class="card-grid-heading">${content.heading}</h2>` : ''}
-  <div class="card-grid-items">${children.map(c => c.html).join('\n')}</div>
+    html: html`<section class="card-grid">
+  ${content?.heading ? html`<h2 class="card-grid-heading">${content.heading}</h2>` : ''}
+  <div class="card-grid-items">${children}</div>
 </section>`,
     css: `.card-grid { padding: 3rem 2rem; max-width: 72rem; margin: 0 auto; }
 .card-grid-heading { font-size: 1.75rem; text-align: center; margin-bottom: 2rem; }

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { html, type TemplateFunction } from 'gazetta'
 
 export const schema = z.object({
   title: z.string().describe('List title'),
@@ -16,9 +16,9 @@ export const schema = z.object({
 const template: TemplateFunction = ({ content = {} }) => {
   const links = (content.links ?? []) as Array<{ label: string; href: string }>
   return {
-    html: `<div class="link-list">
+    html: html`<div class="link-list">
   <h4>${content.title ?? ''}</h4>
-  ${links.map(l => `<a href="${l.href}">${l.label}</a>`).join('\n  ')}
+  ${links.map(l => html`<a href="${l.href}">${l.label}</a>`)}
 </div>`,
     css: `.link-list h4 { font-size: 0.8125rem; font-weight: 600; color: #a1a1aa; margin-bottom: 0.75rem; }
 .link-list a { display: block; color: #71717a; font-size: 0.8125rem; margin-bottom: 0.375rem; }

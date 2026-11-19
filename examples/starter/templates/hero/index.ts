@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { html, type TemplateFunction } from 'gazetta'
 
 export const schema = z.object({
   title: z.string().describe('Title'),
@@ -7,7 +7,7 @@ export const schema = z.object({
 })
 
 const template: TemplateFunction = ({ content = {} }) => ({
-  html: `<section class="hero">
+  html: html`<section class="hero">
   <h1>${content.title ?? ''}</h1>
   <p>${content.subtitle ?? ''}</p>
 </section>`,

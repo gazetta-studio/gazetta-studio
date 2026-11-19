@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { html, type TemplateFunction } from 'gazetta'
 
 export const schema = z.object({
   title: z.string().describe('Heading'),
@@ -11,12 +11,12 @@ export const schema = z.object({
 })
 
 const template: TemplateFunction = ({ content = {} }) => ({
-  html: `<section class="hero">
+  html: html`<section class="hero">
   <div class="hero-inner">
-    ${content.badge ? `<a href="${content.badgeHref ?? '#'}" class="hero-badge">${content.badge}</a>` : ''}
+    ${content.badge ? html`<a href="${content.badgeHref ?? '#'}" class="hero-badge">${content.badge}</a>` : ''}
     <h1>${content.title ?? ''}</h1>
-    ${content.subtitle ? `<p class="hero-sub">${content.subtitle}</p>` : ''}
-    ${content.cta ? `<a href="${content.ctaHref ?? '#'}" class="hero-cta">${content.cta}</a>` : ''}
+    ${content.subtitle ? html`<p class="hero-sub">${content.subtitle}</p>` : ''}
+    ${content.cta ? html`<a href="${content.ctaHref ?? '#'}" class="hero-cta">${content.cta}</a>` : ''}
   </div>
 </section>`,
   css: `.hero { padding: 4rem 2rem 2rem; text-align: center; }

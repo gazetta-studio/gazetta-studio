@@ -1,12 +1,12 @@
 import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { html, type TemplateFunction } from 'gazetta'
 
 // Layout template — dark theme with Inter font. No content of its own.
 // SEO tags are handled by the renderer's fallback chain from page.metadata.
 export const schema = z.object({})
 
 const template: TemplateFunction = ({ children = [] }) => ({
-  html: `<div class="site">${children.map(c => c.html).join('\n')}</div>`,
+  html: html`<div class="site">${children}</div>`,
   css: `*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Inter', system-ui, -apple-system, sans-serif; color: #e4e4e7; background: #09090b; line-height: 1.6; }
 a { color: #a78bfa; text-decoration: none; }

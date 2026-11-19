@@ -25,7 +25,8 @@ describe('loadTemplate', () => {
   it('renders HTML from loaded template', async () => {
     const loaded = await loadTemplate(storage, templatesDir, 'hero')
     const output = loaded.render({ content: { title: 'Test', subtitle: 'Sub' } })
-    expect(output.html).toContain('Test')
+    // The starter's `html` tag returns a String object; the renderer turns it into a plain string.
+    expect(String(output.html)).toContain('Test')
     expect(typeof output.css).toBe('string')
     expect(typeof output.js).toBe('string')
   })

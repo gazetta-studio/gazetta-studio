@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { format, type TemplateFunction } from 'gazetta'
+import { format, html, raw, type TemplateFunction } from 'gazetta'
 
 export const schema = z.object({
   body: z.string().meta(format.markdown()).describe('Content (markdown)'),
@@ -8,7 +8,7 @@ export const schema = z.object({
 type Content = z.infer<typeof schema>
 
 const template: TemplateFunction<Content> = ({ content }) => ({
-  html: `<article class="markdown">${content?.body ?? ''}</article>`,
+  html: html`<article class="markdown">${raw(content?.body)}</article>`,
   css: `.markdown { max-width: 42rem; margin: 0 auto; padding: 2rem 0; line-height: 1.8; }
 .markdown h1 { font-size: 2rem; margin-bottom: 0.5rem; }
 .markdown h2 { font-size: 1.5rem; margin-top: 2rem; margin-bottom: 0.5rem; }

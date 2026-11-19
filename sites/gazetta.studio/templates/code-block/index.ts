@@ -1,6 +1,6 @@
 import { createHighlighter, type Highlighter } from 'shiki'
 import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { html, raw, type TemplateFunction } from 'gazetta'
 
 export const schema = z.object({
   code: z.string().describe('Code content'),
@@ -35,9 +35,9 @@ const template: TemplateFunction<Content> = async ({ content }) => {
   const highlighted = hl.codeToHtml(code, { lang, theme: 'github-dark' })
 
   return {
-    html: `<div class="code-block">
-  ${language ? `<span class="code-lang">${language}</span>` : ''}
-  ${highlighted}
+    html: html`<div class="code-block">
+  ${language ? html`<span class="code-lang">${language}</span>` : ''}
+  ${raw(highlighted)}
 </div>`,
     css: `.code-block { position: relative; background: #24292e; border: 1px solid #27272a; border-radius: 8px; overflow: hidden; max-width: 40rem; margin: 0 auto; }
 .code-lang { position: absolute; top: 0.5rem; right: 0.75rem; font-size: 0.6875rem; color: #52525b; text-transform: uppercase; z-index: 1; }

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { html, type TemplateFunction } from 'gazetta'
 
 export const schema = z.object({
   heading: z.string().optional().describe('Section heading'),
@@ -7,11 +7,11 @@ export const schema = z.object({
 })
 
 const template: TemplateFunction = ({ content = {}, children = [] }) => ({
-  html: `<section class="section">
+  html: html`<section class="section">
   <div class="section-inner">
-    ${content.heading ? `<h2>${content.heading}</h2>` : ''}
-    ${content.subheading ? `<p class="section-sub">${content.subheading}</p>` : ''}
-    <div class="section-content">${children.map(c => c.html).join('\n')}</div>
+    ${content.heading ? html`<h2>${content.heading}</h2>` : ''}
+    ${content.subheading ? html`<p class="section-sub">${content.subheading}</p>` : ''}
+    <div class="section-content">${children}</div>
   </div>
 </section>`,
   css: `.section { padding: 2.5rem 2rem; }

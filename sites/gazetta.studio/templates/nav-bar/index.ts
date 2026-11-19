@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { html, type TemplateFunction } from 'gazetta'
 
 export const schema = z.object({
   brand: z.string().describe('Brand name'),
@@ -18,11 +18,11 @@ export const schema = z.object({
 const template: TemplateFunction = ({ content = {} }) => {
   const links = (content.links ?? []) as Array<{ label: string; href: string }>
   return {
-    html: `<nav class="navbar">
+    html: html`<nav class="navbar">
   <a href="/" class="navbar-brand">${content.brand ?? ''}</a>
   <div class="navbar-links">
-    ${links.map(l => `<a href="${l.href}">${l.label}</a>`).join('\n    ')}
-    ${content.cta ? `<a href="${content.ctaHref ?? '#'}" class="navbar-cta">${content.cta}</a>` : ''}
+    ${links.map(l => html`<a href="${l.href}">${l.label}</a>`)}
+    ${content.cta ? html`<a href="${content.ctaHref ?? '#'}" class="navbar-cta">${content.cta}</a>` : ''}
   </div>
 </nav>`,
     css: `.navbar { display: flex; align-items: center; justify-content: space-between; padding: 1rem 2rem; max-width: 72rem; margin: 0 auto; width: 100%; }
