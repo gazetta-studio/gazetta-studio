@@ -23,14 +23,16 @@
   --color-input-border: #cbd5e1;
   --color-primary: #047857;
   --color-on-primary: #ffffff;
-  /* Selection accent in the component tree */
-  --color-accent: #a78bfa;
+  /* Selection accent in the component tree and the preview toolbar's active button.
+     Light value: at least 3:1 on --color-bg and on the 10-15% selected-row mixes (WCAG 1.4.11). */
+  --color-accent: #7c3aed;
   /* Code background (rjsf editor preview, JSON inspector), slightly tinted from the body */
   --color-bg-code: #f1f5f9;
   /* Chip / pill background: tags, env badges, etc. */
   --color-bg-chip: #f1f5f9;
 }
 .dark {
+  --color-accent: #a78bfa;
   --color-bg: #18181b;
   --color-fg: #ffffff;
   --color-muted: #a1a1aa;
