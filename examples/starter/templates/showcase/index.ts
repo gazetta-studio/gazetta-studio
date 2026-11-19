@@ -1,6 +1,5 @@
 import { z } from 'zod'
-import { format } from 'gazetta'
-import type { TemplateFunction } from 'gazetta'
+import { format, html, raw, type TemplateFunction } from 'gazetta'
 
 export const schema = z.object({
   // Rich text (Tiptap editor)
@@ -37,12 +36,12 @@ type Content = z.infer<typeof schema>
 const template: TemplateFunction<Content> = ({ content }) => {
   const accent = content?.accentColor ?? '#667eea'
   return {
-    html: `<section class="showcase" style="--accent: ${accent}">
-  ${content?.image ? `<img class="showcase-img" src="${content.image}" alt="" />` : ''}
-  <div class="showcase-body ${content?.layout ?? 'centered'}">${content?.body ?? ''}</div>
-  ${content?.website ? `<a class="showcase-link" href="${content.website}">Visit website</a>` : ''}
-  ${content?.snippet ? `<div class="showcase-snippet">${content.snippet}</div>` : ''}
-  ${content?.slug ? `<div class="showcase-slug">/${content.slug}</div>` : ''}
+    html: html`<section class="showcase" style="--accent: ${accent}">
+  ${content?.image ? html`<img class="showcase-img" src="${content.image}" alt="" />` : ''}
+  <div class="showcase-body ${content?.layout ?? 'centered'}">${raw(content?.body)}</div>
+  ${content?.website ? html`<a class="showcase-link" href="${content.website}">Visit website</a>` : ''}
+  ${content?.snippet ? html`<div class="showcase-snippet">${content.snippet}</div>` : ''}
+  ${content?.slug ? html`<div class="showcase-slug">/${content.slug}</div>` : ''}
 </section>`,
     css: `.showcase { padding: 2rem; max-width: 72rem; margin: 0 auto; }
 .showcase-img { max-width: 100%; border-radius: 8px; margin-bottom: 1.5rem; }

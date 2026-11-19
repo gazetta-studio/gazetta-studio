@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { html, type TemplateFunction } from 'gazetta'
 
 export const schema = z.object({
   sidebarWidth: z.string().optional().describe('Sidebar width (default: 280px)'),
@@ -14,9 +14,9 @@ const template: TemplateFunction<Content> = ({ content, children = [] }) => {
   const width = content?.sidebarWidth ?? '280px'
   const direction = content?.reverse ? 'row-reverse' : 'row'
   return {
-    html: `<div class="two-col" style="flex-direction:${direction}">
-  <aside class="two-col-sidebar">${sidebar?.html ?? ''}</aside>
-  <div class="two-col-main">${main.map(c => c.html).join('\n')}</div>
+    html: html`<div class="two-col" style="flex-direction:${direction}">
+  <aside class="two-col-sidebar">${sidebar ?? ''}</aside>
+  <div class="two-col-main">${main}</div>
 </div>`,
     css: `.two-col { display: flex; gap: 2rem; max-width: 72rem; margin: 0 auto; padding: 2rem; }
 .two-col-sidebar { flex: 0 0 ${width}; }

@@ -40,7 +40,9 @@ it('loads index.ts and keeps an optional image asset field in the admin schema',
   expect(page.components.find((c: any) => c.name === 'hero').content).not.toHaveProperty('image')
 })
 it('renders the resolved image attributes when present and keeps the image-free hero valid', async () => {
-  const plain = await hero.render({ content: { title: 'Hello', subtitle: 'World' } } as any)
+  const plainOutput = await hero.render({ content: { title: 'Hello', subtitle: 'World' } } as any)
+  // The template's `html` tag returns a String object; the renderer turns it into a plain string.
+  const plain = { html: String(plainOutput.html) }
   expect(plain.html).toContain('<h1>Hello</h1>')
   expect(plain.html).toContain('<p>World</p>')
   expect(plain.html).not.toContain('<img')
@@ -95,11 +97,13 @@ it('shows a picker for the init hero even when no optional image is selected', (
   }
 })
 it('escapes image attributes so a quote in the alt text cannot break the tag', async () => {
-  const html = (
-    await hero.render({
-      content: { title: 'Hello', image: { url: '/assets/a.png?x=1&y="2"', alt: 'Say "hi" <now>', srcset: null } },
-    } as any)
-  ).html
+  const html = String(
+    (
+      await hero.render({
+        content: { title: 'Hello', image: { url: '/assets/a.png?x=1&y="2"', alt: 'Say "hi" <now>', srcset: null } },
+      } as any)
+    ).html,
+  )
   const container = document.createElement('div')
   container.innerHTML = html
   const img = container.querySelector('img')!

@@ -11,6 +11,9 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { afterEach, describe, expect, it } from 'vitest'
+import { z } from 'zod'
+import { renderComponent } from '../src/renderer.js'
+import { loadTemplate } from '../src/template-loader.js'
 import { tempDir } from './_helpers/temp.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -148,5 +151,62 @@ describe('gazetta init template types (#1490)', () => {
     await writeFile(heroPath, hero.replace('content?.title', 'content?.titel'))
 
     expect(diagnose(files).some(message => message.includes('titel'))).toBe(true)
+  }, 90000)
+})
+
+describe('gazetta init templates escape plain text (design-content-trust.md Q2, Q4)', () => {
+  it('escapes plain text, renders rich text and children as HTML, and renders the home page', async () => {
+    workDir = tempDir(`init-template-escape-${Date.now()}-${Math.random().toString(16).slice(2)}`)
+    await mkdir(workDir, { recursive: true })
+    const binDir = await stubNpm()
+    const result = await runInit('my-site', binDir)
+    expect(result.code, result.output).toBe(0)
+
+    const siteDir = join(workDir, 'my-site')
+    const templatesDir = join(siteDir, 'templates')
+    const load = (name: string) => loadTemplate(undefined, templatesDir, name)
+    const script = '<script>alert(1)</script>'
+
+    const nav = await load('nav')
+    const navHtml = String(
+      (await nav.render({ content: { brand: script, links: [{ label: '<b>x</b>', href: '/a"b' }] } })).html,
+    )
+    expect(navHtml).not.toContain('<script')
+    expect(navHtml).toContain('&lt;script&gt;alert(1)&lt;/script&gt;')
+    expect(navHtml).toContain('<a href="/a&quot;b">&lt;b&gt;x&lt;/b&gt;</a>')
+
+    const textBlock = await load('text-block')
+    const textJson = z.toJSONSchema(textBlock.schema) as { properties: { body: { format?: string } } }
+    expect(textJson.properties.body.format).toBe('richtext')
+
+    // The scaffolded home page, rendered from its own manifest.
+    const page = JSON.parse(await readFile(join(siteDir, 'sites/main/targets/local/pages/home/page.json'), 'utf-8'))
+    const header = JSON.parse(
+      await readFile(join(siteDir, 'sites/main/targets/local/fragments/header/fragment.json'), 'utf-8'),
+    )
+    const pageLayout = await load('page-layout')
+    const components = await Promise.all(
+      page.components.map(async (c: string | { name: string; template: string; content: Record<string, unknown> }) => {
+        const entry = c === '@header' ? { name: 'header', ...header } : (c as { name: string; template: string })
+        return {
+          template: (await load(entry.template)).render,
+          content: (entry as { content?: Record<string, unknown> }).content,
+          children: [],
+          treePath: entry.name,
+        }
+      }),
+    )
+    const home = await renderComponent({
+      template: pageLayout.render,
+      content: { ...page.content, title: script },
+      children: components,
+      treePath: '',
+    })
+    expect(home.html).toContain('<nav class="nav">')
+    expect(home.html).toContain('<section class="hero">')
+    expect(home.html).toContain('<p>Run <code>npx gazetta dev</code> and open /admin to edit this content.</p>')
+    expect(home.head).toContain('<title>&lt;script&gt;alert(1)&lt;/script&gt;</title>')
+    expect(home.head).not.toContain('<script')
+    expect(typeof home.head).toBe('string')
   }, 90000)
 })

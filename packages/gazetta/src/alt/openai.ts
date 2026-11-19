@@ -32,7 +32,7 @@
  *     `ai/adapter-scaffold.ts`, OpenAI-specific request/response
  *     shape here only.
  */
-import OpenAI from 'openai'
+import type OpenAI from 'openai'
 import { AIInvalidResponseError } from '../ai/errors.js'
 import type { AIProvider, AltTextTaskConfig } from '../ai/provider.js'
 import { buildAltAdapterFromScaffold } from '../ai/adapter-scaffold.js'
@@ -95,11 +95,14 @@ function toBase64DataUrl(bytes: Uint8Array, mime: string): string {
  * `openaiProvider(transport).altText(taskConfig)` (Path X).
  */
 export function createOpenAIAltAdapter(opts: OpenAIAltAdapterOptions): AltTextAdapter {
-  const client = new OpenAI({
-    apiKey: opts.apiKey,
-    baseURL: opts.baseURL,
-    maxRetries: opts.maxRetries,
-  })
+  // The SDK loads on the first call: importing `gazetta` (every template does) shouldn't pay for it.
+  let sdk: typeof OpenAI | undefined
+  let client: OpenAI | undefined
+  const getClient = async (): Promise<OpenAI> => {
+    sdk ??= (await import('openai')).default
+    client ??= new sdk({ apiKey: opts.apiKey, baseURL: opts.baseURL, maxRetries: opts.maxRetries })
+    return client
+  }
   const model = opts.model ?? OPENAI_DEFAULT_MODEL
 
   return buildAltAdapterFromScaffold({
@@ -108,9 +111,9 @@ export function createOpenAIAltAdapter(opts: OpenAIAltAdapterOptions): AltTextAd
     operatorSystemPrompt: opts.systemPrompt,
     operatorMaxTokens: opts.maxTokens,
     refusalMarkers: OPENAI_REFUSAL_MARKERS,
-    isAbortError: err => err instanceof OpenAI.APIUserAbortError,
+    isAbortError: err => sdk !== undefined && err instanceof sdk.APIUserAbortError,
     async callProvider({ bytes, mime, systemPrompt, maxTokens, signal }) {
-      const response = await client.chat.completions.create(
+      const response = await (await getClient()).chat.completions.create(
         {
           model,
           max_tokens: maxTokens,

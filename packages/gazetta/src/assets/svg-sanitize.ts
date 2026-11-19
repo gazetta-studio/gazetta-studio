@@ -45,7 +45,7 @@
  * polyfill, so we can sanitize at upload (Node) and at any future
  * server-side render path.
  */
-import DOMPurify from 'isomorphic-dompurify'
+import { domPurify } from '../dompurify.js'
 import { SAFE_DATA_IMAGE_BASE64_SOURCE } from '../safe-data-images.js'
 
 const SVG_MIME = 'image/svg+xml'
@@ -134,6 +134,7 @@ export function sanitizeSvg(input: Uint8Array): SvgSanitizeResult {
   const URI_BEARING_ATTRS = new Set(['href', 'xlink:href', 'src'])
   const removedElements = new Set<string>()
   const removedAttributes = new Set<string>()
+  const DOMPurify = domPurify()
   DOMPurify.removeAllHooks()
   DOMPurify.addHook('uponSanitizeElement', (node, data) => {
     if (HOOK_NOISE.has(data.tagName)) return

@@ -1,6 +1,5 @@
 import { z } from 'zod'
-import { format } from 'gazetta'
-import type { TemplateFunction } from 'gazetta'
+import { format, html, type TemplateFunction } from 'gazetta'
 
 export const schema = z.object({
   heading: z.string().describe('Banner heading'),
@@ -15,10 +14,10 @@ type Content = z.infer<typeof schema>
 const template: TemplateFunction<Content> = ({ content }) => {
   const bg = content?.background ?? 'linear-gradient(135deg, #667eea, #764ba2)'
   return {
-    html: `<section class="banner" style="background:${bg}">
+    html: html`<section class="banner" style="background:${bg}">
   <h2 class="banner-heading">${content?.heading ?? ''}</h2>
-  ${content?.text ? `<p class="banner-text">${content.text}</p>` : ''}
-  ${content?.buttonText ? `<a class="banner-btn" href="${content.buttonUrl ?? '#'}">${content.buttonText}</a>` : ''}
+  ${content?.text ? html`<p class="banner-text">${content.text}</p>` : ''}
+  ${content?.buttonText ? html`<a class="banner-btn" href="${content.buttonUrl ?? '#'}">${content.buttonText}</a>` : ''}
 </section>`,
     css: `.banner { padding: 4rem 2rem; text-align: center; color: #fff; border-radius: 12px; margin: 2rem auto; max-width: 72rem; }
 .banner-heading { font-size: 2rem; font-weight: 700; margin-bottom: 0.75rem; }

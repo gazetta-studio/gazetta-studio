@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { format, type TemplateFunction } from 'gazetta'
+import { format, html, raw, type TemplateFunction } from 'gazetta'
 
 export const schema = z.object({
   title: z.string().describe('Post title'),
@@ -14,16 +14,16 @@ type Content = z.infer<typeof schema>
 const template: TemplateFunction<Content> = ({ content }) => {
   const tags = content?.tags ?? []
   return {
-    html: `<article class="blog-post">
+    html: html`<article class="blog-post">
   <header class="blog-post-header">
     <h1 class="blog-post-title">${content?.title ?? ''}</h1>
     <div class="blog-post-meta">
-      ${content?.author ? `<span class="blog-post-author">By ${content.author}</span>` : ''}
-      ${content?.date ? `<time class="blog-post-date">${content.date}</time>` : ''}
+      ${content?.author ? html`<span class="blog-post-author">By ${content.author}</span>` : ''}
+      ${content?.date ? html`<time class="blog-post-date">${content.date}</time>` : ''}
     </div>
-    ${tags.length ? `<div class="blog-post-tags">${tags.map(t => `<span class="blog-post-tag">${t}</span>`).join('')}</div>` : ''}
+    ${tags.length ? html`<div class="blog-post-tags">${tags.map(t => html`<span class="blog-post-tag">${t}</span>`)}</div>` : ''}
   </header>
-  <div class="blog-post-body">${content?.body ?? ''}</div>
+  <div class="blog-post-body">${raw(content?.body)}</div>
 </article>`,
     css: `.blog-post { max-width: 42rem; margin: 0 auto; padding: 2rem 0; }
 .blog-post-header { margin-bottom: 2rem; }

@@ -6,7 +6,7 @@
  * finds the `{ _asset: "..." }` reference, and replaces it with a
  * `ResolvedEmbeddedAsset` that the template consumes via `Content<T>`.
  */
-import type { TemplateFunction } from 'gazetta'
+import { html, type TemplateFunction } from 'gazetta'
 import { embeddedAsset, type Content } from 'gazetta/schema'
 import { z } from 'zod'
 
@@ -25,25 +25,25 @@ const template: TemplateFunction<Resolved> = ({ content }) => {
   const subheadline = content?.subheadline ?? ''
   if (!image) {
     return {
-      html: `<section class="asset-hero"><h1>${headline}</h1></section>`,
+      html: html`<section class="asset-hero"><h1>${headline}</h1></section>`,
       css: '',
       js: '',
     }
   }
   return {
-    html: `<section class="asset-hero">
+    html: html`<section class="asset-hero">
   <img
     src="${image.url}"
-    ${image.srcset ? `srcset="${image.srcset}" sizes="(max-width: 72rem) 100vw, 72rem"` : ''}
+    ${image.srcset ? html`srcset="${image.srcset}" sizes="(max-width: 72rem) 100vw, 72rem"` : ''}
     alt="${image.alt}"
-    ${image.width ? `width="${image.width}"` : ''}
-    ${image.height ? `height="${image.height}"` : ''}
+    ${image.width ? html`width="${image.width}"` : ''}
+    ${image.height ? html`height="${image.height}"` : ''}
     loading="lazy"
     decoding="async"
   />
   <div class="asset-hero-text">
     <h1>${headline}</h1>
-    ${subheadline ? `<p>${subheadline}</p>` : ''}
+    ${subheadline ? html`<p>${subheadline}</p>` : ''}
   </div>
 </section>`,
     css: `.asset-hero { position: relative; max-width: 72rem; margin: 2rem auto; border-radius: 12px; overflow: hidden; }

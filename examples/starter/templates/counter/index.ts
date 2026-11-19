@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { html, type TemplateFunction } from 'gazetta'
 
 export const schema = z.object({
   label: z.string().describe('Button label'),
@@ -13,7 +13,7 @@ const template: TemplateFunction<Content> = ({ content }) => {
   // Use a unique ID so multiple counters on one page don't collide
   const id = `counter-${Math.random().toString(36).slice(2, 8)}`
   return {
-    html: `<div class="counter" id="${id}">
+    html: html`<div class="counter" id="${id}">
   <span class="counter-value">${start}</span>
   <button class="counter-btn" data-action="decrement">−</button>
   <button class="counter-btn" data-action="increment">+</button>

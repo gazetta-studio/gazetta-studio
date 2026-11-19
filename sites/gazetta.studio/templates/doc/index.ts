@@ -2,7 +2,7 @@ import GithubSlugger from 'github-slugger'
 import { Marked } from 'marked'
 import { createHighlighter, type Highlighter } from 'shiki'
 import { z } from 'zod'
-import { format, type TemplateFunction } from 'gazetta'
+import { format, html, raw, type TemplateFunction } from 'gazetta'
 
 // Docs page renderer. Content is the page's Markdown source as one plain
 // string (scripts/docs-pages.ts rewrites links and prepends the banner);
@@ -100,19 +100,17 @@ const template: TemplateFunction = async ({ content }) => {
   const bodyHtml = marked.parse(source) as string
 
   const tocHtml = toc.length
-    ? `<nav class="on-this-page" aria-label="On this page">
+    ? html`<nav class="on-this-page" aria-label="On this page">
   <h2 class="on-this-page-title">On this page</h2>
-  <ul>${toc
-    .map(t => `<li class="toc-depth-${t.depth}"><a href="#${t.slug}">${escapeHtml(t.text)}</a></li>`)
-    .join('')}</ul>
+  <ul>${toc.map(t => html`<li class="toc-depth-${t.depth}"><a href="#${t.slug}">${t.text}</a></li>`)}</ul>
 </nav>`
     : ''
 
   return {
-    html: `<article class="doc">
+    html: html`<article class="doc">
 ${tocHtml}
 <div class="doc-body">
-${bodyHtml}
+${raw(bodyHtml)}
 </div>
 </article>`,
     css: `.doc { max-width: 46rem; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; width: 100%; min-width: 0; }

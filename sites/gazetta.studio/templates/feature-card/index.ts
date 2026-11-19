@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { html, type TemplateFunction } from 'gazetta'
 
 export const schema = z.object({
   icon: z.string().describe('Emoji or icon'),
@@ -8,7 +8,7 @@ export const schema = z.object({
 })
 
 const template: TemplateFunction = ({ content = {} }) => ({
-  html: `<div class="fcard">
+  html: html`<div class="fcard">
   <span class="fcard-icon">${content.icon ?? ''}</span>
   <h3>${content.title ?? ''}</h3>
   <p>${content.description ?? ''}</p>

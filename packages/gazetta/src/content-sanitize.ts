@@ -8,7 +8,7 @@
  * global hooks with `removeAllHooks()`, so this module must not rely on
  * hooks.
  */
-import DOMPurify from 'isomorphic-dompurify'
+import { domPurify } from './dompurify.js'
 import { unsafeAddressScheme } from './unsafe-address.js'
 
 const FORBID_TAGS = [
@@ -54,7 +54,7 @@ const CONFIG = {
 const SAME_CONTEXT_TARGETS = new Set(['', '_self', '_parent', '_top'])
 
 export function sanitizeContentHtml(markup: string): string {
-  const clean = DOMPurify.sanitize(markup, CONFIG) as unknown as string
+  const clean = domPurify().sanitize(markup, CONFIG) as unknown as string
   return /\s(?:rel|target)=/.test(clean) ? fixLinkRel(clean) : clean
 }
 
@@ -107,7 +107,8 @@ function fixLinkRel(html: string): string {
 export function findScript(value: string): string[] {
   if (!value.includes('<')) return []
   // FORCE_BODY: a leading `<script>` would otherwise be parsed into <head> and dropped unrecorded.
-  DOMPurify.sanitize(value, { FORCE_BODY: true })
+  const purify = domPurify()
+  purify.sanitize(value, { FORCE_BODY: true })
   const found = new Set<string>()
   const checkAttribute = (attr: Attr): void => {
     const name = attr.name.toLowerCase()
@@ -117,7 +118,7 @@ export function findScript(value: string): string[] {
       if (scheme) found.add(scheme)
     }
   }
-  for (const removed of DOMPurify.removed as Array<{ element?: Node; attribute?: Attr | null }>) {
+  for (const removed of purify.removed as Array<{ element?: Node; attribute?: Attr | null }>) {
     if (removed.attribute) checkAttribute(removed.attribute)
     else if (removed.element) {
       if (removed.element.nodeName.toLowerCase() === 'script') found.add('<script>')

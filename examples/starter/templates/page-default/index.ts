@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { html, type TemplateFunction } from 'gazetta'
 
 // Layout template — renders children in a <main> wrapper with a CSS
 // reset. Has no content of its own (no visible fields for the editor).
@@ -12,7 +12,7 @@ import type { TemplateFunction } from 'gazetta'
 export const schema = z.object({})
 
 const template: TemplateFunction = ({ children = [] }) => ({
-  html: `<main>${children.map(c => c.html).join('\n')}</main>`,
+  html: html`<main>${children}</main>`,
   css: `*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: system-ui, -apple-system, sans-serif; color: #1a1a1a; line-height: 1.6; }
 main { min-height: 100vh; display: flex; flex-direction: column; }

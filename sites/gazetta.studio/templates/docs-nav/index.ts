@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { html, type TemplateFunction } from 'gazetta'
 
 // Docs sidebar. Content comes from the generated docs-nav fragment
 // (scripts/docs-pages.ts); the small script marks the link for the
@@ -22,30 +22,17 @@ export const schema = z.object({
 
 type Content = z.infer<typeof schema>
 
-const ESCAPES: Record<string, string> = {
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  '"': '&quot;',
-  "'": '&#39;',
-}
-const escapeHtml = (s: string): string => s.replace(/[&<>"']/g, c => ESCAPES[c])
-
 const template: TemplateFunction<Content> = ({ content }) => {
   const groups = content?.groups ?? []
   return {
-    html: `<aside class="docs-nav">
+    html: html`<aside class="docs-nav">
   <nav aria-label="Docs">
-    ${groups
-      .map(
-        group => `<section class="docs-nav-group">
-      <h2>${escapeHtml(group.title)}</h2>
-      <ul>${group.items
-        .map(item => `<li><a href="${escapeHtml(item.href)}">${escapeHtml(item.label)}</a></li>`)
-        .join('')}</ul>
+    ${groups.map(
+      group => html`<section class="docs-nav-group">
+      <h2>${group.title}</h2>
+      <ul>${group.items.map(item => html`<li><a href="${item.href}">${item.label}</a></li>`)}</ul>
     </section>`,
-      )
-      .join('\n    ')}
+    )}
   </nav>
 </aside>`,
     css: `.docs-nav { padding: 1.5rem; border-bottom: 1px solid #27272a; }

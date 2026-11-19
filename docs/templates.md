@@ -5,7 +5,7 @@ A template is a TypeScript function that returns `{ html, css, js }`. Every temp
 ```ts
 // templates/hero/index.ts
 import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { html, type TemplateFunction } from 'gazetta'
 
 export const schema = z.object({
   title: z.string().describe('Page title'),
@@ -15,7 +15,7 @@ export const schema = z.object({
 type Content = z.infer<typeof schema>
 
 const template: TemplateFunction<Content> = ({ content }) => ({
-  html: `<section class="hero">
+  html: html`<section class="hero">
   <h1>${content?.title ?? ''}</h1>
   <p>${content?.subtitle ?? ''}</p>
 </section>`,
@@ -27,6 +27,8 @@ const template: TemplateFunction<Content> = ({ content }) => ({
 
 export default template
 ```
+
+Build `html` with the `html` tag from `gazetta`: it escapes every value you put in it, so text an author types shows as text and can't add markup or script to the page. See [Escaping content](#escaping-content).
 
 ## The template contract
 
@@ -59,6 +61,61 @@ The admin's preview shows each page in a sandboxed frame with an origin of its o
 The CSS scoping is automatic: the renderer prefixes every selector with a `[data-gz="<hash>"]` attribute selector and wraps the component's HTML in a matching container, so one component's rules don't leak into another.
 
 `head` bubbles up the tree: the renderer joins every child's `head` into the component's own, all the way to the page. Return only the tags this template adds — the children's tags arrive on their own, and collecting them again duplicates them in the final page.
+
+## Escaping content
+
+Content comes from authors, scripts and agents, so a template treats it as text. The `html` tag escapes each `${...}` value: `&`, `<`, `>`, `"` and `'` become entities, in element text and in quoted attribute values alike.
+
+```ts
+import { html, raw, type TemplateFunction } from 'gazetta'
+
+const template: TemplateFunction<Content> = ({ content }) => ({
+  html: html`<article>
+  <h1>${content?.title ?? ''}</h1>
+  <a href="${content?.link ?? '#'}">${content?.linkText ?? ''}</a>
+  <div class="body">${raw(content?.body)}</div>
+</article>`,
+  css: '',
+  js: '',
+})
+```
+
+What the tag inserts as is:
+
+| Value | How |
+|-------|-----|
+| A Markdown or rich-text field | `raw(content.body)`. These fields are sanitized when the page renders: script, event handlers, forms and embeds are removed, formatting, links and images stay |
+| Rendered children | `${children}`, or one child as `${children[0]}`. See [Composite templates](#composite-templates) |
+| The tag's own results, and arrays of them | ``${items.map(item => html`<li>${item.label}</li>`)}``, with no `.join()` |
+
+Use `raw()` only for Markdown and rich-text fields. A plain text field passed to `raw()` publishes whatever was typed into it. A value the tag doesn't know, such as an object with an `html` key, is escaped.
+
+Field values stay strings, and so does `c.html` on each child. The tag returns a string object, which works wherever a string does; the renderer turns it into a plain string.
+
+**React and Vue** escape text on their own. For a Markdown or rich-text field, React keeps using `dangerouslySetInnerHTML={{ __html: content.body }}`, Vue `v-html` or `innerHTML`: the field is already sanitized.
+
+**Links and images.** Escaping keeps a value inside its attribute, but doesn't check where a link goes. Give `href` and `src` a `format.uri()`, `format.link()` or `format.image()` field: saving refuses `javascript:` and similar addresses in any field, and these formats give authors the right input.
+
+## Markdown or rich text
+
+Two field types hold formatted text. Both reach the template as sanitized HTML, so insert either with `raw()`:
+
+| Field | Stores | Pick it for |
+|-------|--------|-------------|
+| `format.markdown()` | Markdown | Authors who write Markdown, and content kept in git as text that reads well in a diff |
+| `format.richtext()` | HTML | Authors who want a word-processor editor: bold, links and lists from a toolbar |
+
+```ts
+import { z } from 'zod'
+import { format } from 'gazetta'
+
+export const schema = z.object({
+  body: z.string().meta(format.markdown()).describe('Article body'),
+  note: z.string().meta(format.richtext()).optional().describe('Side note'),
+})
+```
+
+A field that holds HTML on purpose is a rich-text field, not a plain `z.string()`: saving refuses script in plain text fields, and the `html` tag escapes them.
 
 ## Frameworks
 
@@ -99,12 +156,12 @@ const template: TemplateFunction<Content> = ({ content }) => ({
 
 ## Composite templates
 
-Layout templates receive `children` — the rendered output of child components. CSS and JS do not bubble: collect them from the children, or they never reach the page. `head` does bubble (see above), so a layout returns only its own additions:
+Layout templates receive `children` — the rendered output of child components. Put them in the `html` tag directly, `${children}`, and the tag inserts their markup unescaped; `${c.html}` would be escaped and show as text. To split them, interpolate the parts: `${children[0] ?? ''}` and `${children.slice(1)}`. CSS and JS do not bubble: collect them from the children, or they never reach the page. `head` does bubble (see above), so a layout returns only its own additions:
 
 ```ts
 // templates/page-layout/index.ts
 import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { html, type TemplateFunction } from 'gazetta'
 
 export const schema = z.object({
   title: z.string().optional().describe('Page title'),
@@ -113,11 +170,11 @@ export const schema = z.object({
 type Content = z.infer<typeof schema>
 
 const template: TemplateFunction<Content> = ({ content, children = [] }) => ({
-  html: `<main>${children.map(c => c.html).join('\n')}</main>`,
+  html: html`<main>${children}</main>`,
   css: `main { max-width: 800px; margin: 0 auto; }
 ${children.map(c => c.css).join('\n')}`,
   js: children.map(c => c.js).filter(Boolean).join('\n'),
-  head: `<title>${content?.title ?? ''}</title>`,
+  head: html`<title>${content?.title ?? ''}</title>`,
 })
 
 export default template

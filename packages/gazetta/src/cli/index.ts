@@ -384,7 +384,7 @@ export default defineSite({
 `,
 
     'templates/page-layout/index.ts': `import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { html, raw, type TemplateFunction } from 'gazetta'
 
 export const schema = z.object({
   title: z.string().describe('Page title'),
@@ -394,21 +394,21 @@ export const schema = z.object({
 type Content = z.infer<typeof schema>
 
 const template: TemplateFunction<Content> = ({ content, children = [] }) => ({
-  html: \`<main>\${children.map(c => c.html).join('\\n')}</main>\`,
+  html: html\`<main>\${children}</main>\`,
   css: \`main { max-width: 800px; margin: 0 auto; padding: 2rem; font-family: system-ui, sans-serif; }
 \${children.map(c => c.css).join('\\n')}\`,
   js: children.map(c => c.js).filter(Boolean).join('\\n'),
-  head: \`<title>\${content?.title ?? ''}</title>
-\${content?.description ? \`<meta name="description" content="\${content.description}">\` : ''}
+  head: html\`<title>\${content?.title ?? ''}</title>
+\${content?.description ? html\`<meta name="description" content="\${content.description}">\` : ''}
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
-\${children.map(c => c.head).filter(Boolean).join('\\n')}\`,
+\${raw(children.map(c => c.head).filter(Boolean).join('\\n'))}\`,
 })
 
 export default template
 `,
 
     'templates/hero/index.ts': `import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { html, type TemplateFunction } from 'gazetta'
 import { embeddedAsset, type Content } from 'gazetta/schema'
 
 export const schema = z.object({
@@ -419,17 +419,14 @@ export const schema = z.object({
 
 type Resolved = Content<z.infer<typeof schema>>
 
-const attr = (value: string | number) =>
-  String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-
 const template: TemplateFunction<Resolved> = ({ content }) => {
   const image = content?.image
   const img = image
-    ? \`
-  <img src="\${attr(image.url)}"\${image.srcset ? \` srcset="\${attr(image.srcset)}"\` : ''} alt="\${attr(image.alt)}"\${image.width ? \` width="\${attr(image.width)}"\` : ''}\${image.height ? \` height="\${attr(image.height)}"\` : ''}>\`
+    ? html\`
+  <img src="\${image.url}"\${image.srcset ? html\` srcset="\${image.srcset}"\` : ''} alt="\${image.alt}"\${image.width ? html\` width="\${image.width}"\` : ''}\${image.height ? html\` height="\${image.height}"\` : ''}>\`
     : ''
   return {
-    html: \`<section class="hero">\${img}
+    html: html\`<section class="hero">\${img}
   <h1>\${content?.title ?? ''}</h1>
   <p>\${content?.subtitle ?? ''}</p>
 </section>\`,
@@ -445,16 +442,16 @@ export default template
 `,
 
     'templates/text-block/index.ts': `import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { format, html, raw, type TemplateFunction } from 'gazetta'
 
 export const schema = z.object({
-  body: z.string().describe('Text content (HTML allowed)'),
+  body: z.string().meta(format.richtext()).describe('Text content'),
 })
 
 type Content = z.infer<typeof schema>
 
 const template: TemplateFunction<Content> = ({ content }) => ({
-  html: \`<div class="text-block">\${content?.body ?? ''}</div>\`,
+  html: html\`<div class="text-block">\${raw(content?.body)}</div>\`,
   css: \`.text-block { line-height: 1.6; margin: 2rem 0; }\`,
   js: '',
 })
@@ -463,7 +460,7 @@ export default template
 `,
 
     'templates/nav/index.ts': `import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { html, type TemplateFunction } from 'gazetta'
 
 export const schema = z.object({
   brand: z.string().describe('Site name'),
@@ -478,9 +475,9 @@ type Content = z.infer<typeof schema>
 const template: TemplateFunction<Content> = ({ content }) => {
   const links = content?.links ?? []
   return {
-    html: \`<nav class="nav">
+    html: html\`<nav class="nav">
   <a class="nav-brand" href="/">\${content?.brand ?? ''}</a>
-  <div class="nav-links">\${links.map(l => \`<a href="\${l.href}">\${l.label}</a>\`).join('\\n    ')}</div>
+  <div class="nav-links">\${links.map(l => html\`<a href="\${l.href}">\${l.label}</a>\`)}</div>
 </nav>\`,
     css: \`.nav { display: flex; align-items: center; justify-content: space-between; padding: 1rem 2rem; border-bottom: 1px solid #eee; }
 .nav-brand { font-weight: 700; font-size: 1.125rem; text-decoration: none; color: #1a1a1a; }

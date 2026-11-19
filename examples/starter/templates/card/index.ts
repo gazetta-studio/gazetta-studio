@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { html, type TemplateFunction } from 'gazetta'
 
 export const schema = z.object({
   title: z.string().describe('Card title'),
@@ -11,10 +11,10 @@ export const schema = z.object({
 type Content = z.infer<typeof schema>
 
 const template: TemplateFunction<Content> = ({ content }) => ({
-  html: `<div class="card">
+  html: html`<div class="card">
   <h3 class="card-title">${content?.title ?? ''}</h3>
   <p class="card-body">${content?.body ?? ''}</p>
-  ${content?.link ? `<a class="card-link" href="${content.link}">${content.linkText ?? 'Read more'}</a>` : ''}
+  ${content?.link ? html`<a class="card-link" href="${content.link}">${content.linkText ?? 'Read more'}</a>` : ''}
 </div>`,
   css: `.card { padding: 1.5rem; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; }
 .card-title { font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem; }

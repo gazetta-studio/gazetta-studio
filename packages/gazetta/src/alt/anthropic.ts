@@ -37,7 +37,7 @@
  *   - DIP: callers depend on `AltTextAdapter`; never on `Anthropic` SDK
  *     type directly.
  */
-import Anthropic from '@anthropic-ai/sdk'
+import type Anthropic from '@anthropic-ai/sdk'
 import { AIInvalidResponseError } from '../ai/errors.js'
 import type { AIProvider, AltTextTaskConfig } from '../ai/provider.js'
 import { buildAltAdapterFromScaffold } from '../ai/adapter-scaffold.js'
@@ -114,11 +114,14 @@ function toBase64(bytes: Uint8Array): string {
  * through `anthropicProvider(transport).altText(taskConfig)` (Path X).
  */
 export function createAnthropicAltAdapter(opts: AnthropicAltAdapterOptions): AltTextAdapter {
-  const client = new Anthropic({
-    apiKey: opts.apiKey,
-    baseURL: opts.baseURL,
-    maxRetries: opts.maxRetries,
-  })
+  // The SDK loads on the first call: importing `gazetta` (every template does) shouldn't pay for it.
+  let sdk: typeof Anthropic | undefined
+  let client: Anthropic | undefined
+  const getClient = async (): Promise<Anthropic> => {
+    sdk ??= (await import('@anthropic-ai/sdk')).default
+    client ??= new sdk({ apiKey: opts.apiKey, baseURL: opts.baseURL, maxRetries: opts.maxRetries })
+    return client
+  }
   const model = opts.model ?? ANTHROPIC_DEFAULT_MODEL
 
   return buildAltAdapterFromScaffold({
@@ -127,9 +130,9 @@ export function createAnthropicAltAdapter(opts: AnthropicAltAdapterOptions): Alt
     operatorSystemPrompt: opts.systemPrompt,
     operatorMaxTokens: opts.maxTokens,
     refusalMarkers: ANTHROPIC_REFUSAL_MARKERS,
-    isAbortError: err => err instanceof Anthropic.APIUserAbortError,
+    isAbortError: err => sdk !== undefined && err instanceof sdk.APIUserAbortError,
     async callProvider({ bytes, mime, systemPrompt, maxTokens, signal }) {
-      const response = await client.messages.create(
+      const response = await (await getClient()).messages.create(
         {
           model,
           max_tokens: maxTokens,

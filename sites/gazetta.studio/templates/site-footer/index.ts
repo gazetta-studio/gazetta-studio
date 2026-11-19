@@ -1,16 +1,16 @@
 import { z } from 'zod'
-import type { TemplateFunction } from 'gazetta'
+import { html, type TemplateFunction } from 'gazetta'
 
 export const schema = z.object({})
 
 const template: TemplateFunction = ({ children = [] }) => ({
-  html: `<footer class="site-footer">
+  html: html`<footer class="site-footer">
   <div class="footer-inner">
     <div class="footer-brand">
       <strong>Gazetta</strong>
       <p>The stateless CMS for composable websites.</p>
     </div>
-    <div class="footer-links">${children.map(c => c.html).join('\n')}</div>
+    <div class="footer-links">${children}</div>
   </div>
   <div class="footer-bottom">
     <a href="https://claude.ai/code" target="_blank" rel="noopener" class="footer-claude">
