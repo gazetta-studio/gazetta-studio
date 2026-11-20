@@ -167,7 +167,8 @@ export interface HashManifestOptions {
  *
  * Substitutes template references with `name#hash` form in memory (source files
  * are not modified), serializes with stable key ordering, then MD5s. A page's
- * metadata counts too: it renders into the page's `<head>`.
+ * metadata counts too, since it renders into the page's `<head>`, and so do its
+ * cache settings, which set an ESI page's cache comment.
  *
  * Result: 8 hex chars.
  */
@@ -204,6 +205,9 @@ export function hashManifest(manifest: PageManifest | FragmentManifest, opts: Ha
   }
   const metadata = 'metadata' in manifest ? manifest.metadata : undefined
   if (metadata && Object.keys(metadata).length > 0) normalized.metadata = metadata
+  // A page's cache settings write the ESI cache comment.
+  const cache = 'cache' in manifest ? manifest.cache : undefined
+  if (cache && Object.keys(cache).length > 0) normalized.cache = cache
   const json = JSON.stringify(normalized, sortedReplacer)
   return createHash('md5').update(json).digest('hex').slice(0, 8)
 }
