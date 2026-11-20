@@ -37,9 +37,10 @@
  * # Response merging
  *
  * Events from multiple queryable providers merge by sort order
- * (newest first). Same-event dedup uses `(timestamp, actor.id,
- * action, scope)` tuple — providers writing the same event to
- * multiple sinks produce one logical event in the response.
+ * (newest first). Copies of one event written to several sinks
+ * show once, matched on `(timestamp, actor.id, action, scope,
+ * outcome)` across providers; events within one provider are never
+ * merged with each other.
  *
  * # Filter validation
  *
@@ -176,20 +177,26 @@ export function auditRoutes(opts: AuditRoutesOptions) {
 
     // Merge + dedup + sort-newest-first. Per design-audit.md "Recommended
     // operational pattern": run history + external-sink as peers; the
-    // drawer dedups the inline copies via `event.id` (we use a synthetic
-    // tuple since AuditEvent has no explicit id field — timestamp +
-    // actor + action + scope + outcome is unique per attempt by
-    // construction). outcome is part of the key: strict mode (#1393)
-    // records a pre-write success event and a compensating
-    // write-failed event for the SAME attempt, often within one
-    // millisecond, and dropping either would misrepresent the attempt.
-    const seen = new Set<string>()
+    // drawer dedups the copies one event leaves in several providers via
+    // `event.id`. AuditEvent has no id, so copies are matched on
+    // timestamp + actor + action + scope + outcome. That tuple is NOT
+    // unique per event: timestamps have millisecond resolution, so two
+    // back-to-back writes can tie (#1245). One provider never holds two
+    // copies of one event, so its own events are never merged; across
+    // providers a key appears as many times as the provider holding the
+    // most copies of it. outcome is part of the key: strict mode (#1393)
+    // records a pre-write success event and a compensating write-failed
+    // event for the SAME attempt, often within one millisecond.
+    const keptPerKey = new Map<string, number>()
     const merged: AuditEvent[] = []
     for (const events of eventsFromProviders) {
+      const seenInProvider = new Map<string, number>()
       for (const event of events) {
         const dedupKey = `${event.timestamp}:${event.actor.id}:${event.action}:${event.scope.kind}:${event.scope.name ?? ''}:${event.outcome}`
-        if (seen.has(dedupKey)) continue
-        seen.add(dedupKey)
+        const occurrence = (seenInProvider.get(dedupKey) ?? 0) + 1
+        seenInProvider.set(dedupKey, occurrence)
+        if (occurrence <= (keptPerKey.get(dedupKey) ?? 0)) continue
+        keptPerKey.set(dedupKey, occurrence)
         merged.push(event)
       }
     }
