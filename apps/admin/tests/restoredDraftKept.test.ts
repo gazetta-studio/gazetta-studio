@@ -351,3 +351,23 @@ describe('a nested fragment draft under a host fragment (#1108 review)', () => {
     expect(useSaveConflictsStore().has(manifestPath('fragment', 'footer', undefined))).toBe(true)
   })
 })
+
+describe('an edit typed back to the saved value (#1223)', () => {
+  it('leaves no stored draft, so a later save by someone else shows on reload', async () => {
+    let actions = await freshSession()
+    await actions.openPageRoot()
+    actions.markDirty({ title: 'X' })
+    actions.markDirty({ title: 'Home' })
+    expect(useEditorContentStore().dirty).toBe(false)
+    await handle!.flush()
+    expect((await drafts.list(scope, 'edit')).length).toBe(0)
+
+    vi.spyOn(api, 'getPageWithEtag').mockImplementation(
+      async () => ({ data: { ...structuredClone(detail), content: { title: 'Theirs' } }, etag: 'v2' }) as never,
+    )
+    actions = await freshSession()
+    await actions.openPageRoot()
+    expect(useEditorContentStore().content).toEqual({ title: 'Theirs' })
+    expect(useEditorContentStore().dirty).toBe(false)
+  })
+})
