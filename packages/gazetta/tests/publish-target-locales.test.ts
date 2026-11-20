@@ -24,6 +24,7 @@ import {
   resolveTargetLanguages,
   versionRoutePrefix,
 } from '../src/target-locales.js'
+import './_helpers/load-dompurify.js'
 
 async function publishTo(
   extra: Partial<TargetConfig>,

@@ -25,6 +25,7 @@ import { createContentRoot } from '../src/content-root.js'
 import { outputHash, parsePublishedMarkers } from '../src/runtime/published-marker.js'
 import { createFilesystemProvider } from '../src/providers/filesystem.js'
 import { starterManifest, starterTargetDir, starterTemplatesDir } from './_helpers/starter.js'
+import './_helpers/load-dompurify.js'
 
 async function loadStarterSite() {
   const storage = createFilesystemProvider(starterTargetDir)

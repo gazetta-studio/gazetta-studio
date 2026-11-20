@@ -12,6 +12,7 @@ import { scriptInText } from '../src/validation/validators/script-in-text.js'
 import type { ValidatorInput } from '../src/validation/types.js'
 import type { PageManifest } from '../src/types.js'
 import { memoryStorage } from './_helpers/memory-storage.js'
+import './_helpers/load-dompurify.js'
 
 const ARTICLE = `import { z } from 'zod'
 export const schema = z.object({

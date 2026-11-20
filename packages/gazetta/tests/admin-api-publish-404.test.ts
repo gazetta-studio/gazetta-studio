@@ -12,6 +12,7 @@ import { createSourceContext } from '../src/admin-api/source-context.js'
 import { MINIMAL_404_HTML } from '../src/static-404.js'
 import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
 import { starterTemplatesDir } from './_helpers/starter.js'
+import './_helpers/load-dompurify.js'
 
 const notFoundPage = (body: string) =>
   JSON.stringify({

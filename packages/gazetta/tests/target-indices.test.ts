@@ -14,6 +14,7 @@ import { scanTemplates } from '../src/templates-scan.js'
 import { findDependentsFromSidecars } from '../src/publish.js'
 import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
 import { starterManifest, starterProjectRoot, starterTargetDir, starterTemplatesDir } from './_helpers/starter.js'
+import './_helpers/load-dompurify.js'
 
 // The starter site and its templates are read-only here, so the file loads
 // them once; each test still gets its own empty target.

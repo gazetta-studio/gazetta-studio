@@ -24,6 +24,7 @@ import { scanTemplates, type TemplateInfo } from '../src/templates-scan.js'
 import type { SiteManifest, StorageProvider, TargetConfig } from '../src/types.js'
 import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
 import { starterManifest, starterProjectRoot, starterTargetDir, starterTemplatesDir } from './_helpers/starter.js'
+import './_helpers/load-dompurify.js'
 
 const purgeCalls: string[] = []
 

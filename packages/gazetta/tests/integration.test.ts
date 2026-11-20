@@ -8,6 +8,7 @@ import {
   starterTemplatesDir as templatesDir,
   starterManifest,
 } from './_helpers/starter.js'
+import './_helpers/load-dompurify.js'
 
 const storage = createFilesystemProvider()
 

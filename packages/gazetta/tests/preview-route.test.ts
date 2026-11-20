@@ -31,6 +31,7 @@ import { loadSiteConfig, siteConfigToManifest } from '../src/config/loader.js'
 import type { DraftOverrides, StorageProvider } from '../src/types.js'
 import { memoryStorage } from './_helpers/memory-storage.js'
 import { tempDir } from './_helpers/temp.js'
+import './_helpers/load-dompurify.js'
 
 const realStarter = resolve(import.meta.dirname, '../../../examples/starter')
 const createdRoots: string[] = []

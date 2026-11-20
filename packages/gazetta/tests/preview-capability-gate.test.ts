@@ -23,6 +23,7 @@ import { createSourceContext } from '../src/admin-api/source-context.js'
 import { loadSiteConfig, siteConfigToManifest } from '../src/config/loader.js'
 import { tempDir } from './_helpers/temp.js'
 import { fromConnection } from './_helpers/connection.js'
+import './_helpers/load-dompurify.js'
 
 const realStarter = resolve(import.meta.dirname, '../../../examples/starter')
 const createdRoots: string[] = []
