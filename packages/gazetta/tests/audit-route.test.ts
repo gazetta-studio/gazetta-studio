@@ -165,6 +165,39 @@ describe('Cut 6 — GET /api/v1/audit', () => {
     expect(names).toEqual(['shared', 'file-only', 'history-only'])
   })
 
+  it('keeps distinct events from one provider that share timestamp, actor, action, scope and outcome', async () => {
+    // Audit timestamps have millisecond resolution, so two back-to-back
+    // writes by one person on one page can tie on every field the
+    // cross-provider de-duplication compares.
+    const first = makeEvent({ action: 'review-submit', timestamp: '2026-05-04T12:00:00.123Z' })
+    const second = makeEvent({ action: 'review-submit', timestamp: '2026-05-04T12:00:00.123Z' })
+    const app = buildApp([makeQueryableProvider('history', [first, second])])
+    const res = await app.request('/api/v1/audit')
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.events).toHaveLength(2)
+  })
+
+  it('shows copies of tied events from two providers once per event, not once per copy', async () => {
+    const tied = makeEvent({ action: 'review-submit', timestamp: '2026-05-04T12:00:00.123Z' })
+    const history = makeQueryableProvider('history', [tied, { ...tied }])
+    const file = makeQueryableProvider('file', [{ ...tied }, { ...tied }])
+    const app = buildApp([history, file])
+    const res = await app.request('/api/v1/audit')
+    const body = await res.json()
+    expect(body.events).toHaveLength(2)
+  })
+
+  it('keeps an extra tied event that only a later provider has', async () => {
+    const tied = makeEvent({ action: 'review-submit', timestamp: '2026-05-04T12:00:00.123Z' })
+    const history = makeQueryableProvider('history', [tied])
+    const file = makeQueryableProvider('file', [{ ...tied }, { ...tied }])
+    const app = buildApp([history, file])
+    const res = await app.request('/api/v1/audit')
+    const body = await res.json()
+    expect(body.events).toHaveLength(2)
+  })
+
   it('composes external-sink references for non-queryable providers', async () => {
     const queryable = makeQueryableProvider('history', [makeEvent()])
     const cloudwatch = makeExternalSinkProvider('cloudwatch', 'https://aws.example.com/audit')
