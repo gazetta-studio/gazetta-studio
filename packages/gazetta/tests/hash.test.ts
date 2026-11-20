@@ -57,6 +57,26 @@ describe('hashManifest', () => {
     })
   })
 
+  // A page's cache settings decide the ESI cache comment, so they count.
+  describe('page cache settings', () => {
+    const t = new Map([
+      ['hero', 'h1'],
+      ['page-default', 'p1'],
+    ])
+    const base = hashManifest(baseManifest, { templateHashes: t })
+
+    it.each([
+      ['browser', { browser: 60 }],
+      ['edge', { edge: 3600 }],
+    ])('changes when cache.%s is set', (_label, cache) => {
+      expect(hashManifest({ ...baseManifest, cache }, { templateHashes: t })).not.toBe(base)
+    })
+
+    it('a page without cache settings hashes the same as one with empty cache settings', () => {
+      expect(hashManifest({ ...baseManifest, cache: {} }, { templateHashes: t })).toBe(base)
+    })
+  })
+
   it('is stable for the same input', () => {
     const t = new Map([
       ['hero', 'h1'],
