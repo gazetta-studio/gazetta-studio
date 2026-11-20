@@ -28,6 +28,5 @@ export {
   discoverSites,
   loadProjectConfig,
   siteConfigToManifest,
-  gazettaConfigToManifest,
 } from './loader.js'
 export type { DiscoveredSite, LoadedProjectConfig } from './loader.js'
