@@ -82,11 +82,24 @@ describe('pushBranch', () => {
 })
 
 describe('runGh', () => {
-  it('reports a non-zero exit as a failure', () => {
-    // An unknown subcommand fails whether or not gh is authenticated; a
-    // missing gh binary fails too — either way the result must say so.
+  // A stub `gh` first on PATH: the real binary's startup can exceed the test
+  // timeout on a loaded runner (#1236).
+  let savedPath: string | undefined
+  beforeEach(() => {
+    const bin = join(root, 'bin')
+    execFileSync('mkdir', [bin])
+    writeFileSync(join(bin, 'gh'), '#!/bin/sh\necho "stub gh: unknown command $1" >&2\nexit 1\n')
+    chmodSync(join(bin, 'gh'), 0o755)
+    savedPath = process.env.PATH
+    process.env.PATH = `${bin}:${savedPath ?? ''}`
+  })
+  afterEach(() => {
+    process.env.PATH = savedPath
+  })
+
+  it('reports a non-zero exit as a failure, with gh’s stderr', () => {
     const r = runGh(['definitely-not-a-gh-command'], work)
-    expect(r.ok).toBe(false)
+    expect(r).toEqual({ ok: false, error: 'stub gh: unknown command definitely-not-a-gh-command' })
   })
 })
 
