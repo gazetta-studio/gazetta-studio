@@ -12,7 +12,7 @@
  * review-bot coverage-shape recipe anti-tautology discipline).
  */
 import { describe, expect, it } from 'vitest'
-import { extractFunctionBody } from './_helpers/source-scan.ts'
+import { extractFunctionBody } from './_helpers/source-scan.js'
 
 describe('extractFunctionBody', () => {
   it('returns a body string bracketed by `{` and `}`', () => {

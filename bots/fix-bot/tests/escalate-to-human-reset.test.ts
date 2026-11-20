@@ -28,7 +28,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { extractFunctionBody } from './_helpers/source-scan.ts'
+import { extractFunctionBody } from './_helpers/source-scan.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const INDEX_PATH = resolve(HERE, '..', 'index.ts')
