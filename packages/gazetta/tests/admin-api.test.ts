@@ -7,6 +7,7 @@ import { createAdminApp } from '../src/admin-api/index.js'
 import { createSourceContext } from '../src/admin-api/source-context.js'
 import { loadSiteConfig, siteConfigToManifest } from '../src/config/loader.js'
 import { tempDir } from './_helpers/temp.js'
+import './_helpers/load-dompurify.js'
 
 // Copy the starter into .tmp/ so admin API tests can mutate pages/fragments
 // without dirtying the real repo. See #123.

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { z } from 'zod'
 import { processContent } from '../src/content.js'
 import { format } from '../src/formats.js'
+import './_helpers/load-dompurify.js'
 
 describe('processContent', () => {
   it('converts markdown fields to HTML', () => {

@@ -26,6 +26,7 @@ import { createSourceContext } from '../src/admin-api/source-context.js'
 import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
 import { starterTemplatesDir } from './_helpers/starter.js'
 import { fromConnection } from './_helpers/connection.js'
+import './_helpers/load-dompurify.js'
 
 const EDITOR_HEADERS = {
   'X-Forwarded-User': 'alice',

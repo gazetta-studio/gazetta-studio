@@ -11,6 +11,7 @@ import type { SavedItem, Validator } from '../src/validation/types.js'
 import { brokenLinks } from '../src/validation/validators/broken-links.js'
 import { memoryStorage } from './_helpers/memory-storage.js'
 import { starterTemplatesDir } from './_helpers/starter.js'
+import './_helpers/load-dompurify.js'
 
 function seedStorage() {
   const storage = memoryStorage()

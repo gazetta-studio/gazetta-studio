@@ -30,6 +30,7 @@ import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
 import { starterManifest, starterTargetDir, starterTemplatesDir } from './_helpers/starter.js'
 import { listSidecars } from '../src/sidecars.js'
 import { generateSitemap } from '../src/sitemap.js'
+import './_helpers/load-dompurify.js'
 
 async function loadStarterSite(): Promise<Site> {
   const storage = createFilesystemProvider(starterTargetDir)

@@ -11,6 +11,7 @@ import { createSourceContext } from '../src/admin-api/source-context.js'
 import type { SiteManifest, StorageProvider } from '../src/types.js'
 import { memoryStorage } from './_helpers/memory-storage.js'
 import { starterTemplatesDir } from './_helpers/starter.js'
+import './_helpers/load-dompurify.js'
 
 let templatesDir: string
 beforeAll(async () => {

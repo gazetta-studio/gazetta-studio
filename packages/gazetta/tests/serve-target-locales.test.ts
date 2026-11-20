@@ -16,6 +16,7 @@ import { archiveMarker } from '../src/runtime/archive-marker.js'
 import type { SiteManifest, TargetConfig } from '../src/types.js'
 import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
 import { starterManifest, starterTargetDir, starterTemplatesDir } from './_helpers/starter.js'
+import './_helpers/load-dompurify.js'
 
 const SITE: SiteManifest = { name: 'test', locales: { default: 'en', supported: ['en', 'fr'] } }
 const FR_ONLY = { locale: 'fr', locales: ['fr'] } as TargetConfig

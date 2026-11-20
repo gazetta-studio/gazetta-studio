@@ -23,6 +23,7 @@ import { scanTemplates, type TemplateInfo } from '../src/templates-scan.js'
 import type { SiteManifest, TargetConfig } from '../src/types.js'
 import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
 import { starterProjectRoot, starterTemplatesDir } from './_helpers/starter.js'
+import './_helpers/load-dompurify.js'
 
 const page = (components: unknown[], title = 'Home') =>
   JSON.stringify({ template: 'page-default', metadata: { title }, components })

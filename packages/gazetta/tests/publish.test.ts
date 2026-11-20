@@ -12,6 +12,7 @@ import { createContentRoot } from '../src/content-root.js'
 import { loadSite, type Site } from '../src/site-loader.js'
 import { tempDir } from './_helpers/temp.js'
 import { starterManifest, starterTargetDir, starterTemplatesDir } from './_helpers/starter.js'
+import './_helpers/load-dompurify.js'
 
 const testDir = tempDir('publish-test-' + Date.now())
 const sourceDir = join(testDir, 'source')

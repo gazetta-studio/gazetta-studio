@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { sanitizeSvg, SvgSanitizeError } from '../src/assets/svg-sanitize.js'
+import './_helpers/load-dompurify.js'
 
 const enc = new TextEncoder()
 const dec = new TextDecoder()

@@ -11,6 +11,7 @@ import { createAdminApp } from '../src/admin-api/index.js'
 import { createSourceContext } from '../src/admin-api/source-context.js'
 import { loadSiteConfig, siteConfigToManifest } from '../src/config/loader.js'
 import { tempDir } from './_helpers/temp.js'
+import './_helpers/load-dompurify.js'
 
 const realStarter = resolve(import.meta.dirname, '../../../examples/starter')
 const roots: string[] = []

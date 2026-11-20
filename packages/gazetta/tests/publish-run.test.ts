@@ -26,6 +26,7 @@ import { loadSite, type Site } from '../src/site-loader.js'
 import { scanTemplates } from '../src/templates-scan.js'
 import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
 import { starterManifest, starterProjectRoot, starterTargetDir, starterTemplatesDir } from './_helpers/starter.js'
+import './_helpers/load-dompurify.js'
 
 async function loadStarterSite(): Promise<Site> {
   const storage = createFilesystemProvider(starterTargetDir)

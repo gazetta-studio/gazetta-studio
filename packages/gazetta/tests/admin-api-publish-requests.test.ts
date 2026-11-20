@@ -17,6 +17,7 @@ import { HookRegistry, type ReviewTransition } from '../src/hooks/index.js'
 import type { SiteManifest, StorageProvider } from '../src/types.js'
 import { memoryStorage, type MemoryStorage } from './_helpers/memory-storage.js'
 import { starterTemplatesDir } from './_helpers/starter.js'
+import './_helpers/load-dompurify.js'
 
 const editor = { 'X-Forwarded-User': 'alice' }
 const viewer = { 'X-Forwarded-User': 'vic', 'X-Forwarded-Groups': 'viewers' }
