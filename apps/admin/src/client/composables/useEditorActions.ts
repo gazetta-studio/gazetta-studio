@@ -733,8 +733,12 @@ export function useEditorActions() {
     // live edit survives reload. The persistence coordinator
     // debounces writes to IndexedDB; we just keep the store
     // up-to-date on every keystroke.
+    // Content back at the saved version isn't a draft: a stored copy would
+    // come back on reload over a later save by someone else.
     const key = persistedKeyForCurrent()
-    if (key) usePersistedEditsStore().set(key, deepClone(newContent), baseForCurrent())
+    if (!key) return
+    if (ec.dirty) usePersistedEditsStore().set(key, deepClone(newContent), baseForCurrent())
+    else usePersistedEditsStore().clear(key)
   }
 
   function revertStashed(componentPath: string) {
