@@ -24,7 +24,7 @@ import {
   uploadLocaleBytes as uploadLocaleBytesApi,
 } from '../api/assets.js'
 
-export type UploadAsset = (file: File, name: string, alt: string | null) => Promise<UploadedAsset>
+type UploadAsset = (file: File, name: string, alt: string | null) => Promise<UploadedAsset>
 export type UploadLocaleBytes = (name: string, selector: AssetSelector, file: File) => Promise<UploadedAsset>
 
 export interface AssetsUploadStoreOptions {
