@@ -8,8 +8,8 @@ import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-p
 import { reorderAtPath } from './reorder-at-path.js'
 import { useEditor, EditorContent } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
-import StarterKit from '@tiptap/starter-kit'
-import Placeholder from '@tiptap/extension-placeholder'
+import { FormattingToolbar, ToolbarButton, formattingExtensions, promptForLink } from './formatting-toolbar.js'
+import { MarkdownWidget } from './MarkdownWidget.js'
 import type { EditorMount } from '../types.js'
 import type { IChangeEvent } from '@rjsf/core'
 import type {
@@ -199,11 +199,19 @@ const STYLES = `
 .gz-editor .gz-json-valid { font-size: 0.6875rem; color: var(--color-success-fg); margin-top: 0.25rem; }
 
 /* ---- Markdown ---- */
+.gz-editor .gz-md-modes { display: flex; gap: 1px; margin-block-end: 0.25rem; }
+.gz-editor .gz-md-mode {
+  background: none; border: 1px solid var(--color-border); color: var(--color-muted); cursor: pointer;
+  padding: 0.25rem 0.625rem; font-size: 0.6875rem; font-family: inherit; font-weight: 600;
+}
+.gz-editor .gz-md-mode:first-child { border-start-start-radius: 4px; border-end-start-radius: 4px; }
+.gz-editor .gz-md-mode:last-child { border-start-end-radius: 4px; border-end-end-radius: 4px; }
+.gz-editor .gz-md-mode[aria-pressed="true"] { color: var(--color-fg); background: var(--color-bg-chip); }
+.gz-editor .gz-md-note { font-size: 0.6875rem; color: var(--color-muted); margin-block-end: 0.25rem; }
 .gz-editor .gz-markdown textarea {
   min-height: 12rem; font-family: 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 0.8125rem; line-height: 1.6;
 }
-.gz-editor .gz-markdown-hint { font-size: 0.6875rem; color: var(--color-muted); margin-top: 0.25rem; }
 
 /* ---- Rich text (Tiptap) ---- */
 .gz-editor .gz-richtext {
@@ -230,10 +238,10 @@ const STYLES = `
 .gz-editor .gz-richtext .tiptap p { margin: 0.25rem 0; }
 .gz-editor .gz-richtext .tiptap h2 { font-size: 1.25rem; font-weight: 700; margin: 1rem 0 0.25rem; color: var(--color-fg); }
 .gz-editor .gz-richtext .tiptap h3 { font-size: 1.1rem; font-weight: 600; margin: 0.75rem 0 0.25rem; color: var(--color-fg); }
-.gz-editor .gz-richtext .tiptap ul, .gz-editor .gz-richtext .tiptap ol { padding-left: 1.25rem; margin: 0.25rem 0; }
+.gz-editor .gz-richtext .tiptap ul, .gz-editor .gz-richtext .tiptap ol { padding-inline-start: 1.25rem; margin: 0.25rem 0; }
 .gz-editor .gz-richtext .tiptap li { margin: 0.125rem 0; }
 .gz-editor .gz-richtext .tiptap blockquote {
-  border-left: 3px solid color-mix(in srgb, var(--color-primary) 25%, transparent); padding-left: 0.875rem; margin: 0.5rem 0;
+  border-inline-start: 3px solid color-mix(in srgb, var(--color-primary) 25%, transparent); padding-inline-start: 0.875rem; margin: 0.5rem 0;
   color: var(--color-muted); font-style: italic;
 }
 .gz-editor .gz-richtext .tiptap code {
@@ -247,7 +255,7 @@ const STYLES = `
 .gz-editor .gz-richtext .tiptap a { color: var(--color-primary); text-decoration: underline; cursor: pointer; }
 .gz-editor .gz-richtext .tiptap hr { border: none; border-top: 1px solid var(--color-border); margin: 1rem 0; }
 .gz-editor .gz-richtext .tiptap p.is-editor-empty:first-child::before {
-  content: attr(data-placeholder); float: left; color: var(--color-muted); pointer-events: none; height: 0;
+  content: attr(data-placeholder); float: inline-start; color: var(--color-muted); pointer-events: none; height: 0;
 }
 
 /* Bubble menu */
@@ -420,7 +428,9 @@ function buildUiSchema(jsonSchema: JsonSchema): Record<string, unknown> {
 
     if (type === 'array') {
       const items = prop.items as JsonSchema | undefined
-      if (items?.type === 'string') {
+      // A list of formatted strings (Markdown, rich text) is a list of
+      // editors, not a tag input; rjsf picks each item's widget by format.
+      if (items?.type === 'string' && items.format !== 'markdown' && items.format !== 'richtext') {
         ui[name] = { 'ui:widget': 'tags' }
       }
     }
@@ -492,20 +502,6 @@ function summarizeItem(data: unknown): string {
 
 /** Test id of a widget's input: `field-root_title-input`. */
 const inputTestId = (props: WidgetProps, suffix = 'input') => `field-${props.id}-${suffix}`
-
-function MarkdownWidget(props: WidgetProps) {
-  return (
-    <div className="gz-markdown">
-      <textarea
-        value={props.value ?? ''}
-        onChange={e => props.onChange(e.target.value)}
-        placeholder="Write markdown here..."
-        rows={12}
-      />
-      <div className="gz-markdown-hint">Markdown supported</div>
-    </div>
-  )
-}
 
 function ToggleWidget(props: WidgetProps) {
   const on = !!props.value
@@ -737,16 +733,7 @@ function RichTextWidget(props: WidgetProps) {
   onChangeRef.current = props.onChange
 
   const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        heading: { levels: [2, 3] },
-        codeBlock: { HTMLAttributes: { spellcheck: 'false' } },
-        // StarterKit 3 bundles Link; configure it here rather than adding
-        // Link again, which registers a duplicate extension.
-        link: { openOnClick: false, HTMLAttributes: { rel: 'noopener noreferrer' } },
-      }),
-      Placeholder.configure({ placeholder: 'Start writing...' }),
-    ],
+    extensions: formattingExtensions(),
     content: props.value || '',
     onUpdate: ({ editor: e }) => onChangeRef.current(e.getHTML()),
     immediatelyRender: true,
@@ -754,136 +741,44 @@ function RichTextWidget(props: WidgetProps) {
 
   if (!editor) return null
 
-  const Btn = ({
-    active,
-    onClick,
-    testId,
-    children,
-  }: {
-    active?: boolean
-    onClick: () => void
-    testId?: string
-    children: React.ReactNode
-  }) => (
-    <button
-      type="button"
-      className={`gz-rt-btn${active ? ' active' : ''}`}
-      data-testid={testId ? `richtext-${testId}` : undefined}
-      onMouseDown={e => {
-        e.preventDefault()
-        onClick()
-      }}
-    >
-      {children}
-    </button>
-  )
-
-  const addLink = () => {
-    const prev = editor.getAttributes('link').href as string | undefined
-    const url = prompt('URL:', prev ?? 'https://')
-    if (url === null) return
-    if (url === '') {
-      editor.chain().focus().extendMarkRange('link').unsetLink().run()
-      return
-    }
-    editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
-  }
-
   return (
     <div className="gz-richtext" data-testid="richtext-editor">
-      {/* Fixed toolbar */}
-      <div className="gz-richtext-toolbar">
-        <Btn testId="bold" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}>
-          B
-        </Btn>
-        <Btn
-          testId="italic"
-          active={editor.isActive('italic')}
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-        >
-          I
-        </Btn>
-        <Btn
-          testId="strike"
-          active={editor.isActive('strike')}
-          onClick={() => editor.chain().focus().toggleStrike().run()}
-        >
-          S
-        </Btn>
-        <Btn testId="code" active={editor.isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()}>
-          &lt;/&gt;
-        </Btn>
-        <div className="gz-rt-sep" />
-        <Btn
-          testId="h2"
-          active={editor.isActive('heading', { level: 2 })}
-          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-        >
-          H2
-        </Btn>
-        <Btn
-          testId="h3"
-          active={editor.isActive('heading', { level: 3 })}
-          onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-        >
-          H3
-        </Btn>
-        <div className="gz-rt-sep" />
-        <Btn
-          testId="bullet-list"
-          active={editor.isActive('bulletList')}
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
-        >
-          &bull;
-        </Btn>
-        <Btn
-          testId="ordered-list"
-          active={editor.isActive('orderedList')}
-          onClick={() => editor.chain().focus().toggleOrderedList().run()}
-        >
-          1.
-        </Btn>
-        <Btn
-          testId="blockquote"
-          active={editor.isActive('blockquote')}
-          onClick={() => editor.chain().focus().toggleBlockquote().run()}
-        >
-          &ldquo;
-        </Btn>
-        <div className="gz-rt-sep" />
-        <Btn testId="link" active={editor.isActive('link')} onClick={addLink}>
-          Link
-        </Btn>
-        <Btn testId="hr" onClick={() => editor.chain().focus().setHorizontalRule().run()}>
-          &#x2014;
-        </Btn>
-        <Btn
-          testId="code-block"
-          active={editor.isActive('codeBlock')}
-          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-        >
-          Code
-        </Btn>
-      </div>
+      <FormattingToolbar editor={editor} testIdPrefix="richtext" />
 
       {/* Floating toolbar on selection */}
       <BubbleMenu editor={editor}>
         <div className="gz-bubble">
-          <Btn active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}>
+          <ToolbarButton
+            label="Bold"
+            active={editor.isActive('bold')}
+            onClick={() => editor.chain().focus().toggleBold().run()}
+          >
             B
-          </Btn>
-          <Btn active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}>
+          </ToolbarButton>
+          <ToolbarButton
+            label="Italic"
+            active={editor.isActive('italic')}
+            onClick={() => editor.chain().focus().toggleItalic().run()}
+          >
             I
-          </Btn>
-          <Btn active={editor.isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()}>
+          </ToolbarButton>
+          <ToolbarButton
+            label="Strikethrough"
+            active={editor.isActive('strike')}
+            onClick={() => editor.chain().focus().toggleStrike().run()}
+          >
             S
-          </Btn>
-          <Btn active={editor.isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()}>
+          </ToolbarButton>
+          <ToolbarButton
+            label="Inline code"
+            active={editor.isActive('code')}
+            onClick={() => editor.chain().focus().toggleCode().run()}
+          >
             &lt;/&gt;
-          </Btn>
-          <Btn active={editor.isActive('link')} onClick={addLink}>
+          </ToolbarButton>
+          <ToolbarButton label="Link" active={editor.isActive('link')} onClick={() => promptForLink(editor)}>
             Link
-          </Btn>
+          </ToolbarButton>
         </div>
       </BubbleMenu>
 

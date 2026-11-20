@@ -104,6 +104,7 @@
     "@rjsf/validator-ajv8": "^6.11.1",
     "@tiptap/extension-link": "^3.34.0",
     "@tiptap/extension-placeholder": "^3.34.0",
+    "@tiptap/markdown": "^3.34.0",
     "@tiptap/pm": "^3.23.1",
     "@tiptap/react": "^3.34.0",
     "@tiptap/starter-kit": "^3.34.0",

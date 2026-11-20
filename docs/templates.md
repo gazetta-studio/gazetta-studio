@@ -105,6 +105,8 @@ Two field types hold formatted text. Both reach the template as sanitized HTML, 
 | `format.markdown()` | Markdown | Authors who write Markdown, and content kept in git as text that reads well in a diff |
 | `format.richtext()` | HTML | Authors who want a word-processor editor: bold, links and lists from a toolbar |
 
+In the admin, both open in the same formatted editor. A Markdown field also has a Markdown view showing the raw text, saved exactly as typed; the admin remembers the view chosen. A Markdown field nobody edits is saved unchanged.
+
 ```ts
 import { z } from 'zod'
 import { format } from 'gazetta'

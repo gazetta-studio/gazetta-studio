@@ -9,7 +9,7 @@
       "name": "article",
       "template": "markdown",
       "content": {
-        "body": "# Hello from Gazetta\n\n*By The Gazetta Team*\n\nThis is a blog post written in **markdown**. The slug from the URL is available to templates via route params.\n\n## Features\n\n- **Bold** and *italic* text\n- [Links](https://gazetta.studio)\n- Code blocks with `inline code`\n- Lists, tables, blockquotes\n\n> Gazetta converts markdown to HTML automatically when you use `format.markdown()` in your Zod schema.\n\n```ts\nexport const schema = z.object({\n  body: z.string().meta(format.markdown()),\n})\n```\n\nThat's it. The CMS editor shows a markdown textarea, and the renderer converts it to HTML before your template receives it.\n"
+        "body": "# Hello from Gazetta\n\n*By The Gazetta Team*\n\nThis is a blog post written in **markdown**. The slug from the URL is available to templates via route params.\n\n## Features\n\n- **Bold** and *italic* text\n- [Links](https://gazetta.studio)\n- Code blocks with `inline code`\n- Lists, tables, blockquotes\n\n> Gazetta converts markdown to HTML automatically when you use `format.markdown()` in your Zod schema.\n\n```ts\nexport const schema = z.object({\n  body: z.string().meta(format.markdown()),\n})\n```\n\nThat's it. The CMS editor shows it formatted, with a Markdown view for the raw text, and the renderer converts it to HTML before your template receives it.\n"
       }
     },
     "@footer"
