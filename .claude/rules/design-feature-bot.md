@@ -167,7 +167,7 @@ Tolerates `#501, #502` / `#501 #502` / `none` / empty / missing line. No deps â†
 | **C. Tracking-issue tasklist order = serial dependency** | Loses parallelizability; real impl docs have parallel cut paths (e.g., design-hooks Cuts 4/5/6 against unrelated handlers); forced serial wastes bot time. |
 | **D. GitHub `Fixes`/`Closes` cross-reference syntax** | Effectively the same as A but with GitHub's bidirectional informational link decoration; doesn't gate anything; no functional difference. |
 | **E. Label-per-dependency (`blocked-by:#501`)** | Label-namespace pollution (300+ labels at scale); no native "remove label X when issue Y closes" automation; would need a webhook or daily reconciliation pass. |
-| **F. GitHub Projects v2 custom field** | Introduces Projects v2 dependency (`has_projects: false` in this repo); Projects v2 cards aren't tied to issue close-state the way the bot needs; over-engineered. |
+| **F. GitHub Projects v2 custom field** | Introduces a Projects v2 dependency (the repository's projects were off when this was decided); Projects v2 cards aren't tied to issue close-state the way the bot needs; over-engineered. |
 | **A2 (tolerate bad refs)** | Silent-wait-forever on mistyped number; bot's job is structural correctness, malformed input should fail loud before Claude is invoked. |
 
 ### Q4 â€” Cut ordering: oldest-first, no priority label in v1
