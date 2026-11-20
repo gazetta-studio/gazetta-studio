@@ -50,7 +50,7 @@ const BASE_OPTS = {
 beforeEach(() => {
   mockExec.mockReset()
   // Default: every subprocess call succeeds and returns nothing.
-  mockExec.mockReturnValue(undefined as unknown as Buffer)
+  mockExec.mockReturnValue(undefined as unknown as Buffer<ArrayBuffer>)
 })
 
 afterEach(() => {
@@ -168,19 +168,19 @@ describe('openSkipListPR (extracted 6-step pipeline)', () => {
   it('runs the finally-block checkout main even when gh pr create throws', () => {
     // Fail on the 9th call (gh pr create — index 8). The prior 8 succeed.
     mockExec
-      .mockReturnValueOnce(undefined as unknown as Buffer) // reset
-      .mockReturnValueOnce(undefined as unknown as Buffer) // clean
-      .mockReturnValueOnce(undefined as unknown as Buffer) // checkout main
-      .mockReturnValueOnce(undefined as unknown as Buffer) // branch -D
-      .mockReturnValueOnce(undefined as unknown as Buffer) // checkout -b
-      .mockReturnValueOnce(undefined as unknown as Buffer) // add
-      .mockReturnValueOnce(undefined as unknown as Buffer) // commit
-      .mockReturnValueOnce(undefined as unknown as Buffer) // push
+      .mockReturnValueOnce(undefined as unknown as Buffer<ArrayBuffer>) // reset
+      .mockReturnValueOnce(undefined as unknown as Buffer<ArrayBuffer>) // clean
+      .mockReturnValueOnce(undefined as unknown as Buffer<ArrayBuffer>) // checkout main
+      .mockReturnValueOnce(undefined as unknown as Buffer<ArrayBuffer>) // branch -D
+      .mockReturnValueOnce(undefined as unknown as Buffer<ArrayBuffer>) // checkout -b
+      .mockReturnValueOnce(undefined as unknown as Buffer<ArrayBuffer>) // add
+      .mockReturnValueOnce(undefined as unknown as Buffer<ArrayBuffer>) // commit
+      .mockReturnValueOnce(undefined as unknown as Buffer<ArrayBuffer>) // push
       .mockImplementationOnce(() => {
         throw new Error('gh: rate limit exceeded')
       })
       // The finally block still fires.
-      .mockReturnValueOnce(undefined as unknown as Buffer)
+      .mockReturnValueOnce(undefined as unknown as Buffer<ArrayBuffer>)
 
     expect(() => openSkipListPR(BASE_OPTS)).not.toThrow()
 

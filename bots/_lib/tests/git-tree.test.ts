@@ -40,7 +40,7 @@ describe('branchHasCommits', () => {
   // a regression that breaks the orchestrator's "Agent A made changes"
   // path.
   it('returns true when the branch has commits beyond main (parsed count > 0)', () => {
-    mockExec.mockReturnValueOnce('5\n' as unknown as Buffer)
+    mockExec.mockReturnValueOnce('5\n' as unknown as Buffer<ArrayBuffer>)
 
     expect(branchHasCommits('improve/foo', OPTS)).toBe(true)
 
@@ -56,7 +56,7 @@ describe('branchHasCommits', () => {
   // committed nothing → SKIP" detection (the original docstring use
   // case). The 0-case is the load-bearing boundary.
   it('returns false when the branch has zero commits beyond main', () => {
-    mockExec.mockReturnValueOnce('0\n' as unknown as Buffer)
+    mockExec.mockReturnValueOnce('0\n' as unknown as Buffer<ArrayBuffer>)
 
     expect(branchHasCommits('improve/foo', OPTS)).toBe(false)
   })
@@ -83,7 +83,7 @@ describe('captureDiff', () => {
   // round-trip pins the contract.
   it('returns the unified diff when git diff succeeds', () => {
     const diff = 'diff --git a/foo b/foo\n--- a/foo\n+++ b/foo\n@@ -1 +1 @@\n-old\n+new\n'
-    mockExec.mockReturnValueOnce(diff as unknown as Buffer)
+    mockExec.mockReturnValueOnce(diff as unknown as Buffer<ArrayBuffer>)
 
     expect(captureDiff('improve/foo', OPTS)).toBe(diff)
 
@@ -116,7 +116,7 @@ describe('captureCommitMessages', () => {
   // function explicitly strips.)
   it('returns trimmed log output when git log succeeds', () => {
     const raw = 'fix: first commit\n---\nfix: second commit\n---\n'
-    mockExec.mockReturnValueOnce(raw as unknown as Buffer)
+    mockExec.mockReturnValueOnce(raw as unknown as Buffer<ArrayBuffer>)
 
     expect(captureCommitMessages('improve/foo', OPTS)).toBe('fix: first commit\n---\nfix: second commit\n---')
 
@@ -148,7 +148,7 @@ describe('resetToMain', () => {
   // in this order pins the "discard uncommitted changes BEFORE
   // switching branches" invariant.
   it('runs reset --hard, clean -fd, checkout main in order, then branch -D', () => {
-    mockExec.mockReturnValue(undefined as unknown as Buffer)
+    mockExec.mockReturnValue(undefined as unknown as Buffer<ArrayBuffer>)
 
     resetToMain('improve/foo', OPTS)
 
@@ -174,9 +174,9 @@ describe('resetToMain', () => {
   it('swallows branch -D failure when the branch does not exist (idempotent)', () => {
     // Make `branch -D` (the 4th call) throw; the prior three succeed.
     mockExec
-      .mockReturnValueOnce(undefined as unknown as Buffer) // reset
-      .mockReturnValueOnce(undefined as unknown as Buffer) // clean
-      .mockReturnValueOnce(undefined as unknown as Buffer) // checkout
+      .mockReturnValueOnce(undefined as unknown as Buffer<ArrayBuffer>) // reset
+      .mockReturnValueOnce(undefined as unknown as Buffer<ArrayBuffer>) // clean
+      .mockReturnValueOnce(undefined as unknown as Buffer<ArrayBuffer>) // checkout
       .mockImplementationOnce(() => {
         throw new Error("error: branch 'improve/nope' not found.")
       })
@@ -211,7 +211,7 @@ describe('resetToMain', () => {
   // a refactor that swaps to `stdio: 'inherit'` would re-introduce
   // the noise.
   it('passes stdio: [ignore, ignore, ignore] to branch -D (suppresses stderr)', () => {
-    mockExec.mockReturnValue(undefined as unknown as Buffer)
+    mockExec.mockReturnValue(undefined as unknown as Buffer<ArrayBuffer>)
 
     resetToMain('improve/foo', OPTS)
 

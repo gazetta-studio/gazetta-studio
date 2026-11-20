@@ -23,6 +23,7 @@
     "roadmap-board": "tsx roadmap-board/index.ts",
     "replay": "tsx _lib/replay.ts",
     "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "cut-planner": "tsx cut-planner/index.ts",
     "cut-planner:compact": "tsx cut-planner/compact.ts"
   },

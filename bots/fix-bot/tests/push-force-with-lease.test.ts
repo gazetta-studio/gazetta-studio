@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { extractFunctionBody } from './_helpers/source-scan.ts'
+import { extractFunctionBody } from './_helpers/source-scan.js'
 
 // Pins that every `git push` in fix-bot's orchestrator uses
 // `--force-with-lease`. Symmetric-bot audit per team-preferences rule
