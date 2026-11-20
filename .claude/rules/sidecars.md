@@ -139,6 +139,11 @@ references with hashed forms so the hash catches upstream changes:
 - A page's `metadata`, when it has at least one field. It renders into the
   page's `<head>`, so a metadata-only edit is a change. A page without
   metadata hashes the same as one with `{}`.
+- A page's `cache` settings, when they have at least one field. On ESI
+  targets they become the page's first-line cache comment, which the
+  worker turns into `Cache-Control` (#1232). The route isn't hashed: the
+  site loader derives it from the page's name, so it changes only with a
+  rename, which makes a new item.
 - The assets the item references (`_asset`), each with a hash
   from all of its manifest files: the default and every language and theme
   version (`asset-hashes.ts`). Editing an asset (alt, focal point, a language
