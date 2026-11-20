@@ -208,6 +208,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run typecheck -w @gazetta/bots
       - run: npm test -w @gazetta/bots
 
   storybook:
