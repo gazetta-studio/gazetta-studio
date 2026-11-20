@@ -245,16 +245,13 @@ describe('runInit', () => {
   })
 
   it('refuses to init in existing project', { timeout: 60000 }, async () => {
-    const { execSync } = await import('node:child_process')
-    execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} init ${testDir} --no-install`, {
-      stdio: 'pipe',
-    })
+    const { execFileSync } = await import('node:child_process')
+    const cliPath = resolve(import.meta.dirname, '../dist/cli/index.js')
+    execFileSync('node', [cliPath, 'init', testDir, '--no-install'], { stdio: 'pipe' })
 
     // Try again — should fail
     expect(() => {
-      execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} init ${testDir} --no-install`, {
-        stdio: 'pipe',
-      })
+      execFileSync('node', [cliPath, 'init', testDir, '--no-install'], { stdio: 'pipe' })
     }).toThrow()
   })
 })
