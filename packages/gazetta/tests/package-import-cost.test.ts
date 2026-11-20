@@ -14,9 +14,13 @@ const distIndex = join(import.meta.dirname, '..', 'dist', 'index.js')
 
 /** Package names under node_modules that Node loads while importing `entry`. */
 function packagesLoadedBy(entry: string): Set<string> {
-  const hooks = `export async function load(url, context, next) {
+  // The hooks run on their own thread; a buffered stderr write there can be
+  // lost when the process exits (about 1 in 10 runs on Node 26), so write
+  // synchronously.
+  const hooks = `import { writeSync } from 'node:fs'
+  export async function load(url, context, next) {
     const m = url.match(/node_modules\\/((?:@[^/]+\\/)?[^/]+)\\//)
-    if (m) process.stderr.write('PKG ' + m[1] + '\\n')
+    if (m) writeSync(2, 'PKG ' + m[1] + '\\n')
     return next(url, context)
   }`
   const register = `import { register } from 'node:module'
