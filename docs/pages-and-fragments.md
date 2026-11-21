@@ -95,6 +95,26 @@ Fragments are shared components reusable across pages. They live under the editi
 
 Reference in any page with `"@header"`. Update the fragment once and pages using it share the change in `gazetta dev`. Published targets change only when you publish: static targets contain fully assembled pages, while dynamic targets assemble published fragments at request time. See [Targets](./targets.md#type).
 
+## Formatted text fields
+
+Markdown and rich-text fields keep formatting, links (including links that open in a new tab), images, audio and video. When the page renders, Gazetta removes script, event handlers such as `onclick`, forms and form controls, `iframe`, `object` and `embed`, `<style>` elements and `style` attributes. This applies whatever your role. Scripts and embeds such as forms and widgets come only through templates: ask a template developer for one. To choose between the two field types, see [Markdown or rich text](./templates.md#markdown-or-rich-text).
+
+### Plain text fields
+
+Saving refuses a plain text field that holds script or an event handler, or whose value is a `javascript:`, `vbscript:` or `data:` address. Images as `data:` addresses in PNG, JPEG, GIF, WebP or AVIF are allowed. The banner names the field and what to remove:
+
+> Script isn't allowed in Title: remove onerror.
+
+> Script isn't allowed in Link: remove javascript:.
+
+Text such as `a < b` or `<b>` saves and shows as text. Content saved before this check is listed in Site health ("Title holds script (onerror). Remove it before the next save of this field."), and you can still save other fields of the same page. A code field holding script is listed in Site health as information: it shows as code if the template displays it as text.
+
+### The Markdown editor
+
+A Markdown field opens in a formatted editor with the same toolbar as a rich-text field. Two buttons above it, **Formatted** and **Markdown**, switch views, and the admin remembers your choice in this browser. The Markdown view is a plain text box, saved exactly as you type it. A field nobody edits is saved unchanged.
+
+Switching from Markdown to Formatted can rewrite the Markdown's syntax without changing what it shows, for example `*` lists become `-` lists. The Markdown view says so: "Formatted view may reformat Markdown." The editor follows the admin's direction in Arabic and other right-to-left languages, in both views.
+
 ## Custom 404 page
 
 `gazetta init` already created a `pages/404/` page. It's served with a 404 status when a route doesn't match, and the URL stays as-is - no redirect.

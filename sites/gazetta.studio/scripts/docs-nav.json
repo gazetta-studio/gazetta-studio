@@ -69,7 +69,7 @@
         {
           "file": "pages-and-fragments.md",
           "label": "Pages and fragments",
-          "description": "Page and fragment manifests, routes, translations, custom 404 pages and project layout."
+          "description": "Page and fragment manifests, routes, formatted text fields, translations, custom 404 pages and project layout."
         },
         {
           "file": "customize-editor.md",
