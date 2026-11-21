@@ -113,7 +113,8 @@ export async function denyWithoutCapability(
   // Anonymous principal — no upstream identity. Translate to
   // 401 (not 403); the request hasn't authenticated yet.
   if (isAnonymous(principal)) {
-    await recordDenial('unauthenticated')
+    // Past the shared allowance, the refusal is counted, not recorded.
+    if (action !== null && (c.var.refusals?.admitAnonymous() ?? true)) await recordDenial('unauthenticated')
     c.header('WWW-Authenticate', 'Bearer realm="gazetta-admin"')
     return problem(c, 401, 'UNAUTHENTICATED', `This endpoint requires capability "${capability}"`)
   }

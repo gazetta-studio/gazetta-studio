@@ -43,7 +43,7 @@
  *     test injects a different verifier via the optional
  *     `jwksFactory` constructor option for unit tests.
  */
-import { jwtVerify, createRemoteJWKSet, type JWTPayload, type JWTVerifyGetKey } from 'jose'
+import { jwtVerify, createRemoteJWKSet, errors as joseErrors, type JWTPayload, type JWTVerifyGetKey } from 'jose'
 import type { Principal, RoleMapping } from '../types.js'
 import type { AuthIdentityProvider, AuthRequest } from '../provider.js'
 import { AuthenticationError, AuthConfigurationError } from '../errors.js'
@@ -122,7 +122,17 @@ export function createCloudflareAccessAuthProvider(config: CloudflareAccessConfi
 
   const jwksUrl = new URL(`https://${config.teamDomain}.cloudflareaccess.com/cdn-cgi/access/certs`)
   const expectedIssuer = `https://${config.teamDomain}.cloudflareaccess.com`
-  const jwks = (config.jwksFactory ?? createRemoteJWKSet)(jwksUrl)
+  const fetchKey = (config.jwksFactory ?? createRemoteJWKSet)(jwksUrl)
+  // Mark failures of the key endpoint itself, so a jose error from
+  // checking the token (a TypeError for a key of the wrong type, say)
+  // isn't mistaken for an outage.
+  const jwks: JWTVerifyGetKey = async (protectedHeader, token) => {
+    try {
+      return await fetchKey(protectedHeader, token)
+    } catch (err) {
+      throw isKeyFetchFailure(err) ? new KeyEndpointUnavailable(err) : err
+    }
+  }
   const defaultRole = config.defaultRole ?? 'editor'
 
   return {
@@ -150,7 +160,9 @@ export function createCloudflareAccessAuthProvider(config: CloudflareAccessConfi
         // claim mismatches. We don't differentiate — every failure
         // surfaces as AuthenticationError → 401 per Universal
         // Provider Requirement (auth fails closed on token failure).
-        throw new AuthenticationError(`Cloudflare Access JWT verification failed: ${(err as Error).message}`)
+        throw new AuthenticationError(`Cloudflare Access JWT verification failed: ${(err as Error).message}`, {
+          check: err instanceof KeyEndpointUnavailable ? 'unverifiable' : 'credentials',
+        })
       }
 
       // A service token (the CLI's credential, design-agent-access.md Q15,
@@ -184,6 +196,7 @@ export function createCloudflareAccessAuthProvider(config: CloudflareAccessConfi
           // "defaultRole: null means deny".
           throw new AuthenticationError(
             `Cloudflare Access principal "${id}" matched no role in roleMapping and no defaultRole is configured`,
+            { check: 'no-role', user: { id, ...(payload.email !== undefined ? { email: payload.email } : {}) } },
           )
         }
         role = resolved.name
@@ -202,6 +215,25 @@ export function createCloudflareAccessAuthProvider(config: CloudflareAccessConfi
       }
     },
   }
+}
+
+/**
+ * Whether verification failed because Cloudflare's key endpoint couldn't
+ * be reached, timed out or didn't answer with a key set: an outage, not a
+ * bad token. The endpoint's URL is fixed by the team domain, so a token
+ * can't steer it. A key id the set doesn't hold is the token's fault.
+ */
+class KeyEndpointUnavailable extends Error {
+  constructor(cause: unknown) {
+    super(`Cloudflare Access key endpoint unavailable: ${(cause as Error).message}`, { cause })
+  }
+}
+
+function isKeyFetchFailure(err: unknown): boolean {
+  if (err instanceof joseErrors.JWKSTimeout) return true
+  if (err instanceof joseErrors.JWKSNoMatchingKey) return false
+  if (err instanceof TypeError) return true
+  return err instanceof joseErrors.JOSEError && /JSON Web Key Set HTTP response/.test(err.message)
 }
 
 /**

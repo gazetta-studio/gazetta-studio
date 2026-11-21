@@ -78,6 +78,7 @@ export function createTailscaleAuthProvider(config: TailscaleConfig = {}): AuthI
           req.peerAddress
             ? `Tailscale identity headers came on a connection from ${req.peerAddress}; they're accepted only from the local Tailscale Serve proxy`
             : "The connection's address is unknown, so the Tailscale identity headers can't be checked",
+          { check: 'proxy' },
         )
       }
 

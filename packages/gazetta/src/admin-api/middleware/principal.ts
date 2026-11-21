@@ -49,6 +49,7 @@ import { getConnInfo } from '@hono/node-server/conninfo'
 import { createMiddleware } from 'hono/factory'
 import type { Context } from 'hono'
 import { problem } from '../problem.js'
+import { refusedRequestFrom, type RefusalRecorder } from '../refusal-audit.js'
 import {
   AuthenticationError,
   type AuthIdentityProvider,
@@ -182,7 +183,12 @@ function bearerOf(c: Context): string | undefined {
 /** The header a Gazetta token travels in (design-agent-access.md Q15). */
 export const GAZETTA_TOKEN_HEADER = 'Gazetta-Token'
 
-export function principalMiddleware(provider: AuthIdentityProvider = noneAuthProvider, tokens?: TokenAuth) {
+/** `refusals` records the write requests this middleware refuses (design-audit.md). */
+export function principalMiddleware(
+  provider: AuthIdentityProvider = noneAuthProvider,
+  tokens?: TokenAuth,
+  refusals?: RefusalRecorder,
+) {
   return createMiddleware<PrincipalEnv>(async (c, next) => {
     // A request carrying a Gazetta token is that token's person or
     // nobody: a bad token never falls back to the login layer's identity.
@@ -197,6 +203,7 @@ export function principalMiddleware(provider: AuthIdentityProvider = noneAuthPro
         c.set('tokenAuth', tokens)
       } catch (err) {
         if (!(err instanceof TokenRejectedError)) throw err
+        await refusals?.signIn(refusedRequestFrom(c), 'credentials')
         c.header('WWW-Authenticate', 'Bearer realm="gazetta-admin"')
         return problem(c, 401, 'TOKEN_INVALID', err.message)
       }
@@ -213,6 +220,7 @@ export function principalMiddleware(provider: AuthIdentityProvider = noneAuthPro
         // it in a structured body. For external-facing 401s the
         // middleware could mask the message, but this is admin-API
         // only — operators benefit from the diagnostic context.
+        await refusals?.signIn(refusedRequestFrom(c), err.check, err.user)
         c.header('WWW-Authenticate', 'Bearer realm="gazetta-admin"')
         return problem(c, 401, 'UNAUTHENTICATED', err.message)
       }

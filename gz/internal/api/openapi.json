@@ -2751,7 +2751,8 @@
                               "grant-revoke",
                               "elevation-approve",
                               "elevation-deny",
-                              "elevation-end"
+                              "elevation-end",
+                              "sign-in"
                             ]
                           },
                           "outcome": {
@@ -3529,7 +3530,8 @@
                               "grant-revoke",
                               "elevation-approve",
                               "elevation-deny",
-                              "elevation-end"
+                              "elevation-end",
+                              "sign-in"
                             ]
                           },
                           "outcome": {
@@ -8509,7 +8511,8 @@
                               "grant-revoke",
                               "elevation-approve",
                               "elevation-deny",
-                              "elevation-end"
+                              "elevation-end",
+                              "sign-in"
                             ]
                           },
                           "outcome": {

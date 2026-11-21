@@ -54,6 +54,7 @@ Recorded actions:
 | `elevation-approve` | An elevation is approved, or an approval is refused (outcome `forbidden` or `unauthenticated`) |
 | `elevation-deny`  | An elevation is denied                                         |
 | `elevation-end`   | An elevation is ended early, by the client or in the browser (one that runs out records nothing) |
+| `sign-in`         | A write request was refused before a route was matched (below), or the count of such refusals for an hour |
 
 Recorded outcomes:
 
@@ -65,7 +66,25 @@ Recorded outcomes:
 | `unauthenticated`   | Upstream auth produced no principal; request rejected                             |
 | `write-failed`      | A publish didn't reach every item on that target; `metadata.failedItems` lists the items and why |
 
-Requests refused before a route is matched aren't recorded: the 401 from the `GAZETTA_TOKEN` guard, and the 401 when the identity provider rejects a request (invalid credentials, an untrusted proxy, or a user who matches no role).
+### Refused sign-ins
+
+A write request (POST, PUT, PATCH or DELETE) to `/api/*` refused before a route is matched is recorded as `action: 'sign-in'`, `outcome: 'unauthenticated'`, scope `site`, with the request's `method`, its `path` cut to 200 characters, and the `check` that refused it in `metadata`:
+
+| `check`        | Refused because                                                                  |
+| -------------- | -------------------------------------------------------------------------------- |
+| `token`        | `GAZETTA_TOKEN` is set and the request has no matching bearer token              |
+| `credentials`  | The credential is invalid: a JWT that fails verification, a malformed identity header, an invalid Gazetta token |
+| `proxy`        | The request didn't come through a trusted proxy (`trustedProxies`, or Tailscale Serve) |
+| `unverifiable` | The identity provider's key endpoint or verification service couldn't be reached, timed out or answered with a server error |
+| `no-role`      | A verified user matched no role in `roleMapping` and no `defaultRole` is set    |
+
+A `no-role` row's actor is the verified user, pseudonymized when `actorPseudonym` is set; the others record actor `unknown`, since nobody's identity was verified. A row records the connection's address as `sourceIp`, not a forwarding header, except on `no-role` rows: before the identity provider has accepted a request, its forwarding headers could have been written by the sender. A refusal from an identity provider that doesn't say which check refused it is recorded as `credentials`.
+
+Refused writes from senders without a verified identity share one allowance per instance, together with the `unauthenticated` events the capability check records for a request with no credential at all. Each instance records the first 20 of these a day (UTC) in full and counts the rest. Refusals of users who match no role have their own allowance, counted the same way. When an hour in which something was counted ends, one `sign-in` row is written for it: actor `unknown`, scope `site`, and in `metadata` the `hour` and one count per check (`token`, `credentials`, `proxy`, `unverifiable`, `no-role`), plus `none` for requests with no credential. Quiet hours write nothing.
+
+The allowance lives in the instance's memory: a restart starts a new one and loses the current hour's count, and each replica has its own.
+
+Read requests refused before a route is matched, and refused draft-preview renders (`POST /preview/*`), aren't recorded.
 
 Outcome is required on every event. Failure outcomes (`validation-failed`, `forbidden`, `unauthenticated`) record what the user **tried** to do — useful for forensics ("which editor tried to publish to prod last Friday?").
 

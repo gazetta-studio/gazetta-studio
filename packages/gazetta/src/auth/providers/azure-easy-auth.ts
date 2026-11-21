@@ -167,6 +167,7 @@ export function createAzureEasyAuthProvider(config: AzureEasyAuthConfig = {}): A
         if (!resolved) {
           throw new AuthenticationError(
             `azure-easy-auth principal "${id}" matched no role in roleMapping and no defaultRole is configured`,
+            { check: 'no-role', user: { id, ...(email !== undefined ? { email } : {}) } },
           )
         }
         role = resolved.name
