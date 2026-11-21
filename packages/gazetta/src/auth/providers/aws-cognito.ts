@@ -136,7 +136,17 @@ export function defaultJwksFactory(region: string): JWTVerifyGetKey {
         check: res.status >= 500 ? 'unverifiable' : 'credentials',
       })
     }
-    const pem = await res.text()
+    let pem: string
+    try {
+      pem = await res.text()
+    } catch (err) {
+      throw new AuthenticationError(
+        `AWS public-keys endpoint failed while sending the key: ${(err as Error).message}`,
+        {
+          check: 'unverifiable',
+        },
+      )
+    }
     // Defer to Web Crypto's importKey via jose — actually jose
     // accepts CryptoKey directly. We use Node's crypto subtle to
     // import the PEM. This works in Node 22+ which has full WebCrypto.
