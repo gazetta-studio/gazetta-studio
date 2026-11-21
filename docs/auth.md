@@ -48,7 +48,7 @@ Generic reverse-proxy mode for deployments behind oauth2-proxy, Authelia, Caddy 
 
 - `X-Forwarded-User` (required) — opaque user id
 - `X-Forwarded-Email` (optional)
-- `X-Forwarded-Groups` (optional, comma-separated; reserved for future role-mapping)
+- `X-Forwarded-Groups` (optional, comma-separated; read by `roleMapping`, described under Roles and capabilities)
 
 **`trustedProxies` is required.** The forwarded headers carry no signature; anything that reaches the admin can set them. Gazetta accepts them only on a connection from an address in `trustedProxies`: the proxy's address as the admin's server sees it. Addresses named in headers such as `X-Forwarded-For` don't count. List the proxies that connect to the admin directly.
 
@@ -187,7 +187,27 @@ Custom roles can't redefine built-in role names (`admin`, `editor`, `viewer`) �
 
 ### Group-claim → role mapping
 
-(Reserved for follow-up.) v1 ships with every authenticated user getting the configured `defaultRole` (currently `editor`). Future work threads upstream group claims through the role-resolver to map to roles.
+Without `roleMapping`, every signed-in user gets the `editor` role. To give people different roles, map the groups your login layer sends to Gazetta roles with `roleMapping`:
+
+```ts
+admin: {
+  auth: {
+    trust: 'forwarded-user',
+    trustedProxies: ['10.0.0.0/8'],
+    roleMapping: {
+      claim: 'groups',
+      map: { admins: 'admin', viewers: 'viewer' },
+      defaultRole: 'editor',
+    },
+  },
+}
+```
+
+- `claim`: where the user's groups come from. For `cloudflare-access` and `aws-cognito`, the name of the JWT claim holding a list of groups (for example `groups`, or `cognito:groups` for Cognito); for `azure-easy-auth`, the claim type in `X-MS-CLIENT-PRINCIPAL` (commonly `roles`; Azure sends one claim per group). `forwarded-user` always reads the comma-separated `X-Forwarded-Groups` header, so `claim` is only a label there.
+- `map`: upstream group name → Gazetta role name, a built-in role or one declared in `roles`. When a user is in several mapped groups, the first entry in `map` that matches wins, so list the most powerful role first.
+- `defaultRole` (optional): the role for users in none of the mapped groups. Leave it out, or set it to `null`, to turn those users away with `401`.
+
+`roleMapping` works with `forwarded-user`, `cloudflare-access`, `azure-easy-auth` and `aws-cognito`. `tailscale` refuses it, because Tailscale Serve sends no groups; use its `defaultRole` instead.
 
 ## Failure modes
 
