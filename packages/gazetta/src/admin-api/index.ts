@@ -29,6 +29,7 @@ import {
   type SourceContext,
   type SourceContextResolver,
 } from './source-context.js'
+import { createRefusalRecorder } from './refusal-audit.js'
 import { authMiddleware } from './middleware/auth.js'
 import { originMiddleware } from './middleware/origin.js'
 import { principalMiddleware } from './middleware/principal.js'
@@ -265,10 +266,6 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   const app = new OpenAPIHono()
 
   app.use(logger())
-  // Bearer-token guard (legacy GAZETTA_TOKEN) — orthogonal to
-  // upstream-identity extraction. Principal middleware ships
-  // below once `source.manifest` is in scope.
-  app.use('/api/*', authMiddleware())
 
   const templatesDir = opts.templatesDir ?? join(opts.siteDir, 'templates')
   const adminDir = opts.adminDir ?? join(opts.siteDir, 'admin')
@@ -430,25 +427,6 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
       return target ? getEnvironment(target) : undefined
     },
   }
-  const { keys } = tokenAuth
-  app.use('/api/*', principalMiddleware(authProvider, tokenAuth))
-  // Where each write came from (Q47): read by revisions and audit events.
-  app.use('/api/*', originMiddleware())
-  // The preview routes are mounted at `/preview/*` (outside `/api/*`)
-  // but render full page/fragment content — they need the same
-  // identity extraction so their capability gate has a Principal to
-  // check. Bearer-token (`authMiddleware`) is deliberately NOT applied
-  // here: the admin's preview iframe fetch doesn't carry the token,
-  // and upstream-identity (the configured trust mode) is what gates
-  // content reads.
-  app.use('/preview/*', principalMiddleware(authProvider, tokenAuth))
-
-  // Audit middleware — per design-audit.md "Recording timing".
-  // Resolves admin.audit config; constructs the configured providers;
-  // injects c.var.audit so handlers can call `c.var.audit.record(...)`.
-  // Defaults to HistoryAuditProvider when admin.audit is absent
-  // (zero-config audit; events stored under target's
-  // .gazetta/audit/events-{instance}.jsonl).
   const rawAuditBlock = source.manifest?.admin?.audit as unknown
   let auditConfig: AuditConfig
   if (rawAuditBlock !== undefined) {
@@ -496,6 +474,40 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
   // No target with private storage holds the audit log: events are
   // dropped, and a publish says so (design-public-storage.md Q5).
   const auditDropped = auditProviders.length === 0
+  // Write requests refused before a route is matched are recorded as
+  // `sign-in` rows, within a per-instance allowance (design-audit.md).
+  const refusals = createRefusalRecorder({
+    providers: auditProviders,
+    trustMode: authProvider.trustMode,
+    actorPseudonym,
+    actorSalt: process.env.GAZETTA_AUDIT_ACTOR_SALT,
+    recordSourceIp,
+    sourceIpSalt: process.env.GAZETTA_AUDIT_SOURCEIP_SALT,
+    trustedProxyCount: auditConfig.trustedProxyCount,
+    recordUserAgent,
+  })
+  // Bearer-token guard (legacy GAZETTA_TOKEN) — orthogonal to
+  // upstream-identity extraction; runs before it.
+  app.use('/api/*', authMiddleware(refusals))
+  const { keys } = tokenAuth
+  app.use('/api/*', principalMiddleware(authProvider, tokenAuth, refusals))
+  // Where each write came from (Q47): read by revisions and audit events.
+  app.use('/api/*', originMiddleware())
+  // The preview routes are mounted at `/preview/*` (outside `/api/*`)
+  // but render full page/fragment content — they need the same
+  // identity extraction so their capability gate has a Principal to
+  // check. Bearer-token (`authMiddleware`) is deliberately NOT applied
+  // here: the admin's preview iframe fetch doesn't carry the token,
+  // and upstream-identity (the configured trust mode) is what gates
+  // content reads.
+  app.use('/preview/*', principalMiddleware(authProvider, tokenAuth))
+
+  // Audit middleware — per design-audit.md "Recording timing".
+  // Resolves admin.audit config; constructs the configured providers;
+  // injects c.var.audit so handlers can call `c.var.audit.record(...)`.
+  // Defaults to HistoryAuditProvider when admin.audit is absent
+  // (zero-config audit; events stored under target's
+  // .gazetta/audit/events-{instance}.jsonl).
   app.use(
     '/api/*',
     auditMiddleware({
@@ -508,6 +520,7 @@ export function createAdminApp(opts: AdminAppOptions): AdminApp {
       trustedProxyCount: auditConfig.trustedProxyCount,
       trustMode: authProvider.trustMode,
       recordUserAgent,
+      refusals,
     }),
   )
 

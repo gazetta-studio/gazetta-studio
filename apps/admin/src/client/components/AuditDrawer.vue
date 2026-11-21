@@ -67,6 +67,7 @@ const ACTION_OPTIONS: { value: AuditAction; label: string }[] = [
   { value: 'delete', label: 'Delete' },
   { value: 'restore', label: 'Restore' },
   { value: 'configure-roles', label: 'Configure roles' },
+  { value: 'sign-in', label: 'Sign-in refused' },
 ]
 const OUTCOME_OPTIONS: { value: AuditOutcome; label: string }[] = [
   { value: 'success', label: 'Success' },

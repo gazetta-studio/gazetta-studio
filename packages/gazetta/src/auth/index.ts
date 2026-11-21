@@ -13,6 +13,7 @@ export type {
 } from './types.js'
 export { BUILT_IN_ROLES, RESERVED_CAPABILITY_PREFIXES } from './types.js'
 export { AuthError, AuthConfigurationError, AuthenticationError, AuthorizationError } from './errors.js'
+export type { AuthRefusalCheck } from './errors.js'
 export { AuthConfigSchema, isReservedPrefix, type AuthConfig } from './config.js'
 export { noneAuthProvider, UNKNOWN_ACTOR_ID } from './providers/none.js'
 export { createForwardedUserAuthProvider, type ForwardedUserConfig } from './providers/forwarded-user.js'

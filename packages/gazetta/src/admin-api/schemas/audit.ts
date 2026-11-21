@@ -51,6 +51,7 @@ export const AuditActionSchema = z.enum([
   'elevation-approve',
   'elevation-deny',
   'elevation-end',
+  'sign-in',
 ])
 export type AuditActionWire = z.infer<typeof AuditActionSchema>
 // The wire enum lists every action the audit log records, and no others.

@@ -121,9 +121,20 @@ export function defaultJwksFactory(region: string): JWTVerifyGetKey {
       return cached
     }
     const url = `https://public-keys.auth.elb.${region}.amazonaws.com/${encodeURIComponent(header.kid)}`
-    const res = await fetch(url)
+    let res: Response
+    try {
+      res = await fetch(url)
+    } catch (err) {
+      throw new AuthenticationError(`AWS public-keys endpoint couldn't be reached: ${(err as Error).message}`, {
+        check: 'unverifiable',
+      })
+    }
     if (!res.ok) {
-      throw new AuthenticationError(`AWS public-keys endpoint returned ${res.status} for kid ${header.kid}`)
+      // The URL comes from the token's kid, so a 4xx is the token's fault;
+      // a server error is an outage.
+      throw new AuthenticationError(`AWS public-keys endpoint returned ${res.status} for kid ${header.kid}`, {
+        check: res.status >= 500 ? 'unverifiable' : 'credentials',
+      })
     }
     const pem = await res.text()
     // Defer to Web Crypto's importKey via jose — actually jose
@@ -189,6 +200,8 @@ export function createAwsCognitoAuthProvider(config: AwsCognitoConfig): AuthIden
         payload = result.payload
         header = result.protectedHeader as { signer?: unknown; exp?: unknown }
       } catch (err) {
+        // The key resolver's own refusals already name their check.
+        if (err instanceof AuthenticationError) throw err
         throw new AuthenticationError(`AWS Cognito JWT verification failed: ${(err as Error).message}`)
       }
       // The ALB puts its own ARN and the token's expiry in the header.
@@ -216,6 +229,7 @@ export function createAwsCognitoAuthProvider(config: AwsCognitoConfig): AuthIden
         if (!resolved) {
           throw new AuthenticationError(
             `AWS Cognito principal "${id}" matched no role in roleMapping and no defaultRole is configured`,
+            { check: 'no-role', user: { id, ...(payload.email !== undefined ? { email: payload.email } : {}) } },
           )
         }
         role = resolved.name

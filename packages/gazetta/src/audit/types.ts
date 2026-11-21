@@ -63,6 +63,10 @@
  * outcome `forbidden` (or `unauthenticated`), as capability denials are
  * recorded. Elevations (Q17) add `elevation-approve` / `elevation-deny` /
  * `elevation-end`; one that simply runs out records nothing.
+ *
+ * `sign-in` records a write request refused before a route is matched
+ * (the `GAZETTA_TOKEN` guard, or the identity provider), and each hour's
+ * count of refusals past the allowance (design-audit.md, #1262).
  */
 export type AuditAction =
   | 'save'
@@ -88,6 +92,7 @@ export type AuditAction =
   | 'elevation-approve'
   | 'elevation-deny'
   | 'elevation-end'
+  | 'sign-in'
 
 /**
  * Closed enum of outcomes. Locked: every recording site supplies

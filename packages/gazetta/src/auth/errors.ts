@@ -53,7 +53,28 @@ export class AuthConfigurationError extends AuthError {
 export class AuthenticationError extends AuthError {
   override readonly name = 'AuthenticationError'
   override readonly httpStatus = 401
+  /**
+   * Which check refused the request, recorded on the audit log's
+   * `sign-in` row (design-audit.md). A provider that names none means
+   * the credential was invalid.
+   */
+  readonly check: AuthRefusalCheck
+  /** The verified user, on a `no-role` refusal only. */
+  readonly user?: { id: string; email?: string }
+  constructor(message: string, opts: { check?: AuthRefusalCheck; user?: { id: string; email?: string } } = {}) {
+    super(message)
+    this.check = opts.check ?? 'credentials'
+    if (opts.user) this.user = opts.user
+  }
 }
+
+/**
+ * Why an identity provider refused a request: an invalid credential, a
+ * connection that didn't come through a trusted proxy, a key endpoint or
+ * verification service that couldn't be reached, timed out or answered
+ * with a server error, or a verified user matching no role.
+ */
+export type AuthRefusalCheck = 'credentials' | 'proxy' | 'unverifiable' | 'no-role'
 
 /**
  * Thrown when an authenticated principal lacks the capability the

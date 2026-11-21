@@ -40,6 +40,7 @@ import {
 } from '../../audit/index.js'
 import { unmapIPv4 } from '../../auth/ip-match.js'
 import type { PrincipalEnv } from './principal.js'
+import type { RefusalRecorder } from '../refusal-audit.js'
 
 /**
  * Hono context augmentation — readers see `c.var.audit` typed as
@@ -49,6 +50,8 @@ import type { PrincipalEnv } from './principal.js'
 export type AuditEnv = PrincipalEnv & {
   Variables: PrincipalEnv['Variables'] & {
     audit: AuditContext
+    /** The allowance anonymous write refusals count against (design-audit.md). */
+    refusals?: RefusalRecorder
   }
 }
 
@@ -64,6 +67,7 @@ export interface AuditMiddlewareOptions {
   trustMode?: string
   recordUserAgent: UserAgentMode
   logFailure?: AuditFailureLogger
+  refusals?: RefusalRecorder
 }
 
 export function auditMiddleware(opts: AuditMiddlewareOptions) {
@@ -90,6 +94,7 @@ export function auditMiddleware(opts: AuditMiddlewareOptions) {
       logFailure: opts.logFailure,
     })
     c.set('audit', ctx)
+    if (opts.refusals) c.set('refusals', opts.refusals)
     await next()
   })
 }

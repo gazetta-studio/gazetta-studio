@@ -567,6 +567,7 @@ const (
 	GetApiV1Audit200JSONResponseBodyEventsActionReviewSubmit     GetApiV1Audit200JSONResponseBodyEventsAction = "review-submit"
 	GetApiV1Audit200JSONResponseBodyEventsActionReviewWithdraw   GetApiV1Audit200JSONResponseBodyEventsAction = "review-withdraw"
 	GetApiV1Audit200JSONResponseBodyEventsActionSave             GetApiV1Audit200JSONResponseBodyEventsAction = "save"
+	GetApiV1Audit200JSONResponseBodyEventsActionSignIn           GetApiV1Audit200JSONResponseBodyEventsAction = "sign-in"
 	GetApiV1Audit200JSONResponseBodyEventsActionUnarchive        GetApiV1Audit200JSONResponseBodyEventsAction = "unarchive"
 )
 
@@ -616,6 +617,8 @@ func (e GetApiV1Audit200JSONResponseBodyEventsAction) Valid() bool {
 	case GetApiV1Audit200JSONResponseBodyEventsActionReviewWithdraw:
 		return true
 	case GetApiV1Audit200JSONResponseBodyEventsActionSave:
+		return true
+	case GetApiV1Audit200JSONResponseBodyEventsActionSignIn:
 		return true
 	case GetApiV1Audit200JSONResponseBodyEventsActionUnarchive:
 		return true
@@ -1221,6 +1224,7 @@ const (
 	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionReviewSubmit     GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "review-submit"
 	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionReviewWithdraw   GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "review-withdraw"
 	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionSave             GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "save"
+	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionSignIn           GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "sign-in"
 	GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionUnarchive        GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction = "unarchive"
 )
 
@@ -1270,6 +1274,8 @@ func (e GetApiV1ReviewFragmentName200JSONResponseBodyHistoryAction) Valid() bool
 	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionReviewWithdraw:
 		return true
 	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionSave:
+		return true
+	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionSignIn:
 		return true
 	case GetApiV1ReviewFragmentName200JSONResponseBodyHistoryActionUnarchive:
 		return true
@@ -1554,6 +1560,7 @@ const (
 	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionReviewSubmit     GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "review-submit"
 	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionReviewWithdraw   GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "review-withdraw"
 	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionSave             GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "save"
+	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionSignIn           GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "sign-in"
 	GetApiV1ReviewPageName200JSONResponseBodyHistoryActionUnarchive        GetApiV1ReviewPageName200JSONResponseBodyHistoryAction = "unarchive"
 )
 
@@ -1603,6 +1610,8 @@ func (e GetApiV1ReviewPageName200JSONResponseBodyHistoryAction) Valid() bool {
 	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionReviewWithdraw:
 		return true
 	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionSave:
+		return true
+	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionSignIn:
 		return true
 	case GetApiV1ReviewPageName200JSONResponseBodyHistoryActionUnarchive:
 		return true

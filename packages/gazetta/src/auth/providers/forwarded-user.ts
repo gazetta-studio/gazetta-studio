@@ -129,6 +129,7 @@ export function createForwardedUserAuthProvider(config: ForwardedUserConfig): Au
             req.peerAddress
               ? `Request came from ${req.peerAddress}, which isn't in the configured trustedProxies`
               : "The connection's address is unknown, so the trusted-proxy check can't run",
+            { check: 'proxy' },
           )
         }
       }
@@ -160,6 +161,7 @@ export function createForwardedUserAuthProvider(config: ForwardedUserConfig): Au
           // "defaultRole: null means deny".
           throw new AuthenticationError(
             `forwarded-user principal "${user}" matched no role in roleMapping and no defaultRole is configured`,
+            { check: 'no-role', user: { id: user, ...(email !== undefined ? { email } : {}) } },
           )
         }
         role = resolved.name
