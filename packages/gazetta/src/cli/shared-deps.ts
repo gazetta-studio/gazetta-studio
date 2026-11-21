@@ -8,7 +8,7 @@
  */
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
-import { rm, writeFile } from 'node:fs/promises'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
 
 const SHARED_SPECIFIERS = ['react', 'react-dom/client', 'react/jsx-runtime', 'gazetta/editor', 'gazetta/types']
 
@@ -40,6 +40,10 @@ function stubFor(specifier: string, requireFromShared: NodeJS.Require): string {
 /** Returns the import map: specifier → URL, for the modules that could be built. */
 export async function buildSharedDeps(sharedDir: string): Promise<Record<string, string>> {
   const { build } = await import('esbuild')
+  // Chunk names carry a content hash, so chunks from an earlier build would
+  // otherwise stay behind next to the new ones.
+  await rm(sharedDir, { recursive: true, force: true })
+  await mkdir(sharedDir, { recursive: true })
   const requireFromShared = createRequire(join(sharedDir, 'index.js'))
 
   // Skip specifiers that don't resolve from the project (a dependency not installed).

@@ -1,4 +1,4 @@
-import { describe, it, expect, afterAll, afterEach } from 'vitest'
+import { describe, it, expect, afterAll, afterEach, vi } from 'vitest'
 import { resolve, join, dirname } from 'node:path'
 import { cpSync, existsSync, rmSync } from 'node:fs'
 import { mkdir, rm, writeFile, readdir } from 'node:fs/promises'
@@ -342,8 +342,7 @@ describe('runBuild', () => {
       const el = dom.window.document.createElement('div')
       dom.window.document.body.appendChild(el)
       ReactDOM.createRoot(el).render(jsxRuntime.jsx(C, {}))
-      await new Promise(r => setTimeout(r, 50))
-      expect(el.textContent).toBe('rendered-ok')
+      await vi.waitFor(() => expect(el.textContent).toBe('rendered-ok'))
 
       // The starter's brand-color field, with its bare imports pointed at the
       // shared modules as the import map does in the browser.
@@ -362,9 +361,10 @@ describe('runBuild', () => {
         const fieldEl = dom.window.document.createElement('div')
         dom.window.document.body.appendChild(fieldEl)
         field.mount(fieldEl, { value: '#14b8a6', schema: {}, theme: 'light', onChange: () => {} })
-        await new Promise(r => setTimeout(r, 50))
-        const text = fieldEl.querySelector('input[type="text"]') as HTMLInputElement | null
-        expect(text?.value).toBe('#14b8a6')
+        await vi.waitFor(() => {
+          const text = fieldEl.querySelector('input[type="text"]') as HTMLInputElement | null
+          expect(text?.value).toBe('#14b8a6')
+        })
         expect(fieldEl.querySelector('button[title="Teal"]')).not.toBeNull()
         field.unmount(fieldEl)
       } finally {
