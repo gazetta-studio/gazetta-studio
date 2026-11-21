@@ -301,6 +301,83 @@ describe('runBuild', () => {
     expect(indexHtml).toContain('"react"')
     expect(indexHtml).toContain('/admin/_shared/react.js')
   })
+
+  // Custom editors import React's named exports from the import map, and all
+  // the shared modules must use one copy of React, or hooks throw (#1252).
+  it('shared modules render a custom field with hooks in a browser DOM', { timeout: 60000 }, async () => {
+    if (!existsSync(join(outDir, 'fields', 'brand-color.js'))) {
+      const { execSync } = await import('node:child_process')
+      execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} build sites/main`, {
+        cwd: starterDir,
+        stdio: 'pipe',
+      })
+    }
+    const { JSDOM } = await import('jsdom')
+    const { pathToFileURL } = await import('node:url')
+    const fs = await import('node:fs')
+    const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/admin/' })
+    const keys = ['window', 'document', 'navigator', 'HTMLElement', 'Node', 'Element', 'Event'] as const
+    const saved = keys.map(k => Object.getOwnPropertyDescriptor(globalThis, k))
+    for (const k of keys) {
+      Object.defineProperty(globalThis, k, {
+        value: (dom.window as unknown as Record<string, unknown>)[k],
+        configurable: true,
+        writable: true,
+      })
+    }
+    try {
+      const shared = (name: string) => pathToFileURL(join(outDir, '_shared', `${name}.js`)).href
+      const React = await import(shared('react'))
+      const ReactDOM = await import(shared('react-dom_client'))
+      const jsxRuntime = await import(shared('react_jsx-runtime'))
+      expect(typeof React.useState).toBe('function')
+      expect(typeof ReactDOM.createRoot).toBe('function')
+      expect(typeof jsxRuntime.jsx).toBe('function')
+
+      // A component using a hook, rendered with the shared react-dom.
+      function C() {
+        const [v] = React.useState('rendered-ok')
+        return jsxRuntime.jsx('span', { children: v })
+      }
+      const el = dom.window.document.createElement('div')
+      dom.window.document.body.appendChild(el)
+      ReactDOM.createRoot(el).render(jsxRuntime.jsx(C, {}))
+      await new Promise(r => setTimeout(r, 50))
+      expect(el.textContent).toBe('rendered-ok')
+
+      // The starter's brand-color field, with its bare imports pointed at the
+      // shared modules as the import map does in the browser.
+      let fieldJs = fs.readFileSync(join(outDir, 'fields', 'brand-color.js'), 'utf-8')
+      for (const [spec, name] of [
+        ['react/jsx-runtime', 'react_jsx-runtime'],
+        ['react-dom/client', 'react-dom_client'],
+        ['react', 'react'],
+      ]) {
+        fieldJs = fieldJs.replaceAll(`"${spec}"`, JSON.stringify(shared(name)))
+      }
+      const fieldFile = join(outDir, '_shared', '_test_brand-color.mjs')
+      fs.writeFileSync(fieldFile, fieldJs)
+      try {
+        const field = (await import(pathToFileURL(fieldFile).href)).default
+        const fieldEl = dom.window.document.createElement('div')
+        dom.window.document.body.appendChild(fieldEl)
+        field.mount(fieldEl, { value: '#14b8a6', schema: {}, theme: 'light', onChange: () => {} })
+        await new Promise(r => setTimeout(r, 50))
+        const text = fieldEl.querySelector('input[type="text"]') as HTMLInputElement | null
+        expect(text?.value).toBe('#14b8a6')
+        expect(fieldEl.querySelector('button[title="Teal"]')).not.toBeNull()
+        field.unmount(fieldEl)
+      } finally {
+        fs.rmSync(fieldFile, { force: true })
+      }
+    } finally {
+      keys.forEach((k, i) => {
+        const d = saved[i]
+        if (d) Object.defineProperty(globalThis, k, d)
+        else delete (globalThis as Record<string, unknown>)[k]
+      })
+    }
+  })
 })
 
 /**
