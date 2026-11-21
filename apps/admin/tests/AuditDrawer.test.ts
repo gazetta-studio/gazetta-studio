@@ -174,6 +174,14 @@ describe('AuditDrawer', () => {
       expect(calls.at(-1)).toEqual({ action: 'publish', actor: 'alice' })
     })
 
+    it('offers refused sign-ins in the action filter', async () => {
+      const { api } = fakeAuditApi({ events: [], externalSinks: [] })
+      const w = mountDrawer(api)
+      await flushPromises()
+      const options = (w.vm as unknown as { ACTION_OPTIONS: { value: string }[] }).ACTION_OPTIONS
+      expect(options.map(o => o.value)).toContain('sign-in')
+    })
+
     it('clears filters via the clear button', async () => {
       const { api, calls } = fakeAuditApi({ events: [], externalSinks: [] })
       const w = mountDrawer(api)
