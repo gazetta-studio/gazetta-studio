@@ -170,6 +170,17 @@ describe('aws-cognito key endpoint', () => {
     expect(err.check).toBe('unverifiable')
   })
 
+  it('a connection that fails while reading the key is unverifiable', async () => {
+    const body = new ReadableStream({
+      pull() {
+        throw new TypeError('terminated')
+      },
+    })
+    vi.stubGlobal('fetch', async () => new Response(body, { status: 200 }))
+    const err = await refusal(defaultJwksFactory('us-east-1')(header as never, {} as never) as Promise<unknown>)
+    expect(err.check).toBe('unverifiable')
+  })
+
   it('a key id the endpoint does not know is a credentials refusal', async () => {
     vi.stubGlobal('fetch', async () => new Response('no such key', { status: 404 }))
     const err = await refusal(defaultJwksFactory('us-east-1')(header as never, {} as never) as Promise<unknown>)
