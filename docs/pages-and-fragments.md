@@ -113,7 +113,7 @@ Text such as `a < b` or `<b>` saves and shows as text. Content saved before this
 
 A Markdown field opens in a formatted editor with the same toolbar as a rich-text field. Two buttons above it, **Formatted** and **Markdown**, switch views, and the admin remembers your choice in this browser. The Markdown view is a plain text box, saved exactly as you type it. A field nobody edits is saved unchanged.
 
-Switching from Markdown to Formatted can rewrite the Markdown's syntax without changing what it shows, for example `*` lists become `-` lists. The Markdown view says so: "Formatted view may reformat Markdown." The editor follows the admin's direction in Arabic and other right-to-left languages, in both views.
+Switching views changes nothing on its own, but editing in the Formatted view can rewrite the Markdown's syntax without changing what it shows, for example `*` lists become `-` lists. The Markdown view says so: "Formatted view may reformat Markdown." The editor follows the admin's direction in Arabic and other right-to-left languages, in both views.
 
 ## Custom 404 page
 
