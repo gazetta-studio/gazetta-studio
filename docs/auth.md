@@ -187,13 +187,13 @@ Custom roles can't redefine built-in role names (`admin`, `editor`, `viewer`) â€
 
 ### Group-claim â†’ role mapping
 
-Without `roleMapping`, every signed-in user gets the `editor` role. To give people different roles, map the groups your login layer sends to Gazetta roles with `roleMapping`:
+Without `roleMapping`, every signed-in user gets the `editor` role (with `tailscale`, its `defaultRole`). To give people different roles, map the groups your login layer sends to Gazetta roles with `roleMapping`:
 
 ```ts
 admin: {
   auth: {
     trust: 'forwarded-user',
-    trustedProxies: ['10.0.0.0/8'],
+    trustedProxies: ['10.0.0.5'], // your auth proxy's address
     roleMapping: {
       claim: 'groups',
       map: { admins: 'admin', viewers: 'viewer' },
