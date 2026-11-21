@@ -1023,39 +1023,8 @@ async function runBuild(siteDir: string) {
     const sharedDir = join(outDir, '_shared')
     await mkdirAsync(sharedDir, { recursive: true })
 
-    // Build shared dependency bundles (one copy of React, etc.)
-    const sharedDeps: Record<string, string> = {
-      react: 'export * from "react"; import React from "react"; export default React;',
-      'react-dom/client': 'export * from "react-dom/client";',
-      'react/jsx-runtime': 'export * from "react/jsx-runtime";',
-      'gazetta/editor': 'export * from "gazetta/editor";',
-      'gazetta/types': 'export * from "gazetta/types";',
-    }
-
-    const importMap: Record<string, string> = {}
-    for (const [specifier, stub] of Object.entries(sharedDeps)) {
-      const safeName = specifier.replace(/\//g, '_')
-      const stubFile = join(sharedDir, `_stub_${safeName}.js`)
-      await writeFileAsync(stubFile, stub)
-      const outfile = join(sharedDir, `${safeName}.js`)
-      try {
-        await esbuild({
-          entryPoints: [stubFile],
-          outfile,
-          bundle: true,
-          format: 'esm',
-          platform: 'browser',
-          target: 'es2022',
-          minify: true,
-          define: { 'process.env.NODE_ENV': '"production"' },
-          logLevel: 'warning',
-        })
-        importMap[specifier] = `/admin/_shared/${safeName}.js`
-      } catch {
-        /* skip — dep may not be installed */
-      }
-      await import('node:fs/promises').then(fs => fs.rm(stubFile, { force: true }))
-    }
+    const { buildSharedDeps } = await import('./shared-deps.js')
+    const importMap = await buildSharedDeps(sharedDir)
 
     console.log(`  ${c.green('✓')} Shared deps: ${Object.keys(importMap).join(', ')}`)
 
