@@ -209,6 +209,12 @@ admin: {
 
 `roleMapping` works with `forwarded-user`, `cloudflare-access`, `azure-easy-auth` and `aws-cognito`. `tailscale` refuses it, because Tailscale Serve sends no groups; use its `defaultRole` instead.
 
+## What content can publish
+
+Markdown and rich-text fields are sanitized when pages render, and saving refuses script in plain text fields (see [Formatted text fields](./pages-and-fragments.md#formatted-text-fields)). Both apply to every role: no capability lets anyone publish script or embeds from content. Only templates add script, so reviewing template code is how you control what script a site runs. Publish approval and a Content Security Policy are extra protection, not what keeps script out of content.
+
+After upgrading to a release with this sanitizing, publish everything once: see [After upgrading](./publishing.md#after-upgrading).
+
 ## Failure modes
 
 Gazetta answers auth failures, like every admin-API error, as `application/problem+json` (RFC 9457): `type`, `title`, `status`, a human-readable `detail`, and a `code`, plus any extra members listed below.
