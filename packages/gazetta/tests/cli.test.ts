@@ -261,10 +261,10 @@ describe('runBuild', () => {
   const outDir = join(starterDir, 'dist', 'admin')
 
   it('builds admin SPA + bundles custom editors and fields', { timeout: 60000 }, async () => {
-    const { execSync } = await import('node:child_process')
+    const { execFileSync } = await import('node:child_process')
     // Clean and rebuild
     await rm(outDir, { recursive: true, force: true })
-    execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} build sites/main`, {
+    execFileSync(process.execPath, [resolve(import.meta.dirname, '../dist/cli/index.js'), 'build', 'sites/main'], {
       cwd: starterDir,
       stdio: 'pipe',
     })
@@ -306,8 +306,8 @@ describe('runBuild', () => {
   // the shared modules must use one copy of React, or hooks throw (#1252).
   it('shared modules render a custom field with hooks in a browser DOM', { timeout: 60000 }, async () => {
     if (!existsSync(join(outDir, 'fields', 'brand-color.js'))) {
-      const { execSync } = await import('node:child_process')
-      execSync(`node ${resolve(import.meta.dirname, '../dist/cli/index.js')} build sites/main`, {
+      const { execFileSync } = await import('node:child_process')
+      execFileSync(process.execPath, [resolve(import.meta.dirname, '../dist/cli/index.js'), 'build', 'sites/main'], {
         cwd: starterDir,
         stdio: 'pipe',
       })
