@@ -1158,6 +1158,12 @@ describe('ComponentTree - keyboard reorder announcements (#1161)', () => {
     return w.find('[data-testid="component-tree-announcer"]')
   }
 
+  // A repeated announce() replaces the keyed span, so screen readers
+  // repeat the message even when its text is unchanged.
+  function messageSpan(w: ReturnType<typeof mountTree>) {
+    return announcer(w).find('span').element
+  }
+
   function pendingNames(): string[] {
     const pending = useEditorStructuralStore().pendingFor({ kind: 'page', name: 'home' })
     return (pending ?? []).map(entry => (typeof entry === 'string' ? entry : entry.name))
@@ -1272,17 +1278,21 @@ describe('ComponentTree - keyboard reorder announcements (#1161)', () => {
     await handle.trigger('keydown', { key: ' ' })
     const pickedUp = 'Picked up: hero. Currently at position 1 of 3'
     expect(announcer(w).text()).toBe(pickedUp)
+    const pickedUpSpan = messageSpan(w)
 
     await handle.trigger('keydown', { key: 'ArrowUp' })
     expect(announcer(w).text()).toBe(pickedUp)
+    expect(messageSpan(w)).toBe(pickedUpSpan)
     expect(w.find('[data-testid="keyboard-insertion-indicator"]').attributes('data-boundary')).toBe('0')
 
     await handle.trigger('keydown', { key: 'ArrowDown' })
     await handle.trigger('keydown', { key: 'ArrowDown' })
     expect(announcer(w).text()).toBe('Moved to position 3 of 3')
+    const bottomSpan = messageSpan(w)
 
     await handle.trigger('keydown', { key: 'ArrowDown' })
     expect(announcer(w).text()).toBe('Moved to position 3 of 3')
+    expect(messageSpan(w)).toBe(bottomSpan)
     expect(w.find('[data-testid="keyboard-insertion-indicator"]').attributes('data-boundary')).toBe('3')
   })
 
@@ -1366,9 +1376,11 @@ describe('ComponentTree - keyboard reorder announcements (#1161)', () => {
     await handle.trigger('keydown', { key: ' ' })
     await handle.trigger('keydown', { key: 'ArrowDown' })
     expect(announcer(w).text()).toBe('Moved to position 2 of 3')
+    const span = messageSpan(w)
 
     await handle.trigger('keydown', { key: 'Escape' })
     expect(announcer(w).text()).toBe('Moved to position 2 of 3')
+    expect(messageSpan(w)).toBe(span)
     expect(w.find('[data-testid="keyboard-insertion-indicator"]').exists()).toBe(false)
     expect(moveSpy).not.toHaveBeenCalled()
   })
@@ -1384,12 +1396,14 @@ describe('ComponentTree - keyboard reorder announcements (#1161)', () => {
     await handle.trigger('keydown', { key: 'ArrowDown' })
     const before = announcer(w).text()
     expect(before).toBe('Moved to position 2 of 3')
+    const span = messageSpan(w)
 
     const dragOptions = dragAndDropMock.mock.calls[0][0] as { onDragstart: (data: unknown) => void }
     dragOptions.onDragstart({ position: 0, state: {} })
     await w.vm.$nextTick()
 
     expect(announcer(w).text()).toBe(before)
+    expect(messageSpan(w)).toBe(span)
     expect(w.find('[data-testid="keyboard-insertion-indicator"]').exists()).toBe(false)
   })
 
