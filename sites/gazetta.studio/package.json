@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "shiki": "^4.6.0",
-    "marked": "^18.2.0",
+    "marked": "^18.2.1",
     "github-slugger": "^2.0.0"
   }
 }
