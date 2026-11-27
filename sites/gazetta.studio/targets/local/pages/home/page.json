@@ -14,8 +14,10 @@
         "badgeHref": "https://github.com/gazetta-studio/gazetta-studio",
         "title": "The CMS that stores nothing",
         "subtitle": "Gazetta is a stateless CMS where pages are composed from reusable components. No database, no build step. Deploy to Cloudflare Workers, your own server, or any Node.js host.",
-        "cta": "Get Started",
-        "ctaHref": "/docs",
+        "cta": "Contribute",
+        "ctaHref": "/contribute",
+        "secondary": "Try it",
+        "secondaryHref": "/contribute#try-it",
         "status": "Gazetta is pre-1.0 and maintained by one person. Expect breaking changes between releases.",
         "statusLink": "See the roadmap",
         "statusHref": "https://github.com/gazetta-studio/gazetta-studio/blob/main/ROADMAP.md"

@@ -109,6 +109,20 @@ different decision, ask on the issue first.
 - Keep "Allow edits by maintainers" turned on. `main` only accepts branches that are
   up to date with it, and this lets the maintainer update yours.
 - You don't need to squash your commits.
+- Every PR gets a first response within 2 days. That's a reply, not a merge.
+
+### Paths the maintainer reviews personally
+
+A PR that touches these paths waits for the maintainer, even when the AI reviewers
+approve it:
+
+- Auth and permissions: `packages/gazetta/src/auth/`, `packages/gazetta/src/admin-api/middleware/`
+- Storage and the worker: `packages/gazetta/src/providers/`, `packages/gazetta/src/workers/`,
+  `packages/gazetta/src/public-site-path.ts`
+- Workflows and bots: `.github/workflows/`, `bots/`
+
+Other PRs, publishing and history included, are reviewed by the AI reviewers and checked
+by the tests, the live check and undo.
 
 ## Running tests
 
