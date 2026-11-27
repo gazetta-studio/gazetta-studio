@@ -27,9 +27,9 @@ const template: TemplateFunction = ({ content = {} }) => ({
 .hero-inner { max-width: 48rem; margin: 0 auto; }
 .hero h1 { font-size: 3.5rem; font-weight: 800; line-height: 1.1; letter-spacing: -0.02em; background: linear-gradient(135deg, #a78bfa, #6d28d9); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .hero-sub { font-size: 1.25rem; color: #a1a1aa; margin-top: 1.5rem; max-width: 36rem; margin-left: auto; margin-right: auto; }
-.hero-status { font-size: 0.875rem; color: #71717a; margin-top: 1rem; }
+.hero-status { font-size: 0.875rem; color: #a1a1aa; margin-top: 1rem; }
 .hero-status a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
-.hero-status a:hover { color: #a1a1aa; }
+.hero-status a:hover { color: #e4e4e7; }
 .hero-cta { display: inline-block; margin-top: 2rem; padding: 0.75rem 2rem; background: #7c3aed; color: white; border-radius: 8px; font-weight: 600; transition: background 0.15s; }
 .hero-badge { display: inline-block; margin-bottom: 1.5rem; padding: 0.375rem 1rem; background: #1c1c2e; border: 1px solid #2d2d44; border-radius: 999px; font-size: 0.8125rem; color: #a78bfa; font-weight: 500; }
 .hero-badge:hover { background: #252540; color: #c4b5fd; }
