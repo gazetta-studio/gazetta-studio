@@ -1,0 +1,151 @@
+{
+  "template": "site-layout",
+  "metadata": {
+    "title": "Contribute — Gazetta",
+    "description": "How to contribute to Gazetta: agents welcome, what the maintainer reviews, how fast PRs get an answer, and where to start."
+  },
+  "components": [
+    "@header",
+    {
+      "name": "hero",
+      "template": "hero",
+      "content": {
+        "title": "Contribute to Gazetta",
+        "subtitle": "Gazetta is open source under the MIT license. People and coding agents are both welcome to pick up an issue and open a pull request.",
+        "cta": "Good first issues",
+        "ctaHref": "https://github.com/gazetta-studio/gazetta-studio/contribute",
+        "secondary": "Try it",
+        "secondaryHref": "#try-it"
+      }
+    },
+    {
+      "name": "agents",
+      "template": "section",
+      "content": {
+        "heading": "Agents are welcome"
+      },
+      "components": [
+        {
+          "name": "body",
+          "template": "text",
+          "content": {
+            "body": "<p>Use your coding agent if you like: a PR from an agent is reviewed like any other. The repository's <a href=\"https://github.com/gazetta-studio/gazetta-studio/blob/main/AGENTS.md\">AGENTS.md</a> gives agents the layout, every command and the conventions.</p>\n<p>Issues labelled <a href=\"https://github.com/gazetta-studio/gazetta-studio/labels/ready-for-agent\"><code>ready-for-agent</code></a> are ready to start: they say what happens, what should happen and how to check it, so a person or an agent can pick one up without asking first. Issues without it still need a decision or more information.</p>\n"
+          }
+        }
+      ]
+    },
+    {
+      "name": "review",
+      "template": "section",
+      "content": {
+        "heading": "What the maintainer reviews personally"
+      },
+      "components": [
+        {
+          "name": "body",
+          "template": "text",
+          "content": {
+            "body": "<p>Most PRs are reviewed by AI reviewers and checked by the tests, the live check and undo. A PR that touches these paths also waits for the maintainer, even when the reviewers approve it:</p>\n<ul>\n<li>Auth and permissions: <code>packages/gazetta/src/auth/</code>, <code>packages/gazetta/src/admin-api/middleware/</code></li>\n<li>Storage and the worker: <code>packages/gazetta/src/providers/</code>, <code>packages/gazetta/src/workers/</code>, <code>packages/gazetta/src/public-site-path.ts</code></li>\n<li>Workflows and bots: <code>.github/workflows/</code>, <code>bots/</code></li>\n</ul>\n"
+          }
+        }
+      ]
+    },
+    {
+      "name": "response",
+      "template": "section",
+      "content": {
+        "heading": "How fast PRs get an answer"
+      },
+      "components": [
+        {
+          "name": "body",
+          "template": "text",
+          "content": {
+            "body": "<p>Every PR gets a first response within 2 days. That's a reply, not a merge: a review, a question or a pointer to what's missing.</p>\n"
+          }
+        }
+      ]
+    },
+    {
+      "name": "start",
+      "template": "section",
+      "content": {
+        "heading": "Where to start"
+      },
+      "components": [
+        {
+          "name": "body",
+          "template": "text",
+          "content": {
+            "body": "<p>GitHub's <a href=\"https://github.com/gazetta-studio/gazetta-studio/contribute\">contribute page</a> lists the open good first issues, always up to date. Not sure what to pick? Ask in <a href=\"https://github.com/gazetta-studio/gazetta-studio/discussions/1428\">Looking for something to work on?</a></p>\n<p><a href=\"https://github.com/gazetta-studio/gazetta-studio/blob/main/CONTRIBUTING.md\">CONTRIBUTING.md</a> explains how to pick an issue, make the change and what happens after you open a PR.</p>\n"
+          }
+        }
+      ]
+    },
+    {
+      "name": "design",
+      "template": "section",
+      "content": {
+        "heading": "Design docs"
+      },
+      "components": [
+        {
+          "name": "body",
+          "template": "text",
+          "content": {
+            "body": "<p>Each feature's decisions are recorded in a design doc under <a href=\"https://github.com/gazetta-studio/gazetta-studio/tree/main/.claude/rules\"><code>.claude/rules/</code></a> (<code>design-*.md</code>). An issue that names a feature points at its doc. If your change seems to need a different decision, ask on the issue first.</p>\n"
+          }
+        }
+      ]
+    },
+    {
+      "name": "try-it",
+      "template": "section",
+      "content": {
+        "id": "try-it",
+        "heading": "Try it"
+      },
+      "components": [
+        {
+          "name": "body",
+          "template": "text",
+          "content": {
+            "body": "<p>Run Gazetta from <code>main</code> with its starter site. You need Node.js 22.22.2 or later in the 22 line, or Node.js 26.</p>\n"
+          }
+        },
+        {
+          "name": "commands",
+          "template": "code-block",
+          "content": {
+            "language": "bash",
+            "code": "git clone https://github.com/gazetta-studio/gazetta-studio.git\ncd gazetta-studio\nnpm install\nnpm run dev"
+          }
+        },
+        {
+          "name": "open",
+          "template": "text",
+          "content": {
+            "body": "<p>Then open <code>localhost:3000/admin</code> to edit the site; <code>localhost:3000</code> shows it.</p>\n"
+          }
+        }
+      ]
+    },
+    {
+      "name": "credits",
+      "template": "section",
+      "content": {
+        "heading": "Contributors"
+      },
+      "components": [
+        {
+          "name": "body",
+          "template": "text",
+          "content": {
+            "body": "<p>Thank you to everyone who has contributed code, issues, reviews and ideas. See them all on <a href=\"https://github.com/gazetta-studio/gazetta-studio/graphs/contributors\">GitHub's contributors page</a>.</p>\n"
+          }
+        }
+      ]
+    },
+    "@footer"
+  ]
+}
