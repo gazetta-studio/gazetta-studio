@@ -232,7 +232,10 @@ type AdminApp = Hono & {
  * Resolve a per-process instance id for audit JSONL file naming.
  *
  * Chain per `design-logging.md`'s "Multi-instance correlation":
- *   1. `K_REVISION` env (Cloud Run; per-revision)
+ *   1. `K_REVISION` env (Cloud Run) plus a random 8-char hex suffix:
+ *      `K_REVISION` names the revision, and every instance it scales to
+ *      shares it. The history audit provider rewrites its whole events
+ *      file per event, so two instances on one file would lose events.
  *   2. `os.hostname()` — returns the pod name on K8s default config,
  *      machine hostname elsewhere
  *   3. Random 8-char hex (only when hostname is empty / unavailable)
@@ -244,7 +247,7 @@ type AdminApp = Hono & {
  * across runtimes.
  */
 function resolveInstanceId(): string {
-  if (process.env.K_REVISION) return process.env.K_REVISION
+  if (process.env.K_REVISION) return `${process.env.K_REVISION}-${randomBytes(4).toString('hex')}`
   try {
     const name = hostname()
     if (name) return name
