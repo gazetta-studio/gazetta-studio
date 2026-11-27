@@ -61,8 +61,9 @@ export interface HistoryAuditProviderOptions {
   /**
    * Per-process instance identifier. Disambiguates JSONL file
    * names for multi-instance correctness. Production resolves
-   * this from K_REVISION (Cloud Run) → os.hostname() → random
-   * 8-char hex (per design-logging.md conventions).
+   * this from K_REVISION plus a random suffix (Cloud Run, where every
+   * instance of a revision shares K_REVISION) → os.hostname() → random
+   * 8-char hex (`resolveInstanceId` in admin-api/index.ts).
    */
   instance: string
 }

@@ -25,12 +25,12 @@
  *
  * # Multi-instance correctness
  *
- * Per-revision file granularity (each instance's file is independent)
+ * Per-instance file granularity (each instance's file is independent)
  * means concurrent pruners on the same target converge. If instance A
  * is rewriting events-A.jsonl while instance B is rewriting
  * events-B.jsonl, no race. If two pruners on different hosts try to
  * rewrite the SAME events-A.jsonl simultaneously (two instances with
- * the same hostname / K_REVISION), the storage provider's atomic
+ * the same hostname), the storage provider's atomic
  * write-then-rename keeps the file consistent — last-write-wins is
  * fine because both pruners compute the same surviving set from the
  * same input bytes.
