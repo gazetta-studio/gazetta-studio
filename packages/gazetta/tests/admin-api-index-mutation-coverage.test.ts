@@ -190,8 +190,27 @@ describe('Cluster 1 — resolveInstanceId() drives the audit JSONL filename', ()
     await triggerSaveAudit(app)
 
     const files = await readAuditFilenames(storage)
-    expect(files).toContain('events-rev-test-12345.jsonl')
-    expect(files).not.toContain('events-hostname-should-not-appear.jsonl')
+    expect(files).toHaveLength(1)
+    expect(files[0]).toMatch(/^events-rev-test-12345-[0-9a-f]{8}\.jsonl$/)
+    expect(files[0]).not.toContain('hostname-should-not-appear')
+  })
+
+  it('two admin instances of one Cloud Run revision write to different audit files', async () => {
+    // K_REVISION names the revision, not the instance: every instance a
+    // revision scales to sees the same value. Each needs its own file,
+    // since the history provider rewrites the whole file per event.
+    vi.stubEnv('K_REVISION', 'rev-shared')
+
+    const a = setupAuditApp()
+    const b = setupAuditApp()
+    await triggerSaveAudit(a.app)
+    await triggerSaveAudit(b.app)
+
+    const [fileA] = await readAuditFilenames(a.storage)
+    const [fileB] = await readAuditFilenames(b.storage)
+    expect(fileA).toMatch(/^events-rev-shared-/)
+    expect(fileB).toMatch(/^events-rev-shared-/)
+    expect(fileA).not.toBe(fileB)
   })
 
   it('non-empty hostname drives the audit instance id when K_REVISION is unset (line 197 if-true branch)', async () => {
