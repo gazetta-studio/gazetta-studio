@@ -203,3 +203,37 @@ describe('broken-links validator', () => {
     expect(issues.map(i => i.subject)).toEqual(['/gone?x=1#top', '/missing.png'])
   })
 })
+
+describe('broken-links route set (#1294)', () => {
+  it('reads the site routes once per validate() call, not once per link', async () => {
+    const site = buildSite({ home: '/', about: '/about' })
+    let pageReads = 0
+    let localeReads = 0
+    const pages = site.pages
+    const pageLocales = site.pageLocales
+    site.pages = Object.assign(Object.create(pages), {
+      values: () => {
+        pageReads++
+        return pages.values()
+      },
+    }) as Site['pages']
+    site.pageLocales = Object.assign(Object.create(pageLocales), {
+      values: () => {
+        localeReads++
+        return pageLocales.values()
+      },
+    }) as Site['pageLocales']
+    const html = `<a href="/about">a</a> <a href="/">h</a> <a href="/missing">m</a> <a href="/about?x=1">q</a>`
+    const issues = await brokenLinks.validate({
+      stage: 'background',
+      site,
+      contentRoot: stubRoot,
+      storage: stubStorage,
+      scope: { kind: 'background', item, manifest: { template: 't', content: {} } },
+      renderedOutput: renderedAs(html),
+    })
+    expect(issues.map(i => i.subject)).toEqual(['/missing'])
+    expect(pageReads).toBe(1)
+    expect(localeReads).toBe(1)
+  })
+})
