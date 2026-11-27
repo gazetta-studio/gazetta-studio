@@ -110,7 +110,7 @@
           "name": "body",
           "template": "text",
           "content": {
-            "body": "<p>Run Gazetta from <code>main</code> with its starter site. You need Node.js 22.22.2 or later in the 22 line, or Node.js 26.</p>\n"
+            "body": "<p>Run Gazetta from <code>main</code> with its starter site. You need Node.js 22.22.2 or later in the 22 line, 24.15 or later in the 24 line, or Node.js 26 or later.</p>\n"
           }
         },
         {
