@@ -41,7 +41,7 @@ export type LogFn = (line: string) => void
 interface StreamEventBase {
   type: string
 }
-export interface AssistantMessage extends StreamEventBase {
+interface AssistantMessage extends StreamEventBase {
   type: 'assistant'
   message: {
     content: Array<
