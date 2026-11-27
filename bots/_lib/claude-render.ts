@@ -49,7 +49,7 @@ export interface AssistantMessage extends StreamEventBase {
     >
   }
 }
-export interface UserMessage extends StreamEventBase {
+interface UserMessage extends StreamEventBase {
   type: 'user'
   message: {
     content: Array<
