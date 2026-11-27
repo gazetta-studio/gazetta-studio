@@ -53,6 +53,7 @@ export const brokenLinks: Validator = {
 
     const items = scope.kind === 'background' ? [scope.item] : [...scope.items]
     const issues: Issue[] = []
+    let routes: ReadonlySet<string> | undefined
 
     for (const item of items) {
       if (item.kind !== 'page') continue // fragments are partials; rendered output is per-page
@@ -60,7 +61,7 @@ export const brokenLinks: Validator = {
       if (!html) continue
       const refs = extractInternalRefs(html)
       for (const ref of refs) {
-        const reason = checkRef(ref, site)
+        const reason = checkRef(ref, () => (routes ??= collectRoutes(site)))
         if (reason) {
           issues.push({
             validator: 'broken-links',
@@ -125,7 +126,7 @@ function isInternal(value: string): boolean {
  * Check one internal reference against the site. Returns null when valid,
  * a human-readable reason when broken.
  */
-function checkRef(ref: string, site: Site): string | null {
+function checkRef(ref: string, getRoutes: () => ReadonlySet<string>): string | null {
   // Strip query + hash before matching.
   const cleanRef = ref.split('?')[0].split('#')[0]
   if (!cleanRef) return null // pure ?query or #hash — can't validate
@@ -136,16 +137,7 @@ function checkRef(ref: string, site: Site): string | null {
   // and we'd already have a different issue.
   if (cleanRef.startsWith('/assets/') || cleanRef.startsWith('assets/')) return null
 
-  // Build the route lookup set from site.pages + locale variants.
-  const routes = new Set<string>()
-  for (const page of site.pages.values()) {
-    if (page.route) routes.add(normalizeRoute(page.route))
-  }
-  for (const entry of site.pageLocales.values()) {
-    for (const variant of entry.locales.values()) {
-      if (variant.route) routes.add(normalizeRoute(variant.route))
-    }
-  }
+  const routes = getRoutes()
 
   // Exact match against a known route.
   const target = normalizeRoute(cleanRef)
@@ -158,6 +150,20 @@ function checkRef(ref: string, site: Site): string | null {
   }
 
   return `link does not match any page route or asset path`
+}
+
+/** Every page route, locale variants included, normalized for lookup. */
+function collectRoutes(site: Site): ReadonlySet<string> {
+  const routes = new Set<string>()
+  for (const page of site.pages.values()) {
+    if (page.route) routes.add(normalizeRoute(page.route))
+  }
+  for (const entry of site.pageLocales.values()) {
+    for (const variant of entry.locales.values()) {
+      if (variant.route) routes.add(normalizeRoute(variant.route))
+    }
+  }
+  return routes
 }
 
 function normalizeRoute(path: string): string {
