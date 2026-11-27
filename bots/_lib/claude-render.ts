@@ -38,7 +38,7 @@ export type LogFn = (line: string) => void
  * survives version bumps. Anything we don't recognise just falls through to
  * the raw transcript file.
  */
-export interface StreamEventBase {
+interface StreamEventBase {
   type: string
 }
 export interface AssistantMessage extends StreamEventBase {
