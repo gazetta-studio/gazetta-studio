@@ -22,10 +22,14 @@ const template: TemplateFunction = ({ content = {} }) => ({
     <h1>${content.title ?? ''}</h1>
     ${content.subtitle ? html`<p class="hero-sub">${content.subtitle}</p>` : ''}
     ${content.status ? html`<p class="hero-status">${content.status}${content.statusLink ? html` <a href="${content.statusHref ?? '#'}">${content.statusLink}</a>` : ''}</p>` : ''}
-    ${content.cta || content.secondary ? html`<div class="hero-actions">
+    ${
+      content.cta || content.secondary
+        ? html`<div class="hero-actions">
       ${content.cta ? html`<a href="${content.ctaHref ?? '#'}" class="hero-cta">${content.cta}</a>` : ''}
       ${content.secondary ? html`<a href="${content.secondaryHref ?? '#'}" class="hero-secondary">${content.secondary}</a>` : ''}
-    </div>` : ''}
+    </div>`
+        : ''
+    }
   </div>
 </section>`,
   css: `.hero { padding: 4rem 2rem 2rem; text-align: center; }
