@@ -103,7 +103,7 @@ target-root/
         └── events-pod-def-456.jsonl
 ```
 
-One JSONL file **per admin instance** (Cloud Run revision id, Kubernetes pod name, or `os.hostname()` fallback). Multiple admin instances writing concurrently never collide because each owns its own file. The `GET /api/v1/audit` route aggregates across files.
+One JSONL file **per admin instance**: on Cloud Run the revision id (`K_REVISION`) plus a random suffix, since every instance of a revision shares the revision id; elsewhere `os.hostname()` (the pod name on Kubernetes), or a random id when there's no hostname. An instance that restarts starts a new file. Multiple admin instances writing concurrently never collide because each owns its own file. The `GET /api/v1/audit` route aggregates across files.
 
 The `.gazetta/audit/` directory is gitignored — audit events are runtime state, not source.
 
@@ -470,7 +470,7 @@ admin: {
 
 ### Multi-instance (Cloud Run / Kubernetes)
 
-Per-instance JSONL files mean concurrent appenders never race. No coordination needed. Set the `K_REVISION` env (Cloud Run does this automatically) or rely on `os.hostname()` (Kubernetes) for instance identity.
+Per-instance JSONL files mean concurrent appenders never race. No coordination needed. On Cloud Run each instance names its file after `K_REVISION` (set automatically) plus a random suffix, so instances of one revision don't share a file; on Kubernetes the pod name from `os.hostname()` names it.
 
 ### Compliance: history + future external sink
 

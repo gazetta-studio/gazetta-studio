@@ -129,7 +129,7 @@ Logs from multiple admin instances (Cloud Run / Kubernetes deployments) merge in
 Operators searching `module:cache.* AND instance:pod-abc-123` see one instance's cache behavior; without `instance` filter, see all instances merged.
 
 `instance` is set automatically from environment:
-- Cloud Run: `K_REVISION` env (per-revision, NOT per-instance — pods scaled from the same revision share this ID; for per-pod identity, operators override the cache instance ID explicitly from the metadata server)
+- Cloud Run: `K_REVISION` env (per-revision, NOT per-instance — pods scaled from the same revision share this ID; for per-pod identity, operators override the cache instance ID explicitly from the metadata server). The audit log's events file adds a random per-instance suffix to `K_REVISION` (`resolveInstanceId` in `admin-api/index.ts`), since instances sharing one file would lose events (#1267)
 - Otherwise: `os.hostname()` — returns the pod name on K8s default config, the machine hostname elsewhere
 - Last resort: a random 8-char hex (only when `os.hostname()` returns empty)
 
