@@ -5,7 +5,8 @@
  * `<source src>` etc., extracts internal-link references (paths that should
  * resolve within this site), and verifies each one points to either:
  *   - An existing page route in `site.pages` / `site.pageLocales`
- *   - An existing asset path (`/assets/...`)
+ *   - An asset path (`/assets/...`) other than the placeholder the resolver
+ *     renders for a missing asset (`MISSING_ASSET_URLS`)
  *
  * External links (http(s)://other-domain.com) are NOT checked — they go
  * stale independent of publish; a publish gate isn't the right place for
@@ -31,6 +32,7 @@
 import { JSDOM } from 'jsdom'
 import type { Issue, Validator, ValidatorInput } from '../types.js'
 import type { Site } from '../../site-loader.js'
+import { MISSING_ASSET_URLS } from '../../assets/resolve.js'
 
 export const brokenLinks: Validator = {
   source: 'gazetta',
@@ -131,11 +133,11 @@ function checkRef(ref: string, getRoutes: () => ReadonlySet<string>): string | n
   const cleanRef = ref.split('?')[0].split('#')[0]
   if (!cleanRef) return null // pure ?query or #hash — can't validate
 
-  // Asset references: `/assets/{hash}.ext` shape — accept any well-formed
-  // assets/ path; the resolver guarantees these were emitted from real
-  // refs at render time, so a broken one means the renderer itself failed
-  // and we'd already have a different issue.
-  if (cleanRef.startsWith('/assets/') || cleanRef.startsWith('assets/')) return null
+  if (cleanRef.startsWith('/assets/') || cleanRef.startsWith('assets/')) {
+    if (MISSING_ASSET_URLS.has(normalizeRoute(cleanRef))) return 'asset does not exist'
+    // Other asset paths aren't checked: the site doesn't list asset files.
+    return null
+  }
 
   const routes = getRoutes()
 
