@@ -254,7 +254,7 @@ describe('broken-links route set (#1294)', () => {
     expect(issues).toHaveLength(1)
     expect(issues[0].severity).toBe('warn')
     expect(issues[0].subject).toBe(ref)
-    expect(issues[0].message).toContain('asset')
+    expect(issues[0].message).toBe(`${ref}: asset does not exist`)
   })
 
   it('accepts a real asset whose name starts with __missing__', async () => {
