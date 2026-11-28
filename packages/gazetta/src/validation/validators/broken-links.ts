@@ -38,6 +38,7 @@ export const brokenLinks: Validator = {
   source: 'gazetta',
   name: 'broken-links',
   stages: ['background', 'pre-publish', 'cli'] as const,
+  readsRoutes: true,
 
   defaultSeverity() {
     // Per design-validation.md "Stage × validator matrix": broken-links
