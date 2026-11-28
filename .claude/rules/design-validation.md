@@ -274,7 +274,7 @@ The architectural call: use real tools for the actual analysis. Each tool plugs 
 | Accessibility | `axe-core` | Run via `jsdom` in admin process; ~50-100ms per page. Battle-tested by every major a11y product. |
 | HTML validity | `html-validate` | Fast, configurable, widely used in CI. |
 | CSS lint | `stylelint` | Industry standard. |
-| Broken links | Gazetta's own route matching (`jsdom` parses the HTML) | Every internal `href` or `src` in rendered output (on `a`, `link`, `img`, `source`, `video`, `audio` and `script`) must match a page route, including `:param` routes, or start with `/assets/` (or `assets/`); anything else is reported, such as the scaffold's `/admin` link ([#1183](https://github.com/gazetta-studio/gazetta-studio/issues/1183)). `/assets/` and `assets/` paths aren't checked yet. External links are skipped on purpose; `?query` and `#hash` are stripped before matching. |
+| Broken links | Gazetta's own route matching (`jsdom` parses the HTML) | Every internal `href` or `src` in rendered output (on `a`, `link`, `img`, `source`, `video`, `audio` and `script`) must match a page route, including `:param` routes, or start with `/assets/` (or `assets/`); anything else is reported, such as the scaffold's `/admin` link ([#1183](https://github.com/gazetta-studio/gazetta-studio/issues/1183)). Of `/assets/` and `assets/` paths, only the missing-asset placeholder (`__missing__`) is reported (#1301). External links are skipped on purpose; `?query` and `#hash` are stripped before matching. |
 
 The broken-links check covers internal links only. Outbound link checking (`linkinator`) and #anchor targets are deferred (`design-validation-implementation.md`, "What's deferred from this plan").
 
@@ -285,7 +285,7 @@ Decided: maintainer, 2026-10-24 (#1295)
 | Change the code: add outbound and #anchor checks now | Outbound checks need a request to every external URL in each check, and a new dependency (`linkinator` is in no package today); #1272 can pull anchor checks in when the docs site needs them |
 | File an issue and decide later | The docs would keep describing a check that doesn't exist |
 
-Links to `/assets/` paths will be checked too: [#1301](https://github.com/gazetta-studio/gazetta-studio/issues/1301) reports at least the `__missing__` placeholder a page renders when it references an asset that doesn't exist. Until it lands, any `/assets/` or `assets/` path passes.
+Links to `/assets/` paths are checked too: since [#1301](https://github.com/gazetta-studio/gazetta-studio/issues/1301), the `__missing__` placeholder a page renders when it references an asset that doesn't exist is reported. Other `/assets/` and `assets/` paths still pass, since the loaded site doesn't list asset files.
 
 Decided: maintainer, 2026-10-24 (#1295)
 

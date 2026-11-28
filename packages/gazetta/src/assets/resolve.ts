@@ -339,6 +339,12 @@ function deriveFontFormat(ext: string): 'woff2' | 'woff' | 'ttf' | 'otf' {
 
 // ---------- Walker ----------
 
+/**
+ * URLs the placeholders below render. No real asset has them: asset files are
+ * `{name}-{hash}.{ext}`, so the broken-links validator reports them as missing.
+ */
+export const MISSING_ASSET_URLS: ReadonlySet<string> = new Set(['/assets/__missing__.svg', '/assets/__missing__'])
+
 /** Placeholder returned when a reference can't be resolved. */
 const EMBEDDED_PLACEHOLDER: ResolvedEmbeddedAsset = {
   url: '/assets/__missing__.svg',
