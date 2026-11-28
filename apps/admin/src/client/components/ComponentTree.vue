@@ -5,6 +5,7 @@ import { tearDown } from '@formkit/drag-and-drop'
 import { dragAndDrop } from '@formkit/drag-and-drop/vue'
 import { Box, Copy, File as FileIcon, Menu as MenuIcon, Plus, Share2, Trash2, TriangleAlert, Undo2 } from '@lucide/vue'
 import Button from './ui/Button.vue'
+import { plainCopy } from '../utils/plainCopy.js'
 import { useSelectionStore } from '../stores/selection.js'
 import { useEditingStore } from '../stores/editing.js'
 import { useToastStore } from '../stores/toast.js'
@@ -860,9 +861,8 @@ function duplicateComponent(index: number) {
     displayName = source
   } else {
     // Inline component — deep clone so the duplicate's content edits
-    // don't bleed back into the source. JSON round-trip is sufficient
-    // (manifests are JSON-shaped per design-publishing.md).
-    const cloned = JSON.parse(JSON.stringify(source)) as import('../api/client.js').InlineComponent
+    // don't bleed back into the source.
+    const cloned = plainCopy(source)
     cloned.name = nextDuplicateName(source.name, comps)
     newEntry = cloned
     displayName = cloned.name

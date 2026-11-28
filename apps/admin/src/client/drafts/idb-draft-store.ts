@@ -8,7 +8,8 @@
  * start with that prefix.
  */
 import { type IDBPDatabase, openDB } from 'idb'
-import { type DraftIdentity, type DraftKind, type DraftScope, type DraftStore, plainCopy } from './types.js'
+import { type DraftIdentity, type DraftKind, type DraftScope, type DraftStore } from './types.js'
+import { plainCopy } from '../utils/plainCopy.js'
 
 const DB_NAME = 'gazetta-drafts'
 const DB_VERSION = 1

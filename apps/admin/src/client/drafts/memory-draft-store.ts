@@ -3,7 +3,8 @@
  * (mostly private browsing). Same contract as the IndexedDB store, but
  * drafts are lost on reload.
  */
-import { type DraftIdentity, type DraftKind, type DraftScope, type DraftStore, plainCopy } from './types.js'
+import { type DraftIdentity, type DraftKind, type DraftScope, type DraftStore } from './types.js'
+import { plainCopy } from '../utils/plainCopy.js'
 
 export function createMemoryDraftStore(): DraftStore {
   // Key: JSON of [site, owner, target, kind, key] — unambiguous for any strings.

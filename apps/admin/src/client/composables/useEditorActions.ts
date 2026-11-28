@@ -1,7 +1,4 @@
-function deepClone<T>(obj: T): T {
-  return JSON.parse(JSON.stringify(obj))
-}
-
+import { plainCopy } from '../utils/plainCopy.js'
 import { computed, toRaw } from 'vue'
 import type { DraftOverrides, ManifestKey } from 'gazetta/types'
 import { manifestKeyToString } from 'gazetta/types'
@@ -148,13 +145,13 @@ export function useEditorActions() {
 
   function stashCurrent() {
     if (ec.dirty && ec.target && ec.content) {
-      stash.stash(ec.target.path, ec.target, deepClone(ec.content))
+      stash.stash(ec.target.path, ec.target, plainCopy(ec.content))
       // Mirror into the cross-page persisted store (Cut 8b) so the
       // edit survives reload. The in-memory stash is keyed by
       // target.path which collides across pages; persistedEdits uses
       // the richer (kind, name, locale, path) tuple.
       const key = persistedKeyForCurrent()
-      if (key) usePersistedEditsStore().set(key, deepClone(ec.content), baseForCurrent())
+      if (key) usePersistedEditsStore().set(key, plainCopy(ec.content), baseForCurrent())
     }
   }
 
@@ -435,7 +432,7 @@ export function useEditorActions() {
       const detail = sel.detail
       if (!detail || !sel.selection) return
 
-      const updatedComponents = deepClone(detail.components ?? [])
+      const updatedComponents = plainCopy(detail.components ?? [])
       const parts = resolveComponentPath(namePath).split('/')
       let components = updatedComponents as Array<
         string | { name: string; template: string; content?: Record<string, unknown>; components?: unknown[] }
@@ -737,7 +734,7 @@ export function useEditorActions() {
     // come back on reload over a later save by someone else.
     const key = persistedKeyForCurrent()
     if (!key) return
-    if (ec.dirty) usePersistedEditsStore().set(key, deepClone(newContent), baseForCurrent())
+    if (ec.dirty) usePersistedEditsStore().set(key, plainCopy(newContent), baseForCurrent())
     else usePersistedEditsStore().clear(key)
   }
 
