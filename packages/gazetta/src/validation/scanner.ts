@@ -11,6 +11,10 @@
  *   edits invalidate referencing items via `readRefsForAsset`; template edits
  *   trigger a full-site rescan since no `template-deps` reverse-dep relation
  *   exists yet).
+ * - When a rescan sees a page route added, removed or changed, every page is
+ *   re-checked by the validators that read routes (`readsRoutes`, such as
+ *   broken-links); their cache entry includes a fingerprint of the routes, so
+ *   the other validators' entries still hit.
  * - Per-item validation cache keyed by content hash (via `AdminCache`).
  *   Same content = same issues; cache hit short-circuits the validators.
  * - Result store keyed by item path; reads return current issues.
@@ -44,7 +48,7 @@ import type { Site, LoadSiteOptions } from '../site-loader.js'
 import { allFragmentEntries, allPageEntries, loadSite } from '../site-loader.js'
 import type { FragmentManifest, PageManifest, StorageProvider } from '../types.js'
 import type { ValidatorRegistry } from './registry.js'
-import type { Issue, RenderedOutputAccess, SavedItem } from './types.js'
+import type { Issue, RenderedOutputAccess, SavedItem, Validator } from './types.js'
 
 /**
  * Source of an incremental rescan. Drives which dependents the scanner
@@ -151,21 +155,47 @@ export function createValidationScanner(opts: CreateScannerOptions): ValidationS
     return loadSiteFn({ contentRoot, ...siteOptions })
   }
 
+  // Routes fingerprint of the site the last scan pass saw; a rescan that
+  // sees a different one re-checks every page with route-reading validators.
+  let lastRoutes: string | undefined
+
   async function validateItem(
     site: Site,
     item: SavedItem,
     manifest: PageManifest | FragmentManifest,
   ): Promise<Issue[]> {
     const hash = hashManifestStable(manifest)
-    const key = cacheKey(item, hash)
-    const cached = await cache.get<Issue[]>(key)
-    if (cached !== null) {
-      // Re-stamp the store from cache (cheap; covers boot warm-up too).
-      setIssues(item.itemPath, cached)
-      return cached
-    }
     const validators = registry.forStage('background')
+    const routeReaders = validators.filter(v => v.readsRoutes)
+    const ownManifest = validators.filter(v => !v.readsRoutes)
     const renderedOutput = makeRenderedOutputAccess(site)
+    const issues = [
+      ...(await runCached(cacheKey(item, hash), ownManifest, site, item, manifest, renderedOutput)),
+      ...(routeReaders.length === 0
+        ? []
+        : await runCached(
+            `${cacheKey(item, hash)}:routes:${routesFingerprint(site)}`,
+            routeReaders,
+            site,
+            item,
+            manifest,
+            renderedOutput,
+          )),
+    ]
+    setIssues(item.itemPath, issues)
+    return issues
+  }
+
+  async function runCached(
+    key: string,
+    validators: readonly Validator[],
+    site: Site,
+    item: SavedItem,
+    manifest: PageManifest | FragmentManifest,
+    renderedOutput: RenderedOutputAccess,
+  ): Promise<Issue[]> {
+    const cached = await cache.get<Issue[]>(key)
+    if (cached !== null) return cached
     const issues: Issue[] = []
     for (const v of validators) {
       try {
@@ -189,7 +219,6 @@ export function createValidationScanner(opts: CreateScannerOptions): ValidationS
       }
     }
     await cache.set(key, issues)
-    setIssues(item.itemPath, issues)
     return issues
   }
 
@@ -260,6 +289,7 @@ export function createValidationScanner(opts: CreateScannerOptions): ValidationS
     for (const path of [...issuesByItem.keys()]) {
       if (!seen.has(path)) issuesByItem.delete(path)
     }
+    lastRoutes = routesFingerprint(site)
 
     return { site, durationMs: Date.now() - start, scanned }
   }
@@ -312,11 +342,37 @@ export function createValidationScanner(opts: CreateScannerOptions): ValidationS
     let scanned = 0
 
     const targets = await targetsForCause(cause, site, contentRoot)
+    const done = new Set<string>()
     for (const target of targets) {
       const manifest = manifestForItem(site, target)
       if (!manifest) continue // item disappeared between save and rescan
+      done.add(target.itemPath)
       await validateItem(site, target, manifest)
       scanned++
+    }
+
+    const routes = routesFingerprint(site)
+    if (routes !== lastRoutes) {
+      // A page was added, removed or moved, so links on any page may have
+      // changed. Re-check every page; only route-reading validators miss
+      // the cache. Fragments are left out: they have no rendered links.
+      const live = new Set<string>()
+      for (const entry of allPageEntries(site)) {
+        const item: SavedItem = {
+          kind: 'page',
+          name: entry.name,
+          itemPath: itemPathFor('page', entry.page.dir, entry.locale),
+        }
+        live.add(item.itemPath)
+        if (done.has(item.itemPath)) continue
+        done.add(item.itemPath)
+        await validateItem(site, item, entry.page)
+        scanned++
+      }
+      for (const path of [...issuesByItem.keys()]) {
+        if (path.startsWith('pages/') && !live.has(path)) issuesByItem.delete(path)
+      }
+      lastRoutes = routes
     }
 
     emit({ durationMs: Date.now() - start, scanned, totalIssues: totalIssues(), cause })
@@ -373,6 +429,19 @@ function canonicalJson(value: unknown): string {
 
 function cacheKey(item: SavedItem, contentHash: string): string {
   return `validation:${item.kind}:${encodePath(item.itemPath)}:${contentHash}`
+}
+
+/**
+ * Fingerprint of every page route, language versions included. Changes when a
+ * page is created, deleted, renamed or given another route.
+ */
+function routesFingerprint(site: Site): string {
+  const routes: string[] = []
+  for (const page of site.pages.values()) if (page.route) routes.push(page.route)
+  for (const entry of site.pageLocales.values()) {
+    for (const variant of entry.locales.values()) if (variant.route) routes.push(variant.route)
+  }
+  return createHash('sha256').update(routes.sort().join('\n')).digest('hex').slice(0, 16)
 }
 
 function encodePath(path: string): string {

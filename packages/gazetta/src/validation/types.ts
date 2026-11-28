@@ -139,6 +139,12 @@ export interface Validator {
   readonly source: string
   readonly name: string
   readonly stages: readonly ValidationStage[]
+  /**
+   * True when the result also depends on the site's page routes, not only on
+   * the item's own manifest (broken-links). The background scanner re-runs
+   * these on every page when a route is added, removed or changed.
+   */
+  readonly readsRoutes?: boolean
   defaultSeverity(stage: ValidationStage): Severity
   validate(input: ValidatorInput): Promise<Issue[]>
 }

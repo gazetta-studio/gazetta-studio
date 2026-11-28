@@ -77,6 +77,7 @@ Per [team-preferences.md rule 17](team-preferences.md): "Build and validate, don
   - Incremental rescan triggered by:
     - File watcher events in `gazetta dev` (manifest, template, asset changes — dev-only since `gazetta serve` has no watcher)
     - Save handler in both `dev` and `serve` modes — Cut 1's save-delta path notifies the scanner of committed changes, scanner re-validates the affected item plus its transitive dependents (via `findDependentsFromSidecars({ fragment })` for fragment edits, `readRefsForAsset(name)` for asset edits)
+    - Route changes: when a rescan finds a page route added, removed or changed, it re-checks every page with the validators that read routes (`readsRoutes`: `broken-links`); their cache entry includes a fingerprint of the site's routes, so other validators hit the cache and fragments aren't re-checked ([#1303](https://github.com/gazetta-studio/gazetta-studio/issues/1303))
   - Per-item validation cache backed by `AdminCache.MemoryCache`, keyed by content hash; only re-runs when something material changed
   - Template-edit invalidation in v1: full-site rescan as fallback (no `template-deps` reverse-dep relation ships; see "Deferred from Cut 2" below)
   - Result store keyed by item path
@@ -163,7 +164,7 @@ Per [team-preferences.md rule 17](team-preferences.md): "Build and validate, don
 
 **Risk:** low. The check adds no dependency (JSDOM already ships for Cut 3's accessibility validator); the heavy work (pre-publish framework) is the same machinery Cut 3 already exercises.
 
-**Why this is last:** these validators are valuable but not critical for daily editor UX. The publish gate earns its place at the operator's commitment moment; `broken-links` also runs in the background scan, so its warnings show in Site health before a publish ([#1303](https://github.com/gazetta-studio/gazetta-studio/issues/1303): Site health can miss a link broken by deleting the page it points at).
+**Why this is last:** these validators are valuable but not critical for daily editor UX. The publish gate earns its place at the operator's commitment moment; `broken-links` also runs in the background scan, so its warnings show in Site health before a publish, including links broken by deleting, renaming or moving the page they point at ([#1303](https://github.com/gazetta-studio/gazetta-studio/issues/1303)).
 
 **Lighthouse not in scope.** Originally listed alongside linkinator as a Cut 4 validator; deferred indefinitely (see "What's deferred from this plan" below). Reason: accessibility is covered better by direct axe-core; SEO is covered by `seo-plan.md`'s primitives; the remaining performance + best-practices value doesn't justify the ~200MB Chromium + Lighthouse deps, the 5-15s per-page runtime, or the maintenance burden of tracking Lighthouse's evolving scoring methodology. Operators wanting performance budgets at publish use CI-side Lighthouse (`treosh/lighthouse-ci-action`) or PageSpeed Insights. The pre-publish audit framework supports adding a `lighthouse` validator later if concrete operator demand surfaces — it's one more validator slotting into the existing framework.
 
