@@ -236,4 +236,38 @@ describe('broken-links route set (#1294)', () => {
     expect(pageReads).toBe(1)
     expect(localeReads).toBe(1)
   })
+  it.each([
+    ['embedded placeholder', '<img src="/assets/__missing__.svg">', '/assets/__missing__.svg'],
+    ['downloadable placeholder', '<a href="/assets/__missing__">file</a>', '/assets/__missing__'],
+    ['relative placeholder', '<img src="assets/__missing__.svg">', 'assets/__missing__.svg'],
+    ['placeholder with a query', '<img src="/assets/__missing__.svg?w=400">', '/assets/__missing__.svg?w=400'],
+  ])('flags the missing-asset placeholder (%s)', async (_label, html, ref) => {
+    const site = buildSite({ home: '/' })
+    const issues = await brokenLinks.validate({
+      stage: 'background',
+      site,
+      contentRoot: stubRoot,
+      storage: stubStorage,
+      scope: { kind: 'background', item, manifest: { template: 't', content: {} } },
+      renderedOutput: renderedAs(html),
+    })
+    expect(issues).toHaveLength(1)
+    expect(issues[0].severity).toBe('warn')
+    expect(issues[0].subject).toBe(ref)
+    expect(issues[0].message).toContain('asset')
+  })
+
+  it('accepts a real asset whose name starts with __missing__', async () => {
+    const site = buildSite({ home: '/' })
+    const html = '<img src="/assets/__missing__-ab12cd34.svg">'
+    const issues = await brokenLinks.validate({
+      stage: 'background',
+      site,
+      contentRoot: stubRoot,
+      storage: stubStorage,
+      scope: { kind: 'background', item, manifest: { template: 't', content: {} } },
+      renderedOutput: renderedAs(html),
+    })
+    expect(issues).toEqual([])
+  })
 })
