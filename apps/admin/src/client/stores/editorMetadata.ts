@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, reactive, toRaw } from 'vue'
 import type { PageMetadata } from '../api/client.js'
 import { type ManifestFileKey, manifestFileKeyFromString, manifestFileKeyToString } from '../utils/manifestFileKey.js'
+import { plainCopy } from '../utils/plainCopy.js'
 
 /** Page metadata as stored: the fields the form shows, plus any keys it doesn't. */
 export type MetadataValue = NonNullable<PageMetadata> & Record<string, unknown>
@@ -29,9 +30,9 @@ export function hasNoindex(robots: unknown): boolean {
   return typeof robots === 'string' && robots.includes('noindex')
 }
 
-/** A plain copy. JSON, because the loaded value is often a Vue proxy, which structuredClone rejects. */
+/** A plain copy of a metadata object; anything that isn't a plain object becomes `{}`. */
 function copy(value: unknown): MetadataValue {
-  return value && typeof value === 'object' && !Array.isArray(value) ? JSON.parse(JSON.stringify(value)) : {}
+  return value && typeof value === 'object' && !Array.isArray(value) ? plainCopy(value as MetadataValue) : {}
 }
 
 function canonical(value: unknown): string {

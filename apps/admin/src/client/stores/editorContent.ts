@@ -1,7 +1,4 @@
-function deepClone<T>(obj: T): T {
-  return JSON.parse(JSON.stringify(obj))
-}
-
+import { plainCopy } from '../utils/plainCopy.js'
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { EditorMount } from 'gazetta/types'
@@ -60,8 +57,8 @@ export const useEditorContentStore = defineStore('editorContent', () => {
     fragmentLink.value = null
 
     target.value = t
-    content.value = editedContent ? deepClone(editedContent) : deepClone(t.content)
-    saved.value = deepClone(t.content)
+    content.value = editedContent ? plainCopy(editedContent) : plainCopy(t.content)
+    saved.value = plainCopy(t.content)
     savedJson.value = JSON.stringify(t.content)
     customEditorMount.value = null
     customEditorLoading.value = !!(t.hasEditor && t.editorUrl)
@@ -92,13 +89,13 @@ export const useEditorContentStore = defineStore('editorContent', () => {
    * Content typed while the save ran differs from it, so it stays dirty.
    */
   function markSaved(written: Record<string, unknown>) {
-    saved.value = deepClone(written)
+    saved.value = plainCopy(written)
     savedJson.value = JSON.stringify(written)
   }
 
   function discard() {
     if (!target.value || !saved.value) return
-    content.value = deepClone(saved.value)
+    content.value = plainCopy(saved.value)
     mountVersion.value++
   }
 

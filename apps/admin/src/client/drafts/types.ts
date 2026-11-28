@@ -43,8 +43,3 @@ export interface DraftStore {
 export function ownerOf(me: { id: string; role: string; trustMode: string }): string {
   return `${me.trustMode}:${me.id}:${me.role}`
 }
-
-/** Strip reactive proxies and anything non-JSON before storing. */
-export function plainCopy<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T
-}
