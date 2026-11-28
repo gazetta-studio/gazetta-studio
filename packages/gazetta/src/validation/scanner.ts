@@ -370,7 +370,7 @@ export function createValidationScanner(opts: CreateScannerOptions): ValidationS
         scanned++
       }
       for (const path of [...issuesByItem.keys()]) {
-        if (path.startsWith('pages/') && !live.has(path)) issuesByItem.delete(path)
+        if (isPageManifestPath(path) && !live.has(path)) issuesByItem.delete(path)
       }
       lastRoutes = routes
     }
@@ -442,6 +442,11 @@ function routesFingerprint(site: Site): string {
     for (const variant of entry.locales.values()) if (variant.route) routes.push(variant.route)
   }
   return createHash('sha256').update(routes.sort().join('\n')).digest('hex').slice(0, 16)
+}
+
+/** A page's manifest path, wherever the content root puts `pages/`. */
+function isPageManifestPath(path: string): boolean {
+  return /(?:^|\/)page(?:\.[^/]+)?\.json$/.test(path)
 }
 
 function encodePath(path: string): string {

@@ -20,6 +20,7 @@ export const dynamicRouteConflict: Validator = {
   source: 'gazetta',
   name: 'dynamic-route-conflict',
   stages: ['save-delta', 'background', 'pre-publish', 'cli'] as const,
+  readsRoutes: true,
 
   defaultSeverity() {
     return 'error'
