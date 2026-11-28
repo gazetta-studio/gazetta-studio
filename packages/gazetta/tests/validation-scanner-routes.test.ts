@@ -14,6 +14,7 @@ import { createMemoryCache } from '../src/cache/memory.js'
 import { createValidatorRegistry } from '../src/validation/registry.js'
 import { createValidationScanner } from '../src/validation/scanner.js'
 import { brokenLinks } from '../src/validation/validators/broken-links.js'
+import { dynamicRouteConflict } from '../src/validation/validators/dynamic-route-conflict.js'
 import type { Validator } from '../src/validation/types.js'
 import { memoryStorage } from './_helpers/memory-storage.js'
 
@@ -78,6 +79,7 @@ function setup(site: Site, validators: Validator[]) {
 describe('validation scanner: validators that read routes (#1303)', () => {
   it('broken-links declares that it reads routes', () => {
     expect(brokenLinks.readsRoutes).toBe(true)
+    expect(dynamicRouteConflict.readsRoutes).toBe(true)
   })
 
   it('re-flags a link when the page it points at is deleted', async () => {
@@ -182,5 +184,32 @@ describe('validation scanner: validators that read routes (#1303)', () => {
     await scanner.rescan({ kind: 'manifest', item: { kind: 'page', name: 'b', itemPath: 'pages/b/page.json' } })
 
     expect(scanner.issuesFor('pages/b/page.json')).toHaveLength(0)
+  })
+
+  it('drops a deleted page under a content-root prefix', async () => {
+    const site = buildSite({
+      home: { route: '/', template: 't', content: {} },
+      b: { route: '/b', template: 't', content: {} },
+    })
+    for (const page of site.pages.values()) page.dir = `sites/main/${page.dir}`
+    const own: Validator = {
+      ...counter().validator,
+      async validate({ scope }) {
+        return scope.kind === 'background'
+          ? [{ validator: 'own-manifest', severity: 'info', message: 'x', itemPath: scope.item.itemPath }]
+          : []
+      },
+    }
+    const scanner = setup(site, [own])
+    await scanner.scanAll()
+    expect(scanner.issuesFor('sites/main/pages/b/page.json')).toHaveLength(1)
+
+    site.pages.delete('b')
+    await scanner.rescan({
+      kind: 'manifest',
+      item: { kind: 'page', name: 'b', itemPath: 'sites/main/pages/b/page.json' },
+    })
+
+    expect(scanner.issuesFor('sites/main/pages/b/page.json')).toHaveLength(0)
   })
 })
